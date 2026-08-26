@@ -18,6 +18,7 @@
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+html { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -31,8 +32,10 @@ body {
 button, input, textarea, select { font: inherit; color: inherit; }
 button {
   cursor: pointer;
-  background: none;
+  background-color: transparent;
   border: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 code { font-family: var(--mono); font-size: 0.92em; }
 
@@ -120,15 +123,15 @@ code { font-family: var(--mono); font-size: 0.92em; }
   align-items: center;
   width: 100%;
   text-align: left;
-  background: #121826;
+  background-color: #121826;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px;
   margin-bottom: 6px;
-  color: var(--text);
+  color: #e8edf7;
 }
 .host:hover, .host.is-open {
-  background: #1a2233;
+  background-color: #1a2233;
   border-color: #2e3d58;
 }
 .host .dot {
@@ -137,27 +140,32 @@ code { font-family: var(--mono); font-size: 0.92em; }
   border-radius: 50%;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 20%, transparent);
 }
-button.meta {
+.host .meta,
+button.meta,
+.meta {
   display: flex;
   flex-direction: column;
   min-width: 0;
   width: 100%;
-  background: transparent;
+  background-color: transparent;
   border: 0;
   padding: 0;
   text-align: left;
-  color: var(--text);
+  color: #e8edf7;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .host .meta b {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
+  color: #e8edf7;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .host .meta small {
-  color: var(--muted);
+  color: #8b95a8;
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;

@@ -86,10 +86,10 @@
         return `
           <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
             <span class="dot" style="--dot:${s.color || "#5ee0b5"};background:${statusColor(s.status)}"></span>
-            <button class="meta" data-attach="${s.id}">
+            <div class="meta" role="button" tabindex="0" data-attach="${s.id}">
               <b>${escapeHtml(s.title)}</b>
               <small>${escapeHtml(s.status)} · ${s.clients} attached</small>
-            </button>
+            </div>
             <div class="host-tools">
               <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
             </div>
@@ -117,10 +117,10 @@
         html.push(`
           <div class="host" data-id="${h.id}">
             <span class="dot" style="--dot:${h.color};background:${h.color}"></span>
-            <button class="meta" data-connect="${h.id}">
+            <div class="meta" role="button" tabindex="0" data-connect="${h.id}">
               <b>${escapeHtml(h.name)}</b>
               <small>${escapeHtml(hostSubtitle(h))}</small>
-            </button>
+            </div>
             <div class="host-tools">
               <button class="tiny" data-edit="${h.id}" title="Edit">Edit</button>
               <button class="tiny" data-delete="${h.id}" title="Remove">✕</button>
@@ -139,10 +139,10 @@
         .map(
           (s) => `
         <div class="snippet-row">
-          <button class="meta" data-run="${s.id}">
+          <div class="meta" role="button" tabindex="0" data-run="${s.id}">
             <b>${escapeHtml(s.name)}</b>
             <small>${escapeHtml(s.command.trim())}</small>
-          </button>
+          </div>
           <div>
             <button class="tiny" data-edit-snippet="${s.id}">Edit</button>
             <button class="tiny" data-delete-snippet="${s.id}">✕</button>
