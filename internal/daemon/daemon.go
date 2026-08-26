@@ -14,16 +14,58 @@ import (
 )
 
 func ClientBase(listenAddr string) string {
-	_, port, err := net.SplitHostPort(listenAddr)
+	host, port, err := net.SplitHostPort(listenAddr)
 	if err != nil {
 		port = "47241"
+		host = listenAddr
 	}
-	return "http://127.0.0.1:" + port
+	if isWildcard(host) {
+		host = "127.0.0.1"
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
+func isWildcard(host string) bool {
+	switch strings.ToLower(strings.Trim(host, "[]")) {
+	case "", "0.0.0.0", "::", "*":
+		return true
+	default:
+		return false
+	}
+}
+
+func isLocalHost(host string) bool {
+	h := strings.ToLower(strings.Trim(host, "[]"))
+	return isWildcard(h) || h == "127.0.0.1" || h == "::1" || h == "localhost"
+}
+
+func RemoteURL() string {
+	return strings.TrimRight(os.Getenv("KEEL_URL"), "/")
+}
+
+func Token() string {
+	return strings.TrimSpace(os.Getenv("KEEL_TOKEN"))
+}
+
+func authHeaders() http.Header {
+	h := make(http.Header)
+	if t := Token(); t != "" {
+		h.Set("Authorization", "Bearer "+t)
+	}
+	return h
 }
 
 func Healthy(base string) bool {
 	client := &http.Client{Timeout: 400 * time.Millisecond}
-	res, err := client.Get(strings.TrimRight(base, "/") + "/api/health")
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(base, "/")+"/api/health", nil)
+	if err != nil {
+		return false
+	}
+	req.Header = authHeaders()
+	res, err := client.Do(req)
 	if err != nil {
 		return false
 	}
@@ -39,10 +81,21 @@ func Healthy(base string) bool {
 }
 
 func Ensure(listenAddr, dataDir string) (string, error) {
+	if remote := RemoteURL(); remote != "" {
+		if !Healthy(remote) {
+			return "", fmt.Errorf("remote runtime not healthy at %s (set KEEL_TOKEN if the runtime requires it)", remote)
+		}
+		return remote, nil
+	}
 	base := ClientBase(listenAddr)
 	if Healthy(base) {
 		return base, nil
 	}
+	host, _, err := net.SplitHostPort(listenAddr)
+	if err == nil && !isLocalHost(host) {
+		return "", fmt.Errorf("runtime not reachable at %s; start it with keel server, or set KEEL_URL", base)
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err

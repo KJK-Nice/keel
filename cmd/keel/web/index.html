@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Keel — SSH workspace</title>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=2" />
+  <link rel="stylesheet" href="/css/app.css?v=3" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%230b0f16'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%235ee0b5' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
 </head>
 <body>
@@ -20,7 +20,7 @@
         </div>
         <div>
           <strong>Keel</strong>
-          <span>runtime + herd</span>
+          <span>shared runtime</span>
         </div>
       </div>
 
@@ -61,7 +61,11 @@
           <span></span><span></span><span></span>
         </button>
         <div class="tabs" id="tabs"></div>
-        <div class="bar-meta" id="bar-meta">No session</div>
+        <div class="bar-meta" id="bar-meta">
+          <span id="bar-status">No session</span>
+          <div class="control-widget" id="control-widget" hidden></div>
+          <button class="tiny" id="btn-share" hidden title="Copy share link">Share</button>
+        </div>
       </header>
 
       <section class="stage" id="stage">
@@ -70,17 +74,18 @@
           <h1>The herd lives in the server, not this tab.</h1>
           <p class="lede">
             Spawn a shell, detach, come back from the web UI or <code>keel tui</code>.
-            Closing a tab does not kill the session. That is the Herdr posture:
-            a runtime owns the PTYs, every UI is just a client.
+            Closing a tab does not kill the session. One person drives; everyone else follows
+            in real time, the same way Termius Multiplayer works.
           </p>
           <div class="welcome-actions">
             <button class="btn btn-primary" id="btn-welcome-local">Open local shell</button>
             <button class="btn btn-ghost" id="btn-welcome-host">Add an SSH host</button>
           </div>
           <ul class="tips">
-            <li>Herd lists every live session, including ones nobody is watching.</li>
+            <li>Herd lists every live session and who is attached.</li>
             <li>Tab close detaches. Kill from the herd if you want it gone.</li>
-            <li><code>keel tui</code> attaches the same runtime from a terminal.</li>
+            <li>Followers watch; the driver types. Pass control from the tab widget.</li>
+            <li>Share a session with a link. <code>keel tui --name you</code> joins the same runtime.</li>
           </ul>
         </div>
         <div class="terminals" id="terminals"></div>
@@ -161,10 +166,23 @@
     </form>
   </dialog>
 
+  <div class="gate" id="gate" hidden>
+    <form id="gate-form">
+      <p class="eyebrow">Multiplayer</p>
+      <h2>Join the herd</h2>
+      <p class="hint">Pick a display name. If the runtime has a share token, enter it — or open a link that already includes <code>?token=</code>.</p>
+      <label>Name<input name="name" required maxlength="32" placeholder="alice" autocomplete="nickname" /></label>
+      <label>Share token<input name="token" type="password" placeholder="Optional unless the runtime requires it" autocomplete="off" /></label>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Join</button>
+      </div>
+    </form>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=2"></script>
+  <script src="/js/app.js?v=3"></script>
 </body>
 </html>

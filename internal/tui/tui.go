@@ -44,10 +44,16 @@ type streamMsg struct {
 }
 
 type dataMsg struct {
-	sessions []runtime.Info
-	hosts    []store.Host
-	snippets []store.Snippet
-	err      error
+	sessions    []runtime.Info
+	hosts       []store.Host
+	snippets    []store.Snippet
+	err         error
+	hasSessions bool
+}
+
+type Options struct {
+	Token string
+	Name  string
 }
 
 type model struct {
@@ -63,17 +69,23 @@ type model struct {
 	snippets []store.Snippet
 	active   string
 	conn     *Conn
+	herd     *HerdConn
 	vt       vt10x.Terminal
 	status   string
 	err      error
+	name     string
 }
 
-func Run(base string) error {
+func Run(base string, opts Options) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return fmt.Errorf("keel tui needs a real terminal; start the runtime with: keel server")
 	}
+	if opts.Name == "" {
+		opts.Name = "guest"
+	}
 	m := model{
-		api:    NewAPI(base),
+		api:    NewAPI(base, opts.Token, opts.Name),
+		name:   opts.Name,
 		status: "attach a session, or enter on a host to spawn one",
 	}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
@@ -82,16 +94,127 @@ func Run(base string) error {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.refresh(), tick())
+	return tea.Batch(m.refresh(), m.connectHerd(), tick())
 }
 
 func tick() tea.Cmd {
-	return tea.Tick(1200*time.Millisecond, func(time.Time) tea.Msg {
+	return tea.Tick(2500*time.Millisecond, func(time.Time) tea.Msg {
 		return tickMsg{}
 	})
 }
 
 type tickMsg struct{}
+
+type herdMsg struct {
+	ev HerdEvent
+}
+
+func (m model) connectHerd() tea.Cmd {
+	api := m.api
+	return func() tea.Msg {
+		conn, err := api.Herd()
+		if err != nil {
+			return dataMsg{err: err}
+		}
+		return herdAttachedMsg{conn: conn}
+	}
+}
+
+type herdAttachedMsg struct {
+	conn *HerdConn
+}
+
+func listenHerd(ch <-chan HerdEvent) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-ch
+		if !ok {
+			return herdMsg{ev: HerdEvent{Closed: true}}
+		}
+		return herdMsg{ev: ev}
+	}
+}
+
+func (m model) refreshInventory() tea.Cmd {
+	api := m.api
+	return func() tea.Msg {
+		hosts, err := api.Hosts()
+		if err != nil {
+			return dataMsg{err: err}
+		}
+		snippets, err := api.Snippets()
+		if err != nil {
+			return dataMsg{err: err}
+		}
+		return dataMsg{hosts: hosts, snippets: snippets}
+	}
+}
+
+func (m *model) driving() bool {
+	return m.conn != nil && m.conn.You.Role == runtime.RoleDriver
+}
+
+func (m *model) applyHerd(ev HerdEvent) {
+	switch ev.Type {
+	case "snapshot":
+		m.sessions = ev.Sessions
+	case "spawn":
+		m.upsertSession(ev.Session)
+	case "kill":
+		id := ev.ID
+		if id == "" {
+			id = ev.Session.ID
+		}
+		out := m.sessions[:0]
+		for _, s := range m.sessions {
+			if s.ID != id {
+				out = append(out, s)
+			}
+		}
+		m.sessions = out
+	case "update":
+		m.upsertSession(ev.Session)
+	}
+}
+
+func (m *model) upsertSession(info runtime.Info) {
+	if info.ID == "" {
+		return
+	}
+	for i, s := range m.sessions {
+		if s.ID == info.ID {
+			if info.Title == "" {
+				info.Title = s.Title
+			}
+			if info.HostID == "" {
+				info.HostID = s.HostID
+				info.Color = s.Color
+				info.Subtitle = s.Subtitle
+			}
+			m.sessions[i] = info
+			return
+		}
+	}
+	m.sessions = append(m.sessions, info)
+}
+
+func (m model) controlCmd() tea.Cmd {
+	if m.conn == nil {
+		return nil
+	}
+	conn := m.conn
+	return func() tea.Msg {
+		var err error
+		if conn.You.Role == runtime.RoleOwner || conn.You.Role == runtime.RoleDriver {
+			err = conn.TakeControl()
+		} else {
+			err = conn.RequestControl()
+		}
+		if err != nil {
+			return dataMsg{err: err}
+		}
+		return nil
+	}
+}
 
 func (m model) refresh() tea.Cmd {
 	api := m.api
@@ -108,7 +231,7 @@ func (m model) refresh() tea.Cmd {
 		if err != nil {
 			return dataMsg{err: err}
 		}
-		return dataMsg{sessions: sessions, hosts: hosts, snippets: snippets}
+		return dataMsg{sessions: sessions, hosts: hosts, snippets: snippets, hasSessions: true}
 	}
 }
 
@@ -127,20 +250,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.resizeVT()
-		if m.conn != nil {
+		if m.conn != nil && m.driving() {
 			c, r := m.termSize()
 			_ = m.conn.Resize(c, r)
 		}
 		return m, nil
 	case tickMsg:
-		return m, tea.Batch(m.refresh(), tick())
+		cmds := []tea.Cmd{m.refreshInventory(), tick()}
+		if m.herd == nil {
+			cmds = append(cmds, m.connectHerd())
+		}
+		return m, tea.Batch(cmds...)
+	case herdAttachedMsg:
+		if m.herd != nil {
+			m.herd.Close()
+		}
+		m.herd = msg.conn
+		return m, listenHerd(msg.conn.Events)
+	case herdMsg:
+		if msg.ev.Closed {
+			if m.herd != nil {
+				m.herd.Close()
+			}
+			m.herd = nil
+			return m, nil
+		}
+		m.applyHerd(msg.ev)
+		m.rebuildItems()
+		if m.herd != nil {
+			return m, listenHerd(m.herd.Events)
+		}
+		return m, nil
 	case dataMsg:
 		if msg.err != nil {
 			m.err = msg.err
 			return m, nil
 		}
 		m.err = nil
-		m.sessions = msg.sessions
+		if msg.hasSessions {
+			m.sessions = msg.sessions
+		}
 		m.hosts = msg.hosts
 		m.snippets = msg.snippets
 		m.rebuildItems()
@@ -177,6 +326,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.ev.Kind == "status" && msg.ev.Message != "" {
 			m.status = msg.ev.Message
+		}
+		if msg.ev.Kind == "presence" || msg.ev.Kind == "control" || msg.ev.Kind == "ready" {
+			if msg.ev.Message != "" {
+				m.status = msg.ev.Message
+			}
+			if len(msg.ev.Info.Attached) > 0 {
+				m.upsertSession(msg.ev.Info)
+				m.rebuildItems()
+			}
 		}
 		if m.conn != nil {
 			return m, listen(m.active, m.conn.Events)
@@ -222,6 +380,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "c":
 			return m, m.spawnLocal()
+		case "t":
+			return m, m.controlCmd()
 		case "1", "2", "3", "4":
 			return m, m.sendSnippet(int(key[0] - '1'))
 		}
@@ -236,7 +396,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.focus = focusHerd
 			return m, nil
 		}
-		_ = m.conn.Write(keyBytes(msg))
+		if m.driving() {
+			_ = m.conn.Write(keyBytes(msg))
+		} else {
+			m.status = "following · ctrl+b t requests control"
+		}
 		return m, nil
 	}
 	switch key {
@@ -369,7 +533,7 @@ func (m model) kill(id string) tea.Cmd {
 type killedMsg struct{ id string }
 
 func (m model) sendSnippet(i int) tea.Cmd {
-	if i < 0 || i >= len(m.snippets) || m.conn == nil {
+	if i < 0 || i >= len(m.snippets) || m.conn == nil || !m.driving() {
 		return nil
 	}
 	cmd := m.snippets[i].Command
@@ -438,7 +602,7 @@ func (m model) viewSidebar() string {
 			if it.session.ID == m.active {
 				mark = " ●"
 			}
-			line = fmt.Sprintf("%s%s %-12s %s%s", cursor, dot, trunc(it.session.Title, 12), it.session.Status, mark)
+			line = fmt.Sprintf("%s%s %-12s %s%s", cursor, dot, trunc(it.session.Title, 12), people(it.session), mark)
 		} else {
 			line = fmt.Sprintf("%s+ %s", cursor, trunc(it.host.Name, 20))
 		}
@@ -466,8 +630,13 @@ func (m model) viewMain() string {
 		for _, s := range m.sessions {
 			if s.ID == m.active {
 				title = s.Title + " · " + string(s.Status)
-				if s.Clients > 0 {
-					title += fmt.Sprintf(" · %d attached", s.Clients)
+				if m.driving() {
+					title += " · driving"
+				} else if m.conn != nil {
+					title += " · following"
+				}
+				if names := attachedNames(s); names != "" {
+					title += " · " + names
 				}
 			}
 		}
@@ -486,9 +655,9 @@ func (m model) viewMain() string {
 }
 
 func (m model) viewFooter() string {
-	help := "ctrl+b d detach  enter attach/spawn  x kill  n local  j/k  q quit"
+	help := "ctrl+b d detach  ctrl+b t control  enter attach/spawn  x kill  n local  j/k  q quit"
 	if m.prefix {
-		help = "PREFIX  d detach  x kill  c local  h herd  1-4 snippet"
+		help = "PREFIX  d detach  t control  x kill  c local  h herd  1-4 snippet"
 	}
 	if m.err != nil {
 		help = m.err.Error()
@@ -500,6 +669,38 @@ func (m model) viewFooter() string {
 		Background(lipgloss.Color("#121826")).
 		Width(m.width).
 		Render(" " + trunc(help, max(10, m.width-2)))
+}
+
+func people(s runtime.Info) string {
+	if len(s.Attached) == 0 {
+		return string(s.Status)
+	}
+	driver := ""
+	for _, c := range s.Attached {
+		if c.Role == runtime.RoleDriver {
+			driver = c.Name
+			break
+		}
+	}
+	if driver == "" {
+		return fmt.Sprintf("%s · %d", s.Status, len(s.Attached))
+	}
+	return trunc(driver+"*", 12)
+}
+
+func attachedNames(s runtime.Info) string {
+	if len(s.Attached) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(s.Attached))
+	for _, c := range s.Attached {
+		n := c.Name
+		if c.Role == runtime.RoleDriver {
+			n += "*"
+		}
+		parts = append(parts, n)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func statusDot(st runtime.Status) string {

@@ -257,7 +257,88 @@ button.meta,
 .tab.is-error .status { background: var(--danger); }
 .tab .close { color: var(--muted); background: none; border: 0; padding: 0 2px; }
 
-.bar-meta { color: var(--muted); font-size: 12px; padding-right: 8px; white-space: nowrap; }
+.bar-meta {
+  color: var(--muted);
+  font-size: 12px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#bar-status { white-space: nowrap; }
+.control-widget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.people {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  max-width: 280px;
+}
+.chip-person {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.chip-person.is-driver {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chip-person.is-grantable { cursor: pointer; }
+.chip-person.is-grantable:hover { border-color: #6ea8ff; }
+.term-wrap.is-follow { outline: 1px solid #243044; }
+.follow-banner {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 2;
+  font-size: 11px;
+  color: var(--muted);
+  background: #121826cc;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  pointer-events: none;
+}
+
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(7, 9, 13, 0.86);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.gate[hidden] { display: none; }
+.gate form {
+  width: min(420px, 100%);
+  background: #10151f;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+  box-shadow: var(--shadow);
+}
+.gate h2 { margin: 0; font-size: 22px; }
+.gate label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+.gate input {
+  background: #0b0f16;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  color: var(--text);
+}
 
 .stage { flex: 1; min-height: 0; position: relative; }
 .welcome {
@@ -280,6 +361,7 @@ button.meta,
 .terminals { position: absolute; inset: 0; }
 .term-wrap {
   display: none;
+  position: relative;
   height: 100%;
   padding: 10px 12px 0;
 }
@@ -405,5 +487,5 @@ button.meta,
   .menu-btn { display: flex; }
   .backdrop.is-open { display: block; }
   .welcome h1 { font-size: 26px; }
-  .bar-meta { display: none; }
+  .bar-meta { flex-wrap: wrap; max-width: 55vw; }
 }
