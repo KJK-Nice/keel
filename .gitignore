@@ -1,0 +1,6 @@
+/bin/
+/data/*.json
+*.exe
+.DS_Store
+.idea/
+.vscode/

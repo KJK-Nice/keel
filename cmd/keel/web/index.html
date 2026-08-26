@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Keel — SSH workspace</title>
+  <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%230b0f16'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%235ee0b5' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28">
+            <rect rx="8" width="32" height="32" fill="#121826"/>
+            <path d="M7 22 L16 8 L25 22" fill="none" stroke="#5ee0b5" stroke-width="2.4" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <strong>Keel</strong>
+          <span>SSH workspace</span>
+        </div>
+      </div>
+
+      <div class="search">
+        <input id="search" type="search" placeholder="Search hosts  ⌘K" autocomplete="off" />
+      </div>
+
+      <div class="side-tabs" role="tablist">
+        <button class="side-tab is-active" data-side="hosts">Hosts</button>
+        <button class="side-tab" data-side="snippets">Snippets</button>
+      </div>
+
+      <div class="side-panel is-active" id="hosts-panel">
+        <div id="host-list" class="host-list"></div>
+        <div class="side-actions">
+          <button class="btn btn-primary" id="btn-new-host">New host</button>
+          <button class="btn btn-ghost" id="btn-quick">Quick connect</button>
+        </div>
+      </div>
+
+      <div class="side-panel" id="snippets-panel">
+        <div id="snippet-list" class="snippet-list"></div>
+        <div class="side-actions">
+          <button class="btn btn-primary" id="btn-new-snippet">New snippet</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="workspace-bar">
+        <button class="icon-btn menu-btn" id="btn-menu" aria-label="Toggle hosts">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="tabs" id="tabs"></div>
+        <div class="bar-meta" id="bar-meta">No session</div>
+      </header>
+
+      <section class="stage" id="stage">
+        <div class="welcome" id="welcome">
+          <p class="eyebrow">Go-powered SSH client</p>
+          <h1>Pick a host, or open a local shell.</h1>
+          <p class="lede">
+            Keel keeps an inventory of servers, opens real PTY sessions over SSH,
+            and fires saved snippets into the active terminal — the Termius workflow,
+            as a single Go binary.
+          </p>
+          <div class="welcome-actions">
+            <button class="btn btn-primary" id="btn-welcome-local">Open local shell</button>
+            <button class="btn btn-ghost" id="btn-welcome-host">Add an SSH host</button>
+          </div>
+          <ul class="tips">
+            <li>Local Shell is already in the sidebar — click it to connect.</li>
+            <li>Add remote machines with a password or private key.</li>
+            <li>Snippets send the same command into whichever tab is focused.</li>
+          </ul>
+        </div>
+        <div class="terminals" id="terminals"></div>
+      </section>
+
+      <footer class="snippet-bar" id="active-snippets"></footer>
+    </main>
+  </div>
+
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <dialog class="modal" id="host-modal">
+    <form id="host-form">
+      <h2 id="host-modal-title">New host</h2>
+      <input type="hidden" name="id" />
+      <label>Label<input name="name" required placeholder="prod-api" /></label>
+      <label>Group<input name="group" placeholder="Production" /></label>
+      <div class="grid-2">
+        <label>Hostname / IP<input name="address" placeholder="10.0.0.12" /></label>
+        <label>Port<input name="port" type="number" min="0" max="65535" value="22" /></label>
+      </div>
+      <label>Username<input name="username" placeholder="ubuntu" /></label>
+      <label>Authentication
+        <select name="authType">
+          <option value="password">Password</option>
+          <option value="key">Private key</option>
+          <option value="local">Local shell</option>
+        </select>
+      </label>
+      <label data-auth="password">Password
+        <input name="password" type="password" placeholder="Leave blank to keep saved password" autocomplete="new-password" />
+      </label>
+      <label data-auth="key">Private key
+        <textarea name="privateKey" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+      </label>
+      <label data-auth="key">Key passphrase
+        <input name="passphrase" type="password" placeholder="Optional" />
+      </label>
+      <fieldset class="swatches">
+        <legend>Color</legend>
+        <label><input type="radio" name="color" value="#5ee0b5" checked /><span style="background:#5ee0b5"></span></label>
+        <label><input type="radio" name="color" value="#6ea8ff" /><span style="background:#6ea8ff"></span></label>
+        <label><input type="radio" name="color" value="#c084fc" /><span style="background:#c084fc"></span></label>
+        <label><input type="radio" name="color" value="#f5c15d" /><span style="background:#f5c15d"></span></label>
+        <label><input type="radio" name="color" value="#ff6b7a" /><span style="background:#ff6b7a"></span></label>
+        <label><input type="radio" name="color" value="#67e8f9" /><span style="background:#67e8f9"></span></label>
+      </fieldset>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" value="cancel" id="host-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save host</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="quick-modal">
+    <form id="quick-form">
+      <h2>Quick connect</h2>
+      <p class="hint">Paste <code>user@host</code> or <code>user@host:2222</code>. Saved under Quick connect.</p>
+      <label>Target<input name="target" required placeholder="ubuntu@192.168.1.20:22" /></label>
+      <label>Password<input name="password" type="password" required /></label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="quick-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="snippet-modal">
+    <form id="snippet-form">
+      <h2 id="snippet-modal-title">New snippet</h2>
+      <input type="hidden" name="id" />
+      <label>Name<input name="name" required placeholder="disk usage" /></label>
+      <label>Command<textarea name="command" rows="4" required placeholder="df -h"></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="snippet-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save snippet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="/vendor/xterm/xterm.min.js"></script>
+  <script src="/vendor/xterm/addon-fit.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
