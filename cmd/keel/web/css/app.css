@@ -29,7 +29,11 @@ body {
 }
 
 button, input, textarea, select { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+}
 code { font-family: var(--mono); font-size: 0.92em; }
 
 .app {
@@ -116,23 +120,51 @@ code { font-family: var(--mono); font-size: 0.92em; }
   align-items: center;
   width: 100%;
   text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
+  background: #121826;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px;
+  margin-bottom: 6px;
+  color: var(--text);
 }
-.host:hover, .host.is-open { background: #151c2b; border-color: var(--border); }
+.host:hover, .host.is-open {
+  background: #1a2233;
+  border-color: #2e3d58;
+}
 .host .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 20%, transparent);
 }
-.host .meta { display: flex; flex-direction: column; min-width: 0; }
-.host .meta b { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.host .meta small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.host-tools { display: flex; gap: 2px; opacity: 0; }
-.host:hover .host-tools, .host:focus-within .host-tools { opacity: 1; }
+button.meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--text);
+}
+.host .meta b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.host .meta small {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.host-tools { display: flex; gap: 2px; }
+.host-tools .tiny { color: var(--muted); }
 
 .icon-btn, .tiny {
   background: transparent;
