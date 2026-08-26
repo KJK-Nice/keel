@@ -1,51 +1,44 @@
 # Keel
 
-A Termius-style SSH workspace written in Go: host inventory, command snippets, and real PTY sessions in the browser.
+A Termius-style SSH workspace with a **Herdr-style runtime**: the server owns the PTYs, and every UI is just a client.
 
-Go is a strong fit for this kind of client. `golang.org/x/crypto/ssh` is production-grade, goroutines map cleanly onto many concurrent sessions, and the whole app ships as one static binary. The part that is *not* worth rewriting in Go is the terminal emulator itself — that is a years-long project (WezTerm, Alacritty, Windows Terminal). Keel uses xterm.js for rendering and Go for everything behind it: SSH, local PTY, host storage, and the HTTP/WebSocket server.
-
-This first slice is a local workspace, not a cloud-synced team product. There is no account system, no encrypted vault sync, and no mobile app. Bind it to localhost when you run it on your own machine.
-
-## Features
-
-- Host library with groups, search, colors, password or private-key auth
-- Quick connect from `user@host:port`
-- Multi-tab terminals (local shell and SSH)
-- Saved snippets that type into the focused session
-- Trust-on-first-use SSH host keys
-- Local shell so the app is usable with no remote servers
+`keel tui` is a detachable Bubble Tea client. The web UI is another client of the same herd. Close either one and the session keeps running.
 
 ## Run
 
 ```bash
-go run ./cmd/keel
+keel server          # runtime in the foreground (API + web UI)
+keel                 # attach the TUI (starts the runtime if needed)
+keel tui             # same
 ```
-
-Then open [http://127.0.0.1:47241](http://127.0.0.1:47241).
 
 ```bash
-make build        # writes bin/keel
-KEEL_ADDR=127.0.0.1:47241 KEEL_DATA=./data ./bin/keel
-go test ./...
+go run ./cmd/keel server
+# web: http://127.0.0.1:47241
 ```
 
-| Variable    | Default         | Purpose                          |
-|-------------|-----------------|----------------------------------|
-| `KEEL_ADDR` | `0.0.0.0:47241` | Listen address                   |
-| `KEEL_DATA` | `data`          | Directory for `keel.json`        |
+In another terminal:
 
-Hosts, snippets, and known-host fingerprints are stored in `data/keel.json` with mode `0600`. Passwords are kept there in plaintext so this is a **local tool**. Do not expose the port to the internet.
-
-## How it fits together
-
-```
-browser (xterm.js)  --WebSocket-->  Keel (Go)
-                                      ├─ local PTY  (this machine)
-                                      └─ golang.org/x/crypto/ssh
+```bash
+go run ./cmd/keel tui
 ```
 
-A later native desktop shell could wrap the same Go engine with Wails or Fyne. The SSH session code would not need to change.
+| Variable    | Default         | Purpose                   |
+|-------------|-----------------|---------------------------|
+| `KEEL_ADDR` | `0.0.0.0:47241` | Runtime listen address    |
+| `KEEL_DATA` | `data`          | `keel.json`, pid, logs    |
 
-## Why not a full Termius clone in Go?
+## The herd
 
-Termius is mostly product around SSH: encrypted multi-device sync, teams, mobile, SFTP, port forwarding, and a custom terminal UI on every OS. Go handles the protocol and the process model well. Shipping that entire surface is a different project. Keel is the engine + a usable workspace, which is the right first slice.
+- **Spawn** a session from a host (web Hosts, or TUI enter on a host)
+- **Attach** from the Herd list — web tab or TUI pane, including at the same time
+- **Detach** (close the tab, `ctrl+b d`, or `q`) — PTY stays alive
+- **Kill** from the herd when you actually want it gone
+
+TUI keys: `enter` attach/spawn, `j`/`k` move, `x` kill, `n` local shell, `ctrl+b d` detach, `q` quit.
+
+## Why this shape
+
+Go is a good SSH engine. A browser still needs xterm.js. A TUI still needs a VT parser (`vt10x`) to draw a live pane beside the sidebar. Neither is a from-scratch xterm rewrite. The part that makes it feel like Herdr is **server-owned PTYs**, not the renderer.
+
+Hosts and snippets live in `data/keel.json` (mode `0600`). Sessions are in-memory: they survive TUI/web detach, not a runtime restart. This is a local tool — do not expose the port.

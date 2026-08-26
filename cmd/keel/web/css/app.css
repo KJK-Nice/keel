@@ -69,7 +69,7 @@ code { font-family: var(--mono); font-size: 0.92em; }
 
 .side-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
   padding: 10px 12px;
 }
@@ -78,7 +78,8 @@ code { font-family: var(--mono); font-size: 0.92em; }
   border: 1px solid transparent;
   color: var(--muted);
   border-radius: 9px;
-  padding: 7px;
+  padding: 7px 4px;
+  font-size: 12px;
 }
 .side-tab.is-active {
   background: var(--panel);

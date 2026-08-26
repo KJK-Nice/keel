@@ -3,6 +3,7 @@
   const state = {
     hosts: [],
     snippets: [],
+    herd: [],
     sessions: new Map(),
     activeId: null,
     query: "",
@@ -10,6 +11,8 @@
 
   const els = {
     hostList: document.getElementById("host-list"),
+    herdList: document.getElementById("herd-list"),
+    herdEmpty: document.getElementById("herd-empty"),
     snippetList: document.getElementById("snippet-list"),
     tabs: document.getElementById("tabs"),
     terminals: document.getElementById("terminals"),
@@ -68,6 +71,37 @@
     if (h.authType === "local") return "this machine";
     const port = h.port && h.port !== 22 ? `:${h.port}` : "";
     return `${h.username}@${h.address}${port}`;
+  }
+
+  function renderHerd() {
+    if (!state.herd.length) {
+      els.herdList.innerHTML = "";
+      els.herdEmpty.hidden = false;
+      return;
+    }
+    els.herdEmpty.hidden = true;
+    els.herdList.innerHTML = state.herd
+      .map((s) => {
+        const open = [...state.sessions.values()].some((tab) => tab.runtimeId === s.id);
+        return `
+          <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
+            <span class="dot" style="--dot:${s.color || "#5ee0b5"};background:${statusColor(s.status)}"></span>
+            <button class="meta" data-attach="${s.id}">
+              <b>${escapeHtml(s.title)}</b>
+              <small>${escapeHtml(s.status)} · ${s.clients} attached</small>
+            </button>
+            <div class="host-tools">
+              <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
+            </div>
+          </div>`;
+      })
+      .join("");
+  }
+
+  function statusColor(status) {
+    if (status === "ready") return "#5ee0b5";
+    if (status === "connecting") return "#f5c15d";
+    return "#ff6b7a";
   }
 
   function renderHosts() {
@@ -157,20 +191,52 @@
   }
 
   async function loadAll() {
-    const [hosts, snippets] = await Promise.all([api("/api/hosts"), api("/api/snippets")]);
+    const [hosts, snippets, herd] = await Promise.all([
+      api("/api/hosts"),
+      api("/api/snippets"),
+      api("/api/sessions"),
+    ]);
     state.hosts = hosts;
     state.snippets = snippets;
+    state.herd = herd;
     renderHosts();
     renderSnippets();
+    renderHerd();
   }
 
   function localHost() {
     return state.hosts.find((h) => h.authType === "local");
   }
 
-  function openSession(host) {
+  async function openSession(host) {
     closeSidebar();
-    const id = crypto.randomUUID();
+    const termProbe = document.createElement("div");
+    termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
+    document.body.appendChild(termProbe);
+    const probe = new Terminal({ fontSize: 13, fontFamily: "monospace" });
+    probe.open(termProbe);
+    const cols = probe.cols || 80;
+    const rows = probe.rows || 24;
+    probe.dispose();
+    termProbe.remove();
+    const info = await api("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({ hostId: host.id, cols, rows }),
+    });
+    attachRuntime(info);
+    loadAll().catch(() => {});
+  }
+
+  function attachRuntime(info) {
+    const existing = [...state.sessions.values()].find((s) => s.runtimeId === info.id);
+    if (existing) {
+      state.activeId = existing.id;
+      renderTabs();
+      existing.term.focus();
+      return;
+    }
+    closeSidebar();
+    const id = info.id;
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
     els.terminals.appendChild(wrap);
@@ -201,14 +267,14 @@
     term.loadAddon(fit);
     term.open(wrap);
     fit.fit();
-    term.writeln("\x1b[38;2;139;149;168mConnecting…\x1b[0m");
 
     const session = {
       id,
-      hostId: host.id,
-      title: host.name,
-      subtitle: hostSubtitle(host),
-      status: "",
+      runtimeId: info.id,
+      hostId: info.hostId,
+      title: info.title,
+      subtitle: info.subtitle,
+      status: info.status === "ready" ? "is-ready" : "",
       term,
       fit,
       wrap,
@@ -217,10 +283,11 @@
     state.sessions.set(id, session);
     state.activeId = id;
     renderTabs();
+    renderHerd();
 
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(
-      `${proto}://${location.host}/ws/session?hostId=${encodeURIComponent(host.id)}&cols=${term.cols}&rows=${term.rows}`
+      `${proto}://${location.host}/ws/session?id=${encodeURIComponent(info.id)}&cols=${term.cols}&rows=${term.rows}`
     );
     ws.binaryType = "arraybuffer";
     session.ws = ws;
@@ -229,7 +296,10 @@
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
         if (msg.type === "status") {
-          term.writeln(`\x1b[38;2;94;224;181m${msg.message}\x1b[0m`);
+          if (msg.status === "ready") session.status = "is-ready";
+          if (msg.status === "error" || msg.status === "exited") session.status = "is-error";
+          renderTabs();
+          renderHerd();
         } else if (msg.type === "ready") {
           session.status = "is-ready";
           renderTabs();
@@ -250,8 +320,9 @@
     });
     ws.addEventListener("close", () => {
       if (session.status !== "is-error") session.status = "";
-      term.writeln("\r\n\x1b[38;2;139;149;168mSession closed.\x1b[0m");
+      term.writeln("\r\n\x1b[38;2;139;149;168mDetached — still in the herd until you kill it.\x1b[0m");
       renderTabs();
+      renderHerd();
     });
     ws.addEventListener("error", () => {
       session.status = "is-error";
@@ -276,6 +347,7 @@
       state.activeId = state.sessions.size ? [...state.sessions.keys()].at(-1) : null;
     }
     renderTabs();
+    renderHerd();
   }
 
   function sendSnippet(id) {
@@ -408,7 +480,7 @@
     const del = ev.target.closest("[data-delete]");
     if (connect) {
       const host = state.hosts.find((h) => h.id === connect.dataset.connect);
-      if (host) openSession(host);
+      if (host) openSession(host).catch((err) => toast(err.message, true));
     } else if (edit) {
       const host = state.hosts.find((h) => h.id === edit.dataset.edit);
       fillHostForm(host);
@@ -423,6 +495,24 @@
       if (!confirm(`Remove ${host.name}?`)) return;
       await api(`/api/hosts/${host.id}`, { method: "DELETE" });
       await loadAll();
+    }
+  });
+
+  els.herdList.addEventListener("click", async (ev) => {
+    const attach = ev.target.closest("[data-attach]");
+    const kill = ev.target.closest("[data-kill]");
+    if (attach) {
+      const info = state.herd.find((s) => s.id === attach.dataset.attach);
+      if (info) attachRuntime(info);
+    } else if (kill) {
+      try {
+        await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
+        const tab = [...state.sessions.values()].find((s) => s.runtimeId === kill.dataset.kill);
+        if (tab) closeSession(tab.id);
+        await loadAll();
+      } catch (err) {
+        toast(err.message, true);
+      }
     }
   });
 
@@ -464,6 +554,7 @@
   document.querySelectorAll(".side-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".side-tab").forEach((b) => b.classList.toggle("is-active", b === btn));
+      document.getElementById("herd-panel").classList.toggle("is-active", btn.dataset.side === "herd");
       document.getElementById("hosts-panel").classList.toggle("is-active", btn.dataset.side === "hosts");
       document.getElementById("snippets-panel").classList.toggle("is-active", btn.dataset.side === "snippets");
     });
@@ -485,7 +576,7 @@
   });
   document.getElementById("btn-welcome-local").addEventListener("click", () => {
     const host = localHost();
-    if (host) openSession(host);
+    if (host) openSession(host).catch((err) => toast(err.message, true));
   });
   document.getElementById("host-cancel").addEventListener("click", () => els.hostModal.close());
   document.getElementById("quick-cancel").addEventListener("click", () => els.quickModal.close());
@@ -518,4 +609,12 @@
   });
 
   loadAll().catch((err) => toast(err.message, true));
+  setInterval(() => {
+    api("/api/sessions")
+      .then((herd) => {
+        state.herd = herd;
+        renderHerd();
+      })
+      .catch(() => {});
+  }, 1500);
 })();

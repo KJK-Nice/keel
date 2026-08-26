@@ -6,10 +6,14 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
+	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/store"
 )
@@ -24,11 +28,12 @@ var upgrader = websocket.Upgrader{
 
 type Server struct {
 	store *store.Store
+	rt    *runtime.Runtime
 	web   fs.FS
 }
 
-func New(st *store.Store, web fs.FS) *Server {
-	return &Server{store: st, web: web}
+func New(st *store.Store, rt *runtime.Runtime, web fs.FS) *Server {
+	return &Server{store: st, rt: rt, web: web}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -42,13 +47,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
 	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
 	mux.HandleFunc("DELETE /api/snippets/{id}", s.deleteSnippet)
-	mux.HandleFunc("GET /ws/session", s.session)
+	mux.HandleFunc("GET /api/sessions", s.listSessions)
+	mux.HandleFunc("POST /api/sessions", s.spawnSession)
+	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
+	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.Handle("/", http.FileServer(http.FS(s.web)))
 	return withLogging(mux)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "ok",
+		"role":     "runtime",
+		"sessions": s.rt.Count(),
+		"pid":      os.Getpid(),
+	})
 }
 
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
@@ -173,15 +186,85 @@ func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) session(w http.ResponseWriter, r *http.Request) {
-	hostID := r.URL.Query().Get("hostId")
-	if hostID == "" {
-		writeError(w, http.StatusBadRequest, "hostId is required")
+func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.rt.List())
+}
+
+func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		HostID string `json:"hostId"`
+		Cols   int    `json:"cols"`
+		Rows   int    `json:"rows"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid session payload")
 		return
 	}
-	host, err := s.store.GetHost(hostID)
+	info, err := s.rt.Spawn(req.HostID, req.Cols, req.Rows)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "host not found")
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "host not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, info)
+}
+
+func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
+	if err := s.rt.Kill(r.PathValue("id")); err != nil {
+		if errors.Is(err, runtime.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "session not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type wsConn struct {
+	mu   sync.Mutex
+	conn *websocket.Conn
+}
+
+func (w *wsConn) writeJSON(v any) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteJSON(v)
+}
+
+func (w *wsConn) writeBinary(p []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteMessage(websocket.BinaryMessage, p)
+}
+
+func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		id = r.URL.Query().Get("sessionId")
+	}
+	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
+
+	if id == "" {
+		hostID := r.URL.Query().Get("hostId")
+		if hostID == "" {
+			writeError(w, http.StatusBadRequest, "id or hostId is required")
+			return
+		}
+		info, err := s.rt.Spawn(hostID, cols, rows)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		id = info.ID
+	}
+
+	sess, err := s.rt.Get(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "session not found")
 		return
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -189,24 +272,75 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ws upgrade: %v", err)
 		return
 	}
-	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
-	_ = conn.WriteJSON(map[string]string{"type": "status", "message": connectingMessage(host)})
-
-	br, err := session.Open(host, cols, rows, s.store.CheckHostKey)
-	if err != nil {
-		_ = conn.WriteJSON(map[string]string{"type": "error", "message": err.Error()})
-		_ = conn.Close()
-		return
+	ws := &wsConn{conn: conn}
+	defer conn.Close()
+	info := sess.Info()
+	_ = ws.writeJSON(map[string]any{
+		"type":    "status",
+		"message": "Attaching…",
+		"id":      info.ID,
+		"status":  info.Status,
+	})
+	_ = sess.Resize(cols, rows)
+	subID, events, snap := sess.Subscribe()
+	defer sess.Unsubscribe(subID)
+	if len(snap) > 0 {
+		_ = ws.writeBinary(snap)
 	}
-	_ = conn.WriteJSON(map[string]string{"type": "ready", "message": "connected"})
-	session.BridgeWS(conn, br)
-}
+	_ = ws.writeJSON(map[string]any{
+		"type":    "ready",
+		"message": "attached",
+		"id":      info.ID,
+		"status":  sess.Info().Status,
+		"title":   info.Title,
+	})
 
-func connectingMessage(h store.Host) string {
-	if h.AuthType == "local" {
-		return "Opening local shell…"
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for ev := range events {
+			if ev.Kind == "bytes" {
+				if err := ws.writeBinary(ev.Bytes); err != nil {
+					_ = conn.Close()
+					return
+				}
+				continue
+			}
+			_ = ws.writeJSON(map[string]any{
+				"type":    "status",
+				"message": ev.Message,
+				"status":  ev.Status,
+				"id":      info.ID,
+			})
+			if ev.Status == runtime.StatusError {
+				_ = ws.writeJSON(map[string]any{"type": "error", "message": ev.Message})
+			}
+		}
+	}()
+
+	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	for {
+		mt, msg, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
+		if mt == websocket.TextMessage {
+			var ctl struct {
+				Type string `json:"type"`
+				Cols int    `json:"cols"`
+				Rows int    `json:"rows"`
+			}
+			if json.Unmarshal(msg, &ctl) == nil && ctl.Type == "resize" {
+				_ = sess.Resize(ctl.Cols, ctl.Rows)
+			}
+			continue
+		}
+		if err := sess.Write(msg); err != nil {
+			_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
+			return
+		}
 	}
-	return "Connecting to " + h.Username + "@" + h.Address + "…"
 }
 
 func validateHost(h store.Host) error {

@@ -20,7 +20,7 @@
         </div>
         <div>
           <strong>Keel</strong>
-          <span>SSH workspace</span>
+          <span>runtime + herd</span>
         </div>
       </div>
 
@@ -29,11 +29,17 @@
       </div>
 
       <div class="side-tabs" role="tablist">
-        <button class="side-tab is-active" data-side="hosts">Hosts</button>
+        <button class="side-tab is-active" data-side="herd">Herd</button>
+        <button class="side-tab" data-side="hosts">Hosts</button>
         <button class="side-tab" data-side="snippets">Snippets</button>
       </div>
 
-      <div class="side-panel is-active" id="hosts-panel">
+      <div class="side-panel is-active" id="herd-panel">
+        <div id="herd-list" class="host-list"></div>
+        <p class="empty" id="herd-empty">No live sessions. Spawn one from Hosts — closing a tab detaches, it stays in the herd.</p>
+      </div>
+
+      <div class="side-panel" id="hosts-panel">
         <div id="host-list" class="host-list"></div>
         <div class="side-actions">
           <button class="btn btn-primary" id="btn-new-host">New host</button>
@@ -60,21 +66,21 @@
 
       <section class="stage" id="stage">
         <div class="welcome" id="welcome">
-          <p class="eyebrow">Go-powered SSH client</p>
-          <h1>Pick a host, or open a local shell.</h1>
+          <p class="eyebrow">Runtime-owned terminals</p>
+          <h1>The herd lives in the server, not this tab.</h1>
           <p class="lede">
-            Keel keeps an inventory of servers, opens real PTY sessions over SSH,
-            and fires saved snippets into the active terminal — the Termius workflow,
-            as a single Go binary.
+            Spawn a shell, detach, come back from the web UI or <code>keel tui</code>.
+            Closing a tab does not kill the session. That is the Herdr posture:
+            a runtime owns the PTYs, every UI is just a client.
           </p>
           <div class="welcome-actions">
             <button class="btn btn-primary" id="btn-welcome-local">Open local shell</button>
             <button class="btn btn-ghost" id="btn-welcome-host">Add an SSH host</button>
           </div>
           <ul class="tips">
-            <li>Local Shell is already in the sidebar — click it to connect.</li>
-            <li>Add remote machines with a password or private key.</li>
-            <li>Snippets send the same command into whichever tab is focused.</li>
+            <li>Herd lists every live session, including ones nobody is watching.</li>
+            <li>Tab close detaches. Kill from the herd if you want it gone.</li>
+            <li><code>keel tui</code> attaches the same runtime from a terminal.</li>
           </ul>
         </div>
         <div class="terminals" id="terminals"></div>
