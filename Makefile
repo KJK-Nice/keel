@@ -1,26 +1,18 @@
-.PHONY: run tui app build test
+.PHONY: app build test signal
 
 ADDR ?= 127.0.0.1:47241
+GO := sh scripts/go.sh
 GO_TAGS := $(shell ./scripts/go-tags.sh)
-export CGO_ENABLED := 1
-# Wails WKWebView needs UniformTypeIdentifiers on macOS (UTType / drag-and-drop).
-# The wails CLI injects this; plain `go build` / `make` does not.
-ifeq ($(shell go env GOOS 2>/dev/null),darwin)
-	CGO_LDFLAGS += -framework UniformTypeIdentifiers
-	export CGO_LDFLAGS
-endif
 
 app:
-	KEEL_ADDR=$(ADDR) go run $(GO_TAGS) ./cmd/keel app
-
-run:
-	KEEL_ADDR=$(ADDR) go run $(GO_TAGS) ./cmd/keel server
-
-tui:
-	KEEL_ADDR=$(ADDR) go run $(GO_TAGS) ./cmd/keel tui
+	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) ./cmd/keel app
 
 build:
-	go build $(GO_TAGS) -o bin/keel ./cmd/keel
+	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
+	go build -o bin/keel-signal ./cmd/keel-signal
+
+signal:
+	go run ./cmd/keel-signal
 
 test:
-	go test $(GO_TAGS) ./...
+	$(GO) test $(GO_TAGS) ./...

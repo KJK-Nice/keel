@@ -11,34 +11,27 @@ import (
 	"path/filepath"
 	"time"
 
-	"keel/internal/daemon"
 	"keel/internal/desktop"
 	"keel/internal/httpapi"
 	"keel/internal/runtime"
+	"keel/internal/share"
 	"keel/internal/store"
 )
 
-func RunServer(web fs.FS, addr, dataDir, token string) error {
-	_, srv, err := start(web, addr, dataDir, token)
-	if err != nil {
+func RunDesktop(web fs.FS, addr, dataDir, name string) error {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
-	log.Printf("Keel runtime listening on http://%s", addr)
-	if token != "" {
-		log.Printf("Share token is set — clients must pass KEEL_TOKEN or ?token=")
-	}
-	log.Printf("TUI clients: keel tui   web: %s", daemon.ClientBase(addr))
-	err = srv.ListenAndServe()
-	if err == http.ErrServerClosed {
-		return nil
-	}
-	return err
-}
-
-func RunDesktop(web fs.FS, addr, dataDir, token, name string) error {
-	rt, srv, err := start(web, addr, dataDir, token)
+	st, err := store.New(filepath.Join(dataDir, "keel.json"))
 	if err != nil {
-		return err
+		return fmt.Errorf("store: %w", err)
+	}
+	rt := runtime.New(st, nil)
+	hub := share.FromEnv(rt)
+	httpSrv := &http.Server{
+		Addr:              addr,
+		Handler:           httpapi.New(st, rt, web, hub).Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -46,24 +39,24 @@ func RunDesktop(web fs.FS, addr, dataDir, token, name string) error {
 	}
 	base := "http://" + ln.Addr().String()
 	log.Printf("Keel app on %s — close the window to quit and kill every session", base)
+	if hub.Enabled() {
+		log.Printf("Internet share via %s", os.Getenv("KEEL_SIGNAL"))
+	}
 
 	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("http: %v", err)
 		}
 	}()
 
 	u, err := url.Parse(base + "/")
 	if err != nil {
-		_ = srv.Close()
+		_ = httpSrv.Close()
 		return err
 	}
 	q := u.Query()
 	if name != "" {
 		q.Set("name", name)
-	}
-	if token != "" {
-		q.Set("token", token)
 	}
 	u.RawQuery = q.Encode()
 
@@ -71,23 +64,6 @@ func RunDesktop(web fs.FS, addr, dataDir, token, name string) error {
 	winErr := desktop.Run(u.String(), profile)
 
 	rt.KillAll()
-	_ = srv.Close()
+	_ = httpSrv.Close()
 	return winErr
-}
-
-func start(web fs.FS, addr, dataDir, token string) (*runtime.Runtime, *http.Server, error) {
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return nil, nil, err
-	}
-	st, err := store.New(filepath.Join(dataDir, "keel.json"))
-	if err != nil {
-		return nil, nil, fmt.Errorf("store: %w", err)
-	}
-	rt := runtime.New(st, nil)
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, token).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	return rt, srv, nil
 }

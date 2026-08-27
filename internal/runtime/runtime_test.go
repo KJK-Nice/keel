@@ -51,6 +51,8 @@ func (f *fakeBridge) Close() error {
 
 func testStore(t *testing.T) *store.Store {
 	t.Helper()
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
 	st, err := store.New(t.TempDir() + "/keel.json")
 	if err != nil {
 		t.Fatal(err)
@@ -58,10 +60,22 @@ func testStore(t *testing.T) *store.Store {
 	return st
 }
 
+func firstHost(t *testing.T, st *store.Store) store.Host {
+	t.Helper()
+	hosts, err := st.ListHosts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hosts) == 0 {
+		t.Fatal("no hosts")
+	}
+	return hosts[0]
+}
+
 func spawnReady(t *testing.T) (*Runtime, *Session, *fakeBridge) {
 	t.Helper()
 	st := testStore(t)
-	host := st.ListHosts()[0]
+	host := firstHost(t, st)
 	fb := newFakeBridge()
 	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return fb, nil
@@ -113,7 +127,7 @@ func TestDetachKeepsSession(t *testing.T) {
 
 func TestKillAllClosesEverySession(t *testing.T) {
 	rt, sess, _ := spawnReady(t)
-	host := rt.store.ListHosts()[0]
+	host := firstHost(t, rt.store)
 	info2, err := rt.Spawn(host.ID, 80, 24)
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +274,7 @@ func TestOnlyDriverResizes(t *testing.T) {
 
 func TestHerdEvents(t *testing.T) {
 	st := testStore(t)
-	host := st.ListHosts()[0]
+	host := firstHost(t, st)
 	fb := newFakeBridge()
 	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return fb, nil

@@ -9,7 +9,6 @@
     activeId: null,
     query: "",
     name: params.get("name") || localStorage.getItem("keel-name") || "",
-    token: params.get("token") || localStorage.getItem("keel-token") || "",
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
     openModal: null,
@@ -131,16 +130,11 @@
   };
 
   function authHeaders() {
-    const headers = { "Content-Type": "application/json" };
-    if (state.token) headers.Authorization = `Bearer ${state.token}`;
-    return headers;
+    return { "Content-Type": "application/json" };
   }
 
   function withToken(url) {
-    if (!state.token) return url;
-    const u = new URL(url, location.origin);
-    u.searchParams.set("token", state.token);
-    return u.pathname + u.search;
+    return url;
   }
 
   async function api(path, opts = {}) {
@@ -150,9 +144,9 @@
     });
     if (res.status === 204) return null;
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      const err = new Error(data.error || "unauthorized");
-      err.code = 401;
+    if (res.status === 401 || res.status === 423) {
+      const err = new Error(data.error || "vault locked");
+      err.code = res.status;
       throw err;
     }
     if (!res.ok) throw new Error(data.error || res.statusText);
@@ -171,8 +165,6 @@
 
   function persistIdentity() {
     if (state.name) localStorage.setItem("keel-name", state.name);
-    if (state.token) localStorage.setItem("keel-token", state.token);
-    else localStorage.removeItem("keel-token");
   }
 
   function groupHosts(hosts) {
@@ -519,7 +511,6 @@
       name: state.name || "guest",
       kind: "web",
     });
-    if (state.token) q.set("token", state.token);
     const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
     session.ws = ws;
@@ -750,34 +741,54 @@
     if (!el || state.openModal === el) state.openModal = null;
   }
 
-  function shareActive() {
+  async function shareActive() {
     const session = state.sessions.get(state.activeId);
     if (!session) return;
-    const u = new URL(location.origin);
-    u.searchParams.set("session", session.runtimeId);
-    if (state.name) u.searchParams.set("name", state.name);
-    if (state.token) u.searchParams.set("token", state.token);
-    navigator.clipboard.writeText(u.toString()).then(
-      () => toast("Share link copied — joiners follow until you pass control"),
-      () => toast(u.toString())
-    );
+    try {
+      const out = await api("/api/share", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: session.runtimeId }),
+      });
+      const url = out.url || "";
+      await navigator.clipboard.writeText(url).catch(() => {});
+      toast(url ? "Join link copied — they connect over the internet, not your LAN" : "Share ready");
+      if (url && !navigator.clipboard) toast(url);
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
-  function showGate() {
+  function showGate(needsSetup) {
     els.gate.hidden = false;
-    els.gateForm.name.value = state.name;
-    els.gateForm.token.value = state.token;
-    els.gateForm.name.focus();
+    const title = document.getElementById("gate-title");
+    const hint = document.getElementById("gate-hint");
+    const submit = document.getElementById("gate-submit");
+    if (needsSetup) {
+      if (title) title.textContent = "Create vault";
+      if (hint) hint.textContent = "Choose a passphrase to encrypt host passwords and keys on this machine.";
+      if (submit) submit.textContent = "Create vault";
+    } else {
+      if (title) title.textContent = "Unlock vault";
+      if (hint) hint.textContent = "Host passwords and keys are encrypted. Enter your vault passphrase.";
+      if (submit) submit.textContent = "Unlock";
+    }
+    els.gateForm.passphrase.value = "";
+    els.gateForm.passphrase.focus();
+    els.gateForm.dataset.setup = needsSetup ? "1" : "0";
   }
 
   async function boot() {
     persistIdentity();
     try {
+      const health = await api("/api/health");
+      if (health.locked) {
+        showGate(!!health.needsSetup);
+        return;
+      }
       await loadAll();
     } catch (err) {
-      if (err.code === 401) {
-        showGate();
-        toast("This runtime requires a share token", true);
+      if (err.code === 423) {
+        showGate(false);
         return;
       }
       toast(err.message, true);
@@ -931,9 +942,12 @@
   syncThemeSwitch();
   els.gateForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    state.name = els.gateForm.name.value.trim() || "guest";
-    state.token = els.gateForm.token.value.trim();
-    boot();
+    const passphrase = els.gateForm.passphrase.value;
+    const setup = els.gateForm.dataset.setup === "1";
+    const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
+    api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
+      .then(() => boot())
+      .catch((err) => toast(err.message, true));
   });
 
   window.addEventListener("resize", () => {
@@ -954,6 +968,6 @@
     }
   });
 
-  if (!state.name) showGate();
-  else boot();
+  if (!state.name) state.name = "guest";
+  boot();
 })();

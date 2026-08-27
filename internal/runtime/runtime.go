@@ -311,7 +311,7 @@ func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
 	id := s.next
 	name := sanitizeName(join.Name)
 	kind := join.Kind
-	if kind != "tui" {
+	if kind != "tui" && kind != "webrtc" {
 		kind = "web"
 	}
 	ch := make(chan Event, 512)

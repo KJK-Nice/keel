@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -16,6 +15,7 @@ import (
 
 	"keel/internal/runtime"
 	"keel/internal/session"
+	"keel/internal/share"
 	"keel/internal/store"
 )
 
@@ -31,16 +31,19 @@ type Server struct {
 	store *store.Store
 	rt    *runtime.Runtime
 	web   fs.FS
-	token string
+	share *share.Hub
 }
 
-func New(st *store.Store, rt *runtime.Runtime, web fs.FS, token string) *Server {
-	return &Server{store: st, rt: rt, web: web, token: strings.TrimSpace(token)}
+func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
+	return &Server{store: st, rt: rt, web: web, share: sh}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
+	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
+	mux.HandleFunc("POST /api/share", s.shareSession)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
@@ -55,55 +58,103 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
 	mux.Handle("/", http.FileServer(http.FS(s.web)))
-	return withLogging(s.withAuth(mux))
+	return withLogging(s.withVault(mux))
 }
 
-func (s *Server) withAuth(next http.Handler) http.Handler {
-	if s.token == "" {
-		return next
-	}
-	token := s.token
+func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !tokenOK(token, requestToken(r)) {
-			writeError(w, http.StatusUnauthorized, "unauthorized")
+		if s.store.Locked() {
+			writeError(w, http.StatusLocked, "vault locked")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
-func requestToken(r *http.Request) string {
-	if t := strings.TrimSpace(r.URL.Query().Get("token")); t != "" {
-		return t
-	}
-	h := r.Header.Get("Authorization")
-	const prefix = "Bearer "
-	if len(h) >= len(prefix) && strings.EqualFold(h[:len(prefix)], prefix) {
-		return strings.TrimSpace(h[len(prefix):])
-	}
-	return ""
-}
-
-func tokenOK(want, got string) bool {
-	return subtle.ConstantTimeCompare([]byte(want), []byte(got)) == 1
-}
-
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":   "ok",
-		"role":     "runtime",
-		"sessions": s.rt.Count(),
-		"pid":      os.Getpid(),
-		"auth":     s.token != "",
+		"status":     "ok",
+		"role":       "runtime",
+		"sessions":   s.rt.Count(),
+		"pid":        os.Getpid(),
+		"locked":     s.store.Locked(),
+		"needsSetup": s.store.NeedsSetup(),
+		"signal":     s.share != nil && s.share.Enabled(),
 	})
 }
 
+func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Passphrase string `json:"passphrase"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := s.store.Unlock(req.Passphrase); err != nil {
+		if errors.Is(err, store.ErrPassphrase) {
+			writeError(w, http.StatusForbidden, "incorrect passphrase")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
+}
+
+func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Passphrase string `json:"passphrase"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := s.store.Setup(req.Passphrase); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
+}
+
+func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
+	if s.share == nil || !s.share.Enabled() {
+		writeError(w, http.StatusServiceUnavailable, "set KEEL_SIGNAL to a public signaling server")
+		return
+	}
+	var req struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, "sessionId is required")
+		return
+	}
+	join, err := s.share.Share(req.SessionID)
+	if err != nil {
+		if errors.Is(err, runtime.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "session not found")
+			return
+		}
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": join})
+}
+
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
-	hosts := s.store.ListHosts()
+	hosts, err := s.store.ListHosts()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
 	out := make([]store.Host, len(hosts))
 	for i, h := range hosts {
 		out[i] = redactHost(h)
@@ -124,7 +175,7 @@ func (s *Server) upsertHost(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.UpsertHost(h)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeStoreErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
@@ -143,7 +194,7 @@ func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.UpsertHost(h)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeStoreErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, redactHost(saved))
@@ -175,7 +226,12 @@ func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.store.ListSnippets())
+	snips, err := s.store.ListSnippets()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snips)
 }
 
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
@@ -258,6 +314,9 @@ func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if s.share != nil {
+		s.share.Stop(r.PathValue("id"))
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -492,6 +551,18 @@ func redactHost(h store.Host) store.Host {
 		h.Passphrase = "__saved__"
 	}
 	return h
+}
+
+func writeStoreErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, store.ErrLocked) {
+		writeError(w, http.StatusLocked, "vault locked")
+		return
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
