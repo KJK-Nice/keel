@@ -111,6 +111,28 @@ func TestDetachKeepsSession(t *testing.T) {
 	}
 }
 
+func TestKillAllClosesEverySession(t *testing.T) {
+	rt, sess, _ := spawnReady(t)
+	host := rt.store.ListHosts()[0]
+	info2, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Count() != 2 {
+		t.Fatalf("count = %d", rt.Count())
+	}
+	rt.KillAll()
+	if rt.Count() != 0 {
+		t.Fatalf("after KillAll count = %d", rt.Count())
+	}
+	if _, err := rt.Get(sess.id); err != ErrNotFound {
+		t.Fatal("first session still live")
+	}
+	if _, err := rt.Get(info2.ID); err != ErrNotFound {
+		t.Fatal("second session still live")
+	}
+}
+
 func TestTwoSubscribersSeeSameBytes(t *testing.T) {
 	_, sess, fb := spawnReady(t)
 	a, chA, _ := sess.Subscribe(Join{Name: "alice"})

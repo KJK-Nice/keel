@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
+	"keel/internal/app"
 	"keel/internal/daemon"
-	"keel/internal/httpapi"
-	"keel/internal/runtime"
-	"keel/internal/store"
+	"keel/internal/paths"
 	"keel/internal/tui"
 )
 
@@ -23,18 +19,28 @@ var embeddedWeb embed.FS
 
 func main() {
 	args := os.Args[1:]
-	cmd := "tui"
+	cmd := "app"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		cmd = args[0]
 		args = args[1:]
 	}
-	addr := env("KEEL_ADDR", "0.0.0.0:47241")
-	dataDir := env("KEEL_DATA", "data")
+	addr := paths.Addr()
+	dataDir := paths.DataDir()
 	token := strings.TrimSpace(os.Getenv("KEEL_TOKEN"))
+	web, err := fs.Sub(embeddedWeb, "web")
+	if err != nil {
+		log.Fatalf("web assets: %v", err)
+	}
 
 	switch cmd {
+	case "app":
+		if err := app.RunDesktop(web, addr, dataDir, token, parseName(args)); err != nil {
+			log.Fatal(err)
+		}
 	case "server":
-		runServer(addr, dataDir, token)
+		if err := app.RunServer(web, addr, dataDir, token); err != nil {
+			log.Fatal(err)
+		}
 	case "tui":
 		runTUI(addr, dataDir, token, parseName(args))
 	case "help", "-h", "--help":
@@ -45,7 +51,10 @@ func main() {
 }
 
 func parseName(args []string) string {
-	name := env("KEEL_NAME", os.Getenv("USER"))
+	name := os.Getenv("KEEL_NAME")
+	if name == "" {
+		name = os.Getenv("USER")
+	}
 	for i := 0; i < len(args); i++ {
 		switch {
 		case (args[i] == "--name" || args[i] == "-n") && i+1 < len(args):
@@ -60,31 +69,6 @@ func parseName(args []string) string {
 	return name
 }
 
-func runServer(addr, dataDir, token string) {
-	st, err := store.New(filepath.Join(dataDir, "keel.json"))
-	if err != nil {
-		log.Fatalf("store: %v", err)
-	}
-	web, err := fs.Sub(embeddedWeb, "web")
-	if err != nil {
-		log.Fatalf("web assets: %v", err)
-	}
-	rt := runtime.New(st, nil)
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, token).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	log.Printf("Keel runtime listening on http://%s", addr)
-	if token != "" {
-		log.Printf("Share token is set — clients must pass KEEL_TOKEN or ?token=")
-	}
-	log.Printf("TUI clients: keel tui   web: %s", daemon.ClientBase(addr))
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
-	}
-}
-
 func runTUI(addr, dataDir, token, name string) {
 	base, err := daemon.Ensure(addr, dataDir)
 	if err != nil {
@@ -95,30 +79,23 @@ func runTUI(addr, dataDir, token, name string) {
 	}
 }
 
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
+const helpText = `Keel — local SSH workspace
 
-const helpText = `Keel — SSH workspace runtime
+keel opens a desktop window. Closing it kills the runtime and every PTY.
 
-The runtime owns PTYs. The TUI and web UI are clients of it.
-Detach does not kill sessions. Multiplayer is driver/follow:
-one person types, others watch, control can be passed.
-
-  keel            attach the TUI (starts the runtime if needed)
-  keel tui        same
+  keel            open the desktop app (default)
+  keel app        same
+  keel tui        attach the TUI (starts a runtime if needed)
   keel tui --name alice
-  keel server     run the runtime in the foreground (API + web UI)
+  keel server     headless runtime (API + web UI, no window)
 
 Environment:
-  KEEL_ADDR       listen address (default 0.0.0.0:47241)
-  KEEL_DATA       data directory (default ./data)
+  KEEL_ADDR       listen address (default 127.0.0.1:47241)
+  KEEL_DATA       data directory (default: OS config dir / keel)
   KEEL_TOKEN      optional share token (required on API/WS when set)
-  KEEL_NAME       display name for this TUI client
-  KEEL_URL        attach to a remote runtime (never starts a local daemon)
+  KEEL_NAME       display name
+  KEEL_URL        attach TUI to a remote runtime (never starts a local daemon)
+  KEEL_BROWSER    Chrome/Chromium/Edge/Brave binary for the desktop window
 
 TUI keys:
   enter           attach a session or spawn from a host

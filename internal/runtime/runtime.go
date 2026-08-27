@@ -198,6 +198,18 @@ func (r *Runtime) Kill(id string) error {
 	return nil
 }
 
+func (r *Runtime) KillAll() {
+	r.mu.Lock()
+	ids := make([]string, 0, len(r.sess))
+	for id := range r.sess {
+		ids = append(ids, id)
+	}
+	r.mu.Unlock()
+	for _, id := range ids {
+		_ = r.Kill(id)
+	}
+}
+
 func (r *Runtime) SubscribeHerd() (id uint64, events <-chan HerdEvent, snapshot []Info) {
 	r.herdMu.Lock()
 	r.herdNext++

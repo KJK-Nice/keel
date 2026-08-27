@@ -1,24 +1,15 @@
-.PHONY: run tui build test
+.PHONY: run tui app build test
 
-ADDR ?= 0.0.0.0:47241
+ADDR ?= 127.0.0.1:47241
+
+app:
+	KEEL_ADDR=$(ADDR) go run ./cmd/keel app
 
 run:
 	KEEL_ADDR=$(ADDR) go run ./cmd/keel server
 
 tui:
 	KEEL_ADDR=$(ADDR) go run ./cmd/keel tui
-
-build:
-	go build -o bin/keel ./cmd/keel
-
-test:
-	go test ./...
-
-
-ADDR ?= 0.0.0.0:47241
-
-run:
-	KEEL_ADDR=$(ADDR) go run ./cmd/keel
 
 build:
 	go build -o bin/keel ./cmd/keel
