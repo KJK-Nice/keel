@@ -1,4 +1,4 @@
-.PHONY: app build test signal macos-app
+.PHONY: app build test signal macos-app macos-icon
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -22,11 +22,15 @@ endif
 
 macos-app:
 	rm -rf bin/Keel.app
-	mkdir -p bin/Keel.app/Contents/MacOS
+	mkdir -p bin/Keel.app/Contents/MacOS bin/Keel.app/Contents/Resources
 	cp bin/keel bin/Keel.app/Contents/MacOS/keel
 	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
+	cp internal/desktop/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
 	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app/Contents/MacOS/keel
 	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app
+
+macos-icon:
+	cd internal/desktop/macos && go run genicon.go
 
 signal:
 	go run ./cmd/keel-signal

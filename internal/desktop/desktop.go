@@ -19,6 +19,9 @@ import (
 //go:embed all:shell
 var shellFS embed.FS
 
+//go:embed macos/icon.png
+var appIcon []byte
+
 type nativeWindow struct {
 	url       string
 	navigated bool
@@ -46,12 +49,14 @@ func Run(url, _ string) error {
 			About: &mac.AboutInfo{
 				Title:   "Keel",
 				Message: "Local SSH workspace",
+				Icon:    appIcon,
 			},
 		},
 		Windows: &windows.Options{
 			Theme: windows.SystemDefault,
 		},
 		Linux: &linux.Options{
+			Icon:             appIcon,
 			ProgramName:      "Keel",
 			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},

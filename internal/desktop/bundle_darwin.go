@@ -21,6 +21,9 @@ var macInfoPlist []byte
 //go:embed macos/entitlements.plist
 var macEntitlements []byte
 
+//go:embed macos/Keel.icns
+var macAppIcon []byte
+
 // EnsureMacApp re-execs inside a signed .app so WKWebView can run.
 // A naked Go binary on Apple Silicon hits SIGTRAP in WebKit's JIT.
 func EnsureMacApp() error {
@@ -54,6 +57,13 @@ func EnsureMacApp() error {
 		return fmt.Errorf("copy into app bundle: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(appDir, "Contents", "Info.plist"), macInfoPlist, 0o644); err != nil {
+		return err
+	}
+	resDir := filepath.Join(appDir, "Contents", "Resources")
+	if err := os.MkdirAll(resDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(resDir, "Keel.icns"), macAppIcon, 0o644); err != nil {
 		return err
 	}
 	ent := filepath.Join(appDir, "Contents", "keel.entitlements")

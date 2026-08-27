@@ -29,10 +29,13 @@ func TestMacOSBundleFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(info)
-	for _, want := range []string{"CFBundleIdentifier", "app.keel.desktop", "CFBundleExecutable", "NSAllowsLocalNetworking"} {
+	for _, want := range []string{"CFBundleIdentifier", "app.keel.desktop", "CFBundleExecutable", "NSAllowsLocalNetworking", "CFBundleIconFile"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("Info.plist missing %q", want)
 		}
+	}
+	if !strings.Contains(s, "<key>CFBundleIconFile</key>") || !strings.Contains(s, "<string>Keel</string>") {
+		t.Error("Info.plist missing CFBundleIconFile Keel")
 	}
 	ent, err := os.ReadFile("macos/entitlements.plist")
 	if err != nil {
