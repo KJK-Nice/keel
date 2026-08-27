@@ -1,0 +1,432 @@
+package share
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v4"
+
+	"keel/internal/runtime"
+)
+
+type Hub struct {
+	signal string
+	rt     *runtime.Runtime
+	mu     sync.Mutex
+	bySess map[string]*liveShare
+}
+
+type liveShare struct {
+	sessionID string
+	roomID    string
+	joinURL   string
+	cancel    context.CancelFunc
+	ready     chan struct{}
+	err       error
+}
+
+func New(signalURL string, rt *runtime.Runtime) *Hub {
+	return &Hub{
+		signal: strings.TrimRight(strings.TrimSpace(signalURL), "/"),
+		rt:     rt,
+		bySess: map[string]*liveShare{},
+	}
+}
+
+func FromEnv(rt *runtime.Runtime) *Hub {
+	return New(os.Getenv("KEEL_SIGNAL"), rt)
+}
+
+func (h *Hub) Enabled() bool {
+	return h != nil && h.signal != ""
+}
+
+func (h *Hub) JoinURL(sessionID string) string {
+	if h == nil {
+		return ""
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if s := h.bySess[sessionID]; s != nil {
+		return s.joinURL
+	}
+	return ""
+}
+
+func (h *Hub) Share(sessionID string) (string, error) {
+	if h == nil || h.signal == "" {
+		return "", errors.New("set KEEL_SIGNAL to a public signaling server (keel-signal)")
+	}
+	if _, err := h.rt.Get(sessionID); err != nil {
+		return "", err
+	}
+	h.mu.Lock()
+	if s := h.bySess[sessionID]; s != nil {
+		url := s.joinURL
+		h.mu.Unlock()
+		return url, nil
+	}
+	h.mu.Unlock()
+
+	roomID, err := createRoom(h.signal)
+	if err != nil {
+		return "", err
+	}
+	join := h.signal + "/join?room=" + url.QueryEscape(roomID)
+	ctx, cancel := context.WithCancel(context.Background())
+	live := &liveShare{sessionID: sessionID, roomID: roomID, joinURL: join, cancel: cancel, ready: make(chan struct{})}
+	h.mu.Lock()
+	h.bySess[sessionID] = live
+	h.mu.Unlock()
+	go h.hostLoop(ctx, live)
+	select {
+	case <-live.ready:
+	case <-time.After(8 * time.Second):
+		h.Stop(sessionID)
+		return "", errors.New("signaling host did not connect")
+	}
+	if live.err != nil {
+		return "", live.err
+	}
+	return join, nil
+}
+
+func (h *Hub) Stop(sessionID string) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	s := h.bySess[sessionID]
+	delete(h.bySess, sessionID)
+	h.mu.Unlock()
+	if s != nil {
+		s.cancel()
+	}
+}
+
+func createRoom(base string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/rooms", nil)
+	if err != nil {
+		return "", err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("signaling: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		return "", fmt.Errorf("signaling room: %s", bytes.TrimSpace(b))
+	}
+	var body struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	if body.ID == "" {
+		return "", errors.New("signaling did not return a room id")
+	}
+	return body.ID, nil
+}
+
+type sigMsg struct {
+	Type      string `json:"type"`
+	PeerID    string `json:"peerId,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	SDP       string `json:"sdp,omitempty"`
+	Candidate string `json:"candidate,omitempty"`
+	SDPMid    string `json:"sdpMid,omitempty"`
+	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
+}
+
+func (h *Hub) hostLoop(ctx context.Context, live *liveShare) {
+	var once sync.Once
+	ready := func() { once.Do(func() { close(live.ready) }) }
+	defer ready()
+	wsURL := wsBase(h.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID)
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	if err != nil {
+		live.err = fmt.Errorf("signaling: %w", err)
+		log.Printf("share signal dial: %v", err)
+		h.Stop(live.sessionID)
+		return
+	}
+	ready()
+	defer conn.Close()
+
+	var writeMu sync.Mutex
+	write := func(v any) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return conn.WriteJSON(v)
+	}
+
+	peers := map[string]*peerConn{}
+	var mu sync.Mutex
+	defer func() {
+		mu.Lock()
+		for _, p := range peers {
+			p.close()
+		}
+		mu.Unlock()
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = conn.Close()
+	}()
+
+	for {
+		var msg sigMsg
+		if err := conn.ReadJSON(&msg); err != nil {
+			return
+		}
+		switch msg.Type {
+		case "peer":
+			peerID, name := msg.PeerID, msg.Name
+			p, err := h.acceptPeer(live.sessionID, peerID, name, func(out sigMsg) {
+				out.Type = "signal"
+				out.PeerID = peerID
+				_ = write(out)
+			})
+			if err != nil {
+				log.Printf("share peer: %v", err)
+				continue
+			}
+			mu.Lock()
+			peers[msg.PeerID] = p
+			mu.Unlock()
+		case "leave":
+			mu.Lock()
+			if p := peers[msg.PeerID]; p != nil {
+				p.close()
+				delete(peers, msg.PeerID)
+			}
+			mu.Unlock()
+		case "signal":
+			mu.Lock()
+			p := peers[msg.PeerID]
+			mu.Unlock()
+			if p != nil {
+				p.onSignal(msg)
+			}
+		}
+	}
+}
+
+type peerConn struct {
+	pc     *webrtc.PeerConnection
+	cancel context.CancelFunc
+}
+
+func (p *peerConn) close() {
+	if p == nil {
+		return
+	}
+	p.cancel()
+	_ = p.pc.Close()
+}
+
+func (p *peerConn) onSignal(msg sigMsg) {
+	switch msg.Kind {
+	case "answer":
+		_ = p.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: msg.SDP})
+	case "ice":
+		var mid *string
+		if msg.SDPMid != "" {
+			m := msg.SDPMid
+			mid = &m
+		}
+		var line *uint16
+		if msg.SDPLine != nil {
+			v := uint16(*msg.SDPLine)
+			line = &v
+		}
+		_ = p.pc.AddICECandidate(webrtc.ICECandidateInit{
+			Candidate:     msg.Candidate,
+			SDPMid:        mid,
+			SDPMLineIndex: line,
+		})
+	}
+}
+
+func (h *Hub) acceptPeer(sessionID, peerID, name string, send func(sigMsg)) (*peerConn, error) {
+	sess, err := h.rt.Get(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &peerConn{pc: pc, cancel: cancel}
+
+	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
+		if c == nil {
+			return
+		}
+		init := c.ToJSON()
+		msg := sigMsg{Kind: "ice", Candidate: init.Candidate}
+		if init.SDPMid != nil {
+			msg.SDPMid = *init.SDPMid
+		}
+		if init.SDPMLineIndex != nil {
+			v := int(*init.SDPMLineIndex)
+			msg.SDPLine = &v
+		}
+		send(msg)
+	})
+
+	dc, err := pc.CreateDataChannel("keel", nil)
+	if err != nil {
+		cancel()
+		_ = pc.Close()
+		return nil, err
+	}
+	attachDataChannel(sess, dc, name)
+	go func() {
+		<-ctx.Done()
+		_ = pc.Close()
+	}()
+
+	offer, err := pc.CreateOffer(nil)
+	if err != nil {
+		p.close()
+		return nil, err
+	}
+	if err := pc.SetLocalDescription(offer); err != nil {
+		p.close()
+		return nil, err
+	}
+	send(sigMsg{Kind: "offer", SDP: offer.SDP})
+	_ = peerID
+	return p, nil
+}
+
+func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name string) {
+	dc.OnOpen(func() {
+		cl, events, snap := sess.Subscribe(runtime.Join{Name: name, Kind: "webrtc"})
+		if cl.Role == runtime.RoleDriver {
+			info := sess.Info()
+			_ = sess.Resize(cl.ID, info.Cols, info.Rows)
+		}
+		if len(snap) > 0 {
+			_ = dc.Send(snap)
+		}
+		info := sess.Info()
+		_ = dc.SendText(mustJSON(sessionPayload("ready", "attached", info, cl, 0, 0)))
+		go func() {
+			for ev := range events {
+				if ev.Kind == "bytes" {
+					if err := dc.Send(ev.Bytes); err != nil {
+						sess.Unsubscribe(cl.ID)
+						return
+					}
+					continue
+				}
+				msg := sessionPayload(ev.Kind, ev.Message, ev.Info, cl, ev.FromID, ev.TargetID)
+				if ev.Kind == "status" {
+					msg["status"] = ev.Status
+					msg["id"] = info.ID
+				}
+				if ev.Status == runtime.StatusError {
+					_ = dc.SendText(mustJSON(map[string]any{"type": "error", "message": ev.Message}))
+				}
+				_ = dc.SendText(mustJSON(msg))
+			}
+		}()
+		dc.OnMessage(func(m webrtc.DataChannelMessage) {
+			if m.IsString {
+				var ctl struct {
+					Type     string `json:"type"`
+					Cols     int    `json:"cols"`
+					Rows     int    `json:"rows"`
+					TargetID uint64 `json:"targetId"`
+				}
+				if json.Unmarshal(m.Data, &ctl) != nil {
+					return
+				}
+				switch ctl.Type {
+				case "resize":
+					_ = sess.Resize(cl.ID, ctl.Cols, ctl.Rows)
+				case "request-control":
+					_ = sess.RequestControl(cl.ID)
+				case "grant-control":
+					_ = sess.GrantControl(cl.ID, ctl.TargetID)
+				case "take-control":
+					_ = sess.TakeControl(cl.ID)
+				}
+				return
+			}
+			if err := sess.Write(cl.ID, m.Data); err != nil && !errors.Is(err, runtime.ErrReadOnly) {
+				_ = dc.SendText(mustJSON(map[string]any{"type": "error", "message": err.Error()}))
+			}
+		})
+		dc.OnClose(func() { sess.Unsubscribe(cl.ID) })
+	})
+}
+
+func sessionPayload(kind, message string, info runtime.Info, you runtime.Client, fromID, targetID uint64) map[string]any {
+	you.Role = runtime.RoleFollower
+	if you.ID == info.DriverID {
+		you.Role = runtime.RoleDriver
+	} else if you.ID == info.OwnerID {
+		you.Role = runtime.RoleOwner
+	}
+	out := map[string]any{
+		"type":     kind,
+		"message":  message,
+		"id":       info.ID,
+		"title":    info.Title,
+		"status":   info.Status,
+		"attached": info.Attached,
+		"driverId": info.DriverID,
+		"ownerId":  info.OwnerID,
+		"you":      you,
+	}
+	if fromID != 0 {
+		out["fromId"] = fromID
+	}
+	if targetID != 0 {
+		out["targetId"] = targetID
+	}
+	return out
+}
+
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func wsBase(httpBase string) string {
+	u, err := url.Parse(httpBase)
+	if err != nil {
+		return strings.Replace(httpBase, "http", "ws", 1)
+	}
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	default:
+		u.Scheme = "ws"
+	}
+	return strings.TrimRight(u.String(), "/")
+}

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Keel — follow</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0a0a0a; color: #e4e4e4; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+    #bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #222; }
+    #bar b { letter-spacing: -0.03em; }
+    #status { color: #888; font-size: 12px; }
+    #term { height: calc(100% - 42px); padding: 8px; }
+    .follow { color: #f5c15d; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <b>Keel</b>
+    <span id="status">Connecting…</span>
+  </div>
+  <div id="term"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="/join.js"></script>
+</body>
+</html>

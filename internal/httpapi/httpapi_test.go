@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -46,8 +47,10 @@ func (f *fakeBridge) Close() error {
 	return nil
 }
 
-func testServer(t *testing.T, token string) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
+func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
 	st, err := store.New(t.TempDir() + "/keel.json")
 	if err != nil {
 		t.Fatal(err)
@@ -57,44 +60,22 @@ func testServer(t *testing.T, token string) (*httptest.Server, *runtime.Runtime,
 		return fb, nil
 	})
 	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), token).Handler())
+	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
 	t.Cleanup(srv.Close)
 	return srv, rt, st, fb
 }
 
-func TestTokenRejectsAPI(t *testing.T) {
-	srv, _, _, _ := testServer(t, "secret")
-	res, err := http.Get(srv.URL + "/api/sessions")
+func firstHost(t *testing.T, st *store.Store) store.Host {
+	t.Helper()
+	hosts, err := st.ListHosts()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d", res.StatusCode)
-	}
-	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/sessions", nil)
-	req.Header.Set("Authorization", "Bearer secret")
-	res2, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res2.Body.Close()
-	if res2.StatusCode != http.StatusOK {
-		t.Fatalf("authed status = %d", res2.StatusCode)
-	}
-
-	res3, err := http.Get(srv.URL + "/api/sessions?token=secret")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res3.Body.Close()
-	if res3.StatusCode != http.StatusOK {
-		t.Fatalf("query token status = %d", res3.StatusCode)
-	}
+	return hosts[0]
 }
 
-func TestNoTokenKeepsOpenAPI(t *testing.T) {
-	srv, _, _, _ := testServer(t, "")
+func TestHealthUnlocked(t *testing.T) {
+	srv, _, _, _ := testServer(t)
 	res, err := http.Get(srv.URL + "/api/health")
 	if err != nil {
 		t.Fatal(err)
@@ -105,9 +86,52 @@ func TestNoTokenKeepsOpenAPI(t *testing.T) {
 	}
 }
 
+func TestVaultLockBlocksAPI(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Locked() {
+		t.Skip("OS keychain auto-unlocked the vault")
+	}
+	rt := runtime.New(st, nil)
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/api/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusLocked {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	body, _ := json.Marshal(map[string]string{"passphrase": "choose-a-phrase"})
+	res2, err := http.Post(srv.URL+"/api/vault/setup", "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res2.Body)
+		t.Fatalf("setup %d %s", res2.StatusCode, b)
+	}
+	res3, err := http.Get(srv.URL + "/api/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res3.Body.Close()
+	if res3.StatusCode != http.StatusOK {
+		t.Fatalf("after setup status = %d", res3.StatusCode)
+	}
+}
+
 func TestSessionControlAndFanout(t *testing.T) {
-	srv, _, st, fb := testServer(t, "")
-	host := st.ListHosts()[0]
+	srv, _, st, fb := testServer(t)
+	host := firstHost(t, st)
 	info := spawn(t, srv.URL, host.ID)
 
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
@@ -168,7 +192,7 @@ func TestSessionControlAndFanout(t *testing.T) {
 }
 
 func TestHerdWS(t *testing.T) {
-	srv, _, st, _ := testServer(t, "")
+	srv, _, st, _ := testServer(t)
 	u := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
 	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
@@ -182,7 +206,7 @@ func TestHerdWS(t *testing.T) {
 	if snap["type"] != "snapshot" {
 		t.Fatalf("first = %#v", snap)
 	}
-	host := st.ListHosts()[0]
+	host := firstHost(t, st)
 	spawn(t, srv.URL, host.ID)
 	var ev map[string]any
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
