@@ -8,6 +8,8 @@ Host passwords and keys live in an encrypted **vault**, not in plaintext `keel.j
 
 ```bash
 make build && ./bin/keel
+# bake a public signal URL into Keel.app (Finder launch has no shell env):
+make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
 Ubuntu 24.04+ needs GTK + WebKit and the `webkit2_41` build tag (`make build` sets it):
@@ -30,7 +32,7 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 | `KEEL_ADDR` | `127.0.0.1:47241` | Local webview bind (loopback) |
 | `KEEL_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
 | `KEEL_NAME` | `$USER` | Display name |
-| `KEEL_SIGNAL` | (unset) | Public URL of `keel-signal` for internet join |
+| `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join. Runtime env overrides the compile-time default. |
 | `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable |
 
 Quit the window: every session is killed, then the process exits. Closing a tab only detaches.
@@ -52,10 +54,13 @@ Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling 
 # or: KEEL_SIGNAL_ADDR=:8080 ./bin/keel-signal
 ```
 
-2. On the host desktop:
+2. On the host desktop, either bake the URL into the app or set it at runtime:
 
 ```bash
-KEEL_SIGNAL=https://your-signal.example keel
+make build KEEL_SIGNAL=https://your-signal.example
+open bin/Keel.app
+# or, from a shell only:
+KEEL_SIGNAL=https://your-signal.example ./bin/keel
 ```
 
 3. Open a session, click **Share**, send the copied `/join?room=…` link. The joiner follows until you pass control. They never see hosts or keys.

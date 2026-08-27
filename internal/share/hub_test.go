@@ -186,3 +186,25 @@ func TestShareDataChannel(t *testing.T) {
 		t.Fatal("did not receive PTY bytes over datachannel")
 	}
 }
+
+func TestFromEnvFallsBackToDefault(t *testing.T) {
+	t.Setenv("KEEL_SIGNAL", "")
+	old := DefaultSignal
+	DefaultSignal = "https://signal.example"
+	t.Cleanup(func() { DefaultSignal = old })
+	h := FromEnv(nil)
+	if h.URL() != "https://signal.example" {
+		t.Fatalf("got %q", h.URL())
+	}
+}
+
+func TestFromEnvOverridesDefault(t *testing.T) {
+	t.Setenv("KEEL_SIGNAL", "https://override.example")
+	old := DefaultSignal
+	DefaultSignal = "https://signal.example"
+	t.Cleanup(func() { DefaultSignal = old })
+	h := FromEnv(nil)
+	if h.URL() != "https://override.example" {
+		t.Fatalf("got %q", h.URL())
+	}
+}

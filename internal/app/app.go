@@ -45,7 +45,7 @@ func RunDesktop(web fs.FS, addr, dataDir, name string) error {
 	base := "http://" + ln.Addr().String()
 	log.Printf("Keel app on %s — close the window to quit and kill every session", base)
 	if hub.Enabled() {
-		log.Printf("Internet share via %s", os.Getenv("KEEL_SIGNAL"))
+		log.Printf("Internet share via %s", hub.URL())
 	}
 
 	go func() {

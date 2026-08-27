@@ -79,16 +79,19 @@ Internet follow (no LAN) needs a public signaling server:
   keel-signal                 # listen :47242
   KEEL_SIGNAL=https://… keel  # host copies a join link from Share
 
+  make build KEEL_SIGNAL=https://…   bake URL into Keel.app (Finder has no shell env)
+
 Environment:
   KEEL_ADDR       local webview bind (default 127.0.0.1:47241)
   KEEL_DATA       data directory (default: OS config dir / keel)
   KEEL_NAME       display name
-  KEEL_SIGNAL     public URL of keel-signal
+  KEEL_SIGNAL     public URL of keel-signal (runtime override of the baked default)
   KEEL_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
 
 The desktop window is a native WebKit/WebView2 webview (Wails). Build:
 
   make build
+  make build KEEL_SIGNAL=https://your-signal.example
 
 Linux packages: libgtk-3-dev libwebkit2gtk-4.1-dev
 macOS: Xcode Command Line Tools (use make / scripts/go.sh so Wails CGO flags are set).

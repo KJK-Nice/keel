@@ -37,6 +37,12 @@ type liveShare struct {
 	err       error
 }
 
+// DefaultSignal is the compile-time signaling URL. Finder-launched Keel.app
+// has no shell env, so bake it in:
+//
+//	go build -ldflags "-X keel/internal/share.DefaultSignal=https://…"
+var DefaultSignal string
+
 func New(signalURL string, rt *runtime.Runtime) *Hub {
 	return &Hub{
 		signal: strings.TrimRight(strings.TrimSpace(signalURL), "/"),
@@ -46,11 +52,22 @@ func New(signalURL string, rt *runtime.Runtime) *Hub {
 }
 
 func FromEnv(rt *runtime.Runtime) *Hub {
-	return New(os.Getenv("KEEL_SIGNAL"), rt)
+	u := os.Getenv("KEEL_SIGNAL")
+	if strings.TrimSpace(u) == "" {
+		u = DefaultSignal
+	}
+	return New(u, rt)
 }
 
 func (h *Hub) Enabled() bool {
 	return h != nil && h.signal != ""
+}
+
+func (h *Hub) URL() string {
+	if h == nil {
+		return ""
+	}
+	return h.signal
 }
 
 func (h *Hub) JoinURL(sessionID string) string {

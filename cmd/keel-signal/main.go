@@ -12,7 +12,11 @@ import (
 func main() {
 	addr := os.Getenv("KEEL_SIGNAL_ADDR")
 	if addr == "" {
-		addr = ":47242"
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "47242"
+		}
+		addr = ":" + port
 	}
 	srv := &http.Server{
 		Addr:              addr,
