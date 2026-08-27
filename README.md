@@ -16,7 +16,7 @@ Ubuntu 24.04+ needs GTK + WebKit and the `webkit2_41` build tag (`make build` se
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-macOS needs Xcode command-line tools (`go build -tags desktop,production`). Windows uses Edge WebView2.
+macOS needs Xcode Command Line Tools (`xcode-select --install`). The Darwin link step includes the **UniformTypeIdentifiers** framework so WKWebView’s `UTType` symbols resolve on Apple Silicon. Windows uses Edge WebView2.
 
 ## Run
 

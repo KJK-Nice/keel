@@ -106,6 +106,7 @@ or:
   go build -tags desktop,production,webkit2_41 -o keel ./cmd/keel   # Ubuntu 24.04+
 
 Linux packages: libgtk-3-dev libwebkit2gtk-4.1-dev
+macOS: Xcode Command Line Tools (UniformTypeIdentifiers is linked automatically)
 
 
 TUI keys:
