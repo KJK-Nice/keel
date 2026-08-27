@@ -19,6 +19,11 @@ import (
 )
 
 func RunDesktop(web fs.FS, addr, dataDir, name string) error {
+	// Re-exec into a signed .app before binding the port. WKWebView on
+	// Apple Silicon SIGTRAPs a naked Go binary (no bundle, no JIT entitlements).
+	if err := desktop.EnsureMacApp(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
