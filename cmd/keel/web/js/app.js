@@ -83,6 +83,22 @@
     localStorage.setItem("keel-theme", choice);
     syncThemeSwitch();
     applyTerminalThemes();
+    refreshActiveTerminal();
+  }
+
+  function refreshActiveTerminal() {
+    const active = state.sessions.get(state.activeId);
+    if (!active?.term) return;
+    const run = () => {
+      try {
+        active.fit.fit();
+        active.term.refresh(0, Math.max(0, (active.term.rows || 1) - 1));
+        sendResize(active);
+      } catch {
+        /* ignore */
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
   }
 
   const els = {
@@ -871,6 +887,9 @@
   document.getElementById("host-cancel").addEventListener("click", () => els.hostModal.close());
   document.getElementById("quick-cancel").addEventListener("click", () => els.quickModal.close());
   document.getElementById("snippet-cancel").addEventListener("click", () => els.snippetModal.close());
+  [els.hostModal, els.quickModal, els.snippetModal].forEach((modal) => {
+    modal.addEventListener("close", refreshActiveTerminal);
+  });
   els.hostForm.authType.addEventListener("change", toggleAuthFields);
   els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
   els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
