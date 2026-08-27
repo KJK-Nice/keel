@@ -26,6 +26,9 @@ func openLocal(cols, rows int) (Bridge, error) {
 		}
 	}
 	cmd := exec.Command(shell)
+	if dir := localWorkingDir(); dir != "" {
+		cmd.Dir = dir
+	}
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
@@ -40,6 +43,14 @@ func openLocal(cols, rows int) (Bridge, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+func localWorkingDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return home
 }
 
 func (b *localBridge) Read(p []byte) (int, error)  { return b.file.Read(p) }

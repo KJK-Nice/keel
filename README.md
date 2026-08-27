@@ -79,4 +79,6 @@ Termius Multiplayer fans a client-owned SSH session out over WebRTC. Keel keeps 
 
 Hosts and snippets live in `data/keel.json` (mode `0600`). Sessions are in-memory: they survive TUI/web detach, not a runtime restart.
 
+**Local Shell is not the browser’s computer and not a cloud agent.** It is a PTY on whatever machine is running `keel server`, started in that user’s home directory. If you launched Keel from a repo checkout, you still land in `$HOME`. If you opened a port-forwarded preview of someone else’s runtime, you are in *their* shell.
+
 The web UI follows Cursor’s v3 chrome: quiet neutrals, Inter / JetBrains Mono, and a Dark / Light / System switch (top right). Preference is stored as `keel-theme` in `localStorage`.

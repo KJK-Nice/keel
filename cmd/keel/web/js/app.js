@@ -191,7 +191,7 @@
   }
 
   function hostSubtitle(h) {
-    if (h.authType === "local") return "this machine";
+    if (h.authType === "local") return h.subtitle || "this machine";
     const port = h.port && h.port !== 22 ? `:${h.port}` : "";
     return `${h.username}@${h.address}${port}`;
   }
