@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -579,13 +580,26 @@ func sanitizeName(name string) string {
 
 func subtitle(h store.Host) string {
 	if h.AuthType == "local" {
-		return "this machine"
+		return localSubtitle()
 	}
 	port := ""
 	if h.Port != 0 && h.Port != 22 {
 		port = fmt.Sprintf(":%d", h.Port)
 	}
 	return h.Username + "@" + h.Address + port
+}
+
+func localSubtitle() string {
+	host, _ := os.Hostname()
+	user := os.Getenv("USER")
+	switch {
+	case user != "" && host != "":
+		return user + "@" + host
+	case host != "":
+		return host
+	default:
+		return "this machine"
+	}
 }
 
 func newID() string {
