@@ -388,16 +388,16 @@ button.meta,
 .theme-switch {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  padding: 2px;
+  padding: 3px;
   flex-shrink: 0;
 }
 .theme-switch button {
-  width: 28px;
-  height: 26px;
+  width: 30px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -405,9 +405,9 @@ button.meta,
 }
 .theme-switch button:hover { color: var(--text); background: var(--hover); }
 .theme-switch button.is-active {
-  color: var(--text);
-  background: var(--bg);
-  box-shadow: 0 0 0 1px var(--border);
+  color: var(--primary-fg);
+  background: var(--primary);
+  box-shadow: none;
 }
 .theme-switch svg { width: 14px; height: 14px; display: block; }
 
