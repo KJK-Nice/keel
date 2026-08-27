@@ -12,6 +12,7 @@
     token: params.get("token") || localStorage.getItem("keel-token") || "",
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
+    openModal: null,
   };
 
   const TERM_FONT = "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
@@ -116,6 +117,7 @@
     search: document.getElementById("search"),
     sidebar: document.getElementById("sidebar"),
     backdrop: document.getElementById("backdrop"),
+    modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
     hostForm: document.getElementById("host-form"),
     quickModal: document.getElementById("quick-modal"),
@@ -675,7 +677,7 @@
     } else {
       await api("/api/hosts", { method: "POST", body: JSON.stringify(payload) });
     }
-    els.hostModal.close();
+    closeModal(els.hostModal);
     await loadAll();
     toast("Host saved");
   }
@@ -702,7 +704,7 @@
         color: "#6ea8ff",
       }),
     });
-    els.quickModal.close();
+    closeModal(els.quickModal);
     await loadAll();
     openSession(host);
   }
@@ -724,7 +726,7 @@
     } else {
       await api("/api/snippets", { method: "POST", body: JSON.stringify(payload) });
     }
-    els.snippetModal.close();
+    closeModal(els.snippetModal);
     await loadAll();
     toast("Snippet saved");
   }
@@ -732,6 +734,20 @@
   function closeSidebar() {
     els.sidebar.classList.remove("is-open");
     els.backdrop.classList.remove("is-open");
+  }
+
+  function openModal(el) {
+    if (!el) return;
+    if (state.openModal && state.openModal !== el) closeModal(state.openModal);
+    el.show();
+    els.modalScrim.classList.add("is-open");
+    state.openModal = el;
+  }
+
+  function closeModal(el = state.openModal) {
+    if (el?.open) el.close();
+    els.modalScrim.classList.remove("is-open");
+    if (!el || state.openModal === el) state.openModal = null;
   }
 
   function shareActive() {
@@ -786,7 +802,7 @@
     } else if (edit) {
       const host = state.hosts.find((h) => h.id === edit.dataset.edit);
       fillHostForm(host);
-      els.hostModal.showModal();
+      openModal(els.hostModal);
     } else if (del) {
       const host = state.hosts.find((h) => h.id === del.dataset.delete);
       if (!host) return;
@@ -829,7 +845,7 @@
       els.snippetForm.name.value = sn.name;
       els.snippetForm.command.value = sn.command;
       document.getElementById("snippet-modal-title").textContent = "Edit snippet";
-      els.snippetModal.showModal();
+      openModal(els.snippetModal);
     }
     const delSn = ev.target.closest("[data-delete-snippet]");
     if (delSn) {
@@ -868,25 +884,26 @@
 
   document.getElementById("btn-new-host").addEventListener("click", () => {
     fillHostForm(null);
-    els.hostModal.showModal();
+    openModal(els.hostModal);
   });
   document.getElementById("btn-welcome-host").addEventListener("click", () => {
     fillHostForm(null);
-    els.hostModal.showModal();
+    openModal(els.hostModal);
   });
-  document.getElementById("btn-quick").addEventListener("click", () => els.quickModal.showModal());
+  document.getElementById("btn-quick").addEventListener("click", () => openModal(els.quickModal));
   document.getElementById("btn-new-snippet").addEventListener("click", () => {
     els.snippetForm.reset();
     document.getElementById("snippet-modal-title").textContent = "New snippet";
-    els.snippetModal.showModal();
+    openModal(els.snippetModal);
   });
   document.getElementById("btn-welcome-local").addEventListener("click", () => {
     const host = localHost();
     if (host) openSession(host).catch((err) => toast(err.message, true));
   });
-  document.getElementById("host-cancel").addEventListener("click", () => els.hostModal.close());
-  document.getElementById("quick-cancel").addEventListener("click", () => els.quickModal.close());
-  document.getElementById("snippet-cancel").addEventListener("click", () => els.snippetModal.close());
+  document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
+  document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
+  document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
+  els.modalScrim.addEventListener("click", () => closeModal());
   [els.hostModal, els.quickModal, els.snippetModal].forEach((modal) => {
     modal.addEventListener("close", refreshActiveTerminal);
   });
@@ -926,6 +943,11 @@
     sendResize(active);
   });
   window.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && state.openModal) {
+      ev.preventDefault();
+      closeModal();
+      return;
+    }
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
       els.search.focus();
