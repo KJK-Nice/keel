@@ -95,7 +95,18 @@ Environment:
   KEEL_TOKEN      optional share token (required on API/WS when set)
   KEEL_NAME       display name
   KEEL_URL        attach TUI to a remote runtime (never starts a local daemon)
-  KEEL_BROWSER    Chrome/Chromium/Edge/Brave binary for the desktop window
+
+The desktop window is a native WebKit/WebView2 webview (Wails). Build:
+
+  make build
+
+or:
+
+  go build -tags desktop,production -o keel ./cmd/keel
+  go build -tags desktop,production,webkit2_41 -o keel ./cmd/keel   # Ubuntu 24.04+
+
+Linux packages: libgtk-3-dev libwebkit2gtk-4.1-dev
+
 
 TUI keys:
   enter           attach a session or spawn from a host

@@ -1,4 +1,5 @@
 /bin/
+/build/bin/
 /data/*.json
 /data/*.pid
 /data/*.log
