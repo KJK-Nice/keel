@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -80,7 +82,7 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"status":     "ok",
 		"role":       "runtime",
 		"sessions":   s.rt.Count(),
@@ -88,7 +90,11 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 		"locked":     s.store.Locked(),
 		"needsSetup": s.store.NeedsSetup(),
 		"signal":     s.share != nil && s.share.Enabled(),
-	})
+	}
+	if s.share != nil && s.share.Enabled() {
+		out["signalURL"] = s.share.URL()
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +152,29 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// WKWebView clipboard dies after await fetch (user gesture gone).
+	pasteboardWrite(join)
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
+}
+
+func pasteboardWrite(s string) {
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "clip")
+	default:
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			cmd = exec.Command("wl-copy")
+		} else {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		}
+	}
+	cmd.Stdin = strings.NewReader(s)
+	if err := cmd.Run(); err != nil {
+		log.Printf("clipboard: %v", err)
+	}
 }
 
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {

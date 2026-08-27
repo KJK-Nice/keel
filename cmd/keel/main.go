@@ -78,8 +78,10 @@ Internet follow (no LAN) needs a public signaling server:
 
   keel-signal                 # listen :47242
   KEEL_SIGNAL=https://… keel  # host copies a join link from Share
-
   make build KEEL_SIGNAL=https://…   bake URL into Keel.app (Finder has no shell env)
+
+  Host: Share. Other Keel: Join session, paste the link.
+  Two apps on one Mac: KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
 
 Environment:
   KEEL_ADDR       local webview bind (default 127.0.0.1:47241)

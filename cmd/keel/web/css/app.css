@@ -589,9 +589,11 @@ button.meta,
   padding: 8px 10px;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  max-width: 320px;
+  max-width: min(480px, calc(100vw - 24px));
   z-index: 20;
   font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 .toast.is-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 

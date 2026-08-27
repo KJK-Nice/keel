@@ -63,7 +63,17 @@ open bin/Keel.app
 KEEL_SIGNAL=https://your-signal.example ./bin/keel
 ```
 
-3. Open a session, click **Share**, send the copied `/join?room=…` link. The joiner follows until you pass control. They never see hosts or keys.
+3. Open a session, click **Share**, send the copied `/join?room=…` link.
+
+4. On the other machine, open Keel → **Join session** → paste the link. They follow until you pass control. They never see hosts or keys. A browser can open the same link if they don't have Keel.
+
+Two Keel windows on one Mac (test): second instance needs its own port and data dir:
+
+```bash
+KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
+```
+
+`open bin/Keel.app` does not pass those env vars.
 
 STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not bundled yet.
 

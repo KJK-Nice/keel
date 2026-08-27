@@ -12,6 +12,7 @@
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
     openModal: null,
+    signalURL: "",
   };
 
   const TERM_FONT = "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
@@ -121,6 +122,8 @@
     hostForm: document.getElementById("host-form"),
     quickModal: document.getElementById("quick-modal"),
     quickForm: document.getElementById("quick-form"),
+    joinModal: document.getElementById("join-modal"),
+    joinForm: document.getElementById("join-form"),
     snippetModal: document.getElementById("snippet-modal"),
     snippetForm: document.getElementById("snippet-form"),
     toast: document.getElementById("toast"),
@@ -293,15 +296,19 @@
   }
 
   function renderControl(session) {
-    if (!session || !els.controlWidget) return;
+    if (!els.controlWidget) return;
+    if (!session) {
+      els.controlWidget.hidden = true;
+      els.btnShare.hidden = true;
+      return;
+    }
     const attached = session.attached || [];
+    els.btnShare.hidden = !!session.remote;
     if (!attached.length && !session.you) {
       els.controlWidget.hidden = true;
-      els.btnShare.hidden = !session;
       return;
     }
     els.controlWidget.hidden = false;
-    els.btnShare.hidden = false;
     const canGrant = isDriving(session) || isOwner(session);
     const people = attached
       .map((c) => {
@@ -573,22 +580,43 @@
     });
   }
 
+  function sendSessionJSON(session, obj) {
+    const raw = JSON.stringify(obj);
+    if (session?.remote) {
+      if (session.dc?.readyState === "open") session.dc.send(raw);
+      return;
+    }
+    if (session?.ws?.readyState === WebSocket.OPEN) session.ws.send(raw);
+  }
+
+  function sendSessionBytes(session, bytes) {
+    if (session?.remote) {
+      if (session.dc?.readyState === "open") session.dc.send(bytes);
+      return;
+    }
+    if (session?.ws?.readyState === WebSocket.OPEN) session.ws.send(bytes);
+  }
+
   function sendResize(session) {
-    if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) return;
-    if (!isDriving(session)) return;
-    session.ws.send(JSON.stringify({ type: "resize", cols: session.term.cols, rows: session.term.rows }));
+    if (!session || !isDriving(session)) return;
+    sendSessionJSON(session, { type: "resize", cols: session.term.cols, rows: session.term.rows });
   }
 
   function sendControl(type, extra = {}) {
     const session = state.sessions.get(state.activeId);
-    if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) return;
-    session.ws.send(JSON.stringify({ type, ...extra }));
+    sendSessionJSON(session, { type, ...extra });
   }
 
   function closeSession(id) {
     const session = state.sessions.get(id);
     if (!session) return;
     session.ws?.close();
+    session.sigWs?.close();
+    try {
+      session.pc?.close();
+    } catch {
+      /* ignore */
+    }
     session.term.dispose();
     session.wrap.remove();
     state.sessions.delete(id);
@@ -603,7 +631,7 @@
     const sn = state.snippets.find((s) => s.id === id);
     const session = state.sessions.get(state.activeId);
     if (!sn) return;
-    if (!session || session.ws?.readyState !== WebSocket.OPEN) {
+    if (!session || (session.remote ? session.dc?.readyState !== "open" : session.ws?.readyState !== WebSocket.OPEN)) {
       toast("Open a session first");
       return;
     }
@@ -612,7 +640,7 @@
       return;
     }
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
-    session.ws.send(new TextEncoder().encode(command));
+    sendSessionBytes(session, new TextEncoder().encode(command));
     session.term.focus();
   }
 
@@ -741,18 +769,265 @@
     if (!el || state.openModal === el) state.openModal = null;
   }
 
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        /* WKWebView often blocks this after await fetch */
+      }
+      ta.remove();
+      return ok;
+    }
+  }
+
   async function shareActive() {
     const session = state.sessions.get(state.activeId);
-    if (!session) return;
+    if (!session || session.remote) return;
     try {
+      toast("Sharing…");
       const out = await api("/api/share", {
         method: "POST",
         body: JSON.stringify({ sessionId: session.runtimeId }),
       });
       const url = out.url || "";
-      await navigator.clipboard.writeText(url).catch(() => {});
-      toast(url ? "Join link copied — they connect over the internet, not your LAN" : "Share ready");
-      if (url && !navigator.clipboard) toast(url);
+      if (!url) {
+        toast("Share ready");
+        return;
+      }
+      const copied = await copyText(url);
+      toast(copied ? `Copied ${url}` : url);
+      if (!copied) window.prompt("Join link", url);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function openJoin() {
+    els.joinForm.reset();
+    openModal(els.joinModal);
+    queueMicrotask(() => els.joinForm.url.focus());
+  }
+
+  function parseJoinLink(input, fallbackOrigin) {
+    const raw = String(input || "").trim();
+    if (!raw) throw new Error("paste a Share link");
+    try {
+      const u = new URL(raw);
+      const room = u.searchParams.get("room");
+      if (!room) throw new Error("link has no room");
+      return { origin: u.origin, room };
+    } catch (err) {
+      if (err.message === "link has no room") throw err;
+      if (/^[0-9a-f]{8,}$/i.test(raw) && fallbackOrigin) {
+        return { origin: String(fallbackOrigin).replace(/\/$/, ""), room: raw };
+      }
+      throw new Error("paste the full Share link");
+    }
+  }
+
+  function joinRemote({ origin, room }) {
+    const id = `join:${origin}:${room}`;
+    const existing = state.sessions.get(id);
+    if (existing) {
+      state.activeId = id;
+      renderTabs();
+      existing.term.focus();
+      return;
+    }
+    closeSidebar();
+    const wrap = document.createElement("div");
+    wrap.className = "term-wrap";
+    const banner = document.createElement("div");
+    banner.className = "follow-banner";
+    banner.hidden = true;
+    banner.textContent = "Following — request control to type";
+    wrap.appendChild(banner);
+    els.terminals.appendChild(wrap);
+
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: TERM_FONT,
+      fontSize: 12,
+      lineHeight: 1.22,
+      theme: xtermTheme(),
+    });
+    const fit = new FitAddonCtor();
+    term.loadAddon(fit);
+    term.open(wrap);
+    fit.fit();
+
+    const session = {
+      id,
+      runtimeId: id,
+      hostId: "",
+      title: "Follow",
+      subtitle: origin.replace(/^https?:\/\//, ""),
+      status: "",
+      term,
+      fit,
+      wrap,
+      banner,
+      ws: null,
+      sigWs: null,
+      pc: null,
+      dc: null,
+      remote: true,
+      you: null,
+      attached: [],
+      driverId: 0,
+      ownerId: 0,
+    };
+    state.sessions.set(id, session);
+    state.activeId = id;
+    renderTabs();
+
+    const applyPresence = (msg) => {
+      if (msg.you) session.you = msg.you;
+      if (msg.attached) session.attached = msg.attached;
+      if (msg.driverId != null) session.driverId = msg.driverId;
+      if (msg.ownerId != null) session.ownerId = msg.ownerId;
+      if (msg.title) session.title = msg.title;
+      banner.hidden = isDriving(session);
+      renderTabs();
+    };
+
+    const proto = origin.startsWith("https:") ? "wss" : "ws";
+    const host = origin.replace(/^https?:\/\//, "");
+    const q = new URLSearchParams({
+      role: "join",
+      room,
+      name: state.name || "guest",
+    });
+    const sigWs = new WebSocket(`${proto}://${host}/ws?${q}`);
+    session.sigWs = sigWs;
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    session.pc = pc;
+
+    const sendSignal = (msg) => {
+      if (sigWs.readyState === WebSocket.OPEN) {
+        sigWs.send(JSON.stringify({ type: "signal", ...msg }));
+      }
+    };
+
+    pc.onicecandidate = (ev) => {
+      if (!ev.candidate) return;
+      sendSignal({
+        kind: "ice",
+        candidate: ev.candidate.candidate,
+        sdpMid: ev.candidate.sdpMid,
+        sdpMLineIndex: ev.candidate.sdpMLineIndex,
+      });
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        session.status = "is-error";
+        toast("Follow connection lost", true);
+        renderTabs();
+      }
+    };
+    pc.ondatachannel = (ev) => {
+      const dc = ev.channel;
+      dc.binaryType = "arraybuffer";
+      session.dc = dc;
+      dc.onopen = () => {
+        session.status = "is-ready";
+        term.onData((data) => {
+          if (!isDriving(session)) return;
+          sendSessionBytes(session, new TextEncoder().encode(data));
+        });
+        sendResize(session);
+        renderTabs();
+      };
+      dc.onclose = () => {
+        if (session.status !== "is-error") session.status = "";
+        term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
+        renderTabs();
+      };
+      dc.onmessage = (ev) => {
+        if (typeof ev.data === "string") {
+          let msg;
+          try {
+            msg = JSON.parse(ev.data);
+          } catch {
+            return;
+          }
+          if (msg.type === "error") {
+            session.status = "is-error";
+            term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+            renderTabs();
+            toast(msg.message, true);
+            return;
+          }
+          if (msg.type === "ready" || msg.type === "presence" || msg.type === "control" || msg.type === "status") {
+            if (msg.status === "ready") session.status = "is-ready";
+            applyPresence(msg);
+            if (msg.type === "control" && msg.message) toast(msg.message);
+          }
+          return;
+        }
+        term.write(new Uint8Array(ev.data));
+      };
+    };
+
+    sigWs.addEventListener("message", async (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "error") {
+        toast(msg.name || "signaling error", true);
+        return;
+      }
+      if (msg.type === "leave") {
+        toast("Host left");
+        pc.close();
+        return;
+      }
+      if (msg.type !== "signal") return;
+      if (msg.kind === "offer" && msg.sdp) {
+        await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendSignal({ kind: "answer", sdp: answer.sdp });
+      }
+      if (msg.kind === "ice" && msg.candidate) {
+        try {
+          await pc.addIceCandidate({
+            candidate: msg.candidate,
+            sdpMid: msg.sdpMid,
+            sdpMLineIndex: msg.sdpMLineIndex,
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+    sigWs.addEventListener("error", () => toast("Signaling failed", true));
+    sigWs.addEventListener("close", () => {
+      if (pc.connectionState !== "connected" && session.status !== "is-error") {
+        session.status = "is-error";
+        toast("Signaling closed", true);
+        renderTabs();
+      }
+    });
+  }
+
+  async function submitJoin(ev) {
+    ev.preventDefault();
+    try {
+      const parsed = parseJoinLink(els.joinForm.url.value, state.signalURL);
+      closeModal(els.joinModal);
+      joinRemote(parsed);
     } catch (err) {
       toast(err.message, true);
     }
@@ -781,6 +1056,7 @@
     persistIdentity();
     try {
       const health = await api("/api/health");
+      state.signalURL = health.signalURL || "";
       if (health.locked) {
         showGate(!!health.needsSetup);
         return;
@@ -911,17 +1187,21 @@
     const host = localHost();
     if (host) openSession(host).catch((err) => toast(err.message, true));
   });
+  document.getElementById("btn-join").addEventListener("click", openJoin);
+  document.getElementById("btn-welcome-join").addEventListener("click", openJoin);
+  document.getElementById("join-cancel").addEventListener("click", () => closeModal(els.joinModal));
   document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
   document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
   document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
   els.modalScrim.addEventListener("click", () => closeModal());
-  [els.hostModal, els.quickModal, els.snippetModal].forEach((modal) => {
+  [els.hostModal, els.quickModal, els.snippetModal, els.joinModal].forEach((modal) => {
     modal.addEventListener("close", refreshActiveTerminal);
   });
   els.hostForm.authType.addEventListener("change", toggleAuthFields);
   els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
   els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
   els.snippetForm.addEventListener("submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
+  els.joinForm.addEventListener("submit", (ev) => submitJoin(ev));
   els.search.addEventListener("input", () => {
     state.query = els.search.value;
     renderHosts();
