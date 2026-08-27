@@ -1,33 +1,39 @@
 # Keel
 
-A local SSH workspace. `keel` opens a desktop window on this machine. Close the window and the runtime plus every PTY die.
+A local SSH workspace. `keel` opens a **native desktop window** (macOS WebKit, Windows WebView2, Linux WebKitGTK). Close the window and the runtime plus every PTY die.
 
 The TUI is still a client of the same runtime. Multiplayer (driver/follow) is available if you bind beyond localhost and set a token.
+
+## Install / build
+
+```bash
+make build && ./bin/keel
+```
+
+Ubuntu 24.04+ needs GTK + WebKit and the `webkit2_41` build tag (`make build` sets it):
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+macOS needs Xcode command-line tools (`go build -tags desktop,production`). Windows uses Edge WebView2.
 
 ## Run
 
 ```bash
-go run ./cmd/keel          # desktop app (default)
-go run ./cmd/keel app      # same
-go run ./cmd/keel tui      # terminal UI
-go run ./cmd/keel server   # headless (no window)
+./keel                 # desktop app (default)
+./keel app             # same
+./keel tui             # terminal UI
+./keel server          # headless (no window)
 ```
 
-```bash
-go build -o keel ./cmd/keel
-./keel
-```
-
-The window is Chromium app mode (Chrome, Chromium, Edge, or Brave). Isolated profile under the data dir, so it does not attach to your everyday browser. Set `KEEL_BROWSER` if yours is not in the usual place.
-
-| Variable     | Default                         | Purpose                                      |
-|--------------|---------------------------------|----------------------------------------------|
-| `KEEL_ADDR`  | `127.0.0.1:47241`               | Runtime listen address                       |
-| `KEEL_DATA`  | OS config dir `/keel`           | `keel.json`, pid, logs, window profile       |
-| `KEEL_TOKEN` | (unset)                         | Optional share token for API and WebSockets  |
-| `KEEL_NAME`  | `$USER`                         | Display name                                 |
-| `KEEL_URL`   | (unset)                         | Remote runtime URL for `keel tui`            |
-| `KEEL_BROWSER` | (auto)                        | Browser binary for the desktop window        |
+| Variable    | Default                   | Purpose                                     |
+|-------------|---------------------------|---------------------------------------------|
+| `KEEL_ADDR` | `127.0.0.1:47241`         | Runtime listen address                      |
+| `KEEL_DATA` | OS config dir `/keel`     | `keel.json`, pid, logs                      |
+| `KEEL_TOKEN`| (unset)                   | Optional share token for API and WebSockets |
+| `KEEL_NAME` | `$USER`                   | Display name                                |
+| `KEEL_URL`  | (unset)                   | Remote runtime URL for `keel tui`           |
 
 Quit the window: every session is killed, then the process exits. Closing a tab only detaches. `keel tui` + `q` still leaves a `keel server` daemon running if one was spawned.
 
@@ -68,4 +74,4 @@ This is still not a public internet service. Anyone with the token can spawn, ki
 
 ## Why this shape
 
-Go owns SSH and PTYs. The desktop window is a Chromium webview of the same UI. The TUI is another client. Local Shell is a PTY on this machine, started in `$HOME`.
+Go owns SSH and PTYs. The window is Wails (native webview) pointed at the local runtime because Wails cannot proxy WebSockets. The TUI is another client. Local Shell starts in `$HOME`.
