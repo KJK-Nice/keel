@@ -1,56 +1,53 @@
 # Keel
 
-A Termius-style SSH workspace with a **Herdr-style runtime**: the server owns the PTYs, and every UI is just a client.
+A local SSH workspace. `keel` opens a desktop window on this machine. Close the window and the runtime plus every PTY die.
 
-`keel tui` is a detachable Bubble Tea client. The web UI is another client of the same herd. Close either one and the session keeps running.
-
-Multiplayer is **driver / follow**, not everyone-types: one person drives, others watch in real time, and control can be passed.
+The TUI is still a client of the same runtime. Multiplayer (driver/follow) is available if you bind beyond localhost and set a token.
 
 ## Run
 
 ```bash
-keel server          # runtime in the foreground (API + web UI)
-keel                 # attach the TUI (starts the runtime if needed)
-keel tui             # same
-keel tui --name alice
+go run ./cmd/keel          # desktop app (default)
+go run ./cmd/keel app      # same
+go run ./cmd/keel tui      # terminal UI
+go run ./cmd/keel server   # headless (no window)
 ```
 
 ```bash
-go run ./cmd/keel server
-# web: http://127.0.0.1:47241
+go build -o keel ./cmd/keel
+./keel
 ```
 
-In another terminal:
+The window is Chromium app mode (Chrome, Chromium, Edge, or Brave). Isolated profile under the data dir, so it does not attach to your everyday browser. Set `KEEL_BROWSER` if yours is not in the usual place.
 
-```bash
-go run ./cmd/keel tui --name alice
-```
+| Variable     | Default                         | Purpose                                      |
+|--------------|---------------------------------|----------------------------------------------|
+| `KEEL_ADDR`  | `127.0.0.1:47241`               | Runtime listen address                       |
+| `KEEL_DATA`  | OS config dir `/keel`           | `keel.json`, pid, logs, window profile       |
+| `KEEL_TOKEN` | (unset)                         | Optional share token for API and WebSockets  |
+| `KEEL_NAME`  | `$USER`                         | Display name                                 |
+| `KEEL_URL`   | (unset)                         | Remote runtime URL for `keel tui`            |
+| `KEEL_BROWSER` | (auto)                        | Browser binary for the desktop window        |
 
-| Variable    | Default         | Purpose                                      |
-|-------------|-----------------|----------------------------------------------|
-| `KEEL_ADDR` | `0.0.0.0:47241` | Runtime listen address                       |
-| `KEEL_DATA` | `data`          | `keel.json`, pid, logs                       |
-| `KEEL_TOKEN`| (unset)         | Optional share token for API and WebSockets  |
-| `KEEL_NAME` | `$USER`         | Display name for this TUI client             |
-| `KEEL_URL`  | (unset)         | Remote runtime URL; never starts a local daemon |
+Quit the window: every session is killed, then the process exits. Closing a tab only detaches. `keel tui` + `q` still leaves a `keel server` daemon running if one was spawned.
 
 ## The herd
 
-- **Spawn** a session from a host (web Hosts, or TUI enter on a host)
-- **Attach** from the Herd list — web tab or TUI pane, including at the same time
-- The first client to attach is the **owner** and **driver**. Later joiners **follow** (view-only)
-- **Pass control** from the web widget (click a name) or `ctrl+b t` in the TUI (take if you own it, otherwise request)
-- **Detach** (close the tab, `ctrl+b d`, or `q`) — PTY stays alive
-- **Kill** from the herd when you actually want it gone
+- **Spawn** a session from a host (window Hosts, or TUI enter on a host)
+- **Attach** from the Herd list
+- The first client to attach is the **owner** and **driver**. Later joiners **follow**
+- **Pass control** from the tab widget or `ctrl+b t` in the TUI
+- **Detach** (close the tab, `ctrl+b d`, or `q` in the TUI)
+- **Quit Keel** (close the window) kills everything
 
 TUI keys: `enter` attach/spawn, `j`/`k` move, `x` kill, `n` local shell, `ctrl+b d` detach, `ctrl+b t` control, `q` quit.
 
 ## Share a session
 
-Set a token so the port is joinable on a LAN (or over an SSH tunnel). Without a token, the API stays open like before.
+Default bind is loopback. To share, listen on the LAN and set a token:
 
 ```bash
-KEEL_TOKEN=correct-horse-battery keel server
+KEEL_ADDR=0.0.0.0:47241 KEEL_TOKEN=correct-horse-battery keel server
 ```
 
 Web joiners open:
@@ -59,26 +56,16 @@ Web joiners open:
 http://<host>:47241/?token=correct-horse-battery&name=bob
 ```
 
-or paste a **Share** link from an open tab (`?session=<id>&name=&token=`). Joiners attach as followers.
+or paste a **Share** link. Joiners attach as followers.
 
-Remote TUI (does not start a local runtime):
+Remote TUI:
 
 ```bash
 KEEL_URL=http://<host>:47241 KEEL_TOKEN=correct-horse-battery KEEL_NAME=carol keel tui
 ```
 
-If `KEEL_ADDR` is a non-local host and nothing is listening, the TUI will not spawn a daemon — it expects that runtime to already be up.
-
-This is still not a public internet service. Use a token plus LAN or an SSH tunnel. Anyone with the token can spawn, kill, and see host inventory on that runtime.
+This is still not a public internet service. Anyone with the token can spawn, kill, and see host inventory on that runtime.
 
 ## Why this shape
 
-Go is a good SSH engine. A browser still needs xterm.js. A TUI still needs a VT parser (`vt10x`) to draw a live pane beside the sidebar. Neither is a from-scratch xterm rewrite. The part that makes it feel like Herdr is **server-owned PTYs**, not the renderer.
-
-Termius Multiplayer fans a client-owned SSH session out over WebRTC. Keel keeps the herd as the hub: same driver/follow UX, bytes stay on the runtime.
-
-Hosts and snippets live in `data/keel.json` (mode `0600`). Sessions are in-memory: they survive TUI/web detach, not a runtime restart.
-
-**Local Shell is not the browser’s computer and not a cloud agent.** It is a PTY on whatever machine is running `keel server`, started in that user’s home directory. If you launched Keel from a repo checkout, you still land in `$HOME`. If you opened a port-forwarded preview of someone else’s runtime, you are in *their* shell.
-
-The web UI follows Cursor’s v3 chrome: quiet neutrals, Inter / JetBrains Mono, and a Dark / Light / System switch (top right). Preference is stored as `keel-theme` in `localStorage`.
+Go owns SSH and PTYs. The desktop window is a Chromium webview of the same UI. The TUI is another client. Local Shell is a PTY on this machine, started in `$HOME`.
