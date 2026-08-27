@@ -1,5 +1,6 @@
 (() => {
   const FitAddonCtor = window.FitAddon?.FitAddon || window.FitAddon;
+  const params = new URLSearchParams(location.search);
   const state = {
     hosts: [],
     snippets: [],
@@ -7,7 +8,99 @@
     sessions: new Map(),
     activeId: null,
     query: "",
+    name: params.get("name") || localStorage.getItem("keel-name") || "",
+    token: params.get("token") || localStorage.getItem("keel-token") || "",
+    pendingSession: params.get("session") || params.get("id") || "",
+    herdWs: null,
+    openModal: null,
   };
+
+  const TERM_FONT = "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  const TERM_THEMES = {
+    dark: {
+      background: "#0a0a0a",
+      foreground: "#e4e4e4",
+      cursor: "#82a7ff",
+      cursorAccent: "#0a0a0a",
+      selectionBackground: "#2a3344",
+      black: "#1a1a1a",
+      red: "#f87171",
+      green: "#4ade80",
+      yellow: "#e8b849",
+      blue: "#82a7ff",
+      magenta: "#c084fc",
+      cyan: "#67e8f9",
+      white: "#ececec",
+      brightBlack: "#737373",
+    },
+    light: {
+      background: "#fbfbfa",
+      foreground: "#1a1a1a",
+      cursor: "#3b6cff",
+      cursorAccent: "#fbfbfa",
+      selectionBackground: "#dbe4ff",
+      black: "#1a1a1a",
+      red: "#dc2626",
+      green: "#15803d",
+      yellow: "#b45309",
+      blue: "#3b6cff",
+      magenta: "#7c3aed",
+      cyan: "#0e7490",
+      white: "#f5f5f4",
+      brightBlack: "#737373",
+    },
+  };
+
+  function resolvedTheme() {
+    const choice = document.documentElement.dataset.theme || "system";
+    if (choice === "light" || choice === "dark") return choice;
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+
+  function xtermTheme() {
+    return TERM_THEMES[resolvedTheme()];
+  }
+
+  function applyTerminalThemes() {
+    const theme = xtermTheme();
+    for (const s of state.sessions.values()) {
+      s.term.options.theme = theme;
+      s.term.options.fontFamily = TERM_FONT;
+    }
+  }
+
+  function syncThemeSwitch() {
+    const choice = document.documentElement.dataset.theme || "system";
+    document.querySelectorAll("[data-theme-choice]").forEach((btn) => {
+      const on = btn.dataset.themeChoice === choice;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  function setTheme(choice) {
+    if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
+    document.documentElement.dataset.theme = choice;
+    localStorage.setItem("keel-theme", choice);
+    syncThemeSwitch();
+    applyTerminalThemes();
+    refreshActiveTerminal();
+  }
+
+  function refreshActiveTerminal() {
+    const active = state.sessions.get(state.activeId);
+    if (!active?.term) return;
+    const run = () => {
+      try {
+        active.fit.fit();
+        active.term.refresh(0, Math.max(0, (active.term.rows || 1) - 1));
+        sendResize(active);
+      } catch {
+        /* ignore */
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }
 
   const els = {
     hostList: document.getElementById("host-list"),
@@ -18,9 +111,13 @@
     terminals: document.getElementById("terminals"),
     welcome: document.getElementById("welcome"),
     barMeta: document.getElementById("bar-meta"),
+    barStatus: document.getElementById("bar-status"),
+    controlWidget: document.getElementById("control-widget"),
+    btnShare: document.getElementById("btn-share"),
     search: document.getElementById("search"),
     sidebar: document.getElementById("sidebar"),
     backdrop: document.getElementById("backdrop"),
+    modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
     hostForm: document.getElementById("host-form"),
     quickModal: document.getElementById("quick-modal"),
@@ -29,15 +126,35 @@
     snippetForm: document.getElementById("snippet-form"),
     toast: document.getElementById("toast"),
     activeSnippets: document.getElementById("active-snippets"),
+    gate: document.getElementById("gate"),
+    gateForm: document.getElementById("gate-form"),
   };
+
+  function authHeaders() {
+    const headers = { "Content-Type": "application/json" };
+    if (state.token) headers.Authorization = `Bearer ${state.token}`;
+    return headers;
+  }
+
+  function withToken(url) {
+    if (!state.token) return url;
+    const u = new URL(url, location.origin);
+    u.searchParams.set("token", state.token);
+    return u.pathname + u.search;
+  }
 
   async function api(path, opts = {}) {
     const res = await fetch(path, {
-      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      headers: { ...authHeaders(), ...(opts.headers || {}) },
       ...opts,
     });
     if (res.status === 204) return null;
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      const err = new Error(data.error || "unauthorized");
+      err.code = 401;
+      throw err;
+    }
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data;
   }
@@ -50,6 +167,12 @@
     toast._t = setTimeout(() => {
       els.toast.hidden = true;
     }, 3600);
+  }
+
+  function persistIdentity() {
+    if (state.name) localStorage.setItem("keel-name", state.name);
+    if (state.token) localStorage.setItem("keel-token", state.token);
+    else localStorage.removeItem("keel-token");
   }
 
   function groupHosts(hosts) {
@@ -73,6 +196,18 @@
     return `${h.username}@${h.address}${port}`;
   }
 
+  function driverName(s) {
+    const d = (s.attached || []).find((c) => c.role === "driver" || c.id === s.driverId);
+    return d?.name || "";
+  }
+
+  function peopleLabel(s) {
+    const names = (s.attached || []).map((c) => (c.role === "driver" || c.id === s.driverId ? `${c.name}*` : c.name));
+    if (names.length) return names.join(", ");
+    if (s.clients) return `${s.clients} attached`;
+    return "empty";
+  }
+
   function renderHerd() {
     if (!state.herd.length) {
       els.herdList.innerHTML = "";
@@ -83,12 +218,13 @@
     els.herdList.innerHTML = state.herd
       .map((s) => {
         const open = [...state.sessions.values()].some((tab) => tab.runtimeId === s.id);
+        const driver = driverName(s);
         return `
           <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
             <span class="dot" style="--dot:${s.color || "#5ee0b5"};background:${statusColor(s.status)}"></span>
             <div class="meta" role="button" tabindex="0" data-attach="${s.id}">
               <b>${escapeHtml(s.title)}</b>
-              <small>${escapeHtml(s.status)} · ${s.clients} attached</small>
+              <small>${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</small>
             </div>
             <div class="host-tools">
               <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
@@ -156,6 +292,43 @@
       .join("");
   }
 
+  function isDriving(session) {
+    return session?.you?.role === "driver";
+  }
+
+  function isOwner(session) {
+    return session?.you?.id && session.you.id === session.ownerId;
+  }
+
+  function renderControl(session) {
+    if (!session || !els.controlWidget) return;
+    const attached = session.attached || [];
+    if (!attached.length && !session.you) {
+      els.controlWidget.hidden = true;
+      els.btnShare.hidden = !session;
+      return;
+    }
+    els.controlWidget.hidden = false;
+    els.btnShare.hidden = false;
+    const canGrant = isDriving(session) || isOwner(session);
+    const people = attached
+      .map((c) => {
+        const driving = c.role === "driver" || c.id === session.driverId;
+        const grant = canGrant && !driving ? `data-grant="${c.id}"` : "";
+        return `<button type="button" class="chip-person ${driving ? "is-driver" : ""} ${grant ? "is-grantable" : ""}" ${grant} title="${driving ? "Driving" : canGrant ? "Pass control" : ""}">${escapeHtml(c.name)}${driving ? " *" : ""}</button>`;
+      })
+      .join("");
+    let action = "";
+    if (!isDriving(session) && isOwner(session)) {
+      action = `<button class="tiny" data-take="1">Take control</button>`;
+    } else if (!isDriving(session)) {
+      action = `<button class="tiny" data-request="1">Request control</button>`;
+    }
+    els.controlWidget.innerHTML = `<div class="people">${people}</div>${action}`;
+    session.wrap?.classList.toggle("is-follow", !isDriving(session));
+    if (session.term) session.term.options.disableStdin = !isDriving(session);
+  }
+
   function renderTabs() {
     const sessions = [...state.sessions.values()];
     els.welcome.style.display = sessions.length ? "none" : "block";
@@ -165,7 +338,7 @@
         (s) => `
       <button class="tab ${s.id === state.activeId ? "is-active" : ""} ${s.status}" data-tab="${s.id}">
         <span class="status"></span>
-        ${escapeHtml(s.title)}
+        ${escapeHtml(s.title)}${isDriving(s) ? "" : s.you ? " · follow" : ""}
         <span class="close" data-close="${s.id}" title="Close">×</span>
       </button>`
       )
@@ -179,7 +352,12 @@
       }
     }
     const active = state.sessions.get(state.activeId);
-    els.barMeta.textContent = active ? active.subtitle : "No session";
+    if (els.barStatus) {
+      if (!active) els.barStatus.textContent = "No session";
+      else if (isDriving(active)) els.barStatus.textContent = `${active.subtitle} · driving`;
+      else els.barStatus.textContent = `${active.subtitle} · following`;
+    }
+    renderControl(active);
   }
 
   function escapeHtml(value) {
@@ -188,6 +366,59 @@
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;");
+  }
+
+  function applyHerdEvent(ev) {
+    if (!ev || !ev.type) return;
+    if (ev.type === "snapshot" && Array.isArray(ev.sessions)) {
+      state.herd = ev.sessions;
+      renderHerd();
+      return;
+    }
+    if (ev.type === "spawn" && ev.session) {
+      if (!state.herd.some((s) => s.id === ev.session.id)) state.herd.push(ev.session);
+      else state.herd = state.herd.map((s) => (s.id === ev.session.id ? ev.session : s));
+      renderHerd();
+      return;
+    }
+    if (ev.type === "kill") {
+      const id = ev.id || ev.session?.id;
+      state.herd = state.herd.filter((s) => s.id !== id);
+      renderHerd();
+      return;
+    }
+    if ((ev.type === "update" || ev.type === "presence" || ev.type === "control") && ev.session) {
+      const i = state.herd.findIndex((s) => s.id === ev.session.id);
+      if (i >= 0) state.herd[i] = { ...state.herd[i], ...ev.session };
+      else state.herd.push(ev.session);
+      renderHerd();
+    }
+  }
+
+  function connectHerd() {
+    if (state.herdWs) {
+      try {
+        state.herdWs.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${proto}://${location.host}${withToken("/ws/herd")}`);
+    state.herdWs = ws;
+    ws.addEventListener("message", (ev) => {
+      try {
+        applyHerdEvent(JSON.parse(ev.data));
+      } catch {
+        /* ignore */
+      }
+    });
+    ws.addEventListener("close", () => {
+      if (state.herdWs === ws) {
+        state.herdWs = null;
+        setTimeout(connectHerd, 2000);
+      }
+    });
   }
 
   async function loadAll() {
@@ -213,7 +444,7 @@
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
-    const probe = new Terminal({ fontSize: 13, fontFamily: "monospace" });
+    const probe = new Terminal({ fontSize: 12, fontFamily: TERM_FONT, theme: xtermTheme() });
     probe.open(termProbe);
     const cols = probe.cols || 80;
     const rows = probe.rows || 24;
@@ -239,29 +470,19 @@
     const id = info.id;
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
+    const banner = document.createElement("div");
+    banner.className = "follow-banner";
+    banner.hidden = true;
+    banner.textContent = "Following — request control to type";
+    wrap.appendChild(banner);
     els.terminals.appendChild(wrap);
 
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace",
-      fontSize: 13,
-      lineHeight: 1.3,
-      theme: {
-        background: "#0b0f16",
-        foreground: "#d7deea",
-        cursor: "#5ee0b5",
-        cursorAccent: "#0b0f16",
-        selectionBackground: "#243044",
-        black: "#1b2230",
-        red: "#ff6b7a",
-        green: "#5ee0b5",
-        yellow: "#f5c15d",
-        blue: "#6ea8ff",
-        magenta: "#c084fc",
-        cyan: "#67e8f9",
-        white: "#e8edf7",
-        brightBlack: "#6b7385",
-      },
+      fontFamily: TERM_FONT,
+      fontSize: 12,
+      lineHeight: 1.22,
+      theme: xtermTheme(),
     });
     const fit = new FitAddonCtor();
     term.loadAddon(fit);
@@ -278,7 +499,12 @@
       term,
       fit,
       wrap,
+      banner,
       ws: null,
+      you: null,
+      attached: info.attached || [],
+      driverId: info.driverId,
+      ownerId: info.ownerId,
     };
     state.sessions.set(id, session);
     state.activeId = id;
@@ -286,11 +512,35 @@
     renderHerd();
 
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(
-      `${proto}://${location.host}/ws/session?id=${encodeURIComponent(info.id)}&cols=${term.cols}&rows=${term.rows}`
-    );
+    const q = new URLSearchParams({
+      id: info.id,
+      cols: String(term.cols || 80),
+      rows: String(term.rows || 24),
+      name: state.name || "guest",
+      kind: "web",
+    });
+    if (state.token) q.set("token", state.token);
+    const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
     session.ws = ws;
+
+    const applyPresence = (msg) => {
+      if (msg.you) session.you = msg.you;
+      if (msg.attached) session.attached = msg.attached;
+      if (msg.driverId != null) session.driverId = msg.driverId;
+      if (msg.ownerId != null) session.ownerId = msg.ownerId;
+      if (msg.title) session.title = msg.title;
+      banner.hidden = isDriving(session);
+      const herd = state.herd.find((h) => h.id === session.runtimeId);
+      if (herd) {
+        herd.attached = session.attached;
+        herd.driverId = session.driverId;
+        herd.ownerId = session.ownerId;
+        herd.clients = session.attached.length;
+      }
+      renderTabs();
+      renderHerd();
+    };
 
     ws.addEventListener("message", (ev) => {
       if (typeof ev.data === "string") {
@@ -298,14 +548,14 @@
         if (msg.type === "status") {
           if (msg.status === "ready") session.status = "is-ready";
           if (msg.status === "error" || msg.status === "exited") session.status = "is-error";
-          renderTabs();
-          renderHerd();
-        } else if (msg.type === "ready") {
+          applyPresence(msg);
+        } else if (msg.type === "ready" || msg.type === "presence" || msg.type === "control") {
           session.status = "is-ready";
-          renderTabs();
+          applyPresence(msg);
+          if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
           session.status = "is-error";
-          term.writeln(`\r\n\x1b[38;2;255;107;122m${msg.message}\x1b[0m`);
+          term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
           renderTabs();
           toast(msg.message, true);
         }
@@ -315,6 +565,7 @@
     });
     ws.addEventListener("open", () => {
       term.onData((data) => {
+        if (!isDriving(session)) return;
         if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data));
       });
     });
@@ -333,7 +584,14 @@
 
   function sendResize(session) {
     if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) return;
+    if (!isDriving(session)) return;
     session.ws.send(JSON.stringify({ type: "resize", cols: session.term.cols, rows: session.term.rows }));
+  }
+
+  function sendControl(type, extra = {}) {
+    const session = state.sessions.get(state.activeId);
+    if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) return;
+    session.ws.send(JSON.stringify({ type, ...extra }));
   }
 
   function closeSession(id) {
@@ -356,6 +614,10 @@
     if (!sn) return;
     if (!session || session.ws?.readyState !== WebSocket.OPEN) {
       toast("Open a session first");
+      return;
+    }
+    if (!isDriving(session)) {
+      toast("You are following — take or request control to type");
       return;
     }
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
@@ -415,7 +677,7 @@
     } else {
       await api("/api/hosts", { method: "POST", body: JSON.stringify(payload) });
     }
-    els.hostModal.close();
+    closeModal(els.hostModal);
     await loadAll();
     toast("Host saved");
   }
@@ -442,7 +704,7 @@
         color: "#6ea8ff",
       }),
     });
-    els.quickModal.close();
+    closeModal(els.quickModal);
     await loadAll();
     openSession(host);
   }
@@ -464,7 +726,7 @@
     } else {
       await api("/api/snippets", { method: "POST", body: JSON.stringify(payload) });
     }
-    els.snippetModal.close();
+    closeModal(els.snippetModal);
     await loadAll();
     toast("Snippet saved");
   }
@@ -472,6 +734,62 @@
   function closeSidebar() {
     els.sidebar.classList.remove("is-open");
     els.backdrop.classList.remove("is-open");
+  }
+
+  function openModal(el) {
+    if (!el) return;
+    if (state.openModal && state.openModal !== el) closeModal(state.openModal);
+    el.show();
+    els.modalScrim.classList.add("is-open");
+    state.openModal = el;
+  }
+
+  function closeModal(el = state.openModal) {
+    if (el?.open) el.close();
+    els.modalScrim.classList.remove("is-open");
+    if (!el || state.openModal === el) state.openModal = null;
+  }
+
+  function shareActive() {
+    const session = state.sessions.get(state.activeId);
+    if (!session) return;
+    const u = new URL(location.origin);
+    u.searchParams.set("session", session.runtimeId);
+    if (state.name) u.searchParams.set("name", state.name);
+    if (state.token) u.searchParams.set("token", state.token);
+    navigator.clipboard.writeText(u.toString()).then(
+      () => toast("Share link copied — joiners follow until you pass control"),
+      () => toast(u.toString())
+    );
+  }
+
+  function showGate() {
+    els.gate.hidden = false;
+    els.gateForm.name.value = state.name;
+    els.gateForm.token.value = state.token;
+    els.gateForm.name.focus();
+  }
+
+  async function boot() {
+    persistIdentity();
+    try {
+      await loadAll();
+    } catch (err) {
+      if (err.code === 401) {
+        showGate();
+        toast("This runtime requires a share token", true);
+        return;
+      }
+      toast(err.message, true);
+      return;
+    }
+    els.gate.hidden = true;
+    connectHerd();
+    if (state.pendingSession) {
+      const info = state.herd.find((s) => s.id === state.pendingSession);
+      if (info) attachRuntime(info);
+      state.pendingSession = "";
+    }
   }
 
   els.hostList.addEventListener("click", async (ev) => {
@@ -484,7 +802,7 @@
     } else if (edit) {
       const host = state.hosts.find((h) => h.id === edit.dataset.edit);
       fillHostForm(host);
-      els.hostModal.showModal();
+      openModal(els.hostModal);
     } else if (del) {
       const host = state.hosts.find((h) => h.id === del.dataset.delete);
       if (!host) return;
@@ -527,7 +845,7 @@
       els.snippetForm.name.value = sn.name;
       els.snippetForm.command.value = sn.command;
       document.getElementById("snippet-modal-title").textContent = "Edit snippet";
-      els.snippetModal.showModal();
+      openModal(els.snippetModal);
     }
     const delSn = ev.target.closest("[data-delete-snippet]");
     if (delSn) {
@@ -535,6 +853,10 @@
       if (!sn || !confirm(`Delete snippet “${sn.name}”?`)) return;
       api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
     }
+    const grant = ev.target.closest("[data-grant]");
+    if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
+    if (ev.target.closest("[data-request]")) sendControl("request-control");
+    if (ev.target.closest("[data-take]")) sendControl("take-control");
   });
 
   els.tabs.addEventListener("click", (ev) => {
@@ -562,25 +884,29 @@
 
   document.getElementById("btn-new-host").addEventListener("click", () => {
     fillHostForm(null);
-    els.hostModal.showModal();
+    openModal(els.hostModal);
   });
   document.getElementById("btn-welcome-host").addEventListener("click", () => {
     fillHostForm(null);
-    els.hostModal.showModal();
+    openModal(els.hostModal);
   });
-  document.getElementById("btn-quick").addEventListener("click", () => els.quickModal.showModal());
+  document.getElementById("btn-quick").addEventListener("click", () => openModal(els.quickModal));
   document.getElementById("btn-new-snippet").addEventListener("click", () => {
     els.snippetForm.reset();
     document.getElementById("snippet-modal-title").textContent = "New snippet";
-    els.snippetModal.showModal();
+    openModal(els.snippetModal);
   });
   document.getElementById("btn-welcome-local").addEventListener("click", () => {
     const host = localHost();
     if (host) openSession(host).catch((err) => toast(err.message, true));
   });
-  document.getElementById("host-cancel").addEventListener("click", () => els.hostModal.close());
-  document.getElementById("quick-cancel").addEventListener("click", () => els.quickModal.close());
-  document.getElementById("snippet-cancel").addEventListener("click", () => els.snippetModal.close());
+  document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
+  document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
+  document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
+  els.modalScrim.addEventListener("click", () => closeModal());
+  [els.hostModal, els.quickModal, els.snippetModal].forEach((modal) => {
+    modal.addEventListener("close", refreshActiveTerminal);
+  });
   els.hostForm.authType.addEventListener("change", toggleAuthFields);
   els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
   els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
@@ -594,6 +920,21 @@
     els.backdrop.classList.toggle("is-open");
   });
   els.backdrop.addEventListener("click", closeSidebar);
+  els.btnShare.addEventListener("click", shareActive);
+  document.querySelector(".theme-switch")?.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-theme-choice]");
+    if (btn) setTheme(btn.dataset.themeChoice);
+  });
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalThemes();
+  });
+  syncThemeSwitch();
+  els.gateForm.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    state.name = els.gateForm.name.value.trim() || "guest";
+    state.token = els.gateForm.token.value.trim();
+    boot();
+  });
 
   window.addEventListener("resize", () => {
     const active = state.sessions.get(state.activeId);
@@ -602,19 +943,17 @@
     sendResize(active);
   });
   window.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && state.openModal) {
+      ev.preventDefault();
+      closeModal();
+      return;
+    }
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
       els.search.focus();
     }
   });
 
-  loadAll().catch((err) => toast(err.message, true));
-  setInterval(() => {
-    api("/api/sessions")
-      .then((herd) => {
-        state.herd = herd;
-        renderHerd();
-      })
-      .catch(() => {});
-  }, 1500);
+  if (!state.name) showGate();
+  else boot();
 })();

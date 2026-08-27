@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"errors"
 	"sync"
 )
 
@@ -35,5 +34,3 @@ func (r *ring) Bytes() []byte {
 	defer r.mu.Unlock()
 	return append([]byte(nil), r.buf...)
 }
-
-var ErrNotFound = errors.New("session not found")
