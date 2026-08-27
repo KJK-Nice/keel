@@ -6,11 +6,18 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 
 	"keel/internal/app"
 	"keel/internal/paths"
 )
+
+func init() {
+	// AppKit/WKWebView must run on thread 0. Lock before any other package
+	// hops the main goroutine off the main OS thread.
+	runtime.LockOSThread()
+}
 
 //go:embed all:web
 var embeddedWeb embed.FS
@@ -84,5 +91,7 @@ The desktop window is a native WebKit/WebView2 webview (Wails). Build:
   make build
 
 Linux packages: libgtk-3-dev libwebkit2gtk-4.1-dev
-macOS: Xcode Command Line Tools (use make / scripts/go.sh so Wails CGO flags are set)
+macOS: Xcode Command Line Tools (use make / scripts/go.sh so Wails CGO flags are set).
+A naked ./bin/keel relaunches as ~/Library/Caches/keel/Keel.app so WebKit JIT is allowed.
+make build also writes bin/Keel.app — open that, or run ./bin/keel.
 `

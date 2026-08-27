@@ -16,7 +16,7 @@ Ubuntu 24.04+ needs GTK + WebKit and the `webkit2_41` build tag (`make build` se
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make build`** (not a bare `go build`): it links **UniformTypeIdentifiers** and silences Wails’s `setShowsBaselineSeparator:` deprecation on macOS 15+. Windows uses Edge WebView2.
+macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make build`** (not a bare `go build`): it links **UniformTypeIdentifiers**, silences Wails’s `setShowsBaselineSeparator:` deprecation on macOS 15+, and writes **`bin/Keel.app`**. WKWebView on Apple Silicon **SIGTRAPs** a naked unsigned binary (JIT). `./bin/keel` copies itself into `~/Library/Caches/keel/Keel.app`, ad-hoc signs it with JIT entitlements, and re-execs **before** binding the port. Or `open bin/Keel.app`. Windows uses Edge WebView2.
 
 ## Run
 
