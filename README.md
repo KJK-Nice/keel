@@ -78,3 +78,5 @@ Go is a good SSH engine. A browser still needs xterm.js. A TUI still needs a VT 
 Termius Multiplayer fans a client-owned SSH session out over WebRTC. Keel keeps the herd as the hub: same driver/follow UX, bytes stay on the runtime.
 
 Hosts and snippets live in `data/keel.json` (mode `0600`). Sessions are in-memory: they survive TUI/web detach, not a runtime restart.
+
+The web UI follows Cursor’s v3 chrome: quiet neutrals, Inter / JetBrains Mono, and a Dark / Light / System switch (top right). Preference is stored as `keel-theme` in `localStorage`.

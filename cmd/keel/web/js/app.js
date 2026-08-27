@@ -14,6 +14,77 @@
     herdWs: null,
   };
 
+  const TERM_FONT = "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  const TERM_THEMES = {
+    dark: {
+      background: "#0a0a0a",
+      foreground: "#e4e4e4",
+      cursor: "#82a7ff",
+      cursorAccent: "#0a0a0a",
+      selectionBackground: "#2a3344",
+      black: "#1a1a1a",
+      red: "#f87171",
+      green: "#4ade80",
+      yellow: "#e8b849",
+      blue: "#82a7ff",
+      magenta: "#c084fc",
+      cyan: "#67e8f9",
+      white: "#ececec",
+      brightBlack: "#737373",
+    },
+    light: {
+      background: "#fbfbfa",
+      foreground: "#1a1a1a",
+      cursor: "#3b6cff",
+      cursorAccent: "#fbfbfa",
+      selectionBackground: "#dbe4ff",
+      black: "#1a1a1a",
+      red: "#dc2626",
+      green: "#15803d",
+      yellow: "#b45309",
+      blue: "#3b6cff",
+      magenta: "#7c3aed",
+      cyan: "#0e7490",
+      white: "#f5f5f4",
+      brightBlack: "#737373",
+    },
+  };
+
+  function resolvedTheme() {
+    const choice = document.documentElement.dataset.theme || "system";
+    if (choice === "light" || choice === "dark") return choice;
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+
+  function xtermTheme() {
+    return TERM_THEMES[resolvedTheme()];
+  }
+
+  function applyTerminalThemes() {
+    const theme = xtermTheme();
+    for (const s of state.sessions.values()) {
+      s.term.options.theme = theme;
+      s.term.options.fontFamily = TERM_FONT;
+    }
+  }
+
+  function syncThemeSwitch() {
+    const choice = document.documentElement.dataset.theme || "system";
+    document.querySelectorAll("[data-theme-choice]").forEach((btn) => {
+      const on = btn.dataset.themeChoice === choice;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  function setTheme(choice) {
+    if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
+    document.documentElement.dataset.theme = choice;
+    localStorage.setItem("keel-theme", choice);
+    syncThemeSwitch();
+    applyTerminalThemes();
+  }
+
   const els = {
     hostList: document.getElementById("host-list"),
     herdList: document.getElementById("herd-list"),
@@ -355,7 +426,7 @@
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
-    const probe = new Terminal({ fontSize: 13, fontFamily: "monospace" });
+    const probe = new Terminal({ fontSize: 13, fontFamily: TERM_FONT, theme: xtermTheme() });
     probe.open(termProbe);
     const cols = probe.cols || 80;
     const rows = probe.rows || 24;
@@ -390,25 +461,10 @@
 
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace",
+      fontFamily: TERM_FONT,
       fontSize: 13,
       lineHeight: 1.3,
-      theme: {
-        background: "#0b0f16",
-        foreground: "#d7deea",
-        cursor: "#5ee0b5",
-        cursorAccent: "#0b0f16",
-        selectionBackground: "#243044",
-        black: "#1b2230",
-        red: "#ff6b7a",
-        green: "#5ee0b5",
-        yellow: "#f5c15d",
-        blue: "#6ea8ff",
-        magenta: "#c084fc",
-        cyan: "#67e8f9",
-        white: "#e8edf7",
-        brightBlack: "#6b7385",
-      },
+      theme: xtermTheme(),
     });
     const fit = new FitAddonCtor();
     term.loadAddon(fit);
@@ -481,7 +537,7 @@
           if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
           session.status = "is-error";
-          term.writeln(`\r\n\x1b[38;2;255;107;122m${msg.message}\x1b[0m`);
+          term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
           renderTabs();
           toast(msg.message, true);
         }
@@ -829,6 +885,14 @@
   });
   els.backdrop.addEventListener("click", closeSidebar);
   els.btnShare.addEventListener("click", shareActive);
+  document.querySelector(".theme-switch")?.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-theme-choice]");
+    if (btn) setTheme(btn.dataset.themeChoice);
+  });
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalThemes();
+  });
+  syncThemeSwitch();
   els.gateForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
     state.name = els.gateForm.name.value.trim() || "guest";

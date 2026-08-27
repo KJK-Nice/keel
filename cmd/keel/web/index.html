@@ -4,18 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Keel — SSH workspace</title>
+  <script>
+    (function () {
+      var t = localStorage.getItem("keel-theme") || "system";
+      if (t !== "light" && t !== "dark" && t !== "system") t = "system";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=3" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%230b0f16'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%235ee0b5' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="/css/app.css?v=4" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%23141414'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%23ececec' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
 </head>
 <body>
   <div class="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="28" height="28">
-            <rect rx="8" width="32" height="32" fill="#121826"/>
-            <path d="M7 22 L16 8 L25 22" fill="none" stroke="#5ee0b5" stroke-width="2.4" stroke-linejoin="round"/>
+          <svg viewBox="0 0 32 32" width="26" height="26">
+            <rect x="0.5" y="0.5" rx="8" width="31" height="31" />
+            <path d="M7 22 L16 8 L25 22" fill="none" stroke-width="2.4" stroke-linejoin="round"/>
           </svg>
         </div>
         <div>
@@ -66,11 +73,22 @@
           <div class="control-widget" id="control-widget" hidden></div>
           <button class="tiny" id="btn-share" hidden title="Copy share link">Share</button>
         </div>
+        <div class="theme-switch" role="radiogroup" aria-label="Color theme">
+          <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.5M19.5 12H21M4.9 19.1 6 18M18 6l1.1-1.1"/></svg>
+          </button>
+          <button type="button" role="radio" data-theme-choice="dark" title="Dark" aria-label="Dark theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 13.5A7 7 0 1 1 10.5 7 5.5 5.5 0 0 0 17 13.5z"/></svg>
+          </button>
+          <button type="button" role="radio" data-theme-choice="system" title="System" aria-label="System theme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M8 19h8"/></svg>
+          </button>
+        </div>
       </header>
 
       <section class="stage" id="stage">
         <div class="welcome" id="welcome">
-          <p class="eyebrow">Runtime-owned terminals</p>
+          <p class="eyebrow">Workspace</p>
           <h1>The herd lives in the server, not this tab.</h1>
           <p class="lede">
             Spawn a shell, detach, come back from the web UI or <code>keel tui</code>.
@@ -183,6 +201,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=3"></script>
+  <script src="/js/app.js?v=4"></script>
 </body>
 </html>
