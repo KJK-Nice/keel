@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,9 +17,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"keel/internal/applog"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 type fakeBridge struct {
@@ -215,6 +219,123 @@ func TestHerdWS(t *testing.T) {
 	}
 	if ev["type"] != "spawn" {
 		t.Fatalf("herd ev = %#v", ev)
+	}
+}
+
+func TestIdentityTunnelLogsAPI(t *testing.T) {
+	srv, _, st, _ := testServer(t)
+	logs := applog.New(t.TempDir() + "/keel.log")
+	tnRT := tunnel.New(st, func(store.Host) (tunnel.Dialer, error) {
+		return nil, errors.New("no ssh in test")
+	})
+	// rebuild server with extras
+	srv.Close()
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv2 := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithTunnels(tnRT).WithLogs(logs).Handler())
+	t.Cleanup(srv2.Close)
+
+	body := `{"name":"deploy","kind":"password","username":"ubuntu","password":"pw"}`
+	res, err := http.Post(srv2.URL+"/api/identities", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("ident %d %s", res.StatusCode, b)
+	}
+	var ident store.Identity
+	if err := json.NewDecoder(res.Body).Decode(&ident); err != nil {
+		t.Fatal(err)
+	}
+	if ident.Password != "__saved__" {
+		t.Fatalf("password %q", ident.Password)
+	}
+	host := firstHost(t, st)
+	tunBody := `{"name":"db","hostId":"` + host.ID + `","kind":"local","bindAddr":"127.0.0.1","bindPort":0,"destHost":"127.0.0.1","destPort":5432}`
+	res2, err := http.Post(srv2.URL+"/api/tunnels", "application/json", strings.NewReader(tunBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res2.Body)
+		t.Fatalf("tunnel %d %s", res2.StatusCode, b)
+	}
+	res3, err := http.Get(srv2.URL + "/api/logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res3.Body.Close()
+	if res3.StatusCode != http.StatusOK {
+		t.Fatalf("logs %d", res3.StatusCode)
+	}
+	var entries []map[string]any
+	if err := json.NewDecoder(res3.Body).Decode(&entries); err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected log entries")
+	}
+}
+
+func TestIndexServesVault(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	if _, err := fs.Stat(web, "index.html"); err != nil {
+		t.Skip(err)
+	}
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).WithLogs(applog.New(t.TempDir() + "/keel.log")).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") {
+		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
+	}
+	res2, err := http.Get(srv.URL + "/api/identities")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusOK {
+		t.Fatalf("identities %d", res2.StatusCode)
+	}
+}
+
+func TestManualServe(t *testing.T) {
+	if os.Getenv("KEEL_SERVE") != "1" {
+		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
+	}
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	dir := t.TempDir()
+	st, err := store.New(dir + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, nil)
+	logs := applog.New(dir + "/keel.log")
+	tn := tunnel.New(st, tunnel.DefaultFactory(st))
+	h := New(st, rt, web, nil).WithTunnels(tn).WithLogs(logs).Handler()
+	t.Log("keel ui http://127.0.0.1:47241")
+	if err := http.ListenAndServe("127.0.0.1:47241", h); err != nil {
+		t.Fatal(err)
 	}
 }
 

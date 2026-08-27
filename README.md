@@ -39,9 +39,30 @@ Quit the window: every session is killed, then the process exits. Closing a tab 
 
 ## Vault
 
+Tab 1 is the **Vault** (pinned). It holds Hosts, Keychain, Port forwarding, Snippets, Logs, and Settings.
+
 Secrets (SSH password, private key, key passphrase) are encrypted with [age](https://age-encryption.org). The wrapping key is stored in the OS keychain when possible (macOS Keychain, Windows Credential Manager, libsecret). If that fails, Keel asks for a passphrase on first launch.
 
+**Keychain** in the Vault is a list of reusable SSH identities (password or private key) you attach to hosts. That is separate from the OS keychain that wraps `keel.vault`.
+
 Existing plaintext `keel.json` files are migrated on unlock: secrets move into `keel.vault` and are stripped from the JSON.
+
+## Tabs, split, shortcuts
+
+- **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
+- **⌘K** focuses host search (switches to Vault if needed).
+- Open a host: new session tab. Close tab = detach (PTY stays in Hosts → Live until you kill it).
+- **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
+- **Sync** broadcasts keystrokes (and snippet paste) to every driving pane in that tab.
+- Settings: font, text size, copy-on-select, right-click paste (stored in `localStorage`).
+
+## Port forwarding
+
+Saved under Vault → Port forwarding. Local (`-L`), remote (`-R`), and dynamic SOCKS5 (`-D`). Each forward opens its own SSH connection (it does not share a shell session). Default bind is `127.0.0.1`. Binding `0.0.0.0` exposes the port on every interface.
+
+## Logs
+
+Vault → Logs is an append-only event log (`keel.log` under `KEEL_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.
 
 ## Share a session (no LAN)
 
@@ -79,11 +100,11 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 
 ## The herd
 
-- **Spawn** a session from Hosts
-- **Attach** from the Herd list
+- **Spawn** a session from Vault → Hosts
+- **Attach** from Hosts → Live
 - The first client to attach is the **owner** and **driver**. Later joiners (including WebRTC) **follow**
 - **Pass control** from the tab widget
-- **Detach** (close the tab)
+- **Detach** (close the tab or pane)
 - **Quit Keel** (close the window) kills everything
 
 ## Why this shape

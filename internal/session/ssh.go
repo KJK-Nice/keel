@@ -22,24 +22,9 @@ type sshBridge struct {
 }
 
 func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
-	auth, err := sshAuth(host)
+	client, err := SSHClient(host, checkKey)
 	if err != nil {
 		return nil, err
-	}
-	port := host.Port
-	if port == 0 {
-		port = 22
-	}
-	addr := net.JoinHostPort(host.Address, strconv.Itoa(port))
-	cfg := &ssh.ClientConfig{
-		User:            host.Username,
-		Auth:            auth,
-		Timeout:         12 * time.Second,
-		HostKeyCallback: hostKeyCallback(checkKey),
-	}
-	client, err := ssh.Dial("tcp", addr, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
 	sess, err := client.NewSession()
 	if err != nil {
@@ -88,6 +73,29 @@ func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprin
 		_ = pw.CloseWithError(err)
 	}()
 	return br, nil
+}
+
+func SSHClient(host store.Host, checkKey func(hostname, fingerprint string) error) (*ssh.Client, error) {
+	auth, err := sshAuth(host)
+	if err != nil {
+		return nil, err
+	}
+	port := host.Port
+	if port == 0 {
+		port = 22
+	}
+	addr := net.JoinHostPort(host.Address, strconv.Itoa(port))
+	cfg := &ssh.ClientConfig{
+		User:            host.Username,
+		Auth:            auth,
+		Timeout:         12 * time.Second,
+		HostKeyCallback: hostKeyCallback(checkKey),
+	}
+	client, err := ssh.Dial("tcp", addr, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
+	}
+	return client, nil
 }
 
 func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {

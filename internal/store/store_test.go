@@ -190,3 +190,60 @@ func TestLockedUntilSetup(t *testing.T) {
 		t.Fatalf("hosts %v %v", hosts, err)
 	}
 }
+
+func TestIdentityConnectAndTunnelPersist(t *testing.T) {
+	st := testStore(t)
+	ident, err := st.UpsertIdentity(Identity{
+		Name: "deploy", Kind: "password", Username: "ubuntu", Password: "s3cret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := st.ListIdentities()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listed[0].Password != "x" {
+		t.Fatalf("list leaked password %q", listed[0].Password)
+	}
+	host, err := st.UpsertHost(Host{
+		Name: "api", Address: "10.0.0.3", Port: 22, Username: "",
+		AuthType: "identity", IdentityID: ident.ID, Color: "#6ea8ff",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.HostForConnect(host.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Password != "s3cret" || got.AuthType != "password" || got.Username != "ubuntu" {
+		t.Fatalf("connect host %+v", got)
+	}
+	tn, err := st.UpsertTunnel(Tunnel{
+		Name: "db", HostID: host.ID, Kind: "local",
+		BindAddr: "127.0.0.1", BindPort: 15432,
+		DestHost: "127.0.0.1", DestPort: 5432,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st2, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := st2.GetTunnel(tn.ID)
+	if err != nil || again.BindPort != 15432 {
+		t.Fatalf("reload tunnel %v %v", again, err)
+	}
+	if err := st2.DeleteIdentity(ident.ID); err != nil {
+		t.Fatal(err)
+	}
+	h2, err := st2.GetHost(host.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h2.IdentityID != "" {
+		t.Fatalf("identity id should be cleared, got %q", h2.IdentityID)
+	}
+}

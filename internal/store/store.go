@@ -23,13 +23,39 @@ type Host struct {
 	Address    string    `json:"address"`
 	Port       int       `json:"port"`
 	Username   string    `json:"username"`
-	AuthType   string    `json:"authType"` // local | password | key
+	AuthType   string    `json:"authType"` // local | password | key | identity
+	IdentityID string    `json:"identityId,omitempty"`
 	Password   string    `json:"password,omitempty"`
 	PrivateKey string    `json:"privateKey,omitempty"`
 	Passphrase string    `json:"passphrase,omitempty"`
 	Color      string    `json:"color"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Identity struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Kind       string    `json:"kind"` // password | key
+	Username   string    `json:"username,omitempty"`
+	Password   string    `json:"password,omitempty"`
+	PrivateKey string    `json:"privateKey,omitempty"`
+	Passphrase string    `json:"passphrase,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Tunnel struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	HostID    string    `json:"hostId"`
+	Kind      string    `json:"kind"` // local | remote | dynamic
+	BindAddr  string    `json:"bindAddr"`
+	BindPort  int       `json:"bindPort"`
+	DestHost  string    `json:"destHost,omitempty"`
+	DestPort  int       `json:"destPort,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Snippet struct {
@@ -40,14 +66,24 @@ type Snippet struct {
 }
 
 type persistHost struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Group      string    `json:"group"`
+	Address    string    `json:"address"`
+	Port       int       `json:"port"`
+	Username   string    `json:"username"`
+	AuthType   string    `json:"authType"`
+	IdentityID string    `json:"identityId,omitempty"`
+	Color      string    `json:"color"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type persistIdentity struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
-	Group     string    `json:"group"`
-	Address   string    `json:"address"`
-	Port      int       `json:"port"`
-	Username  string    `json:"username"`
-	AuthType  string    `json:"authType"`
-	Color     string    `json:"color"`
+	Kind      string    `json:"kind"`
+	Username  string    `json:"username,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -56,6 +92,8 @@ type persistData struct {
 	Version    int               `json:"version"`
 	Vault      string            `json:"vault,omitempty"`
 	Hosts      []persistHost     `json:"hosts"`
+	Identities []persistIdentity `json:"identities"`
+	Tunnels    []Tunnel          `json:"tunnels"`
 	Snippets   []Snippet         `json:"snippets"`
 	KnownHosts map[string]string `json:"knownHosts"`
 }
@@ -126,6 +164,8 @@ func loadPlain(b []byte) (loaded, error) {
 		Version    int               `json:"version"`
 		Vault      string            `json:"vault"`
 		Hosts      []json.RawMessage `json:"hosts"`
+		Identities []persistIdentity `json:"identities"`
+		Tunnels    []Tunnel          `json:"tunnels"`
 		Snippets   []Snippet         `json:"snippets"`
 		KnownHosts map[string]string `json:"knownHosts"`
 	}
@@ -135,6 +175,8 @@ func loadPlain(b []byte) (loaded, error) {
 	out := persistData{
 		Version:    raw.Version,
 		Vault:      raw.Vault,
+		Identities: raw.Identities,
+		Tunnels:    raw.Tunnels,
 		Snippets:   raw.Snippets,
 		KnownHosts: raw.KnownHosts,
 	}
@@ -157,7 +199,8 @@ func loadPlain(b []byte) (loaded, error) {
 		out.Hosts = append(out.Hosts, persistHost{
 			ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 			Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-			Color: h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+			IdentityID: h.IdentityID,
+			Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 		})
 	}
 	return loaded{data: out, secrets: secrets}, nil
@@ -166,7 +209,7 @@ func loadPlain(b []byte) (loaded, error) {
 func seed() persistData {
 	now := time.Now().UTC()
 	return persistData{
-		Version: 2,
+		Version: 3,
 		Hosts: []persistHost{{
 			ID:        newID(),
 			Name:      "Local Shell",
@@ -203,7 +246,7 @@ func (s *Store) bootstrap() error {
 		if os.IsNotExist(rerr) {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
-			s.data.Version = 2
+			s.data.Version = 3
 			s.locked = false
 			return s.saveLocked()
 		}
@@ -230,7 +273,7 @@ func (s *Store) bootstrap() error {
 		if serr := saveKeyringIdentity(ident); serr == nil {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
-			s.data.Version = 2
+			s.data.Version = 3
 			s.locked = false
 			return s.saveLocked()
 		}
@@ -287,7 +330,7 @@ func (s *Store) setupLocked(passphrase string) error {
 	}
 	s.recipient = rec
 	s.data.Vault = vaultScrypt
-	s.data.Version = 2
+	s.data.Version = 3
 	s.locked = false
 	s.needSetup = false
 	return s.saveLocked()
@@ -312,7 +355,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		}
 		s.recipient = rec
 		s.data.Vault = vaultScrypt
-		s.data.Version = 2
+		s.data.Version = 3
 		s.locked = false
 		s.needSetup = false
 		return s.saveLocked()
@@ -368,7 +411,8 @@ func (s *Store) viewLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		Color: h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID,
+		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
 		if sec.Password != "" {
@@ -388,7 +432,8 @@ func (s *Store) fullLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		Color: h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID,
+		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
 		out.Password = sec.Password
@@ -458,7 +503,8 @@ func persistFrom(h Host) persistHost {
 	return persistHost{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		Color: h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID,
+		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }
 
@@ -596,7 +642,7 @@ func (s *Store) saveLocked() error {
 	if s.recipient == nil {
 		return errors.New("vault has no recipient")
 	}
-	s.data.Version = 2
+	s.data.Version = 3
 	b, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
 		return err

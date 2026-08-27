@@ -15,10 +15,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"keel/internal/applog"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/share"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 var upgrader = websocket.Upgrader{
@@ -30,14 +32,26 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	store *store.Store
-	rt    *runtime.Runtime
-	web   fs.FS
-	share *share.Hub
+	store   *store.Store
+	rt      *runtime.Runtime
+	web     fs.FS
+	share   *share.Hub
+	tunnels *tunnel.Runtime
+	logs    *applog.Book
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
 	return &Server{store: st, rt: rt, web: web, share: sh}
+}
+
+func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
+	s.tunnels = t
+	return s
+}
+
+func (s *Server) WithLogs(l *applog.Book) *Server {
+	s.logs = l
+	return s
 }
 
 func (s *Server) Handler() http.Handler {
@@ -54,6 +68,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
 	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
 	mux.HandleFunc("DELETE /api/snippets/{id}", s.deleteSnippet)
+	mux.HandleFunc("GET /api/identities", s.listIdentities)
+	mux.HandleFunc("POST /api/identities", s.upsertIdentity)
+	mux.HandleFunc("PUT /api/identities/{id}", s.updateIdentity)
+	mux.HandleFunc("DELETE /api/identities/{id}", s.deleteIdentity)
+	mux.HandleFunc("GET /api/tunnels", s.listTunnels)
+	mux.HandleFunc("POST /api/tunnels", s.upsertTunnel)
+	mux.HandleFunc("PUT /api/tunnels/{id}", s.updateTunnel)
+	mux.HandleFunc("DELETE /api/tunnels/{id}", s.deleteTunnel)
+	mux.HandleFunc("POST /api/tunnels/{id}/start", s.startTunnel)
+	mux.HandleFunc("POST /api/tunnels/{id}/stop", s.stopTunnel)
+	mux.HandleFunc("GET /api/logs", s.listLogs)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
@@ -113,6 +138,7 @@ func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.note("vault", "vault unlocked", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -128,6 +154,7 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.note("vault", "vault created", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -207,6 +234,7 @@ func (s *Server) upsertHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
+	s.note("host", "host created: "+saved.Name, saved.ID, "", "")
 }
 
 func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
@@ -226,6 +254,7 @@ func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, redactHost(saved))
+	s.note("host", "host updated: "+saved.Name, saved.ID, "", "")
 }
 
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +280,7 @@ func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+	s.note("host", "host deleted: "+host.Name, host.ID, "", "")
 }
 
 func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
@@ -279,6 +309,7 @@ func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
+	s.note("snippet", "snippet created: "+saved.Name, "", "", "")
 }
 
 func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
@@ -294,6 +325,7 @@ func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
+	s.note("snippet", "snippet updated: "+saved.Name, "", "", "")
 }
 
 func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
@@ -306,6 +338,7 @@ func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+	s.note("snippet", "snippet deleted", "", "", "")
 }
 
 func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {
@@ -331,11 +364,13 @@ func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.note("session", "session spawned: "+info.Title, info.HostID, info.ID, "")
 	writeJSON(w, http.StatusCreated, info)
 }
 
 func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
-	if err := s.rt.Kill(r.PathValue("id")); err != nil {
+	id := r.PathValue("id")
+	if err := s.rt.Kill(id); err != nil {
 		if errors.Is(err, runtime.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "session not found")
 			return
@@ -344,8 +379,9 @@ func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.share != nil {
-		s.share.Stop(r.PathValue("id"))
+		s.share.Stop(id)
 	}
+	s.note("session", "session killed", "", id, "")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -555,6 +591,17 @@ func validateHost(h store.Host) error {
 	switch h.AuthType {
 	case "local":
 		return nil
+	case "identity":
+		if strings.TrimSpace(h.IdentityID) == "" {
+			return errors.New("identity is required")
+		}
+		if strings.TrimSpace(h.Address) == "" {
+			return errors.New("address is required")
+		}
+		if strings.TrimSpace(h.Username) == "" {
+			return errors.New("username is required")
+		}
+		return nil
 	case "password", "key":
 		if strings.TrimSpace(h.Address) == "" {
 			return errors.New("address is required")
@@ -564,7 +611,7 @@ func validateHost(h store.Host) error {
 		}
 		return nil
 	default:
-		return errors.New("authType must be local, password, or key")
+		return errors.New("authType must be local, password, key, or identity")
 	}
 }
 
@@ -579,6 +626,19 @@ func redactHost(h store.Host) store.Host {
 		h.Passphrase = "__saved__"
 	}
 	return h
+}
+
+func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
+	if s.logs == nil {
+		return
+	}
+	s.logs.Append(applog.Entry{
+		Kind:      kind,
+		Message:   msg,
+		HostID:    hostID,
+		SessionID: sessionID,
+		TunnelID:  tunnelID,
+	})
 }
 
 func writeStoreErr(w http.ResponseWriter, err error) {

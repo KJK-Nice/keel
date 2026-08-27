@@ -12,70 +12,27 @@
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=12" />
+  <link rel="stylesheet" href="/css/app.css?v=13" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%23141414'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%23ececec' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="20" height="20">
-            <rect x="0.5" y="0.5" rx="8" width="31" height="31" />
-            <path d="M7 22 L16 8 L25 22" fill="none" stroke-width="2.4" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <strong>Keel</strong>
-          <span>this machine</span>
-        </div>
-      </div>
-
-      <div class="search">
-        <input id="search" type="search" placeholder="Search hosts  ⌘K" autocomplete="off" />
-      </div>
-
-      <div class="side-tabs" role="tablist">
-        <button class="side-tab is-active" data-side="herd">Herd</button>
-        <button class="side-tab" data-side="hosts">Hosts</button>
-        <button class="side-tab" data-side="snippets">Snippets</button>
-      </div>
-
-      <div class="side-panel is-active" id="herd-panel">
-        <div id="herd-list" class="host-list"></div>
-        <p class="empty" id="herd-empty">No live sessions. Spawn one from Hosts — closing a tab detaches, it stays in the herd.</p>
-        <div class="side-actions">
-          <button class="btn btn-ghost" id="btn-join">Join session</button>
-        </div>
-      </div>
-
-      <div class="side-panel" id="hosts-panel">
-        <div id="host-list" class="host-list"></div>
-        <div class="side-actions">
-          <button class="btn btn-primary" id="btn-new-host">New host</button>
-          <button class="btn btn-ghost" id="btn-quick">Quick connect</button>
-        </div>
-      </div>
-
-      <div class="side-panel" id="snippets-panel">
-        <div id="snippet-list" class="snippet-list"></div>
-        <div class="side-actions">
-          <button class="btn btn-primary" id="btn-new-snippet">New snippet</button>
-        </div>
-      </div>
-    </aside>
-
     <main class="main">
       <header class="workspace-bar">
-        <button class="icon-btn menu-btn" id="btn-menu" aria-label="Toggle hosts">
-          <span></span><span></span><span></span>
-        </button>
         <div class="tabs" id="tabs"></div>
+        <div class="bar-tools" id="bar-tools" hidden>
+          <button type="button" class="tiny" id="btn-split-right" title="Split right  ⌘⇧D">Split →</button>
+          <button type="button" class="tiny" id="btn-split-down" title="Split down  ⌘⇧E">Split ↓</button>
+          <button type="button" class="tiny" id="btn-sync" title="Synchronize input">Sync</button>
+        </div>
         <div class="bar-meta" id="bar-meta">
-          <span id="bar-status">No session</span>
+          <span id="bar-status">Vault</span>
           <div class="control-widget" id="control-widget" hidden></div>
           <button class="tiny" id="btn-share" hidden title="Copy internet join link">Share</button>
         </div>
+        <button type="button" class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
         <div class="theme-switch" role="radiogroup" aria-label="Color theme">
           <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.5M19.5 12H21M4.9 19.1 6 18M18 6l1.1-1.1"/></svg>
@@ -90,34 +47,136 @@
       </header>
 
       <section class="stage" id="stage">
-        <div class="welcome" id="welcome">
-          <p class="eyebrow">This machine</p>
-          <h1>Your shells live here until you quit Keel.</h1>
-          <p class="lede">
-            Open a local shell or an SSH host. Closing a tab detaches; closing the
-            Keel window kills every session. Share a session over the internet
-            (WebRTC) — joiners never see your vault or SSH keys.
-          </p>
-          <div class="welcome-actions">
-            <button class="btn btn-primary" id="btn-welcome-local">Open local shell</button>
-            <button class="btn btn-ghost" id="btn-welcome-host">Add an SSH host</button>
-            <button class="btn btn-ghost" id="btn-welcome-join">Join session</button>
+        <div class="vault is-active" id="vault">
+          <nav class="vault-rail" id="vault-rail" role="tablist">
+            <button type="button" class="vault-nav is-active" data-vault="hosts">Hosts</button>
+            <button type="button" class="vault-nav" data-vault="keychain">Keychain</button>
+            <button type="button" class="vault-nav" data-vault="forwards">Port forwarding</button>
+            <button type="button" class="vault-nav" data-vault="snippets">Snippets</button>
+            <button type="button" class="vault-nav" data-vault="logs">Logs</button>
+            <button type="button" class="vault-nav" data-vault="settings">Settings</button>
+          </nav>
+          <div class="vault-body">
+            <section class="vault-page is-active" id="page-hosts" data-page="hosts">
+              <div class="page-head">
+                <div>
+                  <p class="eyebrow">This machine</p>
+                  <h1>Hosts</h1>
+                  <p class="lede">Open a local shell or SSH host. Closing a session tab detaches; the PTY stays in Live until you kill it.</p>
+                </div>
+              </div>
+              <div class="search">
+                <input id="search" type="search" placeholder="Search hosts  ⌘K" autocomplete="off" />
+              </div>
+              <h2 class="group-label">Live</h2>
+              <div id="herd-list" class="host-list"></div>
+              <p class="empty" id="herd-empty">No live sessions. Connect from Hosts below.</p>
+              <div id="host-list" class="host-list"></div>
+              <div class="page-actions">
+                <button class="btn btn-primary" id="btn-new-host">New host</button>
+                <button class="btn btn-ghost" id="btn-quick">Quick connect</button>
+                <button class="btn btn-ghost" id="btn-join">Join session</button>
+                <button class="btn btn-ghost" id="btn-welcome-local">Open local shell</button>
+              </div>
+            </section>
+
+            <section class="vault-page" id="page-keychain" data-page="keychain">
+              <div class="page-head">
+                <div>
+                  <h1>Keychain</h1>
+                  <p class="lede">Reusable SSH identities (password or private key). This is not the OS vault wrapping key.</p>
+                </div>
+                <button class="btn btn-primary" id="btn-new-identity">New identity</button>
+              </div>
+              <div id="identity-list" class="host-list"></div>
+            </section>
+
+            <section class="vault-page" id="page-forwards" data-page="forwards">
+              <div class="page-head">
+                <div>
+                  <h1>Port forwarding</h1>
+                  <p class="lede">Local, remote, and dynamic (SOCKS5) forwards. Each uses its own SSH connection.</p>
+                </div>
+                <button class="btn btn-primary" id="btn-new-tunnel">New forward</button>
+              </div>
+              <div id="tunnel-list" class="host-list"></div>
+            </section>
+
+            <section class="vault-page" id="page-snippets" data-page="snippets">
+              <div class="page-head">
+                <div>
+                  <h1>Snippets</h1>
+                  <p class="lede">Saved commands. Click one to send it into the focused terminal pane.</p>
+                </div>
+                <button class="btn btn-primary" id="btn-new-snippet">New snippet</button>
+              </div>
+              <div id="snippet-list" class="snippet-list"></div>
+            </section>
+
+            <section class="vault-page" id="page-logs" data-page="logs">
+              <div class="page-head">
+                <div>
+                  <h1>Logs</h1>
+                  <p class="lede">Connection and vault events. Secrets are never recorded.</p>
+                </div>
+                <button class="btn btn-ghost" id="btn-refresh-logs">Refresh</button>
+              </div>
+              <div class="search">
+                <input id="log-filter" type="search" placeholder="Filter logs" autocomplete="off" />
+              </div>
+              <div id="log-list" class="log-list"></div>
+            </section>
+
+            <section class="vault-page" id="page-settings" data-page="settings">
+              <div class="page-head">
+                <div>
+                  <h1>Settings</h1>
+                  <p class="lede">Terminal appearance and clipboard. Stored on this machine.</p>
+                </div>
+              </div>
+              <form class="settings-form" id="settings-form">
+                <label>Font
+                  <select name="font" id="set-font">
+                    <option value="jetbrains">JetBrains Mono</option>
+                    <option value="ibmplex">IBM Plex Mono</option>
+                    <option value="menlo">Menlo / SF Mono</option>
+                    <option value="consolas">Consolas</option>
+                    <option value="system">System mono</option>
+                  </select>
+                </label>
+                <label>Text size
+                  <div class="size-row">
+                    <input type="range" name="size" id="set-size" min="10" max="22" step="1" />
+                    <output id="set-size-out">12</output>
+                  </div>
+                </label>
+                <label class="check"><input type="checkbox" id="set-copy" /> Copy on select</label>
+                <label class="check"><input type="checkbox" id="set-paste" /> Right-click to paste</label>
+                <fieldset class="settings-theme">
+                  <legend>Theme</legend>
+                  <div class="theme-switch" role="radiogroup" aria-label="Color theme">
+                    <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.5M19.5 12H21M4.9 19.1 6 18M18 6l1.1-1.1"/></svg>
+                    </button>
+                    <button type="button" role="radio" data-theme-choice="dark" title="Dark" aria-label="Dark theme">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 13.5A7 7 0 1 1 10.5 7 5.5 5.5 0 0 0 17 13.5z"/></svg>
+                    </button>
+                    <button type="button" role="radio" data-theme-choice="system" title="System" aria-label="System theme">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M8 19h8"/></svg>
+                    </button>
+                  </div>
+                </fieldset>
+              </form>
+            </section>
           </div>
-          <ul class="tips">
-            <li>Herd lists every live session and who is attached.</li>
-            <li>Tab close detaches. Kill from the herd if you want it gone.</li>
-            <li>Followers watch; the driver types. Pass control from the tab widget.</li>
-            <li>Share copies a join link. The other person opens Keel → Join session and pastes it (or opens the link in a browser).</li>
-          </ul>
         </div>
-        <div class="terminals" id="terminals"></div>
+        <div class="terminals" id="terminals" hidden></div>
       </section>
 
-      <footer class="snippet-bar" id="active-snippets"></footer>
+      <footer class="snippet-bar" id="active-snippets" hidden></footer>
     </main>
   </div>
 
-  <div class="backdrop" id="backdrop" hidden></div>
   <div class="modal-scrim" id="modal-scrim"></div>
 
   <dialog class="modal" id="host-modal">
@@ -135,8 +194,12 @@
         <select name="authType">
           <option value="password">Password</option>
           <option value="key">Private key</option>
+          <option value="identity">Keychain identity</option>
           <option value="local">Local shell</option>
         </select>
+      </label>
+      <label data-auth="identity">Identity
+        <select name="identityId" id="host-identity"></select>
       </label>
       <label data-auth="password">Password
         <input name="password" type="password" placeholder="Leave blank to keep saved password" autocomplete="new-password" />
@@ -159,6 +222,63 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" value="cancel" id="host-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary">Save host</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="identity-modal">
+    <form id="identity-form">
+      <h2 id="identity-modal-title">New identity</h2>
+      <input type="hidden" name="id" />
+      <label>Name<input name="name" required placeholder="deploy key" /></label>
+      <label>Username <small>(optional default)</small><input name="username" placeholder="ubuntu" /></label>
+      <label>Kind
+        <select name="kind">
+          <option value="password">Password</option>
+          <option value="key">Private key</option>
+        </select>
+      </label>
+      <label data-ident="password">Password
+        <input name="password" type="password" placeholder="Leave blank to keep saved password" autocomplete="new-password" />
+      </label>
+      <label data-ident="key">Private key
+        <textarea name="privateKey" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+      </label>
+      <label data-ident="key">Key passphrase
+        <input name="passphrase" type="password" placeholder="Optional" />
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="identity-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save identity</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="tunnel-modal">
+    <form id="tunnel-form">
+      <h2 id="tunnel-modal-title">New forward</h2>
+      <input type="hidden" name="id" />
+      <label>Name<input name="name" required placeholder="db local" /></label>
+      <label>Host<select name="hostId" id="tunnel-host" required></select></label>
+      <label>Kind
+        <select name="kind">
+          <option value="local">Local (−L)</option>
+          <option value="remote">Remote (−R)</option>
+          <option value="dynamic">Dynamic SOCKS5 (−D)</option>
+        </select>
+      </label>
+      <div class="grid-2">
+        <label>Bind address<input name="bindAddr" value="127.0.0.1" /></label>
+        <label>Bind port<input name="bindPort" type="number" min="0" max="65535" value="0" /></label>
+      </div>
+      <div class="grid-2" data-tunnel-dest>
+        <label>Dest host<input name="destHost" placeholder="127.0.0.1" /></label>
+        <label>Dest port<input name="destPort" type="number" min="1" max="65535" value="5432" /></label>
+      </div>
+      <p class="hint">Bind 0.0.0.0 exposes the port on every interface.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="tunnel-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save forward</button>
       </div>
     </form>
   </dialog>
@@ -217,6 +337,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=12"></script>
+  <script src="/js/app.js?v=13"></script>
 </body>
 </html>

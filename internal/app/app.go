@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"keel/internal/applog"
 	"keel/internal/desktop"
 	"keel/internal/httpapi"
 	"keel/internal/runtime"
 	"keel/internal/share"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 func RunDesktop(web fs.FS, addr, dataDir, name string) error {
@@ -33,9 +35,11 @@ func RunDesktop(web fs.FS, addr, dataDir, name string) error {
 	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
+	logs := applog.New(filepath.Join(dataDir, "keel.log"))
+	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).Handler(),
+		Handler:           httpapi.New(st, rt, web, hub).WithTunnels(tn).WithLogs(logs).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)
@@ -68,6 +72,7 @@ func RunDesktop(web fs.FS, addr, dataDir, name string) error {
 	profile := filepath.Join(dataDir, "window-profile")
 	winErr := desktop.Run(u.String(), profile)
 
+	tn.StopAll()
 	rt.KillAll()
 	_ = httpSrv.Close()
 	return winErr

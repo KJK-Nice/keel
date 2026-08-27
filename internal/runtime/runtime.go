@@ -116,7 +116,7 @@ func New(st *store.Store, opener Opener) *Runtime {
 }
 
 func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
-	host, err := r.store.GetHost(hostID)
+	host, err := r.store.HostForConnect(hostID)
 	if err != nil {
 		return Info{}, err
 	}

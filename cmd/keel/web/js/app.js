@@ -1,21 +1,37 @@
 (() => {
   const FitAddonCtor = window.FitAddon?.FitAddon || window.FitAddon;
   const params = new URLSearchParams(location.search);
+  const VAULT = "vault";
+  const FONT_STACKS = {
+    jetbrains: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    ibmplex: "IBM Plex Mono, ui-monospace, Menlo, Consolas, monospace",
+    menlo: "Menlo, SFMono-Regular, ui-monospace, monospace",
+    consolas: "Consolas, ui-monospace, monospace",
+    system: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  };
+
   const state = {
     hosts: [],
     snippets: [],
+    identities: [],
+    tunnels: [],
+    logs: [],
     herd: [],
-    sessions: new Map(),
-    activeId: null,
+    tabs: new Map(),
+    panes: new Map(),
+    activeId: VAULT,
+    vaultSection: "hosts",
     query: "",
+    logFilter: "",
     name: params.get("name") || localStorage.getItem("keel-name") || "",
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
     openModal: null,
     signalURL: "",
+    prefs: loadPrefs(),
+    logTimer: null,
   };
 
-  const TERM_FONT = "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
   const TERM_THEMES = {
     dark: {
       background: "#0a0a0a",
@@ -51,6 +67,33 @@
     },
   };
 
+  function loadPrefs() {
+    const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClickPaste: true };
+    try {
+      const raw = JSON.parse(localStorage.getItem("keel-term") || "{}");
+      return {
+        font: FONT_STACKS[raw.font] ? raw.font : fallback.font,
+        size: Math.min(22, Math.max(10, Number(raw.size) || 12)),
+        copyOnSelect: raw.copyOnSelect !== false,
+        rightClickPaste: raw.rightClickPaste !== false,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  function savePrefs() {
+    localStorage.setItem("keel-term", JSON.stringify(state.prefs));
+  }
+
+  function fontFamily() {
+    return FONT_STACKS[state.prefs.font] || FONT_STACKS.jetbrains;
+  }
+
+  function uid(prefix) {
+    return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  }
+
   function resolvedTheme() {
     const choice = document.documentElement.dataset.theme || "system";
     if (choice === "light" || choice === "dark") return choice;
@@ -61,12 +104,27 @@
     return TERM_THEMES[resolvedTheme()];
   }
 
-  function applyTerminalThemes() {
+  function termOpts() {
+    return {
+      cursorBlink: true,
+      fontFamily: fontFamily(),
+      fontSize: state.prefs.size,
+      lineHeight: 1.22,
+      theme: xtermTheme(),
+    };
+  }
+
+  function applyTerminalPrefs() {
     const theme = xtermTheme();
-    for (const s of state.sessions.values()) {
-      s.term.options.theme = theme;
-      s.term.options.fontFamily = TERM_FONT;
+    const family = fontFamily();
+    const size = state.prefs.size;
+    for (const p of state.panes.values()) {
+      if (!p.term) continue;
+      p.term.options.theme = theme;
+      p.term.options.fontFamily = family;
+      p.term.options.fontSize = size;
     }
+    fitVisiblePanes();
   }
 
   function syncThemeSwitch() {
@@ -83,23 +141,20 @@
     document.documentElement.dataset.theme = choice;
     localStorage.setItem("keel-theme", choice);
     syncThemeSwitch();
-    applyTerminalThemes();
-    refreshActiveTerminal();
+    applyTerminalPrefs();
   }
 
-  function refreshActiveTerminal() {
-    const active = state.sessions.get(state.activeId);
-    if (!active?.term) return;
-    const run = () => {
-      try {
-        active.fit.fit();
-        active.term.refresh(0, Math.max(0, (active.term.rows || 1) - 1));
-        sendResize(active);
-      } catch {
-        /* ignore */
-      }
-    };
-    requestAnimationFrame(() => requestAnimationFrame(run));
+  function syncSettingsForm() {
+    const font = document.getElementById("set-font");
+    const size = document.getElementById("set-size");
+    const out = document.getElementById("set-size-out");
+    const copy = document.getElementById("set-copy");
+    const paste = document.getElementById("set-paste");
+    if (font) font.value = state.prefs.font;
+    if (size) size.value = String(state.prefs.size);
+    if (out) out.textContent = String(state.prefs.size);
+    if (copy) copy.checked = state.prefs.copyOnSelect;
+    if (paste) paste.checked = state.prefs.rightClickPaste;
   }
 
   const els = {
@@ -107,19 +162,25 @@
     herdList: document.getElementById("herd-list"),
     herdEmpty: document.getElementById("herd-empty"),
     snippetList: document.getElementById("snippet-list"),
+    identityList: document.getElementById("identity-list"),
+    tunnelList: document.getElementById("tunnel-list"),
+    logList: document.getElementById("log-list"),
     tabs: document.getElementById("tabs"),
     terminals: document.getElementById("terminals"),
-    welcome: document.getElementById("welcome"),
-    barMeta: document.getElementById("bar-meta"),
+    vault: document.getElementById("vault"),
+    barTools: document.getElementById("bar-tools"),
     barStatus: document.getElementById("bar-status"),
     controlWidget: document.getElementById("control-widget"),
     btnShare: document.getElementById("btn-share"),
+    btnSync: document.getElementById("btn-sync"),
     search: document.getElementById("search"),
-    sidebar: document.getElementById("sidebar"),
-    backdrop: document.getElementById("backdrop"),
     modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
     hostForm: document.getElementById("host-form"),
+    identityModal: document.getElementById("identity-modal"),
+    identityForm: document.getElementById("identity-form"),
+    tunnelModal: document.getElementById("tunnel-modal"),
+    tunnelForm: document.getElementById("tunnel-form"),
     quickModal: document.getElementById("quick-modal"),
     quickForm: document.getElementById("quick-form"),
     joinModal: document.getElementById("join-modal"),
@@ -134,10 +195,6 @@
 
   function authHeaders() {
     return { "Content-Type": "application/json" };
-  }
-
-  function withToken(url) {
-    return url;
   }
 
   async function api(path, opts = {}) {
@@ -166,8 +223,16 @@
     }, 3600);
   }
 
-  function persistIdentity() {
+  function persistName() {
     if (state.name) localStorage.setItem("keel-name", state.name);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
   function groupHosts(hosts) {
@@ -188,7 +253,8 @@
   function hostSubtitle(h) {
     if (h.authType === "local") return h.subtitle || "this machine";
     const port = h.port && h.port !== 22 ? `:${h.port}` : "";
-    return `${h.username}@${h.address}${port}`;
+    const ident = h.identityId ? " · identity" : "";
+    return `${h.username}@${h.address}${port}${ident}`;
   }
 
   function driverName(s) {
@@ -203,6 +269,16 @@
     return "empty";
   }
 
+  function statusColor(status) {
+    if (status === "ready") return "#5ee0b5";
+    if (status === "connecting") return "#f5c15d";
+    return "#ff6b7a";
+  }
+
+  function paneOpen(runtimeId) {
+    return [...state.panes.values()].some((p) => p.runtimeId === runtimeId);
+  }
+
   function renderHerd() {
     if (!state.herd.length) {
       els.herdList.innerHTML = "";
@@ -212,7 +288,7 @@
     els.herdEmpty.hidden = true;
     els.herdList.innerHTML = state.herd
       .map((s) => {
-        const open = [...state.sessions.values()].some((tab) => tab.runtimeId === s.id);
+        const open = paneOpen(s.id);
         const driver = driverName(s);
         return `
           <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
@@ -227,12 +303,6 @@
           </div>`;
       })
       .join("");
-  }
-
-  function statusColor(status) {
-    if (status === "ready") return "#5ee0b5";
-    if (status === "connecting") return "#f5c15d";
-    return "#ff6b7a";
   }
 
   function renderHosts() {
@@ -264,7 +334,7 @@
 
   function renderSnippets() {
     if (!state.snippets.length) {
-      els.snippetList.innerHTML = `<div class="empty">Save commands you type all the time. Click one to send it into the active tab.</div>`;
+      els.snippetList.innerHTML = `<div class="empty">Save commands you type all the time. Click one to send it into the focused pane.</div>`;
     } else {
       els.snippetList.innerHTML = state.snippets
         .map(
@@ -287,84 +357,343 @@
       .join("");
   }
 
-  function isDriving(session) {
-    return session?.you?.role === "driver";
+  function renderIdentities() {
+    if (!state.identities.length) {
+      els.identityList.innerHTML = `<div class="empty">No identities yet. Add a password or key and attach it to hosts.</div>`;
+      return;
+    }
+    els.identityList.innerHTML = state.identities
+      .map(
+        (id) => `
+        <div class="host">
+          <span class="dot" style="background:var(--accent)"></span>
+          <div class="meta" role="button" tabindex="0" data-edit-identity="${id.id}">
+            <b>${escapeHtml(id.name)}</b>
+            <small>${escapeHtml(id.kind)}${id.username ? ` · ${escapeHtml(id.username)}` : ""}</small>
+          </div>
+          <div class="host-tools">
+            <button class="tiny" data-edit-identity="${id.id}">Edit</button>
+            <button class="tiny" data-delete-identity="${id.id}">✕</button>
+          </div>
+        </div>`
+      )
+      .join("");
   }
 
-  function isOwner(session) {
-    return session?.you?.id && session.you.id === session.ownerId;
+  function renderTunnels() {
+    if (!state.tunnels.length) {
+      els.tunnelList.innerHTML = `<div class="empty">No forwards yet. Local (−L), remote (−R), or dynamic SOCKS5 (−D).</div>`;
+      return;
+    }
+    els.tunnelList.innerHTML = state.tunnels
+      .map((t) => {
+        const host = state.hosts.find((h) => h.id === t.hostId);
+        const dest = t.kind === "dynamic" ? "SOCKS5" : `${t.destHost}:${t.destPort}`;
+        const listen = t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
+        const st = t.status || "stopped";
+        return `
+          <div class="host">
+            <span class="dot" style="background:${statusColor(st === "stopped" ? "exited" : st)}"></span>
+            <div class="meta">
+              <b>${escapeHtml(t.name)}</b>
+              <small>${escapeHtml(t.kind)} · ${escapeHtml(host?.name || t.hostId)} · ${escapeHtml(listen)} → ${escapeHtml(dest)} · ${escapeHtml(st)}${t.error ? ` · ${escapeHtml(t.error)}` : ""}</small>
+            </div>
+            <div class="host-tools">
+              <button class="tiny" data-tunnel-start="${t.id}">Start</button>
+              <button class="tiny" data-tunnel-stop="${t.id}">Stop</button>
+              <button class="tiny" data-edit-tunnel="${t.id}">Edit</button>
+              <button class="tiny" data-delete-tunnel="${t.id}">✕</button>
+            </div>
+          </div>`;
+      })
+      .join("");
   }
 
-  function renderControl(session) {
+  function renderLogs() {
+    const q = state.logFilter.trim().toLowerCase();
+    const rows = state.logs.filter((e) => {
+      if (!q) return true;
+      return `${e.kind} ${e.message}`.toLowerCase().includes(q);
+    });
+    if (!rows.length) {
+      els.logList.innerHTML = `<div class="empty">No log entries.</div>`;
+      return;
+    }
+    els.logList.innerHTML = rows
+      .map((e) => {
+        const t = e.time ? new Date(e.time).toISOString().replace("T", " ").slice(0, 19) : "";
+        return `<div class="log-row"><time>${escapeHtml(t)}</time><span class="kind">${escapeHtml(e.kind)}</span><span>${escapeHtml(e.message)}</span></div>`;
+      })
+      .join("");
+  }
+
+  function isDriving(pane) {
+    return pane?.you?.role === "driver";
+  }
+
+  function isOwner(pane) {
+    return pane?.you?.id && pane.you.id === pane.ownerId;
+  }
+
+  function focusedPane() {
+    const tab = state.tabs.get(state.activeId);
+    if (!tab) return null;
+    return state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] || null;
+  }
+
+  function tabPanes(tab) {
+    const out = [];
+    walkLeaves(tab.layout, (id) => {
+      const p = state.panes.get(id);
+      if (p) out.push(p);
+    });
+    return out;
+  }
+
+  function walkLeaves(node, fn) {
+    if (!node) return;
+    if (node.type === "leaf") {
+      fn(node.paneId);
+      return;
+    }
+    walkLeaves(node.a, fn);
+    walkLeaves(node.b, fn);
+  }
+
+  function leafCount(node) {
+    if (!node) return 0;
+    if (node.type === "leaf") return 1;
+    return leafCount(node.a) + leafCount(node.b);
+  }
+
+  function replaceLeaf(node, paneId, next) {
+    if (!node) return node;
+    if (node.type === "leaf") return node.paneId === paneId ? next : node;
+    return { ...node, a: replaceLeaf(node.a, paneId, next), b: replaceLeaf(node.b, paneId, next) };
+  }
+
+  function removeLeaf(node, paneId) {
+    if (!node) return null;
+    if (node.type === "leaf") return node.paneId === paneId ? null : node;
+    const a = removeLeaf(node.a, paneId);
+    const b = removeLeaf(node.b, paneId);
+    if (!a) return b;
+    if (!b) return a;
+    return { ...node, a, b };
+  }
+
+  function findPaneByRuntime(runtimeId) {
+    return [...state.panes.values()].find((p) => p.runtimeId === runtimeId);
+  }
+
+  function tabStatus(tab) {
+    const panes = tabPanes(tab);
+    if (panes.some((p) => p.status === "is-error")) return "is-error";
+    if (panes.length && panes.every((p) => p.status === "is-ready")) return "is-ready";
+    return "";
+  }
+
+  function tabTitle(tab) {
+    const panes = tabPanes(tab);
+    const first = panes[0];
+    const name = first?.title || tab.title || "Session";
+    const n = panes.length;
+    const follow = first && !isDriving(first) && first.you ? " · follow" : "";
+    const extra = n > 1 ? ` · ${n}` : "";
+    return `${name}${extra}${follow}`;
+  }
+
+  function chromeTabs() {
+    return [VAULT, ...state.tabs.keys()];
+  }
+
+  function renderControl(pane) {
     if (!els.controlWidget) return;
-    if (!session) {
+    if (!pane || state.activeId === VAULT) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
       return;
     }
-    const attached = session.attached || [];
-    els.btnShare.hidden = !!session.remote;
-    if (!attached.length && !session.you) {
+    const attached = pane.attached || [];
+    els.btnShare.hidden = !!pane.remote;
+    if (!attached.length && !pane.you) {
       els.controlWidget.hidden = true;
       return;
     }
     els.controlWidget.hidden = false;
-    const canGrant = isDriving(session) || isOwner(session);
+    const canGrant = isDriving(pane) || isOwner(pane);
     const people = attached
       .map((c) => {
-        const driving = c.role === "driver" || c.id === session.driverId;
+        const driving = c.role === "driver" || c.id === pane.driverId;
         const grant = canGrant && !driving ? `data-grant="${c.id}"` : "";
         return `<button type="button" class="chip-person ${driving ? "is-driver" : ""} ${grant ? "is-grantable" : ""}" ${grant} title="${driving ? "Driving" : canGrant ? "Pass control" : ""}">${escapeHtml(c.name)}${driving ? " *" : ""}</button>`;
       })
       .join("");
     let action = "";
-    if (!isDriving(session) && isOwner(session)) {
+    if (!isDriving(pane) && isOwner(pane)) {
       action = `<button class="tiny" data-take="1">Take control</button>`;
-    } else if (!isDriving(session)) {
+    } else if (!isDriving(pane)) {
       action = `<button class="tiny" data-request="1">Request control</button>`;
     }
     els.controlWidget.innerHTML = `<div class="people">${people}</div>${action}`;
-    session.wrap?.classList.toggle("is-follow", !isDriving(session));
-    if (session.term) session.term.options.disableStdin = !isDriving(session);
+    pane.wrap?.classList.toggle("is-follow", !isDriving(pane));
+    if (pane.term) pane.term.options.disableStdin = !isDriving(pane);
+  }
+
+  function setVaultSection(name) {
+    state.vaultSection = name;
+    document.querySelectorAll(".vault-nav").forEach((b) => b.classList.toggle("is-active", b.dataset.vault === name));
+    document.querySelectorAll(".vault-page").forEach((p) => p.classList.toggle("is-active", p.dataset.page === name));
+    if (name === "logs") {
+      loadLogs().catch(() => {});
+      if (!state.logTimer) state.logTimer = setInterval(() => loadLogs().catch(() => {}), 3000);
+    } else if (state.logTimer) {
+      clearInterval(state.logTimer);
+      state.logTimer = null;
+    }
+    if (name === "settings") syncSettingsForm();
+  }
+
+  function showVault() {
+    state.activeId = VAULT;
+    renderTabs();
+  }
+
+  function paintLayout(tab) {
+    const root = tab.root;
+    while (root.firstChild) root.removeChild(root.firstChild);
+    root.appendChild(buildNode(tab.layout, tab));
+  }
+
+  function buildNode(node, tab) {
+    if (node.type === "leaf") {
+      const pane = state.panes.get(node.paneId);
+      if (!pane) return document.createElement("div");
+      pane.wrap.classList.toggle("is-focused", tab.focusedPaneId === pane.id);
+      const title = pane.wrap.querySelector(".pane-title");
+      if (title) title.textContent = pane.title || "session";
+      return pane.wrap;
+    }
+    const wrap = document.createElement("div");
+    wrap.className = node.dir === "h" ? "split-row" : "split-col";
+    const a = document.createElement("div");
+    a.className = "split-pane";
+    a.style.flex = String(node.sizes[0]);
+    const sash = document.createElement("div");
+    sash.className = `split-sash ${node.dir === "h" ? "is-vert" : "is-horiz"}`;
+    const b = document.createElement("div");
+    b.className = "split-pane";
+    b.style.flex = String(node.sizes[1]);
+    a.appendChild(buildNode(node.a, tab));
+    b.appendChild(buildNode(node.b, tab));
+    wrap.appendChild(a);
+    wrap.appendChild(sash);
+    wrap.appendChild(b);
+    bindSash(sash, node, a, b);
+    return wrap;
+  }
+
+  function bindSash(sash, node, a, b) {
+    sash.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      sash.setPointerCapture(ev.pointerId);
+      const parent = sash.parentElement.getBoundingClientRect();
+      const total = node.dir === "h" ? parent.width : parent.height;
+      const origin = node.dir === "h" ? parent.left : parent.top;
+      const move = (e) => {
+        const pos = node.dir === "h" ? e.clientX : e.clientY;
+        let pct = ((pos - origin) / total) * 100;
+        pct = Math.min(80, Math.max(20, pct));
+        node.sizes = [pct, 100 - pct];
+        a.style.flex = String(pct);
+        b.style.flex = String(100 - pct);
+        fitVisiblePanes();
+      };
+      const up = () => {
+        sash.removeEventListener("pointermove", move);
+        sash.removeEventListener("pointerup", up);
+        fitVisiblePanes();
+      };
+      sash.addEventListener("pointermove", move);
+      sash.addEventListener("pointerup", up);
+    });
   }
 
   function renderTabs() {
-    const sessions = [...state.sessions.values()];
-    els.welcome.style.display = sessions.length ? "none" : "block";
-    els.terminals.style.display = sessions.length ? "block" : "none";
-    els.tabs.innerHTML = sessions
-      .map(
-        (s) => `
-      <button class="tab ${s.id === state.activeId ? "is-active" : ""} ${s.status}" data-tab="${s.id}">
-        <span class="status"></span>
-        ${escapeHtml(s.title)}${isDriving(s) ? "" : s.you ? " · follow" : ""}
-        <span class="close" data-close="${s.id}" title="Close">×</span>
-      </button>`
-      )
-      .join("");
-    for (const s of sessions) {
-      s.wrap.classList.toggle("is-active", s.id === state.activeId);
-      if (s.id === state.activeId) {
-        s.fit.fit();
-        s.term.focus();
-        sendResize(s);
+    const ids = [...state.tabs.keys()];
+    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
+    if (vaultOn) state.activeId = VAULT;
+
+    els.tabs.innerHTML =
+      `<button class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">Vault</button>` +
+      ids
+        .map((id) => {
+          const tab = state.tabs.get(id);
+          const st = tabStatus(tab);
+          return `<button class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}">
+            <span class="status"></span>
+            ${escapeHtml(tabTitle(tab))}
+            <span class="close" data-close="${id}" title="Close">×</span>
+          </button>`;
+        })
+        .join("");
+
+    els.vault.classList.toggle("is-active", vaultOn);
+    els.terminals.classList.toggle("is-active", !vaultOn);
+    els.terminals.hidden = vaultOn;
+    els.activeSnippets.classList.toggle("is-active", !vaultOn);
+    els.activeSnippets.hidden = vaultOn;
+
+    for (const tab of state.tabs.values()) {
+      tab.root.classList.toggle("is-active", tab.id === state.activeId);
+      if (tab.id === state.activeId && tab.dirty) {
+        paintLayout(tab);
+        tab.dirty = false;
       }
+      walkLeaves(tab.layout, (pid) => {
+        const p = state.panes.get(pid);
+        if (!p) return;
+        p.wrap.classList.toggle("is-focused", tab.focusedPaneId === p.id);
+        const title = p.wrap.querySelector(".pane-title");
+        if (title) title.textContent = p.title || "session";
+      });
     }
-    const active = state.sessions.get(state.activeId);
+
+    const pane = vaultOn ? null : focusedPane();
+    const tab = vaultOn ? null : state.tabs.get(state.activeId);
+    els.barTools.hidden = !tab || tab.remote;
+    els.barTools.classList.toggle("is-sync", !!tab?.sync);
+    if (els.btnSync) els.btnSync.textContent = tab?.sync ? "Sync on" : "Sync";
     if (els.barStatus) {
-      if (!active) els.barStatus.textContent = "No session";
-      else if (isDriving(active)) els.barStatus.textContent = `${active.subtitle} · driving`;
-      else els.barStatus.textContent = `${active.subtitle} · following`;
+      if (vaultOn) els.barStatus.textContent = "Vault";
+      else if (!pane) els.barStatus.textContent = "No session";
+      else if (isDriving(pane)) els.barStatus.textContent = `${pane.subtitle} · driving`;
+      else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
-    renderControl(active);
+    renderControl(pane);
+    if (!vaultOn) {
+      requestAnimationFrame(() => {
+        fitVisiblePanes();
+        pane?.term?.focus();
+      });
+    }
   }
 
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
+  function fitVisiblePanes() {
+    const tab = state.tabs.get(state.activeId);
+    if (!tab) return;
+    const run = () => {
+      for (const p of tabPanes(tab)) {
+        try {
+          p.fit.fit();
+          p.term.refresh(0, Math.max(0, (p.term.rows || 1) - 1));
+          sendResize(p);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
   }
 
   function applyHerdEvent(ev) {
@@ -383,6 +712,8 @@
     if (ev.type === "kill") {
       const id = ev.id || ev.session?.id;
       state.herd = state.herd.filter((s) => s.id !== id);
+      const pane = findPaneByRuntime(id);
+      if (pane) closePane(pane.id, { fromHerd: true });
       renderHerd();
       return;
     }
@@ -403,7 +734,7 @@
       }
     }
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}${withToken("/ws/herd")}`);
+    const ws = new WebSocket(`${proto}://${location.host}/ws/herd`);
     state.herdWs = ws;
     ws.addEventListener("message", (ev) => {
       try {
@@ -420,121 +751,247 @@
     });
   }
 
+  async function loadLogs() {
+    state.logs = await api("/api/logs?limit=200");
+    renderLogs();
+  }
+
   async function loadAll() {
-    const [hosts, snippets, herd] = await Promise.all([
+    const [hosts, snippets, herd, identities, tunnels] = await Promise.all([
       api("/api/hosts"),
       api("/api/snippets"),
       api("/api/sessions"),
+      api("/api/identities"),
+      api("/api/tunnels"),
     ]);
     state.hosts = hosts;
     state.snippets = snippets;
     state.herd = herd;
+    state.identities = identities;
+    state.tunnels = tunnels;
     renderHosts();
     renderSnippets();
     renderHerd();
+    renderIdentities();
+    renderTunnels();
+    if (state.vaultSection === "logs") await loadLogs().catch(() => {});
   }
 
   function localHost() {
     return state.hosts.find((h) => h.authType === "local");
   }
 
-  async function openSession(host) {
-    closeSidebar();
+  function probeSize() {
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
-    const probe = new Terminal({ fontSize: 12, fontFamily: TERM_FONT, theme: xtermTheme() });
+    const probe = new Terminal(termOpts());
     probe.open(termProbe);
     const cols = probe.cols || 80;
     const rows = probe.rows || 24;
     probe.dispose();
     termProbe.remove();
-    const info = await api("/api/sessions", {
+    return { cols, rows };
+  }
+
+  async function spawnHost(hostId) {
+    const { cols, rows } = probeSize();
+    return api("/api/sessions", {
       method: "POST",
-      body: JSON.stringify({ hostId: host.id, cols, rows }),
+      body: JSON.stringify({ hostId, cols, rows }),
     });
+  }
+
+  async function openSession(host) {
+    const info = await spawnHost(host.id);
     attachRuntime(info);
     loadAll().catch(() => {});
   }
 
-  function attachRuntime(info) {
-    const existing = [...state.sessions.values()].find((s) => s.runtimeId === info.id);
-    if (existing) {
-      state.activeId = existing.id;
+  function isTabShortcut(ev) {
+    if (!(ev.metaKey || ev.ctrlKey) || ev.shiftKey || ev.altKey) return false;
+    return /^[1-9]$/.test(ev.key);
+  }
+
+  function isSplitShortcut(ev) {
+    if (!(ev.metaKey || ev.ctrlKey) || !ev.shiftKey || ev.altKey) return false;
+    const k = ev.key.toLowerCase();
+    return k === "d" || k === "e";
+  }
+
+  function termKeyHandler(ev) {
+    if (isTabShortcut(ev) || isSplitShortcut(ev)) return false;
+    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") return false;
+    return true;
+  }
+
+  function wirePaneTerminal(pane) {
+    const term = pane.term;
+    term.attachCustomKeyEventHandler(termKeyHandler);
+    term.onData((data) => {
+      if (!isDriving(pane)) return;
+      const bytes = new TextEncoder().encode(data);
+      const tab = state.tabs.get(pane.tabId);
+      if (tab?.sync) {
+        for (const p of tabPanes(tab)) {
+          if (isDriving(p)) sendSessionBytes(p, bytes);
+        }
+      } else {
+        sendSessionBytes(pane, bytes);
+      }
+    });
+    term.onSelectionChange(() => {
+      if (!state.prefs.copyOnSelect) return;
+      const sel = term.getSelection();
+      if (sel) copyText(sel);
+    });
+    pane.wrap.addEventListener("contextmenu", async (ev) => {
+      if (!state.prefs.rightClickPaste) return;
+      ev.preventDefault();
+      if (!isDriving(pane)) {
+        toast("You are following — take or request control to paste");
+        return;
+      }
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) term.paste(text);
+      } catch {
+        toast("Clipboard paste blocked", true);
+      }
+    });
+    pane.wrap.addEventListener("mousedown", () => {
+      const tab = state.tabs.get(pane.tabId);
+      if (tab) tab.focusedPaneId = pane.id;
+      state.activeId = pane.tabId;
       renderTabs();
-      existing.term.focus();
-      return;
-    }
-    closeSidebar();
-    const id = info.id;
+    });
+  }
+
+  function makePaneShell(info) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
+    const bar = document.createElement("div");
+    bar.className = "pane-bar";
+    bar.innerHTML = `<span class="pane-title">${escapeHtml(info.title || "session")}</span><button type="button" class="tiny pane-close" data-pane-close title="Close pane">×</button>`;
     const banner = document.createElement("div");
     banner.className = "follow-banner";
     banner.hidden = true;
     banner.textContent = "Following — request control to type";
+    const body = document.createElement("div");
+    body.className = "term-body";
+    wrap.appendChild(bar);
     wrap.appendChild(banner);
-    els.terminals.appendChild(wrap);
-
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: TERM_FONT,
-      fontSize: 12,
-      lineHeight: 1.22,
-      theme: xtermTheme(),
-    });
+    wrap.appendChild(body);
+    const term = new Terminal(termOpts());
     const fit = new FitAddonCtor();
     term.loadAddon(fit);
-    term.open(wrap);
-    fit.fit();
+    term.open(body);
+    try {
+      fit.fit();
+    } catch {
+      /* ignore */
+    }
+    return { wrap, banner, body, term, fit };
+  }
 
-    const session = {
-      id,
+  function createTab(paneSeed) {
+    const tab = {
+      id: uid("tab"),
+      hostId: paneSeed.hostId || "",
+      title: paneSeed.title || "Session",
+      remote: !!paneSeed.remote,
+      sync: false,
+      layout: { type: "leaf", paneId: paneSeed.id },
+      focusedPaneId: paneSeed.id,
+      root: document.createElement("div"),
+    };
+    tab.root.className = "term-tab";
+    els.terminals.appendChild(tab.root);
+    paneSeed.tabId = tab.id;
+    state.tabs.set(tab.id, tab);
+    state.panes.set(paneSeed.id, paneSeed);
+    state.activeId = tab.id;
+    tab.dirty = true;
+    return tab;
+  }
+
+  function attachRuntime(info, opts = {}) {
+    const existing = findPaneByRuntime(info.id);
+    if (existing && !opts.splitDir) {
+      state.activeId = existing.tabId;
+      const tab = state.tabs.get(existing.tabId);
+      if (tab) tab.focusedPaneId = existing.id;
+      renderTabs();
+      existing.term?.focus();
+      return existing;
+    }
+
+    const shell = makePaneShell(info);
+    const pane = {
+      id: uid("pane"),
+      tabId: opts.tab?.id,
       runtimeId: info.id,
       hostId: info.hostId,
       title: info.title,
       subtitle: info.subtitle,
       status: info.status === "ready" ? "is-ready" : "",
-      term,
-      fit,
-      wrap,
-      banner,
+      term: shell.term,
+      fit: shell.fit,
+      wrap: shell.wrap,
+      banner: shell.banner,
       ws: null,
       you: null,
       attached: info.attached || [],
       driverId: info.driverId,
       ownerId: info.ownerId,
+      remote: false,
     };
-    state.sessions.set(id, session);
-    state.activeId = id;
-    renderTabs();
-    renderHerd();
+    shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
+    wirePaneTerminal(pane);
+
+    let tab = opts.tab;
+    if (!tab) {
+      tab = createTab(pane);
+    } else {
+      pane.tabId = tab.id;
+      state.panes.set(pane.id, pane);
+      const focused = tab.focusedPaneId;
+      tab.layout = replaceLeaf(tab.layout, focused, {
+        type: "split",
+        dir: opts.splitDir || "h",
+        sizes: [50, 50],
+        a: { type: "leaf", paneId: focused },
+        b: { type: "leaf", paneId: pane.id },
+      });
+      tab.focusedPaneId = pane.id;
+      tab.dirty = true;
+    }
 
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const q = new URLSearchParams({
       id: info.id,
-      cols: String(term.cols || 80),
-      rows: String(term.rows || 24),
+      cols: String(pane.term.cols || 80),
+      rows: String(pane.term.rows || 24),
       name: state.name || "guest",
       kind: "web",
     });
     const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
-    session.ws = ws;
+    pane.ws = ws;
 
     const applyPresence = (msg) => {
-      if (msg.you) session.you = msg.you;
-      if (msg.attached) session.attached = msg.attached;
-      if (msg.driverId != null) session.driverId = msg.driverId;
-      if (msg.ownerId != null) session.ownerId = msg.ownerId;
-      if (msg.title) session.title = msg.title;
-      banner.hidden = isDriving(session);
-      const herd = state.herd.find((h) => h.id === session.runtimeId);
+      if (msg.you) pane.you = msg.you;
+      if (msg.attached) pane.attached = msg.attached;
+      if (msg.driverId != null) pane.driverId = msg.driverId;
+      if (msg.ownerId != null) pane.ownerId = msg.ownerId;
+      if (msg.title) pane.title = msg.title;
+      pane.banner.hidden = isDriving(pane);
+      const herd = state.herd.find((h) => h.id === pane.runtimeId);
       if (herd) {
-        herd.attached = session.attached;
-        herd.driverId = session.driverId;
-        herd.ownerId = session.ownerId;
-        herd.clients = session.attached.length;
+        herd.attached = pane.attached;
+        herd.driverId = pane.driverId;
+        herd.ownerId = pane.ownerId;
+        herd.clients = pane.attached.length;
       }
       renderTabs();
       renderHerd();
@@ -544,104 +1001,171 @@
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
         if (msg.type === "status") {
-          if (msg.status === "ready") session.status = "is-ready";
-          if (msg.status === "error" || msg.status === "exited") session.status = "is-error";
+          if (msg.status === "ready") pane.status = "is-ready";
+          if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
           applyPresence(msg);
         } else if (msg.type === "ready" || msg.type === "presence" || msg.type === "control") {
-          session.status = "is-ready";
+          pane.status = "is-ready";
           applyPresence(msg);
           if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
-          session.status = "is-error";
-          term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+          pane.status = "is-error";
+          pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
           renderTabs();
           toast(msg.message, true);
         }
         return;
       }
-      term.write(new Uint8Array(ev.data));
-    });
-    ws.addEventListener("open", () => {
-      term.onData((data) => {
-        if (!isDriving(session)) return;
-        if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data));
-      });
+      pane.term.write(new Uint8Array(ev.data));
     });
     ws.addEventListener("close", () => {
-      if (session.status !== "is-error") session.status = "";
-      term.writeln("\r\n\x1b[38;2;139;149;168mDetached — still in the herd until you kill it.\x1b[0m");
+      if (pane.status !== "is-error") pane.status = "";
+      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — still in the herd until you kill it.\x1b[0m");
       renderTabs();
       renderHerd();
     });
     ws.addEventListener("error", () => {
-      session.status = "is-error";
+      pane.status = "is-error";
       toast("WebSocket error", true);
       renderTabs();
     });
+
+    renderTabs();
+    renderHerd();
+    return pane;
   }
 
-  function sendSessionJSON(session, obj) {
+  function sendSessionJSON(pane, obj) {
     const raw = JSON.stringify(obj);
-    if (session?.remote) {
-      if (session.dc?.readyState === "open") session.dc.send(raw);
+    if (pane?.remote) {
+      if (pane.dc?.readyState === "open") pane.dc.send(raw);
       return;
     }
-    if (session?.ws?.readyState === WebSocket.OPEN) session.ws.send(raw);
+    if (pane?.ws?.readyState === WebSocket.OPEN) pane.ws.send(raw);
   }
 
-  function sendSessionBytes(session, bytes) {
-    if (session?.remote) {
-      if (session.dc?.readyState === "open") session.dc.send(bytes);
+  function sendSessionBytes(pane, bytes) {
+    if (pane?.remote) {
+      if (pane.dc?.readyState === "open") pane.dc.send(bytes);
       return;
     }
-    if (session?.ws?.readyState === WebSocket.OPEN) session.ws.send(bytes);
+    if (pane?.ws?.readyState === WebSocket.OPEN) pane.ws.send(bytes);
   }
 
-  function sendResize(session) {
-    if (!session || !isDriving(session)) return;
-    sendSessionJSON(session, { type: "resize", cols: session.term.cols, rows: session.term.rows });
+  function sendResize(pane) {
+    if (!pane || !isDriving(pane) || !pane.term) return;
+    sendSessionJSON(pane, { type: "resize", cols: pane.term.cols, rows: pane.term.rows });
   }
 
   function sendControl(type, extra = {}) {
-    const session = state.sessions.get(state.activeId);
-    sendSessionJSON(session, { type, ...extra });
+    sendSessionJSON(focusedPane(), { type, ...extra });
   }
 
-  function closeSession(id) {
-    const session = state.sessions.get(id);
-    if (!session) return;
-    session.ws?.close();
-    session.sigWs?.close();
+  function disposePane(pane) {
+    pane.ws?.close();
+    pane.sigWs?.close();
     try {
-      session.pc?.close();
+      pane.pc?.close();
     } catch {
       /* ignore */
     }
-    session.term.dispose();
-    session.wrap.remove();
-    state.sessions.delete(id);
-    if (state.activeId === id) {
-      state.activeId = state.sessions.size ? [...state.sessions.keys()].at(-1) : null;
+    try {
+      pane.term.dispose();
+    } catch {
+      /* ignore */
     }
+    pane.wrap.remove();
+    state.panes.delete(pane.id);
+  }
+
+  function closePane(paneId, opts = {}) {
+    const pane = state.panes.get(paneId);
+    if (!pane) return;
+    const tab = state.tabs.get(pane.tabId);
+    disposePane(pane);
+    if (!tab) return;
+    const next = removeLeaf(tab.layout, paneId);
+    if (!next) {
+      closeTab(tab.id, { skipPanes: true });
+      return;
+    }
+    tab.layout = next;
+    if (tab.focusedPaneId === paneId) {
+      const left = tabPanes(tab)[0];
+      tab.focusedPaneId = left?.id || "";
+    }
+    tab.dirty = true;
+    renderTabs();
+    renderHerd();
+    void opts;
+  }
+
+  function closeTab(id, opts = {}) {
+    const tab = state.tabs.get(id);
+    if (!tab) return;
+    if (!opts.skipPanes) {
+      for (const p of tabPanes(tab)) disposePane(p);
+    }
+    tab.root.remove();
+    state.tabs.delete(id);
+    const remain = [...state.tabs.keys()];
+    if (state.activeId === id) state.activeId = remain.at(-1) || VAULT;
     renderTabs();
     renderHerd();
   }
 
-  function sendSnippet(id) {
-    const sn = state.snippets.find((s) => s.id === id);
-    const session = state.sessions.get(state.activeId);
-    if (!sn) return;
-    if (!session || (session.remote ? session.dc?.readyState !== "open" : session.ws?.readyState !== WebSocket.OPEN)) {
+  async function splitActive(dir) {
+    const tab = state.tabs.get(state.activeId);
+    const pane = focusedPane();
+    if (!tab || !pane) {
       toast("Open a session first");
       return;
     }
-    if (!isDriving(session)) {
-      toast("You are following — take or request control to type");
+    if (tab.remote || !tab.hostId) {
+      toast("Split needs a local host session");
+      return;
+    }
+    try {
+      const info = await spawnHost(tab.hostId);
+      attachRuntime(info, { tab, splitDir: dir });
+      loadAll().catch(() => {});
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function sendSnippet(id) {
+    const sn = state.snippets.find((s) => s.id === id);
+    if (!sn) return;
+    const pane = focusedPane();
+    if (!pane) {
+      toast("Open a session first");
       return;
     }
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
-    sendSessionBytes(session, new TextEncoder().encode(command));
-    session.term.focus();
+    const bytes = new TextEncoder().encode(command);
+    const tab = state.tabs.get(pane.tabId);
+    const targets = tab?.sync ? tabPanes(tab) : [pane];
+    let sent = false;
+    for (const p of targets) {
+      const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
+      if (!open || !isDriving(p)) continue;
+      sendSessionBytes(p, bytes);
+      sent = true;
+    }
+    if (!sent) {
+      toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
+      return;
+    }
+    pane.term.focus();
+  }
+
+  function fillIdentitySelect(selected) {
+    const sel = document.getElementById("host-identity");
+    sel.innerHTML = state.identities.length
+      ? state.identities.map((id) => `<option value="${id.id}">${escapeHtml(id.name)}</option>`).join("")
+      : `<option value="">No identities — add in Keychain</option>`;
+    if (selected) sel.value = selected;
   }
 
   function fillHostForm(host) {
@@ -657,6 +1181,7 @@
     form.password.value = "";
     form.privateKey.value = "";
     form.passphrase.value = "";
+    fillIdentitySelect(host?.identityId || "");
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
     if (radio) radio.checked = true;
@@ -668,6 +1193,20 @@
     const auth = els.hostForm.authType.value;
     els.hostForm.querySelectorAll("[data-auth]").forEach((el) => {
       el.style.display = el.dataset.auth === auth ? "grid" : "none";
+    });
+  }
+
+  function toggleIdentFields() {
+    const kind = els.identityForm.kind.value;
+    els.identityForm.querySelectorAll("[data-ident]").forEach((el) => {
+      el.style.display = el.dataset.ident === kind ? "grid" : "none";
+    });
+  }
+
+  function toggleTunnelDest() {
+    const kind = els.tunnelForm.kind.value;
+    els.tunnelForm.querySelectorAll("[data-tunnel-dest]").forEach((el) => {
+      el.style.display = kind === "dynamic" ? "none" : "grid";
     });
   }
 
@@ -686,6 +1225,7 @@
       port: Number(form.port.value || 22),
       username: form.username.value.trim(),
       authType: form.authType.value,
+      identityId: form.authType.value === "identity" ? form.identityId.value : "",
       password: secretPayload(form.password.value),
       privateKey: secretPayload(form.privateKey.value),
       passphrase: secretPayload(form.passphrase.value),
@@ -699,6 +1239,88 @@
     closeModal(els.hostModal);
     await loadAll();
     toast("Host saved");
+  }
+
+  function fillIdentityForm(id) {
+    const form = els.identityForm;
+    form.reset();
+    form.id.value = id?.id || "";
+    form.name.value = id?.name || "";
+    form.username.value = id?.username || "";
+    form.kind.value = id?.kind || "password";
+    document.getElementById("identity-modal-title").textContent = id?.id ? "Edit identity" : "New identity";
+    toggleIdentFields();
+  }
+
+  async function saveIdentity(event) {
+    event.preventDefault();
+    const form = els.identityForm;
+    const payload = {
+      name: form.name.value.trim(),
+      username: form.username.value.trim(),
+      kind: form.kind.value,
+      password: secretPayload(form.password.value),
+      privateKey: secretPayload(form.privateKey.value),
+      passphrase: secretPayload(form.passphrase.value),
+    };
+    if (form.id.value) {
+      await api(`/api/identities/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
+    } else {
+      await api("/api/identities", { method: "POST", body: JSON.stringify(payload) });
+    }
+    closeModal(els.identityModal);
+    await loadAll();
+    toast("Identity saved");
+  }
+
+  function sshHosts() {
+    return state.hosts.filter((h) => h.authType !== "local");
+  }
+
+  function fillTunnelHosts(selected) {
+    const sel = document.getElementById("tunnel-host");
+    const hosts = sshHosts();
+    sel.innerHTML = hosts.length
+      ? hosts.map((h) => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("")
+      : `<option value="">Add an SSH host first</option>`;
+    if (selected) sel.value = selected;
+  }
+
+  function fillTunnelForm(t) {
+    const form = els.tunnelForm;
+    form.reset();
+    form.id.value = t?.id || "";
+    form.name.value = t?.name || "";
+    form.kind.value = t?.kind || "local";
+    form.bindAddr.value = t?.bindAddr || "127.0.0.1";
+    form.bindPort.value = t?.bindPort ?? 0;
+    form.destHost.value = t?.destHost || "127.0.0.1";
+    form.destPort.value = t?.destPort || 5432;
+    fillTunnelHosts(t?.hostId);
+    document.getElementById("tunnel-modal-title").textContent = t?.id ? "Edit forward" : "New forward";
+    toggleTunnelDest();
+  }
+
+  async function saveTunnel(event) {
+    event.preventDefault();
+    const form = els.tunnelForm;
+    const payload = {
+      name: form.name.value.trim(),
+      hostId: form.hostId.value,
+      kind: form.kind.value,
+      bindAddr: form.bindAddr.value.trim() || "127.0.0.1",
+      bindPort: Number(form.bindPort.value || 0),
+      destHost: form.destHost.value.trim(),
+      destPort: Number(form.destPort.value || 0),
+    };
+    if (form.id.value) {
+      await api(`/api/tunnels/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
+    } else {
+      await api("/api/tunnels", { method: "POST", body: JSON.stringify(payload) });
+    }
+    closeModal(els.tunnelModal);
+    await loadAll();
+    toast("Forward saved");
   }
 
   async function saveQuick(event) {
@@ -750,11 +1372,6 @@
     toast("Snippet saved");
   }
 
-  function closeSidebar() {
-    els.sidebar.classList.remove("is-open");
-    els.backdrop.classList.remove("is-open");
-  }
-
   function openModal(el) {
     if (!el) return;
     if (state.openModal && state.openModal !== el) closeModal(state.openModal);
@@ -792,13 +1409,13 @@
   }
 
   async function shareActive() {
-    const session = state.sessions.get(state.activeId);
-    if (!session || session.remote) return;
+    const pane = focusedPane();
+    if (!pane || pane.remote) return;
     try {
       toast("Sharing…");
       const out = await api("/api/share", {
         method: "POST",
-        body: JSON.stringify({ sessionId: session.runtimeId }),
+        body: JSON.stringify({ sessionId: pane.runtimeId }),
       });
       const url = out.url || "";
       if (!url) {
@@ -837,47 +1454,33 @@
   }
 
   function joinRemote({ origin, room }) {
-    const id = `join:${origin}:${room}`;
-    const existing = state.sessions.get(id);
+    const runtimeId = `join:${origin}:${room}`;
+    const existing = findPaneByRuntime(runtimeId);
     if (existing) {
-      state.activeId = id;
+      state.activeId = existing.tabId;
       renderTabs();
       existing.term.focus();
       return;
     }
-    closeSidebar();
-    const wrap = document.createElement("div");
-    wrap.className = "term-wrap";
-    const banner = document.createElement("div");
-    banner.className = "follow-banner";
-    banner.hidden = true;
-    banner.textContent = "Following — request control to type";
-    wrap.appendChild(banner);
-    els.terminals.appendChild(wrap);
-
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: TERM_FONT,
-      fontSize: 12,
-      lineHeight: 1.22,
-      theme: xtermTheme(),
-    });
-    const fit = new FitAddonCtor();
-    term.loadAddon(fit);
-    term.open(wrap);
-    fit.fit();
-
-    const session = {
-      id,
-      runtimeId: id,
+    const info = {
+      id: runtimeId,
       hostId: "",
       title: "Follow",
       subtitle: origin.replace(/^https?:\/\//, ""),
       status: "",
-      term,
-      fit,
-      wrap,
-      banner,
+    };
+    const shell = makePaneShell(info);
+    const pane = {
+      id: uid("pane"),
+      runtimeId,
+      hostId: "",
+      title: "Follow",
+      subtitle: info.subtitle,
+      status: "",
+      term: shell.term,
+      fit: shell.fit,
+      wrap: shell.wrap,
+      banner: shell.banner,
       ws: null,
       sigWs: null,
       pc: null,
@@ -888,17 +1491,19 @@
       driverId: 0,
       ownerId: 0,
     };
-    state.sessions.set(id, session);
-    state.activeId = id;
-    renderTabs();
+    shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
+    wirePaneTerminal(pane);
+    const tab = createTab(pane);
+    tab.remote = true;
+    tab.hostId = "";
 
     const applyPresence = (msg) => {
-      if (msg.you) session.you = msg.you;
-      if (msg.attached) session.attached = msg.attached;
-      if (msg.driverId != null) session.driverId = msg.driverId;
-      if (msg.ownerId != null) session.ownerId = msg.ownerId;
-      if (msg.title) session.title = msg.title;
-      banner.hidden = isDriving(session);
+      if (msg.you) pane.you = msg.you;
+      if (msg.attached) pane.attached = msg.attached;
+      if (msg.driverId != null) pane.driverId = msg.driverId;
+      if (msg.ownerId != null) pane.ownerId = msg.ownerId;
+      if (msg.title) pane.title = msg.title;
+      pane.banner.hidden = isDriving(pane);
       renderTabs();
     };
 
@@ -910,11 +1515,11 @@
       name: state.name || "guest",
     });
     const sigWs = new WebSocket(`${proto}://${host}/ws?${q}`);
-    session.sigWs = sigWs;
+    pane.sigWs = sigWs;
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
-    session.pc = pc;
+    pane.pc = pc;
 
     const sendSignal = (msg) => {
       if (sigWs.readyState === WebSocket.OPEN) {
@@ -933,7 +1538,7 @@
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        session.status = "is-error";
+        pane.status = "is-error";
         toast("Follow connection lost", true);
         renderTabs();
       }
@@ -941,44 +1546,40 @@
     pc.ondatachannel = (ev) => {
       const dc = ev.channel;
       dc.binaryType = "arraybuffer";
-      session.dc = dc;
+      pane.dc = dc;
       dc.onopen = () => {
-        session.status = "is-ready";
-        term.onData((data) => {
-          if (!isDriving(session)) return;
-          sendSessionBytes(session, new TextEncoder().encode(data));
-        });
-        sendResize(session);
+        pane.status = "is-ready";
+        sendResize(pane);
         renderTabs();
       };
       dc.onclose = () => {
-        if (session.status !== "is-error") session.status = "";
-        term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
+        if (pane.status !== "is-error") pane.status = "";
+        pane.term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
         renderTabs();
       };
-      dc.onmessage = (ev) => {
-        if (typeof ev.data === "string") {
+      dc.onmessage = (ev2) => {
+        if (typeof ev2.data === "string") {
           let msg;
           try {
-            msg = JSON.parse(ev.data);
+            msg = JSON.parse(ev2.data);
           } catch {
             return;
           }
           if (msg.type === "error") {
-            session.status = "is-error";
-            term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+            pane.status = "is-error";
+            pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
             renderTabs();
             toast(msg.message, true);
             return;
           }
           if (msg.type === "ready" || msg.type === "presence" || msg.type === "control" || msg.type === "status") {
-            if (msg.status === "ready") session.status = "is-ready";
+            if (msg.status === "ready") pane.status = "is-ready";
             applyPresence(msg);
             if (msg.type === "control" && msg.message) toast(msg.message);
           }
           return;
         }
-        term.write(new Uint8Array(ev.data));
+        pane.term.write(new Uint8Array(ev2.data));
       };
     };
 
@@ -1014,12 +1615,13 @@
     });
     sigWs.addEventListener("error", () => toast("Signaling failed", true));
     sigWs.addEventListener("close", () => {
-      if (pc.connectionState !== "connected" && session.status !== "is-error") {
-        session.status = "is-error";
+      if (pc.connectionState !== "connected" && pane.status !== "is-error") {
+        pane.status = "is-error";
         toast("Signaling closed", true);
         renderTabs();
       }
     });
+    renderTabs();
   }
 
   async function submitJoin(ev) {
@@ -1052,8 +1654,18 @@
     els.gateForm.dataset.setup = needsSetup ? "1" : "0";
   }
 
+  function activateTabIndex(n) {
+    const list = chromeTabs();
+    let idx = n - 1;
+    if (n === 9) idx = list.length - 1;
+    const id = list[idx];
+    if (!id) return;
+    state.activeId = id;
+    renderTabs();
+  }
+
   async function boot() {
-    persistIdentity();
+    persistName();
     try {
       const health = await api("/api/health");
       state.signalURL = health.signalURL || "";
@@ -1072,6 +1684,8 @@
     }
     els.gate.hidden = true;
     connectHerd();
+    renderTabs();
+    syncSettingsForm();
     if (state.pendingSession) {
       const info = state.herd.find((s) => s.id === state.pendingSession);
       if (info) attachRuntime(info);
@@ -1112,8 +1726,8 @@
     } else if (kill) {
       try {
         await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
-        const tab = [...state.sessions.values()].find((s) => s.runtimeId === kill.dataset.kill);
-        if (tab) closeSession(tab.id);
+        const pane = findPaneByRuntime(kill.dataset.kill);
+        if (pane) closePane(pane.id);
         await loadAll();
       } catch (err) {
         toast(err.message, true);
@@ -1144,13 +1758,52 @@
     if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
     if (ev.target.closest("[data-request]")) sendControl("request-control");
     if (ev.target.closest("[data-take]")) sendControl("take-control");
+    const paneClose = ev.target.closest("[data-pane-close]");
+    if (paneClose) closePane(paneClose.dataset.paneClose);
+
+    const editId = ev.target.closest("[data-edit-identity]");
+    if (editId) {
+      const id = state.identities.find((x) => x.id === editId.dataset.editIdentity);
+      fillIdentityForm(id);
+      openModal(els.identityModal);
+    }
+    const delId = ev.target.closest("[data-delete-identity]");
+    if (delId) {
+      const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
+      if (!id || !confirm(`Delete identity “${id.name}”?`)) return;
+      api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
+    }
+    const startTn = ev.target.closest("[data-tunnel-start]");
+    if (startTn) {
+      api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
+        .then(loadAll)
+        .catch((err) => toast(err.message, true));
+    }
+    const stopTn = ev.target.closest("[data-tunnel-stop]");
+    if (stopTn) {
+      api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
+        .then(loadAll)
+        .catch((err) => toast(err.message, true));
+    }
+    const editTn = ev.target.closest("[data-edit-tunnel]");
+    if (editTn) {
+      const t = state.tunnels.find((x) => x.id === editTn.dataset.editTunnel);
+      fillTunnelForm(t);
+      openModal(els.tunnelModal);
+    }
+    const delTn = ev.target.closest("[data-delete-tunnel]");
+    if (delTn) {
+      const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
+      if (!t || !confirm(`Delete forward “${t.name}”?`)) return;
+      api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
+    }
   });
 
   els.tabs.addEventListener("click", (ev) => {
     const close = ev.target.closest("[data-close]");
     if (close) {
       ev.preventDefault();
-      closeSession(close.dataset.close);
+      closeTab(close.dataset.close);
       return;
     }
     const tab = ev.target.closest("[data-tab]");
@@ -1160,20 +1813,17 @@
     }
   });
 
-  document.querySelectorAll(".side-tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".side-tab").forEach((b) => b.classList.toggle("is-active", b === btn));
-      document.getElementById("herd-panel").classList.toggle("is-active", btn.dataset.side === "herd");
-      document.getElementById("hosts-panel").classList.toggle("is-active", btn.dataset.side === "hosts");
-      document.getElementById("snippets-panel").classList.toggle("is-active", btn.dataset.side === "snippets");
-    });
+  document.getElementById("vault-rail").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-vault]");
+    if (!btn) return;
+    if (state.activeId !== VAULT) {
+      state.activeId = VAULT;
+      renderTabs();
+    }
+    setVaultSection(btn.dataset.vault);
   });
 
   document.getElementById("btn-new-host").addEventListener("click", () => {
-    fillHostForm(null);
-    openModal(els.hostModal);
-  });
-  document.getElementById("btn-welcome-host").addEventListener("click", () => {
     fillHostForm(null);
     openModal(els.hostModal);
   });
@@ -1183,22 +1833,50 @@
     document.getElementById("snippet-modal-title").textContent = "New snippet";
     openModal(els.snippetModal);
   });
+  document.getElementById("btn-new-identity").addEventListener("click", () => {
+    fillIdentityForm(null);
+    openModal(els.identityModal);
+  });
+  document.getElementById("btn-new-tunnel").addEventListener("click", () => {
+    fillTunnelForm(null);
+    openModal(els.tunnelModal);
+  });
   document.getElementById("btn-welcome-local").addEventListener("click", () => {
     const host = localHost();
     if (host) openSession(host).catch((err) => toast(err.message, true));
   });
   document.getElementById("btn-join").addEventListener("click", openJoin);
-  document.getElementById("btn-welcome-join").addEventListener("click", openJoin);
+  document.getElementById("btn-settings").addEventListener("click", () => {
+    state.activeId = VAULT;
+    setVaultSection("settings");
+    renderTabs();
+  });
+  document.getElementById("btn-refresh-logs").addEventListener("click", () => loadLogs().catch((err) => toast(err.message, true)));
+  document.getElementById("btn-split-right").addEventListener("click", () => splitActive("h"));
+  document.getElementById("btn-split-down").addEventListener("click", () => splitActive("v"));
+  document.getElementById("btn-sync").addEventListener("click", () => {
+    const tab = state.tabs.get(state.activeId);
+    if (!tab || tab.remote) return;
+    tab.sync = !tab.sync;
+    renderTabs();
+  });
+
   document.getElementById("join-cancel").addEventListener("click", () => closeModal(els.joinModal));
   document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
   document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
   document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
+  document.getElementById("identity-cancel").addEventListener("click", () => closeModal(els.identityModal));
+  document.getElementById("tunnel-cancel").addEventListener("click", () => closeModal(els.tunnelModal));
   els.modalScrim.addEventListener("click", () => closeModal());
-  [els.hostModal, els.quickModal, els.snippetModal, els.joinModal].forEach((modal) => {
-    modal.addEventListener("close", refreshActiveTerminal);
+  [els.hostModal, els.quickModal, els.snippetModal, els.joinModal, els.identityModal, els.tunnelModal].forEach((modal) => {
+    modal.addEventListener("close", fitVisiblePanes);
   });
   els.hostForm.authType.addEventListener("change", toggleAuthFields);
+  els.identityForm.kind.addEventListener("change", toggleIdentFields);
+  els.tunnelForm.kind.addEventListener("change", toggleTunnelDest);
   els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
+  els.identityForm.addEventListener("submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
+  els.tunnelForm.addEventListener("submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
   els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
   els.snippetForm.addEventListener("submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
   els.joinForm.addEventListener("submit", (ev) => submitJoin(ev));
@@ -1206,20 +1884,43 @@
     state.query = els.search.value;
     renderHosts();
   });
-  document.getElementById("btn-menu").addEventListener("click", () => {
-    els.sidebar.classList.toggle("is-open");
-    els.backdrop.classList.toggle("is-open");
+  document.getElementById("log-filter").addEventListener("input", (ev) => {
+    state.logFilter = ev.target.value;
+    renderLogs();
   });
-  els.backdrop.addEventListener("click", closeSidebar);
   els.btnShare.addEventListener("click", shareActive);
-  document.querySelector(".theme-switch")?.addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-theme-choice]");
-    if (btn) setTheme(btn.dataset.themeChoice);
+  document.querySelectorAll(".theme-switch").forEach((el) => {
+    el.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-theme-choice]");
+      if (btn) setTheme(btn.dataset.themeChoice);
+    });
   });
   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalThemes();
+    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalPrefs();
   });
   syncThemeSwitch();
+  syncSettingsForm();
+
+  document.getElementById("set-font").addEventListener("change", (ev) => {
+    state.prefs.font = ev.target.value;
+    savePrefs();
+    applyTerminalPrefs();
+  });
+  document.getElementById("set-size").addEventListener("input", (ev) => {
+    state.prefs.size = Number(ev.target.value);
+    document.getElementById("set-size-out").textContent = String(state.prefs.size);
+    savePrefs();
+    applyTerminalPrefs();
+  });
+  document.getElementById("set-copy").addEventListener("change", (ev) => {
+    state.prefs.copyOnSelect = ev.target.checked;
+    savePrefs();
+  });
+  document.getElementById("set-paste").addEventListener("change", (ev) => {
+    state.prefs.rightClickPaste = ev.target.checked;
+    savePrefs();
+  });
+
   els.gateForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
     const passphrase = els.gateForm.passphrase.value;
@@ -1230,23 +1931,39 @@
       .catch((err) => toast(err.message, true));
   });
 
-  window.addEventListener("resize", () => {
-    const active = state.sessions.get(state.activeId);
-    if (!active) return;
-    active.fit.fit();
-    sendResize(active);
-  });
-  window.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape" && state.openModal) {
-      ev.preventDefault();
-      closeModal();
-      return;
-    }
-    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
-      ev.preventDefault();
-      els.search.focus();
-    }
-  });
+  window.addEventListener("resize", fitVisiblePanes);
+  window.addEventListener(
+    "keydown",
+    (ev) => {
+      if (ev.key === "Escape" && state.openModal) {
+        ev.preventDefault();
+        closeModal();
+        return;
+      }
+      if (els.gate && !els.gate.hidden) return;
+      if (state.openModal) return;
+      if (isTabShortcut(ev)) {
+        ev.preventDefault();
+        activateTabIndex(Number(ev.key));
+        return;
+      }
+      if (isSplitShortcut(ev)) {
+        ev.preventDefault();
+        splitActive(ev.key.toLowerCase() === "d" ? "h" : "v");
+        return;
+      }
+      if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
+        ev.preventDefault();
+        if (state.activeId !== VAULT) {
+          state.activeId = VAULT;
+          setVaultSection("hosts");
+          renderTabs();
+        }
+        els.search.focus();
+      }
+    },
+    true
+  );
 
   if (!state.name) state.name = "guest";
   boot();
