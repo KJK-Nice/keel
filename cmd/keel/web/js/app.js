@@ -444,7 +444,7 @@
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
-    const probe = new Terminal({ fontSize: 13, fontFamily: TERM_FONT, theme: xtermTheme() });
+    const probe = new Terminal({ fontSize: 12, fontFamily: TERM_FONT, theme: xtermTheme() });
     probe.open(termProbe);
     const cols = probe.cols || 80;
     const rows = probe.rows || 24;
@@ -480,8 +480,8 @@
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: TERM_FONT,
-      fontSize: 13,
-      lineHeight: 1.3,
+      fontSize: 12,
+      lineHeight: 1.22,
       theme: xtermTheme(),
     });
     const fit = new FitAddonCtor();
