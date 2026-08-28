@@ -19,15 +19,15 @@ import (
 
 const (
 	srcSize       = 32.0
-	srcStroke     = 2.4
+	srcStroke     = 3.2
 	bgR, bgG, bgB = 0x14, 0x14, 0x14
 	fgR, fgG, fgB = 0xec, 0xec, 0xec
 )
 
 var chevron = [3][2]float64{
-	{7, 22},
-	{16, 8},
-	{25, 22},
+	{4, 25},
+	{16, 5},
+	{28, 25},
 }
 
 func main() {
@@ -79,21 +79,22 @@ func render(size int) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, size, size))
 	scale := float64(size) / srcSize
 	stroke := srcStroke * scale
-	if size <= 32 && stroke < 1.8 {
-		stroke = 1.8
+	if size <= 32 && stroke < 2.2 {
+		stroke = 2.2
 	}
 	r := stroke / 2
 	p0 := [2]float64{chevron[0][0] * scale, chevron[0][1] * scale}
 	p1 := [2]float64{chevron[1][0] * scale, chevron[1][1] * scale}
 	p2 := [2]float64{chevron[2][0] * scale, chevron[2][1] * scale}
+	poly := miterStroke(p0, p1, p2, r)
 
 	bg := color.NRGBA{R: bgR, G: bgG, B: bgB, A: 255}
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			px := float64(x) + 0.5
 			py := float64(y) + 0.5
-			d := math.Min(distToSeg(px, py, p0[0], p0[1], p1[0], p1[1]), distToSeg(px, py, p1[0], p1[1], p2[0], p2[1]))
-			a := clamp(r+0.5-d, 0, 1)
+			d := sdfPoly(px, py, poly)
+			a := clamp(0.5-d, 0, 1)
 			if a <= 0 {
 				img.SetNRGBA(x, y, bg)
 				continue
@@ -107,6 +108,59 @@ func render(size int) *image.NRGBA {
 		}
 	}
 	return img
+}
+
+// miterStroke is a chevron outline with butt caps and a mitered peak.
+func miterStroke(p0, p1, p2 [2]float64, r float64) [][2]float64 {
+	d0x, d0y := norm(p1[0]-p0[0], p1[1]-p0[1])
+	d1x, d1y := norm(p2[0]-p1[0], p2[1]-p1[1])
+	n0x, n0y := -d0y, d0x
+	n1x, n1y := -d1y, d1x
+	jx, jy := n0x+n1x, n0y+n1y
+	jl := math.Hypot(jx, jy)
+	if jl < 1e-9 {
+		return [][2]float64{p0, p1, p2}
+	}
+	jx, jy = jx/jl, jy/jl
+	m := r / (jx*n0x + jy*n0y)
+	return [][2]float64{
+		{p0[0] - n0x*r, p0[1] - n0y*r},
+		{p1[0] - jx*m, p1[1] - jy*m},
+		{p2[0] - n1x*r, p2[1] - n1y*r},
+		{p2[0] + n1x*r, p2[1] + n1y*r},
+		{p1[0] + jx*m, p1[1] + jy*m},
+		{p0[0] + n0x*r, p0[1] + n0y*r},
+	}
+}
+
+func norm(x, y float64) (float64, float64) {
+	l := math.Hypot(x, y)
+	if l == 0 {
+		return 0, 0
+	}
+	return x / l, y / l
+}
+
+func sdfPoly(px, py float64, poly [][2]float64) float64 {
+	minD := math.Inf(1)
+	inside := false
+	n := len(poly)
+	for i := 0; i < n; i++ {
+		ax, ay := poly[i][0], poly[i][1]
+		bx, by := poly[(i+1)%n][0], poly[(i+1)%n][1]
+		minD = math.Min(minD, distToSeg(px, py, ax, ay, bx, by))
+		// even-odd ray cast to +x
+		if (ay > py) != (by > py) {
+			xint := ax + (py-ay)/(by-ay)*(bx-ax)
+			if px < xint {
+				inside = !inside
+			}
+		}
+	}
+	if inside {
+		return -minD
+	}
+	return minD
 }
 
 func distToSeg(px, py, ax, ay, bx, by float64) float64 {

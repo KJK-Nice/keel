@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	stdruntime "runtime"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
@@ -25,6 +28,7 @@ var appIcon []byte
 type nativeWindow struct {
 	url       string
 	navigated bool
+	ctx       context.Context
 }
 
 func Run(url, _ string) error {
@@ -42,6 +46,8 @@ func Run(url, _ string) error {
 		BackgroundColour:  &options.RGBA{R: 13, G: 13, B: 13, A: 255},
 		AssetServer:       &assetserver.Options{Assets: assets},
 		HideWindowOnClose: false,
+		Menu:              w.appMenu(),
+		OnStartup:         func(ctx context.Context) { w.ctx = ctx },
 		OnDomReady:        w.domReady,
 		Mac: &mac.Options{
 			TitleBar:   mac.TitleBarDefault(),
@@ -63,7 +69,52 @@ func Run(url, _ string) error {
 	})
 }
 
+func (w *nativeWindow) appMenu() *menu.Menu {
+	m := menu.NewMenu()
+	if stdruntime.GOOS == "darwin" {
+		m.Append(menu.AppMenu())
+	}
+	file := m.AddSubmenu("File")
+	file.AddText("New Tab", keys.CmdOrCtrl("t"), w.menuAction("new-tab"))
+	file.AddText("Close Tab", keys.CmdOrCtrl("w"), w.menuAction("close-tab"))
+	file.AddText("Reopen Tab", keys.Combo("t", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("reopen-tab"))
+	file.AddSeparator()
+	file.AddText("New Host", keys.CmdOrCtrl("n"), w.menuAction("new-host"))
+	file.AddText("Quick Connect", keys.Combo("o", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("quick-connect"))
+	file.AddText("Join Session", keys.CmdOrCtrl("j"), w.menuAction("join"))
+	file.AddSeparator()
+	file.AddText("Find Host", keys.CmdOrCtrl("k"), w.menuAction("search"))
+	file.AddSeparator()
+	file.AddText("Split Right", keys.Combo("d", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("split-right"))
+	file.AddText("Split Down", keys.Combo("e", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("split-down"))
+	file.AddSeparator()
+	file.AddText("Close Window", keys.Combo("w", keys.CmdOrCtrlKey, keys.ShiftKey), func(_ *menu.CallbackData) {
+		if w.ctx != nil {
+			runtime.Quit(w.ctx)
+		}
+	})
+	view := m.AddSubmenu("View")
+	view.AddText("Zoom In", keys.CmdOrCtrl("="), w.menuAction("zoom-in"))
+	view.AddText("Zoom Out", keys.CmdOrCtrl("-"), w.menuAction("zoom-out"))
+	view.AddText("Actual Size", keys.CmdOrCtrl("0"), w.menuAction("zoom-reset"))
+	m.Append(menu.EditMenu())
+	if stdruntime.GOOS == "darwin" {
+		m.Append(menu.WindowMenu())
+	}
+	return m
+}
+
+func (w *nativeWindow) menuAction(name string) menu.Callback {
+	return func(_ *menu.CallbackData) {
+		if w.ctx == nil {
+			return
+		}
+		runtime.WindowExecJS(w.ctx, shortcutJS(name))
+	}
+}
+
 func (w *nativeWindow) domReady(ctx context.Context) {
+	w.ctx = ctx
 	if w.navigated {
 		return
 	}
@@ -77,4 +128,12 @@ func navigateJS(url string) string {
 		raw = []byte(`"/"`)
 	}
 	return fmt.Sprintf("if(!window.__keelNative){window.__keelNative=true;window.location.replace(%s);}", raw)
+}
+
+func shortcutJS(name string) string {
+	raw, err := json.Marshal(name)
+	if err != nil {
+		return ""
+	}
+	return "window.__keelShortcut&&window.__keelShortcut(" + string(raw) + ")"
 }

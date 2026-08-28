@@ -12,17 +12,18 @@
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=14" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%23141414'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%23ececec' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="/css/app.css?v=17" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23141414'/><path d='M4 25 L16 5 L28 25' fill='none' stroke='%23ececec' stroke-width='3.2' stroke-linecap='square' stroke-linejoin='miter'/></svg>" />
 </head>
 <body>
   <div class="app">
     <main class="main">
       <header class="workspace-bar">
         <div class="tabs" id="tabs"></div>
+        <button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New local shell  ⌘T" aria-label="New tab">+<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
         <div class="bar-tools" id="bar-tools" hidden>
-          <button type="button" class="tiny" id="btn-split-right" title="Split right  ⌘⇧D">Split →</button>
-          <button type="button" class="tiny" id="btn-split-down" title="Split down  ⌘⇧E">Split ↓</button>
+          <button type="button" class="tiny" id="btn-split-right" data-kbd="⇧D" title="Split right  ⌘⇧D">Split →<kbd class="kbd-hint" aria-hidden="true">⇧D</kbd></button>
+          <button type="button" class="tiny" id="btn-split-down" data-kbd="⇧E" title="Split down  ⌘⇧E">Split ↓<kbd class="kbd-hint" aria-hidden="true">⇧E</kbd></button>
           <button type="button" class="tiny" id="btn-sync" title="Synchronize input">Sync</button>
         </div>
         <div class="bar-meta" id="bar-meta">
@@ -30,8 +31,9 @@
           <div class="control-widget" id="control-widget" hidden></div>
           <button class="tiny" id="btn-share" hidden title="Copy internet join link">Share</button>
         </div>
-        <button type="button" class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+        <button type="button" class="icon-btn" id="btn-settings" data-kbd="," title="Settings  ⌘," aria-label="Settings">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          <kbd class="kbd-hint" aria-hidden="true">,</kbd>
         </button>
         <div class="theme-switch" role="radiogroup" aria-label="Color theme">
           <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
@@ -65,18 +67,19 @@
                   <p class="lede">Open a local shell or SSH host. Closing a session tab detaches; the PTY stays in Live until you kill it.</p>
                 </div>
               </div>
-              <div class="search">
+              <div class="search" data-kbd="K">
                 <input id="search" type="search" placeholder="Search hosts  ⌘K" autocomplete="off" />
+                <kbd class="kbd-hint" aria-hidden="true">K</kbd>
               </div>
               <h2 class="group-label">Live</h2>
               <div id="herd-list" class="host-list"></div>
               <p class="empty" id="herd-empty">No live sessions. Connect from Hosts below.</p>
               <div id="host-list" class="host-list"></div>
               <div class="page-actions">
-                <button class="btn btn-primary" id="btn-new-host">New host</button>
-                <button class="btn btn-ghost" id="btn-quick">Quick connect</button>
-                <button class="btn btn-ghost" id="btn-join">Join session</button>
-                <button class="btn btn-ghost" id="btn-welcome-local">Open local shell</button>
+                <button class="btn btn-primary" id="btn-new-host" data-kbd="N">New host<kbd class="kbd-hint" aria-hidden="true">N</kbd></button>
+                <button class="btn btn-ghost" id="btn-quick" data-kbd="⇧O">Quick connect<kbd class="kbd-hint" aria-hidden="true">⇧O</kbd></button>
+                <button class="btn btn-ghost" id="btn-join" data-kbd="J">Join session<kbd class="kbd-hint" aria-hidden="true">J</kbd></button>
+                <button class="btn btn-ghost" id="btn-welcome-local" data-kbd="T">Open local shell<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
               </div>
             </section>
 
@@ -145,9 +148,10 @@
                   </select>
                 </label>
                 <label>Text size
-                  <div class="size-row">
+                  <div class="size-row" data-kbd="+">
                     <input type="range" name="size" id="set-size" min="10" max="22" step="1" />
                     <output id="set-size-out">12</output>
+                    <kbd class="kbd-hint" aria-hidden="true">+ − 0</kbd>
                   </div>
                 </label>
                 <label class="check"><input type="checkbox" id="set-copy" /> Copy on select</label>
@@ -351,6 +355,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=14"></script>
+  <script src="/js/app.js?v=17"></script>
 </body>
 </html>

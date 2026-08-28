@@ -2,6 +2,8 @@
   const FitAddonCtor = window.FitAddon?.FitAddon || window.FitAddon;
   const params = new URLSearchParams(location.search);
   const VAULT = "vault";
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes("Mac");
+  const MOD = isMac ? "⌘" : "Ctrl+";
   const FONT_STACKS = {
     jetbrains: "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     ibmplex: "IBM Plex Mono, ui-monospace, Menlo, Consolas, monospace",
@@ -28,6 +30,7 @@
     herdWs: null,
     openModal: null,
     signalURL: "",
+    lastClosedRuntimeId: null,
     prefs: loadPrefs(),
     hostKeyRetry: null,
   };
@@ -84,6 +87,19 @@
 
   function savePrefs() {
     localStorage.setItem("keel-term", JSON.stringify(state.prefs));
+  }
+
+  const SIZE_MIN = 10;
+  const SIZE_MAX = 22;
+  const SIZE_DEFAULT = 12;
+
+  function setFontSize(next) {
+    const size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(Number(next) || SIZE_DEFAULT)));
+    if (size === state.prefs.size) return;
+    state.prefs.size = size;
+    savePrefs();
+    syncSettingsForm();
+    applyTerminalPrefs();
   }
 
   function fontFamily() {
@@ -517,6 +533,85 @@
     return [VAULT, ...state.tabs.keys()];
   }
 
+  let tabDrag = null;
+  let ignoreTabClick = false;
+
+  function reorderTabIds(ids, fromId, toIndex) {
+    const from = ids.indexOf(fromId);
+    if (from < 0) return ids;
+    if (toIndex === from || toIndex === from + 1) return ids;
+    const next = ids.slice();
+    next.splice(from, 1);
+    const at = Math.max(0, Math.min(toIndex > from ? toIndex - 1 : toIndex, next.length));
+    next.splice(at, 0, fromId);
+    return next;
+  }
+
+  function moveTabToIndex(fromId, toIndex) {
+    if (!fromId || fromId === VAULT || !state.tabs.has(fromId)) return false;
+    const ids = [...state.tabs.keys()];
+    const next = reorderTabIds(ids, fromId, toIndex);
+    if (next.length !== ids.length || next.every((id, i) => id === ids[i])) return false;
+    const tabs = new Map();
+    for (const id of next) tabs.set(id, state.tabs.get(id));
+    state.tabs = tabs;
+    return true;
+  }
+
+  function tabStripInsertIndex(clientX) {
+    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")].filter((el) => el.dataset.tab !== VAULT);
+    for (let i = 0; i < buttons.length; i++) {
+      const r = buttons[i].getBoundingClientRect();
+      if (clientX < r.left + r.width / 2) return i;
+    }
+    return buttons.length;
+  }
+
+  function clearTabDropMarks() {
+    for (const el of els.tabs.querySelectorAll(".is-drop-before, .is-drop-after, .is-dragging")) {
+      el.classList.remove("is-drop-before", "is-drop-after", "is-dragging");
+    }
+  }
+
+  function paintTabDrop(toIndex) {
+    clearTabDropMarks();
+    if (!tabDrag) return;
+    const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
+    src?.classList.add("is-dragging");
+    src?.setAttribute("aria-grabbed", "true");
+    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")].filter((el) => el.dataset.tab !== VAULT);
+    const vault = els.tabs.querySelector(".tab.is-vault");
+    if (!buttons.length) {
+      vault?.classList.add("is-drop-after");
+      return;
+    }
+    if (toIndex <= 0) {
+      vault?.classList.add("is-drop-after");
+      return;
+    }
+    if (toIndex >= buttons.length) {
+      buttons[buttons.length - 1]?.classList.add("is-drop-after");
+      return;
+    }
+    buttons[toIndex]?.classList.add("is-drop-before");
+  }
+
+  function autoScrollTabs(clientX) {
+    const r = els.tabs.getBoundingClientRect();
+    const edge = 36;
+    if (clientX < r.left + edge) els.tabs.scrollLeft -= 14;
+    else if (clientX > r.right - edge) els.tabs.scrollLeft += 14;
+  }
+
+  function endTabDrag() {
+    if (!tabDrag) return;
+    const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
+    src?.removeAttribute("aria-grabbed");
+    tabDrag = null;
+    document.body.classList.remove("is-tab-dragging");
+    clearTabDropMarks();
+  }
+
   function renderControl(pane) {
     if (!els.controlWidget) return;
     if (!pane || state.activeId === VAULT) {
@@ -629,21 +724,30 @@
     });
   }
 
+  function kbdHint(key) {
+    return `<kbd class="kbd-hint" aria-hidden="true">${escapeHtml(key)}</kbd>`;
+  }
+
   function renderTabs() {
     const ids = [...state.tabs.keys()];
     const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
     if (vaultOn) state.activeId = VAULT;
+    const chrome = chromeTabs();
 
     els.tabs.innerHTML =
-      `<button class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">Vault</button>` +
+      `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}Vault</button>` +
       ids
-        .map((id) => {
+        .map((id, i) => {
           const tab = state.tabs.get(id);
           const st = tabStatus(tab);
-          return `<button class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}">
+          const chromeIdx = i + 1;
+          const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
+          const closeHint = id === state.activeId ? kbdHint("W") : "";
+          return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
+            ${num ? kbdHint(num) : ""}
             <span class="status"></span>
             ${escapeHtml(tabTitle(tab))}
-            <span class="close" data-close="${id}" title="Close">×</span>
+            <span class="close" data-close="${id}" title="Close  ${MOD}W">×${closeHint}</span>
           </button>`;
         })
         .join("");
@@ -681,6 +785,11 @@
       else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
     renderControl(pane);
+    if (tabDrag?.id) {
+      const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
+      dragging?.classList.add("is-dragging");
+      dragging?.setAttribute("aria-grabbed", "true");
+    }
     if (!vaultOn) {
       requestAnimationFrame(() => {
         fitVisiblePanes();
@@ -818,21 +927,159 @@
     loadAll().catch(() => {});
   }
 
-  function isTabShortcut(ev) {
-    if (!(ev.metaKey || ev.ctrlKey) || ev.shiftKey || ev.altKey) return false;
-    return /^[1-9]$/.test(ev.key);
+  function isHoldModKey(ev) {
+    return isMac ? ev.key === "Meta" : ev.key === "Control";
   }
 
-  function isSplitShortcut(ev) {
-    if (!(ev.metaKey || ev.ctrlKey) || !ev.shiftKey || ev.altKey) return false;
-    const k = ev.key.toLowerCase();
-    return k === "d" || k === "e";
+  function hasAppMod(ev) {
+    return isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;
   }
+
+  function newLocalTab() {
+    const host = localHost();
+    if (!host) {
+      toast("Local shell is not available", true);
+      return;
+    }
+    openSession(host).catch((err) => toast(err.message, true));
+  }
+
+  function reopenLastTab() {
+    const id = state.lastClosedRuntimeId;
+    if (!id) return;
+    const info = state.herd.find((s) => s.id === id);
+    if (info) attachRuntime(info);
+  }
+
+  function showKbdHints(on) {
+    document.documentElement.classList.toggle("show-kbd", on);
+  }
+
+  let kbdTimer = 0;
+  let lastShortcutAt = 0;
+  let lastShortcutName = "";
+
+  function runShortcut(name) {
+    const now = Date.now();
+    if (name === lastShortcutName && now - lastShortcutAt < 80) return;
+    lastShortcutName = name;
+    lastShortcutAt = now;
+    if (name === "new-tab") newLocalTab();
+    else if (name === "close-tab") {
+      if (state.openModal) closeModal();
+      else if (state.activeId && state.activeId !== VAULT) closeTab(state.activeId);
+    } else if (name === "reopen-tab") reopenLastTab();
+    else if (name === "search") {
+      if (state.openModal) closeModal();
+      if (state.activeId !== VAULT) {
+        state.activeId = VAULT;
+        setVaultSection("hosts");
+        renderTabs();
+      } else {
+        setVaultSection("hosts");
+      }
+      els.search.focus();
+      els.search.select?.();
+    } else if (name === "new-host") {
+      fillHostForm(null);
+      openModal(els.hostModal);
+    } else if (name === "quick-connect") openModal(els.quickModal);
+    else if (name === "join") openJoin();
+    else if (name === "settings") {
+      state.activeId = VAULT;
+      setVaultSection("settings");
+      renderTabs();
+    } else if (name === "split-right") splitActive("h");
+    else if (name === "split-down") splitActive("v");
+    else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
+    else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
+    else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
+  }
+
+  function handleShortcut(ev) {
+    if (!hasAppMod(ev) || ev.altKey) return false;
+    if (els.gate && !els.gate.hidden) return false;
+    const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (key === "w") {
+      ev.preventDefault();
+      runShortcut("close-tab");
+      return true;
+    }
+    if (key === "t" && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("reopen-tab");
+      return true;
+    }
+    if (key === "t") {
+      if (state.openModal) return false;
+      ev.preventDefault();
+      runShortcut("new-tab");
+      return true;
+    }
+    if (key === "d" && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("split-right");
+      return true;
+    }
+    if (key === "e" && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("split-down");
+      return true;
+    }
+    if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") {
+      ev.preventDefault();
+      runShortcut("zoom-in");
+      return true;
+    }
+    if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") {
+      ev.preventDefault();
+      runShortcut("zoom-out");
+      return true;
+    }
+    if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("zoom-reset");
+      return true;
+    }
+    if (state.openModal) return false;
+    if (key === "k" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("search");
+      return true;
+    }
+    if (key === "n" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("new-host");
+      return true;
+    }
+    if (key === "o" && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("quick-connect");
+      return true;
+    }
+    if (key === "j" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("join");
+      return true;
+    }
+    if (key === "," && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("settings");
+      return true;
+    }
+    if (!ev.shiftKey && /^[1-9]$/.test(ev.key)) {
+      ev.preventDefault();
+      activateTabIndex(Number(ev.key));
+      return true;
+    }
+    return false;
+  }
+
+  window.__keelShortcut = (name) => runShortcut(name);
 
   function termKeyHandler(ev) {
-    if (isTabShortcut(ev) || isSplitShortcut(ev)) return false;
-    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") return false;
-    return true;
+    if (ev.type !== "keydown") return true;
+    return !handleShortcut(ev);
   }
 
   function wirePaneTerminal(pane) {
@@ -1113,8 +1360,11 @@
   }
 
   function closeTab(id, opts = {}) {
+    if (id === VAULT) return;
     const tab = state.tabs.get(id);
     if (!tab) return;
+    const first = tabPanes(tab)[0];
+    if (first?.runtimeId) state.lastClosedRuntimeId = first.runtimeId;
     if (!opts.skipPanes) {
       for (const p of tabPanes(tab)) disposePane(p);
     }
@@ -1879,6 +2129,11 @@
   });
 
   els.tabs.addEventListener("click", (ev) => {
+    if (ignoreTabClick) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
     const close = ev.target.closest("[data-close]");
     if (close) {
       ev.preventDefault();
@@ -1891,6 +2146,57 @@
       renderTabs();
     }
   });
+
+  els.tabs.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+    if (ev.target.closest("[data-close]")) return;
+    const tab = ev.target.closest(".tab[data-tab]");
+    if (!tab || tab.dataset.tab === VAULT) return;
+    if (!state.tabs.has(tab.dataset.tab)) return;
+    tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
+  });
+  els.tabs.addEventListener("dragstart", (ev) => ev.preventDefault());
+
+  document.addEventListener(
+    "pointermove",
+    (ev) => {
+      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+      if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
+      if (!tabDrag.moved) {
+        tabDrag.moved = true;
+        document.body.classList.add("is-tab-dragging");
+      }
+      ev.preventDefault();
+      autoScrollTabs(ev.clientX);
+      paintTabDrop(tabStripInsertIndex(ev.clientX));
+    },
+    { capture: true, passive: false }
+  );
+
+  function finishTabPointer(ev) {
+    if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+    const drag = tabDrag;
+    const toIndex = drag.moved ? tabStripInsertIndex(ev.clientX) : -1;
+    endTabDrag();
+    if (!drag.moved) return;
+    ignoreTabClick = true;
+    window.setTimeout(() => {
+      ignoreTabClick = false;
+    }, 50);
+    if (moveTabToIndex(drag.id, toIndex)) renderTabs();
+  }
+
+  document.addEventListener("pointerup", finishTabPointer, true);
+  document.addEventListener(
+    "pointercancel",
+    (ev) => {
+      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+      ignoreTabClick = tabDrag.moved;
+      endTabDrag();
+    },
+    true
+  );
 
   document.getElementById("vault-rail").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-vault]");
@@ -1920,10 +2226,8 @@
     fillTunnelForm(null);
     openModal(els.tunnelModal);
   });
-  document.getElementById("btn-welcome-local").addEventListener("click", () => {
-    const host = localHost();
-    if (host) openSession(host).catch((err) => toast(err.message, true));
-  });
+  document.getElementById("btn-welcome-local").addEventListener("click", () => newLocalTab());
+  document.getElementById("btn-new-tab")?.addEventListener("click", () => newLocalTab());
   document.getElementById("btn-join").addEventListener("click", openJoin);
   document.getElementById("btn-settings").addEventListener("click", () => {
     state.activeId = VAULT;
@@ -2016,35 +2320,43 @@
   window.addEventListener(
     "keydown",
     (ev) => {
+      if (isHoldModKey(ev) && !ev.repeat) {
+        clearTimeout(kbdTimer);
+        kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
+      } else if (!isHoldModKey(ev)) {
+        clearTimeout(kbdTimer);
+      }
+      if (ev.key === "Escape" && tabDrag) {
+        ev.preventDefault();
+        ignoreTabClick = tabDrag.moved;
+        endTabDrag();
+        return;
+      }
       if (ev.key === "Escape" && state.openModal) {
         ev.preventDefault();
         closeModal();
         return;
       }
-      if (els.gate && !els.gate.hidden) return;
-      if (state.openModal) return;
-      if (isTabShortcut(ev)) {
-        ev.preventDefault();
-        activateTabIndex(Number(ev.key));
-        return;
-      }
-      if (isSplitShortcut(ev)) {
-        ev.preventDefault();
-        splitActive(ev.key.toLowerCase() === "d" ? "h" : "v");
-        return;
-      }
-      if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
-        ev.preventDefault();
-        if (state.activeId !== VAULT) {
-          state.activeId = VAULT;
-          setVaultSection("hosts");
-          renderTabs();
-        }
-        els.search.focus();
-      }
+      handleShortcut(ev);
     },
     true
   );
+  window.addEventListener("keyup", (ev) => {
+    if (isHoldModKey(ev)) {
+      clearTimeout(kbdTimer);
+      showKbdHints(false);
+    }
+  });
+  window.addEventListener("blur", () => {
+    clearTimeout(kbdTimer);
+    showKbdHints(false);
+    if (tabDrag) {
+      ignoreTabClick = tabDrag.moved;
+      endTabDrag();
+    }
+  });
+  if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
+  document.getElementById("btn-new-tab")?.setAttribute("title", `New local shell  ${MOD}T`);
 
   if (!state.name) state.name = "guest";
   boot();

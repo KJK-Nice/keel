@@ -25,7 +25,7 @@ func TestAppIconPNG(t *testing.T) {
 	if r>>8 != 0x14 || g>>8 != 0x14 || b>>8 != 0x14 || a>>8 != 0xff {
 		t.Fatalf("corner = #%02x%02x%02x alpha=%02x, want #141414", r>>8, g>>8, b>>8, a>>8)
 	}
-	r, g, b, a = img.At(512, 256).RGBA()
+	r, g, b, a = img.At(512, 160).RGBA()
 	if r>>8 < 0xd0 || g>>8 < 0xd0 || b>>8 < 0xd0 || a>>8 != 0xff {
 		t.Fatalf("chevron peak = #%02x%02x%02x, want near #ececec", r>>8, g>>8, b>>8)
 	}
