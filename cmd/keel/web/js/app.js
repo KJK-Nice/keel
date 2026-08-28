@@ -777,6 +777,7 @@
 
     for (const tab of state.tabs.values()) {
       tab.root.classList.toggle("is-active", tab.id === state.activeId);
+      tab.root.classList.toggle("is-split", leafCount(tab.layout) > 1);
       if (tab.id === state.activeId && tab.dirty) {
         if (tab.start) paintStartPage(tab);
         else paintLayout(tab);

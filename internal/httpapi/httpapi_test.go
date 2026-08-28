@@ -494,6 +494,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("app.css missing titlebar tab overlay")
 	}
+	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused") ||
+		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {
+		t.Fatal("app.css missing split-only pane ring or terminal scrollbar")
+	}
 	res2, err := http.Get(srv.URL + "/api/identities")
 	if err != nil {
 		t.Fatal(err)
