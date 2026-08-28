@@ -20,14 +20,18 @@ func TestAppIconPNG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Corner is the charcoal field; the chevron peak sits on the path vertex.
-	r, g, b, a := img.At(0, 0).RGBA()
-	if r>>8 != 0x14 || g>>8 != 0x14 || b>>8 != 0x14 || a>>8 != 0xff {
-		t.Fatalf("corner = #%02x%02x%02x alpha=%02x, want #141414", r>>8, g>>8, b>>8, a>>8)
+	// Flattened Icon Composer Default: squircle with transparent corners.
+	_, _, _, a := img.At(0, 0).RGBA()
+	if a>>8 != 0 {
+		t.Fatalf("corner alpha=%02x, want transparent", a>>8)
 	}
-	r, g, b, a = img.At(512, 160).RGBA()
+	_, _, _, a = img.At(512, 0).RGBA()
+	if a>>8 != 0xff {
+		t.Fatalf("top-edge alpha=%02x, want opaque squircle", a>>8)
+	}
+	r, g, b, a := img.At(512, 160).RGBA()
 	if r>>8 < 0xd0 || g>>8 < 0xd0 || b>>8 < 0xd0 || a>>8 != 0xff {
-		t.Fatalf("chevron peak = #%02x%02x%02x, want near #ececec", r>>8, g>>8, b>>8)
+		t.Fatalf("chevron peak = #%02x%02x%02x, want near-white", r>>8, g>>8, b>>8)
 	}
 }
 

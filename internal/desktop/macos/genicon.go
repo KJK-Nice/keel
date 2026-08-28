@@ -1,6 +1,7 @@
 //go:build ignore
 
-// Generate Keel's macOS app icon (PNG + ICNS) from the same chevron as icon.svg.
+// Generate Keel's macOS app icon (PNG + ICNS) from the Icon Composer
+// document Keel.icon via ictool (Icon Composer.app).
 //
 //	go run genicon.go
 package main
@@ -9,50 +10,61 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
-
-const (
-	srcSize       = 32.0
-	srcStroke     = 3.2
-	bgR, bgG, bgB = 0x14, 0x14, 0x14
-	fgR, fgG, fgB = 0xec, 0xec, 0xec
-)
-
-var chevron = [3][2]float64{
-	{4, 25},
-	{16, 5},
-	{28, 25},
-}
 
 func main() {
 	dir, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
-	png1024 := render(1024)
-	if err := writePNG(filepath.Join(dir, "icon.png"), png1024); err != nil {
+	iconDoc := filepath.Join(dir, "Keel.icon")
+	if _, err := os.Stat(iconDoc); err != nil {
+		fatal(fmt.Errorf("Keel.icon: %w", err))
+	}
+	ictool, err := lookICTool()
+	if err != nil {
 		fatal(err)
 	}
 
 	sizes := []int{16, 32, 64, 128, 256, 512, 1024}
 	encoded := make(map[int][]byte, len(sizes))
 	for _, s := range sizes {
-		img := png1024
-		if s != 1024 {
-			img = render(s)
-		}
-		var buf bytes.Buffer
-		enc := png.Encoder{CompressionLevel: png.BestCompression}
-		if err := enc.Encode(&buf, img); err != nil {
+		tmp, err := os.CreateTemp("", fmt.Sprintf("keel-icon-%d-*.png", s))
+		if err != nil {
 			fatal(err)
 		}
-		encoded[s] = buf.Bytes()
+		tmpPath := tmp.Name()
+		_ = tmp.Close()
+		cmd := exec.Command(ictool, iconDoc,
+			"--export-image",
+			"--output-file", tmpPath,
+			"--platform", "macOS",
+			"--rendition", "Default",
+			"--width", fmt.Sprintf("%d", s),
+			"--height", fmt.Sprintf("%d", s),
+			"--scale", "1",
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			_ = os.Remove(tmpPath)
+			fatal(fmt.Errorf("ictool %d: %w: %s", s, err, bytes.TrimSpace(out)))
+		}
+		data, err := os.ReadFile(tmpPath)
+		_ = os.Remove(tmpPath)
+		if err != nil {
+			fatal(err)
+		}
+		if len(data) < 8 || string(data[:8]) != "\x89PNG\r\n\x1a\n" {
+			fatal(fmt.Errorf("ictool %d did not write a PNG", s))
+		}
+		encoded[s] = data
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "icon.png"), encoded[1024], 0o644); err != nil {
+		fatal(err)
 	}
 
 	// PNG-based ICNS elements. Largest first; @2x types reuse the 2× raster.
@@ -72,136 +84,20 @@ func main() {
 	if err := os.WriteFile(filepath.Join(dir, "Keel.icns"), packICNS(chunks), 0o644); err != nil {
 		fatal(err)
 	}
-	fmt.Println("wrote icon.png and Keel.icns")
+	fmt.Println("wrote icon.png and Keel.icns from Keel.icon")
 }
 
-func render(size int) *image.NRGBA {
-	img := image.NewNRGBA(image.Rect(0, 0, size, size))
-	scale := float64(size) / srcSize
-	stroke := srcStroke * scale
-	if size <= 32 && stroke < 2.2 {
-		stroke = 2.2
+func lookICTool() (string, error) {
+	// Prefer Icon Composer.app. /usr/bin/ictool is an xcode-select stub
+	// that fails when only Command Line Tools are installed.
+	const bundled = "/Applications/Icon Composer.app/Contents/Executables/ictool"
+	if _, err := os.Stat(bundled); err == nil {
+		return bundled, nil
 	}
-	r := stroke / 2
-	p0 := [2]float64{chevron[0][0] * scale, chevron[0][1] * scale}
-	p1 := [2]float64{chevron[1][0] * scale, chevron[1][1] * scale}
-	p2 := [2]float64{chevron[2][0] * scale, chevron[2][1] * scale}
-	poly := miterStroke(p0, p1, p2, r)
-
-	bg := color.NRGBA{R: bgR, G: bgG, B: bgB, A: 255}
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			px := float64(x) + 0.5
-			py := float64(y) + 0.5
-			d := sdfPoly(px, py, poly)
-			a := clamp(0.5-d, 0, 1)
-			if a <= 0 {
-				img.SetNRGBA(x, y, bg)
-				continue
-			}
-			img.SetNRGBA(x, y, color.NRGBA{
-				R: lerp(bgR, fgR, a),
-				G: lerp(bgG, fgG, a),
-				B: lerp(bgB, fgB, a),
-				A: 255,
-			})
-		}
+	if p, err := exec.LookPath("ictool"); err == nil && p != "/usr/bin/ictool" {
+		return p, nil
 	}
-	return img
-}
-
-// miterStroke is a chevron outline with butt caps and a mitered peak.
-func miterStroke(p0, p1, p2 [2]float64, r float64) [][2]float64 {
-	d0x, d0y := norm(p1[0]-p0[0], p1[1]-p0[1])
-	d1x, d1y := norm(p2[0]-p1[0], p2[1]-p1[1])
-	n0x, n0y := -d0y, d0x
-	n1x, n1y := -d1y, d1x
-	jx, jy := n0x+n1x, n0y+n1y
-	jl := math.Hypot(jx, jy)
-	if jl < 1e-9 {
-		return [][2]float64{p0, p1, p2}
-	}
-	jx, jy = jx/jl, jy/jl
-	m := r / (jx*n0x + jy*n0y)
-	return [][2]float64{
-		{p0[0] - n0x*r, p0[1] - n0y*r},
-		{p1[0] - jx*m, p1[1] - jy*m},
-		{p2[0] - n1x*r, p2[1] - n1y*r},
-		{p2[0] + n1x*r, p2[1] + n1y*r},
-		{p1[0] + jx*m, p1[1] + jy*m},
-		{p0[0] + n0x*r, p0[1] + n0y*r},
-	}
-}
-
-func norm(x, y float64) (float64, float64) {
-	l := math.Hypot(x, y)
-	if l == 0 {
-		return 0, 0
-	}
-	return x / l, y / l
-}
-
-func sdfPoly(px, py float64, poly [][2]float64) float64 {
-	minD := math.Inf(1)
-	inside := false
-	n := len(poly)
-	for i := 0; i < n; i++ {
-		ax, ay := poly[i][0], poly[i][1]
-		bx, by := poly[(i+1)%n][0], poly[(i+1)%n][1]
-		minD = math.Min(minD, distToSeg(px, py, ax, ay, bx, by))
-		// even-odd ray cast to +x
-		if (ay > py) != (by > py) {
-			xint := ax + (py-ay)/(by-ay)*(bx-ax)
-			if px < xint {
-				inside = !inside
-			}
-		}
-	}
-	if inside {
-		return -minD
-	}
-	return minD
-}
-
-func distToSeg(px, py, ax, ay, bx, by float64) float64 {
-	dx, dy := bx-ax, by-ay
-	l2 := dx*dx + dy*dy
-	if l2 == 0 {
-		return hypot(px-ax, py-ay)
-	}
-	t := ((px-ax)*dx + (py-ay)*dy) / l2
-	if t < 0 {
-		t = 0
-	} else if t > 1 {
-		t = 1
-	}
-	return hypot(px-(ax+t*dx), py-(ay+t*dy))
-}
-
-func hypot(x, y float64) float64 { return math.Hypot(x, y) }
-
-func clamp(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func lerp(a, b uint8, t float64) uint8 {
-	return uint8(math.Round(float64(a) + (float64(b)-float64(a))*t))
-}
-
-func writePNG(path string, img image.Image) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	enc := png.Encoder{CompressionLevel: png.BestCompression}
-	return enc.Encode(f, img)
+	return "", fmt.Errorf("ictool not found; install Icon Composer")
 }
 
 type icnsChunk struct {
