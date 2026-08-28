@@ -735,6 +735,14 @@
     return `<kbd class="kbd-hint" aria-hidden="true">${escapeHtml(key)}</kbd>`;
   }
 
+  function tabGlyph() {
+    return `<span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.25 7.25 6.25 9 4.25 10.75M7.75 11h3.5"/></svg></span>`;
+  }
+
+  function vaultGlyph() {
+    return `<span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.75" y="3.25" width="12.5" height="10.5" rx="2"/><circle cx="8" cy="8.75" r="2.25"/><path d="M8 8.75v-1.6"/></svg></span>`;
+  }
+
   function renderTabs() {
     const ids = [...state.tabs.keys()];
     const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
@@ -744,7 +752,7 @@
     const sessionOn = !vaultOn && activeTab && !activeTab.start;
 
     els.tabs.innerHTML =
-      `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}Vault</button>` +
+      `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
       ids
         .map((id, i) => {
           const tab = state.tabs.get(id);
@@ -754,7 +762,7 @@
           const closeHint = id === state.activeId ? kbdHint("W") : "";
           return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
-            <span class="status"></span>
+            ${tabGlyph()}
             ${escapeHtml(tabTitle(tab))}
             <span class="close" data-close="${id}" title="Close  ${MOD}W">×${closeHint}</span>
           </button>`;
@@ -2527,11 +2535,6 @@
       const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
       if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
     }
-  });
-  document.getElementById("btn-settings").addEventListener("click", () => {
-    state.activeId = VAULT;
-    setVaultSection("settings");
-    renderTabs();
   });
   document.getElementById("btn-refresh-logs").addEventListener("click", () => loadLogs().catch((err) => toast(err.message, true)));
   document.getElementById("btn-split-right").addEventListener("click", () => splitActive("h"));

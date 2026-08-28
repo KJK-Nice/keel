@@ -375,16 +375,51 @@ body.is-tab-dragging { user-select: none; }
   background: var(--panel);
   color: var(--text);
 }
-.tab .status {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--muted);
+.tab .tab-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
 }
-.tab.is-ready .status { background: var(--success); }
-.tab.is-connecting .status { background: var(--warn); }
-.tab.is-error .status { background: var(--danger); }
-.tab .close { position: relative; color: var(--muted); background: none; border: 0; padding: 0 1px; font-size: 13px; }
+.tab .tab-icon svg { display: block; width: 16px; height: 16px; }
+.tab.is-ready .tab-icon { color: var(--success); }
+.tab.is-connecting .tab-icon { color: var(--warn); }
+.tab.is-error .tab-icon { color: var(--danger); }
+.tab .close {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--bg);
+  border: 0;
+  border-radius: 4px;
+  corner-shape: squircle;
+}
+.tab.is-active .close { background: var(--panel); color: var(--text); }
+@media (hover: hover) {
+  .tab:not(.is-vault) .close {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tab:not(.is-vault):hover .close,
+  .tab:not(.is-vault):focus-within .close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+html.show-kbd .tab.is-active .close {
+  opacity: 1;
+  pointer-events: auto;
+}
+body.is-tab-dragging .tab .close { opacity: 0; pointer-events: none; }
 .tab-new {
   position: relative;
   flex: 0 0 auto;
@@ -446,7 +481,7 @@ html.show-kbd .tab-new { color: transparent; }
 .icon-btn .kbd-hint { right: -2px; bottom: -4px; }
 .tiny { position: relative; }
 html.show-kbd .kbd-hint { display: inline-block; }
-html.show-kbd .tab .status { visibility: hidden; }
+html.show-kbd .tab .tab-icon { visibility: hidden; }
 
 .bar-meta {
   color: var(--muted);
@@ -569,12 +604,21 @@ html.show-kbd .tab .status { visibility: hidden; }
   border-right: 1px solid var(--border);
 }
 .vault-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   padding: 8px 10px;
   border-radius: 8px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
+}
+.vault-nav-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 .vault-nav:hover { background: var(--hover); color: var(--text); }
 .vault-nav.is-active {
@@ -695,7 +739,7 @@ html.show-kbd .tab .status { visibility: hidden; }
   color: var(--accent);
   border: 1px solid var(--accent);
 }
-.tab.is-sync .status { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent); }
+.tab.is-sync .tab-icon { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 70%, transparent)); }
 .tab.is-vault { font-weight: 600; }
 
 .settings-form,

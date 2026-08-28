@@ -474,6 +474,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), `data-vault="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
+	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
+		t.Fatal("index should have vault rail icons and no titlebar settings button")
+	}
 	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) {
 		t.Fatal("index missing settings theme select or tab strip")
 	}
