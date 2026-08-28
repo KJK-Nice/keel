@@ -483,7 +483,9 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer css.Body.Close()
 	cssBody, _ := io.ReadAll(css.Body)
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) || !strings.Contains(string(cssBody), "--wails-draggable") {
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) ||
+		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tabs`) ||
+		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("app.css missing titlebar tab overlay")
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")

@@ -301,9 +301,13 @@ button.meta,
 }
 
 /* macOS native window: tab strip shares the titlebar with traffic lights. */
-html[data-chrome="titlebar"] .workspace-bar {
+html[data-chrome="titlebar"] .workspace-bar,
+html[data-chrome="titlebar"] .tabs,
+html[data-chrome="titlebar"] .bar-meta {
   --wails-draggable: drag;
   -webkit-app-region: drag;
+}
+html[data-chrome="titlebar"] .workspace-bar {
   min-height: 38px;
   height: 38px;
   padding: 0 8px 0 78px;

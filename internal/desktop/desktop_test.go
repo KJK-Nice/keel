@@ -45,6 +45,20 @@ func TestNavigateJS(t *testing.T) {
 	}
 }
 
+func TestWindowDragJSRebindsAfterNavigation(t *testing.T) {
+	js := windowDragJS()
+	for _, want := range []string{
+		`window.__keelWindowDrag`,
+		`--wails-draggable`,
+		`invoke("drag")`,
+		`webkit.messageHandlers.external`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("windowDragJS missing %q", want)
+		}
+	}
+}
+
 func TestShortcutJS(t *testing.T) {
 	js := shortcutJS("close-tab")
 	if !strings.Contains(js, `window.__keelShortcut("close-tab")`) {

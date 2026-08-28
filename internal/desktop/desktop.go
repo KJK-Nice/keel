@@ -118,11 +118,14 @@ func (w *nativeWindow) menuAction(name string) menu.Callback {
 
 func (w *nativeWindow) domReady(ctx context.Context) {
 	w.ctx = ctx
-	if w.navigated {
+	if !w.navigated {
+		w.navigated = true
+		runtime.WindowExecJS(ctx, navigateJS(w.url))
 		return
 	}
-	w.navigated = true
-	runtime.WindowExecJS(ctx, navigateJS(w.url))
+	// location.replace drops the Wails runtime. Hidden titlebar has no
+	// native drag region, so re-bind CSS drag on the Keel page.
+	runtime.WindowExecJS(ctx, windowDragJS())
 }
 
 // overlayTitleBar hides the native "Keel" title so the tab strip can sit
@@ -155,6 +158,36 @@ func navigateJS(url string) string {
 		raw = []byte(`"/"`)
 	}
 	return fmt.Sprintf("if(!window.__keelNative){window.__keelNative=true;window.location.replace(%s);}", raw)
+}
+
+// windowDragJS restores Wails CSS window-move after navigating off wails://.
+// Matches internal/frontend/runtime/desktop/main.js (defer drag to mousemove).
+func windowDragJS() string {
+	return `(function(){
+		if (window.__keelWindowDrag) return;
+		window.__keelWindowDrag = true;
+		function invoke(msg) {
+			if (window.WailsInvoke) { window.WailsInvoke(msg); return; }
+			var w = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.external;
+			if (w && w.postMessage) { w.postMessage(msg); return; }
+			var c = window.chrome && window.chrome.webview;
+			if (c && c.postMessage) c.postMessage(msg);
+		}
+		var shouldDrag = false;
+		function isDrag(e) {
+			if (!e.target || e.target.nodeType !== 1) return false;
+			var val = window.getComputedStyle(e.target).getPropertyValue("--wails-draggable");
+			if (val) val = val.trim();
+			return val === "drag" && e.buttons === 1 && e.detail === 1;
+		}
+		window.addEventListener("mousedown", function(e) { shouldDrag = isDrag(e); });
+		window.addEventListener("mouseup", function() { shouldDrag = false; });
+		window.addEventListener("mousemove", function(e) {
+			if (!shouldDrag) return;
+			shouldDrag = false;
+			if ((e.buttons !== undefined ? e.buttons : e.which) > 0) invoke("drag");
+		});
+	})();`
 }
 
 func shortcutJS(name string) string {
