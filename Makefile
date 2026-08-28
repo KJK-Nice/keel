@@ -1,19 +1,25 @@
-.PHONY: app build test signal macos-app macos-icon
+.PHONY: app build test signal macos-app macos-icon ui
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
 GO_TAGS := $(shell ./scripts/go-tags.sh)
 UNAME_S := $(shell uname -s)
+TEMPL := $(shell go env GOPATH)/bin/templ
+TAILWIND := $(shell go env GOPATH)/bin/tailwindcss
 # Finder-launched Keel.app has no shell env. Bake the public signal URL:
 #   make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ifneq ($(strip $(KEEL_SIGNAL)),)
 KEEL_LDFLAGS := -ldflags "-X keel/internal/share.DefaultSignal=$(KEEL_SIGNAL)"
 endif
 
-app:
+ui:
+	$(TEMPL) generate
+	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
+
+app: ui
 	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app
 
-build:
+build: ui
 	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-signal ./cmd/keel-signal
 ifeq ($(UNAME_S),Darwin)
@@ -35,5 +41,5 @@ macos-icon:
 signal:
 	go run ./cmd/keel-signal
 
-test:
+test: ui
 	$(GO) test $(GO_TAGS) ./...

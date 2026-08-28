@@ -1,23 +1,14 @@
 package desktop
 
 import (
-	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"net/url"
 	stdruntime "runtime"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:shell
@@ -27,9 +18,9 @@ var shellFS embed.FS
 var appIcon []byte
 
 type nativeWindow struct {
-	url       string
-	navigated bool
-	ctx       context.Context
+	url string
+	app *application.App
+	win *application.WebviewWindow
 }
 
 func Run(url, _ string) error {
@@ -38,101 +29,97 @@ func Run(url, _ string) error {
 		return err
 	}
 	w := &nativeWindow{url: desktopURL(url, stdruntime.GOOS == "darwin")}
-	return wails.Run(&options.App{
+	app := application.New(application.Options{
+		Name:        "Keel",
+		Description: "Local SSH workspace",
+		Icon:        appIcon,
+		Assets: application.AssetOptions{
+			Handler:        application.AssetFileServerFS(assets),
+			DisableLogging: true,
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+		Linux: application.LinuxOptions{
+			ProgramName: "Keel",
+		},
+	})
+	w.app = app
+	app.Menu.Set(w.appMenu())
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:              "main",
 		Title:             "Keel",
 		Width:             1280,
 		Height:            840,
 		MinWidth:          800,
 		MinHeight:         520,
-		BackgroundColour:  &options.RGBA{R: 13, G: 13, B: 13, A: 255},
-		AssetServer:       &assetserver.Options{Assets: assets},
-		HideWindowOnClose: false,
-		CSSDragProperty:   "--wails-draggable",
-		CSSDragValue:      "drag",
-		Menu:              w.appMenu(),
-		OnStartup:         func(ctx context.Context) { w.ctx = ctx },
-		OnDomReady:        w.domReady,
-		Mac: &mac.Options{
-			TitleBar:   overlayTitleBar(),
-			Appearance: mac.DefaultAppearance,
-			About: &mac.AboutInfo{
-				Title:   "Keel",
-				Message: "Local SSH workspace",
-				Icon:    appIcon,
-			},
+		BackgroundColour:  application.NewRGB(13, 13, 13),
+		URL:               w.url,
+		JS:                windowDragJS(),
+		UseApplicationMenu: true,
+		Mac: application.MacWindow{
+			TitleBar: overlayTitleBar(),
 		},
-		Windows: &windows.Options{
-			Theme: windows.SystemDefault,
-		},
-		Linux: &linux.Options{
-			Icon:             appIcon,
-			ProgramName:      "Keel",
-			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
+		Linux: application.LinuxWindow{
+			WebviewGpuPolicy: application.WebviewGpuPolicyNever,
 		},
 	})
+	w.win = win
+	win.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		win.ExecJS(windowDragJS())
+	})
+	return app.Run()
 }
 
-func (w *nativeWindow) appMenu() *menu.Menu {
-	m := menu.NewMenu()
+func (w *nativeWindow) appMenu() *application.Menu {
+	m := application.NewMenu()
 	if stdruntime.GOOS == "darwin" {
-		m.Append(menu.AppMenu())
+		m.AddRole(application.AppMenu)
 	}
 	file := m.AddSubmenu("File")
-	file.AddText("New Tab", keys.CmdOrCtrl("t"), w.menuAction("new-tab"))
-	file.AddText("Close Tab", keys.CmdOrCtrl("w"), w.menuAction("close-tab"))
-	file.AddText("Reopen Tab", keys.Combo("t", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("reopen-tab"))
+	file.Add("New Tab").SetAccelerator("CmdOrCtrl+t").OnClick(w.menuAction("new-tab"))
+	file.Add("Close Tab").SetAccelerator("CmdOrCtrl+w").OnClick(w.menuAction("close-tab"))
+	file.Add("Reopen Tab").SetAccelerator("CmdOrCtrl+Shift+t").OnClick(w.menuAction("reopen-tab"))
 	file.AddSeparator()
-	file.AddText("New Host", keys.CmdOrCtrl("n"), w.menuAction("new-host"))
-	file.AddText("Quick Connect", keys.Combo("o", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("quick-connect"))
-	file.AddText("Join Session", keys.CmdOrCtrl("j"), w.menuAction("join"))
+	file.Add("New Host").SetAccelerator("CmdOrCtrl+n").OnClick(w.menuAction("new-host"))
+	file.Add("Quick Connect").SetAccelerator("CmdOrCtrl+Shift+o").OnClick(w.menuAction("quick-connect"))
+	file.Add("Join Session").SetAccelerator("CmdOrCtrl+j").OnClick(w.menuAction("join"))
 	file.AddSeparator()
-	file.AddText("Find Host", keys.CmdOrCtrl("k"), w.menuAction("search"))
+	file.Add("Find Host").SetAccelerator("CmdOrCtrl+k").OnClick(w.menuAction("search"))
 	file.AddSeparator()
-	file.AddText("Split Right", keys.Combo("d", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("split-right"))
-	file.AddText("Split Down", keys.Combo("e", keys.CmdOrCtrlKey, keys.ShiftKey), w.menuAction("split-down"))
+	file.Add("Split Right").SetAccelerator("CmdOrCtrl+Shift+d").OnClick(w.menuAction("split-right"))
+	file.Add("Split Down").SetAccelerator("CmdOrCtrl+Shift+e").OnClick(w.menuAction("split-down"))
 	file.AddSeparator()
-	file.AddText("Close Window", keys.Combo("w", keys.CmdOrCtrlKey, keys.ShiftKey), func(_ *menu.CallbackData) {
-		if w.ctx != nil {
-			runtime.Quit(w.ctx)
+	file.Add("Close Window").SetAccelerator("CmdOrCtrl+Shift+w").OnClick(func(*application.Context) {
+		if w.app != nil {
+			w.app.Quit()
 		}
 	})
 	view := m.AddSubmenu("View")
-	view.AddText("Zoom In", keys.CmdOrCtrl("="), w.menuAction("zoom-in"))
-	view.AddText("Zoom Out", keys.CmdOrCtrl("-"), w.menuAction("zoom-out"))
-	view.AddText("Actual Size", keys.CmdOrCtrl("0"), w.menuAction("zoom-reset"))
-	m.Append(menu.EditMenu())
+	view.Add("Zoom In").SetAccelerator("CmdOrCtrl+=").OnClick(w.menuAction("zoom-in"))
+	view.Add("Zoom Out").SetAccelerator("CmdOrCtrl+-").OnClick(w.menuAction("zoom-out"))
+	view.Add("Actual Size").SetAccelerator("CmdOrCtrl+0").OnClick(w.menuAction("zoom-reset"))
+	m.AddRole(application.EditMenu)
 	if stdruntime.GOOS == "darwin" {
-		m.Append(menu.WindowMenu())
+		m.AddRole(application.WindowMenu)
 	}
 	return m
 }
 
-func (w *nativeWindow) menuAction(name string) menu.Callback {
-	return func(_ *menu.CallbackData) {
-		if w.ctx == nil {
+func (w *nativeWindow) menuAction(name string) func(*application.Context) {
+	return func(*application.Context) {
+		if w.win == nil {
 			return
 		}
-		runtime.WindowExecJS(w.ctx, shortcutJS(name))
+		w.win.ExecJS(shortcutJS(name))
 	}
-}
-
-func (w *nativeWindow) domReady(ctx context.Context) {
-	w.ctx = ctx
-	if !w.navigated {
-		w.navigated = true
-		runtime.WindowExecJS(ctx, navigateJS(w.url))
-		return
-	}
-	// location.replace drops the Wails runtime. Hidden titlebar has no
-	// native drag region, so re-bind CSS drag on the Keel page.
-	runtime.WindowExecJS(ctx, windowDragJS())
 }
 
 // overlayTitleBar hides the native "Keel" title so the tab strip can sit
 // in that space, next to the traffic lights. HiddenInset drops the lights
 // into a taller titlebar so they stay centered beside 42px tabs.
-func overlayTitleBar() *mac.TitleBar {
-	return mac.TitleBarHiddenInset()
+func overlayTitleBar() application.MacTitleBar {
+	return application.MacTitleBarHiddenInset
 }
 
 func desktopURL(raw string, titlebarTabs bool) string {
@@ -151,22 +138,15 @@ func desktopURL(raw string, titlebarTabs bool) string {
 	return u.String()
 }
 
-func navigateJS(url string) string {
-	raw, err := json.Marshal(url)
-	if err != nil {
-		raw = []byte(`"/"`)
-	}
-	return fmt.Sprintf("if(!window.__keelNative){window.__keelNative=true;window.location.replace(%s);}", raw)
-}
-
-// windowDragJS restores Wails CSS window-move after navigating off wails://.
-// Matches internal/frontend/runtime/desktop/main.js (defer drag to mousemove).
+// windowDragJS restores Wails CSS window-move after loading the loopback UI.
+// Matches the v3 runtime drag hit-test (--wails-draggable: drag).
 func windowDragJS() string {
 	return `(function(){
 		if (window.__keelWindowDrag) return;
 		window.__keelWindowDrag = true;
 		function invoke(msg) {
 			if (window.WailsInvoke) { window.WailsInvoke(msg); return; }
+			if (window._wails && window._wails.invoke) { window._wails.invoke(msg); return; }
 			var w = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.external;
 			if (w && w.postMessage) { w.postMessage(msg); return; }
 			var c = window.chrome && window.chrome.webview;

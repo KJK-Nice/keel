@@ -1,0 +1,169 @@
+package ui
+
+import (
+	"keel/components/button"
+	"keel/components/empty"
+	"keel/components/icon"
+)
+
+templ HostList(p PageProps) {
+	<div id="host-list" class="host-list flex flex-col gap-2">
+		if p.Locked {
+			<p class="empty">Unlock the vault to see hosts.</p>
+		} else {
+			{{ groups := groupHosts(p.Hosts, p.Query) }}
+			if len(groups) == 0 {
+				@empty.Empty() {
+					@empty.Header() {
+						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+							@icon.Server()
+						}
+						@empty.Title() {
+							No hosts match
+						}
+						@empty.Description() {
+							Add a server or clear the search.
+						}
+					}
+				}
+			} else {
+				for _, g := range groups {
+					<h2 class="group-label">{ g.Name }</h2>
+					for _, h := range g.Hosts {
+						<div class="host" data-id={ h.ID }>
+							<span class="dot" style={ "--dot:" + h.Color + ";background:" + h.Color }></span>
+							<div class="meta" role="button" tabindex="0" data-connect={ h.ID }>
+								<b>{ h.Name }</b>
+								<small>{ hostSubtitle(h) }</small>
+							</div>
+							<div class="host-tools">
+								@button.Button(button.Props{
+									Variant:    button.VariantGhost,
+									Size:       button.SizeXs,
+									Class:      "tiny",
+									Attributes: templ.Attributes{"data-edit": h.ID, "title": "Edit"},
+								}) {
+									Edit
+								}
+								@button.Button(button.Props{
+									Variant:    button.VariantGhost,
+									Size:       button.SizeXs,
+									Class:      "tiny",
+									Attributes: templ.Attributes{"data-delete": h.ID, "title": "Remove"},
+								}) {
+									✕
+								}
+							</div>
+						</div>
+					}
+				}
+			}
+		}
+	</div>
+}
+
+templ IdentityList(p PageProps) {
+	<div id="identity-list" class="host-list flex flex-col gap-2">
+		if len(p.Identities) == 0 {
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Title() {
+						No identities yet
+					}
+					@empty.Description() {
+						Add a password or key and attach it to hosts.
+					}
+				}
+			}
+		} else {
+			for _, id := range p.Identities {
+				<div class="host">
+					<span class="dot" style="background:var(--accent)"></span>
+					<div class="meta" role="button" tabindex="0" data-edit-identity={ id.ID }>
+						<b>{ id.Name }</b>
+						<small>
+							{ id.Kind }
+							if id.Username != "" {
+								{ " · " + id.Username }
+							}
+						</small>
+					</div>
+					<div class="host-tools">
+						<button class="tiny" data-edit-identity={ id.ID }>Edit</button>
+						<button class="tiny" data-delete-identity={ id.ID }>✕</button>
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ TunnelList(p PageProps) {
+	<div id="tunnel-list" class="host-list flex flex-col gap-2">
+		if len(p.Tunnels) == 0 {
+			<p class="empty">No forwards yet. Local (−L), remote (−R), or dynamic SOCKS5 (−D).</p>
+		} else {
+			for _, t := range p.Tunnels {
+				<div class="host">
+					<span class="dot"></span>
+					<div class="meta">
+						<b>{ t.Name }</b>
+						<small>
+							{ t.Kind } · { hostNameByID(p.Hosts, t.HostID) } · { tunnelListen(t) } → { tunnelDest(t) }
+							if string(t.Status) != "" {
+								{ " · " + string(t.Status) }
+							}
+							if t.Error != "" {
+								{ " · " + t.Error }
+							}
+						</small>
+					</div>
+					<div class="host-tools">
+						<button class="tiny" data-tunnel-start={ t.ID }>Start</button>
+						<button class="tiny" data-tunnel-stop={ t.ID }>Stop</button>
+						<button class="tiny" data-edit-tunnel={ t.ID }>Edit</button>
+						<button class="tiny" data-delete-tunnel={ t.ID }>✕</button>
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ SnippetList(p PageProps) {
+	<div id="snippet-list" class="snippet-list flex flex-col gap-2">
+		if len(p.Snippets) == 0 {
+			<p class="empty">Save commands you type all the time. Click one to send it into the focused pane.</p>
+		} else {
+			for _, s := range p.Snippets {
+				<div class="snippet-row">
+					<div class="meta" role="button" tabindex="0" data-run={ s.ID }>
+						<b>{ s.Name }</b>
+						<small>{ s.Command }</small>
+					</div>
+					<div>
+						<button class="tiny" data-edit-snippet={ s.ID }>Edit</button>
+						<button class="tiny" data-delete-snippet={ s.ID }>✕</button>
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ LogList(p PageProps) {
+	<div id="log-list" class="log-list">
+		{{ rows := filterLogs(p.Logs, p.LogFilter) }}
+		if len(rows) == 0 {
+			<p class="empty">No log entries.</p>
+		} else {
+			for _, e := range rows {
+				<div class="log-row">
+					<time>{ e.Time.UTC().Format("2006-01-02 15:04:05") }</time>
+					<span class="kind">{ e.Kind }</span>
+					<span>{ e.Message }</span>
+				</div>
+			}
+		}
+	</div>
+}

@@ -291,6 +291,11 @@
   }
 
   function toast(message, isError = false) {
+    if (window.tui?.toast?.add) {
+      window.tui.toast.add({ title: message, type: isError ? "error" : "success" });
+      return;
+    }
+    if (!els.toast) return;
     els.toast.hidden = false;
     els.toast.textContent = message;
     els.toast.classList.toggle("is-error", isError);
@@ -1923,15 +1928,27 @@
   function openModal(el) {
     if (!el) return;
     if (state.openModal && state.openModal !== el) closeModal(state.openModal);
-    el.show();
-    els.modalScrim.classList.add("is-open");
+    if (window.tui?.dialog?.open) {
+      window.tui.dialog.open(el);
+    } else if (typeof el.show === "function") {
+      el.show();
+      els.modalScrim?.classList.add("is-open");
+    }
     state.openModal = el;
   }
 
   function closeModal(el = state.openModal) {
-    if (el?.open) el.close();
-    els.modalScrim.classList.remove("is-open");
-    if (!el || state.openModal === el) state.openModal = null;
+    if (!el) {
+      state.openModal = null;
+      return;
+    }
+    if (window.tui?.dialog?.close) {
+      window.tui.dialog.close(el);
+    } else if (typeof el.close === "function") {
+      if (el.open) el.close();
+      els.modalScrim?.classList.remove("is-open");
+    }
+    if (state.openModal === el) state.openModal = null;
   }
 
   function promptHostKey(src, retry = {}) {

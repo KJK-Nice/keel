@@ -1,0 +1,130 @@
+package ui
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"keel/internal/applog"
+	"keel/internal/store"
+	"keel/internal/tunnel"
+)
+
+type PageProps struct {
+	Locked     bool
+	NeedsSetup bool
+	Titlebar   bool
+	Native     bool
+	Name       string
+	SignalURL  string
+	Query      string
+	LogFilter  string
+	Hosts      []store.Host
+	Identities []store.Identity
+	Tunnels    []tunnel.Info
+	Snippets   []store.Snippet
+	Logs       []applog.Entry
+}
+
+func (p PageProps) SignalsJSON() string {
+	locked, setup := "false", "false"
+	if p.Locked {
+		locked = "true"
+	}
+	if p.NeedsSetup {
+		setup = "true"
+	}
+	q, _ := json.Marshal(p.Query)
+	lf, _ := json.Marshal(p.LogFilter)
+	return fmt.Sprintf(
+		`{"vault":"hosts","query":%s,"logFilter":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
+		q, lf, locked, setup,
+	)
+}
+
+func hostSubtitle(h store.Host) string {
+	if h.AuthType == "local" {
+		return "this machine"
+	}
+	user := h.Username
+	if user == "" {
+		user = "user"
+	}
+	addr := h.Address
+	if h.Port > 0 && h.Port != 22 {
+		addr = fmt.Sprintf("%s:%d", addr, h.Port)
+	}
+	return user + "@" + addr
+}
+
+func groupHosts(hosts []store.Host, query string) []hostGroup {
+	q := strings.ToLower(strings.TrimSpace(query))
+	order := make([]string, 0)
+	by := map[string][]store.Host{}
+	for _, h := range hosts {
+		if q != "" {
+			blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group)
+			if !strings.Contains(blob, q) {
+				continue
+			}
+		}
+		g := h.Group
+		if g == "" {
+			g = "Hosts"
+		}
+		if _, ok := by[g]; !ok {
+			order = append(order, g)
+		}
+		by[g] = append(by[g], h)
+	}
+	out := make([]hostGroup, 0, len(order))
+	for _, g := range order {
+		out = append(out, hostGroup{Name: g, Hosts: by[g]})
+	}
+	return out
+}
+
+type hostGroup struct {
+	Name  string
+	Hosts []store.Host
+}
+
+func filterLogs(logs []applog.Entry, query string) []applog.Entry {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return logs
+	}
+	out := make([]applog.Entry, 0, len(logs))
+	for _, e := range logs {
+		if strings.Contains(strings.ToLower(e.Kind+" "+e.Message), q) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func tunnelDest(t tunnel.Info) string {
+	if t.Kind == "dynamic" {
+		return "SOCKS5"
+	}
+	return fmt.Sprintf("%s:%d", t.DestHost, t.DestPort)
+}
+
+func tunnelListen(t tunnel.Info) string {
+	if t.ListenAddr != "" {
+		return t.ListenAddr
+	}
+	if t.BindPort == 0 {
+		return t.BindAddr + ":auto"
+	}
+	return fmt.Sprintf("%s:%d", t.BindAddr, t.BindPort)
+}
+
+func hostNameByID(hosts []store.Host, id string) string {
+	for _, h := range hosts {
+		if h.ID == id {
+			return h.Name
+		}
+	}
+	return id
+}

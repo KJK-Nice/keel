@@ -451,9 +451,6 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 
 func TestIndexServesVault(t *testing.T) {
 	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
-	if _, err := fs.Stat(web, "index.html"); err != nil {
-		t.Skip(err)
-	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
 	st, err := store.New(t.TempDir() + "/keel.json")
@@ -524,6 +521,18 @@ func TestIndexServesVault(t *testing.T) {
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
 		t.Fatalf("identities %d", res2.StatusCode)
+	}
+	if !strings.Contains(string(body), "/js/datastar.js") || !strings.Contains(string(body), "data-signals") {
+		t.Fatal("index missing Datastar")
+	}
+	frag, err := http.Get(srv.URL + "/ui/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frag.Body.Close()
+	fragBody, _ := io.ReadAll(frag.Body)
+	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="host-list"`) {
+		t.Fatalf("ui hosts %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"keel/components"
 	"keel/internal/applog"
 	"keel/internal/runtime"
 	"keel/internal/session"
@@ -86,6 +87,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
+	mux.HandleFunc("GET /{$}", s.page)
+	mux.HandleFunc("GET /ui/hosts", s.uiHosts)
+	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
+	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)
+	mux.HandleFunc("GET /ui/snippets", s.uiSnippets)
+	mux.HandleFunc("GET /ui/logs", s.uiLogs)
+	mux.HandleFunc("POST /ui/vault", s.uiVault)
+	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
 	mux.Handle("/", http.FileServer(http.FS(s.web)))
 	return withLogging(withLocalOrigin(s.withVault(mux)))
 }
@@ -149,7 +158,7 @@ func requestHostPort(r *http.Request) string {
 
 func withLocalOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") || strings.HasPrefix(r.URL.Path, "/ui/") {
 			if !allowLocalOrigin(r) {
 				writeError(w, http.StatusForbidden, "origin not allowed")
 				return
@@ -161,11 +170,11 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/ui/vault" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") && !strings.HasPrefix(r.URL.Path, "/ui/") {
 			next.ServeHTTP(w, r)
 			return
 		}
