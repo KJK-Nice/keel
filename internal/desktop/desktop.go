@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/url"
 	stdruntime "runtime"
 
 	"github.com/wailsapp/wails/v2"
@@ -36,7 +37,7 @@ func Run(url, _ string) error {
 	if err != nil {
 		return err
 	}
-	w := &nativeWindow{url: url}
+	w := &nativeWindow{url: desktopURL(url, stdruntime.GOOS == "darwin")}
 	return wails.Run(&options.App{
 		Title:             "Keel",
 		Width:             1280,
@@ -46,11 +47,13 @@ func Run(url, _ string) error {
 		BackgroundColour:  &options.RGBA{R: 13, G: 13, B: 13, A: 255},
 		AssetServer:       &assetserver.Options{Assets: assets},
 		HideWindowOnClose: false,
+		CSSDragProperty:   "--wails-draggable",
+		CSSDragValue:      "drag",
 		Menu:              w.appMenu(),
 		OnStartup:         func(ctx context.Context) { w.ctx = ctx },
 		OnDomReady:        w.domReady,
 		Mac: &mac.Options{
-			TitleBar:   mac.TitleBarDefault(),
+			TitleBar:   overlayTitleBar(),
 			Appearance: mac.DefaultAppearance,
 			About: &mac.AboutInfo{
 				Title:   "Keel",
@@ -120,6 +123,30 @@ func (w *nativeWindow) domReady(ctx context.Context) {
 	}
 	w.navigated = true
 	runtime.WindowExecJS(ctx, navigateJS(w.url))
+}
+
+// overlayTitleBar hides the native "Keel" title so the tab strip can sit
+// in that space, next to the traffic lights. FullSizeContent lets the
+// webview paint under the titlebar. UseToolbar stays off so an empty
+// NSToolbar does not steal the strip.
+func overlayTitleBar() *mac.TitleBar {
+	return mac.TitleBarHidden()
+}
+
+func desktopURL(raw string, titlebarTabs bool) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := u.Query()
+	q.Set("native", "1")
+	if titlebarTabs {
+		q.Set("chrome", "titlebar")
+	} else {
+		q.Del("chrome")
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func navigateJS(url string) string {

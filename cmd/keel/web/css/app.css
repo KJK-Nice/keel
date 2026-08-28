@@ -299,6 +299,20 @@ button.meta,
   min-height: 32px;
   background: var(--bg);
 }
+
+/* macOS native window: tab strip shares the titlebar with traffic lights. */
+html[data-chrome="titlebar"] .workspace-bar {
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 8px 0 78px;
+  user-select: none;
+}
+html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textarea, .theme-switch, .control-widget) {
+  --wails-draggable: none;
+  -webkit-app-region: no-drag;
+}
 .menu-btn { display: none; flex-direction: column; gap: 3px; padding: 6px; }
 .menu-btn span { display: block; width: 12px; height: 1.5px; background: var(--text); }
 
