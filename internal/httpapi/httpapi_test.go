@@ -494,6 +494,13 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("app.css missing titlebar tab overlay")
 	}
+	if !strings.Contains(string(cssBody), "min-height: 42px") {
+		t.Fatal("app.css missing 42px titlebar overlay")
+	}
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
+		!strings.Contains(string(cssBody), "min-height: 32px") {
+		t.Fatal("app.css missing taller titlebar tabs")
+	}
 	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused") ||
 		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {
 		t.Fatal("app.css missing split-only pane ring or terminal scrollbar")

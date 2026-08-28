@@ -33,8 +33,8 @@ func TestOverlayTitleBarLetsTabsSitBesideTrafficLights(t *testing.T) {
 	if !tb.TitlebarAppearsTransparent || !tb.HideTitle || !tb.FullSizeContent {
 		t.Fatalf("want hidden title + full-size content, got %+v", tb)
 	}
-	if tb.UseToolbar || tb.HideTitleBar {
-		t.Fatalf("toolbar/hidden bar would keep tabs out of the title: %+v", tb)
+	if !tb.UseToolbar || !tb.HideToolbarSeparator || tb.HideTitleBar {
+		t.Fatalf("want inset toolbar titlebar so traffic lights drop, got %+v", tb)
 	}
 }
 

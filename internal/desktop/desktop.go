@@ -129,11 +129,10 @@ func (w *nativeWindow) domReady(ctx context.Context) {
 }
 
 // overlayTitleBar hides the native "Keel" title so the tab strip can sit
-// in that space, next to the traffic lights. FullSizeContent lets the
-// webview paint under the titlebar. UseToolbar stays off so an empty
-// NSToolbar does not steal the strip.
+// in that space, next to the traffic lights. HiddenInset drops the lights
+// into a taller titlebar so they stay centered beside 42px tabs.
 func overlayTitleBar() *mac.TitleBar {
-	return mac.TitleBarHidden()
+	return mac.TitleBarHiddenInset()
 }
 
 func desktopURL(raw string, titlebarTabs bool) string {
