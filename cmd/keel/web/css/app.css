@@ -316,6 +316,9 @@ html[data-chrome="titlebar"] .workspace-bar {
   padding: 0 8px 0 84px;
   user-select: none;
 }
+html[data-chrome="titlebar"][data-fullscreen] .workspace-bar {
+  padding-left: 8px;
+}
 html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textarea, .control-widget) {
   --wails-draggable: none;
   -webkit-app-region: no-drag;

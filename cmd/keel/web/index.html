@@ -10,11 +10,19 @@
       if (t !== "light" && t !== "dark" && t !== "system") t = "system";
       document.documentElement.dataset.theme = t;
       var q = new URLSearchParams(location.search);
-      if (q.get("chrome") === "titlebar") document.documentElement.dataset.chrome = "titlebar";
+      if (q.get("chrome") === "titlebar") {
+        document.documentElement.dataset.chrome = "titlebar";
+        function syncFullscreen() {
+          var fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;
+          document.documentElement.toggleAttribute("data-fullscreen", fs);
+        }
+        syncFullscreen();
+        window.addEventListener("resize", syncFullscreen);
+      }
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=33" />
+  <link rel="stylesheet" href="/css/app.css?v=34" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23141414'/><path d='M4 25 L16 5 L28 25' fill='none' stroke='%23ececec' stroke-width='3.2' stroke-linecap='square' stroke-linejoin='miter'/></svg>" />
 </head>
 <body>

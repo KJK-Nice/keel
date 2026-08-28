@@ -483,6 +483,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
 		t.Fatal("index missing titlebar chrome bootstrap")
 	}
+	if !strings.Contains(string(body), `data-fullscreen`) || !strings.Contains(string(body), "syncFullscreen") {
+		t.Fatal("index missing fullscreen titlebar shift")
+	}
 	css, err := http.Get(srv.URL + "/css/app.css")
 	if err != nil {
 		t.Fatal(err)
@@ -496,6 +499,9 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(cssBody), "min-height: 42px") {
 		t.Fatal("app.css missing 42px titlebar overlay")
+	}
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
+		t.Fatal("app.css missing fullscreen tab shift")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {
