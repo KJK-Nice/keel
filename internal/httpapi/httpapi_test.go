@@ -480,6 +480,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) {
 		t.Fatal("index missing settings theme select or tab strip")
 	}
+	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
+		t.Fatal("index missing UI size or font smoothing settings")
+	}
 	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
 		t.Fatal("index missing titlebar chrome bootstrap")
 	}
@@ -502,6 +505,9 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
 		t.Fatal("app.css missing fullscreen tab shift")
+	}
+	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
+		t.Fatal("app.css missing UI size token or font smoothing")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {

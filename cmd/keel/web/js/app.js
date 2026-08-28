@@ -32,6 +32,7 @@
     signalURL: "",
     lastClosedRuntimeId: null,
     prefs: loadPrefs(),
+    ui: loadUiPrefs(),
     hostKeyRetry: null,
   };
 
@@ -92,6 +93,48 @@
   const SIZE_MIN = 10;
   const SIZE_MAX = 22;
   const SIZE_DEFAULT = 12;
+  const UI_SIZE_MIN = 11;
+  const UI_SIZE_MAX = 16;
+  const UI_SIZE_DEFAULT = 12;
+
+  function loadUiPrefs() {
+    const fallback = { size: 12, smoothing: "antialiased" };
+    try {
+      const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
+      const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
+      const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
+      return { size, smoothing };
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveUiPrefs() {
+    localStorage.setItem("keel-ui", JSON.stringify(state.ui));
+  }
+
+  function applyUiPrefs() {
+    document.documentElement.style.setProperty("--ui-size", `${state.ui.size}px`);
+    document.documentElement.dataset.smooth = state.ui.smoothing;
+  }
+
+  function setUiSize(next) {
+    const size = Math.min(UI_SIZE_MAX, Math.max(UI_SIZE_MIN, Math.round(Number(next) || UI_SIZE_DEFAULT)));
+    if (size === state.ui.size) return;
+    state.ui.size = size;
+    saveUiPrefs();
+    applyUiPrefs();
+    syncSettingsForm();
+  }
+
+  function setSmoothing(next) {
+    const smoothing = next === "subpixel" || next === "none" ? next : "antialiased";
+    if (smoothing === state.ui.smoothing) return;
+    state.ui.smoothing = smoothing;
+    saveUiPrefs();
+    applyUiPrefs();
+    syncSettingsForm();
+  }
 
   function setFontSize(next) {
     const size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(Number(next) || SIZE_DEFAULT)));
@@ -169,10 +212,14 @@
     const out = document.getElementById("set-size-out");
     const copy = document.getElementById("set-copy");
     const paste = document.getElementById("set-paste");
+    const uiOut = document.getElementById("set-ui-size-out");
+    const smooth = document.getElementById("set-smooth");
     if (font) font.value = state.prefs.font;
     if (out) out.textContent = String(state.prefs.size);
     if (copy) copy.checked = state.prefs.copyOnSelect;
     if (paste) paste.checked = state.prefs.rightClickPaste;
+    if (uiOut) uiOut.textContent = String(state.ui.size);
+    if (smooth) smooth.value = state.ui.smoothing;
     syncThemeSwitch();
     syncTermPreview();
   }
@@ -2582,10 +2629,14 @@
   document.getElementById("set-theme").addEventListener("change", (ev) => {
     setTheme(ev.target.value);
   });
+  document.getElementById("set-ui-size-dec").addEventListener("click", () => setUiSize(state.ui.size - 1));
+  document.getElementById("set-ui-size-inc").addEventListener("click", () => setUiSize(state.ui.size + 1));
+  document.getElementById("set-smooth").addEventListener("change", (ev) => setSmoothing(ev.target.value));
   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
     if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalPrefs();
   });
   syncThemeSwitch();
+  applyUiPrefs();
   syncSettingsForm();
 
   document.getElementById("set-font").addEventListener("change", (ev) => {
