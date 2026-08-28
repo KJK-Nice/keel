@@ -471,8 +471,11 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") || !strings.Contains(string(body), "hostkey-modal") {
+	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), `data-vault="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
+	}
+	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) {
+		t.Fatal("index missing settings theme select or tab strip")
 	}
 	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
 		t.Fatal("index missing titlebar chrome bootstrap")
@@ -484,7 +487,7 @@ func TestIndexServesVault(t *testing.T) {
 	defer css.Body.Close()
 	cssBody, _ := io.ReadAll(css.Body)
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) ||
-		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tabs`) ||
+		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab-strip`) ||
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("app.css missing titlebar tab overlay")
 	}

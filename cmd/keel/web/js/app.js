@@ -145,11 +145,8 @@
 
   function syncThemeSwitch() {
     const choice = document.documentElement.dataset.theme || "system";
-    document.querySelectorAll("[data-theme-choice]").forEach((btn) => {
-      const on = btn.dataset.themeChoice === choice;
-      btn.classList.toggle("is-active", on);
-      btn.setAttribute("aria-checked", on ? "true" : "false");
-    });
+    const sel = document.getElementById("set-theme");
+    if (sel) sel.value = choice;
   }
 
   function setTheme(choice) {
@@ -160,17 +157,24 @@
     applyTerminalPrefs();
   }
 
+  function syncTermPreview() {
+    const preview = document.getElementById("term-preview");
+    if (!preview) return;
+    preview.style.fontFamily = fontFamily();
+    preview.style.fontSize = `${state.prefs.size}px`;
+  }
+
   function syncSettingsForm() {
     const font = document.getElementById("set-font");
-    const size = document.getElementById("set-size");
     const out = document.getElementById("set-size-out");
     const copy = document.getElementById("set-copy");
     const paste = document.getElementById("set-paste");
     if (font) font.value = state.prefs.font;
-    if (size) size.value = String(state.prefs.size);
     if (out) out.textContent = String(state.prefs.size);
     if (copy) copy.checked = state.prefs.copyOnSelect;
     if (paste) paste.checked = state.prefs.rightClickPaste;
+    syncThemeSwitch();
+    syncTermPreview();
   }
 
   const els = {
@@ -2570,11 +2574,9 @@
     renderLogs();
   });
   els.btnShare.addEventListener("click", shareActive);
-  document.querySelectorAll(".theme-switch").forEach((el) => {
-    el.addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-theme-choice]");
-      if (btn) setTheme(btn.dataset.themeChoice);
-    });
+  document.getElementById("settings-form").addEventListener("submit", (ev) => ev.preventDefault());
+  document.getElementById("set-theme").addEventListener("change", (ev) => {
+    setTheme(ev.target.value);
   });
   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
     if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalPrefs();
@@ -2586,13 +2588,10 @@
     state.prefs.font = ev.target.value;
     savePrefs();
     applyTerminalPrefs();
+    syncTermPreview();
   });
-  document.getElementById("set-size").addEventListener("input", (ev) => {
-    state.prefs.size = Number(ev.target.value);
-    document.getElementById("set-size-out").textContent = String(state.prefs.size);
-    savePrefs();
-    applyTerminalPrefs();
-  });
+  document.getElementById("set-size-dec").addEventListener("click", () => setFontSize(state.prefs.size - 1));
+  document.getElementById("set-size-inc").addEventListener("click", () => setFontSize(state.prefs.size + 1));
   document.getElementById("set-copy").addEventListener("change", (ev) => {
     state.prefs.copyOnSelect = ev.target.checked;
     savePrefs();

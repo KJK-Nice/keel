@@ -14,15 +14,17 @@
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=22" />
+  <link rel="stylesheet" href="/css/app.css?v=26" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23141414'/><path d='M4 25 L16 5 L28 25' fill='none' stroke='%23ececec' stroke-width='3.2' stroke-linecap='square' stroke-linejoin='miter'/></svg>" />
 </head>
 <body>
   <div class="app">
     <main class="main">
       <header class="workspace-bar">
-        <div class="tabs" id="tabs"></div>
-        <button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New tab  ⌘T" aria-label="New tab">+<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
+        <div class="tab-strip">
+          <div class="tabs" id="tabs"></div>
+          <button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New tab  ⌘T" aria-label="New tab">+<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
+        </div>
         <div class="bar-tools" id="bar-tools" hidden>
           <button type="button" class="tiny" id="btn-split-right" data-kbd="⇧D" title="Split right  ⌘⇧D">Split →<kbd class="kbd-hint" aria-hidden="true">⇧D</kbd></button>
           <button type="button" class="tiny" id="btn-split-down" data-kbd="⇧E" title="Split down  ⌘⇧E">Split ↓<kbd class="kbd-hint" aria-hidden="true">⇧E</kbd></button>
@@ -37,17 +39,6 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
           <kbd class="kbd-hint" aria-hidden="true">,</kbd>
         </button>
-        <div class="theme-switch" role="radiogroup" aria-label="Color theme">
-          <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.5M19.5 12H21M4.9 19.1 6 18M18 6l1.1-1.1"/></svg>
-          </button>
-          <button type="button" role="radio" data-theme-choice="dark" title="Dark" aria-label="Dark theme">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 13.5A7 7 0 1 1 10.5 7 5.5 5.5 0 0 0 17 13.5z"/></svg>
-          </button>
-          <button type="button" role="radio" data-theme-choice="system" title="System" aria-label="System theme">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M8 19h8"/></svg>
-          </button>
-        </div>
       </header>
 
       <section class="stage" id="stage">
@@ -136,42 +127,75 @@
               <div class="page-head">
                 <div>
                   <h1>Settings</h1>
-                  <p class="lede">Terminal appearance and clipboard. Stored on this machine. On macOS the tab strip sits in the window titlebar.</p>
+                  <p class="lede">Appearance and terminal. Stored on this machine.</p>
                 </div>
               </div>
-              <form class="settings-form" id="settings-form">
-                <label>Font
-                  <select name="font" id="set-font">
-                    <option value="jetbrains">JetBrains Mono</option>
-                    <option value="ibmplex">IBM Plex Mono</option>
-                    <option value="menlo">Menlo / SF Mono</option>
-                    <option value="consolas">Consolas</option>
-                    <option value="system">System mono</option>
-                  </select>
-                </label>
-                <label>Text size
-                  <div class="size-row" data-kbd="+">
-                    <input type="range" name="size" id="set-size" min="10" max="22" step="1" />
-                    <output id="set-size-out">12</output>
-                    <kbd class="kbd-hint" aria-hidden="true">+ − 0</kbd>
+              <form class="prefs" id="settings-form">
+                <section class="pref-group">
+                  <h2 class="pref-heading">Appearance</h2>
+                  <div class="pref-row">
+                    <div class="pref-copy">
+                      <div class="pref-title">Theme</div>
+                      <p class="pref-desc">Light, dark, or follow the system.</p>
+                    </div>
+                    <select class="ui-select" name="theme" id="set-theme" aria-label="Color theme">
+                      <option value="system">System</option>
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
                   </div>
-                </label>
-                <label class="check"><input type="checkbox" id="set-copy" /> Copy on select</label>
-                <label class="check"><input type="checkbox" id="set-paste" /> Right-click to paste</label>
-                <fieldset class="settings-theme">
-                  <legend>Theme</legend>
-                  <div class="theme-switch" role="radiogroup" aria-label="Color theme">
-                    <button type="button" role="radio" data-theme-choice="light" title="Light" aria-label="Light theme">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M4.9 4.9l1.1 1.1M18 18l1.1 1.1M3 12h1.5M19.5 12H21M4.9 19.1 6 18M18 6l1.1-1.1"/></svg>
-                    </button>
-                    <button type="button" role="radio" data-theme-choice="dark" title="Dark" aria-label="Dark theme">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 13.5A7 7 0 1 1 10.5 7 5.5 5.5 0 0 0 17 13.5z"/></svg>
-                    </button>
-                    <button type="button" role="radio" data-theme-choice="system" title="System" aria-label="System theme">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M8 19h8"/></svg>
-                    </button>
+                </section>
+                <section class="pref-group">
+                  <h2 class="pref-heading">Terminal</h2>
+                  <div class="pref-row">
+                    <div class="pref-copy">
+                      <div class="pref-title">Font</div>
+                      <p class="pref-desc">Monospace face used in every pane.</p>
+                    </div>
+                    <select class="ui-select" name="font" id="set-font" aria-label="Terminal font">
+                      <option value="jetbrains">JetBrains Mono</option>
+                      <option value="ibmplex">IBM Plex Mono</option>
+                      <option value="menlo">Menlo / SF Mono</option>
+                      <option value="consolas">Consolas</option>
+                      <option value="system">System mono</option>
+                    </select>
                   </div>
-                </fieldset>
+                  <div class="pref-row">
+                    <div class="pref-copy">
+                      <div class="pref-title">Text size</div>
+                      <p class="pref-desc">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p>
+                    </div>
+                    <div class="ui-stepper" data-kbd="+">
+                      <button type="button" id="set-size-dec" aria-label="Smaller text">−</button>
+                      <output id="set-size-out">12</output>
+                      <button type="button" id="set-size-inc" aria-label="Larger text">+</button>
+                      <kbd class="kbd-hint" aria-hidden="true">+ − 0</kbd>
+                    </div>
+                  </div>
+                  <div class="pref-preview" aria-hidden="true">
+                    <pre id="term-preview">guest@keel:~ $ ssh prod-api</pre>
+                  </div>
+                  <div class="pref-row">
+                    <div class="pref-copy">
+                      <div class="pref-title">Copy on select</div>
+                      <p class="pref-desc">Copy terminal selection to the clipboard.</p>
+                    </div>
+                    <label class="ui-toggle">
+                      <input type="checkbox" id="set-copy" />
+                      <span class="ui-toggle-track"></span>
+                    </label>
+                  </div>
+                  <div class="pref-row">
+                    <div class="pref-copy">
+                      <div class="pref-title">Right-click to paste</div>
+                      <p class="pref-desc">Paste clipboard into the focused pane.</p>
+                    </div>
+                    <label class="ui-toggle">
+                      <input type="checkbox" id="set-paste" />
+                      <span class="ui-toggle-track"></span>
+                    </label>
+                  </div>
+                </section>
               </form>
             </section>
           </div>
@@ -362,6 +386,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=21"></script>
+  <script src="/js/app.js?v=22"></script>
 </body>
 </html>
