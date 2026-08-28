@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,7 +19,10 @@ type sshBridge struct {
 	session *ssh.Session
 	stdin   io.WriteCloser
 	stdout  io.Reader
+	stop    chan struct{}
 	once    sync.Once
+	waitMu  sync.Mutex
+	waitErr error
 }
 
 func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
@@ -67,11 +71,18 @@ func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprin
 		session: sess,
 		stdin:   stdin,
 		stdout:  pr,
+		stop:    make(chan struct{}),
 	}
 	go func() {
 		err := sess.Wait()
+		br.waitMu.Lock()
+		br.waitErr = err
+		br.waitMu.Unlock()
 		_ = pw.CloseWithError(err)
 	}()
+	if keep := host.KeepAlive(); keep > 0 {
+		go br.keepalive(keep)
+	}
 	return br, nil
 }
 
@@ -91,11 +102,59 @@ func SSHClient(host store.Host, checkKey func(hostname, fingerprint string) erro
 		Timeout:         12 * time.Second,
 		HostKeyCallback: hostKeyCallback(checkKey),
 	}
-	client, err := ssh.Dial("tcp", addr, cfg)
+	client, err := dialSSH(addr, cfg, host.KeepAlive())
 	if err != nil {
 		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
 	return client, nil
+}
+
+func dialSSH(addr string, cfg *ssh.ClientConfig, keep time.Duration) (*ssh.Client, error) {
+	d := net.Dialer{Timeout: cfg.Timeout}
+	if keep > 0 {
+		d.KeepAliveConfig = net.KeepAliveConfig{Enable: true, Idle: keep, Interval: keep, Count: 4}
+	}
+	raw, err := d.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(raw, addr, cfg)
+	if err != nil {
+		_ = raw.Close()
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
+func (b *sshBridge) keepalive(interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-b.stop:
+			return
+		case <-t.C:
+			_, _, err := b.client.SendRequest("keepalive@openssh.com", true, nil)
+			if err != nil {
+				_ = b.Close()
+				return
+			}
+		}
+	}
+}
+
+func (b *sshBridge) ExitKind() ExitKind {
+	b.waitMu.Lock()
+	err := b.waitErr
+	b.waitMu.Unlock()
+	if err == nil {
+		return ExitClean
+	}
+	var ee *ssh.ExitError
+	if errors.As(err, &ee) {
+		return ExitClean
+	}
+	return ExitDrop
 }
 
 func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {
@@ -147,6 +206,9 @@ func (b *sshBridge) Resize(cols, rows int) error {
 func (b *sshBridge) Close() error {
 	var err error
 	b.once.Do(func() {
+		if b.stop != nil {
+			close(b.stop)
+		}
 		_ = b.stdin.Close()
 		_ = b.session.Close()
 		err = b.client.Close()

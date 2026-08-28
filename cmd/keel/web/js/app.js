@@ -324,6 +324,7 @@
               <small>${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</small>
             </div>
             <div class="host-tools">
+              ${s.status === "error" || s.status === "exited" ? `<button class="tiny" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
               <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
             </div>
           </div>`;
@@ -515,11 +516,13 @@
   function tabStatus(tab) {
     const panes = tabPanes(tab);
     if (panes.some((p) => p.status === "is-error")) return "is-error";
+    if (panes.some((p) => p.status === "is-connecting")) return "is-connecting";
     if (panes.length && panes.every((p) => p.status === "is-ready")) return "is-ready";
     return "";
   }
 
   function tabTitle(tab) {
+    if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
     const first = panes[0];
     const name = first?.title || tab.title || "Session";
@@ -733,6 +736,8 @@
     const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
     if (vaultOn) state.activeId = VAULT;
     const chrome = chromeTabs();
+    const activeTab = vaultOn ? null : state.tabs.get(state.activeId);
+    const sessionOn = !vaultOn && activeTab && !activeTab.start;
 
     els.tabs.innerHTML =
       `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}Vault</button>` +
@@ -755,13 +760,14 @@
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
     els.terminals.hidden = vaultOn;
-    els.activeSnippets.classList.toggle("is-active", !vaultOn);
-    els.activeSnippets.hidden = vaultOn;
+    els.activeSnippets.classList.toggle("is-active", sessionOn);
+    els.activeSnippets.hidden = !sessionOn;
 
     for (const tab of state.tabs.values()) {
       tab.root.classList.toggle("is-active", tab.id === state.activeId);
       if (tab.id === state.activeId && tab.dirty) {
-        paintLayout(tab);
+        if (tab.start) paintStartPage(tab);
+        else paintLayout(tab);
         tab.dirty = false;
       }
       walkLeaves(tab.layout, (pid) => {
@@ -770,16 +776,19 @@
         p.wrap.classList.toggle("is-focused", tab.focusedPaneId === p.id);
         const title = p.wrap.querySelector(".pane-title");
         if (title) title.textContent = p.title || "session";
+        const rec = p.wrap.querySelector("[data-pane-reconnect]");
+        if (rec) rec.hidden = !!p.remote || p.status !== "is-error";
       });
     }
 
-    const pane = vaultOn ? null : focusedPane();
-    const tab = vaultOn ? null : state.tabs.get(state.activeId);
-    els.barTools.hidden = !tab || tab.remote;
+    const pane = sessionOn ? focusedPane() : null;
+    const tab = activeTab;
+    els.barTools.hidden = !sessionOn || !!tab?.remote;
     els.barTools.classList.toggle("is-sync", !!tab?.sync);
     if (els.btnSync) els.btnSync.textContent = tab?.sync ? "Sync on" : "Sync";
     if (els.barStatus) {
       if (vaultOn) els.barStatus.textContent = "Vault";
+      else if (tab?.start) els.barStatus.textContent = tab.connecting ? "Connecting…" : "New tab";
       else if (!pane) els.barStatus.textContent = "No session";
       else if (isDriving(pane)) els.barStatus.textContent = `${pane.subtitle} · driving`;
       else els.barStatus.textContent = `${pane.subtitle} · following`;
@@ -792,6 +801,11 @@
     }
     if (!vaultOn) {
       requestAnimationFrame(() => {
+        if (tab?.start) {
+          const input = tab.root.querySelector(".start-search");
+          if (input && document.activeElement !== input) input.focus();
+          return;
+        }
         fitVisiblePanes();
         pane?.term?.focus();
       });
@@ -893,11 +907,166 @@
     renderHerd();
     renderIdentities();
     renderTunnels();
+    refreshStartTabs();
     if (state.vaultSection === "logs") await loadLogs().catch(() => {});
   }
 
   function localHost() {
     return state.hosts.find((h) => h.authType === "local");
+  }
+
+  const RECENT_KEY = "keel-recent-hosts";
+  const RECENT_MAX = 12;
+
+  function loadRecentIds() {
+    try {
+      const ids = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+      return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function rememberRecent(hostId) {
+    if (!hostId) return;
+    const ids = [hostId, ...loadRecentIds().filter((id) => id !== hostId)].slice(0, RECENT_MAX);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(ids));
+  }
+
+  function hostMatches(h, q) {
+    const needle = (q || "").trim().toLowerCase();
+    if (!needle) return true;
+    return `${h.name} ${h.group} ${h.address} ${h.username}`.toLowerCase().includes(needle);
+  }
+
+  function startHostList(tab) {
+    const q = tab.query || "";
+    const byId = new Map(state.hosts.map((h) => [h.id, h]));
+    const recent = [];
+    for (const id of loadRecentIds()) {
+      const h = byId.get(id);
+      if (h && hostMatches(h, q)) recent.push(h);
+    }
+    const local = localHost();
+    if (local && hostMatches(local, q) && !recent.some((h) => h.id === local.id)) recent.unshift(local);
+    const seen = new Set(recent.map((h) => h.id));
+    const rest = state.hosts.filter((h) => !seen.has(h.id) && hostMatches(h, q));
+    return { recent, rest };
+  }
+
+  function visibleStartHosts(tab) {
+    const { recent, rest } = startHostList(tab);
+    return [...recent, ...rest];
+  }
+
+  function startHostButton(h, tab) {
+    const picked = tab.pick === h.id;
+    const connecting = tab.connecting === h.id;
+    return `<button type="button" class="host ${picked ? "is-open" : ""}" data-start-connect="${h.id}">
+      <span class="dot" style="--dot:${h.color};background:${h.color}"></span>
+      <span class="meta">
+        <b>${escapeHtml(h.name)}</b>
+        <small>${connecting ? "Connecting…" : escapeHtml(hostSubtitle(h))}</small>
+      </span>
+    </button>`;
+  }
+
+  function paintStartPage(tab) {
+    const prev = tab.root.querySelector(".start-search");
+    const keepFocus = document.activeElement === prev;
+    const caret = typeof prev?.selectionStart === "number" ? prev.selectionStart : null;
+    const hosts = visibleStartHosts(tab);
+    if (!hosts.some((h) => h.id === tab.pick)) tab.pick = hosts[0]?.id || "";
+    const { recent, rest } = startHostList(tab);
+    const recentHtml = recent.length
+      ? `<h2 class="group-label">Recent</h2><div class="host-list">${recent.map((h) => startHostButton(h, tab)).join("")}</div>`
+      : "";
+    const restHtml = (() => {
+      if (!rest.length) return "";
+      const groups = new Map();
+      for (const h of rest) {
+        const key = h.group || "Ungrouped";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(h);
+      }
+      const parts = [`<h2 class="group-label">${recent.length ? "All" : "Hosts"}</h2>`];
+      for (const [group, hosts] of groups) {
+        parts.push(`<div class="group-label">${escapeHtml(group)}</div>`);
+        parts.push(`<div class="host-list">${hosts.map((h) => startHostButton(h, tab)).join("")}</div>`);
+      }
+      return parts.join("");
+    })();
+    const empty = !recent.length && !rest.length ? `<p class="empty">No hosts match.</p>` : "";
+    tab.root.innerHTML = `<div class="start-page"><div class="start-inner">
+      <p class="eyebrow">Connect</p>
+      <h1>New tab</h1>
+      <div class="search"><input type="search" class="start-search" placeholder="Search hosts" autocomplete="off" /></div>
+      ${recentHtml}${restHtml}${empty}
+      <div class="page-actions">
+        <button type="button" class="btn btn-ghost" data-start-quick>Quick connect</button>
+        <button type="button" class="btn btn-ghost" data-start-join>Join session</button>
+      </div>
+    </div></div>`;
+    const input = tab.root.querySelector(".start-search");
+    if (input) input.value = tab.query || "";
+    if (keepFocus && input) {
+      input.focus();
+      if (caret != null) input.setSelectionRange(caret, caret);
+    }
+    if (tab.pick) {
+      tab.root.querySelector(`[data-start-connect="${CSS.escape(tab.pick)}"]`)?.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function refreshStartTabs() {
+    for (const tab of state.tabs.values()) {
+      if (tab.start) paintStartPage(tab);
+    }
+  }
+
+  function createStartTab() {
+    const tab = {
+      id: uid("tab"),
+      hostId: "",
+      title: "New Tab",
+      remote: false,
+      start: true,
+      sync: false,
+      query: "",
+      pick: "",
+      connecting: "",
+      layout: null,
+      focusedPaneId: "",
+      root: document.createElement("div"),
+    };
+    tab.root.className = "term-tab start-tab";
+    els.terminals.appendChild(tab.root);
+    state.tabs.set(tab.id, tab);
+    state.activeId = tab.id;
+    paintStartPage(tab);
+    renderTabs();
+    tab.root.querySelector(".start-search")?.focus();
+    return tab;
+  }
+
+  function tabFromRoot(el) {
+    const root = el?.closest?.(".term-tab");
+    if (!root) return null;
+    return [...state.tabs.values()].find((t) => t.root === root) || null;
+  }
+
+  function fillableStartTab(explicit) {
+    if (explicit?.start) return explicit;
+    const active = state.tabs.get(state.activeId);
+    return active?.start ? active : null;
+  }
+
+  function setStartPick(tab, hostId) {
+    tab.pick = hostId;
+    tab.root.querySelectorAll("[data-start-connect]").forEach((el) => {
+      el.classList.toggle("is-open", el.dataset.startConnect === hostId);
+    });
+    tab.root.querySelector(`[data-start-connect="${CSS.escape(hostId)}"]`)?.scrollIntoView({ block: "nearest" });
   }
 
   function probeSize() {
@@ -921,9 +1090,25 @@
     });
   }
 
-  async function openSession(host) {
-    const info = await spawnHost(host.id);
-    attachRuntime(info);
+  async function openSession(host, opts = {}) {
+    rememberRecent(host.id);
+    const tab = fillableStartTab(opts.tab);
+    if (tab?.start) {
+      if (tab.connecting) return;
+      tab.connecting = host.id;
+      tab.pick = host.id;
+      paintStartPage(tab);
+    }
+    try {
+      const info = await spawnHost(host.id);
+      attachRuntime(info, tab ? { tab } : {});
+    } catch (err) {
+      if (tab?.start) {
+        tab.connecting = "";
+        paintStartPage(tab);
+      }
+      throw err;
+    }
     loadAll().catch(() => {});
   }
 
@@ -933,6 +1118,10 @@
 
   function hasAppMod(ev) {
     return isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;
+  }
+
+  function newTab() {
+    createStartTab();
   }
 
   function newLocalTab() {
@@ -964,7 +1153,7 @@
     if (name === lastShortcutName && now - lastShortcutAt < 80) return;
     lastShortcutName = name;
     lastShortcutAt = now;
-    if (name === "new-tab") newLocalTab();
+    if (name === "new-tab") newTab();
     else if (name === "close-tab") {
       if (state.openModal) closeModal();
       else if (state.activeId && state.activeId !== VAULT) closeTab(state.activeId);
@@ -1129,7 +1318,7 @@
     wrap.className = "term-wrap";
     const bar = document.createElement("div");
     bar.className = "pane-bar";
-    bar.innerHTML = `<span class="pane-title">${escapeHtml(info.title || "session")}</span><button type="button" class="tiny pane-close" data-pane-close title="Close pane">×</button>`;
+    bar.innerHTML = `<span class="pane-title">${escapeHtml(info.title || "session")}</span><button type="button" class="tiny pane-reconnect" data-pane-reconnect hidden title="Reconnect">Reconnect</button><button type="button" class="tiny pane-close" data-pane-close title="Close pane">×</button>`;
     const banner = document.createElement("div");
     banner.className = "follow-banner";
     banner.hidden = true;
@@ -1175,10 +1364,12 @@
   function attachRuntime(info, opts = {}) {
     const existing = findPaneByRuntime(info.id);
     if (existing && !opts.splitDir) {
+      const leftover = opts.tab?.start && opts.tab.id !== existing.tabId ? opts.tab : null;
       state.activeId = existing.tabId;
       const tab = state.tabs.get(existing.tabId);
       if (tab) tab.focusedPaneId = existing.id;
-      renderTabs();
+      if (leftover) closeTab(leftover.id);
+      else renderTabs();
       existing.term?.focus();
       return existing;
     }
@@ -1191,7 +1382,7 @@
       hostId: info.hostId,
       title: info.title,
       subtitle: info.subtitle,
-      status: info.status === "ready" ? "is-ready" : "",
+      status: info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "",
       term: shell.term,
       fit: shell.fit,
       wrap: shell.wrap,
@@ -1204,11 +1395,26 @@
       remote: false,
     };
     shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
+    const recBtn = shell.wrap.querySelector("[data-pane-reconnect]");
+    if (recBtn) recBtn.dataset.paneReconnect = pane.id;
     wirePaneTerminal(pane);
 
     let tab = opts.tab;
+    if (!tab && !opts.splitDir) tab = fillableStartTab();
     if (!tab) {
       tab = createTab(pane);
+    } else if (tab.start) {
+      pane.tabId = tab.id;
+      state.panes.set(pane.id, pane);
+      tab.layout = { type: "leaf", paneId: pane.id };
+      tab.focusedPaneId = pane.id;
+      tab.hostId = pane.hostId || "";
+      tab.title = pane.title || tab.title;
+      tab.start = false;
+      tab.connecting = "";
+      tab.root.classList.remove("start-tab");
+      tab.dirty = true;
+      rememberRecent(pane.hostId);
     } else {
       pane.tabId = tab.id;
       state.panes.set(pane.id, pane);
@@ -1259,10 +1465,13 @@
         const msg = JSON.parse(ev.data);
         if (msg.type === "status") {
           if (msg.status === "ready") pane.status = "is-ready";
-          if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
+          else if (msg.status === "connecting") pane.status = "is-connecting";
+          else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
           applyPresence(msg);
         } else if (msg.type === "ready" || msg.type === "presence" || msg.type === "control") {
-          pane.status = "is-ready";
+          if (msg.status === "connecting") pane.status = "is-connecting";
+          else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
+          else pane.status = "is-ready";
           applyPresence(msg);
           if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
@@ -1447,6 +1656,10 @@
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
     if (radio) radio.checked = true;
+    const keepOn = !host || host.keepAliveSec !== -1;
+    if (form.keepAlive) form.keepAlive.checked = keepOn;
+    if (form.keepAliveSec) form.keepAliveSec.value = host?.keepAliveSec > 0 ? String(host.keepAliveSec) : "30";
+    if (form.autoReconnect) form.autoReconnect.checked = !host?.noAutoReconnect;
     document.getElementById("host-modal-title").textContent = host?.id ? "Edit host" : "New host";
     toggleAuthFields();
   }
@@ -1456,6 +1669,17 @@
     els.hostForm.querySelectorAll("[data-auth]").forEach((el) => {
       el.style.display = el.dataset.auth === auth ? "grid" : "none";
     });
+    const ssh = auth !== "local";
+    els.hostForm.querySelectorAll("[data-ssh-only]").forEach((el) => {
+      el.style.display = ssh ? (el.classList.contains("grid-2") ? "grid" : "") : "none";
+    });
+    toggleKeepAliveFields();
+  }
+
+  function toggleKeepAliveFields() {
+    const form = els.hostForm;
+    if (!form.keepAliveSec) return;
+    form.keepAliveSec.disabled = !form.keepAlive?.checked;
   }
 
   function toggleIdentFields() {
@@ -1492,6 +1716,8 @@
       privateKey: secretPayload(form.privateKey.value),
       passphrase: secretPayload(form.passphrase.value),
       color: form.color.value,
+      keepAliveSec: form.authType.value === "local" ? 0 : form.keepAlive?.checked ? Number(form.keepAliveSec.value || 30) : -1,
+      noAutoReconnect: form.authType.value !== "local" && !form.autoReconnect?.checked,
     };
     if (form.id.value) {
       await api(`/api/hosts/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
@@ -1819,6 +2045,8 @@
       ownerId: 0,
     };
     shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
+    const recBtn = shell.wrap.querySelector("[data-pane-reconnect]");
+    if (recBtn) recBtn.dataset.paneReconnect = pane.id;
     wirePaneTerminal(pane);
     const tab = createTab(pane);
     tab.remote = true;
@@ -1901,6 +2129,8 @@
           }
           if (msg.type === "ready" || msg.type === "presence" || msg.type === "control" || msg.type === "status") {
             if (msg.status === "ready") pane.status = "is-ready";
+            if (msg.status === "connecting") pane.status = "is-connecting";
+            if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
             applyPresence(msg);
             if (msg.type === "control" && msg.message) toast(msg.message);
           }
@@ -2045,6 +2275,20 @@
   });
 
   els.herdList.addEventListener("click", async (ev) => {
+    const rec = ev.target.closest("[data-reconnect]");
+    if (rec) {
+      try {
+        await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
+        const pane = findPaneByRuntime(rec.dataset.reconnect);
+        if (pane) {
+          pane.status = "is-connecting";
+          renderTabs();
+        }
+      } catch (err) {
+        toast(err.message, true);
+      }
+      return;
+    }
     const attach = ev.target.closest("[data-attach]");
     const kill = ev.target.closest("[data-kill]");
     if (attach) {
@@ -2087,6 +2331,15 @@
     if (ev.target.closest("[data-take]")) sendControl("take-control");
     const paneClose = ev.target.closest("[data-pane-close]");
     if (paneClose) closePane(paneClose.dataset.paneClose);
+    const paneRec = ev.target.closest("[data-pane-reconnect]");
+    if (paneRec) {
+      const pane = state.panes.get(paneRec.dataset.paneReconnect);
+      if (pane?.runtimeId) {
+        api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
+        pane.status = "is-connecting";
+        renderTabs();
+      }
+    }
 
     const editId = ev.target.closest("[data-edit-identity]");
     if (editId) {
@@ -2227,8 +2480,50 @@
     openModal(els.tunnelModal);
   });
   document.getElementById("btn-welcome-local").addEventListener("click", () => newLocalTab());
-  document.getElementById("btn-new-tab")?.addEventListener("click", () => newLocalTab());
+  document.getElementById("btn-new-tab")?.addEventListener("click", () => newTab());
   document.getElementById("btn-join").addEventListener("click", openJoin);
+
+  els.terminals.addEventListener("click", (ev) => {
+    const tab = tabFromRoot(ev.target);
+    if (!tab?.start) return;
+    const connect = ev.target.closest("[data-start-connect]");
+    const quick = ev.target.closest("[data-start-quick]");
+    const join = ev.target.closest("[data-start-join]");
+    if (connect) {
+      const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
+      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+    } else if (quick) openModal(els.quickModal);
+    else if (join) openJoin();
+  });
+  els.terminals.addEventListener("input", (ev) => {
+    const input = ev.target.closest?.(".start-search");
+    if (!input) return;
+    const tab = tabFromRoot(input);
+    if (!tab?.start) return;
+    tab.query = input.value;
+    tab.pick = "";
+    paintStartPage(tab);
+  });
+  els.terminals.addEventListener("keydown", (ev) => {
+    const input = ev.target.closest?.(".start-search");
+    if (!input) return;
+    const tab = tabFromRoot(input);
+    if (!tab?.start) return;
+    const hosts = visibleStartHosts(tab);
+    if (!hosts.length) return;
+    const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
+    } else if (ev.key === "Enter") {
+      ev.preventDefault();
+      const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
+      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+    }
+  });
   document.getElementById("btn-settings").addEventListener("click", () => {
     state.activeId = VAULT;
     setVaultSection("settings");
@@ -2255,6 +2550,7 @@
     modal.addEventListener("close", fitVisiblePanes);
   });
   els.hostForm.authType.addEventListener("change", toggleAuthFields);
+  els.hostForm.keepAlive?.addEventListener("change", toggleKeepAliveFields);
   els.identityForm.kind.addEventListener("change", toggleIdentFields);
   els.tunnelForm.kind.addEventListener("change", toggleTunnelDest);
   els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
@@ -2356,7 +2652,7 @@
     }
   });
   if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
-  document.getElementById("btn-new-tab")?.setAttribute("title", `New local shell  ${MOD}T`);
+  document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
 
   if (!state.name) state.name = "guest";
   boot();

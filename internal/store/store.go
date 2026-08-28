@@ -39,20 +39,43 @@ func (e *HostKeyMismatchError) Error() string {
 }
 
 type Host struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Group      string    `json:"group"`
-	Address    string    `json:"address"`
-	Port       int       `json:"port"`
-	Username   string    `json:"username"`
-	AuthType   string    `json:"authType"` // local | password | key | identity
-	IdentityID string    `json:"identityId,omitempty"`
-	Password   string    `json:"password,omitempty"`
-	PrivateKey string    `json:"privateKey,omitempty"`
-	Passphrase string    `json:"passphrase,omitempty"`
-	Color      string    `json:"color"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Group           string    `json:"group"`
+	Address         string    `json:"address"`
+	Port            int       `json:"port"`
+	Username        string    `json:"username"`
+	AuthType        string    `json:"authType"` // local | password | key | identity
+	IdentityID      string    `json:"identityId,omitempty"`
+	Password        string    `json:"password,omitempty"`
+	PrivateKey      string    `json:"privateKey,omitempty"`
+	Passphrase      string    `json:"passphrase,omitempty"`
+	Color           string    `json:"color"`
+	KeepAliveSec    int       `json:"keepAliveSec"`
+	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+const defaultKeepAlive = 30 * time.Second
+
+// KeepAlive is the SSH keepalive interval. Local shells: off. keepAliveSec 0 → 30s. -1 → off.
+func (h Host) KeepAlive() time.Duration {
+	if h.AuthType == "local" {
+		return 0
+	}
+	if h.KeepAliveSec < 0 {
+		return 0
+	}
+	if h.KeepAliveSec == 0 {
+		return defaultKeepAlive
+	}
+	return time.Duration(h.KeepAliveSec) * time.Second
+}
+
+// AutoReconnect is on for SSH hosts unless noAutoReconnect is set.
+func (h Host) AutoReconnect() bool {
+	return h.AuthType != "local" && !h.NoAutoReconnect
 }
 
 type Identity struct {
@@ -88,17 +111,19 @@ type Snippet struct {
 }
 
 type persistHost struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Group      string    `json:"group"`
-	Address    string    `json:"address"`
-	Port       int       `json:"port"`
-	Username   string    `json:"username"`
-	AuthType   string    `json:"authType"`
-	IdentityID string    `json:"identityId,omitempty"`
-	Color      string    `json:"color"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Group           string    `json:"group"`
+	Address         string    `json:"address"`
+	Port            int       `json:"port"`
+	Username        string    `json:"username"`
+	AuthType        string    `json:"authType"`
+	IdentityID      string    `json:"identityId,omitempty"`
+	Color           string    `json:"color"`
+	KeepAliveSec    int       `json:"keepAliveSec"`
+	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 type persistIdentity struct {
@@ -218,12 +243,7 @@ func loadPlain(b []byte) (loaded, error) {
 				Passphrase: h.Passphrase,
 			}
 		}
-		out.Hosts = append(out.Hosts, persistHost{
-			ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
-			Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-			IdentityID: h.IdentityID,
-			Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
-		})
+		out.Hosts = append(out.Hosts, persistFrom(h))
 	}
 	return loaded{data: out, secrets: secrets}, nil
 }
@@ -433,8 +453,9 @@ func (s *Store) viewLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID,
-		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID, Color: h.Color,
+		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
 		if sec.Password != "" {
@@ -454,8 +475,9 @@ func (s *Store) fullLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID,
-		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID, Color: h.Color,
+		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
 		out.Password = sec.Password
@@ -525,8 +547,9 @@ func persistFrom(h Host) persistHost {
 	return persistHost{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID,
-		Color:      h.Color, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		IdentityID: h.IdentityID, Color: h.Color,
+		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }
 

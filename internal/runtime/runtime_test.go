@@ -3,6 +3,7 @@ package runtime
 import (
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ type fakeBridge struct {
 	cols    int
 	rows    int
 	resizes int
+	drop    bool
 }
 
 func newFakeBridge() *fakeBridge {
@@ -47,6 +49,13 @@ func (f *fakeBridge) Close() error {
 		_ = f.outR.Close()
 	})
 	return err
+}
+
+func (f *fakeBridge) ExitKind() session.ExitKind {
+	if f.drop {
+		return session.ExitDrop
+	}
+	return session.ExitClean
 }
 
 func testStore(t *testing.T) *store.Store {
@@ -473,4 +482,233 @@ func TestConnectUnknownHostKey(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("session never recorded unknown host: %+v", sess.Info())
+}
+
+func sshHost(t *testing.T, st *store.Store) store.Host {
+	t.Helper()
+	h, err := st.UpsertHost(store.Host{
+		Name: "box", Address: "10.0.0.1", Username: "u", AuthType: "password",
+		Password: "x", Color: "#6ea8ff",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+func TestAutoReconnectAfterDrop(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		if len(bridges) == 0 {
+			fb.drop = true
+		}
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	_ = bridges[0].Close()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(bridges)
+		mu.Unlock()
+		if n >= 2 && sess.Info().Status == StatusReady {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	n := len(bridges)
+	mu.Unlock()
+	if n < 2 {
+		t.Fatalf("expected reconnect, opener calls = %d status=%s", n, sess.Info().Status)
+	}
+	if sess.Info().Status != StatusReady {
+		t.Fatalf("status = %s", sess.Info().Status)
+	}
+	_, ch, _ := sess.Subscribe(Join{Name: "alice"})
+	if _, err := bridges[1].outW.Write([]byte("back")); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitBytes(t, ch, "back"); !strings.Contains(got, "back") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestCleanExitDoesNotReconnect(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	var mu sync.Mutex
+	var n int
+	fb := newFakeBridge()
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		n++
+		mu.Unlock()
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	_ = fb.Close()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if sess.Info().Status == StatusExited {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if sess.Info().Status != StatusExited {
+		t.Fatalf("status = %s", sess.Info().Status)
+	}
+	time.Sleep(30 * time.Millisecond)
+	mu.Lock()
+	calls := n
+	mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("clean exit should not reconnect, calls=%d", calls)
+	}
+}
+
+func TestManualReconnectAfterExit(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	_ = bridges[0].Close()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if sess.Info().Status == StatusExited {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	mu.Lock()
+	n := len(bridges)
+	mu.Unlock()
+	if n < 2 {
+		t.Fatalf("manual reconnect calls = %d", n)
+	}
+}
+
+func TestManualReconnectWhileConnected(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	host.NoAutoReconnect = true
+	if _, err := st.UpsertHost(host); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(bridges)
+		mu.Unlock()
+		if n >= 2 && sess.Info().Status == StatusReady {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	n := len(bridges)
+	mu.Unlock()
+	t.Fatalf("manual reconnect while connected calls = %d status=%s", n, sess.Info().Status)
+}
+
+func TestDialFailureRetriesThenConnects(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	var mu sync.Mutex
+	var n int
+	fb := newFakeBridge()
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		n++
+		call := n
+		mu.Unlock()
+		if call == 1 {
+			return nil, errors.New("ssh dial 10.0.0.1:22: connection refused")
+		}
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	mu.Lock()
+	calls := n
+	mu.Unlock()
+	if calls < 2 {
+		t.Fatalf("expected retry after dial failure, calls=%d", calls)
+	}
 }

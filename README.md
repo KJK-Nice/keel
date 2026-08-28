@@ -52,11 +52,11 @@ The first time you connect to an SSH host, Keel asks you to trust its key. A dif
 ## Tabs, split, shortcuts
 
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
-- **⌘T** new local shell tab. **⌘W** closes the current session tab (does not quit; Vault stays pinned). **⌘⇧T** reopens the last detached tab if the PTY is still live.
+- **⌘T** new tab (recent hosts to pick). **⌘W** closes the current session tab (does not quit; Vault stays pinned). **⌘⇧T** reopens the last detached tab if the PTY is still live.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
 - Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
 - **⌘K** focuses host search (switches to Vault if needed). **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
-- Open a host: new session tab. Close tab = detach (PTY stays in Hosts → Live until you kill it).
+- Open a host: new session tab. Close tab = detach (PTY stays in Hosts → Live until you kill it). SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane (or Live list) brings it back.
 - **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
 - **⌘+** / **⌘-** bigger or smaller terminal text (10–22px). **⌘0** resets to 12.
 - **⌘⇧W** closes the window (quit). The File and View menus list the same bindings.

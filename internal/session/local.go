@@ -53,6 +53,8 @@ func localWorkingDir() string {
 	return home
 }
 
+func (b *localBridge) ExitKind() ExitKind { return ExitClean }
+
 func (b *localBridge) Read(p []byte) (int, error)  { return b.file.Read(p) }
 func (b *localBridge) Write(p []byte) (int, error) { return b.file.Write(p) }
 

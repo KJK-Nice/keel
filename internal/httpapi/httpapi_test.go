@@ -274,6 +274,81 @@ func TestSessionControlAndFanout(t *testing.T) {
 	}
 }
 
+func TestSessionReconnect(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	t.Cleanup(srv.Close)
+
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	if len(bridges) < 1 {
+		mu.Unlock()
+		t.Fatal("no bridge")
+	}
+	_ = bridges[0].Close()
+	mu.Unlock()
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusExited {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	res, err := http.Post(srv.URL+"/api/sessions/"+info.ID+"/reconnect", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("reconnect %d %s", res.StatusCode, b)
+	}
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			mu.Lock()
+			n := len(bridges)
+			mu.Unlock()
+			if n >= 2 {
+				return
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	n := len(bridges)
+	mu.Unlock()
+	st2, _ := rt.Get(info.ID)
+	t.Fatalf("reconnect stuck calls=%d status=%s", n, st2.Info().Status)
+}
+
 func TestHerdWS(t *testing.T) {
 	srv, _, st, _ := testServer(t)
 	u := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"

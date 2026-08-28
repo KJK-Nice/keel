@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testStore(t *testing.T) *Store {
@@ -265,5 +266,62 @@ func TestIdentityConnectAndTunnelPersist(t *testing.T) {
 	}
 	if h2.IdentityID != "" {
 		t.Fatalf("identity id should be cleared, got %q", h2.IdentityID)
+	}
+}
+
+func TestHostKeepAliveAndReconnectDefaults(t *testing.T) {
+	local := Host{AuthType: "local"}
+	if local.KeepAlive() != 0 {
+		t.Fatalf("local keepalive %s", local.KeepAlive())
+	}
+	if local.AutoReconnect() {
+		t.Fatal("local should not auto-reconnect")
+	}
+	ssh := Host{AuthType: "password"}
+	if ssh.KeepAlive() != 30*time.Second {
+		t.Fatalf("ssh default keepalive %s", ssh.KeepAlive())
+	}
+	if !ssh.AutoReconnect() {
+		t.Fatal("ssh should auto-reconnect")
+	}
+	off := Host{AuthType: "key", KeepAliveSec: -1, NoAutoReconnect: true}
+	if off.KeepAlive() != 0 {
+		t.Fatalf("disabled keepalive %s", off.KeepAlive())
+	}
+	if off.AutoReconnect() {
+		t.Fatal("noAutoReconnect should stick")
+	}
+	custom := Host{AuthType: "identity", KeepAliveSec: 15}
+	if custom.KeepAlive() != 15*time.Second {
+		t.Fatalf("custom keepalive %s", custom.KeepAlive())
+	}
+}
+
+func TestKeepAliveSecRoundTrip(t *testing.T) {
+	st := testStore(t)
+	saved, err := st.UpsertHost(Host{
+		Name: "box", Address: "10.0.0.8", Username: "ubuntu", AuthType: "password",
+		Password: "x", Color: "#6ea8ff", KeepAliveSec: -1, NoAutoReconnect: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.KeepAliveSec != -1 || !got.NoAutoReconnect {
+		t.Fatalf("got keepalive=%d noReconnect=%v", got.KeepAliveSec, got.NoAutoReconnect)
+	}
+	st2, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := st2.GetHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.KeepAliveSec != -1 || !again.NoAutoReconnect {
+		t.Fatalf("reload keepalive=%d noReconnect=%v", again.KeepAliveSec, again.NoAutoReconnect)
 	}
 }
