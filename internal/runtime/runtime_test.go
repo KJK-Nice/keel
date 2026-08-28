@@ -446,3 +446,31 @@ func TestRingTrims(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestConnectUnknownHostKey(t *testing.T) {
+	st := testStore(t)
+	host := firstHost(t, st)
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return nil, &store.UnknownHostError{Host: "box:22", Fingerprint: "SHA256:abc"}
+	})
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got := sess.Info()
+		if got.Status == StatusError {
+			if got.ErrorKind != "unknown-host" || got.HostKeyHost != "box:22" || got.HostKeyFingerprint != "SHA256:abc" {
+				t.Fatalf("info = %+v", got)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("session never recorded unknown host: %+v", sess.Info())
+}

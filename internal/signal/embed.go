@@ -6,8 +6,12 @@ import (
 	"net/http"
 )
 
-//go:embed web/*
+//go:embed all:web
 var webFS embed.FS
+
+func fsSub() (fs.FS, error) {
+	return fs.Sub(webFS, "web")
+}
 
 func (s *Server) joinPage(w http.ResponseWriter, r *http.Request) {
 	b, err := fs.ReadFile(webFS, "web/join.html")

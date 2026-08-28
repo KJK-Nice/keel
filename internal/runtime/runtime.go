@@ -48,20 +48,24 @@ type Client struct {
 }
 
 type Info struct {
-	ID        string    `json:"id"`
-	HostID    string    `json:"hostId"`
-	Title     string    `json:"title"`
-	Subtitle  string    `json:"subtitle"`
-	Color     string    `json:"color"`
-	Status    Status    `json:"status"`
-	Error     string    `json:"error,omitempty"`
-	Clients   int       `json:"clients"`
-	Attached  []Client  `json:"attached"`
-	OwnerID   uint64    `json:"ownerId"`
-	DriverID  uint64    `json:"driverId"`
-	Cols      int       `json:"cols"`
-	Rows      int       `json:"rows"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID                 string    `json:"id"`
+	HostID             string    `json:"hostId"`
+	Title              string    `json:"title"`
+	Subtitle           string    `json:"subtitle"`
+	Color              string    `json:"color"`
+	Status             Status    `json:"status"`
+	Error              string    `json:"error,omitempty"`
+	Clients            int       `json:"clients"`
+	Attached           []Client  `json:"attached"`
+	OwnerID            uint64    `json:"ownerId"`
+	DriverID           uint64    `json:"driverId"`
+	Cols               int       `json:"cols"`
+	Rows               int       `json:"rows"`
+	CreatedAt          time.Time `json:"createdAt"`
+	ErrorKind          string    `json:"errorKind,omitempty"`
+	HostKeyHost        string    `json:"hostKeyHost,omitempty"`
+	HostKeyFingerprint string    `json:"hostKeyFingerprint,omitempty"`
+	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
 }
 
 type Event struct {
@@ -508,7 +512,7 @@ func (s *Session) emitPresence(msg string) {
 func (s *Session) connect(opener Opener, cols, rows int) {
 	br, err := opener(s.host, cols, rows)
 	if err != nil {
-		s.setStatus(StatusError, err.Error())
+		s.setConnectError(err)
 		s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
 		return
 	}
@@ -516,6 +520,10 @@ func (s *Session) connect(opener Opener, cols, rows int) {
 	s.br = br
 	s.info.Status = StatusReady
 	s.info.Error = ""
+	s.info.ErrorKind = ""
+	s.info.HostKeyHost = ""
+	s.info.HostKeyFingerprint = ""
+	s.info.HostKeyExpected = ""
 	s.mu.Unlock()
 	info := s.Info()
 	s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
@@ -547,6 +555,33 @@ func (s *Session) setStatus(st Status, msg string) {
 	s.mu.Lock()
 	s.info.Status = st
 	s.info.Error = msg
+	s.mu.Unlock()
+	if s.rt != nil {
+		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})
+	}
+}
+
+func (s *Session) setConnectError(err error) {
+	s.mu.Lock()
+	s.info.Status = StatusError
+	s.info.Error = err.Error()
+	s.info.ErrorKind = ""
+	s.info.HostKeyHost = ""
+	s.info.HostKeyFingerprint = ""
+	s.info.HostKeyExpected = ""
+	var unk *store.UnknownHostError
+	var mm *store.HostKeyMismatchError
+	switch {
+	case errors.As(err, &unk):
+		s.info.ErrorKind = "unknown-host"
+		s.info.HostKeyHost = unk.Host
+		s.info.HostKeyFingerprint = unk.Fingerprint
+	case errors.As(err, &mm):
+		s.info.ErrorKind = "host-key-mismatch"
+		s.info.HostKeyHost = mm.Host
+		s.info.HostKeyFingerprint = mm.Got
+		s.info.HostKeyExpected = mm.Expected
+	}
 	s.mu.Unlock()
 	if s.rt != nil {
 		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})

@@ -333,6 +333,19 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	if ident.Password != "__saved__" {
 		t.Fatalf("password %q", ident.Password)
 	}
+	body2 := `{"hostname":"box:22","fingerprint":"SHA256:abc"}`
+	resKH, err := http.Post(srv2.URL+"/api/known-hosts", "application/json", strings.NewReader(body2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resKH.Body.Close()
+	if resKH.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resKH.Body)
+		t.Fatalf("known-hosts %d %s", resKH.StatusCode, b)
+	}
+	if err := st.CheckHostKey("box:22", "SHA256:abc"); err != nil {
+		t.Fatal(err)
+	}
 	host := firstHost(t, st)
 	tunBody := `{"name":"db","hostId":"` + host.ID + `","kind":"local","bindAddr":"127.0.0.1","bindPort":0,"destHost":"127.0.0.1","destPort":5432}`
 	res2, err := http.Post(srv2.URL+"/api/tunnels", "application/json", strings.NewReader(tunBody))
@@ -383,7 +396,7 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") {
+	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")
