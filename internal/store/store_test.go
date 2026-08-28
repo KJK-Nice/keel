@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,16 +114,35 @@ func TestHostRoundTrip(t *testing.T) {
 	}
 }
 
-func TestKnownHostsTOFU(t *testing.T) {
+func TestKnownHostsRequireTrust(t *testing.T) {
 	st := testStore(t)
-	if err := st.CheckHostKey("example:22", "SHA256:abc"); err != nil {
+	err := st.CheckHostKey("example:22", "SHA256:abc")
+	var unk *UnknownHostError
+	if !errors.As(err, &unk) {
+		t.Fatalf("first key should be unknown, got %v", err)
+	}
+	if unk.Host != "example:22" || unk.Fingerprint != "SHA256:abc" {
+		t.Fatalf("unknown = %+v", unk)
+	}
+	if err := st.TrustHostKey("example:22", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.CheckHostKey("example:22", "SHA256:abc"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.CheckHostKey("example:22", "SHA256:other"); err == nil {
-		t.Fatal("expected mismatch")
+	err = st.CheckHostKey("example:22", "SHA256:other")
+	var mm *HostKeyMismatchError
+	if !errors.As(err, &mm) {
+		t.Fatalf("expected mismatch, got %v", err)
+	}
+	if err := st.TrustHostKey("example:22", "SHA256:other", false); err == nil {
+		t.Fatal("replace required to overwrite")
+	}
+	if err := st.TrustHostKey("example:22", "SHA256:other", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CheckHostKey("example:22", "SHA256:other"); err != nil {
+		t.Fatal(err)
 	}
 }
 

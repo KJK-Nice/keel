@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,27 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+
+// UnknownHostError is returned the first time a host presents a key.
+type UnknownHostError struct {
+	Host        string
+	Fingerprint string
+}
+
+func (e *UnknownHostError) Error() string {
+	return fmt.Sprintf("unknown host key for %s: %s", e.Host, e.Fingerprint)
+}
+
+// HostKeyMismatchError is returned when a known host presents a different key.
+type HostKeyMismatchError struct {
+	Host     string
+	Expected string
+	Got      string
+}
+
+func (e *HostKeyMismatchError) Error() string {
+	return fmt.Sprintf("host key mismatch for %s: expected %s, got %s", e.Host, e.Expected, e.Got)
+}
 
 type Host struct {
 	ID         string    `json:"id"`
@@ -627,9 +649,29 @@ func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 	}
 	if prev, ok := s.data.KnownHosts[hostname]; ok {
 		if prev != fingerprint {
-			return fmt.Errorf("host key mismatch for %s: expected %s, got %s", hostname, prev, fingerprint)
+			return &HostKeyMismatchError{Host: hostname, Expected: prev, Got: fingerprint}
 		}
 		return nil
+	}
+	return &UnknownHostError{Host: hostname, Fingerprint: fingerprint}
+}
+
+func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked {
+		return ErrLocked
+	}
+	hostname = strings.TrimSpace(hostname)
+	fingerprint = strings.TrimSpace(fingerprint)
+	if hostname == "" || fingerprint == "" {
+		return errors.New("hostname and fingerprint are required")
+	}
+	if s.data.KnownHosts == nil {
+		s.data.KnownHosts = map[string]string{}
+	}
+	if prev, ok := s.data.KnownHosts[hostname]; ok && prev != fingerprint && !replace {
+		return &HostKeyMismatchError{Host: hostname, Expected: prev, Got: fingerprint}
 	}
 	s.data.KnownHosts[hostname] = fingerprint
 	return s.saveLocked()

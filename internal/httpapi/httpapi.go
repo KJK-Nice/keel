@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	goruntime "runtime"
@@ -26,9 +28,7 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  32 * 1024,
 	WriteBufferSize: 32 * 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	CheckOrigin:     allowLocalOrigin,
 }
 
 type Server struct {
@@ -79,13 +79,83 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/tunnels/{id}/start", s.startTunnel)
 	mux.HandleFunc("POST /api/tunnels/{id}/stop", s.stopTunnel)
 	mux.HandleFunc("GET /api/logs", s.listLogs)
+	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
 	mux.Handle("/", http.FileServer(http.FS(s.web)))
-	return withLogging(s.withVault(mux))
+	return withLogging(withLocalOrigin(s.withVault(mux)))
+}
+
+// allowLocalOrigin blocks cross-site use of the privileged loopback API.
+// Missing Origin is allowed (native clients and tests). A present Origin must
+// be http(s) on a loopback host and the same host:port as this request, so a
+// page on the public internet — or another local port — cannot drive WebSockets
+// or mutate the vault.
+func allowLocalOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	if !isLoopbackHost(u.Hostname()) {
+		return false
+	}
+	return originHostPort(u) == requestHostPort(r)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func originHostPort(u *url.URL) string {
+	host := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		if u.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func requestHostPort(r *http.Request) string {
+	host, port, err := net.SplitHostPort(r.Host)
+	if err != nil {
+		host = r.Host
+		if r.TLS != nil {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func withLocalOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
+			if !allowLocalOrigin(r) {
+				writeError(w, http.StatusForbidden, "origin not allowed")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) withVault(next http.Handler) http.Handler {
@@ -512,7 +582,16 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				msg["id"] = info.ID
 			}
 			if ev.Status == runtime.StatusError {
-				_ = ws.writeJSON(map[string]any{"type": "error", "message": ev.Message})
+				errMsg := map[string]any{"type": "error", "message": ev.Message}
+				if ev.Info.ErrorKind != "" {
+					errMsg["errorKind"] = ev.Info.ErrorKind
+					errMsg["hostname"] = ev.Info.HostKeyHost
+					errMsg["fingerprint"] = ev.Info.HostKeyFingerprint
+					errMsg["expected"] = ev.Info.HostKeyExpected
+					errMsg["hostId"] = ev.Info.HostID
+					errMsg["sessionId"] = ev.Info.ID
+				}
+				_ = ws.writeJSON(errMsg)
 			}
 			_ = ws.writeJSON(msg)
 		}
@@ -568,12 +647,19 @@ func sessionPayload(kind, message string, info runtime.Info, you runtime.Client,
 		"type":     kind,
 		"message":  message,
 		"id":       info.ID,
+		"hostId":   info.HostID,
 		"title":    info.Title,
 		"status":   info.Status,
 		"attached": info.Attached,
 		"driverId": info.DriverID,
 		"ownerId":  info.OwnerID,
 		"you":      you,
+	}
+	if info.ErrorKind != "" {
+		out["errorKind"] = info.ErrorKind
+		out["hostname"] = info.HostKeyHost
+		out["fingerprint"] = info.HostKeyFingerprint
+		out["expected"] = info.HostKeyExpected
 	}
 	if fromID != 0 {
 		out["fromId"] = fromID

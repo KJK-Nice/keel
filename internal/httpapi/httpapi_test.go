@@ -78,6 +78,85 @@ func firstHost(t *testing.T, st *store.Store) store.Host {
 	return hosts[0]
 }
 
+func TestAllowLocalOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:47241/api/hosts", nil)
+	req.Host = "127.0.0.1:47241"
+	if !allowLocalOrigin(req) {
+		t.Fatal("missing origin should be allowed")
+	}
+	req.Header.Set("Origin", "https://evil.example")
+	if allowLocalOrigin(req) {
+		t.Fatal("cross-site origin")
+	}
+	req.Header.Set("Origin", "http://127.0.0.1:47241")
+	if !allowLocalOrigin(req) {
+		t.Fatal("same loopback origin")
+	}
+	req.Header.Set("Origin", "http://127.0.0.1:9999")
+	if allowLocalOrigin(req) {
+		t.Fatal("other loopback port")
+	}
+	req.Header.Set("Origin", "null")
+	if allowLocalOrigin(req) {
+		t.Fatal("null origin")
+	}
+}
+
+func TestCrossSiteOriginRejected(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/hosts", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", "https://evil.example")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	hdr := http.Header{}
+	hdr.Set("Origin", "https://evil.example")
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, hdr)
+	if err == nil {
+		conn.Close()
+		t.Fatal("expected websocket reject")
+	}
+	if resp != nil && resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("ws status = %d", resp.StatusCode)
+	}
+}
+
+func TestLoopbackOriginAllowed(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/hosts", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", srv.URL)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	hdr := http.Header{}
+	hdr.Set("Origin", srv.URL)
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, hdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+}
+
 func TestHealthUnlocked(t *testing.T) {
 	srv, _, _, _ := testServer(t)
 	res, err := http.Get(srv.URL + "/api/health")
@@ -254,6 +333,19 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	if ident.Password != "__saved__" {
 		t.Fatalf("password %q", ident.Password)
 	}
+	body2 := `{"hostname":"box:22","fingerprint":"SHA256:abc"}`
+	resKH, err := http.Post(srv2.URL+"/api/known-hosts", "application/json", strings.NewReader(body2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resKH.Body.Close()
+	if resKH.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resKH.Body)
+		t.Fatalf("known-hosts %d %s", resKH.StatusCode, b)
+	}
+	if err := st.CheckHostKey("box:22", "SHA256:abc"); err != nil {
+		t.Fatal(err)
+	}
 	host := firstHost(t, st)
 	tunBody := `{"name":"db","hostId":"` + host.ID + `","kind":"local","bindAddr":"127.0.0.1","bindPort":0,"destHost":"127.0.0.1","destPort":5432}`
 	res2, err := http.Post(srv2.URL+"/api/tunnels", "application/json", strings.NewReader(tunBody))
@@ -304,7 +396,7 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") {
+	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")

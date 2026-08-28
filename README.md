@@ -47,6 +47,8 @@ Secrets (SSH password, private key, key passphrase) are encrypted with [age](htt
 
 Existing plaintext `keel.json` files are migrated on unlock: secrets move into `keel.vault` and are stripped from the JSON.
 
+The first time you connect to an SSH host, Keel asks you to trust its key. A different key later is rejected until you replace it.
+
 ## Tabs, split, shortcuts
 
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
@@ -87,6 +89,8 @@ KEEL_SIGNAL=https://your-signal.example ./bin/keel
 3. Open a session, click **Share**, send the copied `/join?room=…` link.
 
 4. On the other machine, open Keel → **Join session** → paste the link. They follow until you pass control. They never see hosts or keys. A browser can open the same link if they don't have Keel.
+
+Rooms on `keel-signal` expire after two minutes if no host connects, and the server refuses more than 512 idle rooms. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
 
 Two Keel windows on one Mac (test): second instance needs its own port and data dir:
 

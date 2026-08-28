@@ -12,7 +12,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=13" />
+  <link rel="stylesheet" href="/css/app.css?v=14" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect rx='8' width='32' height='32' fill='%23141414'/><path d='M7 22 L16 8 L25 22' fill='none' stroke='%23ececec' stroke-width='2.4' stroke-linejoin='round'/></svg>" />
 </head>
 <body>
@@ -308,6 +308,20 @@
     </form>
   </dialog>
 
+  <dialog class="modal" id="hostkey-modal">
+    <form id="hostkey-form">
+      <h2 id="hostkey-title">Unknown host key</h2>
+      <p class="hint" id="hostkey-hint">Trust this key once to connect. Keel will reject a different key later.</p>
+      <p class="hostkey-host" id="hostkey-host"></p>
+      <p class="hostkey-fp" id="hostkey-fp"></p>
+      <p class="hostkey-fp" id="hostkey-expected" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="hostkey-cancel">Abort</button>
+        <button type="submit" class="btn btn-primary">Trust and connect</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="modal" id="snippet-modal">
     <form id="snippet-form">
       <h2 id="snippet-modal-title">New snippet</h2>
@@ -337,6 +351,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=13"></script>
+  <script src="/js/app.js?v=14"></script>
 </body>
 </html>

@@ -171,6 +171,9 @@ func (s *Server) startTunnel(w http.ResponseWriter, r *http.Request) {
 			writeStoreErr(w, err)
 			return
 		}
+		if writeHostKeyErr(w, err) {
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -209,4 +212,54 @@ func (s *Server) listLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, s.logs.Recent(limit))
+}
+
+func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Hostname    string `json:"hostname"`
+		Fingerprint string `json:"fingerprint"`
+		Replace     bool   `json:"replace"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if err := s.store.TrustHostKey(req.Hostname, req.Fingerprint, req.Replace); err != nil {
+		if writeHostKeyErr(w, err) {
+			return
+		}
+		if errors.Is(err, store.ErrLocked) {
+			writeStoreErr(w, err)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.note("host", "trusted host key for "+strings.TrimSpace(req.Hostname), "", "", "")
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func writeHostKeyErr(w http.ResponseWriter, err error) bool {
+	var unk *store.UnknownHostError
+	if errors.As(err, &unk) {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":       err.Error(),
+			"errorKind":   "unknown-host",
+			"hostname":    unk.Host,
+			"fingerprint": unk.Fingerprint,
+		})
+		return true
+	}
+	var mm *store.HostKeyMismatchError
+	if errors.As(err, &mm) {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":       err.Error(),
+			"errorKind":   "host-key-mismatch",
+			"hostname":    mm.Host,
+			"fingerprint": mm.Got,
+			"expected":    mm.Expected,
+		})
+		return true
+	}
+	return false
 }

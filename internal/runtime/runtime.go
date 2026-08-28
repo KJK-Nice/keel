@@ -48,20 +48,24 @@ type Client struct {
 }
 
 type Info struct {
-	ID        string    `json:"id"`
-	HostID    string    `json:"hostId"`
-	Title     string    `json:"title"`
-	Subtitle  string    `json:"subtitle"`
-	Color     string    `json:"color"`
-	Status    Status    `json:"status"`
-	Error     string    `json:"error,omitempty"`
-	Clients   int       `json:"clients"`
-	Attached  []Client  `json:"attached"`
-	OwnerID   uint64    `json:"ownerId"`
-	DriverID  uint64    `json:"driverId"`
-	Cols      int       `json:"cols"`
-	Rows      int       `json:"rows"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID                 string    `json:"id"`
+	HostID             string    `json:"hostId"`
+	Title              string    `json:"title"`
+	Subtitle           string    `json:"subtitle"`
+	Color              string    `json:"color"`
+	Status             Status    `json:"status"`
+	Error              string    `json:"error,omitempty"`
+	Clients            int       `json:"clients"`
+	Attached           []Client  `json:"attached"`
+	OwnerID            uint64    `json:"ownerId"`
+	DriverID           uint64    `json:"driverId"`
+	Cols               int       `json:"cols"`
+	Rows               int       `json:"rows"`
+	CreatedAt          time.Time `json:"createdAt"`
+	ErrorKind          string    `json:"errorKind,omitempty"`
+	HostKeyHost        string    `json:"hostKeyHost,omitempty"`
+	HostKeyFingerprint string    `json:"hostKeyFingerprint,omitempty"`
+	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
 }
 
 type Event struct {
@@ -321,11 +325,13 @@ func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
 		Kind:       kind,
 		AttachedAt: time.Now().UTC(),
 	}
-	if s.ownerID == 0 {
-		s.ownerID = id
-	}
-	if s.driverID == 0 {
-		s.driverID = id
+	if !isRemoteJoin(kind) {
+		if s.ownerID == 0 {
+			s.ownerID = id
+		}
+		if s.driverID == 0 {
+			s.driverID = id
+		}
 	}
 	cl.Role = s.roleLocked(id)
 	s.clients[id] = &clientConn{Client: cl, ch: ch}
@@ -349,14 +355,10 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	delete(s.clients, id)
 	close(c.ch)
 	if s.ownerID == id {
-		s.ownerID = firstClientID(s.clients)
+		s.ownerID = firstLocalClientID(s.clients)
 	}
 	if s.driverID == id {
-		if s.ownerID != 0 {
-			s.driverID = s.ownerID
-		} else {
-			s.driverID = firstClientID(s.clients)
-		}
+		s.driverID = s.ownerID
 	}
 	s.mu.Unlock()
 	msg := "left"
@@ -366,9 +368,16 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	s.emitPresence(msg)
 }
 
-func firstClientID(clients map[uint64]*clientConn) uint64 {
+func isRemoteJoin(kind string) bool {
+	return kind == "webrtc"
+}
+
+func firstLocalClientID(clients map[uint64]*clientConn) uint64 {
 	var best uint64
-	for id := range clients {
+	for id, c := range clients {
+		if isRemoteJoin(c.Client.Kind) {
+			continue
+		}
 		if best == 0 || id < best {
 			best = id
 		}
@@ -420,11 +429,12 @@ func (s *Session) Resize(clientID uint64, cols, rows int) error {
 
 func (s *Session) RequestControl(from uint64) error {
 	s.mu.Lock()
-	if _, ok := s.clients[from]; !ok {
+	c, ok := s.clients[from]
+	if !ok {
 		s.mu.Unlock()
 		return ErrNoClient
 	}
-	if s.ownerID == from || s.ownerID == 0 {
+	if !isRemoteJoin(c.Client.Kind) && (s.ownerID == from || s.ownerID == 0) {
 		s.mu.Unlock()
 		return s.TakeControl(from)
 	}
@@ -469,11 +479,12 @@ func (s *Session) GrantControl(from, to uint64) error {
 
 func (s *Session) TakeControl(from uint64) error {
 	s.mu.Lock()
-	if _, ok := s.clients[from]; !ok {
+	c, ok := s.clients[from]
+	if !ok {
 		s.mu.Unlock()
 		return ErrNoClient
 	}
-	if s.ownerID != 0 && from != s.ownerID {
+	if isRemoteJoin(c.Client.Kind) || (s.ownerID != 0 && from != s.ownerID) {
 		s.mu.Unlock()
 		return ErrNotOwner
 	}
@@ -501,7 +512,7 @@ func (s *Session) emitPresence(msg string) {
 func (s *Session) connect(opener Opener, cols, rows int) {
 	br, err := opener(s.host, cols, rows)
 	if err != nil {
-		s.setStatus(StatusError, err.Error())
+		s.setConnectError(err)
 		s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
 		return
 	}
@@ -509,6 +520,10 @@ func (s *Session) connect(opener Opener, cols, rows int) {
 	s.br = br
 	s.info.Status = StatusReady
 	s.info.Error = ""
+	s.info.ErrorKind = ""
+	s.info.HostKeyHost = ""
+	s.info.HostKeyFingerprint = ""
+	s.info.HostKeyExpected = ""
 	s.mu.Unlock()
 	info := s.Info()
 	s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
@@ -540,6 +555,33 @@ func (s *Session) setStatus(st Status, msg string) {
 	s.mu.Lock()
 	s.info.Status = st
 	s.info.Error = msg
+	s.mu.Unlock()
+	if s.rt != nil {
+		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})
+	}
+}
+
+func (s *Session) setConnectError(err error) {
+	s.mu.Lock()
+	s.info.Status = StatusError
+	s.info.Error = err.Error()
+	s.info.ErrorKind = ""
+	s.info.HostKeyHost = ""
+	s.info.HostKeyFingerprint = ""
+	s.info.HostKeyExpected = ""
+	var unk *store.UnknownHostError
+	var mm *store.HostKeyMismatchError
+	switch {
+	case errors.As(err, &unk):
+		s.info.ErrorKind = "unknown-host"
+		s.info.HostKeyHost = unk.Host
+		s.info.HostKeyFingerprint = unk.Fingerprint
+	case errors.As(err, &mm):
+		s.info.ErrorKind = "host-key-mismatch"
+		s.info.HostKeyHost = mm.Host
+		s.info.HostKeyFingerprint = mm.Got
+		s.info.HostKeyExpected = mm.Expected
+	}
 	s.mu.Unlock()
 	if s.rt != nil {
 		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})

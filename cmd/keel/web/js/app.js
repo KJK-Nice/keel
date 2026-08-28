@@ -29,7 +29,7 @@
     openModal: null,
     signalURL: "",
     prefs: loadPrefs(),
-    logTimer: null,
+    hostKeyRetry: null,
   };
 
   const TERM_THEMES = {
@@ -187,6 +187,8 @@
     joinForm: document.getElementById("join-form"),
     snippetModal: document.getElementById("snippet-modal"),
     snippetForm: document.getElementById("snippet-form"),
+    hostKeyModal: document.getElementById("hostkey-modal"),
+    hostKeyForm: document.getElementById("hostkey-form"),
     toast: document.getElementById("toast"),
     activeSnippets: document.getElementById("active-snippets"),
     gate: document.getElementById("gate"),
@@ -209,7 +211,15 @@
       err.code = res.status;
       throw err;
     }
-    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (!res.ok) {
+      const err = new Error(data.error || res.statusText);
+      err.code = res.status;
+      err.errorKind = data.errorKind;
+      err.hostname = data.hostname;
+      err.fingerprint = data.fingerprint;
+      err.expected = data.expected;
+      throw err;
+    }
     return data;
   }
 
@@ -1012,7 +1022,9 @@
           pane.status = "is-error";
           pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
           renderTabs();
-          toast(msg.message, true);
+          if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
+            toast(msg.message, true);
+          }
         }
         return;
       }
@@ -1384,6 +1396,71 @@
     if (el?.open) el.close();
     els.modalScrim.classList.remove("is-open");
     if (!el || state.openModal === el) state.openModal = null;
+  }
+
+  function promptHostKey(src, retry = {}) {
+    const kind = src?.errorKind;
+    if (kind !== "unknown-host" && kind !== "host-key-mismatch") return false;
+    const hostname = src.hostname || src.hostKeyHost || "";
+    const fingerprint = src.fingerprint || src.hostKeyFingerprint || "";
+    if (!hostname || !fingerprint) return false;
+    state.hostKeyRetry = {
+      hostId: retry.hostId || src.hostId || "",
+      sessionId: retry.sessionId || src.sessionId || src.id || "",
+      tunnelId: retry.tunnelId || "",
+      replace: kind === "host-key-mismatch",
+    };
+    const title = document.getElementById("hostkey-title");
+    const hint = document.getElementById("hostkey-hint");
+    const hostEl = document.getElementById("hostkey-host");
+    const fpEl = document.getElementById("hostkey-fp");
+    const expectedEl = document.getElementById("hostkey-expected");
+    if (title) title.textContent = kind === "host-key-mismatch" ? "Host key changed" : "Unknown host key";
+    if (hint) {
+      hint.textContent =
+        kind === "host-key-mismatch"
+          ? "This machine presented a different key than the one saved in Keel. Only replace it if you reinstalled the server."
+          : "Trust this key once to connect. Keel will reject a different key later.";
+    }
+    if (hostEl) hostEl.textContent = hostname;
+    if (fpEl) fpEl.textContent = fingerprint;
+    if (expectedEl) {
+      expectedEl.hidden = kind !== "host-key-mismatch" || !src.expected;
+      expectedEl.textContent = src.expected ? `saved: ${src.expected}` : "";
+    }
+    els.hostKeyForm.dataset.hostname = hostname;
+    els.hostKeyForm.dataset.fingerprint = fingerprint;
+    openModal(els.hostKeyModal);
+    return true;
+  }
+
+  async function submitHostKey(ev) {
+    ev.preventDefault();
+    const hostname = els.hostKeyForm.dataset.hostname;
+    const fingerprint = els.hostKeyForm.dataset.fingerprint;
+    const retry = state.hostKeyRetry || {};
+    try {
+      await api("/api/known-hosts", {
+        method: "POST",
+        body: JSON.stringify({ hostname, fingerprint, replace: !!retry.replace }),
+      });
+      closeModal(els.hostKeyModal);
+      if (retry.sessionId) {
+        await api(`/api/sessions/${retry.sessionId}`, { method: "DELETE" }).catch(() => {});
+      }
+      if (retry.hostId) {
+        const host = state.hosts.find((h) => h.id === retry.hostId);
+        if (host) await openSession(host);
+      }
+      if (retry.tunnelId) {
+        await api(`/api/tunnels/${retry.tunnelId}/start`, { method: "POST" });
+        await loadAll();
+      }
+      state.hostKeyRetry = null;
+      toast("Host key saved");
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
   async function copyText(text) {
@@ -1777,7 +1854,9 @@
     if (startTn) {
       api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
         .then(loadAll)
-        .catch((err) => toast(err.message, true));
+        .catch((err) => {
+          if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
+        });
     }
     const stopTn = ev.target.closest("[data-tunnel-stop]");
     if (stopTn) {
@@ -1880,6 +1959,8 @@
   els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
   els.snippetForm.addEventListener("submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
   els.joinForm.addEventListener("submit", (ev) => submitJoin(ev));
+  els.hostKeyForm.addEventListener("submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
+  document.getElementById("hostkey-cancel").addEventListener("click", () => closeModal(els.hostKeyModal));
   els.search.addEventListener("input", () => {
     state.query = els.search.value;
     renderHosts();

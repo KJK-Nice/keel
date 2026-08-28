@@ -249,6 +249,86 @@ func TestOwnerLeavePromotes(t *testing.T) {
 	}
 }
 
+func TestWebRTCJoinerIsNeverOwner(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	if guest.Role != RoleFollower {
+		t.Fatalf("webrtc first role = %s", guest.Role)
+	}
+	info := sess.Info()
+	if info.OwnerID != 0 || info.DriverID != 0 {
+		t.Fatalf("webrtc-only owner/driver = %d/%d", info.OwnerID, info.DriverID)
+	}
+	if err := sess.TakeControl(guest.ID); !errors.Is(err, ErrNotOwner) {
+		t.Fatalf("take = %v", err)
+	}
+	if err := sess.Write(guest.ID, []byte("x")); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("write = %v", err)
+	}
+}
+
+func TestOwnerLeaveDoesNotPromoteWebRTC(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice", Kind: "web"})
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	pane, _, _ := sess.Subscribe(Join{Name: "pane", Kind: "web"})
+	sess.Unsubscribe(alice.ID)
+	info := sess.Info()
+	if info.OwnerID != pane.ID || info.DriverID != pane.ID {
+		t.Fatalf("promoted owner/driver = %d/%d want local pane %d (not webrtc %d)", info.OwnerID, info.DriverID, pane.ID, guest.ID)
+	}
+}
+
+func TestOwnerLeaveWebRTCStaysFollow(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice", Kind: "web"})
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	sess.Unsubscribe(alice.ID)
+	info := sess.Info()
+	if info.OwnerID != 0 || info.DriverID != 0 {
+		t.Fatalf("after host detach owner/driver = %d/%d", info.OwnerID, info.DriverID)
+	}
+	if err := sess.Write(guest.ID, []byte("nope")); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("webrtc write after host leave = %v", err)
+	}
+	bob, _, _ := sess.Subscribe(Join{Name: "bob", Kind: "web"})
+	if bob.Role != RoleDriver {
+		t.Fatalf("local reattach role = %s", bob.Role)
+	}
+	if sess.Info().OwnerID != bob.ID {
+		t.Fatal("local reattach should become owner")
+	}
+}
+
+func TestGrantControlToWebRTC(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	if err := sess.GrantControl(alice.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	if sess.Info().DriverID != guest.ID {
+		t.Fatal("guest should be driving")
+	}
+	done := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 16)
+		n, _ := fb.inR.Read(buf)
+		done <- string(buf[:n])
+	}()
+	if err := sess.Write(guest.ID, []byte("ok")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-done:
+		if got != "ok" {
+			t.Fatalf("got %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for webrtc driver write")
+	}
+}
+
 func TestOnlyDriverResizes(t *testing.T) {
 	_, sess, fb := spawnReady(t)
 	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
@@ -365,4 +445,32 @@ func TestRingTrims(t *testing.T) {
 	if got := string(r.Bytes()); got != "cdefghij" {
 		t.Fatalf("got %q", got)
 	}
+}
+
+func TestConnectUnknownHostKey(t *testing.T) {
+	st := testStore(t)
+	host := firstHost(t, st)
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return nil, &store.UnknownHostError{Host: "box:22", Fingerprint: "SHA256:abc"}
+	})
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got := sess.Info()
+		if got.Status == StatusError {
+			if got.ErrorKind != "unknown-host" || got.HostKeyHost != "box:22" || got.HostKeyFingerprint != "SHA256:abc" {
+				t.Fatalf("info = %+v", got)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("session never recorded unknown host: %+v", sess.Info())
 }

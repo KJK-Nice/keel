@@ -5,15 +5,23 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
+const (
+	defaultRoomTTL  = 2 * time.Minute
+	defaultMaxRooms = 512
+)
+
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: allowSignalOrigin,
 }
 
 type envelope struct {
@@ -43,18 +51,25 @@ func (p *peer) send(v any) error {
 
 type room struct {
 	id      string
+	created time.Time
 	mu      sync.Mutex
 	host    *peer
 	joiners map[string]*peer
 }
 
 type Server struct {
-	mu    sync.Mutex
-	rooms map[string]*room
+	mu       sync.Mutex
+	rooms    map[string]*room
+	roomTTL  time.Duration
+	maxRooms int
 }
 
 func New() *Server {
-	return &Server{rooms: map[string]*room{}}
+	return &Server{
+		rooms:    map[string]*room{},
+		roomTTL:  defaultRoomTTL,
+		maxRooms: defaultMaxRooms,
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -63,6 +78,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ws", s.ws)
 	mux.Handle("GET /join", http.HandlerFunc(s.joinPage))
 	mux.Handle("GET /join.js", http.HandlerFunc(s.joinJS))
+	web, err := fsSub()
+	if err == nil {
+		mux.Handle("GET /vendor/", http.FileServer(http.FS(web)))
+	}
 	mux.Handle("GET /healthz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -74,7 +93,13 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) createRoom(w http.ResponseWriter, _ *http.Request) {
 	id := newID()
 	s.mu.Lock()
-	s.rooms[id] = &room{id: id, joiners: map[string]*peer{}}
+	s.sweepLocked(time.Now())
+	if s.maxRooms > 0 && len(s.rooms) >= s.maxRooms {
+		s.mu.Unlock()
+		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
+		return
+	}
+	s.rooms[id] = &room{id: id, created: time.Now(), joiners: map[string]*peer{}}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
@@ -83,6 +108,7 @@ func (s *Server) createRoom(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) getRoom(id string) *room {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweepLocked(time.Now())
 	return s.rooms[id]
 }
 
@@ -90,6 +116,21 @@ func (s *Server) deleteRoom(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.rooms, id)
+}
+
+func (s *Server) sweepLocked(now time.Time) {
+	ttl := s.roomTTL
+	if ttl <= 0 {
+		ttl = defaultRoomTTL
+	}
+	for id, rm := range s.rooms {
+		rm.mu.Lock()
+		idle := rm.host == nil && now.Sub(rm.created) > ttl
+		rm.mu.Unlock()
+		if idle {
+			delete(s.rooms, id)
+		}
+	}
 }
 
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +235,40 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			_ = host.send(msg)
 		}
 	}
+}
+
+// allowSignalOrigin lets the join page (same origin) and the Keel desktop
+// (loopback Origin, or no Origin from the Go dialer) use signaling. Other
+// websites cannot open a WebSocket to the relay.
+func allowSignalOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	if isLoopbackHost(host) {
+		return true
+	}
+	reqHost, _, err := net.SplitHostPort(r.Host)
+	if err != nil {
+		reqHost = r.Host
+	}
+	return strings.EqualFold(host, reqHost)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func newID() string {
