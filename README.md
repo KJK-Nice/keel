@@ -51,6 +51,8 @@ The first time you connect to an SSH host, Keel asks you to trust its key. A dif
 
 ## Tabs, split, shortcuts
 
+On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.
+
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
 - **⌘T** new tab (recent hosts to pick). **⌘W** closes the current session tab (does not quit; Vault stays pinned). **⌘⇧T** reopens the last detached tab if the PTY is still live.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.

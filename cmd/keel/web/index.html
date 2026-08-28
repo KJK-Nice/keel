@@ -9,10 +9,12 @@
       var t = localStorage.getItem("keel-theme") || "system";
       if (t !== "light" && t !== "dark" && t !== "system") t = "system";
       document.documentElement.dataset.theme = t;
+      var q = new URLSearchParams(location.search);
+      if (q.get("chrome") === "titlebar") document.documentElement.dataset.chrome = "titlebar";
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=20" />
+  <link rel="stylesheet" href="/css/app.css?v=21" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23141414'/><path d='M4 25 L16 5 L28 25' fill='none' stroke='%23ececec' stroke-width='3.2' stroke-linecap='square' stroke-linejoin='miter'/></svg>" />
 </head>
 <body>
@@ -134,7 +136,7 @@
               <div class="page-head">
                 <div>
                   <h1>Settings</h1>
-                  <p class="lede">Terminal appearance and clipboard. Stored on this machine.</p>
+                  <p class="lede">Terminal appearance and clipboard. Stored on this machine. On macOS the tab strip sits in the window titlebar.</p>
                 </div>
               </div>
               <form class="settings-form" id="settings-form">
@@ -360,6 +362,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=20"></script>
+  <script src="/js/app.js?v=21"></script>
 </body>
 </html>

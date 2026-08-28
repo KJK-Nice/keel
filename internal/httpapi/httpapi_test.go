@@ -474,6 +474,18 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), "data-vault=\"settings\"") || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
+	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
+		t.Fatal("index missing titlebar chrome bootstrap")
+	}
+	css, err := http.Get(srv.URL + "/css/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer css.Body.Close()
+	cssBody, _ := io.ReadAll(css.Body)
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) || !strings.Contains(string(cssBody), "--wails-draggable") {
+		t.Fatal("app.css missing titlebar tab overlay")
+	}
 	res2, err := http.Get(srv.URL + "/api/identities")
 	if err != nil {
 		t.Fatal(err)
