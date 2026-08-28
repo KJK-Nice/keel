@@ -321,11 +321,13 @@ func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
 		Kind:       kind,
 		AttachedAt: time.Now().UTC(),
 	}
-	if s.ownerID == 0 {
-		s.ownerID = id
-	}
-	if s.driverID == 0 {
-		s.driverID = id
+	if !isRemoteJoin(kind) {
+		if s.ownerID == 0 {
+			s.ownerID = id
+		}
+		if s.driverID == 0 {
+			s.driverID = id
+		}
 	}
 	cl.Role = s.roleLocked(id)
 	s.clients[id] = &clientConn{Client: cl, ch: ch}
@@ -349,14 +351,10 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	delete(s.clients, id)
 	close(c.ch)
 	if s.ownerID == id {
-		s.ownerID = firstClientID(s.clients)
+		s.ownerID = firstLocalClientID(s.clients)
 	}
 	if s.driverID == id {
-		if s.ownerID != 0 {
-			s.driverID = s.ownerID
-		} else {
-			s.driverID = firstClientID(s.clients)
-		}
+		s.driverID = s.ownerID
 	}
 	s.mu.Unlock()
 	msg := "left"
@@ -366,9 +364,16 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	s.emitPresence(msg)
 }
 
-func firstClientID(clients map[uint64]*clientConn) uint64 {
+func isRemoteJoin(kind string) bool {
+	return kind == "webrtc"
+}
+
+func firstLocalClientID(clients map[uint64]*clientConn) uint64 {
 	var best uint64
-	for id := range clients {
+	for id, c := range clients {
+		if isRemoteJoin(c.Client.Kind) {
+			continue
+		}
 		if best == 0 || id < best {
 			best = id
 		}
@@ -420,11 +425,12 @@ func (s *Session) Resize(clientID uint64, cols, rows int) error {
 
 func (s *Session) RequestControl(from uint64) error {
 	s.mu.Lock()
-	if _, ok := s.clients[from]; !ok {
+	c, ok := s.clients[from]
+	if !ok {
 		s.mu.Unlock()
 		return ErrNoClient
 	}
-	if s.ownerID == from || s.ownerID == 0 {
+	if !isRemoteJoin(c.Client.Kind) && (s.ownerID == from || s.ownerID == 0) {
 		s.mu.Unlock()
 		return s.TakeControl(from)
 	}
@@ -469,11 +475,12 @@ func (s *Session) GrantControl(from, to uint64) error {
 
 func (s *Session) TakeControl(from uint64) error {
 	s.mu.Lock()
-	if _, ok := s.clients[from]; !ok {
+	c, ok := s.clients[from]
+	if !ok {
 		s.mu.Unlock()
 		return ErrNoClient
 	}
-	if s.ownerID != 0 && from != s.ownerID {
+	if isRemoteJoin(c.Client.Kind) || (s.ownerID != 0 && from != s.ownerID) {
 		s.mu.Unlock()
 		return ErrNotOwner
 	}

@@ -78,6 +78,85 @@ func firstHost(t *testing.T, st *store.Store) store.Host {
 	return hosts[0]
 }
 
+func TestAllowLocalOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:47241/api/hosts", nil)
+	req.Host = "127.0.0.1:47241"
+	if !allowLocalOrigin(req) {
+		t.Fatal("missing origin should be allowed")
+	}
+	req.Header.Set("Origin", "https://evil.example")
+	if allowLocalOrigin(req) {
+		t.Fatal("cross-site origin")
+	}
+	req.Header.Set("Origin", "http://127.0.0.1:47241")
+	if !allowLocalOrigin(req) {
+		t.Fatal("same loopback origin")
+	}
+	req.Header.Set("Origin", "http://127.0.0.1:9999")
+	if allowLocalOrigin(req) {
+		t.Fatal("other loopback port")
+	}
+	req.Header.Set("Origin", "null")
+	if allowLocalOrigin(req) {
+		t.Fatal("null origin")
+	}
+}
+
+func TestCrossSiteOriginRejected(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/hosts", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", "https://evil.example")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	hdr := http.Header{}
+	hdr.Set("Origin", "https://evil.example")
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, hdr)
+	if err == nil {
+		conn.Close()
+		t.Fatal("expected websocket reject")
+	}
+	if resp != nil && resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("ws status = %d", resp.StatusCode)
+	}
+}
+
+func TestLoopbackOriginAllowed(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/hosts", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", srv.URL)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	hdr := http.Header{}
+	hdr.Set("Origin", srv.URL)
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, hdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+}
+
 func TestHealthUnlocked(t *testing.T) {
 	srv, _, _, _ := testServer(t)
 	res, err := http.Get(srv.URL + "/api/health")
