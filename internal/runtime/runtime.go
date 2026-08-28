@@ -103,6 +103,7 @@ type Runtime struct {
 	herdMu   sync.Mutex
 	herd     map[uint64]chan HerdEvent
 	herdNext uint64
+	backoff  time.Duration
 }
 
 func New(st *store.Store, opener Opener) *Runtime {
@@ -138,6 +139,8 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 		clients: map[uint64]*clientConn{},
 		cols:    cols,
 		rows:    rows,
+		stop:    make(chan struct{}),
+		backoff: r.backoff,
 		info: Info{
 			HostID:    host.ID,
 			Title:     host.Name,
@@ -153,7 +156,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	r.mu.Lock()
 	r.sess[s.id] = s
 	r.mu.Unlock()
-	go s.connect(r.opener, cols, rows)
+	go s.runLoop()
 	info := s.Info()
 	r.emitHerd(HerdEvent{Type: "spawn", Session: info, ID: s.id})
 	return info, nil
@@ -186,6 +189,17 @@ func (r *Runtime) Get(id string) (*Session, error) {
 		return nil, ErrNotFound
 	}
 	return s, nil
+}
+
+func (r *Runtime) Reconnect(id string) (Info, error) {
+	s, err := r.Get(id)
+	if err != nil {
+		return Info{}, err
+	}
+	if err := s.requestReconnect(); err != nil {
+		return Info{}, err
+	}
+	return s.Info(), nil
 }
 
 func (r *Runtime) Kill(id string) error {
@@ -260,19 +274,26 @@ type clientConn struct {
 }
 
 type Session struct {
-	rt       *Runtime
-	id       string
-	host     store.Host
-	mu       sync.Mutex
-	info     Info
-	br       session.Bridge
-	buf      *ring
-	clients  map[uint64]*clientConn
-	next     uint64
-	ownerID  uint64
-	driverID uint64
-	cols     int
-	rows     int
+	rt             *Runtime
+	id             string
+	host           store.Host
+	mu             sync.Mutex
+	info           Info
+	br             session.Bridge
+	buf            *ring
+	clients        map[uint64]*clientConn
+	next           uint64
+	ownerID        uint64
+	driverID       uint64
+	cols           int
+	rows           int
+	stop           chan struct{}
+	closed         bool
+	looping        bool
+	reconnectN     int
+	backoff        time.Duration
+	everReady      bool
+	forceReconnect bool
 }
 
 func (s *Session) Info() Info {
@@ -509,46 +530,213 @@ func (s *Session) emitPresence(msg string) {
 	}
 }
 
-func (s *Session) connect(opener Opener, cols, rows int) {
-	br, err := opener(s.host, cols, rows)
-	if err != nil {
-		s.setConnectError(err)
-		s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+func (s *Session) requestReconnect() error {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrNotFound
+	}
+	s.forceReconnect = true
+	s.reconnectN = 0
+	if s.looping {
+		br := s.br
+		s.mu.Unlock()
+		if br != nil {
+			_ = br.Close()
+		}
+		return nil
+	}
+	s.mu.Unlock()
+	s.setStatus(StatusConnecting, "reconnecting")
+	s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+	go s.runLoop()
+	return nil
+}
+
+func (s *Session) runLoop() {
+	s.mu.Lock()
+	if s.closed || s.looping {
+		s.mu.Unlock()
 		return
 	}
-	s.mu.Lock()
-	s.br = br
-	s.info.Status = StatusReady
-	s.info.Error = ""
-	s.info.ErrorKind = ""
-	s.info.HostKeyHost = ""
-	s.info.HostKeyFingerprint = ""
-	s.info.HostKeyExpected = ""
+	s.looping = true
+	opener := s.rt.opener
 	s.mu.Unlock()
-	info := s.Info()
-	s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-	}
+	defer func() {
+		s.mu.Lock()
+		s.looping = false
+		s.mu.Unlock()
+	}()
 
-	buf := make([]byte, 32*1024)
 	for {
-		n, err := br.Read(buf)
-		if n > 0 {
-			chunk := append([]byte(nil), buf[:n]...)
-			s.buf.Write(chunk)
-			s.broadcast(Event{Kind: "bytes", Bytes: chunk})
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			return
 		}
+		cols, rows := s.cols, s.rows
+		hostID := s.host.ID
+		s.mu.Unlock()
+		if s.rt != nil && s.rt.store != nil {
+			if h, err := s.rt.store.HostForConnect(hostID); err == nil {
+				s.mu.Lock()
+				s.host = h
+				s.mu.Unlock()
+			}
+		}
+		s.mu.Lock()
+		host := s.host
+		s.mu.Unlock()
+
+		br, err := opener(host, cols, rows)
 		if err != nil {
+			if host.AutoReconnect() && shouldRetryConnect(err) {
+				s.setStatus(StatusConnecting, err.Error())
+				s.mu.Lock()
+				retryNote := "Connect failed — retrying: " + err.Error()
+				if s.everReady {
+					retryNote = "Reconnect failed: " + err.Error()
+				}
+				s.mu.Unlock()
+				s.noteLine(retryNote)
+				s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: err.Error(), Info: s.Info()})
+				if !s.backoffWait() {
+					return
+				}
+				continue
+			}
+			s.setConnectError(err)
+			s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+			return
+		}
+
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			_ = br.Close()
+			return
+		}
+		old := s.br
+		s.br = br
+		s.reconnectN = 0
+		s.forceReconnect = false
+		retry := s.everReady
+		s.everReady = true
+		s.info.Status = StatusReady
+		s.info.Error = ""
+		s.info.ErrorKind = ""
+		s.info.HostKeyHost = ""
+		s.info.HostKeyFingerprint = ""
+		s.info.HostKeyExpected = ""
+		s.mu.Unlock()
+		if old != nil {
+			_ = old.Close()
+		}
+		if retry {
+			s.noteLine("Reconnected")
+		}
+		info := s.Info()
+		s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
+		if s.rt != nil {
+			s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
+		}
+
+		buf := make([]byte, 32*1024)
+		dropped := false
+		for {
+			n, rerr := br.Read(buf)
+			if n > 0 {
+				chunk := append([]byte(nil), buf[:n]...)
+				s.buf.Write(chunk)
+				s.broadcast(Event{Kind: "bytes", Bytes: chunk})
+			}
+			if rerr == nil {
+				continue
+			}
 			msg := "session ended"
-			if err != io.EOF {
-				msg = err.Error()
+			if rerr != io.EOF {
+				msg = rerr.Error()
+			}
+			s.mu.Lock()
+			closed := s.closed
+			same := s.br == br
+			if same {
+				s.br = nil
+			}
+			auto := s.host.AutoReconnect()
+			force := s.forceReconnect
+			s.forceReconnect = false
+			s.mu.Unlock()
+			_ = br.Close()
+			if closed {
+				return
+			}
+			kind := session.BridgeExit(br)
+			if force || (auto && kind == session.ExitDrop) {
+				dropped = true
+				s.setStatus(StatusConnecting, "reconnecting")
+				if force {
+					s.noteLine("Reconnecting…")
+				} else {
+					s.noteLine("Connection lost — reconnecting…")
+				}
+				s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+				if !force && !s.backoffWait() {
+					return
+				}
+				break
 			}
 			s.setStatus(StatusExited, msg)
 			s.broadcast(Event{Kind: "status", Status: StatusExited, Message: msg, Info: s.Info()})
 			return
 		}
+		if !dropped {
+			return
+		}
 	}
+}
+
+func shouldRetryConnect(err error) bool {
+	var unk *store.UnknownHostError
+	var mm *store.HostKeyMismatchError
+	if errors.As(err, &unk) || errors.As(err, &mm) {
+		return false
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "unable to authenticate") || strings.Contains(msg, "password is required") || strings.Contains(msg, "private key is required") || strings.Contains(msg, "parse private key") {
+		return false
+	}
+	return true
+}
+
+func (s *Session) backoffWait() bool {
+	s.mu.Lock()
+	n := s.reconnectN
+	s.reconnectN++
+	unit := s.backoff
+	stop := s.stop
+	s.mu.Unlock()
+	if unit == 0 {
+		unit = time.Second
+	}
+	d := unit << n
+	if cap := 15 * time.Second; d > cap {
+		d = cap
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-stop:
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
+func (s *Session) noteLine(msg string) {
+	line := []byte("\r\n\x1b[38;2;139;149;168m" + msg + "\x1b[0m\r\n")
+	s.buf.Write(line)
+	s.broadcast(Event{Kind: "bytes", Bytes: line})
 }
 
 func (s *Session) setStatus(st Status, msg string) {
@@ -606,6 +794,12 @@ func (s *Session) broadcast(ev Event) {
 
 func (s *Session) close() {
 	s.mu.Lock()
+	if !s.closed {
+		s.closed = true
+		if s.stop != nil {
+			close(s.stop)
+		}
+	}
 	br := s.br
 	s.br = nil
 	for id, c := range s.clients {

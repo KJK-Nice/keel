@@ -12,7 +12,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
-  <link rel="stylesheet" href="/css/app.css?v=17" />
+  <link rel="stylesheet" href="/css/app.css?v=20" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23141414'/><path d='M4 25 L16 5 L28 25' fill='none' stroke='%23ececec' stroke-width='3.2' stroke-linecap='square' stroke-linejoin='miter'/></svg>" />
 </head>
 <body>
@@ -20,7 +20,7 @@
     <main class="main">
       <header class="workspace-bar">
         <div class="tabs" id="tabs"></div>
-        <button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New local shell  ⌘T" aria-label="New tab">+<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
+        <button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New tab  ⌘T" aria-label="New tab">+<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
         <div class="bar-tools" id="bar-tools" hidden>
           <button type="button" class="tiny" id="btn-split-right" data-kbd="⇧D" title="Split right  ⌘⇧D">Split →<kbd class="kbd-hint" aria-hidden="true">⇧D</kbd></button>
           <button type="button" class="tiny" id="btn-split-down" data-kbd="⇧E" title="Split down  ⌘⇧E">Split ↓<kbd class="kbd-hint" aria-hidden="true">⇧E</kbd></button>
@@ -79,7 +79,7 @@
                 <button class="btn btn-primary" id="btn-new-host" data-kbd="N">New host<kbd class="kbd-hint" aria-hidden="true">N</kbd></button>
                 <button class="btn btn-ghost" id="btn-quick" data-kbd="⇧O">Quick connect<kbd class="kbd-hint" aria-hidden="true">⇧O</kbd></button>
                 <button class="btn btn-ghost" id="btn-join" data-kbd="J">Join session<kbd class="kbd-hint" aria-hidden="true">J</kbd></button>
-                <button class="btn btn-ghost" id="btn-welcome-local" data-kbd="T">Open local shell<kbd class="kbd-hint" aria-hidden="true">T</kbd></button>
+                <button class="btn btn-ghost" id="btn-welcome-local">Open local shell</button>
               </div>
             </section>
 
@@ -223,6 +223,11 @@
         <label><input type="radio" name="color" value="#ff6b7a" /><span style="background:#ff6b7a"></span></label>
         <label><input type="radio" name="color" value="#67e8f9" /><span style="background:#67e8f9"></span></label>
       </fieldset>
+      <div class="grid-2" data-ssh-only>
+        <label class="check" title="SSH keepalive packets plus TCP keepalive"><input type="checkbox" name="keepAlive" checked /> Keepalive</label>
+        <label>Keepalive interval (sec)<input name="keepAliveSec" type="number" min="1" max="600" value="30" /></label>
+      </div>
+      <label class="check" data-ssh-only title="Reconnect after a dropped SSH connection. A clean remote exit stays dead until you hit Reconnect."><input type="checkbox" name="autoReconnect" checked /> Auto reconnect</label>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" value="cancel" id="host-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary">Save host</button>
@@ -355,6 +360,6 @@
 
   <script src="/vendor/xterm/xterm.min.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
-  <script src="/js/app.js?v=17"></script>
+  <script src="/js/app.js?v=20"></script>
 </body>
 </html>

@@ -14,6 +14,21 @@ type Bridge interface {
 	Close() error
 }
 
+type ExitKind int
+
+const (
+	ExitUnknown ExitKind = iota
+	ExitClean
+	ExitDrop
+)
+
+func BridgeExit(br Bridge) ExitKind {
+	if x, ok := br.(interface{ ExitKind() ExitKind }); ok {
+		return x.ExitKind()
+	}
+	return ExitUnknown
+}
+
 func Open(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
 	if host.AuthType == "local" {
 		return openLocal(cols, rows)

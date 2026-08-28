@@ -82,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
+	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
@@ -436,6 +437,21 @@ func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.note("session", "session spawned: "+info.Title, info.HostID, info.ID, "")
 	writeJSON(w, http.StatusCreated, info)
+}
+
+func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	info, err := s.rt.Reconnect(id)
+	if err != nil {
+		if errors.Is(err, runtime.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "session not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.note("session", "session reconnect: "+info.Title, info.HostID, info.ID, "")
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
