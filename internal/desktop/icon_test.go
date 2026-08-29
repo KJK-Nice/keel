@@ -29,9 +29,13 @@ func TestAppIconPNG(t *testing.T) {
 	if a>>8 != 0xff {
 		t.Fatalf("top-edge alpha=%02x, want opaque squircle", a>>8)
 	}
-	r, g, b, a := img.At(512, 160).RGBA()
+	r, g, b, a := img.At(512, 256).RGBA()
+	if r>>8 > 0x20 || g>>8 > 0x20 || b>>8 > 0x20 || a>>8 != 0xff {
+		t.Fatalf("keel mark = #%02x%02x%02x, want near-black", r>>8, g>>8, b>>8)
+	}
+	r, g, b, a = img.At(512, 512).RGBA()
 	if r>>8 < 0xd0 || g>>8 < 0xd0 || b>>8 < 0xd0 || a>>8 != 0xff {
-		t.Fatalf("chevron peak = #%02x%02x%02x, want near-white", r>>8, g>>8, b>>8)
+		t.Fatalf("hull slot = #%02x%02x%02x, want near-white", r>>8, g>>8, b>>8)
 	}
 }
 
