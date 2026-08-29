@@ -4,8 +4,8 @@ ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
 GO_TAGS := $(shell ./scripts/go-tags.sh)
 UNAME_S := $(shell uname -s)
-TEMPL := $(shell go env GOPATH)/bin/templ
-TAILWIND := $(shell go env GOPATH)/bin/tailwindcss
+TEMPL := go tool templ
+TAILWIND := tailwindcss
 # Finder-launched Keel.app has no shell env. Bake the public signal URL:
 #   make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ifneq ($(strip $(KEEL_SIGNAL)),)
