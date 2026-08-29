@@ -4,15 +4,15 @@ package desktop
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
-
-	_ "embed"
 )
 
 //go:embed macos/Info.plist
@@ -23,6 +23,9 @@ var macEntitlements []byte
 
 //go:embed macos/Keel.icns
 var macAppIcon []byte
+
+//go:embed all:macos/Keel.icon
+var macIconComposer embed.FS
 
 // EnsureMacApp re-execs inside a signed .app so WKWebView can run.
 // A naked Go binary on Apple Silicon hits SIGTRAP in WebKit's JIT.
@@ -64,6 +67,9 @@ func EnsureMacApp() error {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(resDir, "Keel.icns"), macAppIcon, 0o644); err != nil {
+		return err
+	}
+	if err := writeIconComposer(resDir); err != nil {
 		return err
 	}
 	ent := filepath.Join(appDir, "Contents", "keel.entitlements")
@@ -120,4 +126,29 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.Rename(tmp, dst)
+}
+
+func writeIconComposer(resDir string) error {
+	const root = "macos/Keel.icon"
+	return fs.WalkDir(macIconComposer, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(resDir, "Keel.icon", rel)
+		if d.IsDir() {
+			return os.MkdirAll(dest, 0o755)
+		}
+		data, err := macIconComposer.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(dest, data, 0o644)
+	})
 }

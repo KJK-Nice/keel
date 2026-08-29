@@ -14,6 +14,8 @@
 	<string>Keel</string>
 	<key>CFBundleIconFile</key>
 	<string>Keel</string>
+	<key>CFBundleIconName</key>
+	<string>Keel</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

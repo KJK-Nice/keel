@@ -20,14 +20,18 @@ func TestAppIconPNG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Flattened Icon Composer Default: squircle with transparent corners.
+	// Flattened Icon Composer Default, inset to Apple's 824/1024 grid.
 	_, _, _, a := img.At(0, 0).RGBA()
 	if a>>8 != 0 {
 		t.Fatalf("corner alpha=%02x, want transparent", a>>8)
 	}
 	_, _, _, a = img.At(512, 0).RGBA()
+	if a>>8 != 0 {
+		t.Fatalf("top-edge alpha=%02x, want inset (transparent margin)", a>>8)
+	}
+	_, _, _, a = img.At(512, 160).RGBA()
 	if a>>8 != 0xff {
-		t.Fatalf("top-edge alpha=%02x, want opaque squircle", a>>8)
+		t.Fatalf("squircle top alpha=%02x, want opaque", a>>8)
 	}
 	r, g, b, a := img.At(512, 256).RGBA()
 	if r>>8 > 0x20 || g>>8 > 0x20 || b>>8 > 0x20 || a>>8 != 0xff {

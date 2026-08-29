@@ -32,6 +32,9 @@ macos-app:
 	cp bin/keel bin/Keel.app/Contents/MacOS/keel
 	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
 	cp internal/desktop/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
+	rm -rf bin/Keel.app/Contents/Resources/Keel.icon
+	cp -R internal/desktop/macos/Keel.icon bin/Keel.app/Contents/Resources/Keel.icon
+	if [ -f internal/desktop/macos/Assets.car ]; then cp internal/desktop/macos/Assets.car bin/Keel.app/Contents/Resources/Assets.car; fi
 	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app/Contents/MacOS/keel
 	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app
 
