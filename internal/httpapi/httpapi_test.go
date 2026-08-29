@@ -541,6 +541,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("keel.css missing titlebar tab overlay")
 	}
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] #tab-ctx-trigger`) ||
+		!strings.Contains(string(cssBody), "-webkit-app-region: no-drag") {
+		t.Fatal("keel.css titlebar tabs must be no-drag so WKWebView delivers right-click")
+	}
 	if !strings.Contains(string(cssBody), "min-height: 42px") {
 		t.Fatal("keel.css missing 42px titlebar overlay")
 	}
@@ -600,6 +604,23 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "syncTabContextMenu") || !strings.Contains(string(termBody), "beginTabRename") {
 		t.Fatal("term.js missing tab context menu handlers")
+	}
+	if !strings.Contains(string(termBody), "fitTabRename") || !strings.Contains(string(termBody), "input.size = 1") ||
+		!strings.Contains(string(termBody), "setRangeText") ||
+		!strings.Contains(string(cssBody), "field-sizing: content") {
+		t.Fatal("tab rename must size to text, keep spaces, and not use a focus ring")
+	}
+	if !strings.Contains(string(cssBody), ".tab-rename:focus") || !strings.Contains(string(cssBody), "outline: none") {
+		t.Fatal("tab rename input must not show a border or focus ring")
+	}
+	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab:has(.tab-rename)`) {
+		t.Fatal("titlebar tab rename must drop vertical padding so the input matches tab height")
+	}
+	if !strings.Contains(string(cssBody), `.tab:has(.tab-rename) .tab-icon`) || !strings.Contains(string(cssBody), "align-self: center") {
+		t.Fatal("tab rename must keep the tab icon vertically centered")
+	}
+	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
+		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
 	}
 	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
 	if err != nil {

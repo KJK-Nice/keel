@@ -888,6 +888,11 @@
     }
   }
 
+  function fitTabRename(input) {
+    input.style.width = "0px";
+    input.style.width = `${Math.max(1, Math.ceil(input.scrollWidth))}px`;
+  }
+
   function beginTabRename(id) {
     if (id === VAULT || !state.tabs.has(id) || tabRenaming) return;
     const tab = state.tabs.get(id);
@@ -898,11 +903,13 @@
     const input = document.createElement("input");
     input.type = "text";
     input.className = "tab-rename";
+    input.size = 1;
     input.value = tabTitle(tab);
     input.setAttribute("aria-label", "Rename tab");
     label.replaceWith(input);
     input.focus();
     input.select();
+    fitTabRename(input);
     let done = false;
     const finish = (ok) => {
       if (done) return;
@@ -910,8 +917,29 @@
       applyTabRename(id, input.value, ok);
       renderTabs();
     };
+    btn.addEventListener("click", (ev) => {
+      if (ev.target === btn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    }, true);
     input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    input.addEventListener("keyup", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === " " || ev.code === "Space") ev.preventDefault();
+    });
+    input.addEventListener("keypress", (ev) => ev.stopPropagation());
+    input.addEventListener("input", () => fitTabRename(input));
     input.addEventListener("keydown", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === " " || ev.code === "Space") {
+        ev.preventDefault();
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        input.setRangeText(" ", start, end, "end");
+        fitTabRename(input);
+        return;
+      }
       if (ev.key === "Enter") {
         ev.preventDefault();
         input.blur();
@@ -2754,6 +2782,35 @@
       },
       true
     );
+    document.addEventListener(
+      "pointerup",
+      (ev) => {
+        if (ev.button !== 2) return;
+        if (!(ev.target instanceof Element)) return;
+        if (!ev.target.closest("#tab-ctx-trigger")) return;
+        const tab = ev.target.closest(".tab[data-tab]");
+        if (!tab) return;
+        tabMenuTarget = tab.dataset.tab;
+        syncTabContextMenu(tabMenuTarget);
+        const x = ev.clientX;
+        const y = ev.clientY;
+        requestAnimationFrame(() => {
+          const menu = document.getElementById("tab-ctx");
+          if (menu && menu.hasAttribute("data-open")) return;
+          tab.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y,
+              view: window,
+              button: 2,
+            })
+          );
+        });
+      },
+      true
+    );
     document.addEventListener("click", (ev) => {
       if (!(ev.target instanceof Element)) return;
       const item = ev.target.closest("[data-tab-action]");
@@ -2763,6 +2820,7 @@
     on(els.tabs, "click", (ev) => {
       if (ev.target.closest(".tab-rename")) return;
       if (tabRenaming) {
+        if (ev.target.closest(`.tab[data-tab="${CSS.escape(tabRenaming)}"]`)) return;
         const input = els.tabs.querySelector(".tab-rename");
         applyTabRename(tabRenaming, input?.value, true);
       }

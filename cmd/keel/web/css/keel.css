@@ -427,7 +427,18 @@ html[data-chrome="titlebar"] .tabs-scroller,
 html[data-chrome="titlebar"] .tabs,
 html[data-chrome="titlebar"] .bar-meta {
   --wails-draggable: drag;
+}
+/* WKWebView titlebar drag swallows contextmenu. Window move still uses
+   --wails-draggable via windowDragJS; tabs must stay no-drag for right-click. */
+html[data-chrome="titlebar"] .workspace-bar,
+html[data-chrome="titlebar"] .tab-strip,
+html[data-chrome="titlebar"] .bar-meta {
   -webkit-app-region: drag;
+}
+html[data-chrome="titlebar"] .tabs-scroller,
+html[data-chrome="titlebar"] .tabs,
+html[data-chrome="titlebar"] #tab-ctx-trigger {
+  -webkit-app-region: no-drag;
 }
 html[data-chrome="titlebar"] .workspace-bar {
   min-height: 42px;
@@ -526,18 +537,52 @@ html[data-chrome="titlebar"] .tab-new {
   user-select: none;
 }
 .tab .tab-label { min-width: 0; }
+.tab:has(.tab-rename),
+html[data-chrome="titlebar"] .tab:has(.tab-rename) {
+  padding-block: 0;
+  align-items: stretch;
+  outline: none;
+  box-shadow: none;
+}
+.tab:has(.tab-rename) .tab-icon,
+html[data-chrome="titlebar"] .tab:has(.tab-rename) .tab-icon {
+  align-self: center;
+}
+.tab:has(.tab-rename):focus,
+.tab:has(.tab-rename):focus-visible,
+html[data-chrome="titlebar"] .tab:has(.tab-rename):focus,
+html[data-chrome="titlebar"] .tab:has(.tab-rename):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 .tab-rename {
-  width: 9rem;
-  max-width: 16rem;
+  appearance: none;
+  -webkit-appearance: none;
+  field-sizing: content;
+  box-sizing: content-box;
+  width: auto;
+  min-width: 1px;
+  max-width: none;
+  height: 100%;
+  min-height: 100%;
+  align-self: stretch;
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   border: 0;
-  border-radius: 4px;
-  corner-shape: squircle;
-  background: var(--panel);
-  color: var(--text);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  outline: 1px solid var(--keel-accent);
+  line-height: inherit;
+  outline: none;
+  box-shadow: none;
+  user-select: text;
+  cursor: text;
+}
+.tab-rename:focus,
+.tab-rename:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .tab:has(.tab-rename) .close { display: none; }
 .tab:not(.is-vault) { cursor: grab; touch-action: none; }
