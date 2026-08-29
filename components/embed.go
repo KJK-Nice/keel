@@ -2,5 +2,7 @@ package components
 
 import "embed"
 
-//go:embed all:*
+// Component JS only. Do not embed generated icon Go source into the binary.
+//
+//go:embed */*.js
 var TemplFiles embed.FS

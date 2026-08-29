@@ -1,5 +1,7 @@
 package icon
 
+//go:generate node gen.mjs
+
 import (
 	"context"
 	"fmt"
@@ -77,8 +79,8 @@ func generateSVG(name string, props Props) (string, error) {
 	}
 
 	// Construct the final SVG string.
-	// The data-lucide attribute helps identify these as Lucide icons if needed.
-	return fmt.Sprintf("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"%s\" data-lucide=\"icon\"%s>%s</svg>",
+	// Hugeicons stroke-rounded default is 1.5; data-hugeicons marks the source pack.
+	return fmt.Sprintf("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"%s\" data-hugeicons=\"icon\"%s>%s</svg>",
 		props.Class, attrString(props.Attributes), content), nil
 }
 

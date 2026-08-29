@@ -474,6 +474,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
 		t.Fatal("index should have vault rail icons and no titlebar settings button")
 	}
+	if !strings.Contains(string(body), `data-hugeicons="icon"`) || strings.Contains(string(body), `data-lucide="icon"`) {
+		t.Fatal("index should render Hugeicons, not Lucide")
+	}
 	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) || !strings.Contains(string(body), `id="tab-ctx-trigger"`) || !strings.Contains(string(body), "tabs-scroller") {
 		t.Fatal("index missing settings theme select or tab strip")
 	}

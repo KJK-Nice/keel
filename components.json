@@ -7,7 +7,7 @@
     "cssVariables": true
   },
   "rtl": false,
-  "iconLibrary": "lucide",
+  "iconLibrary": "hugeicons",
   "menuColor": "default",
   "menuAccent": "subtle",
   "aliases": {
