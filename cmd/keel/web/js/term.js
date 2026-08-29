@@ -834,6 +834,16 @@
     const edge = 36;
     if (clientX < r.left + edge) els.tabs.scrollLeft -= 14;
     else if (clientX > r.right - edge) els.tabs.scrollLeft += 14;
+    syncTabOverflow();
+  }
+
+  function syncTabOverflow() {
+    const el = els.tabs;
+    const wrap = el?.closest(".tabs-scroller");
+    if (!el || !wrap) return;
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    wrap.toggleAttribute("data-overflow-left", el.scrollLeft > 1);
+    wrap.toggleAttribute("data-overflow-right", max - el.scrollLeft > 1);
   }
 
   function endTabDrag() {
@@ -977,6 +987,7 @@
     const activeTab = vaultOn ? null : state.tabs.get(state.activeId);
     const sessionOn = !vaultOn && activeTab && !activeTab.start;
 
+    const keepScroll = els.tabs.scrollLeft;
     els.tabs.innerHTML =
       `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
       ids
@@ -994,6 +1005,17 @@
           </button>`;
         })
         .join("");
+    els.tabs.scrollLeft = keepScroll;
+    const activeBtn = els.tabs.querySelector(".tab.is-active");
+    if (activeBtn) {
+      const left = activeBtn.offsetLeft;
+      const right = left + activeBtn.offsetWidth;
+      const viewLeft = els.tabs.scrollLeft;
+      const viewRight = viewLeft + els.tabs.clientWidth;
+      if (left < viewLeft) els.tabs.scrollLeft = left;
+      else if (right > viewRight) els.tabs.scrollLeft = right - els.tabs.clientWidth;
+    }
+    syncTabOverflow();
 
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
@@ -2588,7 +2610,20 @@
         endTabDrag();
       }
     });
-    window.addEventListener("resize", fitVisiblePanes);
+    window.addEventListener("resize", () => {
+      fitVisiblePanes();
+      syncTabOverflow();
+    });
+    on(els.tabs, "scroll", syncTabOverflow, { passive: true });
+    on(els.tabs, "wheel", (ev) => {
+      if (Math.abs(ev.deltaX) >= Math.abs(ev.deltaY)) return;
+      if (els.tabs.scrollWidth <= els.tabs.clientWidth) return;
+      els.tabs.scrollLeft += ev.deltaY;
+      ev.preventDefault();
+    }, { passive: false });
+    if (typeof ResizeObserver !== "undefined" && els.tabs) {
+      new ResizeObserver(syncTabOverflow).observe(els.tabs);
+    }
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
       if ((document.documentElement.dataset.theme || "system") === "system") {
         applyThemeClass();

@@ -474,7 +474,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
 		t.Fatal("index should have vault rail icons and no titlebar settings button")
 	}
-	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) {
+	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) || !strings.Contains(string(body), `class="tabs-scroller"`) {
 		t.Fatal("index missing settings theme select or tab strip")
 	}
 	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
@@ -557,6 +557,11 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {
 		t.Fatal("keel.css missing taller titlebar tabs")
+	}
+	if !strings.Contains(string(cssBody), ".tabs::-webkit-scrollbar") ||
+		!strings.Contains(string(cssBody), "scrollbar-width: none") ||
+		!strings.Contains(string(cssBody), "data-overflow-left") {
+		t.Fatal("keel.css missing hidden tab-strip scrollbar or overflow fades")
 	}
 	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused") ||
 		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {

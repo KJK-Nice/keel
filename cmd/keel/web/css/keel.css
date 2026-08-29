@@ -423,6 +423,7 @@ button.meta,
 /* macOS native window: tab strip shares the titlebar with traffic lights. */
 html[data-chrome="titlebar"] .workspace-bar,
 html[data-chrome="titlebar"] .tab-strip,
+html[data-chrome="titlebar"] .tabs-scroller,
 html[data-chrome="titlebar"] .tabs,
 html[data-chrome="titlebar"] .bar-meta {
   --wails-draggable: drag;
@@ -459,12 +460,49 @@ html[data-chrome="titlebar"] .tab-new {
   flex: 1;
   min-width: 0;
 }
+.tabs-scroller {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.tabs-scroller::before,
+.tabs-scroller::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.tabs-scroller::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg), transparent);
+}
+.tabs-scroller::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg), transparent);
+}
+.tabs-scroller[data-overflow-left]::before,
+.tabs-scroller[data-overflow-right]::after {
+  opacity: 1;
+}
 .tabs {
   display: flex;
   gap: 2px;
   overflow-x: auto;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .tab {
   position: relative;
