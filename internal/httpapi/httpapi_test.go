@@ -489,6 +489,15 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `data-slot="switch"`) || !strings.Contains(string(body), `data-tui-select-trigger`) {
 		t.Fatal("index missing settings switch or select")
 	}
+	if strings.Contains(string(body), `class="ui-select`) {
+		t.Fatal("index should not keep native ui-select")
+	}
+	if !strings.Contains(string(body), `id="host-identity"`) || !strings.Contains(string(body), `id="tunnel-host"`) || !strings.Contains(string(body), `id="host-auth-type"`) {
+		t.Fatal("index missing host or tunnel form selects")
+	}
+	if !strings.Contains(string(body), `id="host-name"`) || !strings.Contains(string(body), `for="host-name"`) {
+		t.Fatal("index missing labeled host name input")
+	}
 	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `data-tui-tabs`) {
 		t.Fatal("index missing settings slider or tabs")
 	}
@@ -606,8 +615,12 @@ func TestManualServe(t *testing.T) {
 	logs := applog.New(dir + "/keel.log")
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	h := New(st, rt, web, nil).WithTunnels(tn).WithLogs(logs).Handler()
-	t.Log("keel ui http://127.0.0.1:47241")
-	if err := http.ListenAndServe("127.0.0.1:47241", h); err != nil {
+	addr := "127.0.0.1:47241"
+	if v := os.Getenv("KEEL_SERVE_ADDR"); v != "" {
+		addr = v
+	}
+	t.Log("keel ui http://" + addr)
+	if err := http.ListenAndServe(addr, h); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -974,27 +974,6 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   color: var(--text);
   line-height: 1.45;
 }
-.ui-select {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: 0 0 auto;
-  min-width: 156px;
-  max-width: 220px;
-  padding: 6px 28px 6px 10px;
-  color: var(--text);
-  background-color: var(--panel);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238a8a8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3 4.25 6 7.25 9 4.25'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  border: 1px solid var(--keel-border);
-  border-radius: 8px;
-  outline: none;
-}
-.ui-select:hover { border-color: var(--border-strong); }
-.ui-select:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--keel-accent) 18%, transparent);
-}
 .ui-stepper {
   position: relative;
   display: inline-flex;
@@ -1148,6 +1127,9 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   z-index: 12;
   max-height: calc(100dvh - 32px);
   overflow: auto;
+}
+.modal:has([data-tui-select-content][data-open]) {
+  overflow: visible;
 }
 .modal::backdrop { background: var(--backdrop); }
 .modal form { display: grid; gap: 8px; padding: 14px; }

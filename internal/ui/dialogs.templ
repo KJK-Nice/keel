@@ -9,6 +9,7 @@ import (
 	"keel/components/input"
 	"keel/components/label"
 	"keel/components/radiogroup"
+	selectcomp "keel/components/select"
 	"keel/components/textarea"
 	"keel/utils"
 )
@@ -69,58 +70,23 @@ templ hostDialog() {
 				}
 			}
 			<input type="hidden" name="id"/>
-			@labeledInput("Label", "name", "prod-api", true)
-			@labeledInput("Group", "group", "Production", false)
+			@labeledInput("host-name", "Label", "name", "prod-api", true)
+			@labeledInput("host-group", "Group", "group", "Production", false)
 			<div class="grid-2">
-				@labeledInput("Hostname / IP", "address", "10.0.0.12", false)
-				@field.Field() {
-					@label.Label() {
-						Port
-					}
-					@input.Input(input.Props{Name: "port", Type: "number", Value: "22", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
-				}
+				@labeledInput("host-address", "Hostname / IP", "address", "10.0.0.12", false)
+				@labeledNumber("host-port", "Port", "port", "22", "0", "65535")
 			</div>
-			@labeledInput("Username", "username", "ubuntu", false)
-			@field.Field() {
-				@label.Label() {
-					Authentication
-				}
-				<select name="authType" class="ui-select w-full">
-					<option value="password">Password</option>
-					<option value="key">Private key</option>
-					<option value="identity">Keychain identity</option>
-					<option value="local">Local shell</option>
-				</select>
-			}
+			@labeledInput("host-username", "Username", "username", "ubuntu", false)
+			@labeledSelect("host-auth-type", "Authentication", "authType", "Auth", "password", false, []string{"password", "key", "identity", "local"}, []string{"Password", "Private key", "Keychain identity", "Local shell"})
 			<div data-auth="identity">
-				@field.Field() {
-					@label.Label() {
-						Identity
-					}
-					<select name="identityId" id="host-identity" class="ui-select w-full"></select>
-				}
+				@labeledSelect("host-identity", "Identity", "identityId", "Identity", "", false, []string{""}, []string{"No identities — add in Keychain"})
 			</div>
 			<div data-auth="password">
-				@field.Field() {
-					@label.Label() {
-						Password
-					}
-					@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
-				}
+				@labeledPassword("host-password", "Password", "password", "Leave blank to keep saved password", false)
 			</div>
 			<div data-auth="key">
-				@field.Field() {
-					@label.Label() {
-						Private key
-					}
-					@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
-				}
-				@field.Field() {
-					@label.Label() {
-						Key passphrase
-					}
-					@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
-				}
+				@labeledTextarea("host-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
+				@labeledPassword("host-passphrase", "Key passphrase", "passphrase", "Optional", false)
 			</div>
 			@field.Set(field.SetProps{Class: "swatches-set"}) {
 				@field.Legend() {
@@ -142,12 +108,7 @@ templ hostDialog() {
 						Keepalive
 					}
 				}
-				@field.Field() {
-					@label.Label() {
-						Keepalive interval (sec)
-					}
-					@input.Input(input.Props{Name: "keepAliveSec", Type: "number", Value: "30", Attributes: templ.Attributes{"min": "1", "max": "600"}})
-				}
+				@labeledNumber("host-keepalive-sec", "Keepalive interval (sec)", "keepAliveSec", "30", "1", "600")
 			</div>
 			@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center", Attributes: templ.Attributes{"data-ssh-only": true}}) {
 				@checkbox.Checkbox(checkbox.Props{Name: "autoReconnect", ID: "host-reconnect", DefaultChecked: true})
@@ -176,38 +137,15 @@ templ identityDialog() {
 				}
 			}
 			<input type="hidden" name="id"/>
-			@labeledInput("Name", "name", "deploy key", true)
-			@labeledInput("Username", "username", "ubuntu", false)
-			@field.Field() {
-				@label.Label() {
-					Kind
-				}
-				<select name="kind" class="ui-select w-full">
-					<option value="password">Password</option>
-					<option value="key">Private key</option>
-				</select>
-			}
+			@labeledInput("ident-name", "Name", "name", "deploy key", true)
+			@labeledInput("ident-username", "Username", "username", "ubuntu", false)
+			@labeledSelect("ident-kind", "Kind", "kind", "Kind", "password", false, []string{"password", "key"}, []string{"Password", "Private key"})
 			<div data-ident="password">
-				@field.Field() {
-					@label.Label() {
-						Password
-					}
-					@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
-				}
+				@labeledPassword("ident-password", "Password", "password", "Leave blank to keep saved password", false)
 			</div>
 			<div data-ident="key">
-				@field.Field() {
-					@label.Label() {
-						Private key
-					}
-					@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
-				}
-				@field.Field() {
-					@label.Label() {
-						Key passphrase
-					}
-					@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
-				}
+				@labeledTextarea("ident-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
+				@labeledPassword("ident-passphrase", "Key passphrase", "passphrase", "Optional", false)
 			</div>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "identity-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
@@ -230,40 +168,16 @@ templ tunnelDialog() {
 				}
 			}
 			<input type="hidden" name="id"/>
-			@labeledInput("Name", "name", "db local", true)
-			@field.Field() {
-				@label.Label() {
-					Host
-				}
-				<select name="hostId" id="tunnel-host" required class="ui-select w-full"></select>
-			}
-			@field.Field() {
-				@label.Label() {
-					Kind
-				}
-				<select name="kind" class="ui-select w-full">
-					<option value="local">Local (−L)</option>
-					<option value="remote">Remote (−R)</option>
-					<option value="dynamic">Dynamic SOCKS5 (−D)</option>
-				</select>
-			}
+			@labeledInput("tunnel-name", "Name", "name", "db local", true)
+			@labeledSelect("tunnel-host", "Host", "hostId", "Host", "", true, []string{""}, []string{"Add an SSH host first"})
+			@labeledSelect("tunnel-kind", "Kind", "kind", "Kind", "local", false, []string{"local", "remote", "dynamic"}, []string{"Local (−L)", "Remote (−R)", "Dynamic SOCKS5 (−D)"})
 			<div class="grid-2">
-				@labeledInput("Bind address", "bindAddr", "", false)
-				@field.Field() {
-					@label.Label() {
-						Bind port
-					}
-					@input.Input(input.Props{Name: "bindPort", Type: "number", Value: "0", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
-				}
+				@labeledInput("tunnel-bind-addr", "Bind address", "bindAddr", "", false)
+				@labeledNumber("tunnel-bind-port", "Bind port", "bindPort", "0", "0", "65535")
 			</div>
 			<div class="grid-2" data-tunnel-dest>
-				@labeledInput("Dest host", "destHost", "127.0.0.1", false)
-				@field.Field() {
-					@label.Label() {
-						Dest port
-					}
-					@input.Input(input.Props{Name: "destPort", Type: "number", Value: "5432", Attributes: templ.Attributes{"min": "1", "max": "65535"}})
-				}
+				@labeledInput("tunnel-dest-host", "Dest host", "destHost", "127.0.0.1", false)
+				@labeledNumber("tunnel-dest-port", "Dest port", "destPort", "5432", "1", "65535")
 			</div>
 			@dialog.Description() {
 				Bind 0.0.0.0 exposes the port on every interface.
@@ -291,13 +205,8 @@ templ quickDialog() {
 					Paste user@host or user@host:2222. Saved under Quick connect.
 				}
 			}
-			@labeledInput("Target", "target", "ubuntu@192.168.1.20:22", true)
-			@field.Field() {
-				@label.Label() {
-					Password
-				}
-				@input.Input(input.Props{Name: "password", Type: "password", Required: true})
-			}
+			@labeledInput("quick-target", "Target", "target", "ubuntu@192.168.1.20:22", true)
+			@labeledPassword("quick-password", "Password", "password", "", true)
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "quick-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
@@ -321,7 +230,7 @@ templ joinDialog() {
 					Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault.
 				}
 			}
-			@labeledInput("Join link", "url", "https://…/join?room=…", true)
+			@labeledInput("join-url", "Join link", "url", "https://…/join?room=…", true)
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "join-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
@@ -369,13 +278,8 @@ templ snippetDialog() {
 				}
 			}
 			<input type="hidden" name="id"/>
-			@labeledInput("Name", "name", "disk usage", true)
-			@field.Field() {
-				@label.Label() {
-					Command
-				}
-				@textarea.Textarea(textarea.Props{Name: "command", Rows: 4, Placeholder: "df -h", Attributes: templ.Attributes{"required": "required"}})
-			}
+			@labeledInput("snippet-name", "Name", "name", "disk usage", true)
+			@labeledTextarea("snippet-command", "Command", "command", "df -h", 4, true)
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "snippet-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
@@ -388,16 +292,72 @@ templ snippetDialog() {
 	</dialog>
 }
 
-templ labeledInput(caption, name, placeholder string, required bool) {
+templ labeledInput(id, caption, name, placeholder string, required bool) {
 	@field.Field() {
-		@label.Label() {
+		@label.Label(label.Props{For: id}) {
 			{ caption }
 		}
 		@input.Input(input.Props{
+			ID:          id,
 			Name:        name,
 			Placeholder: placeholder,
 			Required:    required,
 			Value:       utils.IfElse(name == "bindAddr", "127.0.0.1", ""),
 		})
+	}
+}
+
+templ labeledNumber(id, caption, name, value, min, max string) {
+	@field.Field() {
+		@label.Label(label.Props{For: id}) {
+			{ caption }
+		}
+		@input.Input(input.Props{
+			ID:         id,
+			Name:       name,
+			Type:       "number",
+			Value:      value,
+			Attributes: templ.Attributes{"min": min, "max": max},
+		})
+	}
+}
+
+templ labeledPassword(id, caption, name, placeholder string, required bool) {
+	@field.Field() {
+		@label.Label(label.Props{For: id}) {
+			{ caption }
+		}
+		@input.Input(input.Props{
+			ID:          id,
+			Name:        name,
+			Type:        "password",
+			Placeholder: placeholder,
+			Required:    required,
+			Attributes:  templ.Attributes{"autocomplete": "new-password"},
+		})
+	}
+}
+
+templ labeledTextarea(id, caption, name, placeholder string, rows int, required bool) {
+	@field.Field() {
+		@label.Label(label.Props{For: id}) {
+			{ caption }
+		}
+		@textarea.Textarea(textarea.Props{
+			ID:          id,
+			Name:        name,
+			Rows:        rows,
+			Placeholder: placeholder,
+			Attributes:  utils.IfElse(required, templ.Attributes{"required": "required"}, templ.Attributes{}),
+		})
+	}
+}
+
+templ labeledSelect(id, caption, name, placeholder, current string, required bool, values []string, labels []string) {
+	@field.Field() {
+		@label.Label(label.Props{For: id}) {
+			{ caption }
+		}
+		@formSelect(id, name, "", placeholder, current, required, "w-full min-w-0", selectcomp.AlignStart, values, labels)
 	}
 }

@@ -104,21 +104,32 @@
     return "calc(100% + " + SIDE_OFFSET + "px) " + centerY;
   }
 
-  // Moves the content to <body> (shadcn portals it the same way).
-  // The unmount half of the React portal pendant: a portaled content lives
-  // as long as its SSR declaration site (_tuiPortalOwner) stays in the
-  // document. Trigger-presence heuristics judged mid-swap moments wrongly -
-  // multi-phase swap layers briefly disconnect the new triggers.
+  // Native <dialog> is top-layer. A body-portaled menu paints above the
+  // page but under the dialog, so clicks miss. Park dialog selects inside
+  // the dialog; everything else still goes to <body>.
+  function portalHost(content) {
+    const from = triggerFor(content) || content._tuiPortalOwner;
+    const dialog = from && from.closest && from.closest("dialog");
+    return dialog || document.body;
+  }
+
+  function portaledContents() {
+    return document.querySelectorAll(
+      "body > [data-tui-select-content], dialog > [data-tui-select-content]",
+    );
+  }
+
   function portal(content) {
-    document.querySelectorAll("body > [data-tui-select-content]").forEach((c) => {
+    portaledContents().forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
         c.remove();
       }
     });
-    if (content.parentElement !== document.body) {
+    const host = portalHost(content);
+    if (content.parentElement !== host) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
-      document.body.appendChild(content);
+      host.appendChild(content);
     }
   }
 
@@ -523,7 +534,7 @@
     lockScroll(); // Base UI's select is modal by default: no page scroll while open
     // z-index portal like shadcn (no native top layer); re-append
     // keeps paint order = open order.
-    document.body.appendChild(content);
+    portalHost(content).appendChild(content);
     content.hidden = false;
 
     // Position it invisibly first, then play the enter animation in place.
@@ -675,7 +686,8 @@
           stale.remove();
         }
         content._tuiPortalOwner = tpl.parentElement;
-        document.body.appendChild(content);
+        const dialog = tpl.parentElement && tpl.parentElement.closest("dialog");
+        (dialog || document.body).appendChild(content);
       }
       tpl.remove();
     });

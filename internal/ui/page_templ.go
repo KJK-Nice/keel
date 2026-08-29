@@ -903,6 +903,7 @@ func HostsPage(p PageProps) templ.Component {
 			Type:        "search",
 			Placeholder: "Search hosts  ⌘K",
 			Attributes: templ.Attributes{
+				"aria-label":                    "Search hosts",
 				"autocomplete":                  "off",
 				"data-bind":                     "query",
 				"data-on:input__debounce.200ms": "@get('/ui/hosts')",
@@ -1399,6 +1400,7 @@ func LogsPage(p PageProps) templ.Component {
 			Type:        "search",
 			Placeholder: "Filter logs",
 			Attributes: templ.Attributes{
+				"aria-label":                    "Filter logs",
 				"autocomplete":                  "off",
 				"data-bind":                     "logFilter",
 				"data-on:input__debounce.200ms": "@get('/ui/logs')",

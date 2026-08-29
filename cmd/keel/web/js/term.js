@@ -335,6 +335,35 @@
     if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
   }
 
+  function fillSelectItems(triggerId, entries, selected, emptyLabel) {
+    const trigger = document.getElementById(triggerId);
+    if (!trigger) return;
+    const contentId = trigger.getAttribute("aria-controls");
+    const content = contentId ? document.getElementById(contentId) : null;
+    if (!content) return;
+    const group =
+      content.querySelector("[data-slot='select-group']") ||
+      content.querySelector("[data-tui-select-viewport]") ||
+      content;
+    const proto = group.querySelector("[data-tui-select-item]");
+    if (!proto) return;
+    const list = entries.length ? entries : [{ value: "", label: emptyLabel || "—" }];
+    group.replaceChildren(
+      ...list.map((entry) => {
+        const node = proto.cloneNode(true);
+        node.setAttribute("data-tui-select-value", entry.value);
+        node.setAttribute("data-tui-select-label", entry.label);
+        node.setAttribute("aria-selected", "false");
+        node.removeAttribute("data-selected");
+        const text = node.querySelector("[data-tui-select-item-text]");
+        if (text) text.textContent = entry.label;
+        return node;
+      })
+    );
+    const pick = selected && list.some((entry) => entry.value === selected) ? selected : list[0].value;
+    setSelectValue(triggerId, pick);
+  }
+
   function setSliderValue(id, value) {
     const root = document.getElementById(id);
     if (!root) return;
@@ -1850,12 +1879,12 @@
   }
 
   function fillIdentitySelect(selected) {
-    const sel = document.getElementById("host-identity");
-    if (!sel) return;
-    sel.innerHTML = state.identities.length
-      ? state.identities.map((id) => `<option value="${id.id}">${escapeHtml(id.name)}</option>`).join("")
-      : `<option value="">No identities — add in Keychain</option>`;
-    if (selected) sel.value = selected;
+    fillSelectItems(
+      "host-identity",
+      state.identities.map((id) => ({ value: id.id, label: id.name })),
+      selected,
+      "No identities — add in Keychain"
+    );
   }
 
   function fillHostForm(host) {
@@ -1868,10 +1897,10 @@
     form.address.value = host?.address && host.address !== "localhost" ? host.address : host?.address || "";
     form.port.value = host?.port || 22;
     form.username.value = host?.username || "";
-    form.authType.value = host?.authType || "password";
     form.password.value = "";
     form.privateKey.value = "";
     form.passphrase.value = "";
+    setSelectValue("host-auth-type", host?.authType || "password");
     fillIdentitySelect(host?.identityId || "");
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
@@ -1966,7 +1995,7 @@
     form.id.value = id?.id || "";
     form.name.value = id?.name || "";
     form.username.value = id?.username || "";
-    form.kind.value = id?.kind || "password";
+    setSelectValue("ident-kind", id?.kind || "password");
     const title = document.getElementById("identity-modal-title");
     if (title) title.textContent = id?.id ? "Edit identity" : "New identity";
     toggleIdentFields();
@@ -1998,13 +2027,12 @@
   }
 
   function fillTunnelHosts(selected) {
-    const sel = document.getElementById("tunnel-host");
-    if (!sel) return;
-    const hosts = sshHosts();
-    sel.innerHTML = hosts.length
-      ? hosts.map((h) => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("")
-      : `<option value="">Add an SSH host first</option>`;
-    if (selected) sel.value = selected;
+    fillSelectItems(
+      "tunnel-host",
+      sshHosts().map((h) => ({ value: h.id, label: h.name })),
+      selected,
+      "Add an SSH host first"
+    );
   }
 
   function fillTunnelForm(t) {
@@ -2013,7 +2041,7 @@
     form.reset();
     form.id.value = t?.id || "";
     form.name.value = t?.name || "";
-    form.kind.value = t?.kind || "local";
+    setSelectValue("tunnel-kind", t?.kind || "local");
     form.bindAddr.value = t?.bindAddr || "127.0.0.1";
     form.bindPort.value = t?.bindPort ?? 0;
     form.destHost.value = t?.destHost || "127.0.0.1";
@@ -2027,6 +2055,10 @@
   async function saveTunnel(event) {
     event.preventDefault();
     const form = els.tunnelForm;
+    if (!form.hostId.value) {
+      toast("Pick an SSH host first", true);
+      return;
+    }
     const payload = {
       name: form.name.value.trim(),
       hostId: form.hostId.value,
