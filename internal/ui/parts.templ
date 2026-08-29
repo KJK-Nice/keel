@@ -1,0 +1,75 @@
+package ui
+
+import (
+	"keel/components/button"
+	"keel/components/dropdownmenu"
+	"keel/components/empty"
+	"keel/components/icon"
+	"keel/components/kbd"
+	selectcomp "keel/components/select"
+)
+
+templ hintKbd(key string) {
+	@kbd.Kbd(kbd.Props{Class: "kbd-hint", Attributes: templ.Attributes{"aria-hidden": "true"}}) {
+		{ key }
+	}
+}
+
+templ emptyBox(id, title, desc string) {
+	@empty.Empty(empty.Props{ID: id}) {
+		@empty.Header() {
+			@empty.Title() {
+				{ title }
+			}
+			@empty.Description() {
+				{ desc }
+			}
+		}
+	}
+}
+
+templ rowMenu(editKey, editID, delKey, delID string) {
+	@dropdownmenu.DropdownMenu() {
+		@button.Button(button.Props{
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIconXs,
+			Class:      "tiny",
+			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions"}),
+		}) {
+			@icon.EllipsisVertical()
+		}
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{editKey: editID}}) {
+				Edit
+			}
+			if delKey != "" {
+				@dropdownmenu.Separator()
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
+					Variant:    dropdownmenu.ItemVariantDestructive,
+					Attributes: templ.Attributes{delKey: delID},
+				}) {
+					Remove
+				}
+			}
+		}
+	}
+}
+
+templ settingsSelect(id, name, aria, placeholder, current string, values []string, labels []string) {
+	@selectcomp.Select(selectcomp.Props{Name: name, DefaultValue: current}) {
+		@selectcomp.Trigger(selectcomp.TriggerProps{
+			ID:         id,
+			Class:      "min-w-[10.5rem]",
+			Attributes: templ.Attributes{"aria-label": aria},
+		}) {
+			@selectcomp.Value(selectcomp.ValueProps{Placeholder: placeholder})
+		}
+		@selectcomp.Content(selectcomp.ContentProps{Align: selectcomp.AlignEnd, DisableAlignItemWithTrigger: true}) {
+			for i, v := range values {
+				@selectcomp.Item(selectcomp.ItemProps{Value: v}) {
+					{ labels[i] }
+				}
+			}
+		}
+	}
+}

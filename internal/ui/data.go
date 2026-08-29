@@ -5,10 +5,47 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/a-h/templ"
+
+	"keel/components/badge"
 	"keel/internal/applog"
 	"keel/internal/store"
 	"keel/internal/tunnel"
 )
+
+var hostColors = []string{"#5ee0b5", "#6ea8ff", "#c084fc", "#f5c15d", "#ff6b7a", "#67e8f9"}
+
+func mergeAttrs(parts ...templ.Attributes) templ.Attributes {
+	out := templ.Attributes{}
+	for _, p := range parts {
+		for k, v := range p {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func tunnelBadgeVariant(status tunnel.Status) badge.Variant {
+	switch status {
+	case tunnel.StatusReady:
+		return badge.VariantDefault
+	case tunnel.StatusError:
+		return badge.VariantDestructive
+	case tunnel.StatusConnecting:
+		return badge.VariantSecondary
+	default:
+		return badge.VariantOutline
+	}
+}
+
+func logBadgeVariant(kind string) badge.Variant {
+	switch strings.ToLower(kind) {
+	case "error", "fail", "denied":
+		return badge.VariantDestructive
+	default:
+		return badge.VariantSecondary
+	}
+}
 
 type PageProps struct {
 	Locked     bool

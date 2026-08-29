@@ -2,12 +2,21 @@ package ui
 
 import (
 	"keel/components"
+	"keel/components/aspectratio"
 	"keel/components/button"
+	"keel/components/card"
+	"keel/components/empty"
 	"keel/components/field"
 	"keel/components/icon"
 	"keel/components/input"
+	"keel/components/kbd"
 	"keel/components/label"
+	"keel/components/separator"
+	"keel/components/slider"
+	switchcomp "keel/components/switch"
+	"keel/components/tabs"
 	"keel/components/toast"
+	"keel/components/tooltip"
 )
 
 templ Page(p PageProps) {
@@ -67,26 +76,95 @@ templ Page(p PageProps) {
 					<header class="workspace-bar">
 						<div class="tab-strip">
 							<div class="tabs" id="tabs"></div>
-							<button type="button" class="tab-new" id="btn-new-tab" data-kbd="T" title="New tab  ⌘T" aria-label="New tab">
-								+
-								<kbd class="kbd-hint" aria-hidden="true">T</kbd>
-							</button>
+							@tooltip.Tooltip() {
+								<button
+									type="button"
+									class="tab-new"
+									id="btn-new-tab"
+									data-kbd="T"
+									aria-label="New tab"
+									{ tooltip.Trigger(ctx)... }
+								>
+									+
+									@hintKbd("T")
+								</button>
+								@tooltip.Content() {
+									New tab
+									@kbd.Kbd() {
+										⌘T
+									}
+								}
+							}
 						</div>
 						<div class="bar-tools" id="bar-tools" hidden>
-							<button type="button" class="tiny" id="btn-split-right" data-kbd="⇧D" title="Split right  ⌘⇧D">
-								Split →
-								<kbd class="kbd-hint" aria-hidden="true">⇧D</kbd>
-							</button>
-							<button type="button" class="tiny" id="btn-split-down" data-kbd="⇧E" title="Split down  ⌘⇧E">
-								Split ↓
-								<kbd class="kbd-hint" aria-hidden="true">⇧E</kbd>
-							</button>
-							<button type="button" class="tiny" id="btn-sync" title="Synchronize input">Sync</button>
+							@tooltip.Tooltip() {
+								@button.Button(button.Props{
+									ID:      "btn-split-right",
+									Variant: button.VariantGhost,
+									Size:    button.SizeSm,
+									Class:   "tiny",
+									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{"data-kbd": "⇧D"}),
+								}) {
+									Split →
+									@hintKbd("⇧D")
+								}
+								@tooltip.Content() {
+									Split right
+									@kbd.Kbd() {
+										⌘⇧D
+									}
+								}
+							}
+							@tooltip.Tooltip() {
+								@button.Button(button.Props{
+									ID:      "btn-split-down",
+									Variant: button.VariantGhost,
+									Size:    button.SizeSm,
+									Class:   "tiny",
+									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{"data-kbd": "⇧E"}),
+								}) {
+									Split ↓
+									@hintKbd("⇧E")
+								}
+								@tooltip.Content() {
+									Split down
+									@kbd.Kbd() {
+										⌘⇧E
+									}
+								}
+							}
+							@tooltip.Tooltip() {
+								@button.Button(button.Props{
+									ID:         "btn-sync",
+									Variant:    button.VariantGhost,
+									Size:       button.SizeSm,
+									Class:      "tiny",
+									Attributes: tooltip.Trigger(ctx),
+								}) {
+									Sync
+								}
+								@tooltip.Content() {
+									Synchronize input
+								}
+							}
 						</div>
 						<div class="bar-meta" id="bar-meta">
 							<span id="bar-status">Vault</span>
 							<div class="control-widget" id="control-widget" hidden></div>
-							<button class="tiny" id="btn-share" hidden title="Copy internet join link">Share</button>
+							@tooltip.Tooltip() {
+								@button.Button(button.Props{
+									ID:      "btn-share",
+									Variant: button.VariantGhost,
+									Size:    button.SizeSm,
+									Class:   "tiny",
+									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{"hidden": true}),
+								}) {
+									Share
+								}
+								@tooltip.Content() {
+									Copy internet join link
+								}
+							}
 						</div>
 					</header>
 					<section class="stage" id="stage">
@@ -125,17 +203,25 @@ templ Vault(p PageProps) {
 			@vaultNav("logs", "Logs", false) {
 				@icon.ScrollText(icon.Props{Class: "vault-nav-icon"})
 			}
-			<button
-				type="button"
-				class="vault-nav"
-				data-vault="settings"
-				data-kbd=","
-				title="Settings  ⌘,"
-			>
-				@icon.Settings(icon.Props{Class: "vault-nav-icon"})
-				Settings
-				<kbd class="kbd-hint" aria-hidden="true">,</kbd>
-			</button>
+			@tooltip.Tooltip() {
+				<button
+					type="button"
+					class="vault-nav"
+					data-vault="settings"
+					data-kbd=","
+					{ tooltip.Trigger(ctx)... }
+				>
+					@icon.Settings(icon.Props{Class: "vault-nav-icon"})
+					Settings
+					@hintKbd(",")
+				</button>
+				@tooltip.Content() {
+					Settings
+					@kbd.Kbd() {
+						⌘,
+					}
+				}
+			}
 		</nav>
 		<div class="vault-body">
 			@HostsPage(p)
@@ -183,39 +269,48 @@ templ HostsPage(p PageProps) {
 					"data-on:input__debounce.200ms": "@get('/ui/hosts')",
 				},
 			})
-			<kbd class="kbd-hint" aria-hidden="true">K</kbd>
+			@hintKbd("K")
 		</div>
 		<h2 class="group-label">Live</h2>
 		<div id="herd-list" class="host-list"></div>
-		<p class="empty" id="herd-empty">No live sessions. Connect from Hosts below.</p>
+		@empty.Empty(empty.Props{ID: "herd-empty"}) {
+			@empty.Header() {
+				@empty.Title() {
+					No live sessions
+				}
+				@empty.Description() {
+					Connect from Hosts below.
+				}
+			}
+		}
 		@HostList(p)
 		<div class="page-actions">
 			@button.Button(button.Props{
-				ID:      "btn-new-host",
-				Variant: button.VariantDefault,
-				Size:    button.SizeSm,
+				ID:         "btn-new-host",
+				Variant:    button.VariantDefault,
+				Size:       button.SizeSm,
 				Attributes: templ.Attributes{"data-kbd": "N"},
 			}) {
 				New host
-				<kbd class="kbd-hint" aria-hidden="true">N</kbd>
+				@hintKbd("N")
 			}
 			@button.Button(button.Props{
-				ID:      "btn-quick",
-				Variant: button.VariantGhost,
-				Size:    button.SizeSm,
+				ID:         "btn-quick",
+				Variant:    button.VariantGhost,
+				Size:       button.SizeSm,
 				Attributes: templ.Attributes{"data-kbd": "⇧O"},
 			}) {
 				Quick connect
-				<kbd class="kbd-hint" aria-hidden="true">⇧O</kbd>
+				@hintKbd("⇧O")
 			}
 			@button.Button(button.Props{
-				ID:      "btn-join",
-				Variant: button.VariantGhost,
-				Size:    button.SizeSm,
+				ID:         "btn-join",
+				Variant:    button.VariantGhost,
+				Size:       button.SizeSm,
 				Attributes: templ.Attributes{"data-kbd": "J"},
 			}) {
 				Join session
-				<kbd class="kbd-hint" aria-hidden="true">J</kbd>
+				@hintKbd("J")
 			}
 			@button.Button(button.Props{
 				ID:      "btn-welcome-local",
@@ -325,129 +420,171 @@ templ SettingsPage() {
 			</div>
 		</div>
 		<form class="prefs" id="settings-form">
-			<section class="pref-group">
-				<h2 class="pref-heading">Appearance</h2>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Theme</div>
-						<p class="pref-desc">Light, dark, or follow the system.</p>
-					</div>
-					<select class="ui-select" name="theme" id="set-theme" aria-label="Color theme">
-						<option value="system">System</option>
-						<option value="light">Light</option>
-						<option value="dark">Dark</option>
-					</select>
-				</div>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">UI size</div>
-						<p class="pref-desc">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p>
-					</div>
-					<div class="ui-stepper">
-						<button type="button" id="set-ui-size-dec" aria-label="Smaller UI">−</button>
-						<output id="set-ui-size-out">12</output>
-						<button type="button" id="set-ui-size-inc" aria-label="Larger UI">+</button>
-					</div>
-				</div>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Font smoothing</div>
-						<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI. Terminal glyphs stay as rendered.</p>
-					</div>
-					<select class="ui-select" id="set-smooth" aria-label="Font smoothing">
-						<option value="antialiased">Antialiased</option>
-						<option value="subpixel">Subpixel</option>
-						<option value="none">None</option>
-					</select>
-				</div>
-			</section>
-			<section class="pref-group">
-				<h2 class="pref-heading">Terminal</h2>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Font</div>
-						<p class="pref-desc">Monospace face used in every pane.</p>
-					</div>
-					<select class="ui-select" name="font" id="set-font" aria-label="Terminal font">
-						<option value="jetbrains">JetBrains Mono</option>
-						<option value="ibmplex">IBM Plex Mono</option>
-						<option value="menlo">Menlo / SF Mono</option>
-						<option value="consolas">Consolas</option>
-						<option value="system">System mono</option>
-					</select>
-				</div>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Text size</div>
-						<p class="pref-desc">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p>
-					</div>
-					<div class="ui-stepper" data-kbd="+">
-						<button type="button" id="set-size-dec" aria-label="Smaller text">−</button>
-						<output id="set-size-out">12</output>
-						<button type="button" id="set-size-inc" aria-label="Larger text">+</button>
-						<kbd class="kbd-hint" aria-hidden="true">+ − 0</kbd>
-					</div>
-				</div>
-				<div class="pref-preview" aria-hidden="true">
-					<pre id="term-preview">guest@keel:~ $ ssh prod-api</pre>
-				</div>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Copy on select</div>
-						<p class="pref-desc">Copy terminal selection to the clipboard.</p>
-					</div>
-					<label class="ui-toggle">
-						<input type="checkbox" id="set-copy"/>
-						<span class="ui-toggle-track"></span>
-					</label>
-				</div>
-				<div class="pref-row">
-					<div class="pref-copy">
-						<div class="pref-title">Right-click to paste</div>
-						<p class="pref-desc">Paste clipboard into the focused pane.</p>
-					</div>
-					<label class="ui-toggle">
-						<input type="checkbox" id="set-paste"/>
-						<span class="ui-toggle-track"></span>
-					</label>
-				</div>
-			</section>
+			@tabs.Tabs(tabs.Props{ID: "settings-tabs", DefaultValue: "appearance", Class: "w-full"}) {
+				@tabs.List(tabs.ListProps{Variant: tabs.VariantLine}) {
+					@tabs.Trigger(tabs.TriggerProps{Value: "appearance"}) {
+						Appearance
+					}
+					@tabs.Trigger(tabs.TriggerProps{Value: "terminal"}) {
+						Terminal
+					}
+				}
+				@tabs.Content(tabs.ContentProps{Value: "appearance", Class: "pt-3"}) {
+					@card.Card(card.Props{Size: card.SizeSm}) {
+						@card.Header() {
+							@card.Title() {
+								Appearance
+							}
+							@card.Description() {
+								Theme, chrome size, and how UI text is drawn.
+							}
+						}
+						@card.Content(card.ContentProps{Class: "flex flex-col gap-0"}) {
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Theme</div>
+									<p class="pref-desc">Light, dark, or follow the system.</p>
+								</div>
+								@settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"})
+							</div>
+							@separator.Separator(separator.Props{Class: "my-1"})
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">UI size</div>
+									<p class="pref-desc">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p>
+								</div>
+								<div class="pref-slider">
+									@slider.Slider(slider.Props{
+										ID:           "set-ui-size",
+										Min:          11,
+										Max:          16,
+										Step:         1,
+										DefaultValue: []float64{12},
+										Class:        "w-36",
+									})
+									<output id="set-ui-size-out">12</output>
+								</div>
+							</div>
+							@separator.Separator(separator.Props{Class: "my-1"})
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Font smoothing</div>
+									<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI. Terminal glyphs stay as rendered.</p>
+								</div>
+								@settingsSelect("set-smooth", "smoothing", "Font smoothing", "Smoothing", "antialiased", []string{"antialiased", "subpixel", "none"}, []string{"Antialiased", "Subpixel", "None"})
+							</div>
+						}
+					}
+				}
+				@tabs.Content(tabs.ContentProps{Value: "terminal", Class: "pt-3"}) {
+					@card.Card(card.Props{Size: card.SizeSm}) {
+						@card.Header() {
+							@card.Title() {
+								Terminal
+							}
+							@card.Description() {
+								Font, size, and copy/paste for every pane.
+							}
+						}
+						@card.Content(card.ContentProps{Class: "flex flex-col gap-0"}) {
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Font</div>
+									<p class="pref-desc">Monospace face used in every pane.</p>
+								</div>
+								@settingsSelect("set-font", "font", "Terminal font", "Font", "jetbrains", []string{"jetbrains", "ibmplex", "menlo", "consolas", "system"}, []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono"})
+							</div>
+							@separator.Separator(separator.Props{Class: "my-1"})
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Text size</div>
+									<p class="pref-desc">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p>
+								</div>
+								<div class="pref-slider" data-kbd="+">
+									@slider.Slider(slider.Props{
+										ID:           "set-size",
+										Min:          10,
+										Max:          22,
+										Step:         1,
+										DefaultValue: []float64{12},
+										Class:        "w-36",
+									})
+									<output id="set-size-out">12</output>
+									@hintKbd("+ − 0")
+								</div>
+							</div>
+							@aspectratio.AspectRatio(aspectratio.Props{Ratio: "16/5", Class: "pref-preview mt-2 overflow-hidden"}) {
+								<pre id="term-preview" class="absolute inset-0 m-0 flex items-center px-3">guest@keel:~ $ ssh prod-api</pre>
+							}
+							@separator.Separator(separator.Props{Class: "my-1"})
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Copy on select</div>
+									<p class="pref-desc">Copy terminal selection to the clipboard.</p>
+								</div>
+								@switchcomp.Switch(switchcomp.Props{ID: "set-copy"})
+							</div>
+							<div class="pref-row">
+								<div class="pref-copy">
+									<div class="pref-title">Right-click to paste</div>
+									<p class="pref-desc">Paste clipboard into the focused pane.</p>
+								</div>
+								@switchcomp.Switch(switchcomp.Props{ID: "set-paste"})
+							</div>
+						}
+					}
+				}
+			}
 		</form>
 	</section>
 }
 
 templ Gate(p PageProps) {
 	<div class="gate" id="gate" hidden?={ !p.Locked }>
-		<form id="gate-form">
-			<p class="eyebrow">Vault</p>
-			if p.NeedsSetup {
-				<h2 id="gate-title">Create vault</h2>
-				<p class="hint" id="gate-hint">Choose a passphrase to encrypt host passwords and keys on this machine.</p>
-			} else {
-				<h2 id="gate-title">Unlock vault</h2>
-				<p class="hint" id="gate-hint">Host passwords and keys are encrypted. Enter your vault passphrase.</p>
-			}
-			@field.Field() {
-				@label.Label(label.Props{For: "gate-pass"}) {
-					Passphrase
-				}
-				@input.Input(input.Props{
-					ID:         "gate-pass",
-					Name:       "passphrase",
-					Type:       "password",
-					Required:   true,
-					Attributes: templ.Attributes{"autocomplete": "current-password"},
-				})
-			}
-			<div class="modal-actions">
-				@button.Button(button.Props{ID: "gate-submit", Type: button.TypeSubmit}) {
+		@card.Card(card.Props{Class: "gate-card w-[min(22rem,100%)]"}) {
+			<form id="gate-form">
+				@card.Header() {
+					<p class="eyebrow">Vault</p>
 					if p.NeedsSetup {
-						Create vault
+						@card.Title(card.TitleProps{ID: "gate-title"}) {
+							Create vault
+						}
+						@card.Description(card.DescriptionProps{ID: "gate-hint"}) {
+							Choose a passphrase to encrypt host passwords and keys on this machine.
+						}
 					} else {
-						Unlock
+						@card.Title(card.TitleProps{ID: "gate-title"}) {
+							Unlock vault
+						}
+						@card.Description(card.DescriptionProps{ID: "gate-hint"}) {
+							Host passwords and keys are encrypted. Enter your vault passphrase.
+						}
 					}
 				}
-			</div>
-		</form>
+				@card.Content() {
+					@field.Field() {
+						@label.Label(label.Props{For: "gate-pass"}) {
+							Passphrase
+						}
+						@input.Input(input.Props{
+							ID:         "gate-pass",
+							Name:       "passphrase",
+							Type:       "password",
+							Required:   true,
+							Attributes: templ.Attributes{"autocomplete": "current-password"},
+						})
+					}
+				}
+				@card.Footer() {
+					@button.Button(button.Props{ID: "gate-submit", Type: button.TypeSubmit}) {
+						if p.NeedsSetup {
+							Create vault
+						} else {
+							Unlock
+						}
+					}
+				}
+			</form>
+		}
 	</div>
 }

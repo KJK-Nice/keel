@@ -188,8 +188,7 @@
 
   function syncThemeSwitch() {
     const choice = document.documentElement.dataset.theme || "system";
-    const sel = document.getElementById("set-theme");
-    if (sel) sel.value = choice;
+    setSelectValue("set-theme", choice);
   }
 
   function applyThemeClass() {
@@ -222,18 +221,18 @@
   }
 
   function syncSettingsForm() {
-    const font = document.getElementById("set-font");
     const out = document.getElementById("set-size-out");
     const copy = document.getElementById("set-copy");
     const paste = document.getElementById("set-paste");
     const uiOut = document.getElementById("set-ui-size-out");
-    const smooth = document.getElementById("set-smooth");
-    if (font) font.value = state.prefs.font;
+    setSelectValue("set-font", state.prefs.font);
     if (out) out.textContent = String(state.prefs.size);
-    if (copy) copy.checked = state.prefs.copyOnSelect;
-    if (paste) paste.checked = state.prefs.rightClickPaste;
+    setInputChecked(copy, state.prefs.copyOnSelect);
+    setInputChecked(paste, state.prefs.rightClickPaste);
     if (uiOut) uiOut.textContent = String(state.ui.size);
-    if (smooth) smooth.value = state.ui.smoothing;
+    setSelectValue("set-smooth", state.ui.smoothing);
+    setSliderValue("set-ui-size", state.ui.size);
+    setSliderValue("set-size", state.prefs.size);
     syncThemeSwitch();
     syncTermPreview();
   }
@@ -279,6 +278,113 @@
   function on(el, type, fn, opts) {
     if (!el) return;
     el.addEventListener(type, fn, opts);
+  }
+
+  function datastarQS() {
+    return new URLSearchParams({
+      datastar: JSON.stringify({
+        query: state.query || "",
+        logFilter: state.logFilter || "",
+      }),
+    }).toString();
+  }
+
+  async function paintList(id, url) {
+    try {
+      const res = await fetch(url, { headers: { Accept: "text/html" } });
+      if (!res.ok) return false;
+      const html = await res.text();
+      const current = document.getElementById(id);
+      if (!current) return false;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html.trim();
+      const next = tpl.content.querySelector("#" + CSS.escape(id));
+      if (!next) return false;
+      current.innerHTML = next.innerHTML;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function setSelectValue(triggerId, value) {
+    const trigger = document.getElementById(triggerId);
+    if (!trigger) return;
+    if (trigger.tagName === "SELECT") {
+      trigger.value = value;
+      return;
+    }
+    const contentId = trigger.getAttribute("aria-controls");
+    const content = contentId ? document.getElementById(contentId) : null;
+    if (!content) return;
+    const item = [...content.querySelectorAll("[data-tui-select-item]")].find(
+      (el) => el.getAttribute("data-tui-select-value") === value
+    );
+    if (!item) return;
+    content.querySelectorAll("[data-tui-select-item]").forEach((el) => {
+      const on = el === item;
+      el.toggleAttribute("data-selected", on);
+      el.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const label =
+      item.getAttribute("data-tui-select-label") ||
+      (item.querySelector("[data-tui-select-item-text]") || item).textContent.trim();
+    const span = trigger.querySelector("[data-tui-select-value]");
+    if (span) span.textContent = label;
+    trigger.removeAttribute("data-placeholder");
+    const input = trigger.previousElementSibling;
+    if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  }
+
+  function setSliderValue(id, value) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const thumb = root.querySelector("[data-tui-slider-thumb]");
+    if (!thumb) return;
+    const min = parseFloat(root.getAttribute("data-min") || "0");
+    const max = parseFloat(root.getAttribute("data-max") || "100");
+    const v = Math.min(max, Math.max(min, Number(value)));
+    const f = max === min ? 0 : (v - min) / (max - min);
+    const thumbPx = 12;
+    thumb.setAttribute("aria-valuenow", String(v));
+    thumb.style.left = `calc(${(f * 100).toFixed(4)}% - ${(f * thumbPx).toFixed(2)}px)`;
+    const range = root.querySelector("[data-tui-slider-range]");
+    if (range) {
+      range.style.left = "0";
+      range.style.width = `calc(${(f * 100).toFixed(4)}% + ${(thumbPx / 2 - f * thumbPx).toFixed(2)}px)`;
+    }
+    const input = root.querySelector("[data-tui-slider-input]");
+    if (input) input.value = String(v);
+  }
+
+  function setInputChecked(el, checked) {
+    if (!el) return;
+    el.checked = !!checked;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function askConfirm(message) {
+    const trigger = document.getElementById("confirm-dialog-trigger");
+    const ok = document.getElementById("confirm-dialog-ok");
+    const desc = document.getElementById("confirm-dialog-desc");
+    if (!trigger || !ok) return Promise.resolve(window.confirm(message));
+    return new Promise((resolve) => {
+      if (desc) desc.textContent = message;
+      let settled = false;
+      const popup = document.getElementById("confirm-dialog");
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        ok.removeEventListener("click", onOk);
+        popup?.removeEventListener("dialog-close", onClose);
+        resolve(value);
+      };
+      const onOk = () => finish(true);
+      const onClose = () => finish(false);
+      ok.addEventListener("click", onOk);
+      popup?.addEventListener("dialog-close", onClose);
+      trigger.click();
+    });
   }
 
   function authHeaders() {
@@ -970,7 +1076,7 @@
 
   async function loadLogs() {
     state.logs = await api("/api/logs?limit=200");
-    renderLogs();
+    if (!(await paintList("log-list", "/ui/logs?" + datastarQS()))) renderLogs();
   }
 
   async function loadAll() {
@@ -986,11 +1092,18 @@
     state.herd = herd;
     state.identities = identities;
     state.tunnels = tunnels;
-    renderHosts();
-    renderSnippets();
+    const q = datastarQS();
+    const [hostsOk, snOk, idOk, tnOk] = await Promise.all([
+      paintList("host-list", "/ui/hosts?" + q),
+      paintList("snippet-list", "/ui/snippets?" + q),
+      paintList("identity-list", "/ui/identities?" + q),
+      paintList("tunnel-list", "/ui/tunnels?" + q),
+    ]);
+    if (!hostsOk) renderHosts();
+    if (!snOk) renderSnippets();
+    if (!idOk) renderIdentities();
+    if (!tnOk) renderTunnels();
     renderHerd();
-    renderIdentities();
-    renderTunnels();
     refreshStartTabs();
     if (state.vaultSection === "logs") await loadLogs().catch(() => {});
   }
@@ -1742,11 +1855,14 @@
     fillIdentitySelect(host?.identityId || "");
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
-    if (radio) radio.checked = true;
+    if (radio) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     const keepOn = !host || host.keepAliveSec !== -1;
-    if (form.keepAlive) form.keepAlive.checked = keepOn;
+    if (form.keepAlive) setInputChecked(form.keepAlive, keepOn);
     if (form.keepAliveSec) form.keepAliveSec.value = host?.keepAliveSec > 0 ? String(host.keepAliveSec) : "30";
-    if (form.autoReconnect) form.autoReconnect.checked = !host?.noAutoReconnect;
+    if (form.autoReconnect) setInputChecked(form.autoReconnect, !host?.noAutoReconnect);
     const title = document.getElementById("host-modal-title");
     if (title) title.textContent = host?.id ? "Edit host" : "New host";
     toggleAuthFields();
@@ -2544,19 +2660,24 @@
       renderTabs();
     });
     on(els.btnShare, "click", shareActive);
-    on(document.getElementById("set-theme"), "change", (ev) => setTheme(ev.target.value));
+    on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));
     on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
-    on(document.getElementById("set-ui-size-dec"), "click", () => setUiSize(state.ui.size - 1));
-    on(document.getElementById("set-ui-size-inc"), "click", () => setUiSize(state.ui.size + 1));
-    on(document.getElementById("set-smooth"), "change", (ev) => setSmoothing(ev.target.value));
-    on(document.getElementById("set-font"), "change", (ev) => {
-      state.prefs.font = ev.target.value;
+    on(document.getElementById("set-ui-size"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setUiSize(v);
+    });
+    on(document.getElementById("set-smooth"), "select-change", (ev) => setSmoothing(ev.detail?.value));
+    on(document.getElementById("set-font"), "select-change", (ev) => {
+      if (!ev.detail?.value) return;
+      state.prefs.font = ev.detail.value;
       savePrefs();
       applyTerminalPrefs();
       syncTermPreview();
     });
-    on(document.getElementById("set-size-dec"), "click", () => setFontSize(state.prefs.size - 1));
-    on(document.getElementById("set-size-inc"), "click", () => setFontSize(state.prefs.size + 1));
+    on(document.getElementById("set-size"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setFontSize(v);
+    });
     on(document.getElementById("set-copy"), "change", (ev) => {
       state.prefs.copyOnSelect = ev.target.checked;
       savePrefs();
@@ -2577,30 +2698,6 @@
   }
 
   function bindLists() {
-    on(els.hostList, "click", async (ev) => {
-      const connect = ev.target.closest("[data-connect]");
-      const edit = ev.target.closest("[data-edit]");
-      const del = ev.target.closest("[data-delete]");
-      if (connect) {
-        const host = state.hosts.find((h) => h.id === connect.dataset.connect);
-        if (host) openSession(host).catch((err) => toast(err.message, true));
-      } else if (edit) {
-        const host = state.hosts.find((h) => h.id === edit.dataset.edit);
-        fillHostForm(host);
-        openModal(els.hostModal);
-      } else if (del) {
-        const host = state.hosts.find((h) => h.id === del.dataset.delete);
-        if (!host) return;
-        if (host.authType === "local") {
-          toast("Local Shell is part of the workspace and cannot be removed");
-          return;
-        }
-        if (!confirm(`Remove ${host.name}?`)) return;
-        await api(`/api/hosts/${host.id}`, { method: "DELETE" });
-        await loadAll();
-      }
-    });
-
     on(els.herdList, "click", async (ev) => {
       const rec = ev.target.closest("[data-reconnect]");
       if (rec) {
@@ -2633,7 +2730,35 @@
       }
     });
 
-    document.body.addEventListener("click", (ev) => {
+    document.body.addEventListener("click", async (ev) => {
+      const connect = ev.target.closest("[data-connect]");
+      if (connect) {
+        const host = state.hosts.find((h) => h.id === connect.dataset.connect);
+        if (host) openSession(host).catch((err) => toast(err.message, true));
+        return;
+      }
+      const edit = ev.target.closest("[data-edit]");
+      if (edit) {
+        const host = state.hosts.find((h) => h.id === edit.dataset.edit);
+        if (host) {
+          fillHostForm(host);
+          openModal(els.hostModal);
+        }
+        return;
+      }
+      const del = ev.target.closest("[data-delete]");
+      if (del) {
+        const host = state.hosts.find((h) => h.id === del.dataset.delete);
+        if (!host) return;
+        if (host.authType === "local") {
+          toast("Local Shell is part of the workspace and cannot be removed");
+          return;
+        }
+        if (!(await askConfirm(`Remove ${host.name}?`))) return;
+        await api(`/api/hosts/${host.id}`, { method: "DELETE" });
+        await loadAll();
+        return;
+      }
       const run = ev.target.closest("[data-run]");
       if (run) sendSnippet(run.dataset.run);
       const editSn = ev.target.closest("[data-edit-snippet]");
@@ -2651,7 +2776,7 @@
       const delSn = ev.target.closest("[data-delete-snippet]");
       if (delSn) {
         const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
-        if (!sn || !confirm(`Delete snippet “${sn.name}”?`)) return;
+        if (!sn || !(await askConfirm(`Delete snippet “${sn.name}”?`))) return;
         api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
       }
       const grant = ev.target.closest("[data-grant]");
@@ -2679,7 +2804,7 @@
       const delId = ev.target.closest("[data-delete-identity]");
       if (delId) {
         const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
-        if (!id || !confirm(`Delete identity “${id.name}”?`)) return;
+        if (!id || !(await askConfirm(`Delete identity “${id.name}”?`))) return;
         api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
       }
       const startTn = ev.target.closest("[data-tunnel-start]");
@@ -2705,18 +2830,18 @@
       const delTn = ev.target.closest("[data-delete-tunnel]");
       if (delTn) {
         const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
-        if (!t || !confirm(`Delete forward “${t.name}”?`)) return;
+        if (!t || !(await askConfirm(`Delete forward “${t.name}”?`))) return;
         api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
       }
     });
 
     on(els.search, "input", () => {
       state.query = els.search.value;
-      renderHosts();
+      paintList("host-list", "/ui/hosts?" + datastarQS());
     });
     on(document.getElementById("log-filter"), "input", (ev) => {
       state.logFilter = ev.target.value;
-      renderLogs();
+      paintList("log-list", "/ui/logs?" + datastarQS());
     });
     on(document.getElementById("btn-refresh-logs"), "click", () => loadLogs().catch((err) => toast(err.message, true)));
   }

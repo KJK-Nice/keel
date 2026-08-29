@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"keel/components/badge"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 func TestGroupHostsFiltersQuery(t *testing.T) {
@@ -24,5 +26,20 @@ func TestSignalsJSONIncludesLocked(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Fatalf("missing %s in %s", want, s)
 		}
+	}
+}
+
+func TestTunnelAndLogBadgeVariants(t *testing.T) {
+	if tunnelBadgeVariant(tunnel.StatusReady) != badge.VariantDefault {
+		t.Fatal("ready tunnel should be default badge")
+	}
+	if tunnelBadgeVariant(tunnel.StatusError) != badge.VariantDestructive {
+		t.Fatal("error tunnel should be destructive badge")
+	}
+	if logBadgeVariant("error") != badge.VariantDestructive {
+		t.Fatal("error log should be destructive badge")
+	}
+	if logBadgeVariant("info") != badge.VariantSecondary {
+		t.Fatal("info log should be secondary badge")
 	}
 }

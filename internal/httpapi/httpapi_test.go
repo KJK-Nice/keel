@@ -483,8 +483,23 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `<dialog class="modal" id="host-modal"`) || !strings.Contains(string(body), `id="modal-scrim"`) {
 		t.Fatal("index missing native host dialog or modal scrim")
 	}
-	if strings.Contains(string(body), "data-tui-dialog-portal") {
-		t.Fatal("index should not portal dialogs into inert templates")
+	if strings.Contains(string(body), `<template data-tui-dialog-portal`) && !strings.Contains(string(body), `data-slot="alert-dialog-content"`) {
+		t.Fatal("unexpected dialog portal without confirm alert dialog")
+	}
+	if !strings.Contains(string(body), `data-slot="switch"`) || !strings.Contains(string(body), `data-tui-select-trigger`) {
+		t.Fatal("index missing settings switch or select")
+	}
+	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `data-tui-tabs`) {
+		t.Fatal("index missing settings slider or tabs")
+	}
+	if !strings.Contains(string(body), `data-slot="card"`) || !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
+		t.Fatal("index missing card or terminal preview aspect ratio")
+	}
+	if !strings.Contains(string(body), `data-slot="kbd"`) || !strings.Contains(string(body), `data-tui-tooltip-trigger`) {
+		t.Fatal("index missing kbd or tooltip")
+	}
+	if !strings.Contains(string(body), `data-tui-checkbox`) || !strings.Contains(string(body), `data-slot="radio-group"`) {
+		t.Fatal("index missing host form checkbox or color radio group")
 	}
 	if !strings.Contains(string(body), `window.__keelApplyTheme`) {
 		t.Fatal("index missing theme apply helper")

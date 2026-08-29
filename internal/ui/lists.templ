@@ -1,15 +1,17 @@
 package ui
 
 import (
+	"keel/components/badge"
 	"keel/components/button"
 	"keel/components/empty"
 	"keel/components/icon"
+	"keel/components/item"
 )
 
 templ HostList(p PageProps) {
 	<div id="host-list" class="host-list flex flex-col gap-2">
 		if p.Locked {
-			<p class="empty">Unlock the vault to see hosts.</p>
+			@emptyBox("", "Vault locked", "Unlock the vault to see hosts.")
 		} else {
 			{{ groups := groupHosts(p.Hosts, p.Query) }}
 			if len(groups) == 0 {
@@ -29,32 +31,33 @@ templ HostList(p PageProps) {
 			} else {
 				for _, g := range groups {
 					<h2 class="group-label">{ g.Name }</h2>
-					for _, h := range g.Hosts {
-						<div class="host" data-id={ h.ID }>
-							<span class="dot" style={ "--dot:" + h.Color + ";background:" + h.Color }></span>
-							<div class="meta" role="button" tabindex="0" data-connect={ h.ID }>
-								<b>{ h.Name }</b>
-								<small>{ hostSubtitle(h) }</small>
-							</div>
-							<div class="host-tools">
-								@button.Button(button.Props{
-									Variant:    button.VariantGhost,
-									Size:       button.SizeXs,
-									Class:      "tiny",
-									Attributes: templ.Attributes{"data-edit": h.ID, "title": "Edit"},
-								}) {
-									Edit
+					@item.Group() {
+						for _, h := range g.Hosts {
+							@item.Item(item.Props{
+								Size:       item.SizeSm,
+								Class:      "host",
+								Attributes: templ.Attributes{"data-id": h.ID},
+							}) {
+								@item.Media() {
+									<span class="dot" style={ "--dot:" + h.Color + ";background:" + h.Color }></span>
 								}
-								@button.Button(button.Props{
-									Variant:    button.VariantGhost,
-									Size:       button.SizeXs,
-									Class:      "tiny",
-									Attributes: templ.Attributes{"data-delete": h.ID, "title": "Remove"},
-								}) {
-									✕
+								@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-connect": h.ID}}) {
+									@item.Title() {
+										{ h.Name }
+									}
+									@item.Description() {
+										{ hostSubtitle(h) }
+									}
 								}
-							</div>
-						</div>
+								@item.Actions() {
+									if h.AuthType == "local" {
+										@rowMenu("data-edit", h.ID, "", "")
+									} else {
+										@rowMenu("data-edit", h.ID, "data-delete", h.ID)
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -67,6 +70,9 @@ templ IdentityList(p PageProps) {
 		if len(p.Identities) == 0 {
 			@empty.Empty() {
 				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.KeyRound()
+					}
 					@empty.Title() {
 						No identities yet
 					}
@@ -76,23 +82,28 @@ templ IdentityList(p PageProps) {
 				}
 			}
 		} else {
-			for _, id := range p.Identities {
-				<div class="host">
-					<span class="dot" style="background:var(--accent)"></span>
-					<div class="meta" role="button" tabindex="0" data-edit-identity={ id.ID }>
-						<b>{ id.Name }</b>
-						<small>
-							{ id.Kind }
-							if id.Username != "" {
-								{ " · " + id.Username }
+			@item.Group() {
+				for _, id := range p.Identities {
+					@item.Item(item.Props{Size: item.SizeSm, Class: "host"}) {
+						@item.Media() {
+							<span class="dot" style="background:var(--keel-accent)"></span>
+						}
+						@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-edit-identity": id.ID}}) {
+							@item.Title() {
+								{ id.Name }
 							}
-						</small>
-					</div>
-					<div class="host-tools">
-						<button class="tiny" data-edit-identity={ id.ID }>Edit</button>
-						<button class="tiny" data-delete-identity={ id.ID }>✕</button>
-					</div>
-				</div>
+							@item.Description() {
+								{ id.Kind }
+								if id.Username != "" {
+									{ " · " + id.Username }
+								}
+							}
+						}
+						@item.Actions() {
+							@rowMenu("data-edit-identity", id.ID, "data-delete-identity", id.ID)
+						}
+					}
+				}
 			}
 		}
 	</div>
@@ -101,30 +112,65 @@ templ IdentityList(p PageProps) {
 templ TunnelList(p PageProps) {
 	<div id="tunnel-list" class="host-list flex flex-col gap-2">
 		if len(p.Tunnels) == 0 {
-			<p class="empty">No forwards yet. Local (−L), remote (−R), or dynamic SOCKS5 (−D).</p>
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.ArrowLeftRight()
+					}
+					@empty.Title() {
+						No forwards yet
+					}
+					@empty.Description() {
+						Local (−L), remote (−R), or dynamic SOCKS5 (−D).
+					}
+				}
+			}
 		} else {
-			for _, t := range p.Tunnels {
-				<div class="host">
-					<span class="dot"></span>
-					<div class="meta">
-						<b>{ t.Name }</b>
-						<small>
-							{ t.Kind } · { hostNameByID(p.Hosts, t.HostID) } · { tunnelListen(t) } → { tunnelDest(t) }
-							if string(t.Status) != "" {
-								{ " · " + string(t.Status) }
+			@item.Group() {
+				for _, t := range p.Tunnels {
+					@item.Item(item.Props{Size: item.SizeSm, Class: "host"}) {
+						@item.Media() {
+							<span class="dot"></span>
+						}
+						@item.Content() {
+							@item.Title() {
+								{ t.Name }
 							}
-							if t.Error != "" {
-								{ " · " + t.Error }
+							@item.Description() {
+								{ t.Kind } · { hostNameByID(p.Hosts, t.HostID) } · { tunnelListen(t) } → { tunnelDest(t) }
+								if t.Error != "" {
+									{ " · " + t.Error }
+								}
 							}
-						</small>
-					</div>
-					<div class="host-tools">
-						<button class="tiny" data-tunnel-start={ t.ID }>Start</button>
-						<button class="tiny" data-tunnel-stop={ t.ID }>Stop</button>
-						<button class="tiny" data-edit-tunnel={ t.ID }>Edit</button>
-						<button class="tiny" data-delete-tunnel={ t.ID }>✕</button>
-					</div>
-				</div>
+						}
+						@item.Actions(item.ActionsProps{Class: "host-tools"}) {
+							@badge.Badge(badge.Props{Variant: tunnelBadgeVariant(t.Status)}) {
+								if string(t.Status) == "" {
+									stopped
+								} else {
+									{ string(t.Status) }
+								}
+							}
+							@button.Button(button.Props{
+								Variant:    button.VariantGhost,
+								Size:       button.SizeXs,
+								Class:      "tiny",
+								Attributes: templ.Attributes{"data-tunnel-start": t.ID},
+							}) {
+								Start
+							}
+							@button.Button(button.Props{
+								Variant:    button.VariantGhost,
+								Size:       button.SizeXs,
+								Class:      "tiny",
+								Attributes: templ.Attributes{"data-tunnel-stop": t.ID},
+							}) {
+								Stop
+							}
+							@rowMenu("data-edit-tunnel", t.ID, "data-delete-tunnel", t.ID)
+						}
+					}
+				}
 			}
 		}
 	</div>
@@ -133,19 +179,36 @@ templ TunnelList(p PageProps) {
 templ SnippetList(p PageProps) {
 	<div id="snippet-list" class="snippet-list flex flex-col gap-2">
 		if len(p.Snippets) == 0 {
-			<p class="empty">Save commands you type all the time. Click one to send it into the focused pane.</p>
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.CodeXml()
+					}
+					@empty.Title() {
+						No snippets yet
+					}
+					@empty.Description() {
+						Save commands you type all the time. Click one to send it into the focused pane.
+					}
+				}
+			}
 		} else {
-			for _, s := range p.Snippets {
-				<div class="snippet-row">
-					<div class="meta" role="button" tabindex="0" data-run={ s.ID }>
-						<b>{ s.Name }</b>
-						<small>{ s.Command }</small>
-					</div>
-					<div>
-						<button class="tiny" data-edit-snippet={ s.ID }>Edit</button>
-						<button class="tiny" data-delete-snippet={ s.ID }>✕</button>
-					</div>
-				</div>
+			@item.Group() {
+				for _, s := range p.Snippets {
+					@item.Item(item.Props{Size: item.SizeSm, Class: "snippet-row"}) {
+						@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-run": s.ID}}) {
+							@item.Title() {
+								{ s.Name }
+							}
+							@item.Description() {
+								{ s.Command }
+							}
+						}
+						@item.Actions() {
+							@rowMenu("data-edit-snippet", s.ID, "data-delete-snippet", s.ID)
+						}
+					}
+				}
 			}
 		}
 	</div>
@@ -155,12 +218,14 @@ templ LogList(p PageProps) {
 	<div id="log-list" class="log-list">
 		{{ rows := filterLogs(p.Logs, p.LogFilter) }}
 		if len(rows) == 0 {
-			<p class="empty">No log entries.</p>
+			@emptyBox("", "No log entries", "Connection and vault events show up here.")
 		} else {
 			for _, e := range rows {
 				<div class="log-row">
 					<time>{ e.Time.UTC().Format("2006-01-02 15:04:05") }</time>
-					<span class="kind">{ e.Kind }</span>
+					@badge.Badge(badge.Props{Variant: logBadgeVariant(e.Kind), Class: "kind"}) {
+						{ e.Kind }
+					}
 					<span>{ e.Message }</span>
 				</div>
 			}
