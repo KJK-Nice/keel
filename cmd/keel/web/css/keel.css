@@ -1224,23 +1224,6 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   outline-offset: 1px;
 }
 
-.toast {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  background: var(--elevated);
-  border: 1px solid var(--keel-border);
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  max-width: min(480px, calc(100vw - 24px));
-  z-index: 20;
-  font-size: 1rem;
-  overflow-wrap: anywhere;
-  user-select: all;
-}
-.toast.is-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--keel-border)); }
-
 .backdrop {
   display: none;
   position: fixed;

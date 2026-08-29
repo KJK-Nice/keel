@@ -501,6 +501,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `data-tui-checkbox`) || !strings.Contains(string(body), `data-slot="radio-group"`) {
 		t.Fatal("index missing host form checkbox or color radio group")
 	}
+	if !strings.Contains(string(body), `data-tui-toaster`) {
+		t.Fatal("index missing shadcn toaster")
+	}
+	if strings.Contains(string(body), `id="toast"`) {
+		t.Fatal("index should not keep the old #toast fallback")
+	}
 	if !strings.Contains(string(body), `window.__keelApplyTheme`) {
 		t.Fatal("index missing theme apply helper")
 	}
@@ -560,6 +566,9 @@ func TestIndexServesVault(t *testing.T) {
 	termBody, _ := io.ReadAll(termJS.Body)
 	if !strings.Contains(string(termBody), "showModal") || strings.Contains(string(termBody), "tui.dialog.open") {
 		t.Fatal("term.js should open native <dialog> with showModal")
+	}
+	if !strings.Contains(string(termBody), "tui.toast.add") || strings.Contains(string(termBody), `getElementById("toast")`) {
+		t.Fatal("term.js should raise toasts through tui.toast.add")
 	}
 	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
 	if err != nil {

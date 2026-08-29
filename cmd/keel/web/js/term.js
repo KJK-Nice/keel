@@ -269,7 +269,6 @@
     snippetForm: document.getElementById("snippet-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
-    toast: document.getElementById("toast"),
     activeSnippets: document.getElementById("active-snippets"),
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
@@ -415,19 +414,40 @@
     return data;
   }
 
+  const pendingToasts = [];
+
+  function flushToasts() {
+    const add = window.tui?.toast?.add;
+    if (!add) return false;
+    while (pendingToasts.length) add(pendingToasts.shift());
+    return true;
+  }
+
   function toast(message, isError = false) {
-    if (els.toast) {
-      els.toast.hidden = false;
-      els.toast.textContent = message;
-      els.toast.classList.toggle("is-error", isError);
-      clearTimeout(toast._t);
-      toast._t = setTimeout(() => {
-        els.toast.hidden = true;
-      }, 3600);
-    }
+    const payload = { title: message, type: isError ? "error" : "success" };
     if (window.tui?.toast?.add) {
-      window.tui.toast.add({ title: message, type: isError ? "error" : "success" });
+      window.tui.toast.add(payload);
+      return;
     }
+    pendingToasts.push(payload);
+    if (pendingToasts.armed) return;
+    pendingToasts.armed = true;
+    let tries = 0;
+    const retry = () => {
+      if (flushToasts()) {
+        pendingToasts.armed = false;
+        return;
+      }
+      if (++tries > 40) {
+        pendingToasts.armed = false;
+        pendingToasts.length = 0;
+        return;
+      }
+      window.setTimeout(retry, 50);
+    };
+    document.addEventListener("DOMContentLoaded", retry, { once: true });
+    window.addEventListener("load", retry, { once: true });
+    retry();
   }
 
   function persistName() {
