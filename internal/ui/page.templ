@@ -3,13 +3,11 @@ package ui
 import (
 	"keel/components"
 	"keel/components/button"
-	"keel/components/dialog"
 	"keel/components/field"
 	"keel/components/icon"
 	"keel/components/input"
 	"keel/components/label"
 	"keel/components/toast"
-	"keel/utils"
 )
 
 templ Page(p PageProps) {
@@ -26,10 +24,15 @@ templ Page(p PageProps) {
 			<title>Keel — SSH workspace</title>
 			<script>
 				(function () {
-					var t = localStorage.getItem("keel-theme") || "system";
-					if (t !== "light" && t !== "dark" && t !== "system") t = "system";
-					document.documentElement.dataset.theme = t;
-					document.documentElement.classList.toggle("dark", t === "dark" || (t === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches));
+					function applyTheme(t) {
+						if (t !== "light" && t !== "dark" && t !== "system") t = "system";
+						document.documentElement.dataset.theme = t;
+						var dark = t === "dark" || (t === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+						document.documentElement.classList.toggle("dark", dark);
+						document.body && document.body.classList.remove("dark");
+					}
+					window.__keelApplyTheme = applyTheme;
+					applyTheme(localStorage.getItem("keel-theme") || "system");
 					var uiSize = 12, smooth = "antialiased";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
@@ -58,7 +61,7 @@ templ Page(p PageProps) {
 			<script type="module" src="/js/datastar.js"></script>
 			@components.Scripts()
 		</head>
-		<body class="bg-background text-foreground style-nova dark h-full overflow-hidden">
+		<body class="bg-background text-foreground style-nova h-full overflow-hidden">
 			<div class="app h-full">
 				<main class="main">
 					<header class="workspace-bar">
@@ -128,8 +131,6 @@ templ Vault(p PageProps) {
 				data-vault="settings"
 				data-kbd=","
 				title="Settings  ⌘,"
-				data-on:click="$vault = 'settings'"
-				data-class:is-active="$vault === 'settings'"
 			>
 				@icon.Settings(icon.Props{Class: "vault-nav-icon"})
 				Settings
@@ -152,8 +153,6 @@ templ vaultNav(id, label string, active bool) {
 		type="button"
 		class={ "vault-nav", templ.KV("is-active", active) }
 		data-vault={ id }
-		data-on:click={ "$vault = '" + id + "'" }
-		data-class:is-active={ "$vault === '" + id + "'" }
 	>
 		{ children... }
 		{ label }
@@ -195,9 +194,7 @@ templ HostsPage(p PageProps) {
 				ID:      "btn-new-host",
 				Variant: button.VariantDefault,
 				Size:    button.SizeSm,
-				Attributes: utils.MergeAttributes(dialog.TriggerFor("host-modal"), templ.Attributes{
-					"data-kbd": "N",
-				}),
+				Attributes: templ.Attributes{"data-kbd": "N"},
 			}) {
 				New host
 				<kbd class="kbd-hint" aria-hidden="true">N</kbd>
@@ -206,9 +203,7 @@ templ HostsPage(p PageProps) {
 				ID:      "btn-quick",
 				Variant: button.VariantGhost,
 				Size:    button.SizeSm,
-				Attributes: utils.MergeAttributes(dialog.TriggerFor("quick-modal"), templ.Attributes{
-					"data-kbd": "⇧O",
-				}),
+				Attributes: templ.Attributes{"data-kbd": "⇧O"},
 			}) {
 				Quick connect
 				<kbd class="kbd-hint" aria-hidden="true">⇧O</kbd>
@@ -217,9 +212,7 @@ templ HostsPage(p PageProps) {
 				ID:      "btn-join",
 				Variant: button.VariantGhost,
 				Size:    button.SizeSm,
-				Attributes: utils.MergeAttributes(dialog.TriggerFor("join-modal"), templ.Attributes{
-					"data-kbd": "J",
-				}),
+				Attributes: templ.Attributes{"data-kbd": "J"},
 			}) {
 				Join session
 				<kbd class="kbd-hint" aria-hidden="true">J</kbd>
@@ -243,9 +236,8 @@ templ KeychainPage(p PageProps) {
 				<p class="lede">Reusable SSH identities (password or private key). This is not the OS vault wrapping key.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:         "btn-new-identity",
-				Size:       button.SizeSm,
-				Attributes: dialog.TriggerFor("identity-modal"),
+				ID:   "btn-new-identity",
+				Size: button.SizeSm,
 			}) {
 				New identity
 			}
@@ -262,9 +254,8 @@ templ ForwardsPage(p PageProps) {
 				<p class="lede">Local, remote, and dynamic (SOCKS5) forwards. Each uses its own SSH connection.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:         "btn-new-tunnel",
-				Size:       button.SizeSm,
-				Attributes: dialog.TriggerFor("tunnel-modal"),
+				ID:   "btn-new-tunnel",
+				Size: button.SizeSm,
 			}) {
 				New forward
 			}
@@ -281,9 +272,8 @@ templ SnippetsPage(p PageProps) {
 				<p class="lede">Saved commands. Click one to send it into the focused terminal pane.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:         "btn-new-snippet",
-				Size:       button.SizeSm,
-				Attributes: dialog.TriggerFor("snippet-modal"),
+				ID:   "btn-new-snippet",
+				Size: button.SizeSm,
 			}) {
 				New snippet
 			}
@@ -342,7 +332,7 @@ templ SettingsPage() {
 						<div class="pref-title">Theme</div>
 						<p class="pref-desc">Light, dark, or follow the system.</p>
 					</div>
-					<select class="ui-select" name="theme" id="set-theme" aria-label="Color theme" data-bind="theme" data-on:change="document.documentElement.dataset.theme = $theme; localStorage.setItem('keel-theme', $theme)">
+					<select class="ui-select" name="theme" id="set-theme" aria-label="Color theme">
 						<option value="system">System</option>
 						<option value="light">Light</option>
 						<option value="dark">Dark</option>
@@ -428,7 +418,7 @@ templ SettingsPage() {
 
 templ Gate(p PageProps) {
 	<div class="gate" id="gate" hidden?={ !p.Locked }>
-		<form id="gate-form" data-on:submit="@post('/ui/vault')">
+		<form id="gate-form">
 			<p class="eyebrow">Vault</p>
 			if p.NeedsSetup {
 				<h2 id="gate-title">Create vault</h2>

@@ -145,27 +145,41 @@ func windowDragJS() string {
 		if (window.__keelWindowDrag) return;
 		window.__keelWindowDrag = true;
 		function invoke(msg) {
-			if (window.WailsInvoke) { window.WailsInvoke(msg); return; }
 			if (window._wails && window._wails.invoke) { window._wails.invoke(msg); return; }
+			if (window.WailsInvoke) { window.WailsInvoke(msg); return; }
 			var w = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.external;
 			if (w && w.postMessage) { w.postMessage(msg); return; }
 			var c = window.chrome && window.chrome.webview;
 			if (c && c.postMessage) c.postMessage(msg);
 		}
-		var shouldDrag = false;
-		function isDrag(e) {
-			if (!e.target || e.target.nodeType !== 1) return false;
-			var val = window.getComputedStyle(e.target).getPropertyValue("--wails-draggable");
-			if (val) val = val.trim();
-			return val === "drag" && e.buttons === 1 && e.detail === 1;
+		function dragTarget(e) {
+			var t = e.target;
+			if (!t) return null;
+			if (t.nodeType !== 1) t = t.parentElement;
+			return t;
 		}
-		window.addEventListener("mousedown", function(e) { shouldDrag = isDrag(e); });
-		window.addEventListener("mouseup", function() { shouldDrag = false; });
+		function isDrag(e) {
+			var el = dragTarget(e);
+			if (!el || !el.isConnected) return false;
+			var val = window.getComputedStyle(el).getPropertyValue("--wails-draggable");
+			return !!(val && val.trim() === "drag");
+		}
+		var canDrag = false;
+		window.addEventListener("mousedown", function(e) {
+			canDrag = e.button === 0 && e.detail === 1 && isDrag(e);
+		}, true);
+		window.addEventListener("mouseup", function() { canDrag = false; }, true);
 		window.addEventListener("mousemove", function(e) {
-			if (!shouldDrag) return;
-			shouldDrag = false;
-			if ((e.buttons !== undefined ? e.buttons : e.which) > 0) invoke("drag");
-		});
+			if (!canDrag) return;
+			if ((e.buttons !== undefined ? e.buttons : 1) === 0) { canDrag = false; return; }
+			canDrag = false;
+			invoke("wails:drag");
+		}, true);
+		window.addEventListener("dblclick", function(e) {
+			if (!isDrag(e)) return;
+			e.preventDefault();
+			invoke("wails:drag:doubleclick");
+		}, true);
 	})();`
 }
 

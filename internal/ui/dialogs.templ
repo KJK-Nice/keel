@@ -2,7 +2,6 @@ package ui
 
 import (
 	"keel/components/button"
-	"keel/components/dialog"
 	"keel/components/field"
 	"keel/components/input"
 	"keel/components/label"
@@ -11,6 +10,7 @@ import (
 )
 
 templ Dialogs(p PageProps) {
+	<div class="modal-scrim" id="modal-scrim"></div>
 	@hostDialog()
 	@identityDialog()
 	@tunnelDialog()
@@ -21,336 +21,283 @@ templ Dialogs(p PageProps) {
 }
 
 templ hostDialog() {
-	@dialog.Dialog(dialog.Props{ID: "host-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="host-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title(dialog.TitleProps{ID: "host-modal-title"}) {
-						New host
-					}
-				}
-				<input type="hidden" name="id"/>
-				@labeledInput("Label", "name", "prod-api", true)
-				@labeledInput("Group", "group", "Production", false)
-				<div class="grid-2">
-					@labeledInput("Hostname / IP", "address", "10.0.0.12", false)
-					@field.Field() {
-						@label.Label() {
-							Port
-						}
-						@input.Input(input.Props{Name: "port", Type: "number", Value: "22", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
-					}
-				</div>
-				@labeledInput("Username", "username", "ubuntu", false)
+	<dialog class="modal" id="host-modal">
+		<form id="host-form">
+			<h2 id="host-modal-title">New host</h2>
+			<input type="hidden" name="id"/>
+			@labeledInput("Label", "name", "prod-api", true)
+			@labeledInput("Group", "group", "Production", false)
+			<div class="grid-2">
+				@labeledInput("Hostname / IP", "address", "10.0.0.12", false)
 				@field.Field() {
 					@label.Label() {
-						Authentication
+						Port
 					}
-					<select name="authType" class="ui-select w-full" data-bind="authType">
-						<option value="password">Password</option>
-						<option value="key">Private key</option>
-						<option value="identity">Keychain identity</option>
-						<option value="local">Local shell</option>
-					</select>
+					@input.Input(input.Props{Name: "port", Type: "number", Value: "22", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
 				}
-				<div data-auth="identity" data-show="$authType === 'identity'">
-					@field.Field() {
-						@label.Label() {
-							Identity
-						}
-						<select name="identityId" id="host-identity" class="ui-select w-full"></select>
-					}
-				</div>
-				<div data-auth="password" data-show="$authType === 'password'">
-					@field.Field() {
-						@label.Label() {
-							Password
-						}
-						@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
-					}
-				</div>
-				<div data-auth="key" data-show="$authType === 'key'">
-					@field.Field() {
-						@label.Label() {
-							Private key
-						}
-						@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
-					}
-					@field.Field() {
-						@label.Label() {
-							Key passphrase
-						}
-						@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
-					}
-				</div>
-				<fieldset class="swatches">
-					<legend>Color</legend>
-					<label><input type="radio" name="color" value="#5ee0b5" checked/> <span style="background:#5ee0b5"></span></label>
-					<label><input type="radio" name="color" value="#6ea8ff"/> <span style="background:#6ea8ff"></span></label>
-					<label><input type="radio" name="color" value="#c084fc"/> <span style="background:#c084fc"></span></label>
-					<label><input type="radio" name="color" value="#f5c15d"/> <span style="background:#f5c15d"></span></label>
-					<label><input type="radio" name="color" value="#ff6b7a"/> <span style="background:#ff6b7a"></span></label>
-					<label><input type="radio" name="color" value="#67e8f9"/> <span style="background:#67e8f9"></span></label>
-				</fieldset>
-				<div class="grid-2" data-ssh-only data-show="$authType !== 'local'">
-					<label class="check" title="SSH keepalive packets plus TCP keepalive"><input type="checkbox" name="keepAlive" checked/> Keepalive</label>
-					@field.Field() {
-						@label.Label() {
-							Keepalive interval (sec)
-						}
-						@input.Input(input.Props{Name: "keepAliveSec", Type: "number", Value: "30", Attributes: templ.Attributes{"min": "1", "max": "600"}})
-					}
-				</div>
-				<label class="check" data-ssh-only data-show="$authType !== 'local'" title="Reconnect after a dropped SSH connection. A clean remote exit stays dead until you hit Reconnect.">
-					<input type="checkbox" name="autoReconnect" checked/> Auto reconnect
-				</label>
-				@dialog.Footer() {
-					@button.Button(button.Props{
-						ID:         "host-cancel",
-						Type:       button.TypeButton,
-						Variant:    button.VariantGhost,
-						Attributes: dialog.CloseFor("host-modal"),
-					}) {
-						Cancel
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Save host
-					}
+			</div>
+			@labeledInput("Username", "username", "ubuntu", false)
+			@field.Field() {
+				@label.Label() {
+					Authentication
 				}
-			</form>
-		}
-	}
-}
-
-templ identityDialog() {
-	@dialog.Dialog(dialog.Props{ID: "identity-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="identity-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title(dialog.TitleProps{ID: "identity-modal-title"}) {
-						New identity
-					}
-				}
-				<input type="hidden" name="id"/>
-				@labeledInput("Name", "name", "deploy key", true)
-				@labeledInput("Username", "username", "ubuntu", false)
+				<select name="authType" class="ui-select w-full">
+					<option value="password">Password</option>
+					<option value="key">Private key</option>
+					<option value="identity">Keychain identity</option>
+					<option value="local">Local shell</option>
+				</select>
+			}
+			<div data-auth="identity">
 				@field.Field() {
 					@label.Label() {
-						Kind
+						Identity
 					}
-					<select name="kind" class="ui-select w-full" data-bind="identKind">
-						<option value="password">Password</option>
-						<option value="key">Private key</option>
-					</select>
+					<select name="identityId" id="host-identity" class="ui-select w-full"></select>
 				}
-				<div data-ident="password" data-show="$identKind === 'password'">
-					@field.Field() {
-						@label.Label() {
-							Password
-						}
-						@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
-					}
-				</div>
-				<div data-ident="key" data-show="$identKind === 'key'">
-					@field.Field() {
-						@label.Label() {
-							Private key
-						}
-						@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
-					}
-					@field.Field() {
-						@label.Label() {
-							Key passphrase
-						}
-						@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
-					}
-				</div>
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "identity-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("identity-modal")}) {
-						Cancel
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Save identity
-					}
-				}
-			</form>
-		}
-	}
-}
-
-templ tunnelDialog() {
-	@dialog.Dialog(dialog.Props{ID: "tunnel-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="tunnel-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title(dialog.TitleProps{ID: "tunnel-modal-title"}) {
-						New forward
-					}
-				}
-				<input type="hidden" name="id"/>
-				@labeledInput("Name", "name", "db local", true)
-				@field.Field() {
-					@label.Label() {
-						Host
-					}
-					<select name="hostId" id="tunnel-host" required class="ui-select w-full"></select>
-				}
-				@field.Field() {
-					@label.Label() {
-						Kind
-					}
-					<select name="kind" class="ui-select w-full" data-bind="tunnelKind">
-						<option value="local">Local (−L)</option>
-						<option value="remote">Remote (−R)</option>
-						<option value="dynamic">Dynamic SOCKS5 (−D)</option>
-					</select>
-				}
-				<div class="grid-2">
-					@labeledInput("Bind address", "bindAddr", "", false)
-					@field.Field() {
-						@label.Label() {
-							Bind port
-						}
-						@input.Input(input.Props{Name: "bindPort", Type: "number", Value: "0", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
-					}
-				</div>
-				<div class="grid-2" data-tunnel-dest data-show="$tunnelKind !== 'dynamic'">
-					@labeledInput("Dest host", "destHost", "127.0.0.1", false)
-					@field.Field() {
-						@label.Label() {
-							Dest port
-						}
-						@input.Input(input.Props{Name: "destPort", Type: "number", Value: "5432", Attributes: templ.Attributes{"min": "1", "max": "65535"}})
-					}
-				</div>
-				<p class="hint">Bind 0.0.0.0 exposes the port on every interface.</p>
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "tunnel-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("tunnel-modal")}) {
-						Cancel
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Save forward
-					}
-				}
-			</form>
-		}
-	}
-}
-
-templ quickDialog() {
-	@dialog.Dialog(dialog.Props{ID: "quick-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="quick-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title() {
-						Quick connect
-					}
-					@dialog.Description() {
-						Paste user@host or user@host:2222. Saved under Quick connect.
-					}
-				}
-				@labeledInput("Target", "target", "ubuntu@192.168.1.20:22", true)
+			</div>
+			<div data-auth="password">
 				@field.Field() {
 					@label.Label() {
 						Password
 					}
-					@input.Input(input.Props{Name: "password", Type: "password", Required: true})
+					@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
 				}
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "quick-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("quick-modal")}) {
-						Cancel
+			</div>
+			<div data-auth="key">
+				@field.Field() {
+					@label.Label() {
+						Private key
 					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Connect
-					}
+					@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
 				}
-			</form>
-		}
-	}
+				@field.Field() {
+					@label.Label() {
+						Key passphrase
+					}
+					@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
+				}
+			</div>
+			<fieldset class="swatches">
+				<legend>Color</legend>
+				<label><input type="radio" name="color" value="#5ee0b5" checked/> <span style="background:#5ee0b5"></span></label>
+				<label><input type="radio" name="color" value="#6ea8ff"/> <span style="background:#6ea8ff"></span></label>
+				<label><input type="radio" name="color" value="#c084fc"/> <span style="background:#c084fc"></span></label>
+				<label><input type="radio" name="color" value="#f5c15d"/> <span style="background:#f5c15d"></span></label>
+				<label><input type="radio" name="color" value="#ff6b7a"/> <span style="background:#ff6b7a"></span></label>
+				<label><input type="radio" name="color" value="#67e8f9"/> <span style="background:#67e8f9"></span></label>
+			</fieldset>
+			<div class="grid-2" data-ssh-only>
+				<label class="check" title="SSH keepalive packets plus TCP keepalive"><input type="checkbox" name="keepAlive" checked/> Keepalive</label>
+				@field.Field() {
+					@label.Label() {
+						Keepalive interval (sec)
+					}
+					@input.Input(input.Props{Name: "keepAliveSec", Type: "number", Value: "30", Attributes: templ.Attributes{"min": "1", "max": "600"}})
+				}
+			</div>
+			<label class="check" data-ssh-only title="Reconnect after a dropped SSH connection. A clean remote exit stays dead until you hit Reconnect.">
+				<input type="checkbox" name="autoReconnect" checked/> Auto reconnect
+			</label>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "host-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save host
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ identityDialog() {
+	<dialog class="modal" id="identity-modal">
+		<form id="identity-form">
+			<h2 id="identity-modal-title">New identity</h2>
+			<input type="hidden" name="id"/>
+			@labeledInput("Name", "name", "deploy key", true)
+			@labeledInput("Username", "username", "ubuntu", false)
+			@field.Field() {
+				@label.Label() {
+					Kind
+				}
+				<select name="kind" class="ui-select w-full">
+					<option value="password">Password</option>
+					<option value="key">Private key</option>
+				</select>
+			}
+			<div data-ident="password">
+				@field.Field() {
+					@label.Label() {
+						Password
+					}
+					@input.Input(input.Props{Name: "password", Type: "password", Placeholder: "Leave blank to keep saved password", Attributes: templ.Attributes{"autocomplete": "new-password"}})
+				}
+			</div>
+			<div data-ident="key">
+				@field.Field() {
+					@label.Label() {
+						Private key
+					}
+					@textarea.Textarea(textarea.Props{Name: "privateKey", Rows: 6, Placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----"})
+				}
+				@field.Field() {
+					@label.Label() {
+						Key passphrase
+					}
+					@input.Input(input.Props{Name: "passphrase", Type: "password", Placeholder: "Optional"})
+				}
+			</div>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "identity-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save identity
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ tunnelDialog() {
+	<dialog class="modal" id="tunnel-modal">
+		<form id="tunnel-form">
+			<h2 id="tunnel-modal-title">New forward</h2>
+			<input type="hidden" name="id"/>
+			@labeledInput("Name", "name", "db local", true)
+			@field.Field() {
+				@label.Label() {
+					Host
+				}
+				<select name="hostId" id="tunnel-host" required class="ui-select w-full"></select>
+			}
+			@field.Field() {
+				@label.Label() {
+					Kind
+				}
+				<select name="kind" class="ui-select w-full">
+					<option value="local">Local (−L)</option>
+					<option value="remote">Remote (−R)</option>
+					<option value="dynamic">Dynamic SOCKS5 (−D)</option>
+				</select>
+			}
+			<div class="grid-2">
+				@labeledInput("Bind address", "bindAddr", "", false)
+				@field.Field() {
+					@label.Label() {
+						Bind port
+					}
+					@input.Input(input.Props{Name: "bindPort", Type: "number", Value: "0", Attributes: templ.Attributes{"min": "0", "max": "65535"}})
+				}
+			</div>
+			<div class="grid-2" data-tunnel-dest>
+				@labeledInput("Dest host", "destHost", "127.0.0.1", false)
+				@field.Field() {
+					@label.Label() {
+						Dest port
+					}
+					@input.Input(input.Props{Name: "destPort", Type: "number", Value: "5432", Attributes: templ.Attributes{"min": "1", "max": "65535"}})
+				}
+			</div>
+			<p class="hint">Bind 0.0.0.0 exposes the port on every interface.</p>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "tunnel-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save forward
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ quickDialog() {
+	<dialog class="modal" id="quick-modal">
+		<form id="quick-form">
+			<h2>Quick connect</h2>
+			<p class="hint">Paste user@host or user@host:2222. Saved under Quick connect.</p>
+			@labeledInput("Target", "target", "ubuntu@192.168.1.20:22", true)
+			@field.Field() {
+				@label.Label() {
+					Password
+				}
+				@input.Input(input.Props{Name: "password", Type: "password", Required: true})
+			}
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "quick-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Connect
+				}
+			</div>
+		</form>
+	</dialog>
 }
 
 templ joinDialog() {
-	@dialog.Dialog(dialog.Props{ID: "join-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="join-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title() {
-						Join a session
-					}
-					@dialog.Description() {
-						Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault.
-					}
+	<dialog class="modal" id="join-modal">
+		<form id="join-form">
+			<h2>Join a session</h2>
+			<p class="hint">Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault.</p>
+			@labeledInput("Join link", "url", "https://…/join?room=…", true)
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "join-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
 				}
-				@labeledInput("Join link", "url", "https://…/join?room=…", true)
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "join-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("join-modal")}) {
-						Cancel
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Join
-					}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Join
 				}
-			</form>
-		}
-	}
+			</div>
+		</form>
+	</dialog>
 }
 
 templ hostKeyDialog() {
-	@dialog.Dialog(dialog.Props{ID: "hostkey-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="hostkey-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title(dialog.TitleProps{ID: "hostkey-title"}) {
-						Unknown host key
-					}
-					@dialog.Description(dialog.DescriptionProps{ID: "hostkey-hint"}) {
-						Trust this key once to connect. Keel will reject a different key later.
-					}
+	<dialog class="modal" id="hostkey-modal">
+		<form id="hostkey-form">
+			<h2 id="hostkey-title">Unknown host key</h2>
+			<p class="hint" id="hostkey-hint">Trust this key once to connect. Keel will reject a different key later.</p>
+			<p class="hostkey-host" id="hostkey-host"></p>
+			<p class="hostkey-fp" id="hostkey-fp"></p>
+			<p class="hostkey-fp" id="hostkey-expected" hidden></p>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "hostkey-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Abort
 				}
-				<p class="hostkey-host" id="hostkey-host"></p>
-				<p class="hostkey-fp" id="hostkey-fp"></p>
-				<p class="hostkey-fp" id="hostkey-expected" hidden></p>
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "hostkey-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("hostkey-modal")}) {
-						Abort
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Trust and connect
-					}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Trust and connect
 				}
-			</form>
-		}
-	}
+			</div>
+		</form>
+	</dialog>
 }
 
 templ snippetDialog() {
-	@dialog.Dialog(dialog.Props{ID: "snippet-modal"}) {
-		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg"}) {
-			<form id="snippet-form" class="grid gap-3">
-				@dialog.Header() {
-					@dialog.Title(dialog.TitleProps{ID: "snippet-modal-title"}) {
-						New snippet
-					}
+	<dialog class="modal" id="snippet-modal">
+		<form id="snippet-form">
+			<h2 id="snippet-modal-title">New snippet</h2>
+			<input type="hidden" name="id"/>
+			@labeledInput("Name", "name", "disk usage", true)
+			@field.Field() {
+				@label.Label() {
+					Command
 				}
-				<input type="hidden" name="id"/>
-				@labeledInput("Name", "name", "disk usage", true)
-				@field.Field() {
-					@label.Label() {
-						Command
-					}
-					@textarea.Textarea(textarea.Props{Name: "command", Rows: 4, Placeholder: "df -h", Attributes: templ.Attributes{"required": "required"}})
+				@textarea.Textarea(textarea.Props{Name: "command", Rows: 4, Placeholder: "df -h", Attributes: templ.Attributes{"required": "required"}})
+			}
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "snippet-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
 				}
-				@dialog.Footer() {
-					@button.Button(button.Props{ID: "snippet-cancel", Type: button.TypeButton, Variant: button.VariantGhost, Attributes: dialog.CloseFor("snippet-modal")}) {
-						Cancel
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit}) {
-						Save snippet
-					}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save snippet
 				}
-			</form>
-		}
-	}
+			</div>
+		</form>
+	</dialog>
 }
 
 templ labeledInput(caption, name, placeholder string, required bool) {

@@ -192,10 +192,24 @@
     if (sel) sel.value = choice;
   }
 
+  function applyThemeClass() {
+    if (typeof window.__keelApplyTheme === "function") {
+      window.__keelApplyTheme(document.documentElement.dataset.theme || "system");
+      return;
+    }
+    const choice = document.documentElement.dataset.theme || "system";
+    const dark =
+      choice === "dark" ||
+      (choice === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+    document.body?.classList.remove("dark");
+  }
+
   function setTheme(choice) {
     if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
     document.documentElement.dataset.theme = choice;
     localStorage.setItem("keel-theme", choice);
+    applyThemeClass();
     syncThemeSwitch();
     applyTerminalPrefs();
   }
@@ -262,6 +276,11 @@
     gateForm: document.getElementById("gate-form"),
   };
 
+  function on(el, type, fn, opts) {
+    if (!el) return;
+    el.addEventListener(type, fn, opts);
+  }
+
   function authHeaders() {
     return { "Content-Type": "application/json" };
   }
@@ -291,18 +310,18 @@
   }
 
   function toast(message, isError = false) {
+    if (els.toast) {
+      els.toast.hidden = false;
+      els.toast.textContent = message;
+      els.toast.classList.toggle("is-error", isError);
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => {
+        els.toast.hidden = true;
+      }, 3600);
+    }
     if (window.tui?.toast?.add) {
       window.tui.toast.add({ title: message, type: isError ? "error" : "success" });
-      return;
     }
-    if (!els.toast) return;
-    els.toast.hidden = false;
-    els.toast.textContent = message;
-    els.toast.classList.toggle("is-error", isError);
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => {
-      els.toast.hidden = true;
-    }, 3600);
   }
 
   function persistName() {
@@ -1394,8 +1413,9 @@
     wrap.appendChild(banner);
     wrap.appendChild(body);
     const term = new Terminal(termOpts());
-    const fit = new FitAddonCtor();
-    term.loadAddon(fit);
+    const Addon = FitAddonCtor?.FitAddon || FitAddonCtor;
+    const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
+    if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
     try {
       fit.fit();
@@ -1698,6 +1718,7 @@
 
   function fillIdentitySelect(selected) {
     const sel = document.getElementById("host-identity");
+    if (!sel) return;
     sel.innerHTML = state.identities.length
       ? state.identities.map((id) => `<option value="${id.id}">${escapeHtml(id.name)}</option>`).join("")
       : `<option value="">No identities — add in Keychain</option>`;
@@ -1706,6 +1727,7 @@
 
   function fillHostForm(host) {
     const form = els.hostForm;
+    if (!form) return;
     form.reset();
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
@@ -1725,39 +1747,46 @@
     if (form.keepAlive) form.keepAlive.checked = keepOn;
     if (form.keepAliveSec) form.keepAliveSec.value = host?.keepAliveSec > 0 ? String(host.keepAliveSec) : "30";
     if (form.autoReconnect) form.autoReconnect.checked = !host?.noAutoReconnect;
-    document.getElementById("host-modal-title").textContent = host?.id ? "Edit host" : "New host";
+    const title = document.getElementById("host-modal-title");
+    if (title) title.textContent = host?.id ? "Edit host" : "New host";
     toggleAuthFields();
   }
 
   function toggleAuthFields() {
-    const auth = els.hostForm.authType.value;
-    els.hostForm.querySelectorAll("[data-auth]").forEach((el) => {
-      el.style.display = el.dataset.auth === auth ? "grid" : "none";
+    const form = els.hostForm;
+    if (!form?.authType) return;
+    const auth = form.authType.value;
+    form.querySelectorAll("[data-auth]").forEach((node) => {
+      node.style.display = node.dataset.auth === auth ? "grid" : "none";
     });
     const ssh = auth !== "local";
-    els.hostForm.querySelectorAll("[data-ssh-only]").forEach((el) => {
-      el.style.display = ssh ? (el.classList.contains("grid-2") ? "grid" : "") : "none";
+    form.querySelectorAll("[data-ssh-only]").forEach((node) => {
+      node.style.display = ssh ? (node.classList.contains("grid-2") ? "grid" : "") : "none";
     });
     toggleKeepAliveFields();
   }
 
   function toggleKeepAliveFields() {
     const form = els.hostForm;
-    if (!form.keepAliveSec) return;
+    if (!form?.keepAliveSec) return;
     form.keepAliveSec.disabled = !form.keepAlive?.checked;
   }
 
   function toggleIdentFields() {
-    const kind = els.identityForm.kind.value;
-    els.identityForm.querySelectorAll("[data-ident]").forEach((el) => {
-      el.style.display = el.dataset.ident === kind ? "grid" : "none";
+    const form = els.identityForm;
+    if (!form?.kind) return;
+    const kind = form.kind.value;
+    form.querySelectorAll("[data-ident]").forEach((node) => {
+      node.style.display = node.dataset.ident === kind ? "grid" : "none";
     });
   }
 
   function toggleTunnelDest() {
-    const kind = els.tunnelForm.kind.value;
-    els.tunnelForm.querySelectorAll("[data-tunnel-dest]").forEach((el) => {
-      el.style.display = kind === "dynamic" ? "none" : "grid";
+    const form = els.tunnelForm;
+    if (!form?.kind) return;
+    const kind = form.kind.value;
+    form.querySelectorAll("[data-tunnel-dest]").forEach((node) => {
+      node.style.display = kind === "dynamic" ? "none" : "grid";
     });
   }
 
@@ -1796,12 +1825,14 @@
 
   function fillIdentityForm(id) {
     const form = els.identityForm;
+    if (!form) return;
     form.reset();
     form.id.value = id?.id || "";
     form.name.value = id?.name || "";
     form.username.value = id?.username || "";
     form.kind.value = id?.kind || "password";
-    document.getElementById("identity-modal-title").textContent = id?.id ? "Edit identity" : "New identity";
+    const title = document.getElementById("identity-modal-title");
+    if (title) title.textContent = id?.id ? "Edit identity" : "New identity";
     toggleIdentFields();
   }
 
@@ -1832,6 +1863,7 @@
 
   function fillTunnelHosts(selected) {
     const sel = document.getElementById("tunnel-host");
+    if (!sel) return;
     const hosts = sshHosts();
     sel.innerHTML = hosts.length
       ? hosts.map((h) => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("")
@@ -1841,6 +1873,7 @@
 
   function fillTunnelForm(t) {
     const form = els.tunnelForm;
+    if (!form) return;
     form.reset();
     form.id.value = t?.id || "";
     form.name.value = t?.name || "";
@@ -1850,7 +1883,8 @@
     form.destHost.value = t?.destHost || "127.0.0.1";
     form.destPort.value = t?.destPort || 5432;
     fillTunnelHosts(t?.hostId);
-    document.getElementById("tunnel-modal-title").textContent = t?.id ? "Edit forward" : "New forward";
+    const title = document.getElementById("tunnel-modal-title");
+    if (title) title.textContent = t?.id ? "Edit forward" : "New forward";
     toggleTunnelDest();
   }
 
@@ -1928,26 +1962,31 @@
   function openModal(el) {
     if (!el) return;
     if (state.openModal && state.openModal !== el) closeModal(state.openModal);
-    if (window.tui?.dialog?.open) {
-      window.tui.dialog.open(el);
-    } else if (typeof el.show === "function") {
-      el.show();
-      els.modalScrim?.classList.add("is-open");
+    try {
+      if (typeof el.showModal === "function") {
+        if (!el.open) el.showModal();
+      } else if (typeof el.show === "function" && !el.open) {
+        el.show();
+      }
+    } catch {
+      /* already open */
     }
+    els.modalScrim?.classList.add("is-open");
     state.openModal = el;
   }
 
   function closeModal(el = state.openModal) {
     if (!el) {
       state.openModal = null;
+      els.modalScrim?.classList.remove("is-open");
       return;
     }
-    if (window.tui?.dialog?.close) {
-      window.tui.dialog.close(el);
-    } else if (typeof el.close === "function") {
-      if (el.open) el.close();
-      els.modalScrim?.classList.remove("is-open");
+    try {
+      if (typeof el.close === "function" && el.open) el.close();
+    } catch {
+      /* ignore */
     }
+    els.modalScrim?.classList.remove("is-open");
     if (state.openModal === el) state.openModal = null;
   }
 
@@ -2283,9 +2322,11 @@
       if (hint) hint.textContent = "Host passwords and keys are encrypted. Enter your vault passphrase.";
       if (submit) submit.textContent = "Unlock";
     }
-    els.gateForm.passphrase.value = "";
-    els.gateForm.passphrase.focus();
-    els.gateForm.dataset.setup = needsSetup ? "1" : "0";
+    if (els.gateForm?.passphrase) {
+      els.gateForm.passphrase.value = "";
+      els.gateForm.passphrase.focus();
+    }
+    if (els.gateForm) els.gateForm.dataset.setup = needsSetup ? "1" : "0";
   }
 
   function activateTabIndex(n) {
@@ -2327,183 +2368,6 @@
     }
   }
 
-  els.hostList.addEventListener("click", async (ev) => {
-    const connect = ev.target.closest("[data-connect]");
-    const edit = ev.target.closest("[data-edit]");
-    const del = ev.target.closest("[data-delete]");
-    if (connect) {
-      const host = state.hosts.find((h) => h.id === connect.dataset.connect);
-      if (host) openSession(host).catch((err) => toast(err.message, true));
-    } else if (edit) {
-      const host = state.hosts.find((h) => h.id === edit.dataset.edit);
-      fillHostForm(host);
-      openModal(els.hostModal);
-    } else if (del) {
-      const host = state.hosts.find((h) => h.id === del.dataset.delete);
-      if (!host) return;
-      if (host.authType === "local") {
-        toast("Local Shell is part of the workspace and cannot be removed");
-        return;
-      }
-      if (!confirm(`Remove ${host.name}?`)) return;
-      await api(`/api/hosts/${host.id}`, { method: "DELETE" });
-      await loadAll();
-    }
-  });
-
-  els.herdList.addEventListener("click", async (ev) => {
-    const rec = ev.target.closest("[data-reconnect]");
-    if (rec) {
-      try {
-        await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
-        const pane = findPaneByRuntime(rec.dataset.reconnect);
-        if (pane) {
-          pane.status = "is-connecting";
-          renderTabs();
-        }
-      } catch (err) {
-        toast(err.message, true);
-      }
-      return;
-    }
-    const attach = ev.target.closest("[data-attach]");
-    const kill = ev.target.closest("[data-kill]");
-    if (attach) {
-      const info = state.herd.find((s) => s.id === attach.dataset.attach);
-      if (info) attachRuntime(info);
-    } else if (kill) {
-      try {
-        await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
-        const pane = findPaneByRuntime(kill.dataset.kill);
-        if (pane) closePane(pane.id);
-        await loadAll();
-      } catch (err) {
-        toast(err.message, true);
-      }
-    }
-  });
-
-  document.body.addEventListener("click", (ev) => {
-    const run = ev.target.closest("[data-run]");
-    if (run) sendSnippet(run.dataset.run);
-    const editSn = ev.target.closest("[data-edit-snippet]");
-    if (editSn) {
-      const sn = state.snippets.find((s) => s.id === editSn.dataset.editSnippet);
-      els.snippetForm.reset();
-      els.snippetForm.id.value = sn.id;
-      els.snippetForm.name.value = sn.name;
-      els.snippetForm.command.value = sn.command;
-      document.getElementById("snippet-modal-title").textContent = "Edit snippet";
-      openModal(els.snippetModal);
-    }
-    const delSn = ev.target.closest("[data-delete-snippet]");
-    if (delSn) {
-      const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
-      if (!sn || !confirm(`Delete snippet “${sn.name}”?`)) return;
-      api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
-    }
-    const grant = ev.target.closest("[data-grant]");
-    if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
-    if (ev.target.closest("[data-request]")) sendControl("request-control");
-    if (ev.target.closest("[data-take]")) sendControl("take-control");
-    const paneClose = ev.target.closest("[data-pane-close]");
-    if (paneClose) closePane(paneClose.dataset.paneClose);
-    const paneRec = ev.target.closest("[data-pane-reconnect]");
-    if (paneRec) {
-      const pane = state.panes.get(paneRec.dataset.paneReconnect);
-      if (pane?.runtimeId) {
-        api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
-        pane.status = "is-connecting";
-        renderTabs();
-      }
-    }
-
-    const editId = ev.target.closest("[data-edit-identity]");
-    if (editId) {
-      const id = state.identities.find((x) => x.id === editId.dataset.editIdentity);
-      fillIdentityForm(id);
-      openModal(els.identityModal);
-    }
-    const delId = ev.target.closest("[data-delete-identity]");
-    if (delId) {
-      const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
-      if (!id || !confirm(`Delete identity “${id.name}”?`)) return;
-      api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
-    }
-    const startTn = ev.target.closest("[data-tunnel-start]");
-    if (startTn) {
-      api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
-        .then(loadAll)
-        .catch((err) => {
-          if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
-        });
-    }
-    const stopTn = ev.target.closest("[data-tunnel-stop]");
-    if (stopTn) {
-      api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
-        .then(loadAll)
-        .catch((err) => toast(err.message, true));
-    }
-    const editTn = ev.target.closest("[data-edit-tunnel]");
-    if (editTn) {
-      const t = state.tunnels.find((x) => x.id === editTn.dataset.editTunnel);
-      fillTunnelForm(t);
-      openModal(els.tunnelModal);
-    }
-    const delTn = ev.target.closest("[data-delete-tunnel]");
-    if (delTn) {
-      const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
-      if (!t || !confirm(`Delete forward “${t.name}”?`)) return;
-      api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
-    }
-  });
-
-  els.tabs.addEventListener("click", (ev) => {
-    if (ignoreTabClick) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      return;
-    }
-    const close = ev.target.closest("[data-close]");
-    if (close) {
-      ev.preventDefault();
-      closeTab(close.dataset.close);
-      return;
-    }
-    const tab = ev.target.closest("[data-tab]");
-    if (tab) {
-      state.activeId = tab.dataset.tab;
-      renderTabs();
-    }
-  });
-
-  els.tabs.addEventListener("pointerdown", (ev) => {
-    if (ev.button !== 0) return;
-    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-    if (ev.target.closest("[data-close]")) return;
-    const tab = ev.target.closest(".tab[data-tab]");
-    if (!tab || tab.dataset.tab === VAULT) return;
-    if (!state.tabs.has(tab.dataset.tab)) return;
-    tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
-  });
-  els.tabs.addEventListener("dragstart", (ev) => ev.preventDefault());
-
-  document.addEventListener(
-    "pointermove",
-    (ev) => {
-      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-      if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
-      if (!tabDrag.moved) {
-        tabDrag.moved = true;
-        document.body.classList.add("is-tab-dragging");
-      }
-      ev.preventDefault();
-      autoScrollTabs(ev.clientX);
-      paintTabDrop(tabStripInsertIndex(ev.clientX));
-    },
-    { capture: true, passive: false }
-  );
-
   function finishTabPointer(ev) {
     if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
     const drag = tabDrag;
@@ -2517,213 +2381,413 @@
     if (moveTabToIndex(drag.id, toIndex)) renderTabs();
   }
 
-  document.addEventListener("pointerup", finishTabPointer, true);
-  document.addEventListener(
-    "pointercancel",
-    (ev) => {
-      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-      ignoreTabClick = tabDrag.moved;
-      endTabDrag();
-    },
-    true
-  );
+  function bindChrome() {
+    window.addEventListener(
+      "keydown",
+      (ev) => {
+        if (isHoldModKey(ev) && !ev.repeat) {
+          clearTimeout(kbdTimer);
+          kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
+        } else if (!isHoldModKey(ev)) {
+          clearTimeout(kbdTimer);
+        }
+        if (ev.key === "Escape" && tabDrag) {
+          ev.preventDefault();
+          ignoreTabClick = tabDrag.moved;
+          endTabDrag();
+          return;
+        }
+        if (ev.key === "Escape" && state.openModal) {
+          ev.preventDefault();
+          closeModal();
+          return;
+        }
+        handleShortcut(ev);
+      },
+      true
+    );
+    window.addEventListener("keyup", (ev) => {
+      if (isHoldModKey(ev)) {
+        clearTimeout(kbdTimer);
+        showKbdHints(false);
+      }
+    });
+    window.addEventListener("blur", () => {
+      clearTimeout(kbdTimer);
+      showKbdHints(false);
+      if (tabDrag) {
+        ignoreTabClick = tabDrag.moved;
+        endTabDrag();
+      }
+    });
+    window.addEventListener("resize", fitVisiblePanes);
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+      if ((document.documentElement.dataset.theme || "system") === "system") {
+        applyThemeClass();
+        applyTerminalPrefs();
+      }
+    });
 
-  document.getElementById("vault-rail").addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-vault]");
-    if (!btn) return;
-    if (state.activeId !== VAULT) {
-      state.activeId = VAULT;
+    on(els.tabs, "click", (ev) => {
+      if (ignoreTabClick) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      const close = ev.target.closest("[data-close]");
+      if (close) {
+        ev.preventDefault();
+        closeTab(close.dataset.close);
+        return;
+      }
+      const tab = ev.target.closest("[data-tab]");
+      if (tab) {
+        state.activeId = tab.dataset.tab;
+        renderTabs();
+      }
+    });
+    on(els.tabs, "pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+      if (ev.target.closest("[data-close]")) return;
+      const tab = ev.target.closest(".tab[data-tab]");
+      if (!tab || tab.dataset.tab === VAULT) return;
+      if (!state.tabs.has(tab.dataset.tab)) return;
+      tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
+    });
+    on(els.tabs, "dragstart", (ev) => ev.preventDefault());
+    document.addEventListener(
+      "pointermove",
+      (ev) => {
+        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+        if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
+        if (!tabDrag.moved) {
+          tabDrag.moved = true;
+          document.body.classList.add("is-tab-dragging");
+        }
+        ev.preventDefault();
+        autoScrollTabs(ev.clientX);
+        paintTabDrop(tabStripInsertIndex(ev.clientX));
+      },
+      { capture: true, passive: false }
+    );
+    document.addEventListener("pointerup", finishTabPointer, true);
+    document.addEventListener(
+      "pointercancel",
+      (ev) => {
+        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+        ignoreTabClick = tabDrag.moved;
+        endTabDrag();
+      },
+      true
+    );
+
+    on(document.getElementById("btn-new-tab"), "click", () => newTab());
+    on(els.terminals, "click", (ev) => {
+      const tab = tabFromRoot(ev.target);
+      if (!tab?.start) return;
+      const connect = ev.target.closest("[data-start-connect]");
+      const quick = ev.target.closest("[data-start-quick]");
+      const join = ev.target.closest("[data-start-join]");
+      if (connect) {
+        const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
+        if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+      } else if (quick) openModal(els.quickModal);
+      else if (join) openJoin();
+    });
+    on(els.terminals, "input", (ev) => {
+      const input = ev.target.closest?.(".start-search");
+      if (!input) return;
+      const tab = tabFromRoot(input);
+      if (!tab?.start) return;
+      tab.query = input.value;
+      tab.pick = "";
+      paintStartPage(tab);
+    });
+    on(els.terminals, "keydown", (ev) => {
+      const input = ev.target.closest?.(".start-search");
+      if (!input) return;
+      const tab = tabFromRoot(input);
+      if (!tab?.start) return;
+      const hosts = visibleStartHosts(tab);
+      if (!hosts.length) return;
+      const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
+      } else if (ev.key === "Enter") {
+        ev.preventDefault();
+        const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
+        if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+      }
+    });
+
+    on(document.getElementById("vault-rail"), "click", (ev) => {
+      const btn = ev.target.closest("[data-vault]");
+      if (!btn) return;
+      if (state.activeId !== VAULT) {
+        state.activeId = VAULT;
+        renderTabs();
+      }
+      setVaultSection(btn.dataset.vault);
+    });
+    on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
+    on(document.getElementById("btn-split-right"), "click", () => splitActive("h"));
+    on(document.getElementById("btn-split-down"), "click", () => splitActive("v"));
+    on(document.getElementById("btn-sync"), "click", () => {
+      const tab = state.tabs.get(state.activeId);
+      if (!tab || tab.remote) return;
+      tab.sync = !tab.sync;
       renderTabs();
-    }
-    setVaultSection(btn.dataset.vault);
-  });
-
-  document.getElementById("btn-new-host").addEventListener("click", () => {
-    fillHostForm(null);
-    openModal(els.hostModal);
-  });
-  document.getElementById("btn-quick").addEventListener("click", () => openModal(els.quickModal));
-  document.getElementById("btn-new-snippet").addEventListener("click", () => {
-    els.snippetForm.reset();
-    document.getElementById("snippet-modal-title").textContent = "New snippet";
-    openModal(els.snippetModal);
-  });
-  document.getElementById("btn-new-identity").addEventListener("click", () => {
-    fillIdentityForm(null);
-    openModal(els.identityModal);
-  });
-  document.getElementById("btn-new-tunnel").addEventListener("click", () => {
-    fillTunnelForm(null);
-    openModal(els.tunnelModal);
-  });
-  document.getElementById("btn-welcome-local").addEventListener("click", () => newLocalTab());
-  document.getElementById("btn-new-tab")?.addEventListener("click", () => newTab());
-  document.getElementById("btn-join").addEventListener("click", openJoin);
-
-  els.terminals.addEventListener("click", (ev) => {
-    const tab = tabFromRoot(ev.target);
-    if (!tab?.start) return;
-    const connect = ev.target.closest("[data-start-connect]");
-    const quick = ev.target.closest("[data-start-quick]");
-    const join = ev.target.closest("[data-start-join]");
-    if (connect) {
-      const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
-      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
-    } else if (quick) openModal(els.quickModal);
-    else if (join) openJoin();
-  });
-  els.terminals.addEventListener("input", (ev) => {
-    const input = ev.target.closest?.(".start-search");
-    if (!input) return;
-    const tab = tabFromRoot(input);
-    if (!tab?.start) return;
-    tab.query = input.value;
-    tab.pick = "";
-    paintStartPage(tab);
-  });
-  els.terminals.addEventListener("keydown", (ev) => {
-    const input = ev.target.closest?.(".start-search");
-    if (!input) return;
-    const tab = tabFromRoot(input);
-    if (!tab?.start) return;
-    const hosts = visibleStartHosts(tab);
-    if (!hosts.length) return;
-    const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
-    if (ev.key === "ArrowDown") {
+    });
+    on(els.btnShare, "click", shareActive);
+    on(document.getElementById("set-theme"), "change", (ev) => setTheme(ev.target.value));
+    on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
+    on(document.getElementById("set-ui-size-dec"), "click", () => setUiSize(state.ui.size - 1));
+    on(document.getElementById("set-ui-size-inc"), "click", () => setUiSize(state.ui.size + 1));
+    on(document.getElementById("set-smooth"), "change", (ev) => setSmoothing(ev.target.value));
+    on(document.getElementById("set-font"), "change", (ev) => {
+      state.prefs.font = ev.target.value;
+      savePrefs();
+      applyTerminalPrefs();
+      syncTermPreview();
+    });
+    on(document.getElementById("set-size-dec"), "click", () => setFontSize(state.prefs.size - 1));
+    on(document.getElementById("set-size-inc"), "click", () => setFontSize(state.prefs.size + 1));
+    on(document.getElementById("set-copy"), "change", (ev) => {
+      state.prefs.copyOnSelect = ev.target.checked;
+      savePrefs();
+    });
+    on(document.getElementById("set-paste"), "change", (ev) => {
+      state.prefs.rightClickPaste = ev.target.checked;
+      savePrefs();
+    });
+    on(els.gateForm, "submit", (ev) => {
       ev.preventDefault();
-      setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
-    } else if (ev.key === "ArrowUp") {
-      ev.preventDefault();
-      setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
-    } else if (ev.key === "Enter") {
-      ev.preventDefault();
-      const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
-      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
-    }
-  });
-  document.getElementById("btn-refresh-logs").addEventListener("click", () => loadLogs().catch((err) => toast(err.message, true)));
-  document.getElementById("btn-split-right").addEventListener("click", () => splitActive("h"));
-  document.getElementById("btn-split-down").addEventListener("click", () => splitActive("v"));
-  document.getElementById("btn-sync").addEventListener("click", () => {
-    const tab = state.tabs.get(state.activeId);
-    if (!tab || tab.remote) return;
-    tab.sync = !tab.sync;
-    renderTabs();
-  });
+      const passphrase = els.gateForm.passphrase?.value;
+      const setup = els.gateForm.dataset.setup === "1";
+      const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
+      api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
+        .then(() => boot())
+        .catch((err) => toast(err.message, true));
+    });
+  }
 
-  document.getElementById("join-cancel").addEventListener("click", () => closeModal(els.joinModal));
-  document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
-  document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
-  document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
-  document.getElementById("identity-cancel").addEventListener("click", () => closeModal(els.identityModal));
-  document.getElementById("tunnel-cancel").addEventListener("click", () => closeModal(els.tunnelModal));
-  els.modalScrim.addEventListener("click", () => closeModal());
-  [els.hostModal, els.quickModal, els.snippetModal, els.joinModal, els.identityModal, els.tunnelModal].forEach((modal) => {
-    modal.addEventListener("close", fitVisiblePanes);
-  });
-  els.hostForm.authType.addEventListener("change", toggleAuthFields);
-  els.hostForm.keepAlive?.addEventListener("change", toggleKeepAliveFields);
-  els.identityForm.kind.addEventListener("change", toggleIdentFields);
-  els.tunnelForm.kind.addEventListener("change", toggleTunnelDest);
-  els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
-  els.identityForm.addEventListener("submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
-  els.tunnelForm.addEventListener("submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
-  els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
-  els.snippetForm.addEventListener("submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
-  els.joinForm.addEventListener("submit", (ev) => submitJoin(ev));
-  els.hostKeyForm.addEventListener("submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
-  document.getElementById("hostkey-cancel").addEventListener("click", () => closeModal(els.hostKeyModal));
-  els.search.addEventListener("input", () => {
-    state.query = els.search.value;
-    renderHosts();
-  });
-  document.getElementById("log-filter").addEventListener("input", (ev) => {
-    state.logFilter = ev.target.value;
-    renderLogs();
-  });
-  els.btnShare.addEventListener("click", shareActive);
-  document.getElementById("settings-form").addEventListener("submit", (ev) => ev.preventDefault());
-  document.getElementById("set-theme").addEventListener("change", (ev) => {
-    setTheme(ev.target.value);
-  });
-  document.getElementById("set-ui-size-dec").addEventListener("click", () => setUiSize(state.ui.size - 1));
-  document.getElementById("set-ui-size-inc").addEventListener("click", () => setUiSize(state.ui.size + 1));
-  document.getElementById("set-smooth").addEventListener("change", (ev) => setSmoothing(ev.target.value));
-  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalPrefs();
-  });
+  function bindLists() {
+    on(els.hostList, "click", async (ev) => {
+      const connect = ev.target.closest("[data-connect]");
+      const edit = ev.target.closest("[data-edit]");
+      const del = ev.target.closest("[data-delete]");
+      if (connect) {
+        const host = state.hosts.find((h) => h.id === connect.dataset.connect);
+        if (host) openSession(host).catch((err) => toast(err.message, true));
+      } else if (edit) {
+        const host = state.hosts.find((h) => h.id === edit.dataset.edit);
+        fillHostForm(host);
+        openModal(els.hostModal);
+      } else if (del) {
+        const host = state.hosts.find((h) => h.id === del.dataset.delete);
+        if (!host) return;
+        if (host.authType === "local") {
+          toast("Local Shell is part of the workspace and cannot be removed");
+          return;
+        }
+        if (!confirm(`Remove ${host.name}?`)) return;
+        await api(`/api/hosts/${host.id}`, { method: "DELETE" });
+        await loadAll();
+      }
+    });
+
+    on(els.herdList, "click", async (ev) => {
+      const rec = ev.target.closest("[data-reconnect]");
+      if (rec) {
+        try {
+          await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
+          const pane = findPaneByRuntime(rec.dataset.reconnect);
+          if (pane) {
+            pane.status = "is-connecting";
+            renderTabs();
+          }
+        } catch (err) {
+          toast(err.message, true);
+        }
+        return;
+      }
+      const attach = ev.target.closest("[data-attach]");
+      const kill = ev.target.closest("[data-kill]");
+      if (attach) {
+        const info = state.herd.find((s) => s.id === attach.dataset.attach);
+        if (info) attachRuntime(info);
+      } else if (kill) {
+        try {
+          await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
+          const pane = findPaneByRuntime(kill.dataset.kill);
+          if (pane) closePane(pane.id);
+          await loadAll();
+        } catch (err) {
+          toast(err.message, true);
+        }
+      }
+    });
+
+    document.body.addEventListener("click", (ev) => {
+      const run = ev.target.closest("[data-run]");
+      if (run) sendSnippet(run.dataset.run);
+      const editSn = ev.target.closest("[data-edit-snippet]");
+      if (editSn) {
+        const sn = state.snippets.find((s) => s.id === editSn.dataset.editSnippet);
+        if (!sn || !els.snippetForm) return;
+        els.snippetForm.reset();
+        els.snippetForm.id.value = sn.id;
+        els.snippetForm.name.value = sn.name;
+        els.snippetForm.command.value = sn.command;
+        const title = document.getElementById("snippet-modal-title");
+        if (title) title.textContent = "Edit snippet";
+        openModal(els.snippetModal);
+      }
+      const delSn = ev.target.closest("[data-delete-snippet]");
+      if (delSn) {
+        const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
+        if (!sn || !confirm(`Delete snippet “${sn.name}”?`)) return;
+        api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
+      }
+      const grant = ev.target.closest("[data-grant]");
+      if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
+      if (ev.target.closest("[data-request]")) sendControl("request-control");
+      if (ev.target.closest("[data-take]")) sendControl("take-control");
+      const paneClose = ev.target.closest("[data-pane-close]");
+      if (paneClose) closePane(paneClose.dataset.paneClose);
+      const paneRec = ev.target.closest("[data-pane-reconnect]");
+      if (paneRec) {
+        const pane = state.panes.get(paneRec.dataset.paneReconnect);
+        if (pane?.runtimeId) {
+          api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
+          pane.status = "is-connecting";
+          renderTabs();
+        }
+      }
+
+      const editId = ev.target.closest("[data-edit-identity]");
+      if (editId) {
+        const id = state.identities.find((x) => x.id === editId.dataset.editIdentity);
+        fillIdentityForm(id);
+        openModal(els.identityModal);
+      }
+      const delId = ev.target.closest("[data-delete-identity]");
+      if (delId) {
+        const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
+        if (!id || !confirm(`Delete identity “${id.name}”?`)) return;
+        api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
+      }
+      const startTn = ev.target.closest("[data-tunnel-start]");
+      if (startTn) {
+        api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
+          .then(loadAll)
+          .catch((err) => {
+            if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
+          });
+      }
+      const stopTn = ev.target.closest("[data-tunnel-stop]");
+      if (stopTn) {
+        api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
+          .then(loadAll)
+          .catch((err) => toast(err.message, true));
+      }
+      const editTn = ev.target.closest("[data-edit-tunnel]");
+      if (editTn) {
+        const t = state.tunnels.find((x) => x.id === editTn.dataset.editTunnel);
+        fillTunnelForm(t);
+        openModal(els.tunnelModal);
+      }
+      const delTn = ev.target.closest("[data-delete-tunnel]");
+      if (delTn) {
+        const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
+        if (!t || !confirm(`Delete forward “${t.name}”?`)) return;
+        api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
+      }
+    });
+
+    on(els.search, "input", () => {
+      state.query = els.search.value;
+      renderHosts();
+    });
+    on(document.getElementById("log-filter"), "input", (ev) => {
+      state.logFilter = ev.target.value;
+      renderLogs();
+    });
+    on(document.getElementById("btn-refresh-logs"), "click", () => loadLogs().catch((err) => toast(err.message, true)));
+  }
+
+  function bindModals() {
+    on(document.getElementById("btn-new-host"), "click", () => {
+      fillHostForm(null);
+      openModal(els.hostModal);
+    });
+    on(document.getElementById("btn-quick"), "click", () => openModal(els.quickModal));
+    on(document.getElementById("btn-new-snippet"), "click", () => {
+      els.snippetForm?.reset();
+      const title = document.getElementById("snippet-modal-title");
+      if (title) title.textContent = "New snippet";
+      openModal(els.snippetModal);
+    });
+    on(document.getElementById("btn-new-identity"), "click", () => {
+      fillIdentityForm(null);
+      openModal(els.identityModal);
+    });
+    on(document.getElementById("btn-new-tunnel"), "click", () => {
+      fillTunnelForm(null);
+      openModal(els.tunnelModal);
+    });
+    on(document.getElementById("btn-join"), "click", openJoin);
+    on(document.getElementById("join-cancel"), "click", () => closeModal(els.joinModal));
+    on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
+    on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
+    on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));
+    on(document.getElementById("identity-cancel"), "click", () => closeModal(els.identityModal));
+    on(document.getElementById("tunnel-cancel"), "click", () => closeModal(els.tunnelModal));
+    on(document.getElementById("hostkey-cancel"), "click", () => closeModal(els.hostKeyModal));
+    on(els.modalScrim, "click", () => closeModal());
+    [
+      els.hostModal,
+      els.quickModal,
+      els.snippetModal,
+      els.joinModal,
+      els.identityModal,
+      els.tunnelModal,
+      els.hostKeyModal,
+    ].forEach((modal) => on(modal, "close", () => {
+      if (state.openModal === modal) state.openModal = null;
+      els.modalScrim?.classList.remove("is-open");
+      fitVisiblePanes();
+    }));
+    on(els.hostForm?.authType, "change", toggleAuthFields);
+    on(els.hostForm?.keepAlive, "change", toggleKeepAliveFields);
+    on(els.identityForm?.kind, "change", toggleIdentFields);
+    on(els.tunnelForm?.kind, "change", toggleTunnelDest);
+    on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
+    on(els.identityForm, "submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
+    on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
+    on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
+    on(els.snippetForm, "submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
+    on(els.joinForm, "submit", (ev) => submitJoin(ev));
+    on(els.hostKeyForm, "submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
+  }
+
+  bindChrome();
+  bindLists();
+  bindModals();
+  applyThemeClass();
   syncThemeSwitch();
   applyUiPrefs();
   syncSettingsForm();
-
-  document.getElementById("set-font").addEventListener("change", (ev) => {
-    state.prefs.font = ev.target.value;
-    savePrefs();
-    applyTerminalPrefs();
-    syncTermPreview();
-  });
-  document.getElementById("set-size-dec").addEventListener("click", () => setFontSize(state.prefs.size - 1));
-  document.getElementById("set-size-inc").addEventListener("click", () => setFontSize(state.prefs.size + 1));
-  document.getElementById("set-copy").addEventListener("change", (ev) => {
-    state.prefs.copyOnSelect = ev.target.checked;
-    savePrefs();
-  });
-  document.getElementById("set-paste").addEventListener("change", (ev) => {
-    state.prefs.rightClickPaste = ev.target.checked;
-    savePrefs();
-  });
-
-  els.gateForm.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    const passphrase = els.gateForm.passphrase.value;
-    const setup = els.gateForm.dataset.setup === "1";
-    const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
-    api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
-      .then(() => boot())
-      .catch((err) => toast(err.message, true));
-  });
-
-  window.addEventListener("resize", fitVisiblePanes);
-  window.addEventListener(
-    "keydown",
-    (ev) => {
-      if (isHoldModKey(ev) && !ev.repeat) {
-        clearTimeout(kbdTimer);
-        kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
-      } else if (!isHoldModKey(ev)) {
-        clearTimeout(kbdTimer);
-      }
-      if (ev.key === "Escape" && tabDrag) {
-        ev.preventDefault();
-        ignoreTabClick = tabDrag.moved;
-        endTabDrag();
-        return;
-      }
-      if (ev.key === "Escape" && state.openModal) {
-        ev.preventDefault();
-        closeModal();
-        return;
-      }
-      handleShortcut(ev);
-    },
-    true
-  );
-  window.addEventListener("keyup", (ev) => {
-    if (isHoldModKey(ev)) {
-      clearTimeout(kbdTimer);
-      showKbdHints(false);
-    }
-  });
-  window.addEventListener("blur", () => {
-    clearTimeout(kbdTimer);
-    showKbdHints(false);
-    if (tabDrag) {
-      ignoreTabClick = tabDrag.moved;
-      endTabDrag();
-    }
-  });
   if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
+  toggleAuthFields();
+  toggleIdentFields();
+  toggleTunnelDest();
 
   if (!state.name) state.name = "guest";
   boot();

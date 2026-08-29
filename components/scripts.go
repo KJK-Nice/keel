@@ -24,7 +24,11 @@ import (
 const developmentComponentsDir = "components"
 
 func isDevelopment() bool {
-	return os.Getenv("GO_ENV") != "production"
+	if os.Getenv("GO_ENV") == "production" {
+		return false
+	}
+	st, err := os.Stat(developmentComponentsDir)
+	return err == nil && st.IsDir()
 }
 
 func buildBundle(fsys fs.FS) ([]byte, string) {

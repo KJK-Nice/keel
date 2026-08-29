@@ -480,13 +480,22 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
 		t.Fatal("index missing UI size or font smoothing settings")
 	}
+	if !strings.Contains(string(body), `<dialog class="modal" id="host-modal"`) || !strings.Contains(string(body), `id="modal-scrim"`) {
+		t.Fatal("index missing native host dialog or modal scrim")
+	}
+	if strings.Contains(string(body), "data-tui-dialog-portal") {
+		t.Fatal("index should not portal dialogs into inert templates")
+	}
+	if !strings.Contains(string(body), `window.__keelApplyTheme`) {
+		t.Fatal("index missing theme apply helper")
+	}
 	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
 		t.Fatal("index missing titlebar chrome bootstrap")
 	}
 	if !strings.Contains(string(body), `data-fullscreen`) || !strings.Contains(string(body), "syncFullscreen") {
 		t.Fatal("index missing fullscreen titlebar shift")
 	}
-	css, err := http.Get(srv.URL + "/css/app.css")
+	css, err := http.Get(srv.URL + "/css/keel.css")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,24 +504,27 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) ||
 		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab-strip`) ||
 		!strings.Contains(string(cssBody), "--wails-draggable") {
-		t.Fatal("app.css missing titlebar tab overlay")
+		t.Fatal("keel.css missing titlebar tab overlay")
 	}
 	if !strings.Contains(string(cssBody), "min-height: 42px") {
-		t.Fatal("app.css missing 42px titlebar overlay")
+		t.Fatal("keel.css missing 42px titlebar overlay")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
-		t.Fatal("app.css missing fullscreen tab shift")
+		t.Fatal("keel.css missing fullscreen tab shift")
 	}
 	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
-		t.Fatal("app.css missing UI size token or font smoothing")
+		t.Fatal("keel.css missing UI size token or font smoothing")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {
-		t.Fatal("app.css missing taller titlebar tabs")
+		t.Fatal("keel.css missing taller titlebar tabs")
 	}
 	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused") ||
 		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {
-		t.Fatal("app.css missing split-only pane ring or terminal scrollbar")
+		t.Fatal("keel.css missing split-only pane ring or terminal scrollbar")
+	}
+	if !strings.Contains(string(cssBody), "--keel-sidebar") {
+		t.Fatal("keel.css missing prefixed chrome sidebar token")
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")
 	if err != nil {
@@ -524,6 +536,24 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "/js/datastar.js") || !strings.Contains(string(body), "data-signals") {
 		t.Fatal("index missing Datastar")
+	}
+	termJS, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer termJS.Body.Close()
+	termBody, _ := io.ReadAll(termJS.Body)
+	if !strings.Contains(string(termBody), "showModal") || strings.Contains(string(termBody), "tui.dialog.open") {
+		t.Fatal("term.js should open native <dialog> with showModal")
+	}
+	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bundle.Body.Close()
+	bundleBody, _ := io.ReadAll(bundle.Body)
+	if bundle.StatusCode != http.StatusOK || len(bundleBody) < 100 {
+		t.Fatalf("component scripts %d (%d bytes)", bundle.StatusCode, len(bundleBody))
 	}
 	frag, err := http.Get(srv.URL + "/ui/hosts")
 	if err != nil {

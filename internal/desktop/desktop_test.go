@@ -39,7 +39,8 @@ func TestWindowDragJSRebindsAfterNavigation(t *testing.T) {
 	for _, want := range []string{
 		`window.__keelWindowDrag`,
 		`--wails-draggable`,
-		`invoke("drag")`,
+		`invoke("wails:drag")`,
+		`invoke("wails:drag:doubleclick")`,
 		`webkit.messageHandlers.external`,
 	} {
 		if !strings.Contains(js, want) {
