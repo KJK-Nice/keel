@@ -211,6 +211,47 @@ body {
   letter-spacing: -0.011em;
 }
 
+/* Desktop webview: NSVisualEffect / Acrylic shows through tinted chrome.
+   Mix is theme tokens so light stays light; fully-clear --background made
+   the OS dark vibrancy leak into light UI. */
+html[data-native],
+html[data-native] body {
+  background: color-mix(in srgb, var(--keel-stage) 66%, transparent) !important;
+}
+html[data-native] .app,
+html[data-native] .main,
+html[data-native] .vault-body {
+  background: transparent;
+}
+html[data-native] .workspace-bar,
+html[data-native] .pane-bar {
+  background: color-mix(in srgb, var(--keel-bg) 66%, transparent);
+}
+html[data-native] .vault-rail {
+  background: color-mix(in srgb, var(--keel-sidebar) 58%, transparent);
+}
+html[data-native] .tab.is-active {
+  background: color-mix(in srgb, var(--keel-panel) 82%, transparent);
+}
+html[data-native] .tabs-scroller::before {
+  background: linear-gradient(to right, color-mix(in srgb, var(--keel-bg) 66%, transparent), transparent);
+}
+html[data-native] .tabs-scroller::after {
+  background: linear-gradient(to left, color-mix(in srgb, var(--keel-bg) 66%, transparent), transparent);
+}
+html[data-native] .terminals,
+html[data-native] .term-tab,
+html[data-native] .term-wrap,
+html[data-native] .term-body,
+html[data-native] .term-body .xterm,
+html[data-native] .term-body .xterm-screen,
+html[data-native] .term-body .xterm-screen canvas {
+  background: transparent;
+}
+html[data-native] .start-page {
+  background: color-mix(in srgb, var(--keel-stage) 66%, transparent);
+}
+
 button, input, textarea, select { font: inherit; color: inherit; }
 button {
   cursor: pointer;

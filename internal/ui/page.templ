@@ -26,6 +26,9 @@ templ Page(p PageProps) {
 		class="dark style-nova"
 		data-theme="system"
 		data-signals={ p.SignalsJSON() }
+		if p.Native {
+			data-native="1"
+		}
 	>
 		<head>
 			<meta charset="UTF-8"/>
@@ -38,6 +41,7 @@ templ Page(p PageProps) {
 						document.documentElement.dataset.theme = t;
 						var dark = t === "dark" || (t === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
 						document.documentElement.classList.toggle("dark", dark);
+						document.documentElement.style.colorScheme = dark ? "dark" : "light";
 						document.body && document.body.classList.remove("dark");
 					}
 					window.__keelApplyTheme = applyTheme;
@@ -52,6 +56,7 @@ templ Page(p PageProps) {
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
 					var q = new URLSearchParams(location.search);
+					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
 						document.documentElement.dataset.chrome = "titlebar";
 						function syncFullscreen() {

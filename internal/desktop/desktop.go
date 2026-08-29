@@ -46,24 +46,7 @@ func Run(url, _ string) error {
 	})
 	w.app = app
 	app.Menu.Set(w.appMenu())
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:              "main",
-		Title:             "Keel",
-		Width:             1280,
-		Height:            840,
-		MinWidth:          800,
-		MinHeight:         520,
-		BackgroundColour:  application.NewRGB(13, 13, 13),
-		URL:               w.url,
-		JS:                windowDragJS(),
-		UseApplicationMenu: true,
-		Mac: application.MacWindow{
-			TitleBar: overlayTitleBar(),
-		},
-		Linux: application.LinuxWindow{
-			WebviewGpuPolicy: application.WebviewGpuPolicyNever,
-		},
-	})
+	win := app.Window.NewWithOptions(webviewOptions(w.url))
 	w.win = win
 	win.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		win.ExecJS(windowDragJS())
@@ -112,6 +95,36 @@ func (w *nativeWindow) menuAction(name string) func(*application.Context) {
 			return
 		}
 		w.win.ExecJS(shortcutJS(name))
+	}
+}
+
+func webviewOptions(url string) application.WebviewWindowOptions {
+	return application.WebviewWindowOptions{
+		Name:               "main",
+		Title:              "Keel",
+		Width:              1280,
+		Height:             840,
+		MinWidth:           800,
+		MinHeight:          520,
+		BackgroundType:     application.BackgroundTypeTranslucent,
+		BackgroundColour:   application.NewRGBA(0, 0, 0, 0),
+		URL:                url,
+		JS:                 windowDragJS(),
+		UseApplicationMenu: true,
+		Mac:                macWindowChrome(),
+		Windows: application.WindowsWindow{
+			BackdropType: application.Acrylic,
+		},
+		Linux: application.LinuxWindow{
+			WebviewGpuPolicy: application.WebviewGpuPolicyNever,
+		},
+	}
+}
+
+func macWindowChrome() application.MacWindow {
+	return application.MacWindow{
+		TitleBar: overlayTitleBar(),
+		Backdrop: application.MacBackdropTranslucent,
 	}
 }
 

@@ -159,8 +159,16 @@
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
 
+  function isNativeWindow() {
+    return document.documentElement.dataset.native === "1";
+  }
+
   function xtermTheme() {
-    return TERM_THEMES[resolvedTheme()];
+    const theme = { ...TERM_THEMES[resolvedTheme()] };
+    if (isNativeWindow()) {
+      theme.background = resolvedTheme() === "light" ? "#fbfbfaa8" : "#0a0a0aa8";
+    }
+    return theme;
   }
 
   function termOpts() {
@@ -169,6 +177,7 @@
       fontFamily: fontFamily(),
       fontSize: state.prefs.size,
       lineHeight: 1.22,
+      allowTransparency: isNativeWindow(),
       theme: xtermTheme(),
     };
   }
@@ -177,8 +186,10 @@
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
+    const glass = isNativeWindow();
     for (const p of state.panes.values()) {
       if (!p.term) continue;
+      p.term.options.allowTransparency = glass;
       p.term.options.theme = theme;
       p.term.options.fontFamily = family;
       p.term.options.fontSize = size;
@@ -201,6 +212,7 @@
       choice === "dark" ||
       (choice === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
     document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
     document.body?.classList.remove("dark");
   }
 

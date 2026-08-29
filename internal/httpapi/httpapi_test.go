@@ -530,6 +530,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
 		t.Fatal("index missing titlebar chrome bootstrap")
 	}
+	if !strings.Contains(string(body), `q.get("native") === "1"`) {
+		t.Fatal("index missing native window bootstrap")
+	}
+	if !strings.Contains(string(body), "colorScheme") {
+		t.Fatal("index missing color-scheme sync for native vibrancy")
+	}
 	if !strings.Contains(string(body), `data-fullscreen`) || !strings.Contains(string(body), "syncFullscreen") {
 		t.Fatal("index missing fullscreen titlebar shift")
 	}
@@ -543,6 +549,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab-strip`) ||
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("keel.css missing titlebar tab overlay")
+	}
+	if !strings.Contains(string(cssBody), `html[data-native]`) ||
+		!strings.Contains(string(cssBody), "background: transparent") {
+		t.Fatal("keel.css missing native translucent chrome")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] #tab-ctx-trigger`) ||
 		!strings.Contains(string(cssBody), "-webkit-app-region: no-drag") {
@@ -634,6 +644,13 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
+	}
+	if !strings.Contains(string(termBody), "allowTransparency") || !strings.Contains(string(termBody), "#0a0a0aa8") ||
+		!strings.Contains(string(termBody), "#fbfbfaa8") {
+		t.Fatal("term.js must glass the native terminal background per theme")
+	}
+	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
+		t.Fatal("keel.css missing native terminal glass")
 	}
 	if !strings.Contains(string(termBody), `chromeFocus.closest?.(".workspace-bar")`) {
 		t.Fatal("boot must blur titlebar chrome so the new-tab button has no launch focus ring")

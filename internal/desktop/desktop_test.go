@@ -70,6 +70,23 @@ func TestAppMenuHasTabShortcuts(t *testing.T) {
 	}
 }
 
+func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
+	mac := macWindowChrome()
+	if mac.Backdrop != application.MacBackdropTranslucent {
+		t.Fatalf("mac backdrop = %v, want translucent", mac.Backdrop)
+	}
+	opts := webviewOptions("http://127.0.0.1:47241/?native=1")
+	if opts.BackgroundType != application.BackgroundTypeTranslucent {
+		t.Fatalf("background type = %v, want translucent", opts.BackgroundType)
+	}
+	if opts.BackgroundColour.Alpha != 0 {
+		t.Fatalf("background alpha = %d, want 0", opts.BackgroundColour.Alpha)
+	}
+	if opts.Windows.BackdropType != application.Acrylic {
+		t.Fatalf("windows backdrop = %v, want acrylic", opts.Windows.BackdropType)
+	}
+}
+
 func TestMacTitleBarPresetMatchesHiddenInset(t *testing.T) {
 	want := application.MacTitleBarHiddenInset
 	got := overlayTitleBar()
