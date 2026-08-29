@@ -2684,6 +2684,8 @@
     els.gate.hidden = true;
     connectHerd();
     renderTabs();
+    const chromeFocus = document.activeElement;
+    if (chromeFocus && chromeFocus.closest?.(".workspace-bar")) chromeFocus.blur();
     syncSettingsForm();
     if (state.pendingSession) {
       const info = state.herd.find((s) => s.id === state.pendingSession);
@@ -3189,6 +3191,7 @@
   syncSettingsForm();
   if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
+  document.getElementById("btn-new-tab")?.blur();
   toggleAuthFields();
   toggleIdentFields();
   toggleTunnelDest();

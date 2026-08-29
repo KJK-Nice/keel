@@ -41,6 +41,7 @@ func TestWindowDragJSRebindsAfterNavigation(t *testing.T) {
 		`--wails-draggable`,
 		`invoke("wails:drag")`,
 		`invoke("wails:drag:doubleclick")`,
+		`is-window-dragging`,
 		`webkit.messageHandlers.external`,
 	} {
 		if !strings.Contains(js, want) {

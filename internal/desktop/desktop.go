@@ -165,13 +165,23 @@ func windowDragJS() string {
 			return !!(val && val.trim() === "drag");
 		}
 		var canDrag = false;
+		function setWindowDragging(on) {
+			document.documentElement.classList.toggle("is-window-dragging", on);
+		}
 		window.addEventListener("mousedown", function(e) {
 			canDrag = e.button === 0 && e.detail === 1 && isDrag(e);
+			if (canDrag) setWindowDragging(true);
 		}, true);
-		window.addEventListener("mouseup", function() { canDrag = false; }, true);
+		function endWindowDrag() {
+			canDrag = false;
+			setWindowDragging(false);
+		}
+		window.addEventListener("mouseup", endWindowDrag, true);
+		window.addEventListener("pointerup", endWindowDrag, true);
+		window.addEventListener("blur", endWindowDrag);
 		window.addEventListener("mousemove", function(e) {
 			if (!canDrag) return;
-			if ((e.buttons !== undefined ? e.buttons : 1) === 0) { canDrag = false; return; }
+			if ((e.buttons !== undefined ? e.buttons : 1) === 0) { endWindowDrag(); return; }
 			canDrag = false;
 			invoke("wails:drag");
 		}, true);

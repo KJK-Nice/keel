@@ -545,6 +545,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "-webkit-app-region: no-drag") {
 		t.Fatal("keel.css titlebar tabs must be no-drag so WKWebView delivers right-click")
 	}
+	if !strings.Contains(string(cssBody), `[data-tui-contextmenu-item]:not(:disabled)`) ||
+		!strings.Contains(string(cssBody), "color-mix(in srgb, var(--text) 12%, transparent)") {
+		t.Fatal("context menu items must highlight on hover")
+	}
 	if !strings.Contains(string(cssBody), "min-height: 42px") {
 		t.Fatal("keel.css missing 42px titlebar overlay")
 	}
@@ -566,6 +570,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {
 		t.Fatal("keel.css missing taller titlebar tabs")
+	}
+	if !strings.Contains(string(cssBody), ".tab-new:focus") || !strings.Contains(string(cssBody), "html.is-window-dragging") {
+		t.Fatal("new-tab must not show a focus ring; window drag must keep the default cursor")
+	}
+	if !strings.Contains(string(cssBody), ".tab:not(.is-vault) { cursor: pointer") {
+		t.Fatal("session tabs must use a pointer cursor, not grab")
 	}
 	if !strings.Contains(string(cssBody), ".tabs::-webkit-scrollbar") ||
 		!strings.Contains(string(cssBody), "scrollbar-width: none") ||
@@ -621,6 +631,9 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
+	}
+	if !strings.Contains(string(termBody), `chromeFocus.closest?.(".workspace-bar")`) {
+		t.Fatal("boot must blur titlebar chrome so the new-tab button has no launch focus ring")
 	}
 	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
 	if err != nil {

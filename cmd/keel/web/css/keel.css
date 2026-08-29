@@ -434,6 +434,9 @@ html[data-chrome="titlebar"] .workspace-bar,
 html[data-chrome="titlebar"] .tab-strip,
 html[data-chrome="titlebar"] .bar-meta {
   -webkit-app-region: drag;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 html[data-chrome="titlebar"] .tabs-scroller,
 html[data-chrome="titlebar"] .tabs,
@@ -458,6 +461,12 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
   --wails-draggable: none;
   -webkit-app-region: no-drag;
 }
+/* Unlayered button { background: transparent } beats Tailwind focus:bg-accent. */
+[data-slot="context-menu-item"]:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, :active),
+[data-tui-contextmenu-item]:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, :active) {
+  background-color: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
 html[data-chrome="titlebar"] .tab {
   min-height: 32px;
   padding: 6px 10px 6px 11px;
@@ -465,6 +474,10 @@ html[data-chrome="titlebar"] .tab {
 html[data-chrome="titlebar"] .tab-new {
   width: 32px;
   height: 32px;
+}
+html.is-window-dragging,
+html.is-window-dragging * {
+  cursor: default !important;
 }
 .menu-btn { display: none; flex-direction: column; gap: 3px; padding: 6px; }
 .menu-btn span { display: block; width: 12px; height: 1.5px; background: var(--text); }
@@ -585,7 +598,7 @@ html[data-chrome="titlebar"] .tab:has(.tab-rename):focus-visible {
   box-shadow: none;
 }
 .tab:has(.tab-rename) .close { display: none; }
-.tab:not(.is-vault) { cursor: grab; touch-action: none; }
+.tab:not(.is-vault) { cursor: pointer; touch-action: none; }
 .tab.is-dragging { opacity: 0.4; }
 .tab.is-drop-before::before,
 .tab.is-drop-after::after {
@@ -602,7 +615,7 @@ html[data-chrome="titlebar"] .tab:has(.tab-rename):focus-visible {
 .tab.is-drop-before::before { left: -2px; }
 .tab.is-drop-after::after { right: -2px; }
 body.is-tab-dragging,
-body.is-tab-dragging .tab { cursor: grabbing; }
+body.is-tab-dragging .tab { cursor: pointer; }
 body.is-tab-dragging { user-select: none; }
 .tab.is-active {
   background: var(--panel);
@@ -668,6 +681,11 @@ body.is-tab-dragging .tab .close { opacity: 0; pointer-events: none; }
   line-height: 1;
 }
 .tab-new:hover { color: var(--text); background: var(--hover); }
+.tab-new:focus,
+.tab-new:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 .tab-new .kbd-hint {
   left: 50%;
   right: auto;
