@@ -2,12 +2,39 @@ package ui
 
 import (
 	"keel/components/button"
+	"keel/components/contextmenu"
 	"keel/components/dropdownmenu"
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/components/kbd"
 	selectcomp "keel/components/select"
 )
+
+templ tabContextMenu() {
+	@contextmenu.ContextMenu(contextmenu.Props{ID: "tab-ctx"}) {
+		@contextmenu.Trigger(contextmenu.TriggerProps{ID: "tab-ctx-trigger", Class: "tabs-scroller"}) {
+			<div class="tabs" id="tabs"></div>
+		}
+		@contextmenu.Content(contextmenu.ContentProps{Class: "min-w-44"}) {
+			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "rename"}}) {
+				Rename tab
+			}
+			@contextmenu.Separator(contextmenu.SeparatorProps{Attributes: templ.Attributes{"data-tab-menu-sep": "rename"}})
+			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close"}}) {
+				Close
+			}
+			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-others"}}) {
+				Close Others
+			}
+			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-right"}}) {
+				Close to the Right
+			}
+			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-all"}}) {
+				Close All
+			}
+		}
+	}
+}
 
 templ hintKbd(key string) {
 	@kbd.Kbd(kbd.Props{Class: "kbd-hint", Attributes: templ.Attributes{"aria-hidden": "true"}}) {

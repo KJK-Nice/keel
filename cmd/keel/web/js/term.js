@@ -752,6 +752,7 @@
   }
 
   function tabTitle(tab) {
+    if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
     const first = panes[0];
@@ -768,6 +769,8 @@
 
   let tabDrag = null;
   let ignoreTabClick = false;
+  let tabRenaming = null;
+  let tabMenuTarget = "";
 
   function reorderTabIds(ids, fromId, toIndex) {
     const from = ids.indexOf(fromId);
@@ -844,6 +847,103 @@
     const max = Math.max(0, el.scrollWidth - el.clientWidth);
     wrap.toggleAttribute("data-overflow-left", el.scrollLeft > 1);
     wrap.toggleAttribute("data-overflow-right", max - el.scrollLeft > 1);
+  }
+
+  function setTabMenuItem(sel, { hidden = false, disabled = false } = {}) {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.hidden = hidden;
+    if ("disabled" in el) el.disabled = disabled;
+    if (disabled) el.setAttribute("aria-disabled", "true");
+    else el.removeAttribute("aria-disabled");
+  }
+
+  function syncTabContextMenu(id) {
+    const vault = id === VAULT;
+    const ids = [...state.tabs.keys()];
+    const idx = vault ? -1 : ids.indexOf(id);
+    const others = vault ? ids.length : ids.filter((tid) => tid !== id).length;
+    const right = vault ? ids.length : idx < 0 ? 0 : ids.length - idx - 1;
+    setTabMenuItem('[data-tab-action="rename"]', { hidden: vault, disabled: vault });
+    setTabMenuItem('[data-tab-menu-sep="rename"]', { hidden: vault });
+    setTabMenuItem('[data-tab-action="close"]', { hidden: vault, disabled: vault });
+    setTabMenuItem('[data-tab-action="close-others"]', { disabled: others === 0 });
+    setTabMenuItem('[data-tab-action="close-right"]', { disabled: right === 0 });
+    setTabMenuItem('[data-tab-action="close-all"]', { disabled: ids.length === 0 });
+  }
+
+  function closeTabs(ids) {
+    for (const id of ids) closeTab(id, { silent: true });
+    renderTabs();
+    renderHerd();
+  }
+
+  function applyTabRename(id, raw, ok) {
+    const tab = state.tabs.get(id);
+    tabRenaming = null;
+    if (ok && tab) {
+      const next = String(raw || "").trim();
+      if (next) tab.customTitle = next;
+      else delete tab.customTitle;
+    }
+  }
+
+  function beginTabRename(id) {
+    if (id === VAULT || !state.tabs.has(id) || tabRenaming) return;
+    const tab = state.tabs.get(id);
+    const btn = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(id)}"]`);
+    const label = btn?.querySelector(".tab-label");
+    if (!label) return;
+    tabRenaming = id;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "tab-rename";
+    input.value = tabTitle(tab);
+    input.setAttribute("aria-label", "Rename tab");
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      applyTabRename(id, input.value, ok);
+      renderTabs();
+    };
+    input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        input.blur();
+      } else if (ev.key === "Escape") {
+        ev.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  function runTabContextAction(action, id) {
+    if (action === "rename") {
+      requestAnimationFrame(() => beginTabRename(id));
+      return;
+    }
+    if (action === "close") {
+      closeTab(id);
+      return;
+    }
+    const ids = [...state.tabs.keys()];
+    if (action === "close-others") {
+      closeTabs(ids.filter((tid) => tid !== id));
+      return;
+    }
+    if (action === "close-right") {
+      const idx = ids.indexOf(id);
+      if (idx >= 0) closeTabs(ids.slice(idx + 1));
+      else if (id === VAULT) closeTabs(ids);
+      return;
+    }
+    if (action === "close-all") closeTabs(ids);
   }
 
   function endTabDrag() {
@@ -988,32 +1088,34 @@
     const sessionOn = !vaultOn && activeTab && !activeTab.start;
 
     const keepScroll = els.tabs.scrollLeft;
-    els.tabs.innerHTML =
-      `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
-      ids
-        .map((id, i) => {
-          const tab = state.tabs.get(id);
-          const st = tabStatus(tab);
-          const chromeIdx = i + 1;
-          const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
-          const closeHint = id === state.activeId ? kbdHint("W") : "";
-          return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
+    if (!tabRenaming) {
+      els.tabs.innerHTML =
+        `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
+        ids
+          .map((id, i) => {
+            const tab = state.tabs.get(id);
+            const st = tabStatus(tab);
+            const chromeIdx = i + 1;
+            const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
+            const closeHint = id === state.activeId ? kbdHint("W") : "";
+            return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
             ${tabGlyph()}
-            ${escapeHtml(tabTitle(tab))}
+            <span class="tab-label">${escapeHtml(tabTitle(tab))}</span>
             <span class="close" data-close="${id}" title="Close  ${MOD}W">×${closeHint}</span>
           </button>`;
-        })
-        .join("");
-    els.tabs.scrollLeft = keepScroll;
-    const activeBtn = els.tabs.querySelector(".tab.is-active");
-    if (activeBtn) {
-      const left = activeBtn.offsetLeft;
-      const right = left + activeBtn.offsetWidth;
-      const viewLeft = els.tabs.scrollLeft;
-      const viewRight = viewLeft + els.tabs.clientWidth;
-      if (left < viewLeft) els.tabs.scrollLeft = left;
-      else if (right > viewRight) els.tabs.scrollLeft = right - els.tabs.clientWidth;
+          })
+          .join("");
+      els.tabs.scrollLeft = keepScroll;
+      const activeBtn = els.tabs.querySelector(".tab.is-active");
+      if (activeBtn) {
+        const left = activeBtn.offsetLeft;
+        const right = left + activeBtn.offsetWidth;
+        const viewLeft = els.tabs.scrollLeft;
+        const viewRight = viewLeft + els.tabs.clientWidth;
+        if (left < viewLeft) els.tabs.scrollLeft = left;
+        else if (right > viewRight) els.tabs.scrollLeft = right - els.tabs.clientWidth;
+      }
     }
     syncTabOverflow();
 
@@ -1454,6 +1556,7 @@
   }
 
   function handleShortcut(ev) {
+    if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
     const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
@@ -1841,6 +1944,7 @@
     if (id === VAULT) return;
     const tab = state.tabs.get(id);
     if (!tab) return;
+    if (tabRenaming === id) tabRenaming = null;
     const first = tabPanes(tab)[0];
     if (first?.runtimeId) state.lastClosedRuntimeId = first.runtimeId;
     if (!opts.skipPanes) {
@@ -1850,8 +1954,10 @@
     state.tabs.delete(id);
     const remain = [...state.tabs.keys()];
     if (state.activeId === id) state.activeId = remain.at(-1) || VAULT;
-    renderTabs();
-    renderHerd();
+    if (!opts.silent) {
+      renderTabs();
+      renderHerd();
+    }
   }
 
   async function splitActive(dir) {
@@ -2631,7 +2737,35 @@
       }
     });
 
+    document.addEventListener(
+      "contextmenu",
+      (ev) => {
+        if (!(ev.target instanceof Element)) return;
+        const trigger = ev.target.closest("#tab-ctx-trigger");
+        if (!trigger) return;
+        const tab = ev.target.closest(".tab[data-tab]");
+        if (!tab) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        tabMenuTarget = tab.dataset.tab;
+        syncTabContextMenu(tabMenuTarget);
+      },
+      true
+    );
+    document.addEventListener("click", (ev) => {
+      if (!(ev.target instanceof Element)) return;
+      const item = ev.target.closest("[data-tab-action]");
+      if (!item || item.disabled || item.getAttribute("aria-disabled") === "true") return;
+      runTabContextAction(item.dataset.tabAction, tabMenuTarget);
+    });
     on(els.tabs, "click", (ev) => {
+      if (ev.target.closest(".tab-rename")) return;
+      if (tabRenaming) {
+        const input = els.tabs.querySelector(".tab-rename");
+        applyTabRename(tabRenaming, input?.value, true);
+      }
       if (ignoreTabClick) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2652,7 +2786,7 @@
     on(els.tabs, "pointerdown", (ev) => {
       if (ev.button !== 0) return;
       if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-      if (ev.target.closest("[data-close]")) return;
+      if (ev.target.closest("[data-close], .tab-rename")) return;
       const tab = ev.target.closest(".tab[data-tab]");
       if (!tab || tab.dataset.tab === VAULT) return;
       if (!state.tabs.has(tab.dataset.tab)) return;

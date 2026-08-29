@@ -75,9 +75,7 @@ templ Page(p PageProps) {
 				<main class="main">
 					<header class="workspace-bar">
 						<div class="tab-strip">
-							<div class="tabs-scroller">
-								<div class="tabs" id="tabs"></div>
-							</div>
+							@tabContextMenu()
 							@tooltip.Tooltip() {
 								<button
 									type="button"

@@ -474,8 +474,13 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
 		t.Fatal("index should have vault rail icons and no titlebar settings button")
 	}
-	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) || !strings.Contains(string(body), `class="tabs-scroller"`) {
+	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) || !strings.Contains(string(body), `id="tab-ctx-trigger"`) || !strings.Contains(string(body), "tabs-scroller") {
 		t.Fatal("index missing settings theme select or tab strip")
+	}
+	if !strings.Contains(string(body), `data-tab-action="rename"`) ||
+		!strings.Contains(string(body), "Close Others") ||
+		!strings.Contains(string(body), "Close to the Right") {
+		t.Fatal("index missing tab context menu")
 	}
 	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
 		t.Fatal("index missing UI size or font smoothing settings")
@@ -593,6 +598,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "tui.toast.add") || strings.Contains(string(termBody), `getElementById("toast")`) {
 		t.Fatal("term.js should raise toasts through tui.toast.add")
 	}
+	if !strings.Contains(string(termBody), "syncTabContextMenu") || !strings.Contains(string(termBody), "beginTabRename") {
+		t.Fatal("term.js missing tab context menu handlers")
+	}
 	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
 	if err != nil {
 		t.Fatal(err)
@@ -601,6 +609,9 @@ func TestIndexServesVault(t *testing.T) {
 	bundleBody, _ := io.ReadAll(bundle.Body)
 	if bundle.StatusCode != http.StatusOK || len(bundleBody) < 100 {
 		t.Fatalf("component scripts %d (%d bytes)", bundle.StatusCode, len(bundleBody))
+	}
+	if !strings.Contains(string(bundleBody), "data-tui-contextmenu-trigger") {
+		t.Fatal("component scripts missing context menu")
 	}
 	frag, err := http.Get(srv.URL + "/ui/hosts")
 	if err != nil {

@@ -442,6 +442,11 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
   --wails-draggable: none;
   -webkit-app-region: no-drag;
 }
+[data-tui-contextmenu-content],
+[data-tui-contextmenu-popup] {
+  --wails-draggable: none;
+  -webkit-app-region: no-drag;
+}
 html[data-chrome="titlebar"] .tab {
   min-height: 32px;
   padding: 6px 10px 6px 11px;
@@ -520,6 +525,21 @@ html[data-chrome="titlebar"] .tab-new {
   font-size: 1rem;
   user-select: none;
 }
+.tab .tab-label { min-width: 0; }
+.tab-rename {
+  width: 9rem;
+  max-width: 16rem;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  corner-shape: squircle;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  outline: 1px solid var(--keel-accent);
+}
+.tab:has(.tab-rename) .close { display: none; }
 .tab:not(.is-vault) { cursor: grab; touch-action: none; }
 .tab.is-dragging { opacity: 0.4; }
 .tab.is-drop-before::before,
