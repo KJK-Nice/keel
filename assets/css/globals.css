@@ -50,6 +50,17 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* shadcn defaults text-sm to .875rem. Keel UI size is html rem (11–16px),
+   so map control type to 1rem. text-xs stays a step smaller, still rem. */
+@theme {
+  --text-xs: 0.833rem;
+  --text-sm: 1rem;
+  --text-base: 1rem;
+  --text-xs--line-height: 1.25;
+  --text-sm--line-height: 1.35;
+  --text-base--line-height: 1.35;
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

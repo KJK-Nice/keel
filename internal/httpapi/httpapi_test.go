@@ -545,6 +545,15 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
 		t.Fatal("keel.css missing UI size token or font smoothing")
 	}
+	tw, err := http.Get(srv.URL + "/css/output.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tw.Body.Close()
+	twBody, _ := io.ReadAll(tw.Body)
+	if !strings.Contains(string(twBody), "--text-sm:1rem") {
+		t.Fatal("output.css --text-sm must be 1rem so shadcn controls match --ui-size")
+	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
 		!strings.Contains(string(cssBody), "min-height: 32px") {
 		t.Fatal("keel.css missing taller titlebar tabs")
