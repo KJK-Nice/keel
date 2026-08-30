@@ -65,7 +65,7 @@ templ rowMenu(editKey, editID, delKey, delID string) {
 		}) {
 			@icon.EllipsisVertical()
 		}
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}) {
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{editKey: editID}}) {
 				Edit
 			}

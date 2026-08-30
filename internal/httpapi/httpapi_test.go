@@ -509,6 +509,45 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `data-tui-tabs`) {
 		t.Fatal("index missing settings slider or tabs")
 	}
+	if !strings.Contains(string(body), `data-slot="input-group"`) || !strings.Contains(string(body), `data-slot="button-group"`) {
+		t.Fatal("index missing hosts input-group or button-group")
+	}
+	ig := strings.Index(string(body), `data-slot="input-group"`)
+	if ig < 0 {
+		t.Fatal("missing input-group")
+	}
+	igRest := string(body)[ig:]
+	igEnd := strings.Index(igRest, ">")
+	if igEnd < 0 || !strings.Contains(igRest[:igEnd], "h-10") {
+		t.Fatal("hosts search input-group must use custom h-10")
+	}
+	if !strings.Contains(string(body), "min-w-max") {
+		t.Fatal("host action dropdown must size to content, not the chevron")
+	}
+	if !strings.Contains(string(body), `id="btn-host-connect"`) || !strings.Contains(string(body), "Find a host or ssh user@hostname") {
+		t.Fatal("index missing Termius-style host search connect")
+	}
+	for _, id := range []string{`id="btn-host-connect"`, `id="btn-new-host"`, `id="btn-welcome-local"`} {
+		i := strings.Index(string(body), id)
+		if i < 0 {
+			t.Fatalf("missing %s", id)
+		}
+		rest := string(body)[i:]
+		tagEnd := strings.Index(rest, ">")
+		if tagEnd < 0 {
+			t.Fatalf("%s: unclosed tag", id)
+		}
+		tag := rest[:tagEnd]
+		if !strings.Contains(tag, "h-8") && !strings.Contains(tag, "size-8") {
+			t.Fatalf("%s must use shadcn default height (h-8), not xs/sm", id)
+		}
+		if strings.Contains(tag, "h-6 ") || strings.Contains(tag, "h-7 ") {
+			t.Fatalf("%s must not use compact xs/sm height", id)
+		}
+	}
+	if !strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-empty"`) {
+		t.Fatal("index should hide live sessions until a PTY is attached")
+	}
 	if !strings.Contains(string(body), `data-slot="card"`) || !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
 		t.Fatal("index missing card or terminal preview aspect ratio")
 	}
@@ -649,8 +688,32 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), "#fbfbfaa8") {
 		t.Fatal("term.js must glass the native terminal background per theme")
 	}
+	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
+		t.Fatal("term.js must connect from host search and filter by group cards")
+	}
 	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")
+	}
+	if !strings.Contains(string(cssBody), `#live-section[hidden]`) {
+		t.Fatal("keel.css must hide the live section while it is empty")
+	}
+	if strings.Contains(string(cssBody), "--radius: 6px") {
+		t.Fatal("keel.css must not override nova --radius with 6px")
+	}
+	if !strings.Contains(string(cssBody), "--radius: 0.625rem") {
+		t.Fatal("keel.css must keep nova --radius on shadcn tokens")
+	}
+	if !strings.Contains(string(cssBody), `button:not([data-slot])`) {
+		t.Fatal("button reset must skip every shadcn data-slot, including select-trigger")
+	}
+	if strings.Contains(string(cssBody), `button:not([data-slot="button"])`) {
+		t.Fatal("button reset must not target only data-slot=button (select triggers need a border)")
+	}
+	if !strings.Contains(string(cssBody), `.modal [data-slot="select-trigger"]`) {
+		t.Fatal("modal select triggers must share the field border with inputs")
+	}
+	if strings.Contains(string(cssBody), "button {\n  cursor: pointer;\n  background-color: transparent") {
+		t.Fatal("unlayered button reset must not paint every button transparent")
 	}
 	if !strings.Contains(string(termBody), `chromeFocus.closest?.(".workspace-bar")`) {
 		t.Fatal("boot must blur titlebar chrome so the new-tab button has no launch focus ring")
@@ -675,6 +738,9 @@ func TestIndexServesVault(t *testing.T) {
 	fragBody, _ := io.ReadAll(frag.Body)
 	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="host-list"`) {
 		t.Fatalf("ui hosts %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
+	}
+	if !strings.Contains(string(fragBody), `data-slot="card"`) || !strings.Contains(string(fragBody), `data-connect`) {
+		t.Fatal("ui hosts fragment should render host cards")
 	}
 }
 

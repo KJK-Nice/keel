@@ -252,7 +252,7 @@
   const els = {
     hostList: document.getElementById("host-list"),
     herdList: document.getElementById("herd-list"),
-    herdEmpty: document.getElementById("herd-empty"),
+    liveSection: document.getElementById("live-section"),
     snippetList: document.getElementById("snippet-list"),
     identityList: document.getElementById("identity-list"),
     tunnelList: document.getElementById("tunnel-list"),
@@ -547,27 +547,48 @@
     return [...state.panes.values()].some((p) => p.runtimeId === runtimeId);
   }
 
+  function glyphSVG(kind) {
+    if (kind === "folder") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7"/></svg>`;
+    }
+    if (kind === "local") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/></svg>`;
+  }
+
+  function tileGlyph(color, kind) {
+    if (kind === "folder") {
+      return `<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">${glyphSVG("folder")}</span>`;
+    }
+    const c = color || "#5ee0b5";
+    return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${glyphSVG(kind)}</span>`;
+  }
+
   function renderHerd() {
     if (!state.herd.length) {
       els.herdList.innerHTML = "";
-      els.herdEmpty.hidden = false;
+      if (els.liveSection) els.liveSection.hidden = true;
       return;
     }
-    els.herdEmpty.hidden = true;
+    if (els.liveSection) els.liveSection.hidden = false;
     els.herdList.innerHTML = state.herd
       .map((s) => {
         const open = paneOpen(s.id);
         const driver = driverName(s);
+        const color = statusColor(s.status);
         return `
-          <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
-            <span class="dot" style="--dot:${s.color || "#5ee0b5"};background:${statusColor(s.status)}"></span>
-            <div class="meta" role="button" tabindex="0" data-attach="${s.id}">
-              <b>${escapeHtml(s.title)}</b>
-              <small>${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</small>
-            </div>
-            <div class="host-tools">
-              ${s.status === "error" || s.status === "exited" ? `<button class="tiny" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
-              <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
+          <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 ${open ? "ring-ring" : ""}" data-slot="card" data-size="sm" data-herd="${s.id}">
+            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+              ${tileGlyph(color, "local")}
+              <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-attach="${s.id}">
+                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.title)}</div>
+                <p data-slot="card-description" class="text-muted-foreground truncate text-sm">${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</p>
+              </div>
+              <div class="flex items-center gap-1">
+                ${s.status === "error" || s.status === "exited" ? `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-kill="${s.id}" title="Kill session">kill</button>
+              </div>
             </div>
           </div>`;
       })
@@ -577,27 +598,52 @@
   function renderHosts() {
     const groups = groupHosts(state.hosts);
     if (!groups.size) {
-      els.hostList.innerHTML = `<div class="empty">No hosts match. Add a server or clear the search.</div>`;
+      els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
       return;
     }
+    const folders = [...groups.entries()].filter(([name]) => name && name !== "Hosts" && name !== "Ungrouped");
+    const hosts = [...groups.values()].flat();
     const html = [];
-    for (const [group, hosts] of groups) {
-      html.push(`<div class="group-label">${escapeHtml(group)}</div>`);
-      for (const h of hosts) {
+    if (folders.length) {
+      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+      for (const [name, list] of folders) {
         html.push(`
-          <div class="host" data-id="${h.id}">
-            <span class="dot" style="--dot:${h.color};background:${h.color}"></span>
-            <div class="meta" role="button" tabindex="0" data-connect="${h.id}">
-              <b>${escapeHtml(h.name)}</b>
-              <small>${escapeHtml(hostSubtitle(h))}</small>
-            </div>
-            <div class="host-tools">
-              <button class="tiny" data-edit="${h.id}" title="Edit">Edit</button>
-              <button class="tiny" data-delete="${h.id}" title="Remove">✕</button>
+          <div class="ring-foreground/10 bg-card text-card-foreground host-tile cursor-pointer overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-group-filter="${escapeHtml(name)}" role="button" tabindex="0">
+            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+              ${tileGlyph("", "folder")}
+              <div class="min-w-0 flex-1">
+                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(name)}</div>
+                <p data-slot="card-description" class="text-muted-foreground text-sm">${list.length === 1 ? "1 Host" : `${list.length} Hosts`}</p>
+              </div>
             </div>
           </div>`);
       }
+      html.push(`</div></section>`);
     }
+    html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+    for (const h of hosts) {
+      const kind = h.authType === "local" ? "local" : "ssh";
+      const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
+      html.push(`
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${h.id}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph(h.color, kind)}
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-connect="${h.id}">
+              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(h.name)}</div>
+              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
+                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind}</span>
+                ${groupBadge}
+                <span class="truncate">${escapeHtml(hostSubtitle(h))}</span>
+              </p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit="${h.id}" title="Edit">Edit</button>
+              ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${h.id}" title="Remove">✕</button>`}
+            </div>
+          </div>
+        </div>`);
+    }
+    html.push(`</div></section>`);
     els.hostList.innerHTML = html.join("");
   }
 
@@ -2279,6 +2325,22 @@
     return { user: match[1], host: match[2].replace(/^\[|\]$/g, ""), port: Number(match[3] || 22) };
   }
 
+  function connectFromSearch() {
+    const q = (els.search?.value || "").trim();
+    const parsed = parseTarget(q);
+    if (parsed) {
+      if (els.quickForm?.target) els.quickForm.target.value = q;
+      openModal(els.quickModal);
+      return;
+    }
+    const first = document.querySelector("#host-list [data-connect]");
+    if (first) {
+      first.click();
+      return;
+    }
+    toast("No matching host", true);
+  }
+
   async function saveSnippet(event) {
     event.preventDefault();
     const form = els.snippetForm;
@@ -3024,6 +3086,22 @@
     });
 
     document.body.addEventListener("click", async (ev) => {
+      if (ev.target.closest("#btn-quick")) {
+        openModal(els.quickModal);
+        return;
+      }
+      if (ev.target.closest("#btn-join")) {
+        openJoin();
+        return;
+      }
+      const groupFilter = ev.target.closest("[data-group-filter]");
+      if (groupFilter && els.search) {
+        const next = groupFilter.getAttribute("data-group-filter") || "";
+        els.search.value = next;
+        state.query = next;
+        els.search.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
       const connect = ev.target.closest("[data-connect]");
       if (connect) {
         const host = state.hosts.find((h) => h.id === connect.dataset.connect);
@@ -3132,6 +3210,12 @@
       state.query = els.search.value;
       paintList("host-list", "/ui/hosts?" + datastarQS());
     });
+    on(els.search, "keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      connectFromSearch();
+    });
+    on(document.getElementById("btn-host-connect"), "click", () => connectFromSearch());
     on(document.getElementById("log-filter"), "input", (ev) => {
       state.logFilter = ev.target.value;
       paintList("log-list", "/ui/logs?" + datastarQS());
@@ -3201,7 +3285,9 @@
   syncThemeSwitch();
   applyUiPrefs();
   syncSettingsForm();
-  if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
+  if (els.search) els.search.placeholder = "Find a host or ssh user@hostname...";
+  const searchKbd = document.getElementById("search-kbd");
+  if (searchKbd) searchKbd.textContent = `${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
   document.getElementById("btn-new-tab")?.blur();
   toggleAuthFields();

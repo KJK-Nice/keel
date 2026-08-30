@@ -4,11 +4,13 @@ import (
 	"keel/components"
 	"keel/components/aspectratio"
 	"keel/components/button"
+	"keel/components/buttongroup"
 	"keel/components/card"
-	"keel/components/empty"
+	"keel/components/dropdownmenu"
 	"keel/components/field"
 	"keel/components/icon"
 	"keel/components/input"
+	"keel/components/inputgroup"
 	"keel/components/kbd"
 	"keel/components/label"
 	"keel/components/separator"
@@ -251,22 +253,19 @@ templ vaultNav(id, label string, active bool) {
 
 templ HostsPage(p PageProps) {
 	<section
-		class="vault-page is-active"
+		class="vault-page is-active flex flex-col gap-5"
 		id="page-hosts"
 		data-page="hosts"
 	>
-		<div class="page-head">
-			<div>
-				<p class="eyebrow">This machine</p>
-				<h1>Hosts</h1>
-				<p class="lede">Open a local shell or SSH host. Closing a session tab detaches; the PTY stays in Live until you kill it.</p>
-			</div>
-		</div>
-		<div class="search" data-kbd="K">
-			@input.Input(input.Props{
+		@inputgroup.InputGroup(inputgroup.Props{
+			Class:      "h-10",
+			Attributes: templ.Attributes{"data-kbd": "K"},
+		}) {
+			@inputgroup.Input(inputgroup.InputProps{
 				ID:          "search",
 				Type:        "search",
-				Placeholder: "Search hosts  ⌘K",
+				Class:       "h-10",
+				Placeholder: "Find a host or ssh user@hostname...",
 				Attributes: templ.Attributes{
 					"aria-label":                     "Search hosts",
 					"autocomplete":                   "off",
@@ -274,57 +273,78 @@ templ HostsPage(p PageProps) {
 					"data-on:input__debounce.200ms": "@get('/ui/hosts')",
 				},
 			})
-			@hintKbd("K")
-		</div>
-		<h2 class="group-label">Live</h2>
-		<div id="herd-list" class="host-list"></div>
-		@empty.Empty(empty.Props{ID: "herd-empty"}) {
-			@empty.Header() {
-				@empty.Title() {
-					No live sessions
+			@inputgroup.Addon() {
+				@icon.Search01()
+			}
+			@inputgroup.Addon(inputgroup.AddonProps{Align: inputgroup.AlignInlineEnd, Class: "py-0"}) {
+				@kbd.Kbd(kbd.Props{ID: "search-kbd"}) {
+					⌘K
 				}
-				@empty.Description() {
-					Connect from Hosts below.
+				@button.Button(button.Props{
+					ID:      "btn-host-connect",
+					Variant: button.VariantDefault,
+				}) {
+					Connect
 				}
 			}
 		}
-		@HostList(p)
-		<div class="page-actions">
-			@button.Button(button.Props{
-				ID:         "btn-new-host",
-				Variant:    button.VariantDefault,
-				Size:       button.SizeSm,
-				Attributes: templ.Attributes{"data-kbd": "N"},
-			}) {
-				New host
-				@hintKbd("N")
-			}
-			@button.Button(button.Props{
-				ID:         "btn-quick",
-				Variant:    button.VariantGhost,
-				Size:       button.SizeSm,
-				Attributes: templ.Attributes{"data-kbd": "⇧O"},
-			}) {
-				Quick connect
-				@hintKbd("⇧O")
-			}
-			@button.Button(button.Props{
-				ID:         "btn-join",
-				Variant:    button.VariantGhost,
-				Size:       button.SizeSm,
-				Attributes: templ.Attributes{"data-kbd": "J"},
-			}) {
-				Join session
-				@hintKbd("J")
+		<div class="flex flex-wrap items-center gap-2">
+			@buttongroup.ButtonGroup() {
+				@button.Button(button.Props{
+					ID:         "btn-new-host",
+					Attributes: templ.Attributes{"data-kbd": "N"},
+				}) {
+					@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+					New host
+					@hintKbd("N")
+				}
+				@dropdownmenu.DropdownMenu() {
+					@button.Button(button.Props{
+						Variant:    button.VariantDefault,
+						Size:       button.SizeIcon,
+						Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "More host actions"}),
+					}) {
+						@icon.ChevronDown()
+					}
+					@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+						@dropdownmenu.Group() {
+							@dropdownmenu.Item(dropdownmenu.ItemProps{
+								ID:         "btn-quick",
+								Attributes: templ.Attributes{"data-kbd": "⇧O"},
+							}) {
+								@icon.Login01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								Quick connect
+								@dropdownmenu.Shortcut() {
+									⌘⇧O
+								}
+							}
+							@dropdownmenu.Item(dropdownmenu.ItemProps{
+								ID:         "btn-join",
+								Attributes: templ.Attributes{"data-kbd": "J"},
+							}) {
+								@icon.Link01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								Join session
+								@dropdownmenu.Shortcut() {
+									⌘J
+								}
+							}
+						}
+					}
+				}
 			}
 			@button.Button(button.Props{
 				ID:      "btn-welcome-local",
-				Variant: button.VariantGhost,
-				Size:    button.SizeSm,
+				Variant: button.VariantOutline,
 			}) {
-				Open local shell
+				@icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+				Terminal
 			}
 		</div>
+		<section id="live-section" class="flex flex-col gap-2" hidden>
+			@sectionHeading("Live")
+			<div id="herd-list" class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"></div>
+		</section>
+		@HostList(p)
 	</section>
 }
 
@@ -336,8 +356,7 @@ templ KeychainPage(p PageProps) {
 				<p class="lede">Reusable SSH identities (password or private key). This is not the OS vault wrapping key.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:   "btn-new-identity",
-				Size: button.SizeSm,
+				ID: "btn-new-identity",
 			}) {
 				New identity
 			}
@@ -354,8 +373,7 @@ templ ForwardsPage(p PageProps) {
 				<p class="lede">Local, remote, and dynamic (SOCKS5) forwards. Each uses its own SSH connection.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:   "btn-new-tunnel",
-				Size: button.SizeSm,
+				ID: "btn-new-tunnel",
 			}) {
 				New forward
 			}
@@ -372,8 +390,7 @@ templ SnippetsPage(p PageProps) {
 				<p class="lede">Saved commands. Click one to send it into the focused terminal pane.</p>
 			</div>
 			@button.Button(button.Props{
-				ID:   "btn-new-snippet",
-				Size: button.SizeSm,
+				ID: "btn-new-snippet",
 			}) {
 				New snippet
 			}
@@ -392,7 +409,6 @@ templ LogsPage(p PageProps) {
 			@button.Button(button.Props{
 				ID:      "btn-refresh-logs",
 				Variant: button.VariantGhost,
-				Size:    button.SizeSm,
 				Attributes: templ.Attributes{
 					"data-on:click": "@get('/ui/logs')",
 				},

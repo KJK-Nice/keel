@@ -3,18 +3,22 @@ package ui
 import (
 	"keel/components/badge"
 	"keel/components/button"
+	"keel/components/card"
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/components/item"
+	"keel/internal/store"
 )
 
 templ HostList(p PageProps) {
-	<div id="host-list" class="host-list flex flex-col gap-2">
+	<div id="host-list" class="host-list flex flex-col gap-6">
 		if p.Locked {
 			@emptyBox("", "Vault locked", "Unlock the vault to see hosts.")
 		} else {
 			{{ groups := groupHosts(p.Hosts, p.Query) }}
-			if len(groups) == 0 {
+			{{ folders := folderGroups(groups) }}
+			{{ hosts := flatHosts(groups) }}
+			if len(hosts) == 0 {
 				@empty.Empty() {
 					@empty.Header() {
 						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
@@ -29,40 +33,114 @@ templ HostList(p PageProps) {
 					}
 				}
 			} else {
-				for _, g := range groups {
-					<h2 class="group-label">{ g.Name }</h2>
-					@item.Group() {
-						for _, h := range g.Hosts {
-							@item.Item(item.Props{
-								Size:       item.SizeSm,
-								Class:      "host",
-								Attributes: templ.Attributes{"data-id": h.ID},
-							}) {
-								@item.Media() {
-									<span class="dot" style={ "--dot:" + h.Color + ";background:" + h.Color }></span>
-								}
-								@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-connect": h.ID}}) {
-									@item.Title() {
-										{ h.Name }
-									}
-									@item.Description() {
-										{ hostSubtitle(h) }
-									}
-								}
-								@item.Actions() {
-									if h.AuthType == "local" {
-										@rowMenu("data-edit", h.ID, "", "")
-									} else {
-										@rowMenu("data-edit", h.ID, "data-delete", h.ID)
-									}
-								}
+				if len(folders) > 0 {
+					<section class="flex flex-col gap-2">
+						@sectionHeading("Groups")
+						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+							for _, g := range folders {
+								@groupCard(g)
 							}
-						}
-					}
+						</div>
+					</section>
 				}
+				<section class="flex flex-col gap-2">
+					@sectionHeading("Hosts")
+					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+						for _, h := range hosts {
+							@hostCard(h)
+						}
+					</div>
+				</section>
 			}
 		}
 	</div>
+}
+
+templ sectionHeading(title string) {
+	<h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">{ title }</h2>
+}
+
+templ hostGlyph(color, kind string) {
+	if kind == "folder" {
+		<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4">
+			@icon.Folder01()
+		</span>
+	} else {
+		<span
+			class="flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4"
+			style={ "--host-color:" + color + ";background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)" }
+		>
+			if kind == "local" {
+				@icon.ComputerTerminal01()
+			} else {
+				@icon.ServerStack01()
+			}
+		</span>
+	}
+}
+
+templ groupCard(g hostGroup) {
+	@card.Card(card.Props{
+		Size:  card.SizeSm,
+		Class: "host-tile cursor-pointer py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{
+			"data-group-filter": g.Name,
+			"role":              "button",
+			"tabindex":          "0",
+		},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@hostGlyph("", "folder")
+			<div class="min-w-0 flex-1">
+				@card.Title() {
+					{ g.Name }
+				}
+				@card.Description() {
+					{ hostCountLabel(len(g.Hosts)) }
+				}
+			</div>
+		}
+	}
+}
+
+templ hostCard(h store.Host) {
+	@card.Card(card.Props{
+		Size:       card.SizeSm,
+		Class:      "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{"data-id": h.ID},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@hostGlyph(h.Color, hostProtocol(h))
+			<div
+				class="min-w-0 flex-1 cursor-pointer"
+				role="button"
+				tabindex="0"
+				data-connect={ h.ID }
+			>
+				@card.Title() {
+					{ h.Name }
+				}
+				@card.Description(card.DescriptionProps{Class: "flex flex-wrap items-center gap-1"}) {
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+						{ hostProtocol(h) }
+					}
+					if h.Group != "" && h.Group != "Hosts" {
+						@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+							{ h.Group }
+						}
+					}
+					<span class="truncate">{ hostSubtitle(h) }</span>
+				}
+			</div>
+			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
+				if h.AuthType == "local" {
+					@rowMenu("data-edit", h.ID, "", "")
+				} else {
+					@rowMenu("data-edit", h.ID, "data-delete", h.ID)
+				}
+			</div>
+		}
+	}
 }
 
 templ IdentityList(p PageProps) {

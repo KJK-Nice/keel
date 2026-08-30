@@ -20,6 +20,26 @@ func TestGroupHostsFiltersQuery(t *testing.T) {
 	}
 }
 
+func TestFolderGroupsSkipsDefaultBucket(t *testing.T) {
+	groups := []hostGroup{
+		{Name: "This machine", Hosts: []store.Host{{Name: "Local Shell"}}},
+		{Name: "Hosts", Hosts: []store.Host{{Name: "orphan"}}},
+	}
+	got := folderGroups(groups)
+	if len(got) != 1 || got[0].Name != "This machine" {
+		t.Fatalf("got %+v", got)
+	}
+	if hostCountLabel(1) != "1 Host" || hostCountLabel(3) != "3 Hosts" {
+		t.Fatal("host count labels")
+	}
+	if hostProtocol(store.Host{AuthType: "local"}) != "local" || hostProtocol(store.Host{}) != "ssh" {
+		t.Fatal("host protocol labels")
+	}
+	if n := len(flatHosts(groups)); n != 2 {
+		t.Fatalf("flat hosts = %d", n)
+	}
+}
+
 func TestSignalsJSONIncludesLocked(t *testing.T) {
 	s := PageProps{Locked: true, NeedsSetup: true, Query: `a"b`}.SignalsJSON()
 	for _, want := range []string{`"locked":true`, `"needsSetup":true`, `"query":"a\"b"`} {

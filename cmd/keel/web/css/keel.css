@@ -39,8 +39,6 @@ html[data-theme="dark"] {
   --success: var(--keel-success);
   --shadow: var(--keel-shadow);
   --backdrop: var(--keel-backdrop);
-  --radius: 6px;
-  --radius-sm: 4px;
   --radius-control: 8px;
   --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -135,9 +133,10 @@ html[data-theme="light"] {
 }
 
 /* Align shadcn-templ tokens with Keel. Chrome rules use --keel-* so these
-   do not restyle the vault rail or kbd hints. */
+   do not restyle the vault rail or kbd hints. Keep nova --radius (0.625rem). */
 html.dark,
 html[data-theme="dark"] {
+  --radius: 0.625rem;
   --background: var(--keel-stage);
   --foreground: var(--keel-text);
   --card: var(--keel-panel);
@@ -163,6 +162,7 @@ html[data-theme="dark"] {
 
 html[data-theme="light"],
 html[data-theme="system"]:not(.dark) {
+  --radius: 0.625rem;
   --background: var(--keel-stage);
   --foreground: var(--keel-text);
   --card: var(--keel-panel);
@@ -251,14 +251,27 @@ html[data-native] .term-body .xterm-screen canvas {
 html[data-native] .start-page {
   background: color-mix(in srgb, var(--keel-stage) 66%, transparent);
 }
+html[data-native] #page-hosts [data-slot="card"] {
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+}
+html[data-native] #page-hosts [data-slot="input-group"] {
+  background: color-mix(in srgb, var(--input) 42%, transparent);
+}
 
-button, input, textarea, select { font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
 button {
+  font: inherit;
   cursor: pointer;
-  background-color: transparent;
-  border: none;
   -webkit-appearance: none;
   appearance: none;
+}
+/* Unlayered rules beat Tailwind @layer utilities. Only reset chrome
+   buttons with no data-slot (tabs, vault-nav). Select triggers and other
+   shadcn slots must keep border/fill. */
+button:not([data-slot]) {
+  color: inherit;
+  background-color: transparent;
+  border: none;
 }
 code { font-family: var(--mono); font-size: 0.92em; }
 
@@ -338,6 +351,21 @@ code { font-family: var(--mono); font-size: 0.92em; }
   overflow: auto;
   padding: 2px 6px 8px;
   flex: 1;
+}
+
+#page-hosts.is-active {
+  display: flex;
+}
+
+#live-section[hidden] {
+  display: none !important;
+}
+
+#page-hosts #host-list.host-list,
+#herd-list {
+  overflow: visible;
+  padding: 0;
+  flex: none;
 }
 
 .group-label {
@@ -1309,6 +1337,10 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   outline: none;
+}
+.modal [data-slot="select-trigger"] {
+  background: var(--stage);
+  border: 1px solid var(--keel-border);
 }
 .modal input:focus, .modal textarea:focus, .modal select:focus, .gate input:focus {
   border-color: var(--border-strong);

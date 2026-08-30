@@ -94,6 +94,42 @@ func hostSubtitle(h store.Host) string {
 	return user + "@" + addr
 }
 
+func hostProtocol(h store.Host) string {
+	if h.AuthType == "local" {
+		return "local"
+	}
+	return "ssh"
+}
+
+func hostCountLabel(n int) string {
+	if n == 1 {
+		return "1 Host"
+	}
+	return fmt.Sprintf("%d Hosts", n)
+}
+
+func folderGroups(groups []hostGroup) []hostGroup {
+	out := make([]hostGroup, 0)
+	for _, g := range groups {
+		if g.Name != "" && g.Name != "Hosts" {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+func flatHosts(groups []hostGroup) []store.Host {
+	n := 0
+	for _, g := range groups {
+		n += len(g.Hosts)
+	}
+	out := make([]store.Host, 0, n)
+	for _, g := range groups {
+		out = append(out, g.Hosts...)
+	}
+	return out
+}
+
 func groupHosts(hosts []store.Host, query string) []hostGroup {
 	q := strings.ToLower(strings.TrimSpace(query))
 	order := make([]string, 0)
