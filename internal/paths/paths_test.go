@@ -6,6 +6,13 @@ import (
 	"testing"
 )
 
+func TestPidFile(t *testing.T) {
+	got := PidFile("/tmp/keel-data")
+	if got != "/tmp/keel-data/keel-serve.pid" {
+		t.Fatalf("PidFile = %q", got)
+	}
+}
+
 func TestAddrDefaultIsLoopback(t *testing.T) {
 	t.Setenv("KEEL_ADDR", "")
 	_ = os.Unsetenv("KEEL_ADDR")

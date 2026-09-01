@@ -41,10 +41,20 @@ func main() {
 		if err := app.RunDesktop(web, addr, dataDir, parseName(args)); err != nil {
 			log.Fatal(err)
 		}
+	case "serve":
+		if len(args) > 0 && args[0] == "stop" {
+			if err := app.StopServe(addr, dataDir); err != nil {
+				log.Fatal(err)
+			}
+			return
+		}
+		if err := app.RunServe(web, addr, dataDir); err != nil {
+			log.Fatal(err)
+		}
 	case "help", "-h", "--help":
 		fmt.Print(helpText)
 	default:
-		log.Fatalf("unknown command %q (try keel or keel app — TUI/server are gone; internet join uses keel-signal)", cmd)
+		log.Fatalf("unknown command %q (try keel, keel app, or keel serve)", cmd)
 	}
 }
 
@@ -69,10 +79,13 @@ func parseName(args []string) string {
 
 const helpText = `Keel — local SSH workspace
 
-keel opens a desktop window. Closing it kills the runtime and every PTY.
+keel opens a desktop window. Closing the window detaches; PTYs keep running
+in a background keel serve process. Closing a session tab kills that PTY.
 
-  keel            open the desktop app (default)
+  keel            open the desktop app (starts serve if needed)
   keel app        same
+  keel serve      run the runtime daemon in the foreground
+  keel serve stop stop the daemon and kill leftover sessions
 
 Internet follow (no LAN) needs a public signaling server:
 

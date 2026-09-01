@@ -1,6 +1,6 @@
 # Keel
 
-A local SSH workspace. `keel` opens a **native desktop window** (macOS WebKit, Windows WebView2, Linux WebKitGTK). Close the window and the runtime plus every PTY die.
+A local SSH workspace. `keel` opens a **native desktop window** (macOS WebKit, Windows WebView2, Linux WebKitGTK). Closing the window detaches; sessions keep running in `keel serve`. Closing a session tab kills that PTY.
 
 The desktop UI is **templ** + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev), hosted in a [Wails v3](https://v3.wails.io) webview pointed at a loopback HTTP server (Wails cannot proxy WebSockets). Terminals still use xterm.js over WebSocket.
 
@@ -27,13 +27,15 @@ Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
 sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
-macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make build`** (not a bare `go build`): it links **UniformTypeIdentifiers**, silences Wails’s `setShowsBaselineSeparator:` deprecation on macOS 15+, and writes **`bin/Keel.app`** (Dock icon is the Keel chevron). WKWebView on Apple Silicon **SIGTRAPs** a naked unsigned binary (JIT). `./bin/keel` copies itself into `~/Library/Caches/keel/Keel.app`, ad-hoc signs it with JIT entitlements, and re-execs **before** binding the port. Or `open bin/Keel.app`. Windows uses Edge WebView2. The About menu and Linux window icon use the same mark.
+macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make build`** (not a bare `go build`): it links **UniformTypeIdentifiers**, silences Wails’s `setShowsBaselineSeparator:` deprecation on macOS 15+, and writes **`bin/Keel.app`** (Dock icon is the Keel chevron). WKWebView on Apple Silicon **SIGTRAPs** a naked unsigned binary (JIT). `./bin/keel` copies itself into `~/Library/Caches/keel/Keel.app`, ad-hoc signs it with JIT entitlements, and re-execs **before** opening WebKit. The UI then starts `keel serve` if needed. Or `open bin/Keel.app`. Windows uses Edge WebView2. The About menu and Linux window icon use the same mark.
 
 ## Run
 
 ```bash
-./keel                 # desktop app (default)
+./keel                 # desktop app (starts keel serve if needed)
 ./keel app             # same
+./keel serve           # runtime daemon (PTYs)
+./keel serve stop      # kill leftover sessions and stop the daemon
 ```
 
 | Variable | Default | Purpose |
@@ -44,7 +46,7 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 | `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join. Runtime env overrides the compile-time default. |
 | `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable |
 
-Quit the window: every session is killed, then the process exits. Closing a tab only detaches.
+Close a session tab (⌘W) to kill that PTY. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs.
 
 ## Vault
 
@@ -63,14 +65,14 @@ The first time you connect to an SSH host, Keel asks you to trust its key. A dif
 On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.
 
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
-- **⌘T** new tab (recent hosts to pick). **⌘W** closes the current session tab (does not quit; Vault stays pinned). **⌘⇧T** reopens the last detached tab if the PTY is still live.
+- **⌘T** new tab (recent hosts to pick). **⌘W** closes the current session tab and kills that PTY (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
 - Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
 - **⌘K** focuses host search (switches to Vault if needed). **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
-- Open a host: new session tab. Close tab = detach (PTY stays in Hosts → Live until you kill it). SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane (or Live list) brings it back.
+- Open a host: new session tab. Close tab = kill that PTY. Close the window = detach (sessions stay in `keel serve`; reopen Keel to attach). SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane brings it back.
 - **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
 - **⌘+** / **⌘-** bigger or smaller terminal text (10–22px). **⌘0** resets to 12.
-- **⌘⇧W** closes the window (quit). The File and View menus list the same bindings.
+- **⌘⇧W** closes the window (UI quits; sessions stay in `keel serve`). File → **Stop Keel runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
 - **Sync** broadcasts keystrokes (and snippet paste) to every driving pane in that tab.
 - Settings: font, text size, copy-on-select, right-click paste (stored in `localStorage`).
 
@@ -121,11 +123,10 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 ## The herd
 
 - **Spawn** a session from Vault → Hosts
-- **Attach** from Hosts → Live
 - The first client to attach is the **owner** and **driver**. Later joiners (including WebRTC) **follow**
 - **Pass control** from the tab widget
-- **Detach** (close the tab or pane)
-- **Quit Keel** (close the window) kills everything
+- **Close tab** kills that PTY. **Close window** detaches; reopen Keel to attach
+- **Stop Keel runtime** kills leftover sessions and the daemon
 
 ## Why this shape
 

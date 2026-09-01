@@ -60,7 +60,7 @@ func TestShortcutJS(t *testing.T) {
 func TestAppMenuHasTabShortcuts(t *testing.T) {
 	w := &nativeWindow{}
 	m := w.appMenu()
-	for _, want := range []string{"New Tab", "Close Tab", "Find Host", "Split Right", "Close Window", "Zoom In", "Zoom Out", "Actual Size"} {
+	for _, want := range []string{"New Tab", "Close Tab", "Find Host", "Split Right", "Close Window", "Stop Keel runtime", "Zoom In", "Zoom Out", "Actual Size"} {
 		if m.FindByLabel(want) == nil {
 			t.Errorf("menu missing %q", want)
 		}

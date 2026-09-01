@@ -39,6 +39,7 @@ type Server struct {
 	share   *share.Hub
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
+	onStop  func()
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -55,9 +56,15 @@ func (s *Server) WithLogs(l *applog.Book) *Server {
 	return s
 }
 
+func (s *Server) WithStop(fn func()) *Server {
+	s.onStop = fn
+	return s
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
 	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
 	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
 	mux.HandleFunc("POST /api/share", s.shareSession)
@@ -170,7 +177,7 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/ui/vault" {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/ui/vault" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -200,6 +207,15 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 		out["signalURL"] = s.share.URL()
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) stopRuntime(w http.ResponseWriter, _ *http.Request) {
+	if s.onStop == nil {
+		writeError(w, http.StatusServiceUnavailable, "runtime stop is not enabled")
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+	go s.onStop()
 }
 
 func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
