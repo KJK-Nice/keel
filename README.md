@@ -2,6 +2,8 @@
 
 A local SSH workspace. `keel` opens a **native desktop window** (macOS WebKit, Windows WebView2, Linux WebKitGTK). Close the window and the runtime plus every PTY die.
 
+The desktop UI is **templ** + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev), hosted in a [Wails v3](https://v3.wails.io) webview pointed at a loopback HTTP server (Wails cannot proxy WebSockets). Terminals still use xterm.js over WebSocket.
+
 Host passwords and keys live in an encrypted **vault**, not in plaintext `keel.json`. Share a session over the internet with WebRTC — joiners never reach your LAN or your vault.
 
 ## Install / build
@@ -12,10 +14,17 @@ make build && ./bin/keel
 make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
-Ubuntu 24.04+ needs GTK + WebKit and the `webkit2_41` build tag (`make build` sets it):
+`make build` runs `templ generate` and the Tailwind CLI (`assets/css/globals.css` → `cmd/keel/web/css/output.css`), then compiles the Go app. Install those tools with:
 
 ```bash
-sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+go install github.com/a-h/templ/cmd/templ@latest
+# Tailwind v4 standalone: https://github.com/tailwindlabs/tailwindcss/releases
+```
+
+Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
+
+```bash
+sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
 macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make build`** (not a bare `go build`): it links **UniformTypeIdentifiers**, silences Wails’s `setShowsBaselineSeparator:` deprecation on macOS 15+, and writes **`bin/Keel.app`** (Dock icon is the Keel chevron). WKWebView on Apple Silicon **SIGTRAPs** a naked unsigned binary (JIT). `./bin/keel` copies itself into `~/Library/Caches/keel/Keel.app`, ad-hoc signs it with JIT entitlements, and re-execs **before** binding the port. Or `open bin/Keel.app`. Windows uses Edge WebView2. The About menu and Linux window icon use the same mark.
@@ -120,4 +129,4 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 
 ## Why this shape
 
-Go owns SSH and PTYs. The window is Wails (native webview) pointed at localhost because Wails cannot proxy WebSockets. Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.
+Go owns SSH and PTYs. The window is Wails v3 (native webview) pointed at localhost because Wails cannot proxy WebSockets. The chrome is templ + shadcn-templ; Datastar patches vault lists. Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.

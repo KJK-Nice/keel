@@ -159,8 +159,16 @@
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
 
+  function isNativeWindow() {
+    return document.documentElement.dataset.native === "1";
+  }
+
   function xtermTheme() {
-    return TERM_THEMES[resolvedTheme()];
+    const theme = { ...TERM_THEMES[resolvedTheme()] };
+    if (isNativeWindow()) {
+      theme.background = resolvedTheme() === "light" ? "#fbfbfaa8" : "#0a0a0aa8";
+    }
+    return theme;
   }
 
   function termOpts() {
@@ -169,6 +177,7 @@
       fontFamily: fontFamily(),
       fontSize: state.prefs.size,
       lineHeight: 1.22,
+      allowTransparency: isNativeWindow(),
       theme: xtermTheme(),
     };
   }
@@ -177,8 +186,10 @@
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
+    const glass = isNativeWindow();
     for (const p of state.panes.values()) {
       if (!p.term) continue;
+      p.term.options.allowTransparency = glass;
       p.term.options.theme = theme;
       p.term.options.fontFamily = family;
       p.term.options.fontSize = size;
@@ -188,14 +199,28 @@
 
   function syncThemeSwitch() {
     const choice = document.documentElement.dataset.theme || "system";
-    const sel = document.getElementById("set-theme");
-    if (sel) sel.value = choice;
+    setSelectValue("set-theme", choice);
+  }
+
+  function applyThemeClass() {
+    if (typeof window.__keelApplyTheme === "function") {
+      window.__keelApplyTheme(document.documentElement.dataset.theme || "system");
+      return;
+    }
+    const choice = document.documentElement.dataset.theme || "system";
+    const dark =
+      choice === "dark" ||
+      (choice === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    document.body?.classList.remove("dark");
   }
 
   function setTheme(choice) {
     if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
     document.documentElement.dataset.theme = choice;
     localStorage.setItem("keel-theme", choice);
+    applyThemeClass();
     syncThemeSwitch();
     applyTerminalPrefs();
   }
@@ -208,18 +233,18 @@
   }
 
   function syncSettingsForm() {
-    const font = document.getElementById("set-font");
     const out = document.getElementById("set-size-out");
     const copy = document.getElementById("set-copy");
     const paste = document.getElementById("set-paste");
     const uiOut = document.getElementById("set-ui-size-out");
-    const smooth = document.getElementById("set-smooth");
-    if (font) font.value = state.prefs.font;
+    setSelectValue("set-font", state.prefs.font);
     if (out) out.textContent = String(state.prefs.size);
-    if (copy) copy.checked = state.prefs.copyOnSelect;
-    if (paste) paste.checked = state.prefs.rightClickPaste;
+    setInputChecked(copy, state.prefs.copyOnSelect);
+    setInputChecked(paste, state.prefs.rightClickPaste);
     if (uiOut) uiOut.textContent = String(state.ui.size);
-    if (smooth) smooth.value = state.ui.smoothing;
+    setSelectValue("set-smooth", state.ui.smoothing);
+    setSliderValue("set-ui-size", state.ui.size);
+    setSliderValue("set-size", state.prefs.size);
     syncThemeSwitch();
     syncTermPreview();
   }
@@ -227,7 +252,7 @@
   const els = {
     hostList: document.getElementById("host-list"),
     herdList: document.getElementById("herd-list"),
-    herdEmpty: document.getElementById("herd-empty"),
+    liveSection: document.getElementById("live-section"),
     snippetList: document.getElementById("snippet-list"),
     identityList: document.getElementById("identity-list"),
     tunnelList: document.getElementById("tunnel-list"),
@@ -256,11 +281,151 @@
     snippetForm: document.getElementById("snippet-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
-    toast: document.getElementById("toast"),
     activeSnippets: document.getElementById("active-snippets"),
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
   };
+
+  function on(el, type, fn, opts) {
+    if (!el) return;
+    el.addEventListener(type, fn, opts);
+  }
+
+  function datastarQS() {
+    return new URLSearchParams({
+      datastar: JSON.stringify({
+        query: state.query || "",
+        logFilter: state.logFilter || "",
+      }),
+    }).toString();
+  }
+
+  async function paintList(id, url) {
+    try {
+      const res = await fetch(url, { headers: { Accept: "text/html" } });
+      if (!res.ok) return false;
+      const html = await res.text();
+      const current = document.getElementById(id);
+      if (!current) return false;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html.trim();
+      const next = tpl.content.querySelector("#" + CSS.escape(id));
+      if (!next) return false;
+      current.innerHTML = next.innerHTML;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function setSelectValue(triggerId, value) {
+    const trigger = document.getElementById(triggerId);
+    if (!trigger) return;
+    if (trigger.tagName === "SELECT") {
+      trigger.value = value;
+      return;
+    }
+    const contentId = trigger.getAttribute("aria-controls");
+    const content = contentId ? document.getElementById(contentId) : null;
+    if (!content) return;
+    const item = [...content.querySelectorAll("[data-tui-select-item]")].find(
+      (el) => el.getAttribute("data-tui-select-value") === value
+    );
+    if (!item) return;
+    content.querySelectorAll("[data-tui-select-item]").forEach((el) => {
+      const on = el === item;
+      el.toggleAttribute("data-selected", on);
+      el.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const label =
+      item.getAttribute("data-tui-select-label") ||
+      (item.querySelector("[data-tui-select-item-text]") || item).textContent.trim();
+    const span = trigger.querySelector("[data-tui-select-value]");
+    if (span) span.textContent = label;
+    trigger.removeAttribute("data-placeholder");
+    const input = trigger.previousElementSibling;
+    if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  }
+
+  function fillSelectItems(triggerId, entries, selected, emptyLabel) {
+    const trigger = document.getElementById(triggerId);
+    if (!trigger) return;
+    const contentId = trigger.getAttribute("aria-controls");
+    const content = contentId ? document.getElementById(contentId) : null;
+    if (!content) return;
+    const group =
+      content.querySelector("[data-slot='select-group']") ||
+      content.querySelector("[data-tui-select-viewport]") ||
+      content;
+    const proto = group.querySelector("[data-tui-select-item]");
+    if (!proto) return;
+    const list = entries.length ? entries : [{ value: "", label: emptyLabel || "—" }];
+    group.replaceChildren(
+      ...list.map((entry) => {
+        const node = proto.cloneNode(true);
+        node.setAttribute("data-tui-select-value", entry.value);
+        node.setAttribute("data-tui-select-label", entry.label);
+        node.setAttribute("aria-selected", "false");
+        node.removeAttribute("data-selected");
+        const text = node.querySelector("[data-tui-select-item-text]");
+        if (text) text.textContent = entry.label;
+        return node;
+      })
+    );
+    const pick = selected && list.some((entry) => entry.value === selected) ? selected : list[0].value;
+    setSelectValue(triggerId, pick);
+  }
+
+  function setSliderValue(id, value) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const thumb = root.querySelector("[data-tui-slider-thumb]");
+    if (!thumb) return;
+    const min = parseFloat(root.getAttribute("data-min") || "0");
+    const max = parseFloat(root.getAttribute("data-max") || "100");
+    const v = Math.min(max, Math.max(min, Number(value)));
+    const f = max === min ? 0 : (v - min) / (max - min);
+    const thumbPx = 12;
+    thumb.setAttribute("aria-valuenow", String(v));
+    thumb.style.left = `calc(${(f * 100).toFixed(4)}% - ${(f * thumbPx).toFixed(2)}px)`;
+    const range = root.querySelector("[data-tui-slider-range]");
+    if (range) {
+      range.style.left = "0";
+      range.style.width = `calc(${(f * 100).toFixed(4)}% + ${(thumbPx / 2 - f * thumbPx).toFixed(2)}px)`;
+    }
+    const input = root.querySelector("[data-tui-slider-input]");
+    if (input) input.value = String(v);
+  }
+
+  function setInputChecked(el, checked) {
+    if (!el) return;
+    el.checked = !!checked;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function askConfirm(message) {
+    const trigger = document.getElementById("confirm-dialog-trigger");
+    const ok = document.getElementById("confirm-dialog-ok");
+    const desc = document.getElementById("confirm-dialog-desc");
+    if (!trigger || !ok) return Promise.resolve(window.confirm(message));
+    return new Promise((resolve) => {
+      if (desc) desc.textContent = message;
+      let settled = false;
+      const popup = document.getElementById("confirm-dialog");
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        ok.removeEventListener("click", onOk);
+        popup?.removeEventListener("dialog-close", onClose);
+        resolve(value);
+      };
+      const onOk = () => finish(true);
+      const onClose = () => finish(false);
+      ok.addEventListener("click", onOk);
+      popup?.addEventListener("dialog-close", onClose);
+      trigger.click();
+    });
+  }
 
   function authHeaders() {
     return { "Content-Type": "application/json" };
@@ -290,14 +455,40 @@
     return data;
   }
 
+  const pendingToasts = [];
+
+  function flushToasts() {
+    const add = window.tui?.toast?.add;
+    if (!add) return false;
+    while (pendingToasts.length) add(pendingToasts.shift());
+    return true;
+  }
+
   function toast(message, isError = false) {
-    els.toast.hidden = false;
-    els.toast.textContent = message;
-    els.toast.classList.toggle("is-error", isError);
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => {
-      els.toast.hidden = true;
-    }, 3600);
+    const payload = { title: message, type: isError ? "error" : "success" };
+    if (window.tui?.toast?.add) {
+      window.tui.toast.add(payload);
+      return;
+    }
+    pendingToasts.push(payload);
+    if (pendingToasts.armed) return;
+    pendingToasts.armed = true;
+    let tries = 0;
+    const retry = () => {
+      if (flushToasts()) {
+        pendingToasts.armed = false;
+        return;
+      }
+      if (++tries > 40) {
+        pendingToasts.armed = false;
+        pendingToasts.length = 0;
+        return;
+      }
+      window.setTimeout(retry, 50);
+    };
+    document.addEventListener("DOMContentLoaded", retry, { once: true });
+    window.addEventListener("load", retry, { once: true });
+    retry();
   }
 
   function persistName() {
@@ -356,27 +547,48 @@
     return [...state.panes.values()].some((p) => p.runtimeId === runtimeId);
   }
 
+  function glyphSVG(kind) {
+    if (kind === "folder") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7"/></svg>`;
+    }
+    if (kind === "local") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/></svg>`;
+  }
+
+  function tileGlyph(color, kind) {
+    if (kind === "folder") {
+      return `<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">${glyphSVG("folder")}</span>`;
+    }
+    const c = color || "#5ee0b5";
+    return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${glyphSVG(kind)}</span>`;
+  }
+
   function renderHerd() {
     if (!state.herd.length) {
       els.herdList.innerHTML = "";
-      els.herdEmpty.hidden = false;
+      if (els.liveSection) els.liveSection.hidden = true;
       return;
     }
-    els.herdEmpty.hidden = true;
+    if (els.liveSection) els.liveSection.hidden = false;
     els.herdList.innerHTML = state.herd
       .map((s) => {
         const open = paneOpen(s.id);
         const driver = driverName(s);
+        const color = statusColor(s.status);
         return `
-          <div class="host ${open ? "is-open" : ""}" data-herd="${s.id}">
-            <span class="dot" style="--dot:${s.color || "#5ee0b5"};background:${statusColor(s.status)}"></span>
-            <div class="meta" role="button" tabindex="0" data-attach="${s.id}">
-              <b>${escapeHtml(s.title)}</b>
-              <small>${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</small>
-            </div>
-            <div class="host-tools">
-              ${s.status === "error" || s.status === "exited" ? `<button class="tiny" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
-              <button class="tiny" data-kill="${s.id}" title="Kill session">kill</button>
+          <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 ${open ? "ring-ring" : ""}" data-slot="card" data-size="sm" data-herd="${s.id}">
+            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+              ${tileGlyph(color, "local")}
+              <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-attach="${s.id}">
+                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.title)}</div>
+                <p data-slot="card-description" class="text-muted-foreground truncate text-sm">${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</p>
+              </div>
+              <div class="flex items-center gap-1">
+                ${s.status === "error" || s.status === "exited" ? `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-kill="${s.id}" title="Kill session">kill</button>
+              </div>
             </div>
           </div>`;
       })
@@ -386,27 +598,52 @@
   function renderHosts() {
     const groups = groupHosts(state.hosts);
     if (!groups.size) {
-      els.hostList.innerHTML = `<div class="empty">No hosts match. Add a server or clear the search.</div>`;
+      els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
       return;
     }
+    const folders = [...groups.entries()].filter(([name]) => name && name !== "Hosts" && name !== "Ungrouped");
+    const hosts = [...groups.values()].flat();
     const html = [];
-    for (const [group, hosts] of groups) {
-      html.push(`<div class="group-label">${escapeHtml(group)}</div>`);
-      for (const h of hosts) {
+    if (folders.length) {
+      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+      for (const [name, list] of folders) {
         html.push(`
-          <div class="host" data-id="${h.id}">
-            <span class="dot" style="--dot:${h.color};background:${h.color}"></span>
-            <div class="meta" role="button" tabindex="0" data-connect="${h.id}">
-              <b>${escapeHtml(h.name)}</b>
-              <small>${escapeHtml(hostSubtitle(h))}</small>
-            </div>
-            <div class="host-tools">
-              <button class="tiny" data-edit="${h.id}" title="Edit">Edit</button>
-              <button class="tiny" data-delete="${h.id}" title="Remove">✕</button>
+          <div class="ring-foreground/10 bg-card text-card-foreground host-tile cursor-pointer overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-group-filter="${escapeHtml(name)}" role="button" tabindex="0">
+            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+              ${tileGlyph("", "folder")}
+              <div class="min-w-0 flex-1">
+                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(name)}</div>
+                <p data-slot="card-description" class="text-muted-foreground text-sm">${list.length === 1 ? "1 Host" : `${list.length} Hosts`}</p>
+              </div>
             </div>
           </div>`);
       }
+      html.push(`</div></section>`);
     }
+    html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+    for (const h of hosts) {
+      const kind = h.authType === "local" ? "local" : "ssh";
+      const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
+      html.push(`
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${h.id}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph(h.color, kind)}
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-connect="${h.id}">
+              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(h.name)}</div>
+              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
+                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind}</span>
+                ${groupBadge}
+                <span class="truncate">${escapeHtml(hostSubtitle(h))}</span>
+              </p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit="${h.id}" title="Edit">Edit</button>
+              ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${h.id}" title="Remove">✕</button>`}
+            </div>
+          </div>
+        </div>`);
+    }
+    html.push(`</div></section>`);
     els.hostList.innerHTML = html.join("");
   }
 
@@ -573,6 +810,7 @@
   }
 
   function tabTitle(tab) {
+    if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
     const first = panes[0];
@@ -589,6 +827,8 @@
 
   let tabDrag = null;
   let ignoreTabClick = false;
+  let tabRenaming = null;
+  let tabMenuTarget = "";
 
   function reorderTabIds(ids, fromId, toIndex) {
     const from = ids.indexOf(fromId);
@@ -655,6 +895,141 @@
     const edge = 36;
     if (clientX < r.left + edge) els.tabs.scrollLeft -= 14;
     else if (clientX > r.right - edge) els.tabs.scrollLeft += 14;
+    syncTabOverflow();
+  }
+
+  function syncTabOverflow() {
+    const el = els.tabs;
+    const wrap = el?.closest(".tabs-scroller");
+    if (!el || !wrap) return;
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    wrap.toggleAttribute("data-overflow-left", el.scrollLeft > 1);
+    wrap.toggleAttribute("data-overflow-right", max - el.scrollLeft > 1);
+  }
+
+  function setTabMenuItem(sel, { hidden = false, disabled = false } = {}) {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.hidden = hidden;
+    if ("disabled" in el) el.disabled = disabled;
+    if (disabled) el.setAttribute("aria-disabled", "true");
+    else el.removeAttribute("aria-disabled");
+  }
+
+  function syncTabContextMenu(id) {
+    const vault = id === VAULT;
+    const ids = [...state.tabs.keys()];
+    const idx = vault ? -1 : ids.indexOf(id);
+    const others = vault ? ids.length : ids.filter((tid) => tid !== id).length;
+    const right = vault ? ids.length : idx < 0 ? 0 : ids.length - idx - 1;
+    setTabMenuItem('[data-tab-action="rename"]', { hidden: vault, disabled: vault });
+    setTabMenuItem('[data-tab-menu-sep="rename"]', { hidden: vault });
+    setTabMenuItem('[data-tab-action="close"]', { hidden: vault, disabled: vault });
+    setTabMenuItem('[data-tab-action="close-others"]', { disabled: others === 0 });
+    setTabMenuItem('[data-tab-action="close-right"]', { disabled: right === 0 });
+    setTabMenuItem('[data-tab-action="close-all"]', { disabled: ids.length === 0 });
+  }
+
+  function closeTabs(ids) {
+    for (const id of ids) closeTab(id, { silent: true });
+    renderTabs();
+    renderHerd();
+  }
+
+  function applyTabRename(id, raw, ok) {
+    const tab = state.tabs.get(id);
+    tabRenaming = null;
+    if (ok && tab) {
+      const next = String(raw || "").trim();
+      if (next) tab.customTitle = next;
+      else delete tab.customTitle;
+    }
+  }
+
+  function fitTabRename(input) {
+    input.style.width = "0px";
+    input.style.width = `${Math.max(1, Math.ceil(input.scrollWidth))}px`;
+  }
+
+  function beginTabRename(id) {
+    if (id === VAULT || !state.tabs.has(id) || tabRenaming) return;
+    const tab = state.tabs.get(id);
+    const btn = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(id)}"]`);
+    const label = btn?.querySelector(".tab-label");
+    if (!label) return;
+    tabRenaming = id;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "tab-rename";
+    input.size = 1;
+    input.value = tabTitle(tab);
+    input.setAttribute("aria-label", "Rename tab");
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+    fitTabRename(input);
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      applyTabRename(id, input.value, ok);
+      renderTabs();
+    };
+    btn.addEventListener("click", (ev) => {
+      if (ev.target === btn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    }, true);
+    input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    input.addEventListener("keyup", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === " " || ev.code === "Space") ev.preventDefault();
+    });
+    input.addEventListener("keypress", (ev) => ev.stopPropagation());
+    input.addEventListener("input", () => fitTabRename(input));
+    input.addEventListener("keydown", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === " " || ev.code === "Space") {
+        ev.preventDefault();
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        input.setRangeText(" ", start, end, "end");
+        fitTabRename(input);
+        return;
+      }
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        input.blur();
+      } else if (ev.key === "Escape") {
+        ev.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  function runTabContextAction(action, id) {
+    if (action === "rename") {
+      requestAnimationFrame(() => beginTabRename(id));
+      return;
+    }
+    if (action === "close") {
+      closeTab(id);
+      return;
+    }
+    const ids = [...state.tabs.keys()];
+    if (action === "close-others") {
+      closeTabs(ids.filter((tid) => tid !== id));
+      return;
+    }
+    if (action === "close-right") {
+      const idx = ids.indexOf(id);
+      if (idx >= 0) closeTabs(ids.slice(idx + 1));
+      else if (id === VAULT) closeTabs(ids);
+      return;
+    }
+    if (action === "close-all") closeTabs(ids);
   }
 
   function endTabDrag() {
@@ -787,7 +1162,7 @@
   }
 
   function vaultGlyph() {
-    return `<span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.75" y="3.25" width="12.5" height="10.5" rx="2"/><circle cx="8" cy="8.75" r="2.25"/><path d="M8 8.75v-1.6"/></svg></span>`;
+    return `<span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H11C6.75736 2 4.63604 2 3.31802 3.31802C2 4.63604 2 6.75736 2 11C2 15.2426 2 17.364 3.31802 18.682C4.63604 20 6.75736 20 11 20H13C17.2426 20 19.364 20 20.682 18.682C22 17.364 22 15.2426 22 11C22 6.75736 22 4.63604 20.682 3.31802C19.364 2 17.2426 2 13 2Z" /><path d="M17 15C18 14.4692 18 13.6148 18 11.9062V10.0938C18 8.38516 18 7.53082 17 7" /><path d="M18 22V20" /><path d="M6 22V20" /><path d="M9.49983 13C10.6158 13 11.5205 12.1046 11.5205 11C11.5205 9.89543 10.6158 9 9.49983 9M9.49983 13C8.38384 13 7.47914 12.1046 7.47914 11C7.47914 9.89543 8.38384 9 9.49983 9M9.49983 13V15M9.49983 9V7M7.74987 12L5.9999 13M12.9998 9L11.2498 10M11.2499 12L12.9999 13M6 9L7.74997 10" /></svg></span>`;
   }
 
   function renderTabs() {
@@ -798,23 +1173,37 @@
     const activeTab = vaultOn ? null : state.tabs.get(state.activeId);
     const sessionOn = !vaultOn && activeTab && !activeTab.start;
 
-    els.tabs.innerHTML =
-      `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
-      ids
-        .map((id, i) => {
-          const tab = state.tabs.get(id);
-          const st = tabStatus(tab);
-          const chromeIdx = i + 1;
-          const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
-          const closeHint = id === state.activeId ? kbdHint("W") : "";
-          return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
+    const keepScroll = els.tabs.scrollLeft;
+    if (!tabRenaming) {
+      els.tabs.innerHTML =
+        `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
+        ids
+          .map((id, i) => {
+            const tab = state.tabs.get(id);
+            const st = tabStatus(tab);
+            const chromeIdx = i + 1;
+            const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
+            const closeHint = id === state.activeId ? kbdHint("W") : "";
+            return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
             ${tabGlyph()}
-            ${escapeHtml(tabTitle(tab))}
+            <span class="tab-label">${escapeHtml(tabTitle(tab))}</span>
             <span class="close" data-close="${id}" title="Close  ${MOD}W">×${closeHint}</span>
           </button>`;
-        })
-        .join("");
+          })
+          .join("");
+      els.tabs.scrollLeft = keepScroll;
+      const activeBtn = els.tabs.querySelector(".tab.is-active");
+      if (activeBtn) {
+        const left = activeBtn.offsetLeft;
+        const right = left + activeBtn.offsetWidth;
+        const viewLeft = els.tabs.scrollLeft;
+        const viewRight = viewLeft + els.tabs.clientWidth;
+        if (left < viewLeft) els.tabs.scrollLeft = left;
+        else if (right > viewRight) els.tabs.scrollLeft = right - els.tabs.clientWidth;
+      }
+    }
+    syncTabOverflow();
 
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
@@ -946,7 +1335,7 @@
 
   async function loadLogs() {
     state.logs = await api("/api/logs?limit=200");
-    renderLogs();
+    if (!(await paintList("log-list", "/ui/logs?" + datastarQS()))) renderLogs();
   }
 
   async function loadAll() {
@@ -962,11 +1351,18 @@
     state.herd = herd;
     state.identities = identities;
     state.tunnels = tunnels;
-    renderHosts();
-    renderSnippets();
+    const q = datastarQS();
+    const [hostsOk, snOk, idOk, tnOk] = await Promise.all([
+      paintList("host-list", "/ui/hosts?" + q),
+      paintList("snippet-list", "/ui/snippets?" + q),
+      paintList("identity-list", "/ui/identities?" + q),
+      paintList("tunnel-list", "/ui/tunnels?" + q),
+    ]);
+    if (!hostsOk) renderHosts();
+    if (!snOk) renderSnippets();
+    if (!idOk) renderIdentities();
+    if (!tnOk) renderTunnels();
     renderHerd();
-    renderIdentities();
-    renderTunnels();
     refreshStartTabs();
     if (state.vaultSection === "logs") await loadLogs().catch(() => {});
   }
@@ -1246,6 +1642,7 @@
   }
 
   function handleShortcut(ev) {
+    if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
     const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
@@ -1389,8 +1786,9 @@
     wrap.appendChild(banner);
     wrap.appendChild(body);
     const term = new Terminal(termOpts());
-    const fit = new FitAddonCtor();
-    term.loadAddon(fit);
+    const Addon = FitAddonCtor?.FitAddon || FitAddonCtor;
+    const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
+    if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
     try {
       fit.fit();
@@ -1632,6 +2030,7 @@
     if (id === VAULT) return;
     const tab = state.tabs.get(id);
     if (!tab) return;
+    if (tabRenaming === id) tabRenaming = null;
     const first = tabPanes(tab)[0];
     if (first?.runtimeId) state.lastClosedRuntimeId = first.runtimeId;
     if (!opts.skipPanes) {
@@ -1641,8 +2040,10 @@
     state.tabs.delete(id);
     const remain = [...state.tabs.keys()];
     if (state.activeId === id) state.activeId = remain.at(-1) || VAULT;
-    renderTabs();
-    renderHerd();
+    if (!opts.silent) {
+      renderTabs();
+      renderHerd();
+    }
   }
 
   async function splitActive(dir) {
@@ -1692,15 +2093,17 @@
   }
 
   function fillIdentitySelect(selected) {
-    const sel = document.getElementById("host-identity");
-    sel.innerHTML = state.identities.length
-      ? state.identities.map((id) => `<option value="${id.id}">${escapeHtml(id.name)}</option>`).join("")
-      : `<option value="">No identities — add in Keychain</option>`;
-    if (selected) sel.value = selected;
+    fillSelectItems(
+      "host-identity",
+      state.identities.map((id) => ({ value: id.id, label: id.name })),
+      selected,
+      "No identities — add in Keychain"
+    );
   }
 
   function fillHostForm(host) {
     const form = els.hostForm;
+    if (!form) return;
     form.reset();
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
@@ -1708,51 +2111,61 @@
     form.address.value = host?.address && host.address !== "localhost" ? host.address : host?.address || "";
     form.port.value = host?.port || 22;
     form.username.value = host?.username || "";
-    form.authType.value = host?.authType || "password";
     form.password.value = "";
     form.privateKey.value = "";
     form.passphrase.value = "";
+    setSelectValue("host-auth-type", host?.authType || "password");
     fillIdentitySelect(host?.identityId || "");
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
-    if (radio) radio.checked = true;
+    if (radio) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     const keepOn = !host || host.keepAliveSec !== -1;
-    if (form.keepAlive) form.keepAlive.checked = keepOn;
+    if (form.keepAlive) setInputChecked(form.keepAlive, keepOn);
     if (form.keepAliveSec) form.keepAliveSec.value = host?.keepAliveSec > 0 ? String(host.keepAliveSec) : "30";
-    if (form.autoReconnect) form.autoReconnect.checked = !host?.noAutoReconnect;
-    document.getElementById("host-modal-title").textContent = host?.id ? "Edit host" : "New host";
+    if (form.autoReconnect) setInputChecked(form.autoReconnect, !host?.noAutoReconnect);
+    const title = document.getElementById("host-modal-title");
+    if (title) title.textContent = host?.id ? "Edit host" : "New host";
     toggleAuthFields();
   }
 
   function toggleAuthFields() {
-    const auth = els.hostForm.authType.value;
-    els.hostForm.querySelectorAll("[data-auth]").forEach((el) => {
-      el.style.display = el.dataset.auth === auth ? "grid" : "none";
+    const form = els.hostForm;
+    if (!form?.authType) return;
+    const auth = form.authType.value;
+    form.querySelectorAll("[data-auth]").forEach((node) => {
+      node.style.display = node.dataset.auth === auth ? "grid" : "none";
     });
     const ssh = auth !== "local";
-    els.hostForm.querySelectorAll("[data-ssh-only]").forEach((el) => {
-      el.style.display = ssh ? (el.classList.contains("grid-2") ? "grid" : "") : "none";
+    form.querySelectorAll("[data-ssh-only]").forEach((node) => {
+      node.style.display = ssh ? (node.classList.contains("grid-2") ? "grid" : "") : "none";
     });
     toggleKeepAliveFields();
   }
 
   function toggleKeepAliveFields() {
     const form = els.hostForm;
-    if (!form.keepAliveSec) return;
+    if (!form?.keepAliveSec) return;
     form.keepAliveSec.disabled = !form.keepAlive?.checked;
   }
 
   function toggleIdentFields() {
-    const kind = els.identityForm.kind.value;
-    els.identityForm.querySelectorAll("[data-ident]").forEach((el) => {
-      el.style.display = el.dataset.ident === kind ? "grid" : "none";
+    const form = els.identityForm;
+    if (!form?.kind) return;
+    const kind = form.kind.value;
+    form.querySelectorAll("[data-ident]").forEach((node) => {
+      node.style.display = node.dataset.ident === kind ? "grid" : "none";
     });
   }
 
   function toggleTunnelDest() {
-    const kind = els.tunnelForm.kind.value;
-    els.tunnelForm.querySelectorAll("[data-tunnel-dest]").forEach((el) => {
-      el.style.display = kind === "dynamic" ? "none" : "grid";
+    const form = els.tunnelForm;
+    if (!form?.kind) return;
+    const kind = form.kind.value;
+    form.querySelectorAll("[data-tunnel-dest]").forEach((node) => {
+      node.style.display = kind === "dynamic" ? "none" : "grid";
     });
   }
 
@@ -1791,12 +2204,14 @@
 
   function fillIdentityForm(id) {
     const form = els.identityForm;
+    if (!form) return;
     form.reset();
     form.id.value = id?.id || "";
     form.name.value = id?.name || "";
     form.username.value = id?.username || "";
-    form.kind.value = id?.kind || "password";
-    document.getElementById("identity-modal-title").textContent = id?.id ? "Edit identity" : "New identity";
+    setSelectValue("ident-kind", id?.kind || "password");
+    const title = document.getElementById("identity-modal-title");
+    if (title) title.textContent = id?.id ? "Edit identity" : "New identity";
     toggleIdentFields();
   }
 
@@ -1826,32 +2241,38 @@
   }
 
   function fillTunnelHosts(selected) {
-    const sel = document.getElementById("tunnel-host");
-    const hosts = sshHosts();
-    sel.innerHTML = hosts.length
-      ? hosts.map((h) => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("")
-      : `<option value="">Add an SSH host first</option>`;
-    if (selected) sel.value = selected;
+    fillSelectItems(
+      "tunnel-host",
+      sshHosts().map((h) => ({ value: h.id, label: h.name })),
+      selected,
+      "Add an SSH host first"
+    );
   }
 
   function fillTunnelForm(t) {
     const form = els.tunnelForm;
+    if (!form) return;
     form.reset();
     form.id.value = t?.id || "";
     form.name.value = t?.name || "";
-    form.kind.value = t?.kind || "local";
+    setSelectValue("tunnel-kind", t?.kind || "local");
     form.bindAddr.value = t?.bindAddr || "127.0.0.1";
     form.bindPort.value = t?.bindPort ?? 0;
     form.destHost.value = t?.destHost || "127.0.0.1";
     form.destPort.value = t?.destPort || 5432;
     fillTunnelHosts(t?.hostId);
-    document.getElementById("tunnel-modal-title").textContent = t?.id ? "Edit forward" : "New forward";
+    const title = document.getElementById("tunnel-modal-title");
+    if (title) title.textContent = t?.id ? "Edit forward" : "New forward";
     toggleTunnelDest();
   }
 
   async function saveTunnel(event) {
     event.preventDefault();
     const form = els.tunnelForm;
+    if (!form.hostId.value) {
+      toast("Pick an SSH host first", true);
+      return;
+    }
     const payload = {
       name: form.name.value.trim(),
       hostId: form.hostId.value,
@@ -1904,6 +2325,22 @@
     return { user: match[1], host: match[2].replace(/^\[|\]$/g, ""), port: Number(match[3] || 22) };
   }
 
+  function connectFromSearch() {
+    const q = (els.search?.value || "").trim();
+    const parsed = parseTarget(q);
+    if (parsed) {
+      if (els.quickForm?.target) els.quickForm.target.value = q;
+      openModal(els.quickModal);
+      return;
+    }
+    const first = document.querySelector("#host-list [data-connect]");
+    if (first) {
+      first.click();
+      return;
+    }
+    toast("No matching host", true);
+  }
+
   async function saveSnippet(event) {
     event.preventDefault();
     const form = els.snippetForm;
@@ -1923,15 +2360,32 @@
   function openModal(el) {
     if (!el) return;
     if (state.openModal && state.openModal !== el) closeModal(state.openModal);
-    el.show();
-    els.modalScrim.classList.add("is-open");
+    try {
+      if (typeof el.showModal === "function") {
+        if (!el.open) el.showModal();
+      } else if (typeof el.show === "function" && !el.open) {
+        el.show();
+      }
+    } catch {
+      /* already open */
+    }
+    els.modalScrim?.classList.add("is-open");
     state.openModal = el;
   }
 
   function closeModal(el = state.openModal) {
-    if (el?.open) el.close();
-    els.modalScrim.classList.remove("is-open");
-    if (!el || state.openModal === el) state.openModal = null;
+    if (!el) {
+      state.openModal = null;
+      els.modalScrim?.classList.remove("is-open");
+      return;
+    }
+    try {
+      if (typeof el.close === "function" && el.open) el.close();
+    } catch {
+      /* ignore */
+    }
+    els.modalScrim?.classList.remove("is-open");
+    if (state.openModal === el) state.openModal = null;
   }
 
   function promptHostKey(src, retry = {}) {
@@ -2266,9 +2720,11 @@
       if (hint) hint.textContent = "Host passwords and keys are encrypted. Enter your vault passphrase.";
       if (submit) submit.textContent = "Unlock";
     }
-    els.gateForm.passphrase.value = "";
-    els.gateForm.passphrase.focus();
-    els.gateForm.dataset.setup = needsSetup ? "1" : "0";
+    if (els.gateForm?.passphrase) {
+      els.gateForm.passphrase.value = "";
+      els.gateForm.passphrase.focus();
+    }
+    if (els.gateForm) els.gateForm.dataset.setup = needsSetup ? "1" : "0";
   }
 
   function activateTabIndex(n) {
@@ -2302,6 +2758,8 @@
     els.gate.hidden = true;
     connectHerd();
     renderTabs();
+    const chromeFocus = document.activeElement;
+    if (chromeFocus && chromeFocus.closest?.(".workspace-bar")) chromeFocus.blur();
     syncSettingsForm();
     if (state.pendingSession) {
       const info = state.herd.find((s) => s.id === state.pendingSession);
@@ -2309,183 +2767,6 @@
       state.pendingSession = "";
     }
   }
-
-  els.hostList.addEventListener("click", async (ev) => {
-    const connect = ev.target.closest("[data-connect]");
-    const edit = ev.target.closest("[data-edit]");
-    const del = ev.target.closest("[data-delete]");
-    if (connect) {
-      const host = state.hosts.find((h) => h.id === connect.dataset.connect);
-      if (host) openSession(host).catch((err) => toast(err.message, true));
-    } else if (edit) {
-      const host = state.hosts.find((h) => h.id === edit.dataset.edit);
-      fillHostForm(host);
-      openModal(els.hostModal);
-    } else if (del) {
-      const host = state.hosts.find((h) => h.id === del.dataset.delete);
-      if (!host) return;
-      if (host.authType === "local") {
-        toast("Local Shell is part of the workspace and cannot be removed");
-        return;
-      }
-      if (!confirm(`Remove ${host.name}?`)) return;
-      await api(`/api/hosts/${host.id}`, { method: "DELETE" });
-      await loadAll();
-    }
-  });
-
-  els.herdList.addEventListener("click", async (ev) => {
-    const rec = ev.target.closest("[data-reconnect]");
-    if (rec) {
-      try {
-        await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
-        const pane = findPaneByRuntime(rec.dataset.reconnect);
-        if (pane) {
-          pane.status = "is-connecting";
-          renderTabs();
-        }
-      } catch (err) {
-        toast(err.message, true);
-      }
-      return;
-    }
-    const attach = ev.target.closest("[data-attach]");
-    const kill = ev.target.closest("[data-kill]");
-    if (attach) {
-      const info = state.herd.find((s) => s.id === attach.dataset.attach);
-      if (info) attachRuntime(info);
-    } else if (kill) {
-      try {
-        await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
-        const pane = findPaneByRuntime(kill.dataset.kill);
-        if (pane) closePane(pane.id);
-        await loadAll();
-      } catch (err) {
-        toast(err.message, true);
-      }
-    }
-  });
-
-  document.body.addEventListener("click", (ev) => {
-    const run = ev.target.closest("[data-run]");
-    if (run) sendSnippet(run.dataset.run);
-    const editSn = ev.target.closest("[data-edit-snippet]");
-    if (editSn) {
-      const sn = state.snippets.find((s) => s.id === editSn.dataset.editSnippet);
-      els.snippetForm.reset();
-      els.snippetForm.id.value = sn.id;
-      els.snippetForm.name.value = sn.name;
-      els.snippetForm.command.value = sn.command;
-      document.getElementById("snippet-modal-title").textContent = "Edit snippet";
-      openModal(els.snippetModal);
-    }
-    const delSn = ev.target.closest("[data-delete-snippet]");
-    if (delSn) {
-      const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
-      if (!sn || !confirm(`Delete snippet “${sn.name}”?`)) return;
-      api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
-    }
-    const grant = ev.target.closest("[data-grant]");
-    if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
-    if (ev.target.closest("[data-request]")) sendControl("request-control");
-    if (ev.target.closest("[data-take]")) sendControl("take-control");
-    const paneClose = ev.target.closest("[data-pane-close]");
-    if (paneClose) closePane(paneClose.dataset.paneClose);
-    const paneRec = ev.target.closest("[data-pane-reconnect]");
-    if (paneRec) {
-      const pane = state.panes.get(paneRec.dataset.paneReconnect);
-      if (pane?.runtimeId) {
-        api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
-        pane.status = "is-connecting";
-        renderTabs();
-      }
-    }
-
-    const editId = ev.target.closest("[data-edit-identity]");
-    if (editId) {
-      const id = state.identities.find((x) => x.id === editId.dataset.editIdentity);
-      fillIdentityForm(id);
-      openModal(els.identityModal);
-    }
-    const delId = ev.target.closest("[data-delete-identity]");
-    if (delId) {
-      const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
-      if (!id || !confirm(`Delete identity “${id.name}”?`)) return;
-      api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
-    }
-    const startTn = ev.target.closest("[data-tunnel-start]");
-    if (startTn) {
-      api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
-        .then(loadAll)
-        .catch((err) => {
-          if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
-        });
-    }
-    const stopTn = ev.target.closest("[data-tunnel-stop]");
-    if (stopTn) {
-      api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
-        .then(loadAll)
-        .catch((err) => toast(err.message, true));
-    }
-    const editTn = ev.target.closest("[data-edit-tunnel]");
-    if (editTn) {
-      const t = state.tunnels.find((x) => x.id === editTn.dataset.editTunnel);
-      fillTunnelForm(t);
-      openModal(els.tunnelModal);
-    }
-    const delTn = ev.target.closest("[data-delete-tunnel]");
-    if (delTn) {
-      const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
-      if (!t || !confirm(`Delete forward “${t.name}”?`)) return;
-      api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
-    }
-  });
-
-  els.tabs.addEventListener("click", (ev) => {
-    if (ignoreTabClick) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      return;
-    }
-    const close = ev.target.closest("[data-close]");
-    if (close) {
-      ev.preventDefault();
-      closeTab(close.dataset.close);
-      return;
-    }
-    const tab = ev.target.closest("[data-tab]");
-    if (tab) {
-      state.activeId = tab.dataset.tab;
-      renderTabs();
-    }
-  });
-
-  els.tabs.addEventListener("pointerdown", (ev) => {
-    if (ev.button !== 0) return;
-    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-    if (ev.target.closest("[data-close]")) return;
-    const tab = ev.target.closest(".tab[data-tab]");
-    if (!tab || tab.dataset.tab === VAULT) return;
-    if (!state.tabs.has(tab.dataset.tab)) return;
-    tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
-  });
-  els.tabs.addEventListener("dragstart", (ev) => ev.preventDefault());
-
-  document.addEventListener(
-    "pointermove",
-    (ev) => {
-      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-      if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
-      if (!tabDrag.moved) {
-        tabDrag.moved = true;
-        document.body.classList.add("is-tab-dragging");
-      }
-      ev.preventDefault();
-      autoScrollTabs(ev.clientX);
-      paintTabDrop(tabStripInsertIndex(ev.clientX));
-    },
-    { capture: true, passive: false }
-  );
 
   function finishTabPointer(ev) {
     if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
@@ -2500,213 +2781,518 @@
     if (moveTabToIndex(drag.id, toIndex)) renderTabs();
   }
 
-  document.addEventListener("pointerup", finishTabPointer, true);
-  document.addEventListener(
-    "pointercancel",
-    (ev) => {
-      if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-      ignoreTabClick = tabDrag.moved;
-      endTabDrag();
-    },
-    true
-  );
+  function bindChrome() {
+    window.addEventListener(
+      "keydown",
+      (ev) => {
+        if (isHoldModKey(ev) && !ev.repeat) {
+          clearTimeout(kbdTimer);
+          kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
+        } else if (!isHoldModKey(ev)) {
+          clearTimeout(kbdTimer);
+        }
+        if (ev.key === "Escape" && tabDrag) {
+          ev.preventDefault();
+          ignoreTabClick = tabDrag.moved;
+          endTabDrag();
+          return;
+        }
+        if (ev.key === "Escape" && state.openModal) {
+          ev.preventDefault();
+          closeModal();
+          return;
+        }
+        handleShortcut(ev);
+      },
+      true
+    );
+    window.addEventListener("keyup", (ev) => {
+      if (isHoldModKey(ev)) {
+        clearTimeout(kbdTimer);
+        showKbdHints(false);
+      }
+    });
+    window.addEventListener("blur", () => {
+      clearTimeout(kbdTimer);
+      showKbdHints(false);
+      if (tabDrag) {
+        ignoreTabClick = tabDrag.moved;
+        endTabDrag();
+      }
+    });
+    window.addEventListener("resize", () => {
+      fitVisiblePanes();
+      syncTabOverflow();
+    });
+    on(els.tabs, "scroll", syncTabOverflow, { passive: true });
+    on(els.tabs, "wheel", (ev) => {
+      if (Math.abs(ev.deltaX) >= Math.abs(ev.deltaY)) return;
+      if (els.tabs.scrollWidth <= els.tabs.clientWidth) return;
+      els.tabs.scrollLeft += ev.deltaY;
+      ev.preventDefault();
+    }, { passive: false });
+    if (typeof ResizeObserver !== "undefined" && els.tabs) {
+      new ResizeObserver(syncTabOverflow).observe(els.tabs);
+    }
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+      if ((document.documentElement.dataset.theme || "system") === "system") {
+        applyThemeClass();
+        applyTerminalPrefs();
+      }
+    });
 
-  document.getElementById("vault-rail").addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-vault]");
-    if (!btn) return;
-    if (state.activeId !== VAULT) {
-      state.activeId = VAULT;
+    document.addEventListener(
+      "contextmenu",
+      (ev) => {
+        if (!(ev.target instanceof Element)) return;
+        const trigger = ev.target.closest("#tab-ctx-trigger");
+        if (!trigger) return;
+        const tab = ev.target.closest(".tab[data-tab]");
+        if (!tab) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        tabMenuTarget = tab.dataset.tab;
+        syncTabContextMenu(tabMenuTarget);
+      },
+      true
+    );
+    document.addEventListener(
+      "pointerup",
+      (ev) => {
+        if (ev.button !== 2) return;
+        if (!(ev.target instanceof Element)) return;
+        if (!ev.target.closest("#tab-ctx-trigger")) return;
+        const tab = ev.target.closest(".tab[data-tab]");
+        if (!tab) return;
+        tabMenuTarget = tab.dataset.tab;
+        syncTabContextMenu(tabMenuTarget);
+        const x = ev.clientX;
+        const y = ev.clientY;
+        requestAnimationFrame(() => {
+          const menu = document.getElementById("tab-ctx");
+          if (menu && menu.hasAttribute("data-open")) return;
+          tab.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y,
+              view: window,
+              button: 2,
+            })
+          );
+        });
+      },
+      true
+    );
+    document.addEventListener("click", (ev) => {
+      if (!(ev.target instanceof Element)) return;
+      const item = ev.target.closest("[data-tab-action]");
+      if (!item || item.disabled || item.getAttribute("aria-disabled") === "true") return;
+      runTabContextAction(item.dataset.tabAction, tabMenuTarget);
+    });
+    on(els.tabs, "click", (ev) => {
+      if (ev.target.closest(".tab-rename")) return;
+      if (tabRenaming) {
+        if (ev.target.closest(`.tab[data-tab="${CSS.escape(tabRenaming)}"]`)) return;
+        const input = els.tabs.querySelector(".tab-rename");
+        applyTabRename(tabRenaming, input?.value, true);
+      }
+      if (ignoreTabClick) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      const close = ev.target.closest("[data-close]");
+      if (close) {
+        ev.preventDefault();
+        closeTab(close.dataset.close);
+        return;
+      }
+      const tab = ev.target.closest("[data-tab]");
+      if (tab) {
+        state.activeId = tab.dataset.tab;
+        renderTabs();
+      }
+    });
+    on(els.tabs, "pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+      if (ev.target.closest("[data-close], .tab-rename")) return;
+      const tab = ev.target.closest(".tab[data-tab]");
+      if (!tab || tab.dataset.tab === VAULT) return;
+      if (!state.tabs.has(tab.dataset.tab)) return;
+      tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
+    });
+    on(els.tabs, "dragstart", (ev) => ev.preventDefault());
+    document.addEventListener(
+      "pointermove",
+      (ev) => {
+        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+        if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
+        if (!tabDrag.moved) {
+          tabDrag.moved = true;
+          document.body.classList.add("is-tab-dragging");
+        }
+        ev.preventDefault();
+        autoScrollTabs(ev.clientX);
+        paintTabDrop(tabStripInsertIndex(ev.clientX));
+      },
+      { capture: true, passive: false }
+    );
+    document.addEventListener("pointerup", finishTabPointer, true);
+    document.addEventListener(
+      "pointercancel",
+      (ev) => {
+        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
+        ignoreTabClick = tabDrag.moved;
+        endTabDrag();
+      },
+      true
+    );
+
+    on(document.getElementById("btn-new-tab"), "click", () => newTab());
+    on(els.terminals, "click", (ev) => {
+      const tab = tabFromRoot(ev.target);
+      if (!tab?.start) return;
+      const connect = ev.target.closest("[data-start-connect]");
+      const quick = ev.target.closest("[data-start-quick]");
+      const join = ev.target.closest("[data-start-join]");
+      if (connect) {
+        const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
+        if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+      } else if (quick) openModal(els.quickModal);
+      else if (join) openJoin();
+    });
+    on(els.terminals, "input", (ev) => {
+      const input = ev.target.closest?.(".start-search");
+      if (!input) return;
+      const tab = tabFromRoot(input);
+      if (!tab?.start) return;
+      tab.query = input.value;
+      tab.pick = "";
+      paintStartPage(tab);
+    });
+    on(els.terminals, "keydown", (ev) => {
+      const input = ev.target.closest?.(".start-search");
+      if (!input) return;
+      const tab = tabFromRoot(input);
+      if (!tab?.start) return;
+      const hosts = visibleStartHosts(tab);
+      if (!hosts.length) return;
+      const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
+      } else if (ev.key === "Enter") {
+        ev.preventDefault();
+        const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
+        if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+      }
+    });
+
+    on(document.getElementById("vault-rail"), "click", (ev) => {
+      const btn = ev.target.closest("[data-vault]");
+      if (!btn) return;
+      if (state.activeId !== VAULT) {
+        state.activeId = VAULT;
+        renderTabs();
+      }
+      setVaultSection(btn.dataset.vault);
+    });
+    on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
+    on(document.getElementById("btn-split-right"), "click", () => splitActive("h"));
+    on(document.getElementById("btn-split-down"), "click", () => splitActive("v"));
+    on(document.getElementById("btn-sync"), "click", () => {
+      const tab = state.tabs.get(state.activeId);
+      if (!tab || tab.remote) return;
+      tab.sync = !tab.sync;
       renderTabs();
-    }
-    setVaultSection(btn.dataset.vault);
-  });
-
-  document.getElementById("btn-new-host").addEventListener("click", () => {
-    fillHostForm(null);
-    openModal(els.hostModal);
-  });
-  document.getElementById("btn-quick").addEventListener("click", () => openModal(els.quickModal));
-  document.getElementById("btn-new-snippet").addEventListener("click", () => {
-    els.snippetForm.reset();
-    document.getElementById("snippet-modal-title").textContent = "New snippet";
-    openModal(els.snippetModal);
-  });
-  document.getElementById("btn-new-identity").addEventListener("click", () => {
-    fillIdentityForm(null);
-    openModal(els.identityModal);
-  });
-  document.getElementById("btn-new-tunnel").addEventListener("click", () => {
-    fillTunnelForm(null);
-    openModal(els.tunnelModal);
-  });
-  document.getElementById("btn-welcome-local").addEventListener("click", () => newLocalTab());
-  document.getElementById("btn-new-tab")?.addEventListener("click", () => newTab());
-  document.getElementById("btn-join").addEventListener("click", openJoin);
-
-  els.terminals.addEventListener("click", (ev) => {
-    const tab = tabFromRoot(ev.target);
-    if (!tab?.start) return;
-    const connect = ev.target.closest("[data-start-connect]");
-    const quick = ev.target.closest("[data-start-quick]");
-    const join = ev.target.closest("[data-start-join]");
-    if (connect) {
-      const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
-      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
-    } else if (quick) openModal(els.quickModal);
-    else if (join) openJoin();
-  });
-  els.terminals.addEventListener("input", (ev) => {
-    const input = ev.target.closest?.(".start-search");
-    if (!input) return;
-    const tab = tabFromRoot(input);
-    if (!tab?.start) return;
-    tab.query = input.value;
-    tab.pick = "";
-    paintStartPage(tab);
-  });
-  els.terminals.addEventListener("keydown", (ev) => {
-    const input = ev.target.closest?.(".start-search");
-    if (!input) return;
-    const tab = tabFromRoot(input);
-    if (!tab?.start) return;
-    const hosts = visibleStartHosts(tab);
-    if (!hosts.length) return;
-    const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
-    if (ev.key === "ArrowDown") {
+    });
+    on(els.btnShare, "click", shareActive);
+    on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));
+    on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
+    on(document.getElementById("set-ui-size"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setUiSize(v);
+    });
+    on(document.getElementById("set-smooth"), "select-change", (ev) => setSmoothing(ev.detail?.value));
+    on(document.getElementById("set-font"), "select-change", (ev) => {
+      if (!ev.detail?.value) return;
+      state.prefs.font = ev.detail.value;
+      savePrefs();
+      applyTerminalPrefs();
+      syncTermPreview();
+    });
+    on(document.getElementById("set-size"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setFontSize(v);
+    });
+    on(document.getElementById("set-copy"), "change", (ev) => {
+      state.prefs.copyOnSelect = ev.target.checked;
+      savePrefs();
+    });
+    on(document.getElementById("set-paste"), "change", (ev) => {
+      state.prefs.rightClickPaste = ev.target.checked;
+      savePrefs();
+    });
+    on(els.gateForm, "submit", (ev) => {
       ev.preventDefault();
-      setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
-    } else if (ev.key === "ArrowUp") {
-      ev.preventDefault();
-      setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
-    } else if (ev.key === "Enter") {
-      ev.preventDefault();
-      const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
-      if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
-    }
-  });
-  document.getElementById("btn-refresh-logs").addEventListener("click", () => loadLogs().catch((err) => toast(err.message, true)));
-  document.getElementById("btn-split-right").addEventListener("click", () => splitActive("h"));
-  document.getElementById("btn-split-down").addEventListener("click", () => splitActive("v"));
-  document.getElementById("btn-sync").addEventListener("click", () => {
-    const tab = state.tabs.get(state.activeId);
-    if (!tab || tab.remote) return;
-    tab.sync = !tab.sync;
-    renderTabs();
-  });
+      const passphrase = els.gateForm.passphrase?.value;
+      const setup = els.gateForm.dataset.setup === "1";
+      const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
+      api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
+        .then(() => boot())
+        .catch((err) => toast(err.message, true));
+    });
+  }
 
-  document.getElementById("join-cancel").addEventListener("click", () => closeModal(els.joinModal));
-  document.getElementById("host-cancel").addEventListener("click", () => closeModal(els.hostModal));
-  document.getElementById("quick-cancel").addEventListener("click", () => closeModal(els.quickModal));
-  document.getElementById("snippet-cancel").addEventListener("click", () => closeModal(els.snippetModal));
-  document.getElementById("identity-cancel").addEventListener("click", () => closeModal(els.identityModal));
-  document.getElementById("tunnel-cancel").addEventListener("click", () => closeModal(els.tunnelModal));
-  els.modalScrim.addEventListener("click", () => closeModal());
-  [els.hostModal, els.quickModal, els.snippetModal, els.joinModal, els.identityModal, els.tunnelModal].forEach((modal) => {
-    modal.addEventListener("close", fitVisiblePanes);
-  });
-  els.hostForm.authType.addEventListener("change", toggleAuthFields);
-  els.hostForm.keepAlive?.addEventListener("change", toggleKeepAliveFields);
-  els.identityForm.kind.addEventListener("change", toggleIdentFields);
-  els.tunnelForm.kind.addEventListener("change", toggleTunnelDest);
-  els.hostForm.addEventListener("submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
-  els.identityForm.addEventListener("submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
-  els.tunnelForm.addEventListener("submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
-  els.quickForm.addEventListener("submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
-  els.snippetForm.addEventListener("submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
-  els.joinForm.addEventListener("submit", (ev) => submitJoin(ev));
-  els.hostKeyForm.addEventListener("submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
-  document.getElementById("hostkey-cancel").addEventListener("click", () => closeModal(els.hostKeyModal));
-  els.search.addEventListener("input", () => {
-    state.query = els.search.value;
-    renderHosts();
-  });
-  document.getElementById("log-filter").addEventListener("input", (ev) => {
-    state.logFilter = ev.target.value;
-    renderLogs();
-  });
-  els.btnShare.addEventListener("click", shareActive);
-  document.getElementById("settings-form").addEventListener("submit", (ev) => ev.preventDefault());
-  document.getElementById("set-theme").addEventListener("change", (ev) => {
-    setTheme(ev.target.value);
-  });
-  document.getElementById("set-ui-size-dec").addEventListener("click", () => setUiSize(state.ui.size - 1));
-  document.getElementById("set-ui-size-inc").addEventListener("click", () => setUiSize(state.ui.size + 1));
-  document.getElementById("set-smooth").addEventListener("change", (ev) => setSmoothing(ev.target.value));
-  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-    if ((document.documentElement.dataset.theme || "system") === "system") applyTerminalPrefs();
-  });
+  function bindLists() {
+    on(els.herdList, "click", async (ev) => {
+      const rec = ev.target.closest("[data-reconnect]");
+      if (rec) {
+        try {
+          await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
+          const pane = findPaneByRuntime(rec.dataset.reconnect);
+          if (pane) {
+            pane.status = "is-connecting";
+            renderTabs();
+          }
+        } catch (err) {
+          toast(err.message, true);
+        }
+        return;
+      }
+      const attach = ev.target.closest("[data-attach]");
+      const kill = ev.target.closest("[data-kill]");
+      if (attach) {
+        const info = state.herd.find((s) => s.id === attach.dataset.attach);
+        if (info) attachRuntime(info);
+      } else if (kill) {
+        try {
+          await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
+          const pane = findPaneByRuntime(kill.dataset.kill);
+          if (pane) closePane(pane.id);
+          await loadAll();
+        } catch (err) {
+          toast(err.message, true);
+        }
+      }
+    });
+
+    document.body.addEventListener("click", async (ev) => {
+      if (ev.target.closest("#btn-quick")) {
+        openModal(els.quickModal);
+        return;
+      }
+      if (ev.target.closest("#btn-join")) {
+        openJoin();
+        return;
+      }
+      const groupFilter = ev.target.closest("[data-group-filter]");
+      if (groupFilter && els.search) {
+        const next = groupFilter.getAttribute("data-group-filter") || "";
+        els.search.value = next;
+        state.query = next;
+        els.search.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      const connect = ev.target.closest("[data-connect]");
+      if (connect) {
+        const host = state.hosts.find((h) => h.id === connect.dataset.connect);
+        if (host) openSession(host).catch((err) => toast(err.message, true));
+        return;
+      }
+      const edit = ev.target.closest("[data-edit]");
+      if (edit) {
+        const host = state.hosts.find((h) => h.id === edit.dataset.edit);
+        if (host) {
+          fillHostForm(host);
+          openModal(els.hostModal);
+        }
+        return;
+      }
+      const del = ev.target.closest("[data-delete]");
+      if (del) {
+        const host = state.hosts.find((h) => h.id === del.dataset.delete);
+        if (!host) return;
+        if (host.authType === "local") {
+          toast("Local Shell is part of the workspace and cannot be removed");
+          return;
+        }
+        if (!(await askConfirm(`Remove ${host.name}?`))) return;
+        await api(`/api/hosts/${host.id}`, { method: "DELETE" });
+        await loadAll();
+        return;
+      }
+      const run = ev.target.closest("[data-run]");
+      if (run) sendSnippet(run.dataset.run);
+      const editSn = ev.target.closest("[data-edit-snippet]");
+      if (editSn) {
+        const sn = state.snippets.find((s) => s.id === editSn.dataset.editSnippet);
+        if (!sn || !els.snippetForm) return;
+        els.snippetForm.reset();
+        els.snippetForm.id.value = sn.id;
+        els.snippetForm.name.value = sn.name;
+        els.snippetForm.command.value = sn.command;
+        const title = document.getElementById("snippet-modal-title");
+        if (title) title.textContent = "Edit snippet";
+        openModal(els.snippetModal);
+      }
+      const delSn = ev.target.closest("[data-delete-snippet]");
+      if (delSn) {
+        const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
+        if (!sn || !(await askConfirm(`Delete snippet “${sn.name}”?`))) return;
+        api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
+      }
+      const grant = ev.target.closest("[data-grant]");
+      if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
+      if (ev.target.closest("[data-request]")) sendControl("request-control");
+      if (ev.target.closest("[data-take]")) sendControl("take-control");
+      const paneClose = ev.target.closest("[data-pane-close]");
+      if (paneClose) closePane(paneClose.dataset.paneClose);
+      const paneRec = ev.target.closest("[data-pane-reconnect]");
+      if (paneRec) {
+        const pane = state.panes.get(paneRec.dataset.paneReconnect);
+        if (pane?.runtimeId) {
+          api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
+          pane.status = "is-connecting";
+          renderTabs();
+        }
+      }
+
+      const editId = ev.target.closest("[data-edit-identity]");
+      if (editId) {
+        const id = state.identities.find((x) => x.id === editId.dataset.editIdentity);
+        fillIdentityForm(id);
+        openModal(els.identityModal);
+      }
+      const delId = ev.target.closest("[data-delete-identity]");
+      if (delId) {
+        const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
+        if (!id || !(await askConfirm(`Delete identity “${id.name}”?`))) return;
+        api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
+      }
+      const startTn = ev.target.closest("[data-tunnel-start]");
+      if (startTn) {
+        api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
+          .then(loadAll)
+          .catch((err) => {
+            if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
+          });
+      }
+      const stopTn = ev.target.closest("[data-tunnel-stop]");
+      if (stopTn) {
+        api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
+          .then(loadAll)
+          .catch((err) => toast(err.message, true));
+      }
+      const editTn = ev.target.closest("[data-edit-tunnel]");
+      if (editTn) {
+        const t = state.tunnels.find((x) => x.id === editTn.dataset.editTunnel);
+        fillTunnelForm(t);
+        openModal(els.tunnelModal);
+      }
+      const delTn = ev.target.closest("[data-delete-tunnel]");
+      if (delTn) {
+        const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
+        if (!t || !(await askConfirm(`Delete forward “${t.name}”?`))) return;
+        api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
+      }
+    });
+
+    on(els.search, "input", () => {
+      state.query = els.search.value;
+      paintList("host-list", "/ui/hosts?" + datastarQS());
+    });
+    on(els.search, "keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      connectFromSearch();
+    });
+    on(document.getElementById("btn-host-connect"), "click", () => connectFromSearch());
+    on(document.getElementById("log-filter"), "input", (ev) => {
+      state.logFilter = ev.target.value;
+      paintList("log-list", "/ui/logs?" + datastarQS());
+    });
+    on(document.getElementById("btn-refresh-logs"), "click", () => loadLogs().catch((err) => toast(err.message, true)));
+  }
+
+  function bindModals() {
+    on(document.getElementById("btn-new-host"), "click", () => {
+      fillHostForm(null);
+      openModal(els.hostModal);
+    });
+    on(document.getElementById("btn-quick"), "click", () => openModal(els.quickModal));
+    on(document.getElementById("btn-new-snippet"), "click", () => {
+      els.snippetForm?.reset();
+      const title = document.getElementById("snippet-modal-title");
+      if (title) title.textContent = "New snippet";
+      openModal(els.snippetModal);
+    });
+    on(document.getElementById("btn-new-identity"), "click", () => {
+      fillIdentityForm(null);
+      openModal(els.identityModal);
+    });
+    on(document.getElementById("btn-new-tunnel"), "click", () => {
+      fillTunnelForm(null);
+      openModal(els.tunnelModal);
+    });
+    on(document.getElementById("btn-join"), "click", openJoin);
+    on(document.getElementById("join-cancel"), "click", () => closeModal(els.joinModal));
+    on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
+    on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
+    on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));
+    on(document.getElementById("identity-cancel"), "click", () => closeModal(els.identityModal));
+    on(document.getElementById("tunnel-cancel"), "click", () => closeModal(els.tunnelModal));
+    on(document.getElementById("hostkey-cancel"), "click", () => closeModal(els.hostKeyModal));
+    on(els.modalScrim, "click", () => closeModal());
+    [
+      els.hostModal,
+      els.quickModal,
+      els.snippetModal,
+      els.joinModal,
+      els.identityModal,
+      els.tunnelModal,
+      els.hostKeyModal,
+    ].forEach((modal) => on(modal, "close", () => {
+      if (state.openModal === modal) state.openModal = null;
+      els.modalScrim?.classList.remove("is-open");
+      fitVisiblePanes();
+    }));
+    on(els.hostForm?.authType, "change", toggleAuthFields);
+    on(els.hostForm?.keepAlive, "change", toggleKeepAliveFields);
+    on(els.identityForm?.kind, "change", toggleIdentFields);
+    on(els.tunnelForm?.kind, "change", toggleTunnelDest);
+    on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
+    on(els.identityForm, "submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
+    on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
+    on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
+    on(els.snippetForm, "submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
+    on(els.joinForm, "submit", (ev) => submitJoin(ev));
+    on(els.hostKeyForm, "submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
+  }
+
+  bindChrome();
+  bindLists();
+  bindModals();
+  applyThemeClass();
   syncThemeSwitch();
   applyUiPrefs();
   syncSettingsForm();
-
-  document.getElementById("set-font").addEventListener("change", (ev) => {
-    state.prefs.font = ev.target.value;
-    savePrefs();
-    applyTerminalPrefs();
-    syncTermPreview();
-  });
-  document.getElementById("set-size-dec").addEventListener("click", () => setFontSize(state.prefs.size - 1));
-  document.getElementById("set-size-inc").addEventListener("click", () => setFontSize(state.prefs.size + 1));
-  document.getElementById("set-copy").addEventListener("change", (ev) => {
-    state.prefs.copyOnSelect = ev.target.checked;
-    savePrefs();
-  });
-  document.getElementById("set-paste").addEventListener("change", (ev) => {
-    state.prefs.rightClickPaste = ev.target.checked;
-    savePrefs();
-  });
-
-  els.gateForm.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    const passphrase = els.gateForm.passphrase.value;
-    const setup = els.gateForm.dataset.setup === "1";
-    const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
-    api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
-      .then(() => boot())
-      .catch((err) => toast(err.message, true));
-  });
-
-  window.addEventListener("resize", fitVisiblePanes);
-  window.addEventListener(
-    "keydown",
-    (ev) => {
-      if (isHoldModKey(ev) && !ev.repeat) {
-        clearTimeout(kbdTimer);
-        kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
-      } else if (!isHoldModKey(ev)) {
-        clearTimeout(kbdTimer);
-      }
-      if (ev.key === "Escape" && tabDrag) {
-        ev.preventDefault();
-        ignoreTabClick = tabDrag.moved;
-        endTabDrag();
-        return;
-      }
-      if (ev.key === "Escape" && state.openModal) {
-        ev.preventDefault();
-        closeModal();
-        return;
-      }
-      handleShortcut(ev);
-    },
-    true
-  );
-  window.addEventListener("keyup", (ev) => {
-    if (isHoldModKey(ev)) {
-      clearTimeout(kbdTimer);
-      showKbdHints(false);
-    }
-  });
-  window.addEventListener("blur", () => {
-    clearTimeout(kbdTimer);
-    showKbdHints(false);
-    if (tabDrag) {
-      ignoreTabClick = tabDrag.moved;
-      endTabDrag();
-    }
-  });
-  if (els.search) els.search.placeholder = `Search hosts  ${MOD}K`;
+  if (els.search) els.search.placeholder = "Find a host or ssh user@hostname...";
+  const searchKbd = document.getElementById("search-kbd");
+  if (searchKbd) searchKbd.textContent = `${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
+  document.getElementById("btn-new-tab")?.blur();
+  toggleAuthFields();
+  toggleIdentFields();
+  toggleTunnelDest();
 
   if (!state.name) state.name = "guest";
   boot();

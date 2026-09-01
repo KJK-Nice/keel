@@ -1,11 +1,10 @@
 package desktop
 
 import (
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestDesktopURLMarksNativeWindow(t *testing.T) {
@@ -27,21 +26,11 @@ func TestDesktopURLOverlaysTabsOnMac(t *testing.T) {
 
 func TestOverlayTitleBarLetsTabsSitBesideTrafficLights(t *testing.T) {
 	tb := overlayTitleBar()
-	if tb == nil {
-		t.Fatal("nil titlebar")
-	}
-	if !tb.TitlebarAppearsTransparent || !tb.HideTitle || !tb.FullSizeContent {
+	if !tb.AppearsTransparent || !tb.HideTitle || !tb.FullSizeContent {
 		t.Fatalf("want hidden title + full-size content, got %+v", tb)
 	}
-	if !tb.UseToolbar || !tb.HideToolbarSeparator || tb.HideTitleBar {
+	if !tb.UseToolbar || !tb.HideToolbarSeparator || tb.Hide {
 		t.Fatalf("want inset toolbar titlebar so traffic lights drop, got %+v", tb)
-	}
-}
-
-func TestNavigateJS(t *testing.T) {
-	js := navigateJS("http://127.0.0.1:47241/?name=ada")
-	if !strings.Contains(js, `window.location.replace("http://127.0.0.1:47241/?name=ada")`) {
-		t.Fatalf("js = %s", js)
 	}
 }
 
@@ -50,7 +39,9 @@ func TestWindowDragJSRebindsAfterNavigation(t *testing.T) {
 	for _, want := range []string{
 		`window.__keelWindowDrag`,
 		`--wails-draggable`,
-		`invoke("drag")`,
+		`invoke("wails:drag")`,
+		`invoke("wails:drag:doubleclick")`,
+		`is-window-dragging`,
 		`webkit.messageHandlers.external`,
 	} {
 		if !strings.Contains(js, want) {
@@ -69,42 +60,37 @@ func TestShortcutJS(t *testing.T) {
 func TestAppMenuHasTabShortcuts(t *testing.T) {
 	w := &nativeWindow{}
 	m := w.appMenu()
-	var labels []string
-	var walk func(items []*menu.MenuItem)
-	walk = func(items []*menu.MenuItem) {
-		for _, it := range items {
-			if it.Label != "" {
-				labels = append(labels, it.Label)
-			}
-			if it.SubMenu != nil {
-				walk(it.SubMenu.Items)
-			}
-		}
-	}
-	walk(m.Items)
-	joined := strings.Join(labels, "\n")
 	for _, want := range []string{"New Tab", "Close Tab", "Find Host", "Split Right", "Close Window", "Zoom In", "Zoom Out", "Actual Size"} {
-		if !strings.Contains(joined, want) {
+		if m.FindByLabel(want) == nil {
 			t.Errorf("menu missing %q", want)
 		}
 	}
+	if m.FindByLabel("New Tab").GetAccelerator() == "" {
+		t.Error("New Tab missing accelerator")
+	}
 }
 
-func TestSplashHasMark(t *testing.T) {
-	b, err := os.ReadFile("shell/index.html")
-	if err != nil {
-		t.Fatal(err)
+func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
+	mac := macWindowChrome()
+	if mac.Backdrop != application.MacBackdropTranslucent {
+		t.Fatalf("mac backdrop = %v, want translucent", mac.Backdrop)
 	}
-	s := string(b)
-	for _, want := range []string{`M4 25 L16 5 L28 25`, `Starting Keel`, `--wails-draggable`, `border-radius`} {
-		if want == `border-radius` {
-			if strings.Contains(s, want) {
-				t.Error("splash icon should be a sharp square, no border-radius")
-			}
-			continue
-		}
-		if !strings.Contains(s, want) {
-			t.Errorf("shell/index.html missing %q", want)
-		}
+	opts := webviewOptions("http://127.0.0.1:47241/?native=1")
+	if opts.BackgroundType != application.BackgroundTypeTranslucent {
+		t.Fatalf("background type = %v, want translucent", opts.BackgroundType)
+	}
+	if opts.BackgroundColour.Alpha != 0 {
+		t.Fatalf("background alpha = %d, want 0", opts.BackgroundColour.Alpha)
+	}
+	if opts.Windows.BackdropType != application.Acrylic {
+		t.Fatalf("windows backdrop = %v, want acrylic", opts.Windows.BackdropType)
+	}
+}
+
+func TestMacTitleBarPresetMatchesHiddenInset(t *testing.T) {
+	want := application.MacTitleBarHiddenInset
+	got := overlayTitleBar()
+	if got != want {
+		t.Fatalf("overlayTitleBar = %+v, want HiddenInset %+v", got, want)
 	}
 }

@@ -95,7 +95,7 @@ The desktop window is a native WebKit/WebView2 webview (Wails). Build:
   make build
   make build KEEL_SIGNAL=https://your-signal.example
 
-Linux packages: libgtk-3-dev libwebkit2gtk-4.1-dev
+Linux packages: libgtk-4-dev libwebkitgtk-6.0-dev
 macOS: Xcode Command Line Tools (use make / scripts/go.sh so Wails CGO flags are set).
 A naked ./bin/keel relaunches as ~/Library/Caches/keel/Keel.app so WebKit JIT is allowed.
 make build also writes bin/Keel.app — open that, or run ./bin/keel.

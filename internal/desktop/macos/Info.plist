@@ -14,6 +14,8 @@
 	<string>Keel</string>
 	<key>CFBundleIconFile</key>
 	<string>Keel</string>
+	<key>CFBundleIconName</key>
+	<string>Keel</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,7 +23,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>12.0</string>
+	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
