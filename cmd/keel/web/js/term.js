@@ -195,7 +195,8 @@
       cursorBlink: true,
       fontFamily: fontFamily(),
       fontSize: state.prefs.size,
-      lineHeight: 1.22,
+      lineHeight: 1,
+      letterSpacing: 0,
       allowTransparency: isNativeWindow(),
       theme: xtermTheme(),
     };
@@ -212,6 +213,8 @@
       p.term.options.theme = theme;
       p.term.options.fontFamily = family;
       p.term.options.fontSize = size;
+      p.term.options.lineHeight = 1;
+      p.term.options.letterSpacing = 0;
     }
     fitVisiblePanes();
   }
@@ -296,7 +299,6 @@
     snippetForm: document.getElementById("snippet-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
-    activeSnippets: document.getElementById("active-snippets"),
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
   };
@@ -670,9 +672,6 @@
         .join("");
       els.snippetList.innerHTML = tileSection("Snippets", cards);
     }
-    els.activeSnippets.innerHTML = state.snippets
-      .map((s) => `<button class="chip" data-run="${s.id}">${escapeHtml(s.name)}</button>`)
-      .join("");
   }
 
   function renderIdentities() {
@@ -1426,8 +1425,6 @@
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
     els.terminals.hidden = vaultOn;
-    els.activeSnippets.classList.toggle("is-active", sessionOn);
-    els.activeSnippets.hidden = !sessionOn;
 
     for (const tab of state.tabs.values()) {
       const split = leafCount(tab.layout) > 1;
@@ -1868,7 +1865,8 @@
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
-    const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    const raw = ev.key || "";
+    const key = raw.length === 1 ? raw.toLowerCase() : raw;
     if (key === "w") {
       ev.preventDefault();
       runShortcut("close-tab");
@@ -1953,6 +1951,8 @@
 
   function termKeyHandler(ev) {
     if (ev.type !== "keydown") return true;
+    // Unmodified keys (including hold-to-repeat in vim) must reach xterm.
+    if (!hasAppMod(ev) || ev.altKey) return true;
     return !handleShortcut(ev);
   }
 
@@ -2025,7 +2025,6 @@
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
-    if (term.element) term.element.style.padding = "12px 14px 14px";
     try {
       fit.fit();
     } catch {

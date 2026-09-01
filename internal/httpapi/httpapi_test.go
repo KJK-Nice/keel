@@ -681,8 +681,15 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("keel.css missing focused pane tile, drop overlay, or terminal scrollbar")
 	}
 	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
-		!strings.Contains(string(cssBody), "padding: 12px 14px 14px") {
-		t.Fatal("keel.css must pad the xterm element so FitAddon inset does not overlap pane chrome")
+		strings.Contains(string(cssBody), "padding: 12px 14px 14px") {
+		t.Fatal("keel.css must not keep the old xterm inset that leaves a margin around a solo pane")
+	}
+	if !strings.Contains(string(cssBody), ".term-tab:not(.is-split) .term-wrap") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split") {
+		t.Fatal("single-pane tabs must fill the stage; split tabs keep tile chrome")
+	}
+	if strings.Contains(string(cssBody), ".snippet-bar") || strings.Contains(string(body), "active-snippets") {
+		t.Fatal("session snippet footer must be removed")
 	}
 	if !strings.Contains(string(cssBody), "--keel-sidebar") {
 		t.Fatal("keel.css missing prefixed chrome sidebar token")
@@ -744,6 +751,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "function closeActivePaneOrTab") ||
 		!strings.Contains(string(termBody), "closeActivePaneOrTab()") {
 		t.Fatal("term.js must close the focused pane with ⌘W before closing the last session tab")
+	}
+	if strings.Contains(string(termBody), "lineHeight: 1.22") || !strings.Contains(string(termBody), "lineHeight: 1,") {
+		t.Fatal("xterm lineHeight must be 1 so block glyphs fill the cell")
+	}
+	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
+		t.Fatal("term.js must not drive a session snippet footer")
 	}
 	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")

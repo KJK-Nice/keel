@@ -29,7 +29,7 @@ func TestMacOSBundleFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(info)
-	for _, want := range []string{"CFBundleIdentifier", "app.keel.desktop", "CFBundleExecutable", "NSAllowsLocalNetworking", "CFBundleIconFile", "CFBundleIconName"} {
+	for _, want := range []string{"CFBundleIdentifier", "app.keel.desktop", "CFBundleExecutable", "NSAllowsLocalNetworking", "CFBundleIconFile", "CFBundleIconName", "ApplePressAndHoldEnabled"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("Info.plist missing %q", want)
 		}
@@ -39,6 +39,9 @@ func TestMacOSBundleFiles(t *testing.T) {
 	}
 	if !strings.Contains(s, "<key>CFBundleIconName</key>") || !strings.Contains(s, "<string>Keel</string>") {
 		t.Error("Info.plist missing CFBundleIconName Keel")
+	}
+	if !strings.Contains(s, "<key>ApplePressAndHoldEnabled</key>") || !strings.Contains(s, "<false/>") {
+		t.Error("Info.plist must disable Apple press-and-hold so terminal keys repeat")
 	}
 	ent, err := os.ReadFile("macos/entitlements.plist")
 	if err != nil {
