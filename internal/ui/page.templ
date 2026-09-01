@@ -129,7 +129,6 @@ templ Page(p PageProps) {
 						@Vault(p)
 						<div class="terminals" id="terminals" hidden></div>
 					</section>
-					<footer class="snippet-bar" id="active-snippets" hidden></footer>
 				</main>
 			</div>
 			@Dialogs(p)
@@ -137,6 +136,7 @@ templ Page(p PageProps) {
 			@toast.Toaster()
 			<script src="/vendor/xterm/xterm.min.js"></script>
 			<script src="/vendor/xterm/addon-fit.js"></script>
+			<script src="/vendor/xterm/addon-webgl.js"></script>
 			<script src="/js/term.js"></script>
 		</body>
 	</html>

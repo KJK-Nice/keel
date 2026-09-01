@@ -195,8 +195,10 @@
       cursorBlink: true,
       fontFamily: fontFamily(),
       fontSize: state.prefs.size,
-      lineHeight: 1.22,
-      allowTransparency: isNativeWindow(),
+      lineHeight: 1,
+      letterSpacing: 0,
+      customGlyphs: true,
+      allowTransparency: false,
       theme: xtermTheme(),
     };
   }
@@ -205,13 +207,16 @@
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
-    const glass = isNativeWindow();
+    const glass = false;
     for (const p of state.panes.values()) {
       if (!p.term) continue;
       p.term.options.allowTransparency = glass;
       p.term.options.theme = theme;
       p.term.options.fontFamily = family;
       p.term.options.fontSize = size;
+      p.term.options.lineHeight = 1;
+      p.term.options.letterSpacing = 0;
+      p.term.options.customGlyphs = true;
     }
     fitVisiblePanes();
   }
@@ -296,7 +301,6 @@
     snippetForm: document.getElementById("snippet-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
-    activeSnippets: document.getElementById("active-snippets"),
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
   };
@@ -670,9 +674,6 @@
         .join("");
       els.snippetList.innerHTML = tileSection("Snippets", cards);
     }
-    els.activeSnippets.innerHTML = state.snippets
-      .map((s) => `<button class="chip" data-run="${s.id}">${escapeHtml(s.name)}</button>`)
-      .join("");
   }
 
   function renderIdentities() {
@@ -1426,8 +1427,6 @@
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
     els.terminals.hidden = vaultOn;
-    els.activeSnippets.classList.toggle("is-active", sessionOn);
-    els.activeSnippets.hidden = !sessionOn;
 
     for (const tab of state.tabs.values()) {
       const split = leafCount(tab.layout) > 1;
@@ -1868,7 +1867,8 @@
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
-    const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    const raw = ev.key || "";
+    const key = raw.length === 1 ? raw.toLowerCase() : raw;
     if (key === "w") {
       ev.preventDefault();
       runShortcut("close-tab");
@@ -1953,6 +1953,8 @@
 
   function termKeyHandler(ev) {
     if (ev.type !== "keydown") return true;
+    // Unmodified keys (including hold-to-repeat in vim) must reach xterm.
+    if (!hasAppMod(ev) || ev.altKey) return true;
     return !handleShortcut(ev);
   }
 
@@ -1996,6 +1998,24 @@
     });
   }
 
+  function attachWebgl(term) {
+    const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
+    if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
+    try {
+      const addon = new Ctor();
+      addon.onContextLoss?.(() => {
+        try {
+          addon.dispose();
+        } catch {
+          /* canvas fallback */
+        }
+      });
+      term.loadAddon(addon);
+    } catch {
+      /* canvas renderer */
+    }
+  }
+
   function makePaneShell(info, paneId) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
@@ -2025,7 +2045,7 @@
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
-    if (term.element) term.element.style.padding = "12px 14px 14px";
+    attachWebgl(term);
     try {
       fit.fit();
     } catch {

@@ -73,7 +73,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 - **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
 - **⌘+** / **⌘-** bigger or smaller terminal text (10–22px). **⌘0** resets to 12.
 - **⌘⇧W** closes the window (UI quits; sessions stay in `keel serve`). File → **Stop Keel runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
-- **Sync** broadcasts keystrokes (and snippet paste) to every driving pane in that tab.
+- **Sync** broadcasts keystrokes (and Vault snippet paste) to every driving pane in that tab.
 - Settings: font, text size, copy-on-select, right-click paste (stored in `localStorage`).
 
 ## Port forwarding
