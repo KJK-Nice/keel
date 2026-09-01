@@ -277,11 +277,9 @@
     tabs: document.getElementById("tabs"),
     terminals: document.getElementById("terminals"),
     vault: document.getElementById("vault"),
-    barTools: document.getElementById("bar-tools"),
     barStatus: document.getElementById("bar-status"),
     controlWidget: document.getElementById("control-widget"),
     btnShare: document.getElementById("btn-share"),
-    btnSync: document.getElementById("btn-sync"),
     search: document.getElementById("search"),
     modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
@@ -850,6 +848,37 @@
     return { ...node, a, b };
   }
 
+  function swapLeaves(node, aId, bId) {
+    if (!node || aId === bId) return node;
+    if (node.type === "leaf") {
+      if (node.paneId === aId) return { ...node, paneId: bId };
+      if (node.paneId === bId) return { ...node, paneId: aId };
+      return node;
+    }
+    return { ...node, a: swapLeaves(node.a, aId, bId), b: swapLeaves(node.b, aId, bId) };
+  }
+
+  function insertBeside(layout, targetId, incoming, edge) {
+    if (!layout || !incoming || !edge || edge === "center") return layout;
+    const dir = edge === "left" || edge === "right" ? "h" : "v";
+    const incomingFirst = edge === "left" || edge === "top";
+    const targetLeaf = { type: "leaf", paneId: targetId };
+    return replaceLeaf(layout, targetId, {
+      type: "split",
+      dir,
+      sizes: [50, 50],
+      a: incomingFirst ? incoming : targetLeaf,
+      b: incomingFirst ? targetLeaf : incoming,
+    });
+  }
+
+  function rehomeLayout(node, tabId) {
+    walkLeaves(node, (id) => {
+      const p = state.panes.get(id);
+      if (p) p.tabId = tabId;
+    });
+  }
+
   function findPaneByRuntime(runtimeId) {
     return [...state.panes.values()].find((p) => p.runtimeId === runtimeId);
   }
@@ -879,9 +908,11 @@
   }
 
   let tabDrag = null;
+  let paneDrag = null;
   let ignoreTabClick = false;
   let tabRenaming = null;
   let tabMenuTarget = "";
+  let dropOverlay = null;
 
   function reorderTabIds(ids, fromId, toIndex) {
     const from = ids.indexOf(fromId);
@@ -1091,6 +1122,140 @@
     tabDrag = null;
     document.body.classList.remove("is-tab-dragging");
     clearTabDropMarks();
+    hidePaneDrop();
+  }
+
+  function endPaneDrag() {
+    if (!paneDrag) return;
+    const pane = state.panes.get(paneDrag.paneId);
+    pane?.wrap?.classList.remove("is-dragging");
+    paneDrag = null;
+    document.body.classList.remove("is-pane-dragging");
+    hidePaneDrop();
+    clearTabDropMarks();
+  }
+
+  function paneGlyph(name) {
+    const icons = {
+      splitH: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/>',
+      splitV: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18"/>',
+      sync: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+      zoom: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+      unzoom: '<path d="M4 14h6v6M20 10h-6V4M14 10 21 3M3 21l7-7"/>',
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || ""}</svg>`;
+  }
+
+  function ensurePaneDrop() {
+    if (dropOverlay) return dropOverlay;
+    dropOverlay = document.createElement("div");
+    dropOverlay.className = "pane-drop";
+    dropOverlay.hidden = true;
+    dropOverlay.innerHTML = `<div class="pane-drop-region"></div>`;
+    document.body.appendChild(dropOverlay);
+    return dropOverlay;
+  }
+
+  function hidePaneDrop() {
+    if (dropOverlay) dropOverlay.hidden = true;
+  }
+
+  function paintPaneDrop(target) {
+    const overlay = ensurePaneDrop();
+    if (!target?.paneId || !target.edge) {
+      overlay.hidden = true;
+      return;
+    }
+    const pane = state.panes.get(target.paneId);
+    const wrap = pane?.wrap;
+    if (!wrap?.isConnected) {
+      overlay.hidden = true;
+      return;
+    }
+    const r = wrap.getBoundingClientRect();
+    overlay.hidden = false;
+    overlay.style.left = `${r.left}px`;
+    overlay.style.top = `${r.top}px`;
+    overlay.style.width = `${r.width}px`;
+    overlay.style.height = `${r.height}px`;
+    overlay.dataset.edge = target.edge;
+  }
+
+  function dropEdgeForRect(rect, x, y) {
+    const relX = (x - rect.left) / Math.max(1, rect.width);
+    const relY = (y - rect.top) / Math.max(1, rect.height);
+    const dist = { left: relX, right: 1 - relX, top: relY, bottom: 1 - relY };
+    const edge = Object.keys(dist).reduce((best, key) => (dist[key] < dist[best] ? key : best), "left");
+    if (dist[edge] > 0.28) return "center";
+    return edge;
+  }
+
+  function hitTabStrip(x, y) {
+    const strip = els.tabs?.closest(".tab-strip") || els.tabs;
+    if (!strip) return false;
+    const r = strip.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom + 10;
+  }
+
+  function paneDropAt(x, y, opts = {}) {
+    const excludePaneId = opts.excludePaneId || "";
+    const fromTabId = opts.fromTabId || "";
+    const tab = state.tabs.get(state.activeId);
+    if (!tab || tab.start || !tab.layout) return null;
+    for (const pane of tabPanes(tab)) {
+      if (!pane.wrap?.isConnected) continue;
+      const r = pane.wrap.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      if (pane.id === excludePaneId) return { paneId: pane.id, edge: null, self: true };
+      if (fromTabId && pane.tabId === fromTabId) return { paneId: pane.id, edge: null, self: true };
+      return { paneId: pane.id, edge: dropEdgeForRect(r, x, y), self: false };
+    }
+    return null;
+  }
+
+  function syncPaneChrome(tab, pane) {
+    if (!tab || !pane?.wrap) return;
+    const focused = tab.focusedPaneId === pane.id;
+    const zoomed = tab.zoomedPaneId === pane.id;
+    pane.wrap.classList.toggle("is-focused", focused);
+    pane.wrap.classList.toggle("is-sync", !!tab.sync);
+    pane.wrap.classList.toggle("is-zoomed", zoomed);
+    const title = pane.wrap.querySelector(".pane-title");
+    if (title) title.textContent = pane.title || "session";
+    const rec = pane.wrap.querySelector("[data-pane-reconnect]");
+    if (rec) rec.hidden = !!pane.remote || pane.status !== "is-error";
+    const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
+    if (syncBtn) {
+      syncBtn.hidden = !!tab.remote;
+      syncBtn.classList.toggle("is-on", !!tab.sync);
+      syncBtn.setAttribute("aria-pressed", String(!!tab.sync));
+      syncBtn.title = tab.sync ? "Stop syncing input" : "Sync input";
+    }
+    const zoomBtn = pane.wrap.querySelector("[data-pane-zoom]");
+    if (zoomBtn) {
+      const canZoom = leafCount(tab.layout) > 1 || !!tab.zoomedPaneId;
+      zoomBtn.disabled = !canZoom;
+      zoomBtn.classList.toggle("is-on", zoomed);
+      zoomBtn.title = zoomed ? "Exit focus view" : "Focus view";
+    }
+    pane.wrap.querySelectorAll("[data-pane-split]").forEach((btn) => {
+      btn.hidden = !!pane.remote || !pane.hostId;
+    });
+    const closeBtn = pane.wrap.querySelector("[data-pane-close]");
+    if (closeBtn) closeBtn.title = leafCount(tab.layout) > 1 ? "Close pane" : "Close tab";
+  }
+
+  function markFocusedPane(pane) {
+    const tab = state.tabs.get(pane.tabId);
+    if (!tab) return;
+    tab.focusedPaneId = pane.id;
+    state.activeId = pane.tabId;
+    for (const p of tabPanes(tab)) syncPaneChrome(tab, p);
+    if (els.barStatus) {
+      if (isDriving(pane)) els.barStatus.textContent = `${pane.subtitle} · driving`;
+      else els.barStatus.textContent = `${pane.subtitle} · following`;
+    }
+    renderControl(pane);
   }
 
   function renderControl(pane) {
@@ -1146,18 +1311,19 @@
   }
 
   function paintLayout(tab) {
-    const root = tab.root;
-    while (root.firstChild) root.removeChild(root.firstChild);
-    root.appendChild(buildNode(tab.layout, tab));
+    const zoomed = tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId);
+    let node;
+    if (zoomed) node = buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab);
+    else if (tab.layout) node = buildNode(tab.layout, tab);
+    else node = document.createElement("div");
+    tab.root.replaceChildren(node);
   }
 
   function buildNode(node, tab) {
     if (node.type === "leaf") {
       const pane = state.panes.get(node.paneId);
       if (!pane) return document.createElement("div");
-      pane.wrap.classList.toggle("is-focused", tab.focusedPaneId === pane.id);
-      const title = pane.wrap.querySelector(".pane-title");
-      if (title) title.textContent = pane.title || "session";
+      syncPaneChrome(tab, pane);
       return pane.wrap;
     }
     const wrap = document.createElement("div");
@@ -1264,29 +1430,23 @@
     els.activeSnippets.hidden = !sessionOn;
 
     for (const tab of state.tabs.values()) {
+      const split = leafCount(tab.layout) > 1;
       tab.root.classList.toggle("is-active", tab.id === state.activeId);
-      tab.root.classList.toggle("is-split", leafCount(tab.layout) > 1);
-      if (tab.id === state.activeId && tab.dirty) {
+      tab.root.classList.toggle("is-split", split && !tab.zoomedPaneId);
+      tab.root.classList.toggle("is-zoomed", !!tab.zoomedPaneId);
+      if (tab.dirty) {
         if (tab.start) paintStartPage(tab);
-        else paintLayout(tab);
+        else if (tab.layout) paintLayout(tab);
         tab.dirty = false;
       }
       walkLeaves(tab.layout, (pid) => {
         const p = state.panes.get(pid);
-        if (!p) return;
-        p.wrap.classList.toggle("is-focused", tab.focusedPaneId === p.id);
-        const title = p.wrap.querySelector(".pane-title");
-        if (title) title.textContent = p.title || "session";
-        const rec = p.wrap.querySelector("[data-pane-reconnect]");
-        if (rec) rec.hidden = !!p.remote || p.status !== "is-error";
+        if (p) syncPaneChrome(tab, p);
       });
     }
 
     const pane = sessionOn ? focusedPane() : null;
     const tab = activeTab;
-    els.barTools.hidden = !sessionOn || !!tab?.remote;
-    els.barTools.classList.toggle("is-sync", !!tab?.sync);
-    if (els.btnSync) els.btnSync.textContent = tab?.sync ? "Sync on" : "Sync";
     if (els.barStatus) {
       if (vaultOn) els.barStatus.textContent = "Vault";
       else if (tab?.start) els.barStatus.textContent = tab.connecting ? "Connecting…" : "New tab";
@@ -1317,7 +1477,9 @@
     const tab = state.tabs.get(state.activeId);
     if (!tab) return;
     const run = () => {
-      for (const p of tabPanes(tab)) {
+      const list = tab.zoomedPaneId ? [state.panes.get(tab.zoomedPaneId)].filter(Boolean) : tabPanes(tab);
+      for (const p of list) {
+        if (!p.wrap?.isConnected) continue;
         try {
           p.fit.fit();
           p.term.refresh(0, Math.max(0, (p.term.rows || 1) - 1));
@@ -1540,6 +1702,7 @@
       connecting: "",
       layout: null,
       focusedPaneId: "",
+      zoomedPaneId: "",
       root: document.createElement("div"),
     };
     tab.root.className = "term-tab start-tab";
@@ -1683,6 +1846,10 @@
       renderTabs();
     } else if (name === "split-right") splitActive("h");
     else if (name === "split-down") splitActive("v");
+    else if (name === "focus-pane") {
+      const pane = focusedPane();
+      if (pane) togglePaneZoom(pane.id);
+    }
     else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
@@ -1726,6 +1893,11 @@
     if (key === "e" && ev.shiftKey) {
       ev.preventDefault();
       runShortcut("split-down");
+      return true;
+    }
+    if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("focus-pane");
       return true;
     }
     if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") {
@@ -1818,20 +1990,27 @@
         toast("Clipboard paste blocked", true);
       }
     });
-    pane.wrap.addEventListener("mousedown", () => {
-      const tab = state.tabs.get(pane.tabId);
-      if (tab) tab.focusedPaneId = pane.id;
-      state.activeId = pane.tabId;
-      renderTabs();
+    pane.wrap.addEventListener("mousedown", (ev) => {
+      if (ev.target.closest?.(".pane-bar button, .pane-actions")) return;
+      markFocusedPane(pane);
     });
   }
 
-  function makePaneShell(info) {
+  function makePaneShell(info, paneId) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
+    wrap.dataset.paneId = paneId;
     const bar = document.createElement("div");
     bar.className = "pane-bar";
-    bar.innerHTML = `<span class="pane-title">${escapeHtml(info.title || "session")}</span><button type="button" class="tiny pane-reconnect" data-pane-reconnect hidden title="Reconnect">Reconnect</button><button type="button" class="tiny pane-close" data-pane-close title="Close pane">×</button>`;
+    bar.innerHTML = `<span class="pane-title" title="Drag to rearrange">${escapeHtml(info.title || "session")}</span>
+      <div class="pane-actions">
+        <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
+        <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
+        <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
+        <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="tiny pane-reconnect" data-pane-reconnect="${paneId}" hidden title="Reconnect">Reconnect</button>
+        <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">×</button>
+      </div>`;
     const banner = document.createElement("div");
     banner.className = "follow-banner";
     banner.hidden = true;
@@ -1846,6 +2025,7 @@
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
+    if (term.element) term.element.style.padding = "12px 14px 14px";
     try {
       fit.fit();
     } catch {
@@ -1863,6 +2043,7 @@
       sync: false,
       layout: { type: "leaf", paneId: paneSeed.id },
       focusedPaneId: paneSeed.id,
+      zoomedPaneId: "",
       root: document.createElement("div"),
     };
     tab.root.className = "term-tab";
@@ -1888,9 +2069,10 @@
       return existing;
     }
 
-    const shell = makePaneShell(info);
+    const paneId = uid("pane");
+    const shell = makePaneShell(info, paneId);
     const pane = {
-      id: uid("pane"),
+      id: paneId,
       tabId: opts.tab?.id,
       runtimeId: info.id,
       hostId: info.hostId,
@@ -1908,9 +2090,6 @@
       ownerId: info.ownerId,
       remote: false,
     };
-    shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
-    const recBtn = shell.wrap.querySelector("[data-pane-reconnect]");
-    if (recBtn) recBtn.dataset.paneReconnect = pane.id;
     wirePaneTerminal(pane);
 
     let tab = opts.tab;
@@ -1932,7 +2111,8 @@
     } else {
       pane.tabId = tab.id;
       state.panes.set(pane.id, pane);
-      const focused = tab.focusedPaneId;
+      const focused = opts.splitPaneId || tab.focusedPaneId;
+      tab.zoomedPaneId = "";
       tab.layout = replaceLeaf(tab.layout, focused, {
         type: "split",
         dir: opts.splitDir || "h",
@@ -2101,6 +2281,7 @@
       return;
     }
     tab.layout = next;
+    if (tab.zoomedPaneId === paneId) tab.zoomedPaneId = "";
     if (tab.focusedPaneId === paneId) {
       const left = tabPanes(tab)[0];
       tab.focusedPaneId = left?.id || "";
@@ -2133,23 +2314,110 @@
   }
 
   async function splitActive(dir) {
-    const tab = state.tabs.get(state.activeId);
     const pane = focusedPane();
+    if (!pane) {
+      toast("Open a session first");
+      return;
+    }
+    return splitPane(pane.id, dir);
+  }
+
+  async function splitPane(paneId, dir) {
+    const pane = state.panes.get(paneId);
+    const tab = pane && state.tabs.get(pane.tabId);
     if (!tab || !pane) {
       toast("Open a session first");
       return;
     }
-    if (tab.remote || !tab.hostId) {
+    if (tab.remote || pane.remote || !pane.hostId) {
       toast("Split needs a local host session");
       return;
     }
+    tab.focusedPaneId = pane.id;
+    tab.zoomedPaneId = "";
     try {
-      const info = await spawnHost(tab.hostId);
-      attachRuntime(info, { tab, splitDir: dir });
+      const info = await spawnHost(pane.hostId);
+      attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
       loadAll().catch(() => {});
     } catch (err) {
       toast(err.message, true);
     }
+  }
+
+  function toggleTabSync(tabId) {
+    const tab = state.tabs.get(tabId || state.activeId);
+    if (!tab || tab.remote || tab.start) return;
+    tab.sync = !tab.sync;
+    renderTabs();
+  }
+
+  function togglePaneZoom(paneId) {
+    const pane = state.panes.get(paneId);
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!tab) return;
+    if (leafCount(tab.layout) < 2 && tab.zoomedPaneId !== paneId) return;
+    tab.zoomedPaneId = tab.zoomedPaneId === paneId ? "" : paneId;
+    tab.focusedPaneId = paneId;
+    tab.dirty = true;
+    state.activeId = tab.id;
+    renderTabs();
+  }
+
+  function movePaneTo(fromPaneId, targetPaneId, edge) {
+    if (!fromPaneId || !targetPaneId || fromPaneId === targetPaneId || !edge) return false;
+    const from = state.panes.get(fromPaneId);
+    const to = state.panes.get(targetPaneId);
+    if (!from || !to || from.tabId !== to.tabId) return false;
+    const tab = state.tabs.get(from.tabId);
+    if (!tab?.layout) return false;
+    if (edge === "center") {
+      tab.layout = swapLeaves(tab.layout, fromPaneId, targetPaneId);
+    } else {
+      const next = removeLeaf(tab.layout, fromPaneId);
+      if (!next) return false;
+      tab.layout = insertBeside(next, targetPaneId, { type: "leaf", paneId: fromPaneId }, edge);
+    }
+    tab.zoomedPaneId = "";
+    tab.focusedPaneId = fromPaneId;
+    tab.dirty = true;
+    renderTabs();
+    return true;
+  }
+
+  function dockTabIntoPane(srcTabId, targetPaneId, edge) {
+    const src = state.tabs.get(srcTabId);
+    const target = state.panes.get(targetPaneId);
+    const dest = target && state.tabs.get(target.tabId);
+    if (!src || !dest || src.id === dest.id || src.start || dest.start || !src.layout || !dest.layout) return false;
+    const dockEdge = edge === "center" || !edge ? "right" : edge;
+    dest.zoomedPaneId = "";
+    src.zoomedPaneId = "";
+    rehomeLayout(src.layout, dest.id);
+    dest.layout = insertBeside(dest.layout, targetPaneId, src.layout, dockEdge);
+    dest.focusedPaneId = src.focusedPaneId || targetPaneId;
+    dest.sync = dest.sync || src.sync;
+    dest.dirty = true;
+    closeTab(src.id, { skipPanes: true, silent: true });
+    state.activeId = dest.id;
+    dest.dirty = true;
+    renderTabs();
+    return true;
+  }
+
+  function extractPaneToTab(paneId, toIndex) {
+    const pane = state.panes.get(paneId);
+    const src = pane && state.tabs.get(pane.tabId);
+    if (!src || leafCount(src.layout) < 2) return false;
+    const next = removeLeaf(src.layout, paneId);
+    if (!next) return false;
+    src.layout = next;
+    src.zoomedPaneId = "";
+    if (src.focusedPaneId === paneId) src.focusedPaneId = tabPanes(src)[0]?.id || "";
+    src.dirty = true;
+    const tab = createTab(pane);
+    if (typeof toIndex === "number" && toIndex >= 0) moveTabToIndex(tab.id, toIndex);
+    renderTabs();
+    return true;
   }
 
   function sendSnippet(id) {
@@ -2622,9 +2890,10 @@
       subtitle: origin.replace(/^https?:\/\//, ""),
       status: "",
     };
-    const shell = makePaneShell(info);
+    const paneId = uid("pane");
+    const shell = makePaneShell(info, paneId);
     const pane = {
-      id: uid("pane"),
+      id: paneId,
       runtimeId,
       hostId: "",
       title: "Follow",
@@ -2644,9 +2913,6 @@
       driverId: 0,
       ownerId: 0,
     };
-    shell.wrap.querySelector("[data-pane-close]").dataset.paneClose = pane.id;
-    const recBtn = shell.wrap.querySelector("[data-pane-reconnect]");
-    if (recBtn) recBtn.dataset.paneReconnect = pane.id;
     wirePaneTerminal(pane);
     const tab = createTab(pane);
     tab.remote = true;
@@ -2858,14 +3124,35 @@
   function finishTabPointer(ev) {
     if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
     const drag = tabDrag;
-    const toIndex = drag.moved ? tabStripInsertIndex(ev.clientX) : -1;
+    const overStrip = hitTabStrip(ev.clientX, ev.clientY);
+    const dock = drag.moved && !overStrip ? paneDropAt(ev.clientX, ev.clientY, { fromTabId: drag.id }) : null;
+    const toIndex = drag.moved && overStrip ? tabStripInsertIndex(ev.clientX) : -1;
     endTabDrag();
     if (!drag.moved) return;
     ignoreTabClick = true;
     window.setTimeout(() => {
       ignoreTabClick = false;
     }, 50);
-    if (moveTabToIndex(drag.id, toIndex)) renderTabs();
+    if (dock && !dock.self && dock.edge) {
+      dockTabIntoPane(drag.id, dock.paneId, dock.edge);
+      return;
+    }
+    if (overStrip && moveTabToIndex(drag.id, toIndex)) renderTabs();
+  }
+
+  function finishPanePointer(ev) {
+    if (!paneDrag || ev.pointerId !== paneDrag.pointerId) return;
+    const drag = paneDrag;
+    const overStrip = hitTabStrip(ev.clientX, ev.clientY);
+    const dock = drag.moved && !overStrip ? paneDropAt(ev.clientX, ev.clientY, { excludePaneId: drag.paneId }) : null;
+    const toIndex = drag.moved && overStrip ? tabStripInsertIndex(ev.clientX) : -1;
+    endPaneDrag();
+    if (!drag.moved) return;
+    if (overStrip) {
+      extractPaneToTab(drag.paneId, toIndex);
+      return;
+    }
+    if (dock && !dock.self && dock.edge) movePaneTo(drag.paneId, dock.paneId, dock.edge);
   }
 
   function bindChrome() {
@@ -2883,6 +3170,19 @@
           ignoreTabClick = tabDrag.moved;
           endTabDrag();
           return;
+        }
+        if (ev.key === "Escape" && paneDrag) {
+          ev.preventDefault();
+          endPaneDrag();
+          return;
+        }
+        if (ev.key === "Escape") {
+          const tab = state.tabs.get(state.activeId);
+          if (tab?.zoomedPaneId) {
+            ev.preventDefault();
+            togglePaneZoom(tab.zoomedPaneId);
+            return;
+          }
         }
         if (ev.key === "Escape" && state.openModal) {
           ev.preventDefault();
@@ -2906,6 +3206,7 @@
         ignoreTabClick = tabDrag.moved;
         endTabDrag();
       }
+      if (paneDrag) endPaneDrag();
     });
     window.addEventListener("resize", () => {
       fitVisiblePanes();
@@ -3011,37 +3312,111 @@
       const tab = ev.target.closest(".tab[data-tab]");
       if (!tab || tab.dataset.tab === VAULT) return;
       if (!state.tabs.has(tab.dataset.tab)) return;
-      tabDrag = { id: tab.dataset.tab, startX: ev.clientX, pointerId: ev.pointerId, moved: false };
+      tabDrag = { id: tab.dataset.tab, startX: ev.clientX, startY: ev.clientY, pointerId: ev.pointerId, moved: false };
     });
     on(els.tabs, "dragstart", (ev) => ev.preventDefault());
+    on(els.terminals, "pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+      if (ev.target.closest("button")) return;
+      const bar = ev.target.closest(".pane-bar");
+      if (!bar) return;
+      const wrap = bar.closest(".term-wrap");
+      const paneId = wrap?.dataset.paneId;
+      if (!paneId || !state.panes.has(paneId)) return;
+      paneDrag = { paneId, startX: ev.clientX, startY: ev.clientY, pointerId: ev.pointerId, moved: false };
+      try {
+        bar.setPointerCapture(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
+    });
     document.addEventListener(
       "pointermove",
       (ev) => {
-        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-        if (!tabDrag.moved && Math.abs(ev.clientX - tabDrag.startX) < 6) return;
-        if (!tabDrag.moved) {
-          tabDrag.moved = true;
-          document.body.classList.add("is-tab-dragging");
+        if (tabDrag && ev.pointerId === tabDrag.pointerId) {
+          const dy = ev.clientY - (tabDrag.startY ?? tabDrag.startX);
+          if (!tabDrag.moved && Math.hypot(ev.clientX - tabDrag.startX, dy) < 6) return;
+          if (!tabDrag.moved) {
+            tabDrag.moved = true;
+            document.body.classList.add("is-tab-dragging");
+          }
+          ev.preventDefault();
+          autoScrollTabs(ev.clientX);
+          if (hitTabStrip(ev.clientX, ev.clientY)) {
+            hidePaneDrop();
+            paintTabDrop(tabStripInsertIndex(ev.clientX));
+          } else {
+            clearTabDropMarks();
+            const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
+            dragging?.classList.add("is-dragging");
+            paintPaneDrop(paneDropAt(ev.clientX, ev.clientY, { fromTabId: tabDrag.id }));
+          }
+          return;
+        }
+        if (!paneDrag || ev.pointerId !== paneDrag.pointerId) return;
+        if (!paneDrag.moved && Math.hypot(ev.clientX - paneDrag.startX, ev.clientY - paneDrag.startY) < 6) return;
+        if (!paneDrag.moved) {
+          paneDrag.moved = true;
+          document.body.classList.add("is-pane-dragging");
+          const pane = state.panes.get(paneDrag.paneId);
+          pane?.wrap?.classList.add("is-dragging");
+          const tab = pane && state.tabs.get(pane.tabId);
+          if (tab?.zoomedPaneId) {
+            tab.zoomedPaneId = "";
+            tab.dirty = true;
+            renderTabs();
+          }
         }
         ev.preventDefault();
-        autoScrollTabs(ev.clientX);
-        paintTabDrop(tabStripInsertIndex(ev.clientX));
+        if (hitTabStrip(ev.clientX, ev.clientY)) {
+          hidePaneDrop();
+          const src = state.panes.get(paneDrag.paneId);
+          const tab = src && state.tabs.get(src.tabId);
+          if (tab && leafCount(tab.layout) > 1) paintTabDrop(tabStripInsertIndex(ev.clientX));
+          else clearTabDropMarks();
+        } else {
+          clearTabDropMarks();
+          paintPaneDrop(paneDropAt(ev.clientX, ev.clientY, { excludePaneId: paneDrag.paneId }));
+        }
       },
       { capture: true, passive: false }
     );
     document.addEventListener("pointerup", finishTabPointer, true);
+    document.addEventListener("pointerup", finishPanePointer, true);
     document.addEventListener(
       "pointercancel",
       (ev) => {
-        if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-        ignoreTabClick = tabDrag.moved;
-        endTabDrag();
+        if (tabDrag && ev.pointerId === tabDrag.pointerId) {
+          ignoreTabClick = tabDrag.moved;
+          endTabDrag();
+        }
+        if (paneDrag && ev.pointerId === paneDrag.pointerId) endPaneDrag();
       },
       true
     );
 
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
     on(els.terminals, "click", (ev) => {
+      const split = ev.target.closest("[data-pane-split]");
+      if (split) {
+        ev.preventDefault();
+        splitPane(split.dataset.paneId, split.dataset.paneSplit);
+        return;
+      }
+      const sync = ev.target.closest("[data-pane-sync]");
+      if (sync) {
+        ev.preventDefault();
+        const pane = state.panes.get(sync.dataset.paneSync);
+        if (pane) toggleTabSync(pane.tabId);
+        return;
+      }
+      const zoom = ev.target.closest("[data-pane-zoom]");
+      if (zoom && !zoom.disabled) {
+        ev.preventDefault();
+        togglePaneZoom(zoom.dataset.paneZoom);
+        return;
+      }
       const tab = tabFromRoot(ev.target);
       if (!tab?.start) return;
       const connect = ev.target.closest("[data-start-connect]");
@@ -3093,14 +3468,6 @@
       setVaultSection(btn.dataset.vault);
     });
     on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
-    on(document.getElementById("btn-split-right"), "click", () => splitActive("h"));
-    on(document.getElementById("btn-split-down"), "click", () => splitActive("v"));
-    on(document.getElementById("btn-sync"), "click", () => {
-      const tab = state.tabs.get(state.activeId);
-      if (!tab || tab.remote) return;
-      tab.sync = !tab.sync;
-      renderTabs();
-    });
     on(els.btnShare, "click", shareActive);
     on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));
     on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
