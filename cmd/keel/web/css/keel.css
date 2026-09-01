@@ -1004,7 +1004,7 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   flex-direction: column;
 }
 .term-tab.is-active { display: flex; }
-.term-tab:not(.start-tab) { padding: 6px; gap: 6px; }
+.term-tab:not(.start-tab) { padding: 8px; gap: 8px; }
 
 .start-page {
   flex: 1;
@@ -1152,7 +1152,7 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   height: 100%;
   width: 100%;
   overflow: hidden;
-  padding: 8px 10px 10px;
+  padding: 12px 14px 14px;
 }
 .term-body .xterm .xterm-viewport {
   height: 100%;
@@ -1188,7 +1188,7 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 
 .pane-drop {
   position: fixed;
-  z-index: 40;
+  z-index: 80;
   pointer-events: none;
   border-radius: 8px;
   overflow: hidden;
@@ -1198,9 +1198,9 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   position: absolute;
   inset: 6px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--keel-accent) 22%, transparent);
-  border: 1px solid color-mix(in srgb, var(--keel-accent) 80%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--keel-accent) 20%, transparent);
+  background: color-mix(in srgb, var(--keel-accent) 38%, transparent);
+  border: 2px solid var(--keel-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--keel-accent) 25%, transparent);
   transition: inset 80ms ease;
 }
 .pane-drop[data-edge="left"] .pane-drop-region { right: 50%; }

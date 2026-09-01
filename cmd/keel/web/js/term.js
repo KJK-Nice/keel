@@ -2066,6 +2066,7 @@
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
+    if (term.element) term.element.style.padding = "12px 14px 14px";
     try {
       fit.fit();
     } catch {

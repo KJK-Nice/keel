@@ -643,7 +643,7 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("keel.css missing focused pane tile, drop overlay, or terminal scrollbar")
 	}
 	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
-		!strings.Contains(string(cssBody), "padding: 8px 10px 10px") {
+		!strings.Contains(string(cssBody), "padding: 12px 14px 14px") {
 		t.Fatal("keel.css must pad the xterm element so FitAddon inset does not overlap pane chrome")
 	}
 	if !strings.Contains(string(cssBody), "--keel-sidebar") {
