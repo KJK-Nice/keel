@@ -1353,15 +1353,12 @@
   }
 
   function paintLayout(tab) {
-    const root = tab.root;
-    while (root.firstChild) root.removeChild(root.firstChild);
     const zoomed = tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId);
-    if (zoomed) {
-      root.appendChild(buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab));
-      return;
-    }
-    if (!tab.layout) return;
-    root.appendChild(buildNode(tab.layout, tab));
+    let node;
+    if (zoomed) node = buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab);
+    else if (tab.layout) node = buildNode(tab.layout, tab);
+    else node = document.createElement("div");
+    tab.root.replaceChildren(node);
   }
 
   function buildNode(node, tab) {
@@ -3134,9 +3131,9 @@
   function finishTabPointer(ev) {
     if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
     const drag = tabDrag;
-    const dock = drag.moved ? paneDropAt(ev.clientX, ev.clientY, { fromTabId: drag.id }) : null;
     const overStrip = hitTabStrip(ev.clientX, ev.clientY);
-    const toIndex = drag.moved && (overStrip || !dock?.edge) ? tabStripInsertIndex(ev.clientX) : -1;
+    const dock = drag.moved && !overStrip ? paneDropAt(ev.clientX, ev.clientY, { fromTabId: drag.id }) : null;
+    const toIndex = drag.moved && overStrip ? tabStripInsertIndex(ev.clientX) : -1;
     endTabDrag();
     if (!drag.moved) return;
     ignoreTabClick = true;
@@ -3147,7 +3144,7 @@
       dockTabIntoPane(drag.id, dock.paneId, dock.edge);
       return;
     }
-    if (moveTabToIndex(drag.id, toIndex)) renderTabs();
+    if (overStrip && moveTabToIndex(drag.id, toIndex)) renderTabs();
   }
 
   function finishPanePointer(ev) {
