@@ -740,6 +740,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "killRuntimeIfOwned") || !strings.Contains(string(termBody), "restoreOpenSessions") {
 		t.Fatal("term.js must kill on tab close and restore sessions on boot")
 	}
+	if !strings.Contains(string(termBody), "Runtime stopped — this session ended") || !strings.Contains(string(termBody), "state.runtimeStopping") {
+		t.Fatal("term.js must not claim a session is still running after the runtime stops")
+	}
 	if strings.Contains(string(termBody), "function renderHerd") {
 		t.Fatal("term.js should not render a Hosts Live list")
 	}

@@ -102,23 +102,30 @@ func EnsureServe(addr, dataDir string) error {
 	return fmt.Errorf("keel serve did not become ready on %s", addr)
 }
 
+var stopWait = 5 * time.Second
+
 func StopServe(addr, dataDir string) error {
-	if err := postRuntimeStop(addr); err == nil {
-		waitUntilDown(addr, 5*time.Second)
+	posted := postRuntimeStop(addr)
+	if posted == nil && waitUntilDown(addr, stopWait) {
 		return nil
 	}
 	pid, err := readPid(dataDir)
 	if err != nil {
 		if ProbeHealth(addr) {
+			if posted == nil {
+				return fmt.Errorf("keel serve did not stop")
+			}
 			return fmt.Errorf("keel serve is running but has no pid file")
 		}
 		return fmt.Errorf("keel serve is not running")
 	}
-	if err := signalStop(pid); err != nil {
+	if err := signalStop(pid); err != nil && ProbeHealth(addr) {
 		return err
 	}
-	waitUntilDown(addr, 5*time.Second)
-	return nil
+	if waitUntilDown(addr, stopWait) {
+		return nil
+	}
+	return fmt.Errorf("keel serve did not stop")
 }
 
 func ProbeHealth(addr string) bool {
@@ -150,14 +157,15 @@ func postRuntimeStop(addr string) error {
 	return nil
 }
 
-func waitUntilDown(addr string, d time.Duration) {
+func waitUntilDown(addr string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
 		if !ProbeHealth(addr) {
-			return
+			return true
 		}
 		time.Sleep(40 * time.Millisecond)
 	}
+	return !ProbeHealth(addr)
 }
 
 func spawnServe(addr, dataDir string) error {

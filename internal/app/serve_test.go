@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -117,5 +118,38 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	}
 	if ProbeHealth(addr) {
 		t.Fatal("still healthy after stop")
+	}
+}
+
+func TestStopServeFailsIfStillHealthy(t *testing.T) {
+	prev := stopWait
+	stopWait = 80 * time.Millisecond
+	t.Cleanup(func() { stopWait = prev })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case "/api/runtime/stop":
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = StopServe(u.Host, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "did not stop") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStopServeAlreadyDown(t *testing.T) {
+	err := StopServe("127.0.0.1:1", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("err = %v", err)
 	}
 }

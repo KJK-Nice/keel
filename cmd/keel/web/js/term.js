@@ -31,6 +31,7 @@
     openModal: null,
     signalURL: "",
     lastClosedHostId: null,
+    runtimeStopping: false,
     prefs: loadPrefs(),
     ui: loadUiPrefs(),
     hostKeyRetry: null,
@@ -1686,9 +1687,13 @@
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
     else if (name === "stop-runtime") {
+      state.runtimeStopping = true;
       api("/api/runtime/stop", { method: "POST" })
         .then(() => toast("Keel runtime stopped"))
-        .catch((err) => toast(err.message, true));
+        .catch((err) => {
+          state.runtimeStopping = false;
+          toast(err.message, true);
+        });
     }
   }
 
@@ -1996,9 +2001,7 @@
     });
     ws.addEventListener("close", () => {
       if (pane.closing || !state.panes.has(pane.id)) return;
-      if (pane.status !== "is-error") pane.status = "";
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — session still running. Reopen Keel to attach.\x1b[0m");
-      renderTabs();
+      noteSessionClosed(pane);
     });
     ws.addEventListener("error", () => {
       pane.status = "is-error";
@@ -2008,6 +2011,31 @@
 
     renderTabs();
     return pane;
+  }
+
+  async function sessionEnded(runtimeId) {
+    if (state.runtimeStopping) return true;
+    if (runtimeId && !state.herd.some((s) => s.id === runtimeId)) return true;
+    try {
+      const sessions = await api("/api/sessions");
+      if (!Array.isArray(sessions)) return true;
+      return runtimeId ? !sessions.some((s) => s.id === runtimeId) : false;
+    } catch {
+      return true;
+    }
+  }
+
+  async function noteSessionClosed(pane) {
+    if (pane.status !== "is-error") pane.status = "";
+    const ended = await sessionEnded(pane.runtimeId);
+    if (pane.closing || !state.panes.has(pane.id)) return;
+    if (ended) {
+      pane.status = "is-error";
+      pane.term.writeln("\r\n\x1b[38;2;139;149;168mRuntime stopped — this session ended.\x1b[0m");
+    } else {
+      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — session still running. Reopen Keel to attach.\x1b[0m");
+    }
+    renderTabs();
   }
 
   function sendSessionJSON(pane, obj) {
