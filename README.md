@@ -46,7 +46,7 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 | `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join. Runtime env overrides the compile-time default. |
 | `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable |
 
-Close a session tab (⌘W) to kill that PTY. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs.
+⌘W closes the focused pane first (killing that PTY). When the tab is down to one pane, ⌘W closes the tab if another session tab is open. The last session tab stays until you click its close button. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs.
 
 ## Vault
 
@@ -65,7 +65,7 @@ The first time you connect to an SSH host, Keel asks you to trust its key. A dif
 On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.
 
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
-- **⌘T** new tab (recent hosts to pick). **⌘W** closes the current session tab and kills that PTY (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
+- **⌘T** new tab (recent hosts to pick). **⌘W** closes the focused pane first; with one pane left it closes the session tab if another is open. The last session tab stays (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
 - Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
 - **⌘K** focuses host search (switches to Vault if needed). **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.

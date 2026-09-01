@@ -1822,7 +1822,7 @@
     if (name === "new-tab") newTab();
     else if (name === "close-tab") {
       if (state.openModal) closeModal();
-      else if (state.activeId && state.activeId !== VAULT) closeTab(state.activeId);
+      else closeActivePaneOrTab();
     } else if (name === "reopen-tab") reopenLastTab();
     else if (name === "search") {
       if (state.openModal) closeModal();
@@ -2266,6 +2266,24 @@
     if (opts.fromHerd || opts.remote || pane.remote || !pane.runtimeId) return;
     pane.closing = true;
     api(`/api/sessions/${pane.runtimeId}`, { method: "DELETE" }).catch(() => {});
+  }
+
+  function closeActivePaneOrTab() {
+    if (!state.activeId || state.activeId === VAULT) return;
+    const tab = state.tabs.get(state.activeId);
+    if (!tab) return;
+    const panes = tabPanes(tab);
+    if (panes.length > 1) {
+      const target =
+        (tab.zoomedPaneId && state.panes.get(tab.zoomedPaneId)) ||
+        (tab.focusedPaneId && state.panes.get(tab.focusedPaneId)) ||
+        panes[0];
+      closePane(target.id);
+      return;
+    }
+    // Keep the last remaining session tab (one live pane). Tab × / pane × can still close it.
+    if (state.tabs.size <= 1 && panes.length === 1) return;
+    closeTab(tab.id);
   }
 
   function closePane(paneId, opts = {}) {
