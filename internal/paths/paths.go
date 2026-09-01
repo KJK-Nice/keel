@@ -14,6 +14,10 @@ func Addr() string {
 	return DefaultListen
 }
 
+func PidFile(dataDir string) string {
+	return filepath.Join(dataDir, "keel-serve.pid")
+}
+
 func DataDir() string {
 	if v := os.Getenv("KEEL_DATA"); v != "" {
 		return v

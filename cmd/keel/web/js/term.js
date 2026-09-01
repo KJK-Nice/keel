@@ -30,7 +30,7 @@
     herdWs: null,
     openModal: null,
     signalURL: "",
-    lastClosedRuntimeId: null,
+    lastClosedHostId: null,
     prefs: loadPrefs(),
     ui: loadUiPrefs(),
     hostKeyRetry: null,
@@ -269,8 +269,6 @@
 
   const els = {
     hostList: document.getElementById("host-list"),
-    herdList: document.getElementById("herd-list"),
-    liveSection: document.getElementById("live-section"),
     snippetList: document.getElementById("snippet-list"),
     identityList: document.getElementById("identity-list"),
     tunnelList: document.getElementById("tunnel-list"),
@@ -543,18 +541,6 @@
     return `${h.username}@${h.address}${port}${ident}`;
   }
 
-  function driverName(s) {
-    const d = (s.attached || []).find((c) => c.role === "driver" || c.id === s.driverId);
-    return d?.name || "";
-  }
-
-  function peopleLabel(s) {
-    const names = (s.attached || []).map((c) => (c.role === "driver" || c.id === s.driverId ? `${c.name}*` : c.name));
-    if (names.length) return names.join(", ");
-    if (s.clients) return `${s.clients} attached`;
-    return "empty";
-  }
-
   function statusColor(status) {
     if (status === "ready") return "#5ee0b5";
     if (status === "connecting") return "#f5c15d";
@@ -562,8 +548,10 @@
     return "#ff6b7a";
   }
 
-  function paneOpen(runtimeId) {
-    return [...state.panes.values()].some((p) => p.runtimeId === runtimeId);
+  function restoreOpenSessions() {
+    for (const info of state.herd) {
+      if (info?.id && !findPaneByRuntime(info.id)) attachRuntime(info);
+    }
   }
 
   function glyphSVG(kind) {
@@ -605,36 +593,6 @@
 
   function tileSection(title, cards) {
     return `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="tile-grid">${cards}</div></section>`;
-  }
-
-  function renderHerd() {
-    if (!state.herd.length) {
-      els.herdList.innerHTML = "";
-      if (els.liveSection) els.liveSection.hidden = true;
-      return;
-    }
-    if (els.liveSection) els.liveSection.hidden = false;
-    els.herdList.innerHTML = state.herd
-      .map((s) => {
-        const open = paneOpen(s.id);
-        const driver = driverName(s);
-        const color = statusColor(s.status);
-        return `
-          <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 ${open ? "ring-ring" : ""}" data-slot="card" data-size="sm" data-herd="${s.id}">
-            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-              ${tileGlyph(color, "local")}
-              <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-attach="${s.id}">
-                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.title)}</div>
-                <p data-slot="card-description" class="text-muted-foreground truncate text-sm">${escapeHtml(s.status)}${driver ? ` · ${escapeHtml(driver)} driving` : ""} · ${escapeHtml(peopleLabel(s))}</p>
-              </div>
-              <div class="flex items-center gap-1">
-                ${s.status === "error" || s.status === "exited" ? `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-reconnect="${s.id}" title="Reconnect">Reconnect</button>` : ""}
-                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-kill="${s.id}" title="Kill session">kill</button>
-              </div>
-            </div>
-          </div>`;
-      })
-      .join("");
   }
 
   function renderHosts() {
@@ -1027,7 +985,6 @@
   function closeTabs(ids) {
     for (const id of ids) closeTab(id, { silent: true });
     renderTabs();
-    renderHerd();
   }
 
   function applyTabRename(id, raw, ok) {
@@ -1376,13 +1333,11 @@
     if (!ev || !ev.type) return;
     if (ev.type === "snapshot" && Array.isArray(ev.sessions)) {
       state.herd = ev.sessions;
-      renderHerd();
       return;
     }
     if (ev.type === "spawn" && ev.session) {
       if (!state.herd.some((s) => s.id === ev.session.id)) state.herd.push(ev.session);
       else state.herd = state.herd.map((s) => (s.id === ev.session.id ? ev.session : s));
-      renderHerd();
       return;
     }
     if (ev.type === "kill") {
@@ -1390,14 +1345,12 @@
       state.herd = state.herd.filter((s) => s.id !== id);
       const pane = findPaneByRuntime(id);
       if (pane) closePane(pane.id, { fromHerd: true });
-      renderHerd();
       return;
     }
     if ((ev.type === "update" || ev.type === "presence" || ev.type === "control") && ev.session) {
       const i = state.herd.findIndex((s) => s.id === ev.session.id);
       if (i >= 0) state.herd[i] = { ...state.herd[i], ...ev.session };
       else state.herd.push(ev.session);
-      renderHerd();
     }
   }
 
@@ -1456,7 +1409,6 @@
     if (!snOk) renderSnippets();
     if (!idOk) renderIdentities();
     if (!tnOk) renderTunnels();
-    renderHerd();
     refreshStartTabs();
     if (state.vaultSection === "logs") await loadLogs().catch(() => {});
   }
@@ -1684,10 +1636,10 @@
   }
 
   function reopenLastTab() {
-    const id = state.lastClosedRuntimeId;
+    const id = state.lastClosedHostId;
     if (!id) return;
-    const info = state.herd.find((s) => s.id === id);
-    if (info) attachRuntime(info);
+    const host = state.hosts.find((h) => h.id === id);
+    if (host) openSession(host).catch((err) => toast(err.message, true));
   }
 
   function showKbdHints(on) {
@@ -1733,6 +1685,11 @@
     else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
+    else if (name === "stop-runtime") {
+      api("/api/runtime/stop", { method: "POST" })
+        .then(() => toast("Keel runtime stopped"))
+        .catch((err) => toast(err.message, true));
+    }
   }
 
   function handleShortcut(ev) {
@@ -2009,7 +1966,6 @@
         herd.clients = pane.attached.length;
       }
       renderTabs();
-      renderHerd();
     };
 
     ws.addEventListener("message", (ev) => {
@@ -2039,10 +1995,10 @@
       pane.term.write(new Uint8Array(ev.data));
     });
     ws.addEventListener("close", () => {
+      if (pane.closing || !state.panes.has(pane.id)) return;
       if (pane.status !== "is-error") pane.status = "";
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — still in the herd until you kill it.\x1b[0m");
+      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — session still running. Reopen Keel to attach.\x1b[0m");
       renderTabs();
-      renderHerd();
     });
     ws.addEventListener("error", () => {
       pane.status = "is-error";
@@ -2051,7 +2007,6 @@
     });
 
     renderTabs();
-    renderHerd();
     return pane;
   }
 
@@ -2082,6 +2037,7 @@
   }
 
   function disposePane(pane) {
+    pane.closing = true;
     pane.ws?.close();
     pane.sigWs?.close();
     try {
@@ -2098,10 +2054,17 @@
     state.panes.delete(pane.id);
   }
 
+  function killRuntimeIfOwned(pane, opts = {}) {
+    if (opts.fromHerd || opts.remote || pane.remote || !pane.runtimeId) return;
+    pane.closing = true;
+    api(`/api/sessions/${pane.runtimeId}`, { method: "DELETE" }).catch(() => {});
+  }
+
   function closePane(paneId, opts = {}) {
     const pane = state.panes.get(paneId);
     if (!pane) return;
     const tab = state.tabs.get(pane.tabId);
+    killRuntimeIfOwned(pane, { fromHerd: opts.fromHerd, remote: opts.remote || tab?.remote });
     disposePane(pane);
     if (!tab) return;
     const next = removeLeaf(tab.layout, paneId);
@@ -2116,8 +2079,6 @@
     }
     tab.dirty = true;
     renderTabs();
-    renderHerd();
-    void opts;
   }
 
   function closeTab(id, opts = {}) {
@@ -2125,10 +2086,14 @@
     const tab = state.tabs.get(id);
     if (!tab) return;
     if (tabRenaming === id) tabRenaming = null;
-    const first = tabPanes(tab)[0];
-    if (first?.runtimeId) state.lastClosedRuntimeId = first.runtimeId;
+    const panes = tabPanes(tab);
+    if (tab.hostId) state.lastClosedHostId = tab.hostId;
+    else if (panes[0]?.hostId) state.lastClosedHostId = panes[0].hostId;
     if (!opts.skipPanes) {
-      for (const p of tabPanes(tab)) disposePane(p);
+      for (const p of panes) {
+        killRuntimeIfOwned(p, { fromHerd: opts.fromHerd, remote: tab.remote });
+        disposePane(p);
+      }
     }
     tab.root.remove();
     state.tabs.delete(id);
@@ -2136,7 +2101,6 @@
     if (state.activeId === id) state.activeId = remain.at(-1) || VAULT;
     if (!opts.silent) {
       renderTabs();
-      renderHerd();
     }
   }
 
@@ -2860,6 +2824,7 @@
       if (info) attachRuntime(info);
       state.pendingSession = "";
     }
+    restoreOpenSessions();
   }
 
   function finishTabPointer(ev) {
@@ -3147,38 +3112,6 @@
   }
 
   function bindLists() {
-    on(els.herdList, "click", async (ev) => {
-      const rec = ev.target.closest("[data-reconnect]");
-      if (rec) {
-        try {
-          await api(`/api/sessions/${rec.dataset.reconnect}/reconnect`, { method: "POST" });
-          const pane = findPaneByRuntime(rec.dataset.reconnect);
-          if (pane) {
-            pane.status = "is-connecting";
-            renderTabs();
-          }
-        } catch (err) {
-          toast(err.message, true);
-        }
-        return;
-      }
-      const attach = ev.target.closest("[data-attach]");
-      const kill = ev.target.closest("[data-kill]");
-      if (attach) {
-        const info = state.herd.find((s) => s.id === attach.dataset.attach);
-        if (info) attachRuntime(info);
-      } else if (kill) {
-        try {
-          await api(`/api/sessions/${kill.dataset.kill}`, { method: "DELETE" });
-          const pane = findPaneByRuntime(kill.dataset.kill);
-          if (pane) closePane(pane.id);
-          await loadAll();
-        } catch (err) {
-          toast(err.message, true);
-        }
-      }
-    });
-
     document.body.addEventListener("click", async (ev) => {
       const viewBtn = ev.target.closest("[data-vault-view-btn]");
       if (viewBtn) {

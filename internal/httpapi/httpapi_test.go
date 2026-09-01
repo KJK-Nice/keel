@@ -169,6 +169,44 @@ func TestHealthUnlocked(t *testing.T) {
 	}
 }
 
+func TestRuntimeStop(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, nil)
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	stopped := make(chan struct{}, 1)
+	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithStop(func() { stopped <- struct{}{} }).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Post(srv.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("onStop was not called")
+	}
+
+	bare := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	t.Cleanup(bare.Close)
+	res2, err := http.Post(bare.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("disabled stop status = %d", res2.StatusCode)
+	}
+}
+
 func TestVaultLockBlocksAPI(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
@@ -547,8 +585,8 @@ func TestIndexServesVault(t *testing.T) {
 			t.Fatalf("%s must not use compact xs/sm height", id)
 		}
 	}
-	if !strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-empty"`) {
-		t.Fatal("index should hide live sessions until a PTY is attached")
+	if strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-list"`) {
+		t.Fatal("index should not keep a Live/herd list on Hosts")
 	}
 	if !strings.Contains(string(body), `data-slot="card"`) || !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
 		t.Fatal("index missing card or terminal preview aspect ratio")
@@ -696,8 +734,14 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")
 	}
-	if !strings.Contains(string(cssBody), `#live-section[hidden]`) {
-		t.Fatal("keel.css must hide the live section while it is empty")
+	if strings.Contains(string(cssBody), `#live-section[hidden]`) {
+		t.Fatal("keel.css should not keep the live section")
+	}
+	if !strings.Contains(string(termBody), "killRuntimeIfOwned") || !strings.Contains(string(termBody), "restoreOpenSessions") {
+		t.Fatal("term.js must kill on tab close and restore sessions on boot")
+	}
+	if strings.Contains(string(termBody), "function renderHerd") {
+		t.Fatal("term.js should not render a Hosts Live list")
 	}
 	if strings.Contains(string(cssBody), "--radius: 6px") {
 		t.Fatal("keel.css must not override nova --radius with 6px")
