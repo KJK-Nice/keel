@@ -78,6 +78,7 @@ func (w *nativeWindow) appMenu() *application.Menu {
 			w.app.Quit()
 		}
 	})
+	file.Add("Stop Keel runtime").OnClick(w.menuAction("stop-runtime"))
 	view := m.AddSubmenu("View")
 	view.Add("Focus Pane").SetAccelerator("CmdOrCtrl+Shift+enter").OnClick(w.menuAction("focus-pane"))
 	view.AddSeparator()

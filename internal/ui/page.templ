@@ -291,10 +291,6 @@ templ HostsPage(p PageProps) {
 				Terminal
 			}
 		}
-		<section id="live-section" class="flex flex-col gap-2" hidden>
-			@sectionHeading("Live")
-			<div id="herd-list" class="tile-grid"></div>
-		</section>
 		@HostList(p)
 	</section>
 }
