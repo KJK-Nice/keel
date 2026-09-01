@@ -198,7 +198,7 @@
       lineHeight: 1,
       letterSpacing: 0,
       customGlyphs: true,
-      allowTransparency: isNativeWindow(),
+      allowTransparency: false,
       theme: xtermTheme(),
     };
   }
@@ -207,7 +207,7 @@
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
-    const glass = isNativeWindow();
+    const glass = false;
     for (const p of state.panes.values()) {
       if (!p.term) continue;
       p.term.options.allowTransparency = glass;
@@ -1998,6 +1998,24 @@
     });
   }
 
+  function attachWebgl(term) {
+    const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
+    if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
+    try {
+      const addon = new Ctor();
+      addon.onContextLoss?.(() => {
+        try {
+          addon.dispose();
+        } catch {
+          /* canvas fallback */
+        }
+      });
+      term.loadAddon(addon);
+    } catch {
+      /* canvas renderer */
+    }
+  }
+
   function makePaneShell(info, paneId) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
@@ -2027,6 +2045,7 @@
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
     term.open(body);
+    attachWebgl(term);
     try {
       fit.fit();
     } catch {

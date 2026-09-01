@@ -752,8 +752,8 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), "closeActivePaneOrTab()") {
 		t.Fatal("term.js must close the focused pane with ⌘W before closing the last session tab")
 	}
-	if strings.Contains(string(termBody), "lineHeight: 1.22") || !strings.Contains(string(termBody), "lineHeight: 1,") {
-		t.Fatal("xterm lineHeight must be 1 so block glyphs fill the cell")
+	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
+		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
 	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
 		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
