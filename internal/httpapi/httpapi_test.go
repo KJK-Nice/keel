@@ -741,6 +741,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {
 		t.Fatal("term.js missing pane rearrange, focus view, or tile split/sync actions")
 	}
+	if !strings.Contains(string(termBody), "function closeActivePaneOrTab") ||
+		!strings.Contains(string(termBody), "closeActivePaneOrTab()") {
+		t.Fatal("term.js must close the focused pane with ⌘W before closing the last session tab")
+	}
 	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")
 	}
