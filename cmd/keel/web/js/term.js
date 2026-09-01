@@ -98,12 +98,13 @@
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased" };
+    const fallback = { size: 12, smoothing: "antialiased", view: "card" };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
-      return { size, smoothing };
+      const view = raw.view === "list" ? "list" : "card";
+      return { size, smoothing, view };
     } catch {
       return fallback;
     }
@@ -116,6 +117,23 @@
   function applyUiPrefs() {
     document.documentElement.style.setProperty("--ui-size", `${state.ui.size}px`);
     document.documentElement.dataset.smooth = state.ui.smoothing;
+    applyVaultView(state.ui.view);
+  }
+
+  function applyVaultView(next) {
+    const view = next === "list" ? "list" : "card";
+    document.documentElement.dataset.vaultView = view;
+    document.querySelectorAll("[data-vault-view-btn]").forEach((btn) => {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-vault-view-btn") === view));
+    });
+  }
+
+  function setVaultView(next) {
+    const view = next === "list" ? "list" : "card";
+    if (view === state.ui.view) return;
+    state.ui.view = view;
+    saveUiPrefs();
+    applyUiPrefs();
   }
 
   function setUiSize(next) {
@@ -540,6 +558,7 @@
   function statusColor(status) {
     if (status === "ready") return "#5ee0b5";
     if (status === "connecting") return "#f5c15d";
+    if (status === "stopped") return "#8a8a8a";
     return "#ff6b7a";
   }
 
@@ -554,6 +573,18 @@
     if (kind === "local") {
       return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
     }
+    if (kind === "password") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M16 9H19"/><path d="M16 13H19"/><path d="M4.99806 16.6018C5.28942 15.7247 5.83071 14.9651 6.5472 14.4277C7.26369 13.8904 8.12005 13.6018 8.99806 13.6018C9.87606 13.6018 10.7324 13.8904 11.4489 14.4277C12.1654 14.9651 12.7067 15.7247 12.9981 16.6018"/><path d="M8.94922 11.3984C10.0538 11.3984 10.9492 10.503 10.9492 9.39844C10.9492 8.29387 10.0538 7.39844 8.94922 7.39844C7.84465 7.39844 6.94922 8.29387 6.94922 9.39844C6.94922 10.503 7.84465 11.3984 8.94922 11.3984Z"/><path d="M15 4H9C5.70017 4 4.05025 4 3.02513 5.02513C2 6.05025 2 7.70017 2 11V13C2 16.2998 2 17.9497 3.02513 18.9749C4.05025 20 5.70017 20 9 20H15C18.2998 20 19.9497 20 20.9749 18.9749C22 17.9497 22 16.2998 22 13V11C22 7.70017 22 6.05025 20.9749 5.02513C19.9497 4 18.2998 4 15 4Z"/></svg>`;
+    }
+    if (kind === "key") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z"/><path d="M17.5 6.5L16.5 7.5"/></svg>`;
+    }
+    if (kind === "snippet") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/></svg>`;
+    }
+    if (kind === "log") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M2 7C2 7.94281 2 8.41421 2.29289 8.70711C2.58579 9 3.05719 9 4 9H6V5C6 3.89543 5.10457 3 4 3C2.89543 3 2 3.89543 2 5V7Z"/><path d="M10 8H15M10 11H13"/><path d="M19 16V7C19 5.11438 19 4.17157 18.4142 3.58579C17.8284 3 16.8856 3 15 3H4"/></svg>`;
+    }
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/></svg>`;
   }
 
@@ -562,7 +593,18 @@
       return `<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">${glyphSVG("folder")}</span>`;
     }
     const c = color || "#5ee0b5";
-    return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${glyphSVG(kind)}</span>`;
+    const inner = kind === "L" || kind === "R" || kind === "D"
+      ? `<span class="text-xs font-semibold">${kind}</span>`
+      : glyphSVG(kind);
+    return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${inner}</span>`;
+  }
+
+  function emptyHTML(title, desc) {
+    return `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">${escapeHtml(title)}</div><div data-slot="empty-description" class="text-muted-foreground text-sm">${escapeHtml(desc)}</div></div>`;
+  }
+
+  function tileSection(title, cards) {
+    return `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="tile-grid">${cards}</div></section>`;
   }
 
   function renderHerd() {
@@ -605,7 +647,7 @@
     const hosts = [...groups.values()].flat();
     const html = [];
     if (folders.length) {
-      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="tile-grid">`);
       for (const [name, list] of folders) {
         html.push(`
           <div class="ring-foreground/10 bg-card text-card-foreground host-tile cursor-pointer overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-group-filter="${escapeHtml(name)}" role="button" tabindex="0">
@@ -620,7 +662,7 @@
       }
       html.push(`</div></section>`);
     }
-    html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">`);
+    html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="tile-grid">`);
     for (const h of hosts) {
       const kind = h.authType === "local" ? "local" : "ssh";
       const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
@@ -649,23 +691,27 @@
 
   function renderSnippets() {
     if (!state.snippets.length) {
-      els.snippetList.innerHTML = `<div class="empty">Save commands you type all the time. Click one to send it into the focused pane.</div>`;
+      els.snippetList.innerHTML = emptyHTML("No snippets yet", "Save commands you type all the time. Click one to send it into the focused pane.");
     } else {
-      els.snippetList.innerHTML = state.snippets
+      const cards = state.snippets
         .map(
           (s) => `
-        <div class="snippet-row">
-          <div class="meta" role="button" tabindex="0" data-run="${s.id}">
-            <b>${escapeHtml(s.name)}</b>
-            <small>${escapeHtml(s.command.trim())}</small>
-          </div>
-          <div>
-            <button class="tiny" data-edit-snippet="${s.id}">Edit</button>
-            <button class="tiny" data-delete-snippet="${s.id}">✕</button>
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${s.id}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph("#6ea8ff", "snippet")}
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-run="${s.id}">
+              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.name)}</div>
+              <p data-slot="card-description" class="text-muted-foreground snippet-cmd truncate text-sm">${escapeHtml(s.command.trim())}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-snippet="${s.id}" title="Edit">Edit</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-snippet="${s.id}" title="Remove">✕</button>
+            </div>
           </div>
         </div>`
         )
         .join("");
+      els.snippetList.innerHTML = tileSection("Snippets", cards);
     }
     els.activeSnippets.innerHTML = state.snippets
       .map((s) => `<button class="chip" data-run="${s.id}">${escapeHtml(s.name)}</button>`)
@@ -674,54 +720,91 @@
 
   function renderIdentities() {
     if (!state.identities.length) {
-      els.identityList.innerHTML = `<div class="empty">No identities yet. Add a password or key and attach it to hosts.</div>`;
+      els.identityList.innerHTML = emptyHTML("No identities yet", "Add a password or key and attach it to hosts.");
       return;
     }
-    els.identityList.innerHTML = state.identities
-      .map(
-        (id) => `
-        <div class="host">
-          <span class="dot" style="background:var(--accent)"></span>
-          <div class="meta" role="button" tabindex="0" data-edit-identity="${id.id}">
-            <b>${escapeHtml(id.name)}</b>
-            <small>${escapeHtml(id.kind)}${id.username ? ` · ${escapeHtml(id.username)}` : ""}</small>
+    const cards = state.identities
+      .map((id) => {
+        const kind = id.kind === "key" ? "key" : "password";
+        const label = kind === "key" ? "Private key" : "Auth password";
+        const color = kind === "key" ? "#c084fc" : "#6ea8ff";
+        return `
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${id.id}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph(color, kind)}
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-edit-identity="${id.id}">
+              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(id.name)}</div>
+              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
+                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${escapeHtml(label)}</span>
+                ${id.username ? `<span class="truncate">${escapeHtml(id.username)}</span>` : ""}
+              </p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-identity="${id.id}" title="Edit">Edit</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-identity="${id.id}" title="Remove">✕</button>
+            </div>
           </div>
-          <div class="host-tools">
-            <button class="tiny" data-edit-identity="${id.id}">Edit</button>
-            <button class="tiny" data-delete-identity="${id.id}">✕</button>
-          </div>
-        </div>`
-      )
+        </div>`;
+      })
       .join("");
+    els.identityList.innerHTML = tileSection("Identities", cards);
   }
 
   function renderTunnels() {
     if (!state.tunnels.length) {
-      els.tunnelList.innerHTML = `<div class="empty">No forwards yet. Local (−L), remote (−R), or dynamic SOCKS5 (−D).</div>`;
+      els.tunnelList.innerHTML = emptyHTML("No forwards yet", "Local (−L), remote (−R), or dynamic SOCKS5 (−D).");
       return;
     }
-    els.tunnelList.innerHTML = state.tunnels
+    const cards = state.tunnels
       .map((t) => {
         const host = state.hosts.find((h) => h.id === t.hostId);
         const dest = t.kind === "dynamic" ? "SOCKS5" : `${t.destHost}:${t.destPort}`;
         const listen = t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
         const st = t.status || "stopped";
+        const letter = t.kind === "remote" ? "R" : t.kind === "dynamic" ? "D" : "L";
+        const kindLabel = t.kind === "remote" ? "Remote" : t.kind === "dynamic" ? "Dynamic" : "Local";
         return `
-          <div class="host">
-            <span class="dot" style="background:${statusColor(st === "stopped" ? "exited" : st)}"></span>
-            <div class="meta">
-              <b>${escapeHtml(t.name)}</b>
-              <small>${escapeHtml(t.kind)} · ${escapeHtml(host?.name || t.hostId)} · ${escapeHtml(listen)} → ${escapeHtml(dest)} · ${escapeHtml(st)}${t.error ? ` · ${escapeHtml(t.error)}` : ""}</small>
-            </div>
-            <div class="host-tools">
-              <button class="tiny" data-tunnel-start="${t.id}">Start</button>
-              <button class="tiny" data-tunnel-stop="${t.id}">Stop</button>
-              <button class="tiny" data-edit-tunnel="${t.id}">Edit</button>
-              <button class="tiny" data-delete-tunnel="${t.id}">✕</button>
+          <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${t.id}">
+            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+              ${tileGlyph(statusColor(st), letter)}
+              <div class="min-w-0 flex-1">
+                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(t.name)}</div>
+                <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
+                  <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kindLabel}</span>
+                  <span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(st)}</span>
+                  <span class="truncate">${escapeHtml(host?.name || t.hostId)} · ${escapeHtml(listen)} → ${escapeHtml(dest)}</span>
+                  ${t.error ? `<span class="text-destructive truncate">${escapeHtml(t.error)}</span>` : ""}
+                </p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-tunnel-start="${t.id}">Start</button>
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-tunnel-stop="${t.id}">Stop</button>
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-tunnel="${t.id}" title="Edit">Edit</button>
+                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-tunnel="${t.id}" title="Remove">✕</button>
+              </div>
             </div>
           </div>`;
       })
       .join("");
+    els.tunnelList.innerHTML = tileSection("Port forwarding", cards);
+  }
+
+  function logColor(kind) {
+    const k = String(kind || "").toLowerCase();
+    if (k === "error" || k === "fail" || k === "denied") return "#ff6b7a";
+    if (k === "session") return "#5ee0b5";
+    if (k === "tunnel") return "#6ea8ff";
+    return "#8a8a8a";
+  }
+
+  function logParts(iso) {
+    if (!iso) return { date: "", time: "" };
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+    return {
+      date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+      time: d.toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    };
   }
 
   function renderLogs() {
@@ -731,15 +814,26 @@
       return `${e.kind} ${e.message}`.toLowerCase().includes(q);
     });
     if (!rows.length) {
-      els.logList.innerHTML = `<div class="empty">No log entries.</div>`;
+      els.logList.innerHTML = emptyHTML("No log entries", "Connection and vault events show up here.");
       return;
     }
-    els.logList.innerHTML = rows
+    const cards = rows
       .map((e) => {
-        const t = e.time ? new Date(e.time).toISOString().replace("T", " ").slice(0, 19) : "";
-        return `<div class="log-row"><time>${escapeHtml(t)}</time><span class="kind">${escapeHtml(e.kind)}</span><span>${escapeHtml(e.message)}</span></div>`;
+        const { date, time } = logParts(e.time);
+        return `<div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph(logColor(e.kind), "log")}
+            <div class="log-when">
+              <div data-slot="card-title" class="text-sm font-medium">${escapeHtml(date)}</div>
+              <p data-slot="card-description" class="text-muted-foreground text-sm">${escapeHtml(time)}</p>
+            </div>
+            <span data-slot="badge" class="kind bg-secondary text-secondary-foreground h-5 shrink-0 rounded-4xl px-2 text-xs">${escapeHtml(e.kind)}</span>
+            <div class="text-muted-foreground min-w-0 flex-1 truncate text-sm">${escapeHtml(e.message)}</div>
+          </div>
+        </div>`;
       })
       .join("");
+    els.logList.innerHTML = `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Logs</h2><div class="flex flex-col gap-2">${cards}</div></section>`;
   }
 
   function isDriving(pane) {
@@ -3086,6 +3180,11 @@
     });
 
     document.body.addEventListener("click", async (ev) => {
+      const viewBtn = ev.target.closest("[data-vault-view-btn]");
+      if (viewBtn) {
+        setVaultView(viewBtn.getAttribute("data-vault-view-btn"));
+        return;
+      }
       if (ev.target.closest("#btn-quick")) {
         openModal(els.quickModal);
         return;

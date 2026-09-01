@@ -6,8 +6,9 @@ import (
 	"keel/components/card"
 	"keel/components/empty"
 	"keel/components/icon"
-	"keel/components/item"
+	"keel/internal/applog"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 templ HostList(p PageProps) {
@@ -36,20 +37,20 @@ templ HostList(p PageProps) {
 				if len(folders) > 0 {
 					<section class="flex flex-col gap-2">
 						@sectionHeading("Groups")
-						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+						@tileGrid() {
 							for _, g := range folders {
 								@groupCard(g)
 							}
-						</div>
+						}
 					</section>
 				}
 				<section class="flex flex-col gap-2">
 					@sectionHeading("Hosts")
-					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+					@tileGrid() {
 						for _, h := range hosts {
 							@hostCard(h)
 						}
-					</div>
+					}
 				</section>
 			}
 		}
@@ -60,10 +61,23 @@ templ sectionHeading(title string) {
 	<h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">{ title }</h2>
 }
 
-templ hostGlyph(color, kind string) {
+templ tileGrid() {
+	<div class="tile-grid">
+		{ children... }
+	</div>
+}
+
+templ tileGlyph(color, kind string) {
 	if kind == "folder" {
 		<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4">
 			@icon.Folder01()
+		</span>
+	} else if kind == "L" || kind == "R" || kind == "D" {
+		<span
+			class="flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold"
+			style={ "--host-color:" + color + ";background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)" }
+		>
+			{ kind }
 		</span>
 	} else {
 		<span
@@ -72,6 +86,14 @@ templ hostGlyph(color, kind string) {
 		>
 			if kind == "local" {
 				@icon.ComputerTerminal01()
+			} else if kind == "password" {
+				@icon.IdCard()
+			} else if kind == "key" {
+				@icon.Key01()
+			} else if kind == "snippet" {
+				@icon.CodeXml()
+			} else if kind == "log" {
+				@icon.ScrollText()
 			} else {
 				@icon.ServerStack01()
 			}
@@ -90,7 +112,7 @@ templ groupCard(g hostGroup) {
 		},
 	}) {
 		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
-			@hostGlyph("", "folder")
+			@tileGlyph("", "folder")
 			<div class="min-w-0 flex-1">
 				@card.Title() {
 					{ g.Name }
@@ -110,7 +132,7 @@ templ hostCard(h store.Host) {
 		Attributes: templ.Attributes{"data-id": h.ID},
 	}) {
 		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
-			@hostGlyph(h.Color, hostProtocol(h))
+			@tileGlyph(h.Color, hostProtocol(h))
 			<div
 				class="min-w-0 flex-1 cursor-pointer"
 				role="button"
@@ -144,7 +166,7 @@ templ hostCard(h store.Host) {
 }
 
 templ IdentityList(p PageProps) {
-	<div id="identity-list" class="host-list flex flex-col gap-2">
+	<div id="identity-list" class="host-list flex flex-col gap-6">
 		if len(p.Identities) == 0 {
 			@empty.Empty() {
 				@empty.Header() {
@@ -160,35 +182,53 @@ templ IdentityList(p PageProps) {
 				}
 			}
 		} else {
-			@item.Group() {
-				for _, id := range p.Identities {
-					@item.Item(item.Props{Size: item.SizeSm, Class: "host"}) {
-						@item.Media() {
-							<span class="dot" style="background:var(--keel-accent)"></span>
-						}
-						@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-edit-identity": id.ID}}) {
-							@item.Title() {
-								{ id.Name }
-							}
-							@item.Description() {
-								{ id.Kind }
-								if id.Username != "" {
-									{ " · " + id.Username }
-								}
-							}
-						}
-						@item.Actions() {
-							@rowMenu("data-edit-identity", id.ID, "data-delete-identity", id.ID)
-						}
+			<section class="flex flex-col gap-2">
+				@sectionHeading("Identities")
+				@tileGrid() {
+					for _, id := range p.Identities {
+						@identityCard(id)
 					}
 				}
-			}
+			</section>
 		}
 	</div>
 }
 
+templ identityCard(id store.Identity) {
+	@card.Card(card.Props{
+		Size:       card.SizeSm,
+		Class:      "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{"data-id": id.ID},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@tileGlyph(identityColor(id.Kind), id.Kind)
+			<div
+				class="min-w-0 flex-1 cursor-pointer"
+				role="button"
+				tabindex="0"
+				data-edit-identity={ id.ID }
+			>
+				@card.Title(card.TitleProps{Class: "truncate"}) {
+					{ id.Name }
+				}
+				@card.Description(card.DescriptionProps{Class: "flex flex-wrap items-center gap-1"}) {
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+						{ identityKindLabel(id.Kind) }
+					}
+					if id.Username != "" {
+						<span class="truncate">{ id.Username }</span>
+					}
+				}
+			</div>
+			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
+				@rowMenu("data-edit-identity", id.ID, "data-delete-identity", id.ID)
+			</div>
+		}
+	}
+}
+
 templ TunnelList(p PageProps) {
-	<div id="tunnel-list" class="host-list flex flex-col gap-2">
+	<div id="tunnel-list" class="host-list flex flex-col gap-6">
 		if len(p.Tunnels) == 0 {
 			@empty.Empty() {
 				@empty.Header() {
@@ -204,58 +244,74 @@ templ TunnelList(p PageProps) {
 				}
 			}
 		} else {
-			@item.Group() {
-				for _, t := range p.Tunnels {
-					@item.Item(item.Props{Size: item.SizeSm, Class: "host"}) {
-						@item.Media() {
-							<span class="dot"></span>
-						}
-						@item.Content() {
-							@item.Title() {
-								{ t.Name }
-							}
-							@item.Description() {
-								{ t.Kind } · { hostNameByID(p.Hosts, t.HostID) } · { tunnelListen(t) } → { tunnelDest(t) }
-								if t.Error != "" {
-									{ " · " + t.Error }
-								}
-							}
-						}
-						@item.Actions(item.ActionsProps{Class: "host-tools"}) {
-							@badge.Badge(badge.Props{Variant: tunnelBadgeVariant(t.Status)}) {
-								if string(t.Status) == "" {
-									stopped
-								} else {
-									{ string(t.Status) }
-								}
-							}
-							@button.Button(button.Props{
-								Variant:    button.VariantGhost,
-								Size:       button.SizeXs,
-								Class:      "tiny",
-								Attributes: templ.Attributes{"data-tunnel-start": t.ID},
-							}) {
-								Start
-							}
-							@button.Button(button.Props{
-								Variant:    button.VariantGhost,
-								Size:       button.SizeXs,
-								Class:      "tiny",
-								Attributes: templ.Attributes{"data-tunnel-stop": t.ID},
-							}) {
-								Stop
-							}
-							@rowMenu("data-edit-tunnel", t.ID, "data-delete-tunnel", t.ID)
-						}
+			<section class="flex flex-col gap-2">
+				@sectionHeading("Port forwarding")
+				@tileGrid() {
+					for _, t := range p.Tunnels {
+						@tunnelCard(p.Hosts, t)
 					}
 				}
-			}
+			</section>
 		}
 	</div>
 }
 
+templ tunnelCard(hosts []store.Host, t tunnel.Info) {
+	@card.Card(card.Props{
+		Size:       card.SizeSm,
+		Class:      "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{"data-id": t.ID},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@tileGlyph(tunnelColor(t.Status), tunnelKindLetter(t.Kind))
+			<div class="min-w-0 flex-1">
+				@card.Title(card.TitleProps{Class: "truncate"}) {
+					{ t.Name }
+				}
+				@card.Description(card.DescriptionProps{Class: "flex flex-wrap items-center gap-1"}) {
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+						{ tunnelKindLabel(t.Kind) }
+					}
+					@badge.Badge(badge.Props{Variant: tunnelBadgeVariant(t.Status)}) {
+						if string(t.Status) == "" {
+							stopped
+						} else {
+							{ string(t.Status) }
+						}
+					}
+					<span class="truncate">{ hostNameByID(hosts, t.HostID) } · { tunnelListen(t) } → { tunnelDest(t) }</span>
+					if t.Error != "" {
+						<span class="text-destructive truncate">{ t.Error }</span>
+					}
+				}
+			</div>
+			<div class="flex items-center gap-1">
+				@button.Button(button.Props{
+					Variant:    button.VariantGhost,
+					Size:       button.SizeXs,
+					Class:      "tiny",
+					Attributes: templ.Attributes{"data-tunnel-start": t.ID},
+				}) {
+					Start
+				}
+				@button.Button(button.Props{
+					Variant:    button.VariantGhost,
+					Size:       button.SizeXs,
+					Class:      "tiny",
+					Attributes: templ.Attributes{"data-tunnel-stop": t.ID},
+				}) {
+					Stop
+				}
+				<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
+					@rowMenu("data-edit-tunnel", t.ID, "data-delete-tunnel", t.ID)
+				</div>
+			</div>
+		}
+	}
+}
+
 templ SnippetList(p PageProps) {
-	<div id="snippet-list" class="snippet-list flex flex-col gap-2">
+	<div id="snippet-list" class="snippet-list flex flex-col gap-6">
 		if len(p.Snippets) == 0 {
 			@empty.Empty() {
 				@empty.Header() {
@@ -271,42 +327,95 @@ templ SnippetList(p PageProps) {
 				}
 			}
 		} else {
-			@item.Group() {
-				for _, s := range p.Snippets {
-					@item.Item(item.Props{Size: item.SizeSm, Class: "snippet-row"}) {
-						@item.Content(item.ContentProps{Attributes: templ.Attributes{"role": "button", "tabindex": "0", "data-run": s.ID}}) {
-							@item.Title() {
-								{ s.Name }
-							}
-							@item.Description() {
-								{ s.Command }
-							}
-						}
-						@item.Actions() {
-							@rowMenu("data-edit-snippet", s.ID, "data-delete-snippet", s.ID)
-						}
+			<section class="flex flex-col gap-2">
+				@sectionHeading("Snippets")
+				@tileGrid() {
+					for _, s := range p.Snippets {
+						@snippetCard(s)
 					}
 				}
-			}
+			</section>
 		}
 	</div>
 }
 
+templ snippetCard(s store.Snippet) {
+	@card.Card(card.Props{
+		Size:       card.SizeSm,
+		Class:      "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{"data-id": s.ID},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@tileGlyph("#6ea8ff", "snippet")
+			<div
+				class="min-w-0 flex-1 cursor-pointer"
+				role="button"
+				tabindex="0"
+				data-run={ s.ID }
+			>
+				@card.Title(card.TitleProps{Class: "truncate"}) {
+					{ s.Name }
+				}
+				@card.Description(card.DescriptionProps{Class: "snippet-cmd truncate"}) {
+					{ snippetCommand(s) }
+				}
+			</div>
+			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
+				@rowMenu("data-edit-snippet", s.ID, "data-delete-snippet", s.ID)
+			</div>
+		}
+	}
+}
+
 templ LogList(p PageProps) {
-	<div id="log-list" class="log-list">
+	<div id="log-list" class="log-list flex flex-col gap-6">
 		{{ rows := filterLogs(p.Logs, p.LogFilter) }}
 		if len(rows) == 0 {
-			@emptyBox("", "No log entries", "Connection and vault events show up here.")
-		} else {
-			for _, e := range rows {
-				<div class="log-row">
-					<time>{ e.Time.UTC().Format("2006-01-02 15:04:05") }</time>
-					@badge.Badge(badge.Props{Variant: logBadgeVariant(e.Kind), Class: "kind"}) {
-						{ e.Kind }
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.ScrollText()
 					}
-					<span>{ e.Message }</span>
-				</div>
+					@empty.Title() {
+						No log entries
+					}
+					@empty.Description() {
+						Connection and vault events show up here.
+					}
+				}
 			}
+		} else {
+			<section class="flex flex-col gap-2">
+				@sectionHeading("Logs")
+				<div class="flex flex-col gap-2">
+					for _, e := range rows {
+						@logCard(e)
+					}
+				</div>
+			</section>
 		}
 	</div>
+}
+
+templ logCard(e applog.Entry) {
+	@card.Card(card.Props{
+		Size:  card.SizeSm,
+		Class: "host-tile py-0 hover:bg-muted/50",
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@tileGlyph(logColor(e.Kind), "log")
+			<div class="log-when">
+				@card.Title() {
+					{ logDateLabel(e.Time) }
+				}
+				@card.Description() {
+					{ logTimeLabel(e.Time) }
+				}
+			</div>
+			@badge.Badge(badge.Props{Variant: logBadgeVariant(e.Kind), Class: "kind shrink-0"}) {
+				{ e.Kind }
+			}
+			<div class="text-muted-foreground min-w-0 flex-1 truncate text-sm">{ e.Message }</div>
+		}
+	}
 }

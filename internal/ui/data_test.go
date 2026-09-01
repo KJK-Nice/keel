@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"keel/components/badge"
 	"keel/internal/store"
@@ -61,5 +62,36 @@ func TestTunnelAndLogBadgeVariants(t *testing.T) {
 	}
 	if logBadgeVariant("info") != badge.VariantSecondary {
 		t.Fatal("info log should be secondary badge")
+	}
+}
+
+func TestVaultTileLabels(t *testing.T) {
+	if identityKindLabel("key") != "Private key" || identityKindLabel("password") != "Auth password" {
+		t.Fatal("identity kind labels")
+	}
+	if identityColor("key") != "#c084fc" || identityColor("password") != "#6ea8ff" {
+		t.Fatal("identity colors")
+	}
+	if tunnelKindLetter("local") != "L" || tunnelKindLetter("remote") != "R" || tunnelKindLetter("dynamic") != "D" {
+		t.Fatal("tunnel kind letters")
+	}
+	if tunnelKindLabel("dynamic") != "Dynamic" || tunnelKindLabel("remote") != "Remote" {
+		t.Fatal("tunnel kind labels")
+	}
+	if tunnelColor(tunnel.StatusReady) != "#5ee0b5" || tunnelColor(tunnel.StatusStopped) != "#8a8a8a" {
+		t.Fatal("tunnel status colors")
+	}
+	if snippetCommand(store.Snippet{Command: " ls -la\n "}) != "ls -la" {
+		t.Fatal("snippet command trim")
+	}
+	if logColor("error") != "#ff6b7a" || logColor("session") != "#5ee0b5" {
+		t.Fatal("log colors")
+	}
+	ts := time.Date(2026, 8, 31, 15, 32, 8, 0, time.UTC)
+	if logDateLabel(ts) == "" || logTimeLabel(ts) == "" {
+		t.Fatal("log date/time labels")
+	}
+	if logDateLabel(time.Time{}) != "" || logTimeLabel(time.Time{}) != "" {
+		t.Fatal("zero log time should be empty")
 	}
 }

@@ -27,6 +27,7 @@ templ Page(p PageProps) {
 		lang="en"
 		class="dark style-nova"
 		data-theme="system"
+		data-vault-view="card"
 		data-signals={ p.SignalsJSON() }
 		if p.Native {
 			data-native="1"
@@ -48,15 +49,17 @@ templ Page(p PageProps) {
 					}
 					window.__keelApplyTheme = applyTheme;
 					applyTheme(localStorage.getItem("keel-theme") || "system");
-					var uiSize = 12, smooth = "antialiased";
+					var uiSize = 12, smooth = "antialiased", vaultView = "card";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
 						if (n >= 11 && n <= 16) uiSize = n;
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
+						if (ui.view === "list") vaultView = "list";
 					} catch (e) {}
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
+					document.documentElement.dataset.vaultView = vaultView;
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
@@ -288,7 +291,7 @@ templ HostsPage(p PageProps) {
 				}
 			}
 		}
-		<div class="flex flex-wrap items-center gap-2">
+		@vaultToolbar() {
 			@buttongroup.ButtonGroup() {
 				@button.Button(button.Props{
 					ID:         "btn-new-host",
@@ -339,87 +342,66 @@ templ HostsPage(p PageProps) {
 				@icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
 				Terminal
 			}
-		</div>
+		}
 		<section id="live-section" class="flex flex-col gap-2" hidden>
 			@sectionHeading("Live")
-			<div id="herd-list" class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"></div>
+			<div id="herd-list" class="tile-grid"></div>
 		</section>
 		@HostList(p)
 	</section>
 }
 
 templ KeychainPage(p PageProps) {
-	<section class="vault-page" id="page-keychain" data-page="keychain">
-		<div class="page-head">
-			<div>
-				<h1>Keychain</h1>
-				<p class="lede">Reusable SSH identities (password or private key). This is not the OS vault wrapping key.</p>
-			</div>
+	<section class="vault-page flex flex-col gap-5" id="page-keychain" data-page="keychain">
+		@vaultToolbar() {
 			@button.Button(button.Props{
 				ID: "btn-new-identity",
 			}) {
+				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
 				New identity
 			}
-		</div>
+		}
 		@IdentityList(p)
 	</section>
 }
 
 templ ForwardsPage(p PageProps) {
-	<section class="vault-page" id="page-forwards" data-page="forwards">
-		<div class="page-head">
-			<div>
-				<h1>Port forwarding</h1>
-				<p class="lede">Local, remote, and dynamic (SOCKS5) forwards. Each uses its own SSH connection.</p>
-			</div>
+	<section class="vault-page flex flex-col gap-5" id="page-forwards" data-page="forwards">
+		@vaultToolbar() {
 			@button.Button(button.Props{
 				ID: "btn-new-tunnel",
 			}) {
+				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
 				New forward
 			}
-		</div>
+		}
 		@TunnelList(p)
 	</section>
 }
 
 templ SnippetsPage(p PageProps) {
-	<section class="vault-page" id="page-snippets" data-page="snippets">
-		<div class="page-head">
-			<div>
-				<h1>Snippets</h1>
-				<p class="lede">Saved commands. Click one to send it into the focused terminal pane.</p>
-			</div>
+	<section class="vault-page flex flex-col gap-5" id="page-snippets" data-page="snippets">
+		@vaultToolbar() {
 			@button.Button(button.Props{
 				ID: "btn-new-snippet",
 			}) {
+				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
 				New snippet
 			}
-		</div>
+		}
 		@SnippetList(p)
 	</section>
 }
 
 templ LogsPage(p PageProps) {
-	<section class="vault-page" id="page-logs" data-page="logs">
-		<div class="page-head">
-			<div>
-				<h1>Logs</h1>
-				<p class="lede">Connection and vault events. Secrets are never recorded.</p>
-			</div>
-			@button.Button(button.Props{
-				ID:      "btn-refresh-logs",
-				Variant: button.VariantGhost,
-				Attributes: templ.Attributes{
-					"data-on:click": "@get('/ui/logs')",
-				},
-			}) {
-				Refresh
-			}
-		</div>
-		<div class="search">
-			@input.Input(input.Props{
+	<section class="vault-page flex flex-col gap-5" id="page-logs" data-page="logs">
+		@inputgroup.InputGroup(inputgroup.Props{
+			Class: "h-10",
+		}) {
+			@inputgroup.Input(inputgroup.InputProps{
 				ID:          "log-filter",
 				Type:        "search",
+				Class:       "h-10",
 				Placeholder: "Filter logs",
 				Attributes: templ.Attributes{
 					"aria-label":                     "Filter logs",
@@ -428,7 +410,21 @@ templ LogsPage(p PageProps) {
 					"data-on:input__debounce.200ms": "@get('/ui/logs')",
 				},
 			})
-		</div>
+			@inputgroup.Addon() {
+				@icon.Search01()
+			}
+			@inputgroup.Addon(inputgroup.AddonProps{Align: inputgroup.AlignInlineEnd, Class: "py-0"}) {
+				@button.Button(button.Props{
+					ID:      "btn-refresh-logs",
+					Variant: button.VariantDefault,
+					Attributes: templ.Attributes{
+						"data-on:click": "@get('/ui/logs')",
+					},
+				}) {
+					Refresh
+				}
+			}
+		}
 		@LogList(p)
 	</section>
 }

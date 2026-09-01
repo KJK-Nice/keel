@@ -353,7 +353,11 @@ code { font-family: var(--mono); font-size: 0.92em; }
   flex: 1;
 }
 
-#page-hosts.is-active {
+#page-hosts.is-active,
+#page-keychain.is-active,
+#page-forwards.is-active,
+#page-snippets.is-active,
+#page-logs.is-active {
   display: flex;
 }
 
@@ -362,10 +366,38 @@ code { font-family: var(--mono); font-size: 0.92em; }
 }
 
 #page-hosts #host-list.host-list,
+#page-keychain #identity-list.host-list,
+#page-forwards #tunnel-list.host-list,
+#page-snippets #snippet-list,
+#page-logs #log-list,
 #herd-list {
   overflow: visible;
   padding: 0;
   flex: none;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  html:not([data-vault-view="list"]) .tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  html:not([data-vault-view="list"]) .tile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+html[data-vault-view="list"] .tile-grid {
+  grid-template-columns: 1fr;
+}
+html[data-vault-view="card"] [data-vault-view-btn="card"],
+html[data-vault-view="list"] [data-vault-view-btn="list"] {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .group-label {
@@ -1232,23 +1264,20 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .check input { width: auto; }
 
-.log-list {
+.log-list .kind {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.log-when {
+  min-width: 8.5rem;
+  flex-shrink: 0;
+}
+.snippet-cmd {
   font-family: var(--mono);
-  font-size: 0.917rem;
-  display: grid;
-  gap: 1px;
 }
-.log-row {
-  display: grid;
-  grid-template-columns: 148px 88px 1fr;
-  gap: 10px;
-  padding: 5px 6px;
-  border-radius: var(--radius-sm);
+.host-tile .text-destructive {
+  color: var(--keel-danger);
 }
-.log-row:hover { background: var(--hover); }
-.log-row time { color: var(--keel-muted); }
-.log-row .kind { color: var(--keel-accent); text-transform: uppercase; font-size: 0.833rem; letter-spacing: 0.04em; }
-.log-row [data-slot="badge"] { text-transform: uppercase; letter-spacing: 0.04em; }
 
 .snippet-bar {
   display: none;
@@ -1418,5 +1447,4 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   }
   .vault-nav { white-space: nowrap; }
   .bar-meta { flex-wrap: wrap; max-width: 48vw; }
-  .log-row { grid-template-columns: 1fr; gap: 2px; }
 }

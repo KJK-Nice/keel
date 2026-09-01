@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 
@@ -200,4 +201,84 @@ func hostNameByID(hosts []store.Host, id string) string {
 		}
 	}
 	return id
+}
+
+func identityColor(kind string) string {
+	if kind == "key" {
+		return "#c084fc"
+	}
+	return "#6ea8ff"
+}
+
+func identityKindLabel(kind string) string {
+	if kind == "key" {
+		return "Private key"
+	}
+	return "Auth password"
+}
+
+func tunnelColor(status tunnel.Status) string {
+	switch status {
+	case tunnel.StatusReady:
+		return "#5ee0b5"
+	case tunnel.StatusConnecting:
+		return "#f5c15d"
+	case tunnel.StatusError:
+		return "#ff6b7a"
+	default:
+		return "#8a8a8a"
+	}
+}
+
+func tunnelKindLetter(kind string) string {
+	switch kind {
+	case "remote":
+		return "R"
+	case "dynamic":
+		return "D"
+	default:
+		return "L"
+	}
+}
+
+func tunnelKindLabel(kind string) string {
+	switch kind {
+	case "remote":
+		return "Remote"
+	case "dynamic":
+		return "Dynamic"
+	default:
+		return "Local"
+	}
+}
+
+func snippetCommand(s store.Snippet) string {
+	return strings.TrimSpace(s.Command)
+}
+
+func logColor(kind string) string {
+	switch strings.ToLower(kind) {
+	case "error", "fail", "denied":
+		return "#ff6b7a"
+	case "session":
+		return "#5ee0b5"
+	case "tunnel":
+		return "#6ea8ff"
+	default:
+		return "#8a8a8a"
+	}
+}
+
+func logDateLabel(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Local().Format("Jan 2, 2006")
+}
+
+func logTimeLabel(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Local().Format("15:04:05")
 }

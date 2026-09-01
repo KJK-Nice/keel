@@ -460,7 +460,9 @@ func TestIndexServesVault(t *testing.T) {
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return newFakeBridge(), nil
 	})
-	srv := httptest.NewServer(New(st, rt, web, nil).WithLogs(applog.New(t.TempDir() + "/keel.log")).Handler())
+	logs := applog.New(t.TempDir() + "/keel.log")
+	logs.Append(applog.Entry{Time: time.Now(), Kind: "info", Message: "vault ready"})
+	srv := httptest.NewServer(New(st, rt, web, nil).WithLogs(logs).Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/")
 	if err != nil {
@@ -741,6 +743,89 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(fragBody), `data-slot="card"`) || !strings.Contains(string(fragBody), `data-connect`) {
 		t.Fatal("ui hosts fragment should render host cards")
+	}
+	if strings.Contains(string(body), "<h1>Keychain</h1>") || strings.Contains(string(body), "<h1>Snippets</h1>") ||
+		strings.Contains(string(body), "<h1>Logs</h1>") || strings.Contains(string(body), "<h1>Port forwarding</h1>") {
+		t.Fatal("vault list pages should use the hosts toolbar+cards pattern, not page-head titles")
+	}
+	if !strings.Contains(string(body), "<h1>Settings</h1>") {
+		t.Fatal("settings page should keep its heading")
+	}
+	if !strings.Contains(string(body), `id="btn-new-identity"`) || !strings.Contains(string(body), `id="btn-new-tunnel"`) ||
+		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-refresh-logs"`) {
+		t.Fatal("index missing vault action buttons")
+	}
+	snip, err := http.Get(srv.URL + "/ui/snippets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snip.Body.Close()
+	snipBody, _ := io.ReadAll(snip.Body)
+	if snip.StatusCode != http.StatusOK || !strings.Contains(string(snipBody), `id="snippet-list"`) {
+		t.Fatalf("ui snippets %d: %s", snip.StatusCode, snipBody[:min(len(snipBody), 200)])
+	}
+	if !strings.Contains(string(snipBody), `data-slot="card"`) || !strings.Contains(string(snipBody), `data-run`) {
+		t.Fatal("ui snippets fragment should render snippet cards")
+	}
+	ident, err := http.Get(srv.URL + "/ui/identities")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ident.Body.Close()
+	identBody, _ := io.ReadAll(ident.Body)
+	if ident.StatusCode != http.StatusOK || !strings.Contains(string(identBody), `id="identity-list"`) ||
+		!strings.Contains(string(identBody), `data-slot="empty"`) {
+		t.Fatal("ui identities fragment should render the empty card state")
+	}
+	logsFrag, err := http.Get(srv.URL + "/ui/logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logsFrag.Body.Close()
+	logsBody, _ := io.ReadAll(logsFrag.Body)
+	if logsFrag.StatusCode != http.StatusOK || !strings.Contains(string(logsBody), `id="log-list"`) {
+		t.Fatal("ui logs fragment missing log-list")
+	}
+	if !strings.Contains(string(cssBody), `#page-keychain.is-active`) ||
+		!strings.Contains(string(cssBody), `#page-forwards.is-active`) ||
+		!strings.Contains(string(cssBody), `#page-snippets.is-active`) ||
+		!strings.Contains(string(cssBody), `#page-logs.is-active`) {
+		t.Fatal("keel.css must flex the vault list pages like hosts")
+	}
+	if !strings.Contains(string(termBody), "tileSection") || !strings.Contains(string(termBody), "Auth password") {
+		t.Fatal("term.js fallback lists should render host-style cards")
+	}
+	if !strings.Contains(string(body), `data-vault-view-btn="card"`) || !strings.Contains(string(body), `data-vault-view-btn="list"`) {
+		t.Fatal("vault list pages should include a card/list view selector")
+	}
+	settingsStart := strings.Index(string(body), `id="page-settings"`)
+	if settingsStart < 0 {
+		t.Fatal("index missing settings page")
+	}
+	if strings.Contains(string(body)[settingsStart:], `data-vault-view-btn`) {
+		t.Fatal("settings should not include the vault view selector")
+	}
+	logsStart := strings.Index(string(body), `id="page-logs"`)
+	if logsStart < 0 || logsStart >= settingsStart {
+		t.Fatal("index missing logs page before settings")
+	}
+	if strings.Contains(string(body)[logsStart:settingsStart], `data-vault-view-btn`) {
+		t.Fatal("logs should not include the vault view selector")
+	}
+	if !strings.Contains(string(cssBody), ".tile-grid") || !strings.Contains(string(cssBody), "data-vault-view") {
+		t.Fatal("keel.css must layout tile-grid from the vault view mode")
+	}
+	if !strings.Contains(string(termBody), "setVaultView") || !strings.Contains(string(termBody), `class="tile-grid"`) {
+		t.Fatal("term.js must persist vault view mode and render tile-grid fallbacks")
+	}
+	if !strings.Contains(string(fragBody), `class="tile-grid"`) {
+		t.Fatal("ui hosts fragment should use tile-grid")
+	}
+	if strings.Contains(string(logsBody), `class="tile-grid"`) {
+		t.Fatal("ui logs should stay a single-column list, not tile-grid")
+	}
+	if !strings.Contains(string(logsBody), `data-slot="card"`) {
+		t.Fatal("ui logs fragment should still render log rows as cards")
 	}
 }
 
