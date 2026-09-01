@@ -79,6 +79,8 @@ func (w *nativeWindow) appMenu() *application.Menu {
 		}
 	})
 	view := m.AddSubmenu("View")
+	view.Add("Focus Pane").SetAccelerator("CmdOrCtrl+Shift+enter").OnClick(w.menuAction("focus-pane"))
+	view.AddSeparator()
 	view.Add("Zoom In").SetAccelerator("CmdOrCtrl+=").OnClick(w.menuAction("zoom-in"))
 	view.Add("Zoom Out").SetAccelerator("CmdOrCtrl+-").OnClick(w.menuAction("zoom-out"))
 	view.Add("Actual Size").SetAccelerator("CmdOrCtrl+0").OnClick(w.menuAction("zoom-reset"))

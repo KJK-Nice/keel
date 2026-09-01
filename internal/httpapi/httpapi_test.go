@@ -636,9 +636,15 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "data-overflow-left") {
 		t.Fatal("keel.css missing hidden tab-strip scrollbar or overflow fades")
 	}
-	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused") ||
+	if !strings.Contains(string(cssBody), ".term-wrap.is-focused") ||
+		!strings.Contains(string(cssBody), ".pane-drop") ||
+		!strings.Contains(string(cssBody), ".pane-actions") ||
 		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {
-		t.Fatal("keel.css missing split-only pane ring or terminal scrollbar")
+		t.Fatal("keel.css missing focused pane tile, drop overlay, or terminal scrollbar")
+	}
+	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
+		!strings.Contains(string(cssBody), "padding: 8px 10px 10px") {
+		t.Fatal("keel.css must pad the xterm element so FitAddon inset does not overlap pane chrome")
 	}
 	if !strings.Contains(string(cssBody), "--keel-sidebar") {
 		t.Fatal("keel.css missing prefixed chrome sidebar token")
@@ -692,6 +698,10 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
 		t.Fatal("term.js must connect from host search and filter by group cards")
+	}
+	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
+		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {
+		t.Fatal("term.js missing pane rearrange, focus view, or tile split/sync actions")
 	}
 	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")

@@ -106,58 +106,6 @@ templ Page(p PageProps) {
 								}
 							}
 						</div>
-						<div class="bar-tools" id="bar-tools" hidden>
-							@tooltip.Tooltip() {
-								@button.Button(button.Props{
-									ID:      "btn-split-right",
-									Variant: button.VariantGhost,
-									Size:    button.SizeSm,
-									Class:   "tiny",
-									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{"data-kbd": "⇧D"}),
-								}) {
-									Split →
-									@hintKbd("⇧D")
-								}
-								@tooltip.Content() {
-									Split right
-									@kbd.Kbd() {
-										⌘⇧D
-									}
-								}
-							}
-							@tooltip.Tooltip() {
-								@button.Button(button.Props{
-									ID:      "btn-split-down",
-									Variant: button.VariantGhost,
-									Size:    button.SizeSm,
-									Class:   "tiny",
-									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{"data-kbd": "⇧E"}),
-								}) {
-									Split ↓
-									@hintKbd("⇧E")
-								}
-								@tooltip.Content() {
-									Split down
-									@kbd.Kbd() {
-										⌘⇧E
-									}
-								}
-							}
-							@tooltip.Tooltip() {
-								@button.Button(button.Props{
-									ID:         "btn-sync",
-									Variant:    button.VariantGhost,
-									Size:       button.SizeSm,
-									Class:      "tiny",
-									Attributes: tooltip.Trigger(ctx),
-								}) {
-									Sync
-								}
-								@tooltip.Content() {
-									Synchronize input
-								}
-							}
-						</div>
 						<div class="bar-meta" id="bar-meta">
 							<span id="bar-status">Vault</span>
 							<div class="control-widget" id="control-widget" hidden></div>

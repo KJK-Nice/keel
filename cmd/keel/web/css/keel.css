@@ -716,8 +716,10 @@ html[data-chrome="titlebar"] .tab:has(.tab-rename):focus-visible {
 .tab.is-drop-before::before { left: -2px; }
 .tab.is-drop-after::after { right: -2px; }
 body.is-tab-dragging,
-body.is-tab-dragging .tab { cursor: pointer; }
-body.is-tab-dragging { user-select: none; }
+body.is-tab-dragging .tab,
+body.is-pane-dragging { cursor: grabbing; }
+body.is-tab-dragging,
+body.is-pane-dragging { user-select: none; }
 .tab.is-active {
   background: var(--panel);
   color: var(--text);
@@ -872,19 +874,15 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
 }
 .chip-person.is-grantable { cursor: pointer; }
 .chip-person.is-grantable:hover { border-color: var(--keel-accent); }
-.term-wrap.is-follow { outline: 1px solid var(--keel-border); }
+.term-wrap.is-follow { border-color: var(--keel-border-strong); }
 .follow-banner {
-  position: absolute;
-  top: 6px;
-  right: 12px;
-  z-index: 2;
+  flex-shrink: 0;
   font-size: 0.875rem;
   color: var(--keel-muted);
   background: color-mix(in srgb, var(--elevated) 88%, transparent);
-  border: 1px solid var(--keel-border);
-  border-radius: 999px;
-  padding: 2px 8px;
-  pointer-events: none;
+  border-bottom: 1px solid var(--keel-border);
+  padding: 3px 10px;
+  text-align: center;
 }
 
 .gate {
@@ -1006,7 +1004,7 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   flex-direction: column;
 }
 .term-tab.is-active { display: flex; }
-.term-tab.is-split { padding: 5px; }
+.term-tab:not(.start-tab) { padding: 6px; gap: 6px; }
 
 .start-page {
   flex: 1;
@@ -1052,13 +1050,23 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   overflow: hidden;
 }
 .split-sash {
-  flex: 0 0 5px;
-  background: var(--keel-border);
+  flex: 0 0 6px;
+  background: transparent;
   z-index: 2;
+  position: relative;
 }
 .split-sash.is-vert { cursor: col-resize; }
 .split-sash.is-horiz { cursor: row-resize; }
-.split-sash:hover { background: var(--keel-accent); }
+.split-sash::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 99px;
+  background: transparent;
+}
+.split-sash.is-vert::after { top: 12%; bottom: 12%; }
+.split-sash.is-horiz::after { left: 12%; right: 12%; }
+.split-sash:hover::after { background: var(--keel-accent); }
 
 .term-wrap {
   display: flex;
@@ -1068,30 +1076,84 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   min-width: 0;
   min-height: 0;
   padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  background: var(--stage);
 }
-.term-tab.is-split .term-wrap.is-focused {
-  outline: 1px solid color-mix(in srgb, var(--keel-accent) 45%, transparent);
-  outline-offset: -1px;
-  border-radius: var(--radius-sm);
+.term-wrap.is-focused {
+  border-color: color-mix(in srgb, var(--keel-accent) 55%, var(--keel-border));
 }
-.term-tab:not(.is-split) .pane-bar { display: none; }
-.term-tab:not(.is-split) .pane-bar:has([data-pane-reconnect]:not([hidden])) { display: flex; }
+.term-wrap.is-dragging {
+  opacity: 0.58;
+}
 .pane-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
+  padding: 2px 4px 2px 10px;
+  min-height: 28px;
   background: var(--bg);
   border-bottom: 1px solid var(--keel-border);
   font-size: 0.917rem;
   color: var(--keel-muted);
   flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
 }
+body.is-pane-dragging .pane-bar { cursor: grabbing; }
+.term-wrap.is-focused .pane-bar { color: var(--text); }
 .pane-bar .pane-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pane-reconnect { color: var(--keel-accent); }
+.pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  cursor: default;
+}
+.pane-bar button { cursor: pointer; }
+.pane-bar .icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--keel-muted);
+  border-radius: 6px;
+}
+.pane-bar .icon-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.pane-bar .icon-btn:hover { color: var(--text); background: var(--hover); }
+.pane-bar .icon-btn.is-on {
+  color: var(--keel-accent);
+}
+.pane-bar .icon-btn:disabled {
+  opacity: 0.32;
+  pointer-events: none;
+}
+.pane-bar .pane-close {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.term-wrap.is-zoomed .pane-zoom-in,
+.term-wrap:not(.is-zoomed) .pane-zoom-out { display: none; }
+html.show-kbd .term-wrap:not(.is-focused) .pane-actions .kbd-hint { display: none !important; }
+html.show-kbd .pane-actions .icon-btn[data-kbd] svg { visibility: hidden; }
+html.show-kbd .pane-actions .icon-btn:disabled svg { visibility: visible; }
+html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !important; }
+.pane-reconnect { color: var(--keel-accent); padding: 0 6px; }
 .pane-reconnect[hidden] { display: none; }
-.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 4px 6px 6px; }
-.term-body .xterm { height: 100%; overflow: hidden; }
+.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; }
+.term-body .xterm {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: 8px 10px 10px;
+}
 .term-body .xterm .xterm-viewport {
   height: 100%;
   overflow-x: hidden;
@@ -1121,18 +1183,31 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
 }
 .term-body .xterm-screen { height: 100%; }
 
-.bar-tools {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.bar-tools[hidden] { display: none; }
-.bar-tools.is-sync #btn-sync {
-  color: var(--keel-accent);
-  border: 1px solid var(--keel-accent);
-}
 .tab.is-sync .tab-icon { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--keel-accent) 70%, transparent)); }
 .tab.is-vault { font-weight: 600; }
+
+.pane-drop {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pane-drop[hidden] { display: none; }
+.pane-drop-region {
+  position: absolute;
+  inset: 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--keel-accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--keel-accent) 80%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--keel-accent) 20%, transparent);
+  transition: inset 80ms ease;
+}
+.pane-drop[data-edge="left"] .pane-drop-region { right: 50%; }
+.pane-drop[data-edge="right"] .pane-drop-region { left: 50%; }
+.pane-drop[data-edge="top"] .pane-drop-region { bottom: 50%; }
+.pane-drop[data-edge="bottom"] .pane-drop-region { top: 50%; }
+.pane-drop[data-edge="center"] .pane-drop-region { inset: 14%; }
 
 .settings-form,
 .prefs {
