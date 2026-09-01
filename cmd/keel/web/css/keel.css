@@ -1154,6 +1154,14 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   width: 100%;
   overflow: hidden;
   padding: 0;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-ligatures: none;
+}
+.xterm .xterm-char-measure-element,
+.xterm .xterm-helper-textarea {
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
 }
 .term-tab.is-split .term-body .xterm {
   padding: 8px 10px 10px;

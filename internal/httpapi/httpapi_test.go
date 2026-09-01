@@ -755,6 +755,10 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), "lineHeight: 1.22") || !strings.Contains(string(termBody), "lineHeight: 1,") {
 		t.Fatal("xterm lineHeight must be 1 so block glyphs fill the cell")
 	}
+	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
+		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
+		t.Fatal("xterm measure element must not inherit UI letter-spacing or line-height")
+	}
 	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
 		t.Fatal("term.js must not drive a session snippet footer")
 	}

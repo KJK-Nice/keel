@@ -197,6 +197,7 @@
       fontSize: state.prefs.size,
       lineHeight: 1,
       letterSpacing: 0,
+      customGlyphs: true,
       allowTransparency: isNativeWindow(),
       theme: xtermTheme(),
     };
@@ -215,6 +216,7 @@
       p.term.options.fontSize = size;
       p.term.options.lineHeight = 1;
       p.term.options.letterSpacing = 0;
+      p.term.options.customGlyphs = true;
     }
     fitVisiblePanes();
   }
