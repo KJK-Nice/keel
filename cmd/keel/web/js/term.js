@@ -2007,12 +2007,12 @@
         try {
           addon.dispose();
         } catch {
-          /* canvas fallback */
+          /* DOM renderer */
         }
       });
       term.loadAddon(addon);
     } catch {
-      /* canvas renderer */
+      /* xterm 6 default DOM renderer */
     }
   }
 

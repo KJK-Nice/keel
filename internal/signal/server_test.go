@@ -92,6 +92,19 @@ func TestJoinPage(t *testing.T) {
 	if css.StatusCode != http.StatusOK {
 		t.Fatalf("xterm.css %d", css.StatusCode)
 	}
+	js, err := http.Get(srv.URL + "/vendor/xterm/xterm.min.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer js.Body.Close()
+	if js.StatusCode != http.StatusOK {
+		t.Fatalf("xterm.min.js %d", js.StatusCode)
+	}
+	jsBody, _ := io.ReadAll(js.Body)
+	cssBody, _ := io.ReadAll(css.Body)
+	if !strings.Contains(string(jsBody), "@xterm/xterm@6.0.0") || !strings.Contains(string(cssBody), "@xterm/xterm@6.0.0") {
+		t.Fatal("join page must vendor xterm 6.0.0")
+	}
 }
 
 func TestRoomCapAndExpiry(t *testing.T) {

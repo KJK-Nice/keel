@@ -677,8 +677,8 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), ".term-wrap.is-focused") ||
 		!strings.Contains(string(cssBody), ".pane-drop") ||
 		!strings.Contains(string(cssBody), ".pane-actions") ||
-		!strings.Contains(string(cssBody), "::-webkit-scrollbar-thumb") {
-		t.Fatal("keel.css missing focused pane tile, drop overlay, or terminal scrollbar")
+		!strings.Contains(string(cssBody), ".xterm-scrollable-element > .scrollbar > .slider") {
+		t.Fatal("keel.css missing focused pane tile, drop overlay, or xterm overlay scrollbar")
 	}
 	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
 		strings.Contains(string(cssBody), "padding: 12px 14px 14px") {
@@ -754,6 +754,29 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
+	}
+	xtermJS, err := http.Get(srv.URL + "/vendor/xterm/xterm.min.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer xtermJS.Body.Close()
+	xtermBody, _ := io.ReadAll(xtermJS.Body)
+	fitJS, err := http.Get(srv.URL + "/vendor/xterm/addon-fit.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fitJS.Body.Close()
+	fitBody, _ := io.ReadAll(fitJS.Body)
+	webglJS, err := http.Get(srv.URL + "/vendor/xterm/addon-webgl.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer webglJS.Body.Close()
+	webglBody, _ := io.ReadAll(webglJS.Body)
+	if !strings.Contains(string(xtermBody), "@xterm/xterm@6.0.0") ||
+		!strings.Contains(string(fitBody), "@xterm/addon-fit@0.11.0") ||
+		!strings.Contains(string(webglBody), "@xterm/addon-webgl@0.19.0") {
+		t.Fatal("desktop UI must vendor xterm 6.0.0 with matching fit and webgl addons")
 	}
 	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
 		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
