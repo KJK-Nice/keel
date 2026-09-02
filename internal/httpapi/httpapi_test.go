@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -777,6 +778,20 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(fitBody), "@xterm/addon-fit@0.11.0") ||
 		!strings.Contains(string(webglBody), "@xterm/addon-webgl@0.19.0") {
 		t.Fatal("desktop UI must vendor xterm 6.0.0 with matching fit and webgl addons")
+	}
+	if !strings.Contains(string(termBody), "function createTerminal") ||
+		!strings.Contains(string(termBody), "window.Terminal") {
+		t.Fatal("term.js must construct xterm from window.Terminal so WKWebView can find it")
+	}
+	if !bytes.Contains(xtermBody, []byte(`typeof window=="object"?window:globalThis`)) ||
+		!bytes.Contains(xtermBody, []byte("window[s]=i[s]")) {
+		t.Fatal("xterm UMD must assign Terminal onto window, not only module.exports")
+	}
+	fsMark := bytes.Index(xtermBody, []byte(`e.FS="`))
+	usMark := bytes.Index(xtermBody, []byte(`e.US=`))
+	if fsMark < 0 || usMark <= fsMark || bytes.Contains(xtermBody[fsMark:usMark], []byte("\n")) ||
+		!bytes.Contains(xtermBody[fsMark:usMark], []byte{0x1c}) {
+		t.Fatal("xterm C0 File/Group/Record separators must stay inside the minified string literals")
 	}
 	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
 		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {

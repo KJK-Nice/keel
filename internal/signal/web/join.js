@@ -3,7 +3,12 @@
   const room = params.get("room") || "";
   const name = params.get("name") || localStorage.getItem("keel-join-name") || "guest";
   const statusEl = document.getElementById("status");
-  const term = new Terminal({
+  const TerminalCtor = window.Terminal;
+  if (typeof TerminalCtor !== "function") {
+    statusEl.textContent = "Terminal library failed to load";
+    return;
+  }
+  const term = new TerminalCtor({
     cursorBlink: true,
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 12,
