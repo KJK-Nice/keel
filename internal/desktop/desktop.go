@@ -80,6 +80,8 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	})
 	file.Add("Stop Keel runtime").OnClick(w.menuAction("stop-runtime"))
 	view := m.AddSubmenu("View")
+	view.Add("Find in Terminal").SetAccelerator("CmdOrCtrl+f").OnClick(w.menuAction("find-term"))
+	view.AddSeparator()
 	view.Add("Focus Pane").SetAccelerator("CmdOrCtrl+Shift+enter").OnClick(w.menuAction("focus-pane"))
 	view.AddSeparator()
 	view.Add("Zoom In").SetAccelerator("CmdOrCtrl+=").OnClick(w.menuAction("zoom-in"))

@@ -7,6 +7,10 @@
     return new Ctor(opts);
   }
   const FitAddonCtor = window.FitAddon?.FitAddon || window.FitAddon;
+  const SearchAddonCtor = window.SearchAddon?.SearchAddon || window.SearchAddon;
+  const WebLinksAddonCtor = window.WebLinksAddon?.WebLinksAddon || window.WebLinksAddon;
+  const UnicodeGraphemesCtor = window.UnicodeGraphemesAddon?.UnicodeGraphemesAddon || window.UnicodeGraphemesAddon;
+  const ProgressAddonCtor = window.ProgressAddon?.ProgressAddon || window.ProgressAddon;
   const params = new URLSearchParams(location.search);
   const VAULT = "vault";
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes("Mac");
@@ -224,6 +228,7 @@
       p.term.options.lineHeight = 1;
       p.term.options.letterSpacing = 0;
       p.term.options.customGlyphs = true;
+      if (isFindOpen(p)) runPaneFind(p, "next", true);
     }
     fitVisiblePanes();
   }
@@ -1856,7 +1861,10 @@
       const pane = focusedPane();
       if (pane) togglePaneZoom(pane.id);
     }
-    else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
+    else if (name === "find-term") {
+      const pane = focusedPane();
+      if (pane?.search) openFind(pane);
+    } else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
     else if (name === "stop-runtime") {
@@ -1923,6 +1931,19 @@
       return true;
     }
     if (state.openModal) return false;
+    if (key === "f" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("find-term");
+      return true;
+    }
+    if (key === "g") {
+      const pane = focusedPane();
+      if (isFindOpen(pane)) {
+        ev.preventDefault();
+        runPaneFind(pane, ev.shiftKey ? "prev" : "next", false);
+        return true;
+      }
+    }
     if (key === "k" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("search");
@@ -2023,6 +2044,191 @@
     }
   }
 
+  function loadTermAddon(term, Ctor, ...args) {
+    if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return null;
+    try {
+      const addon = new Ctor(...args);
+      term.loadAddon(addon);
+      return addon;
+    } catch {
+      return null;
+    }
+  }
+
+  function openTermLink(_ev, uri) {
+    let url;
+    try {
+      url = new URL(uri);
+    } catch {
+      return;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    const a = document.createElement("a");
+    a.href = url.href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function searchDecorations() {
+    const light = resolvedTheme() === "light";
+    return {
+      matchBackground: light ? "#c5d4ff" : "#3d4f73",
+      matchOverviewRuler: light ? "#3b6cff" : "#82a7ff",
+      activeMatchBackground: light ? "#3b6cff" : "#82a7ff",
+      activeMatchColorOverviewRuler: light ? "#171717" : "#f4f4f4",
+    };
+  }
+
+  function paintPaneProgress(el, st) {
+    if (!el) return;
+    const kind = st?.state ?? 0;
+    const value = Math.max(0, Math.min(100, Number(st?.value) || 0));
+    const bar = el.querySelector(".pane-progress-bar");
+    if (!kind) {
+      el.hidden = true;
+      el.classList.remove("is-error", "is-pause", "is-indeterminate");
+      if (bar) bar.style.width = "0%";
+      return;
+    }
+    el.hidden = false;
+    el.classList.toggle("is-error", kind === 2);
+    el.classList.toggle("is-pause", kind === 4);
+    el.classList.toggle("is-indeterminate", kind === 3);
+    if (bar) bar.style.width = kind === 3 ? "" : `${value}%`;
+  }
+
+  function isFindOpen(pane) {
+    return !!(pane?.findEl && !pane.findEl.hidden);
+  }
+
+  function paintFindCount(el, ev) {
+    if (!el) return;
+    if (!ev || ev.resultCount == null) {
+      el.textContent = "";
+      return;
+    }
+    if (!ev.resultCount) {
+      el.textContent = "0";
+      return;
+    }
+    if (ev.resultIndex < 0) {
+      el.textContent = `${ev.resultCount}+`;
+      return;
+    }
+    el.textContent = `${ev.resultIndex + 1}/${ev.resultCount}`;
+  }
+
+  function runPaneFind(pane, dir, incremental) {
+    if (!pane?.search || !pane.findEl) return;
+    const input = pane.findEl.querySelector(".term-find-input");
+    const count = pane.findEl.querySelector(".term-find-count");
+    const term = input?.value ?? "";
+    if (!term) {
+      try {
+        pane.search.clearDecorations();
+      } catch {
+        /* ignore */
+      }
+      if (count) count.textContent = "";
+      return;
+    }
+    const opts = {
+      caseSensitive: pane.findEl.querySelector(".term-find-case")?.getAttribute("aria-pressed") === "true",
+      incremental: !!incremental,
+      decorations: searchDecorations(),
+    };
+    let found = false;
+    try {
+      found = dir === "prev" ? pane.search.findPrevious(term, opts) : pane.search.findNext(term, opts);
+    } catch {
+      found = false;
+    }
+    if (count && !count.textContent) count.textContent = found ? "" : "0";
+  }
+
+  function openFind(pane) {
+    if (!pane?.findEl || !pane.search) return;
+    for (const other of state.panes.values()) {
+      if (other !== pane && isFindOpen(other)) closeFind(other, false);
+    }
+    pane.findEl.hidden = false;
+    const input = pane.findEl.querySelector(".term-find-input");
+    input?.focus();
+    input?.select();
+    if (input?.value) runPaneFind(pane, "next", true);
+  }
+
+  function closeFind(pane, refocus) {
+    if (!pane?.findEl) return;
+    pane.findEl.hidden = true;
+    try {
+      pane.search?.clearDecorations();
+    } catch {
+      /* ignore */
+    }
+    const count = pane.findEl.querySelector(".term-find-count");
+    if (count) count.textContent = "";
+    if (refocus) {
+      try {
+        pane.term?.focus();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function closeOpenFind() {
+    const focused = focusedPane();
+    if (isFindOpen(focused)) {
+      closeFind(focused, true);
+      return true;
+    }
+    for (const pane of state.panes.values()) {
+      if (isFindOpen(pane)) {
+        closeFind(pane, false);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function wireFindEl(findEl, paneId) {
+    findEl.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const pane = state.panes.get(paneId);
+      if (pane) runPaneFind(pane, ev.shiftKey ? "prev" : "next", false);
+    });
+    findEl.querySelector(".term-find-input")?.addEventListener("input", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) runPaneFind(pane, "next", true);
+    });
+    findEl.querySelector(".term-find-prev")?.addEventListener("click", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) runPaneFind(pane, "prev", false);
+    });
+    findEl.querySelector(".term-find-next")?.addEventListener("click", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) runPaneFind(pane, "next", false);
+    });
+    findEl.querySelector(".term-find-case")?.addEventListener("click", (ev) => {
+      const btn = ev.currentTarget;
+      const on = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.classList.toggle("is-on", on);
+      const pane = state.panes.get(paneId);
+      if (pane && isFindOpen(pane)) runPaneFind(pane, "next", true);
+    });
+    findEl.querySelector(".term-find-close")?.addEventListener("click", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) closeFind(pane, true);
+    });
+  }
+
   function makePaneShell(info, paneId) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
@@ -2038,27 +2244,50 @@
         <button type="button" class="tiny pane-reconnect" data-pane-reconnect="${paneId}" hidden title="Reconnect">Reconnect</button>
         <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">×</button>
       </div>`;
+    const progressEl = document.createElement("div");
+    progressEl.className = "pane-progress";
+    progressEl.hidden = true;
+    progressEl.innerHTML = `<div class="pane-progress-bar"></div>`;
     const banner = document.createElement("div");
     banner.className = "follow-banner";
     banner.hidden = true;
     banner.textContent = "Following — request control to type";
     const body = document.createElement("div");
     body.className = "term-body";
+    const findEl = document.createElement("div");
+    findEl.className = "term-find";
+    findEl.hidden = true;
+    findEl.setAttribute("role", "search");
+    findEl.innerHTML = `<input type="text" class="term-find-input" placeholder="Find" autocomplete="off" spellcheck="false" aria-label="Find in terminal" />
+      <span class="term-find-count" aria-live="polite"></span>
+      <button type="button" class="icon-btn term-find-prev" title="Previous match">↑</button>
+      <button type="button" class="icon-btn term-find-next" title="Next match">↓</button>
+      <button type="button" class="icon-btn term-find-case" title="Match case" aria-pressed="false">Aa</button>
+      <button type="button" class="icon-btn term-find-close" title="Close">×</button>`;
     wrap.appendChild(bar);
+    wrap.appendChild(progressEl);
     wrap.appendChild(banner);
     wrap.appendChild(body);
     const term = createTerminal(termOpts());
     const Addon = FitAddonCtor?.FitAddon || FitAddonCtor;
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);
+    loadTermAddon(term, UnicodeGraphemesCtor);
+    const search = loadTermAddon(term, SearchAddonCtor);
+    loadTermAddon(term, WebLinksAddonCtor, openTermLink);
+    const progress = loadTermAddon(term, ProgressAddonCtor);
+    progress?.onChange?.((st) => paintPaneProgress(progressEl, st));
+    search?.onDidChangeResults?.((ev) => paintFindCount(findEl.querySelector(".term-find-count"), ev));
     term.open(body);
     attachWebgl(term);
+    body.appendChild(findEl);
+    wireFindEl(findEl, paneId);
     try {
       fit.fit();
     } catch {
       /* ignore */
     }
-    return { wrap, banner, body, term, fit };
+    return { wrap, banner, body, term, fit, search, findEl };
   }
 
   function createTab(paneSeed) {
@@ -2110,6 +2339,8 @@
       fit: shell.fit,
       wrap: shell.wrap,
       banner: shell.banner,
+      search: shell.search,
+      findEl: shell.findEl,
       ws: null,
       you: null,
       attached: info.attached || [],
@@ -2948,6 +3179,8 @@
       fit: shell.fit,
       wrap: shell.wrap,
       banner: shell.banner,
+      search: shell.search,
+      findEl: shell.findEl,
       ws: null,
       sigWs: null,
       pc: null,
@@ -3222,6 +3455,10 @@
           return;
         }
         if (ev.key === "Escape") {
+          if (closeOpenFind()) {
+            ev.preventDefault();
+            return;
+          }
           const tab = state.tabs.get(state.activeId);
           if (tab?.zoomedPaneId) {
             ev.preventDefault();

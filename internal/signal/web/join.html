@@ -7,11 +7,21 @@
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
   <style>
     :root { color-scheme: dark; }
-    html, body { margin: 0; height: 100%; background: #0a0a0a; color: #e4e4e4; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
-    #bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #222; }
+    html, body { margin: 0; height: 100%; background: #0a0a0a; color: #e4e4e4; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; }
+    #bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #222; flex-shrink: 0; }
     #bar b { letter-spacing: -0.03em; }
     #status { color: #888; font-size: 12px; }
-    #term { height: calc(100% - 42px); padding: 8px; }
+    #progress { flex-shrink: 0; height: 2px; overflow: hidden; background: transparent; }
+    #progress[hidden] { display: none; }
+    .join-progress-bar { height: 100%; width: 0; background: #82a7ff; transition: width 120ms linear; }
+    #progress.is-error .join-progress-bar { background: #f87171; }
+    #progress.is-pause .join-progress-bar { background: #e8b849; }
+    #progress.is-indeterminate .join-progress-bar { width: 32%; transition: none; animation: join-progress-indet 1.05s ease-in-out infinite; }
+    @keyframes join-progress-indet {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(340%); }
+    }
+    #term { flex: 1; min-height: 0; padding: 8px; }
     .follow { color: #f5c15d; }
   </style>
 </head>
@@ -20,8 +30,12 @@
     <b>Keel</b>
     <span id="status">Connecting…</span>
   </div>
+  <div id="progress" hidden><div class="join-progress-bar"></div></div>
   <div id="term"></div>
   <script src="/vendor/xterm/xterm.min.js"></script>
+  <script src="/vendor/xterm/addon-unicode-graphemes.js"></script>
+  <script src="/vendor/xterm/addon-web-links.js"></script>
+  <script src="/vendor/xterm/addon-progress.js"></script>
   <script src="/join.js"></script>
 </body>
 </html>

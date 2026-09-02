@@ -85,6 +85,14 @@ func TestJoinPage(t *testing.T) {
 	if !strings.Contains(html, "/vendor/xterm/xterm.min.js") {
 		t.Fatal("expected vendored xterm")
 	}
+	if !strings.Contains(html, "addon-unicode-graphemes.js") ||
+		!strings.Contains(html, "addon-web-links.js") ||
+		!strings.Contains(html, "addon-progress.js") {
+		t.Fatal("join page must load unicode graphemes, web-links, and progress addons")
+	}
+	if strings.Contains(html, "addon-search.js") {
+		t.Fatal("join page should not load the search addon")
+	}
 	css, err := http.Get(srv.URL + "/vendor/xterm/xterm.css")
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +113,40 @@ func TestJoinPage(t *testing.T) {
 	cssBody, _ := io.ReadAll(css.Body)
 	if !strings.Contains(string(jsBody), "@xterm/xterm@6.0.0") || !strings.Contains(string(cssBody), "@xterm/xterm@6.0.0") {
 		t.Fatal("join page must vendor xterm 6.0.0")
+	}
+	for _, spec := range []struct {
+		path    string
+		banner  string
+		global  string
+	}{
+		{"/vendor/xterm/addon-unicode-graphemes.js", "@xterm/addon-unicode-graphemes@0.4.0", "window.UnicodeGraphemesAddon=i"},
+		{"/vendor/xterm/addon-web-links.js", "@xterm/addon-web-links@0.12.0", "window.WebLinksAddon=i"},
+		{"/vendor/xterm/addon-progress.js", "@xterm/addon-progress@0.2.0", "window.ProgressAddon=i"},
+	} {
+		res, err := http.Get(srv.URL + spec.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s %d", spec.path, res.StatusCode)
+		}
+		if !strings.Contains(string(b), spec.banner) || !bytes.Contains(b, []byte(spec.global)) {
+			t.Fatalf("join %s must vendor %s onto window", spec.path, spec.banner)
+		}
+	}
+	joinJS, err := http.Get(srv.URL + "/join.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer joinJS.Body.Close()
+	joinBody, _ := io.ReadAll(joinJS.Body)
+	if !strings.Contains(string(joinBody), "UnicodeGraphemesAddon") ||
+		!strings.Contains(string(joinBody), "WebLinksAddon") ||
+		!strings.Contains(string(joinBody), "ProgressAddon") ||
+		!strings.Contains(string(joinBody), "openJoinLink") {
+		t.Fatal("join.js must wire unicode graphemes, web links, and progress")
 	}
 	fsMark := bytes.Index(jsBody, []byte(`e.FS="`))
 	usMark := bytes.Index(jsBody, []byte(`e.US=`))
