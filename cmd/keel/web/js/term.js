@@ -563,9 +563,175 @@
     return "#ff6b7a";
   }
 
+  const WORKSPACE_KEY = "keel-workspace";
+  let restoringWorkspace = false;
+  let workspaceReady = false;
+
+  function paneRuntimeId(paneId) {
+    return state.panes.get(paneId)?.runtimeId || "";
+  }
+
+  function serializeLayout(node) {
+    if (!node) return null;
+    if (node.type === "leaf") {
+      const runtimeId = paneRuntimeId(node.paneId);
+      return runtimeId ? { type: "leaf", runtimeId } : null;
+    }
+    const a = serializeLayout(node.a);
+    const b = serializeLayout(node.b);
+    if (!a) return b;
+    if (!b) return a;
+    const sizes = Array.isArray(node.sizes) && node.sizes.length === 2
+      ? [Number(node.sizes[0]) || 50, Number(node.sizes[1]) || 50]
+      : [50, 50];
+    return { type: "split", dir: node.dir === "v" ? "v" : "h", sizes, a, b };
+  }
+
+  function layoutRuntimeIds(node, out = []) {
+    if (!node) return out;
+    if (node.type === "leaf") {
+      if (node.runtimeId && !out.includes(node.runtimeId)) out.push(node.runtimeId);
+      return out;
+    }
+    layoutRuntimeIds(node.a, out);
+    layoutRuntimeIds(node.b, out);
+    return out;
+  }
+
+  function pruneLayout(node, live) {
+    if (!node) return null;
+    if (node.type === "leaf") return live.has(node.runtimeId) ? node : null;
+    const a = pruneLayout(node.a, live);
+    const b = pruneLayout(node.b, live);
+    if (!a) return b;
+    if (!b) return a;
+    return {
+      type: "split",
+      dir: node.dir === "v" ? "v" : "h",
+      sizes: Array.isArray(node.sizes) && node.sizes.length === 2 ? node.sizes : [50, 50],
+      a,
+      b,
+    };
+  }
+
+  function remapLayout(node, runtimeToPane) {
+    if (!node) return null;
+    if (node.type === "leaf") {
+      const paneId = runtimeToPane.get(node.runtimeId);
+      return paneId ? { type: "leaf", paneId } : null;
+    }
+    const a = remapLayout(node.a, runtimeToPane);
+    const b = remapLayout(node.b, runtimeToPane);
+    if (!a) return b;
+    if (!b) return a;
+    return {
+      type: "split",
+      dir: node.dir === "v" ? "v" : "h",
+      sizes: Array.isArray(node.sizes) && node.sizes.length === 2 ? [...node.sizes] : [50, 50],
+      a,
+      b,
+    };
+  }
+
+  function persistWorkspace() {
+    if (restoringWorkspace || !workspaceReady) return;
+    const tabs = [];
+    for (const tab of state.tabs.values()) {
+      if (tab.start || tab.remote || !tab.layout) continue;
+      const layout = serializeLayout(tab.layout);
+      if (!layout) continue;
+      tabs.push({
+        title: tab.customTitle || "",
+        sync: !!tab.sync,
+        focusedRuntimeId: paneRuntimeId(tab.focusedPaneId),
+        zoomedRuntimeId: paneRuntimeId(tab.zoomedPaneId),
+        layout,
+      });
+    }
+    const activePane = state.activeId !== VAULT ? focusedPane() : null;
+    const payload = {
+      v: 1,
+      active: state.activeId === VAULT ? VAULT : activePane?.runtimeId || "",
+      tabs,
+    };
+    try {
+      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore quota */
+    }
+  }
+
+  function loadWorkspace() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || "null");
+      if (!raw || raw.v !== 1 || !Array.isArray(raw.tabs)) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreSavedTab(saved, live) {
+    const layout = pruneLayout(saved?.layout, live);
+    const runtimeIds = layoutRuntimeIds(layout);
+    if (!runtimeIds.length) return;
+    const runtimeToPane = new Map();
+    let tab = null;
+    for (const rid of runtimeIds) {
+      const existing = findPaneByRuntime(rid);
+      if (existing) {
+        runtimeToPane.set(rid, existing.id);
+        tab = state.tabs.get(existing.tabId) || tab;
+        continue;
+      }
+      const info = state.herd.find((s) => s.id === rid);
+      if (!info) continue;
+      const pane = tab
+        ? attachRuntime(info, { tab, splitDir: "h", splitPaneId: tab.focusedPaneId })
+        : attachRuntime(info, { freshTab: true });
+      if (!pane) continue;
+      tab = state.tabs.get(pane.tabId);
+      runtimeToPane.set(rid, pane.id);
+    }
+    if (!tab) return;
+    const remapped = remapLayout(layout, runtimeToPane);
+    if (remapped) {
+      tab.layout = remapped;
+      tab.dirty = true;
+    }
+    if (saved.title) tab.customTitle = saved.title;
+    if (saved.sync) tab.sync = true;
+    const focusedId = runtimeToPane.get(saved.focusedRuntimeId);
+    if (focusedId) tab.focusedPaneId = focusedId;
+    const zoomedId = runtimeToPane.get(saved.zoomedRuntimeId);
+    if (zoomedId && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedId;
+  }
+
   function restoreOpenSessions() {
-    for (const info of state.herd) {
-      if (info?.id && !findPaneByRuntime(info.id)) attachRuntime(info);
+    restoringWorkspace = true;
+    try {
+      const saved = loadWorkspace();
+      const live = new Set((state.herd || []).map((s) => s.id).filter(Boolean));
+      if (saved?.tabs?.length) {
+        for (const tab of saved.tabs) restoreSavedTab(tab, live);
+      }
+      for (const info of state.herd) {
+        if (info?.id && !findPaneByRuntime(info.id)) attachRuntime(info);
+      }
+      if (saved?.active === VAULT) state.activeId = VAULT;
+      else if (saved?.active) {
+        const pane = findPaneByRuntime(saved.active);
+        if (pane) {
+          state.activeId = pane.tabId;
+          const tab = state.tabs.get(pane.tabId);
+          if (tab) tab.focusedPaneId = pane.id;
+        }
+      }
+      renderTabs();
+    } finally {
+      restoringWorkspace = false;
+      workspaceReady = true;
+      persistWorkspace();
     }
   }
 
@@ -1378,6 +1544,7 @@
         sash.removeEventListener("pointermove", move);
         sash.removeEventListener("pointerup", up);
         fitVisiblePanes();
+        persistWorkspace();
       };
       sash.addEventListener("pointermove", move);
       sash.addEventListener("pointerup", up);
@@ -1482,6 +1649,7 @@
         pane?.term?.focus();
       });
     }
+    persistWorkspace();
   }
 
   function fitVisiblePanes() {
@@ -2351,7 +2519,7 @@
     wirePaneTerminal(pane);
 
     let tab = opts.tab;
-    if (!tab && !opts.splitDir) tab = fillableStartTab();
+    if (!tab && !opts.splitDir && !opts.freshTab) tab = fillableStartTab();
     if (!tab) {
       tab = createTab(pane);
     } else if (tab.start) {
@@ -3391,12 +3559,20 @@
     const chromeFocus = document.activeElement;
     if (chromeFocus && chromeFocus.closest?.(".workspace-bar")) chromeFocus.blur();
     syncSettingsForm();
+    restoreOpenSessions();
     if (state.pendingSession) {
-      const info = state.herd.find((s) => s.id === state.pendingSession);
-      if (info) attachRuntime(info);
+      const pane = findPaneByRuntime(state.pendingSession);
+      if (pane) {
+        state.activeId = pane.tabId;
+        const tab = state.tabs.get(pane.tabId);
+        if (tab) tab.focusedPaneId = pane.id;
+        renderTabs();
+      } else {
+        const info = state.herd.find((s) => s.id === state.pendingSession);
+        if (info) attachRuntime(info);
+      }
       state.pendingSession = "";
     }
-    restoreOpenSessions();
   }
 
   function finishTabPointer(ev) {
@@ -3990,6 +4166,8 @@
   bindChrome();
   bindLists();
   bindModals();
+  window.addEventListener("pagehide", persistWorkspace);
+  window.addEventListener("beforeunload", persistWorkspace);
   applyThemeClass();
   syncThemeSwitch();
   applyUiPrefs();

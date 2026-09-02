@@ -861,6 +861,22 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "killRuntimeIfOwned") || !strings.Contains(string(termBody), "restoreOpenSessions") {
 		t.Fatal("term.js must kill on tab close and restore sessions on boot")
 	}
+	if !strings.Contains(string(termBody), `WORKSPACE_KEY = "keel-workspace"`) ||
+		!strings.Contains(string(termBody), "function persistWorkspace") ||
+		!strings.Contains(string(termBody), "function restoreSavedTab") ||
+		!strings.Contains(string(termBody), "function pruneLayout") ||
+		!strings.Contains(string(termBody), "workspaceReady") {
+		t.Fatal("term.js must persist split pane layout and restore it onto the same tab")
+	}
+	if !strings.Contains(string(termBody), "freshTab") || !strings.Contains(string(termBody), "remapLayout") {
+		t.Fatal("workspace restore must rebuild split trees instead of spreading panes onto tabs")
+	}
+	bootFn := termBody[bytes.Index(termBody, []byte("async function boot()")):]
+	bootFn = bootFn[:bytes.Index(bootFn, []byte("function finishTabPointer"))]
+	if bytes.Index(bootFn, []byte("restoreOpenSessions()")) > bytes.Index(bootFn, []byte("if (info) attachRuntime(info)")) &&
+		bytes.Contains(bootFn, []byte("if (info) attachRuntime(info)")) {
+		t.Fatal("boot must restore split workspace before attaching a pending session as its own tab")
+	}
 	if !strings.Contains(string(termBody), "Runtime stopped — this session ended") || !strings.Contains(string(termBody), "state.runtimeStopping") {
 		t.Fatal("term.js must not claim a session is still running after the runtime stops")
 	}
