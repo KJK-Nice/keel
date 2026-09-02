@@ -1,4 +1,11 @@
 (() => {
+  function createTerminal(opts) {
+    const Ctor = window.Terminal;
+    if (typeof Ctor !== "function") {
+      throw new Error("Terminal library failed to load");
+    }
+    return new Ctor(opts);
+  }
   const FitAddonCtor = window.FitAddon?.FitAddon || window.FitAddon;
   const params = new URLSearchParams(location.search);
   const VAULT = "vault";
@@ -1738,7 +1745,7 @@
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
-    const probe = new Terminal(termOpts());
+    const probe = createTerminal(termOpts());
     probe.open(termProbe);
     const cols = probe.cols || 80;
     const rows = probe.rows || 24;
@@ -2040,7 +2047,7 @@
     wrap.appendChild(bar);
     wrap.appendChild(banner);
     wrap.appendChild(body);
-    const term = new Terminal(termOpts());
+    const term = createTerminal(termOpts());
     const Addon = FitAddonCtor?.FitAddon || FitAddonCtor;
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
     if (typeof term.loadAddon === "function" && typeof Addon === "function") term.loadAddon(fit);

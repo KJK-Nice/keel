@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -104,6 +105,12 @@ func TestJoinPage(t *testing.T) {
 	cssBody, _ := io.ReadAll(css.Body)
 	if !strings.Contains(string(jsBody), "@xterm/xterm@6.0.0") || !strings.Contains(string(cssBody), "@xterm/xterm@6.0.0") {
 		t.Fatal("join page must vendor xterm 6.0.0")
+	}
+	fsMark := bytes.Index(jsBody, []byte(`e.FS="`))
+	usMark := bytes.Index(jsBody, []byte(`e.US=`))
+	if fsMark < 0 || usMark <= fsMark || bytes.Contains(jsBody[fsMark:usMark], []byte("\n")) ||
+		!bytes.Contains(jsBody[fsMark:usMark], []byte{0x1c}) {
+		t.Fatal("join xterm C0 File/Group/Record separators must stay inside the minified string literals")
 	}
 }
 
