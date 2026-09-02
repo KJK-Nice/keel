@@ -501,6 +501,11 @@ type wsConn struct {
 	conn *websocket.Conn
 }
 
+const (
+	wsPingPeriod = 20 * time.Second
+	wsPongWait   = 60 * time.Second
+)
+
 func (w *wsConn) writeJSON(v any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -511,6 +516,34 @@ func (w *wsConn) writeBinary(p []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.conn.WriteMessage(websocket.BinaryMessage, p)
+}
+
+func (w *wsConn) writePing() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+}
+
+func (w *wsConn) startPings(done <-chan struct{}) {
+	w.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	w.conn.SetPongHandler(func(string) error {
+		return w.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+	go func() {
+		t := time.NewTicker(wsPingPeriod)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				if err := w.writePing(); err != nil {
+					_ = w.conn.Close()
+					return
+				}
+			}
+		}
+	}()
 }
 
 func (s *Server) herdWS(w http.ResponseWriter, r *http.Request) {
@@ -529,7 +562,9 @@ func (s *Server) herdWS(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		return
 	}
-	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	pingDone := make(chan struct{})
+	defer close(pingDone)
+	ws.startPings(pingDone)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -537,7 +572,7 @@ func (s *Server) herdWS(w http.ResponseWriter, r *http.Request) {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				return
 			}
-			_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
+			_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 		}
 	}()
 	for {
@@ -608,11 +643,15 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	info = sess.Info()
 	_ = ws.writeJSON(sessionPayload("ready", "attached", info, cl, 0, 0))
 
+	pingDone := make(chan struct{})
+	defer close(pingDone)
+	ws.startPings(pingDone)
+
 	go func() {
+		defer conn.Close()
 		for ev := range events {
 			if ev.Kind == "bytes" {
 				if err := ws.writeBinary(ev.Bytes); err != nil {
-					_ = conn.Close()
 					return
 				}
 				continue
@@ -638,13 +677,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
 	for {
 		mt, msg, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		_ = conn.SetReadDeadline(time.Now().Add(15 * time.Minute))
+		_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 		if mt == websocket.TextMessage {
 			var ctl struct {
 				Type     string `json:"type"`

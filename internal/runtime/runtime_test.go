@@ -679,6 +679,48 @@ func TestManualReconnectWhileConnected(t *testing.T) {
 	t.Fatalf("manual reconnect while connected calls = %d status=%s", n, sess.Info().Status)
 }
 
+func TestReconnectDuringExitRestartsLoop(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	host.NoAutoReconnect = true
+	if _, err := st.UpsertHost(host); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	_ = bridges[0].Close()
+	for i := 0; i < 8; i++ {
+		if _, err := rt.Reconnect(info.ID); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	waitReady(t, sess)
+	mu.Lock()
+	n := len(bridges)
+	mu.Unlock()
+	if n < 2 {
+		t.Fatalf("reconnect during exit calls = %d status=%s", n, sess.Info().Status)
+	}
+}
+
 func TestDialFailureRetriesThenConnects(t *testing.T) {
 	st := testStore(t)
 	host := sshHost(t, st)

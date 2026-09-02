@@ -1402,7 +1402,7 @@
     const title = pane.wrap.querySelector(".pane-title");
     if (title) title.textContent = pane.title || "session";
     const rec = pane.wrap.querySelector("[data-pane-reconnect]");
-    if (rec) rec.hidden = !!pane.remote || pane.status !== "is-error";
+    if (rec) rec.hidden = !!pane.remote || (pane.status !== "is-error" && sessionSocketOpen(pane));
     const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
     if (syncBtn) {
       syncBtn.hidden = !!tab.remote;
@@ -2489,6 +2489,7 @@
       if (tab) tab.focusedPaneId = existing.id;
       if (leftover) closeTab(leftover.id);
       else renderTabs();
+      if (!sessionSocketOpen(existing)) reconnectPane(existing);
       existing.term?.focus();
       return existing;
     }
@@ -2550,17 +2551,41 @@
       tab.dirty = true;
     }
 
+    connectSessionWS(pane);
+    renderTabs();
+    return pane;
+  }
+
+  function sessionSocketOpen(pane) {
+    return pane?.ws?.readyState === WebSocket.OPEN;
+  }
+
+  function connectSessionWS(pane, opts = {}) {
+    if (!pane?.runtimeId || pane.remote) return;
+    const gen = (pane.wsGen || 0) + 1;
+    pane.wsGen = gen;
+    const prev = pane.ws;
+    pane.ws = null;
+    if (prev && prev.readyState < WebSocket.CLOSING) {
+      try {
+        prev.close();
+      } catch {
+        /* ignore */
+      }
+    }
+
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const q = new URLSearchParams({
-      id: info.id,
-      cols: String(pane.term.cols || 80),
-      rows: String(pane.term.rows || 24),
+      id: pane.runtimeId,
+      cols: String(pane.term?.cols || 80),
+      rows: String(pane.term?.rows || 24),
       name: state.name || "guest",
       kind: "web",
     });
     const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
     pane.ws = ws;
+    let live = !opts.skipSnapshot;
 
     const applyPresence = (msg) => {
       if (msg.you) pane.you = msg.you;
@@ -2575,11 +2600,13 @@
         herd.driverId = pane.driverId;
         herd.ownerId = pane.ownerId;
         herd.clients = pane.attached.length;
+        if (msg.status) herd.status = msg.status;
       }
       renderTabs();
     };
 
     ws.addEventListener("message", (ev) => {
+      if (pane.wsGen !== gen) return;
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
         if (msg.type === "status") {
@@ -2592,6 +2619,7 @@
           else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
           else pane.status = "is-ready";
           applyPresence(msg);
+          if (msg.type === "ready") live = true;
           if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
           pane.status = "is-error";
@@ -2603,20 +2631,19 @@
         }
         return;
       }
+      if (!live) return;
       pane.term.write(new Uint8Array(ev.data));
     });
     ws.addEventListener("close", () => {
-      if (pane.closing || !state.panes.has(pane.id)) return;
-      noteSessionClosed(pane);
+      if (pane.wsGen !== gen || pane.closing || !state.panes.has(pane.id)) return;
+      noteSessionClosed(pane, gen);
     });
     ws.addEventListener("error", () => {
+      if (pane.wsGen !== gen || pane.closing) return;
       pane.status = "is-error";
       toast("WebSocket error", true);
       renderTabs();
     });
-
-    renderTabs();
-    return pane;
   }
 
   async function sessionEnded(runtimeId) {
@@ -2631,17 +2658,32 @@
     }
   }
 
-  async function noteSessionClosed(pane) {
-    if (pane.status !== "is-error") pane.status = "";
+  async function noteSessionClosed(pane, gen) {
+    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
+    pane.status = "is-error";
+    renderTabs();
     const ended = await sessionEnded(pane.runtimeId);
-    if (pane.closing || !state.panes.has(pane.id)) return;
+    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
     if (ended) {
       pane.status = "is-error";
       pane.term.writeln("\r\n\x1b[38;2;139;149;168mRuntime stopped — this session ended.\x1b[0m");
-    } else {
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — session still running. Reopen Keel to attach.\x1b[0m");
+      renderTabs();
+      return;
     }
+    pane.term.writeln("\r\n\x1b[38;2;139;149;168mConnection lost — click Reconnect to attach.\x1b[0m");
     renderTabs();
+  }
+
+  function reconnectPane(pane) {
+    if (!pane?.runtimeId || pane.remote) return;
+    const socketWasOpen = sessionSocketOpen(pane);
+    pane.status = "is-connecting";
+    renderTabs();
+    connectSessionWS(pane, { skipSnapshot: true });
+    const herd = state.herd.find((s) => s.id === pane.runtimeId);
+    if (socketWasOpen || !herd || herd.status !== "ready") {
+      api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
+    }
   }
 
   function sendSessionJSON(pane, obj) {
@@ -4044,11 +4086,7 @@
       const paneRec = ev.target.closest("[data-pane-reconnect]");
       if (paneRec) {
         const pane = state.panes.get(paneRec.dataset.paneReconnect);
-        if (pane?.runtimeId) {
-          api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
-          pane.status = "is-connecting";
-          renderTabs();
-        }
+        reconnectPane(pane);
       }
 
       const editId = ev.target.closest("[data-edit-identity]");
