@@ -1188,6 +1188,86 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 .term-body .xterm .xterm-scrollable-element > .shadow {
   display: none !important;
 }
+.pane-progress {
+  flex-shrink: 0;
+  height: 2px;
+  overflow: hidden;
+  background: transparent;
+}
+.pane-progress[hidden] { display: none; }
+.pane-progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--keel-accent);
+  transition: width 120ms linear;
+}
+.pane-progress.is-error .pane-progress-bar { background: var(--keel-danger); }
+.pane-progress.is-pause .pane-progress-bar { background: var(--keel-warn); }
+.pane-progress.is-indeterminate .pane-progress-bar {
+  width: 32%;
+  transition: none;
+  animation: keel-progress-indet 1.05s ease-in-out infinite;
+}
+@keyframes keel-progress-indet {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
+}
+.term-find {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--keel-border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+.term-find[hidden] { display: none; }
+.term-find-input {
+  width: 11.5rem;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.917rem;
+}
+.term-find-count {
+  min-width: 3.2rem;
+  padding: 0 4px;
+  text-align: right;
+  font-size: 0.792rem;
+  color: var(--keel-muted);
+  font-variant-numeric: tabular-nums;
+}
+.term-find .icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--keel-muted);
+  border-radius: 6px;
+}
+.term-find .icon-btn:hover { color: var(--text); background: var(--hover); }
+.term-find-case {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.term-find-case.is-on {
+  color: var(--keel-accent);
+  background: var(--hover);
+}
+.term-find-close {
+  font-size: 1.05rem;
+  line-height: 1;
+}
 
 .tab.is-sync .tab-icon { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--keel-accent) 70%, transparent)); }
 .tab.is-vault { font-weight: 600; }

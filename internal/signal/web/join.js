@@ -8,6 +8,54 @@
     statusEl.textContent = "Terminal library failed to load";
     return;
   }
+
+  function loadAddon(term, Ctor, ...args) {
+    if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return null;
+    try {
+      const addon = new Ctor(...args);
+      term.loadAddon(addon);
+      return addon;
+    } catch {
+      return null;
+    }
+  }
+
+  function openJoinLink(_ev, uri) {
+    let url;
+    try {
+      url = new URL(uri);
+    } catch {
+      return;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    const a = document.createElement("a");
+    a.href = url.href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function paintJoinProgress(st) {
+    const el = document.getElementById("progress");
+    if (!el) return;
+    const kind = st?.state ?? 0;
+    const value = Math.max(0, Math.min(100, Number(st?.value) || 0));
+    const bar = el.querySelector(".join-progress-bar");
+    if (!kind) {
+      el.hidden = true;
+      el.classList.remove("is-error", "is-pause", "is-indeterminate");
+      if (bar) bar.style.width = "0%";
+      return;
+    }
+    el.hidden = false;
+    el.classList.toggle("is-error", kind === 2);
+    el.classList.toggle("is-pause", kind === 4);
+    el.classList.toggle("is-indeterminate", kind === 3);
+    if (bar) bar.style.width = kind === 3 ? "" : `${value}%`;
+  }
+
   const term = new TerminalCtor({
     cursorBlink: true,
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -15,6 +63,10 @@
     theme: { background: "#0a0a0a", foreground: "#e4e4e4", cursor: "#82a7ff" },
     disableStdin: true,
   });
+  loadAddon(term, window.UnicodeGraphemesAddon?.UnicodeGraphemesAddon || window.UnicodeGraphemesAddon);
+  loadAddon(term, window.WebLinksAddon?.WebLinksAddon || window.WebLinksAddon, openJoinLink);
+  const progress = loadAddon(term, window.ProgressAddon?.ProgressAddon || window.ProgressAddon);
+  progress?.onChange?.(paintJoinProgress);
   term.open(document.getElementById("term"));
   term.focus();
 

@@ -756,6 +756,24 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
+	if !strings.Contains(string(body), "addon-search.js") ||
+		!strings.Contains(string(body), "addon-web-links.js") ||
+		!strings.Contains(string(body), "addon-unicode-graphemes.js") ||
+		!strings.Contains(string(body), "addon-progress.js") {
+		t.Fatal("index must load search, web-links, unicode graphemes, and progress addons")
+	}
+	if !strings.Contains(string(termBody), "SearchAddon") ||
+		!strings.Contains(string(termBody), "find-term") ||
+		!strings.Contains(string(termBody), "function openFind") ||
+		!strings.Contains(string(termBody), "UnicodeGraphemesAddon") ||
+		!strings.Contains(string(termBody), "WebLinksAddon") ||
+		!strings.Contains(string(termBody), "ProgressAddon") ||
+		!strings.Contains(string(termBody), "openTermLink") {
+		t.Fatal("term.js must wire search, web links, unicode graphemes, and progress")
+	}
+	if !strings.Contains(string(cssBody), ".term-find") || !strings.Contains(string(cssBody), ".pane-progress") {
+		t.Fatal("keel.css missing terminal find overlay or OSC progress bar")
+	}
 	xtermJS, err := http.Get(srv.URL + "/vendor/xterm/xterm.min.js")
 	if err != nil {
 		t.Fatal(err)
@@ -774,10 +792,44 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer webglJS.Body.Close()
 	webglBody, _ := io.ReadAll(webglJS.Body)
+	searchJS, err := http.Get(srv.URL + "/vendor/xterm/addon-search.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer searchJS.Body.Close()
+	searchBody, _ := io.ReadAll(searchJS.Body)
+	linksJS, err := http.Get(srv.URL + "/vendor/xterm/addon-web-links.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer linksJS.Body.Close()
+	linksBody, _ := io.ReadAll(linksJS.Body)
+	graphemesJS, err := http.Get(srv.URL + "/vendor/xterm/addon-unicode-graphemes.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer graphemesJS.Body.Close()
+	graphemesBody, _ := io.ReadAll(graphemesJS.Body)
+	progressJS, err := http.Get(srv.URL + "/vendor/xterm/addon-progress.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer progressJS.Body.Close()
+	progressBody, _ := io.ReadAll(progressJS.Body)
 	if !strings.Contains(string(xtermBody), "@xterm/xterm@6.0.0") ||
 		!strings.Contains(string(fitBody), "@xterm/addon-fit@0.11.0") ||
-		!strings.Contains(string(webglBody), "@xterm/addon-webgl@0.19.0") {
-		t.Fatal("desktop UI must vendor xterm 6.0.0 with matching fit and webgl addons")
+		!strings.Contains(string(webglBody), "@xterm/addon-webgl@0.19.0") ||
+		!strings.Contains(string(searchBody), "@xterm/addon-search@0.16.0") ||
+		!strings.Contains(string(linksBody), "@xterm/addon-web-links@0.12.0") ||
+		!strings.Contains(string(graphemesBody), "@xterm/addon-unicode-graphemes@0.4.0") ||
+		!strings.Contains(string(progressBody), "@xterm/addon-progress@0.2.0") {
+		t.Fatal("desktop UI must vendor xterm 6.0.0 with matching fit, webgl, search, web-links, unicode, and progress addons")
+	}
+	if !bytes.Contains(searchBody, []byte("window.SearchAddon=i")) ||
+		!bytes.Contains(linksBody, []byte("window.WebLinksAddon=i")) ||
+		!bytes.Contains(graphemesBody, []byte("window.UnicodeGraphemesAddon=i")) ||
+		!bytes.Contains(progressBody, []byte("window.ProgressAddon=i")) {
+		t.Fatal("addon UMD must assign constructors onto window, not only module.exports")
 	}
 	if !strings.Contains(string(termBody), "function createTerminal") ||
 		!strings.Contains(string(termBody), "window.Terminal") {
