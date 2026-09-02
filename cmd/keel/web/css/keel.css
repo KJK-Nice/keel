@@ -1242,7 +1242,7 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   padding: 0 4px;
   text-align: right;
   font-size: 0.792rem;
-  color: var(--keel-muted);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .term-find .icon-btn {

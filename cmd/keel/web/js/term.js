@@ -2106,8 +2106,12 @@
 
   function paintFindCount(el, ev) {
     if (!el) return;
-    if (!ev || !ev.resultCount) {
+    if (!ev || ev.resultCount == null) {
       el.textContent = "";
+      return;
+    }
+    if (!ev.resultCount) {
+      el.textContent = "0";
       return;
     }
     if (ev.resultIndex < 0) {
@@ -2136,12 +2140,13 @@
       incremental: !!incremental,
       decorations: searchDecorations(),
     };
+    let found = false;
     try {
-      if (dir === "prev") pane.search.findPrevious(term, opts);
-      else pane.search.findNext(term, opts);
+      found = dir === "prev" ? pane.search.findPrevious(term, opts) : pane.search.findNext(term, opts);
     } catch {
-      /* ignore */
+      found = false;
     }
+    if (count && !count.textContent) count.textContent = found ? "" : "0";
   }
 
   function openFind(pane) {
