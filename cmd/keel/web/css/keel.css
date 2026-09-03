@@ -241,12 +241,14 @@ html[data-native] .tabs-scroller::after {
 }
 html[data-native] .terminals,
 html[data-native] .term-tab,
-html[data-native] .term-wrap,
-html[data-native] .term-body,
-html[data-native] .term-host,
-html[data-native] .term-body .xterm,
-html[data-native] .term-body .xterm-screen,
-html[data-native] .term-body .xterm-screen canvas {
+html[data-native] .term-wrap {
+  background: transparent;
+}
+html[data-native] .term-tab:not(.is-split) .term-body,
+html[data-native] .term-tab:not(.is-split) .term-host,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen canvas {
   background: transparent;
 }
 html[data-native] .term-tab.is-split .term-wrap,

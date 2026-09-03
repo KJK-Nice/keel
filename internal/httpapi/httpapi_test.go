@@ -805,8 +805,9 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("split panes must not inset the terminal; the canvas should fill the pane")
 	}
 	if !strings.Contains(string(cssBody), ".term-host") ||
-		!strings.Contains(string(cssBody), `html[data-native] .term-tab.is-split .term-host`) {
-		t.Fatal("split panes must fill with the terminal surface, including native glass")
+		!strings.Contains(string(cssBody), `html[data-native] .term-tab.is-split .term-host`) ||
+		!strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-host`) {
+		t.Fatal("split panes must fill with the terminal surface; solo native panes keep glass")
 	}
 	if !strings.Contains(string(cssBody), ".scrollbar.vertical") ||
 		!strings.Contains(string(cssBody), "width: 6px !important") {
@@ -994,7 +995,7 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
 		t.Fatal("term.js must not drive a session snippet footer")
 	}
-	if !strings.Contains(string(cssBody), `html[data-native] .term-body`) {
+	if !strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")
 	}
 	if strings.Contains(string(cssBody), `#live-section[hidden]`) {
