@@ -67,6 +67,7 @@ type Info struct {
 
 type live struct {
 	cancel     context.CancelFunc
+	stopped    bool // true when Stop() was called intentionally
 	status     Status
 	err        string
 	listenAddr string
@@ -133,7 +134,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 		r.fail(id, err.Error())
 		return Info{}, err
 	}
-	go r.run(ctx, tn, dialer)
+	go r.run(ctx, lv, tn, dialer)
 	return r.Get(id)
 }
 
@@ -161,6 +162,7 @@ func (r *Runtime) Stop(id string) error {
 	r.mu.Lock()
 	lv, ok := r.live[id]
 	if ok {
+		lv.stopped = true
 		lv.cancel()
 	}
 	r.mu.Unlock()
@@ -169,13 +171,11 @@ func (r *Runtime) Stop(id string) error {
 
 func (r *Runtime) StopAll() {
 	r.mu.Lock()
-	ids := make([]string, 0, len(r.live))
-	for id, lv := range r.live {
+	for _, lv := range r.live {
+		lv.stopped = true
 		lv.cancel()
-		ids = append(ids, id)
 	}
 	r.mu.Unlock()
-	_ = ids
 }
 
 func (r *Runtime) fail(id, msg string) {
@@ -205,9 +205,34 @@ func (r *Runtime) setStopped(id string) {
 	delete(r.live, id)
 }
 
-func (r *Runtime) run(ctx context.Context, tn store.Tunnel, dialer Dialer) {
+// setDisconnected marks the tunnel as having lost its connection unexpectedly.
+// It keeps the live entry so the error is visible in the UI.
+func (r *Runtime) setDisconnected(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if lv, ok := r.live[id]; ok {
+		lv.status = StatusError
+		lv.err = "connection lost"
+		lv.listenAddr = ""
+	} else {
+		r.live[id] = &live{cancel: func() {}, status: StatusError, err: "connection lost"}
+	}
+}
+
+func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dialer) {
 	defer dialer.Close()
-	defer r.setStopped(tn.ID)
+	defer func() {
+		r.mu.Lock()
+		intentional := lv.stopped
+		r.mu.Unlock()
+		if intentional {
+			r.setStopped(tn.ID)
+		} else {
+			// Unexpected exit: keep the live entry visible with an error so the
+			// UI can inform the user that the connection was lost.
+			r.setDisconnected(tn.ID)
+		}
+	}()
 
 	go keepalive(ctx, dialer)
 
