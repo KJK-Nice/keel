@@ -241,12 +241,23 @@ html[data-native] .tabs-scroller::after {
 }
 html[data-native] .terminals,
 html[data-native] .term-tab,
-html[data-native] .term-wrap,
-html[data-native] .term-body,
-html[data-native] .term-body .xterm,
-html[data-native] .term-body .xterm-screen,
-html[data-native] .term-body .xterm-screen canvas {
+html[data-native] .term-wrap {
   background: transparent;
+}
+html[data-native] .term-tab:not(.is-split) .term-body,
+html[data-native] .term-tab:not(.is-split) .term-host,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen,
+html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen canvas {
+  background: transparent;
+}
+html[data-native] .term-tab.is-split .term-wrap,
+html[data-native] .term-tab.is-split .term-body,
+html[data-native] .term-tab.is-split .term-host,
+html[data-native] .term-tab.is-split .term-body .xterm,
+html[data-native] .term-tab.is-split .term-body .xterm-screen,
+html[data-native] .term-tab.is-split .term-body .xterm-screen canvas {
+  background: var(--stage);
 }
 html[data-native] .start-page {
   background: color-mix(in srgb, var(--keel-stage) 66%, transparent);
@@ -1295,15 +1306,11 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   font-weight: 600;
 }
 .pane-fail-start:hover { filter: brightness(1.06); }
-.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; display: flex; }
+.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; }
 .term-host {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-}
-.term-tab.is-split .term-body {
-  padding: 8px 10px 10px;
+  position: absolute;
+  inset: 0;
+  background: var(--stage);
 }
 .term-body .xterm {
   height: 100%;
