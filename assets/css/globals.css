@@ -4,6 +4,7 @@
 
 @source "../../internal/ui/**/*.templ";
 @source "../../components/**/*.templ";
+@source "../../components/toast/toast.js";
 @source "../../cmd/keel/web/js/term.js";
 
 @custom-variant dark (&:is(.dark *));

@@ -9,7 +9,7 @@
   var GAP = 12; // --gap: 0.75rem
 
   var TOAST_CLASS = [
-    "cn-toast group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+    "cn-toast group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-lg border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
     "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
     "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
     "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
@@ -27,22 +27,20 @@
   ].join(" ");
 
   var CONTENT_CLASS =
-    "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100";
-  var TITLE_CLASS = "text-sm font-medium";
-  var DESCRIPTION_CLASS = "text-sm text-muted-foreground";
+    "flex w-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100";
+  var TITLE_CLASS = "text-sm font-medium leading-snug";
+  var DESCRIPTION_CLASS = "text-sm text-muted-foreground leading-snug";
   var ICON_CLASS =
     "shrink-0 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4";
 
-  // The Button component's classes, resolved for variant outline size sm
-  // (ToastAction) and variant ghost size icon-sm (ToastClose): the base is
-  // button.templ's baseClasses, the look comes from the cn-button-* classes.
   var BUTTON_BASE =
-    "cn-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0";
+    "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-transparent text-sm font-medium transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
   var ACTION_CLASS =
-    BUTTON_BASE + " cn-button-variant-outline cn-button-size-sm shrink-0";
+    BUTTON_BASE +
+    " border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-7 gap-1 px-2.5 text-[0.8rem]";
   var CLOSE_CLASS =
     BUTTON_BASE +
-    " cn-button-variant-ghost cn-button-size-icon-sm relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground";
+    " size-7 rounded-[min(var(--radius-md),12px)] text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 relative after:absolute after:-inset-2 after:content-['']";
 
   var SVG =
     '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
@@ -162,12 +160,12 @@
     var iconEl = document.createElement("span");
     iconEl.className = ICON_CLASS;
     iconEl.setAttribute("data-slot", "toast-icon");
-    if (opts.type && ICONS[opts.type]) {
+    var showIcon = opts.type === "error" || opts.type === "warning" || opts.type === "info" || opts.type === "loading";
+    if (showIcon && ICONS[opts.type]) {
       iconEl.innerHTML = ICONS[opts.type];
     } else {
       iconEl.hidden = true;
     }
-    content.appendChild(iconEl);
 
     var textWrap = document.createElement("div");
     textWrap.className = "flex min-w-0 flex-1 flex-col gap-1";
@@ -183,7 +181,9 @@
     else descEl.hidden = true;
     textWrap.appendChild(titleEl);
     textWrap.appendChild(descEl);
-    content.appendChild(textWrap);
+
+    var actionsWrap = document.createElement("div");
+    actionsWrap.className = "flex shrink-0 items-center gap-1";
 
     if (opts.action) {
       var actionEl = document.createElement("button");
@@ -194,7 +194,7 @@
       if (typeof opts.action.onClick === "function") {
         actionEl.addEventListener("click", opts.action.onClick);
       }
-      content.appendChild(actionEl);
+      actionsWrap.appendChild(actionEl);
     }
 
     var closeEl = document.createElement("button");
@@ -203,7 +203,11 @@
     closeEl.setAttribute("data-slot", "toast-close");
     closeEl.setAttribute("aria-label", "Close toast");
     closeEl.innerHTML = ICONS.close;
-    content.appendChild(closeEl);
+    actionsWrap.appendChild(closeEl);
+
+    if (!iconEl.hidden) content.appendChild(iconEl);
+    content.appendChild(textWrap);
+    content.appendChild(actionsWrap);
 
     t.appendChild(content);
     return t;

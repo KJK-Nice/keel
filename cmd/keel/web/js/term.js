@@ -498,7 +498,8 @@
   }
 
   function toast(message, isError = false) {
-    const payload = { title: message, type: isError ? "error" : "success" };
+    const payload = { title: message };
+    if (isError) payload.type = "error";
     if (window.tui?.toast?.add) {
       window.tui.toast.add(payload);
       return;

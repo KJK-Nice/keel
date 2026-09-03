@@ -1713,6 +1713,27 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   background-color: var(--primary-foreground);
 }
 
+[data-slot="toast-viewport"] {
+  width: min(100%, 26rem);
+}
+[data-slot="toast"] {
+  border-radius: var(--radius-lg);
+  border-color: var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.28), 0 4px 6px -4px rgb(0 0 0 / 0.24);
+}
+[data-slot="toast-content"] {
+  min-height: 3.25rem;
+}
+[data-slot="toast-title"] {
+  color: var(--popover-foreground);
+}
+[data-slot="toast-close"] svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .pref-preview {
   margin: 0 0 8px;
   padding: 10px 12px;
