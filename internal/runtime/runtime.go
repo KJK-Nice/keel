@@ -140,6 +140,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 		cols:    cols,
 		rows:    rows,
 		stop:    make(chan struct{}),
+		kick:    make(chan struct{}, 1),
 		backoff: r.backoff,
 		info: Info{
 			HostID:    host.ID,
@@ -288,6 +289,7 @@ type Session struct {
 	cols           int
 	rows           int
 	stop           chan struct{}
+	kick           chan struct{}
 	closed         bool
 	looping        bool
 	reconnectN     int
@@ -538,15 +540,16 @@ func (s *Session) requestReconnect() error {
 	}
 	s.forceReconnect = true
 	s.reconnectN = 0
-	if s.looping {
-		br := s.br
-		s.mu.Unlock()
-		if br != nil {
-			_ = br.Close()
-		}
+	looping := s.looping
+	br := s.br
+	s.kickWaitLocked()
+	s.mu.Unlock()
+	if br != nil {
+		_ = br.Close()
+	}
+	if looping {
 		return nil
 	}
-	s.mu.Unlock()
 	s.setStatus(StatusConnecting, "reconnecting")
 	s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
 	go s.runLoop()
@@ -565,7 +568,13 @@ func (s *Session) runLoop() {
 	defer func() {
 		s.mu.Lock()
 		s.looping = false
+		restart := !s.closed && s.forceReconnect
 		s.mu.Unlock()
+		if restart {
+			s.setStatus(StatusConnecting, "reconnecting")
+			s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+			go s.runLoop()
+		}
 	}()
 
 	for {
@@ -607,6 +616,9 @@ func (s *Session) runLoop() {
 			}
 			s.setConnectError(err)
 			s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+			s.mu.Lock()
+			s.forceReconnect = false
+			s.mu.Unlock()
 			return
 		}
 
@@ -709,12 +721,26 @@ func shouldRetryConnect(err error) bool {
 	return true
 }
 
+func (s *Session) kickWaitLocked() {
+	if s.kick == nil {
+		s.kick = make(chan struct{}, 1)
+	}
+	select {
+	case s.kick <- struct{}{}:
+	default:
+	}
+}
+
 func (s *Session) backoffWait() bool {
 	s.mu.Lock()
 	n := s.reconnectN
 	s.reconnectN++
 	unit := s.backoff
 	stop := s.stop
+	if s.kick == nil {
+		s.kick = make(chan struct{}, 1)
+	}
+	kick := s.kick
 	s.mu.Unlock()
 	if unit == 0 {
 		unit = time.Second
@@ -728,6 +754,8 @@ func (s *Session) backoffWait() bool {
 	select {
 	case <-stop:
 		return false
+	case <-kick:
+		return true
 	case <-t.C:
 		return true
 	}

@@ -1321,6 +1321,11 @@
       sync: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
       zoom: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
       unzoom: '<path d="M4 14h6v6M20 10h-6V4M14 10 21 3M3 21l7-7"/>',
+      unplug: '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M8 6h8"/><path d="M10 6v4M14 6v4"/><path d="M9 10h6v2a3 3 0 0 1-6 0z"/><path d="M12 15v3"/><path d="M5 5l14 14"/>',
+      prompt: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10l3 2.5L8 15"/><path d="M13 15h3"/>',
+      person: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M4.2 6.2l1.4 1.4M18.4 16.4l1.4 1.4M3 12h2M19 12h2M4.2 17.8l1.4-1.4M18.4 7.6l1.4-1.4"/>',
+      frown: '<circle cx="12" cy="12" r="9"/><path d="M8 15s1.5-2 4-2 4 2 4 2"/><path d="M9 9h.01M15 9h.01"/>',
     };
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || ""}</svg>`;
   }
@@ -1401,8 +1406,7 @@
     pane.wrap.classList.toggle("is-zoomed", zoomed);
     const title = pane.wrap.querySelector(".pane-title");
     if (title) title.textContent = pane.title || "session";
-    const rec = pane.wrap.querySelector("[data-pane-reconnect]");
-    if (rec) rec.hidden = !!pane.remote || pane.status !== "is-error";
+    syncPaneFail(pane);
     const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
     if (syncBtn) {
       syncBtn.hidden = !!tab.remote;
@@ -2409,7 +2413,6 @@
         <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
         <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
-        <button type="button" class="tiny pane-reconnect" data-pane-reconnect="${paneId}" hidden title="Reconnect">Reconnect</button>
         <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">×</button>
       </div>`;
     const progressEl = document.createElement("div");
@@ -2432,6 +2435,31 @@
       <button type="button" class="icon-btn term-find-next" title="Next match">↓</button>
       <button type="button" class="icon-btn term-find-case" title="Match case" aria-pressed="false">Aa</button>
       <button type="button" class="icon-btn term-find-close" title="Close">×</button>`;
+    const failEl = document.createElement("div");
+    failEl.className = "pane-fail";
+    failEl.hidden = true;
+    failEl.innerHTML = `<div class="pane-fail-card">
+      <div class="pane-fail-head">
+        <span class="pane-fail-dot" data-fail-dot></span>
+        <div class="pane-fail-meta">
+          <b data-fail-title>session</b>
+          <small data-fail-sub></small>
+        </div>
+        <button type="button" class="tiny pane-fail-copy" data-pane-copy-log="${paneId}">Copy logs</button>
+      </div>
+      <div class="pane-fail-link" data-fail-link>
+        <span class="pane-fail-node">${paneGlyph("unplug")}</span>
+        <span class="pane-fail-wire"></span>
+        <span class="pane-fail-node">${paneGlyph("prompt")}</span>
+      </div>
+      <p class="pane-fail-kicker" data-fail-kicker>Connection failed with connection log:</p>
+      <div class="pane-fail-log" data-fail-log></div>
+      <div class="pane-fail-actions">
+        <button type="button" class="btn" data-pane-close="${paneId}">Close</button>
+        <button type="button" class="btn" data-pane-edit-host="${paneId}">Edit host</button>
+        <button type="button" class="btn pane-fail-start" data-pane-reconnect="${paneId}">Start over</button>
+      </div>
+    </div>`;
     wrap.appendChild(bar);
     wrap.appendChild(progressEl);
     wrap.appendChild(banner);
@@ -2449,13 +2477,14 @@
     term.open(body);
     attachWebgl(term);
     body.appendChild(findEl);
+    body.appendChild(failEl);
     wireFindEl(findEl, paneId);
     try {
       fit.fit();
     } catch {
       /* ignore */
     }
-    return { wrap, banner, body, term, fit, search, findEl };
+    return { wrap, banner, body, term, fit, search, findEl, failEl };
   }
 
   function createTab(paneSeed) {
@@ -2489,6 +2518,7 @@
       if (tab) tab.focusedPaneId = existing.id;
       if (leftover) closeTab(leftover.id);
       else renderTabs();
+      if (!sessionSocketOpen(existing)) reconnectPane(existing);
       existing.term?.focus();
       return existing;
     }
@@ -2509,6 +2539,11 @@
       banner: shell.banner,
       search: shell.search,
       findEl: shell.findEl,
+      failEl: shell.failEl,
+      failLog: [],
+      failKind: info.status === "exited" ? "ended" : info.status === "error" ? "fail" : "",
+      wasReady: info.status === "ready",
+      color: info.color || "",
       ws: null,
       you: null,
       attached: info.attached || [],
@@ -2550,17 +2585,43 @@
       tab.dirty = true;
     }
 
+    if (pane.status !== "is-ready") seedConnectLog(pane);
+    if (pane.status === "is-error" && info.error) pushFailLog(pane, "fail", info.error);
+    connectSessionWS(pane);
+    renderTabs();
+    return pane;
+  }
+
+  function sessionSocketOpen(pane) {
+    return pane?.ws?.readyState === WebSocket.OPEN;
+  }
+
+  function connectSessionWS(pane, opts = {}) {
+    if (!pane?.runtimeId || pane.remote) return;
+    const gen = (pane.wsGen || 0) + 1;
+    pane.wsGen = gen;
+    const prev = pane.ws;
+    pane.ws = null;
+    if (prev && prev.readyState < WebSocket.CLOSING) {
+      try {
+        prev.close();
+      } catch {
+        /* ignore */
+      }
+    }
+
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const q = new URLSearchParams({
-      id: info.id,
-      cols: String(pane.term.cols || 80),
-      rows: String(pane.term.rows || 24),
+      id: pane.runtimeId,
+      cols: String(pane.term?.cols || 80),
+      rows: String(pane.term?.rows || 24),
       name: state.name || "guest",
       kind: "web",
     });
     const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
     pane.ws = ws;
+    let live = !opts.skipSnapshot;
 
     const applyPresence = (msg) => {
       if (msg.you) pane.you = msg.you;
@@ -2575,26 +2636,33 @@
         herd.driverId = pane.driverId;
         herd.ownerId = pane.ownerId;
         herd.clients = pane.attached.length;
+        if (msg.status) herd.status = msg.status;
       }
       renderTabs();
     };
 
     ws.addEventListener("message", (ev) => {
+      if (pane.wsGen !== gen) return;
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
         if (msg.type === "status") {
+          recordFailStatus(pane, msg);
           if (msg.status === "ready") pane.status = "is-ready";
           else if (msg.status === "connecting") pane.status = "is-connecting";
           else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
           applyPresence(msg);
         } else if (msg.type === "ready" || msg.type === "presence" || msg.type === "control") {
+          recordFailStatus(pane, msg);
           if (msg.status === "connecting") pane.status = "is-connecting";
           else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
           else pane.status = "is-ready";
           applyPresence(msg);
+          if (msg.type === "ready") live = true;
           if (msg.type === "control" && msg.message) toast(msg.message);
         } else if (msg.type === "error") {
           pane.status = "is-error";
+          pane.failKind = "fail";
+          pushFailLog(pane, "fail", msg.message || "Connection failed");
           pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
           renderTabs();
           if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
@@ -2603,20 +2671,20 @@
         }
         return;
       }
+      if (!live) return;
       pane.term.write(new Uint8Array(ev.data));
     });
     ws.addEventListener("close", () => {
-      if (pane.closing || !state.panes.has(pane.id)) return;
-      noteSessionClosed(pane);
+      if (pane.wsGen !== gen || pane.closing || !state.panes.has(pane.id)) return;
+      noteSessionClosed(pane, gen);
     });
     ws.addEventListener("error", () => {
+      if (pane.wsGen !== gen || pane.closing) return;
       pane.status = "is-error";
-      toast("WebSocket error", true);
+      pane.failKind = "lost";
+      pushFailLog(pane, "fail", "WebSocket error");
       renderTabs();
     });
-
-    renderTabs();
-    return pane;
   }
 
   async function sessionEnded(runtimeId) {
@@ -2631,17 +2699,191 @@
     }
   }
 
-  async function noteSessionClosed(pane) {
-    if (pane.status !== "is-error") pane.status = "";
+  async function noteSessionClosed(pane, gen) {
+    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
+    pane.status = "is-error";
+    renderTabs();
     const ended = await sessionEnded(pane.runtimeId);
-    if (pane.closing || !state.panes.has(pane.id)) return;
+    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
     if (ended) {
       pane.status = "is-error";
+      pane.failKind = "ended";
+      pushFailLog(pane, "fail", "Runtime stopped — this session ended.");
       pane.term.writeln("\r\n\x1b[38;2;139;149;168mRuntime stopped — this session ended.\x1b[0m");
-    } else {
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mDetached — session still running. Reopen Keel to attach.\x1b[0m");
+      renderTabs();
+      return;
     }
+    pane.failKind = pane.wasReady ? "lost" : "fail";
+    pushFailLog(pane, "fail", pane.wasReady ? "Connection lost" : "Connection failed");
+    pane.term.writeln("\r\n\x1b[38;2;139;149;168mConnection lost — click Start over to attach.\x1b[0m");
     renderTabs();
+  }
+
+  function reconnectPane(pane) {
+    if (!pane?.runtimeId || pane.remote) return;
+    const socketWasOpen = sessionSocketOpen(pane);
+    pane.startingOver = true;
+    pane.failKind = pane.wasReady ? "lost" : "fail";
+    pane.failLog = [];
+    seedConnectLog(pane);
+    pane.status = "is-connecting";
+    renderTabs();
+    connectSessionWS(pane, { skipSnapshot: true });
+    const herd = state.herd.find((s) => s.id === pane.runtimeId);
+    if (socketWasOpen || !herd || herd.status !== "ready") {
+      api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => {
+        pane.status = "is-error";
+        pane.failKind = "fail";
+        pushFailLog(pane, "fail", err.message || "Reconnect failed");
+        renderTabs();
+        toast(err.message, true);
+      });
+    }
+  }
+
+  function failHost(pane) {
+    return state.hosts.find((h) => h.id === pane.hostId) || null;
+  }
+
+  function failEndpoint(pane) {
+    const host = failHost(pane);
+    if (!host || host.authType === "local") return pane.subtitle || "Local shell";
+    const port = host.port || 22;
+    return `SSH ${host.address}:${port}`;
+  }
+
+  function failHeadline(pane) {
+    if (pane.status === "is-connecting") return "Connecting with connection log:";
+    if (pane.failKind === "ended") return "Session ended with connection log:";
+    if (pane.wasReady || pane.failKind === "lost") return "Connection lost with connection log:";
+    return "Connection failed with connection log:";
+  }
+
+  function failNoise(message) {
+    const m = String(message || "").trim().toLowerCase();
+    return !m || /^(attached|attaching…|attaching\.\.\.|joined|left|connected|control passed|took control)$/.test(m);
+  }
+
+  function pushFailLog(pane, kind, text) {
+    if (!pane || !text) return;
+    const line = String(text).replace(/\s+/g, " ").trim();
+    if (!line) return;
+    pane.failLog = pane.failLog || [];
+    const last = pane.failLog[pane.failLog.length - 1];
+    if (last && last.text === line) return;
+    pane.failLog.push({ kind: kind || "work", text: line });
+    if (pane.failLog.length > 40) pane.failLog.shift();
+  }
+
+  function seedConnectLog(pane) {
+    const host = failHost(pane);
+    if (!host || host.authType === "local") {
+      pushFailLog(pane, "user", "Starting a local shell");
+      return;
+    }
+    const addr = host.address || "";
+    const port = host.port || 22;
+    pushFailLog(pane, "user", `Starting a new connection to: "${addr}" port "${port}"`);
+    pushFailLog(pane, "work", `Starting address resolution of "${addr}"`);
+    pushFailLog(pane, "work", "Address resolution finished");
+    pushFailLog(pane, "work", `Connecting to "${addr}" port "${port}"`);
+  }
+
+  function recordFailStatus(pane, msg) {
+    if (!msg) return;
+    if (msg.status === "ready") {
+      pane.wasReady = true;
+      pane.failKind = "";
+      pane.failLog = [];
+      pane.startingOver = false;
+      return;
+    }
+    if (failNoise(msg.message)) return;
+    if (msg.status === "connecting") {
+      if (/reconnect/i.test(msg.message || "") && !pane.startingOver && pane.wasReady) pane.failKind = "lost";
+      const fail = /fail|error|refused|timed out|timeout/i.test(msg.message);
+      pushFailLog(pane, fail ? "fail" : "work", msg.message);
+      return;
+    }
+    if (msg.status === "exited") {
+      pane.failKind = "ended";
+      pane.startingOver = false;
+      pushFailLog(pane, "fail", msg.message || "Session ended");
+      return;
+    }
+    if (msg.status === "error") {
+      pane.failKind = pane.wasReady ? "lost" : "fail";
+      pane.startingOver = false;
+      pushFailLog(pane, "fail", msg.message || "Connection failed");
+    }
+  }
+
+  function syncPaneFail(pane) {
+    const el = pane?.failEl;
+    if (!el) return;
+    const host = failHost(pane);
+    const connecting = pane.status === "is-connecting" && host?.authType !== "local";
+    const show = !pane.remote && (pane.status === "is-error" || connecting);
+    pane.wrap.classList.toggle("is-fail", show && !connecting);
+    pane.wrap.classList.toggle("is-connecting-fail", show && connecting);
+    el.hidden = !show;
+    if (!show) {
+      if (pane.status === "is-ready") {
+        try {
+          pane.fit?.fit();
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+    const title = el.querySelector("[data-fail-title]");
+    const sub = el.querySelector("[data-fail-sub]");
+    const kicker = el.querySelector("[data-fail-kicker]");
+    const log = el.querySelector("[data-fail-log]");
+    const dot = el.querySelector("[data-fail-dot]");
+    const edit = el.querySelector("[data-pane-edit-host]");
+    const start = el.querySelector("[data-pane-reconnect]");
+    if (title) title.textContent = pane.title || host?.name || "session";
+    if (sub) sub.textContent = failEndpoint(pane);
+    if (kicker) kicker.textContent = failHeadline(pane);
+    if (dot) {
+      const color = pane.color || host?.color || "#6ea8ff";
+      dot.style.setProperty("--dot", color);
+      dot.style.background = color;
+    }
+    if (edit) edit.hidden = !pane.hostId || !!pane.remote;
+    if (start) start.hidden = connecting;
+    if (log) {
+      const rows = pane.failLog?.length
+        ? pane.failLog
+        : [{ kind: connecting ? "work" : "fail", text: connecting ? "Connecting…" : "No connection log yet." }];
+      log.innerHTML = rows
+        .map((row) => {
+          const icon = row.kind === "user" ? "person" : row.kind === "fail" ? "frown" : "gear";
+          return `<div class="pane-fail-row ${row.kind === "fail" ? "is-fail" : ""}">${paneGlyph(icon)}<span>${escapeHtml(row.text)}</span></div>`;
+        })
+        .join("");
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  async function copyPaneFailLog(pane) {
+    const lines = (pane?.failLog || []).map((row) => row.text).filter(Boolean);
+    const text = lines.length ? lines.join("\n") : "No connection log yet.";
+    const ok = await copyText(text);
+    toast(ok ? "Copied connection log" : "Could not copy log", !ok);
+  }
+
+  function editPaneHost(pane) {
+    if (!pane?.hostId) return;
+    const host = failHost(pane);
+    if (!host) {
+      toast("Host not found", true);
+      return;
+    }
+    fillHostForm(host);
+    openModal(els.hostModal);
   }
 
   function sendSessionJSON(pane, obj) {
@@ -4044,12 +4286,12 @@
       const paneRec = ev.target.closest("[data-pane-reconnect]");
       if (paneRec) {
         const pane = state.panes.get(paneRec.dataset.paneReconnect);
-        if (pane?.runtimeId) {
-          api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => toast(err.message, true));
-          pane.status = "is-connecting";
-          renderTabs();
-        }
+        reconnectPane(pane);
       }
+      const paneCopy = ev.target.closest("[data-pane-copy-log]");
+      if (paneCopy) copyPaneFailLog(state.panes.get(paneCopy.dataset.paneCopyLog));
+      const paneEdit = ev.target.closest("[data-pane-edit-host]");
+      if (paneEdit) editPaneHost(state.panes.get(paneEdit.dataset.paneEditHost));
 
       const editId = ev.target.closest("[data-edit-identity]");
       if (editId) {

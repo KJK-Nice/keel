@@ -388,6 +388,124 @@ func TestSessionReconnect(t *testing.T) {
 	t.Fatalf("reconnect stuck calls=%d status=%s", n, st2.Info().Status)
 }
 
+func TestSessionWSReattachAfterDisconnect(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	t.Cleanup(srv.Close)
+
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
+	waitJSON(t, alice, "ready")
+	_ = alice.Close()
+
+	res, err := http.Post(srv.URL+"/api/sessions/"+info.ID+"/reconnect", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("reconnect %d", res.StatusCode)
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			mu.Lock()
+			n := len(bridges)
+			mu.Unlock()
+			if n >= 2 {
+				break
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	bob := dialSession(t, srv.URL, info.ID, "bob", "web")
+	defer bob.Close()
+	waitJSON(t, bob, "ready")
+	mu.Lock()
+	if len(bridges) < 2 {
+		mu.Unlock()
+		t.Fatal("expected a new bridge after reconnect")
+	}
+	fb := bridges[len(bridges)-1]
+	mu.Unlock()
+	if _, err := fb.outW.Write([]byte("reattached")); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitBinary(t, bob, "reattached"); !strings.Contains(got, "reattached") {
+		t.Fatalf("reattach bytes %q", got)
+	}
+}
+
+func TestSessionWSClosesWhenClientDropped(t *testing.T) {
+	srv, rt, st, fb := testServer(t)
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	conn := dialSession(t, srv.URL, info.ID, "alice", "web")
+	waitJSON(t, conn, "ready")
+	payload := bytes.Repeat([]byte("x"), 32*1024)
+	for i := 0; i < 600; i++ {
+		if _, err := fb.outW.Write(payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	closed := false
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			closed = true
+			break
+		}
+	}
+	if !closed {
+		t.Fatal("slow consumer should drop and close the websocket")
+	}
+
+	again := dialSession(t, srv.URL, info.ID, "bob", "web")
+	defer again.Close()
+	waitJSON(t, again, "ready")
+	if _, err := fb.outW.Write([]byte("after-drop")); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitBinary(t, again, "after-drop"); !strings.Contains(got, "after-drop") {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestHerdWS(t *testing.T) {
 	srv, _, st, _ := testServer(t)
 	u := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
@@ -879,6 +997,26 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "Runtime stopped — this session ended") || !strings.Contains(string(termBody), "state.runtimeStopping") {
 		t.Fatal("term.js must not claim a session is still running after the runtime stops")
+	}
+	if strings.Contains(string(termBody), "Reopen Keel to attach") {
+		t.Fatal("lost connection must reconnect in-place instead of asking to reopen the app")
+	}
+	if !strings.Contains(string(termBody), "function connectSessionWS") ||
+		!strings.Contains(string(termBody), "function reconnectPane") ||
+		!strings.Contains(string(termBody), "skipSnapshot") {
+		t.Fatal("term.js must reattach the session websocket when the user clicks Reconnect")
+	}
+	if !strings.Contains(string(termBody), "pane-fail") ||
+		!strings.Contains(string(termBody), "Start over") ||
+		!strings.Contains(string(termBody), "Copy logs") ||
+		!strings.Contains(string(termBody), "data-pane-edit-host") ||
+		!strings.Contains(string(termBody), "function syncPaneFail") {
+		t.Fatal("term.js must show a connection transition page with Start over")
+	}
+	if !strings.Contains(string(cssBody), ".pane-fail") ||
+		!strings.Contains(string(cssBody), ".pane-fail-start") ||
+		!strings.Contains(string(cssBody), ".pane-fail-log") {
+		t.Fatal("keel.css missing connection transition page")
 	}
 	if strings.Contains(string(termBody), "function renderHerd") {
 		t.Fatal("term.js should not render a Hosts Live list")
