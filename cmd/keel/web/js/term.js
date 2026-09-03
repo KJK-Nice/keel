@@ -210,6 +210,7 @@
       letterSpacing: 0,
       customGlyphs: true,
       allowTransparency: false,
+      overviewRuler: { width: 6 },
       theme: xtermTheme(),
     };
   }
@@ -2433,6 +2434,9 @@
     banner.textContent = "Following — request control to type";
     const body = document.createElement("div");
     body.className = "term-body";
+    const host = document.createElement("div");
+    host.className = "term-host";
+    body.appendChild(host);
     const findEl = document.createElement("div");
     findEl.className = "term-find";
     findEl.hidden = true;
@@ -2482,7 +2486,7 @@
     const progress = loadTermAddon(term, ProgressAddonCtor);
     progress?.onChange?.((st) => paintPaneProgress(progressEl, st));
     search?.onDidChangeResults?.((ev) => paintFindCount(findEl.querySelector(".term-find-count"), ev));
-    term.open(body);
+    term.open(host);
     attachWebgl(term);
     body.appendChild(findEl);
     body.appendChild(failEl);

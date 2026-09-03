@@ -1295,7 +1295,16 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   font-weight: 600;
 }
 .pane-fail-start:hover { filter: brightness(1.06); }
-.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; }
+.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; display: flex; }
+.term-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+.term-tab.is-split .term-body {
+  padding: 8px 10px 10px;
+}
 .term-body .xterm {
   height: 100%;
   width: 100%;
@@ -1310,9 +1319,6 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   line-height: 1 !important;
   letter-spacing: 0 !important;
 }
-.term-tab.is-split .term-body .xterm {
-  padding: 8px 10px 10px;
-}
 .term-body .xterm .xterm-viewport {
   height: 100%;
   overflow-x: hidden;
@@ -1325,9 +1331,15 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   height: 0;
   display: none;
 }
+.term-body .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  width: 6px !important;
+}
 .term-body .xterm .xterm-scrollable-element > .scrollbar > .slider {
   background: color-mix(in srgb, var(--text) 18%, transparent) !important;
   border-radius: 999px;
+}
+.term-body .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  width: 6px !important;
 }
 .term-body:hover .xterm .xterm-scrollable-element > .scrollbar > .slider {
   background: color-mix(in srgb, var(--text) 36%, transparent) !important;
