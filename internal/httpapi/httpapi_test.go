@@ -665,8 +665,8 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="host-name"`) || !strings.Contains(string(body), `for="host-name"`) {
 		t.Fatal("index missing labeled host name input")
 	}
-	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `data-tui-tabs`) {
-		t.Fatal("index missing settings slider or tabs")
+	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `settings-shell`) {
+		t.Fatal("index missing settings slider or settings shell")
 	}
 	if !strings.Contains(string(body), `data-slot="input-group"`) || !strings.Contains(string(body), `data-slot="button-group"`) {
 		t.Fatal("index missing hosts input-group or button-group")
@@ -1098,8 +1098,8 @@ func TestIndexServesVault(t *testing.T) {
 		strings.Contains(string(body), "<h1>Logs</h1>") || strings.Contains(string(body), "<h1>Port forwarding</h1>") {
 		t.Fatal("vault list pages should use the hosts toolbar+cards pattern, not page-head titles")
 	}
-	if !strings.Contains(string(body), "<h1>Settings</h1>") {
-		t.Fatal("settings page should keep its heading")
+	if !strings.Contains(string(body), "<h1>Appearance</h1>") || !strings.Contains(string(body), `data-settings-back`) {
+		t.Fatal("settings page should use sidebar layout with section heading")
 	}
 	if !strings.Contains(string(body), `id="btn-new-identity"`) || !strings.Contains(string(body), `id="btn-new-tunnel"`) ||
 		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-refresh-logs"`) {

@@ -34,6 +34,7 @@
     panes: new Map(),
     activeId: VAULT,
     vaultSection: "hosts",
+    settingsSection: "appearance",
     query: "",
     logFilter: "",
     name: params.get("name") || localStorage.getItem("keel-name") || "",
@@ -1573,10 +1574,36 @@
     if (pane.term) pane.term.options.disableStdin = !isDriving(pane);
   }
 
+  function setSettingsSection(id) {
+    state.settingsSection = id;
+    document.querySelectorAll("[data-settings-section]").forEach((btn) => {
+      const on = btn.dataset.settingsSection === id;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+      const on = panel.dataset.settingsPanel === id;
+      panel.classList.toggle("is-active", on);
+      panel.hidden = !on;
+    });
+  }
+
+  function filterSettings(query) {
+    const q = query.trim().toLowerCase();
+    document.querySelectorAll(".settings-panel .pref-row:not(.pref-row-preview)").forEach((row) => {
+      row.hidden = q !== "" && !row.textContent.toLowerCase().includes(q);
+    });
+    document.querySelectorAll(".settings-group").forEach((group) => {
+      const rows = group.querySelectorAll(".pref-row:not(.pref-row-preview)");
+      group.hidden = q !== "" && ![...rows].some((row) => !row.hidden);
+    });
+  }
+
   function setVaultSection(name) {
     state.vaultSection = name;
     document.querySelectorAll(".vault-nav").forEach((b) => b.classList.toggle("is-active", b.dataset.vault === name));
     document.querySelectorAll(".vault-page").forEach((p) => p.classList.toggle("is-active", p.dataset.page === name));
+    els.vault?.classList.toggle("is-settings", name === "settings");
     if (name === "logs") {
       loadLogs().catch(() => {});
       if (!state.logTimer) state.logTimer = setInterval(() => loadLogs().catch(() => {}), 3000);
@@ -1584,7 +1611,10 @@
       clearInterval(state.logTimer);
       state.logTimer = null;
     }
-    if (name === "settings") syncSettingsForm();
+    if (name === "settings") {
+      syncSettingsForm();
+      setSettingsSection(state.settingsSection || "appearance");
+    }
   }
 
   function showVault() {
@@ -2131,6 +2161,7 @@
     else if (name === "settings") {
       state.activeId = VAULT;
       setVaultSection("settings");
+      setSettingsSection(state.settingsSection || "appearance");
       renderTabs();
     } else if (name === "split-right") splitActive("h");
     else if (name === "split-down") splitActive("v");
@@ -4279,6 +4310,18 @@
       }
       setVaultSection(btn.dataset.vault);
     });
+    on(document.querySelector("[data-settings-back]"), "click", () => {
+      const search = document.getElementById("settings-search");
+      if (search) search.value = "";
+      filterSettings("");
+      setVaultSection("hosts");
+    });
+    on(document.getElementById("page-settings"), "click", (ev) => {
+      const btn = ev.target.closest("[data-settings-section]");
+      if (!btn) return;
+      setSettingsSection(btn.dataset.settingsSection);
+    });
+    on(document.getElementById("settings-search"), "input", (ev) => filterSettings(ev.target.value));
     on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
     on(els.btnShare, "click", shareActive);
     on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));

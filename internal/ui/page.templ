@@ -13,10 +13,8 @@ import (
 	"keel/components/inputgroup"
 	"keel/components/kbd"
 	"keel/components/label"
-	"keel/components/separator"
 	"keel/components/slider"
 	switchcomp "keel/components/switch"
-	"keel/components/tabs"
 	"keel/components/toast"
 	"keel/components/tooltip"
 )
@@ -378,34 +376,39 @@ templ LogsPage(p PageProps) {
 }
 
 templ SettingsPage() {
-	<section class="vault-page" id="page-settings" data-page="settings">
-		<div class="page-head">
-			<div>
-				<h1>Settings</h1>
-				<p class="lede">Appearance and terminal. Stored on this machine.</p>
-			</div>
-		</div>
-		<form class="prefs" id="settings-form">
-			@tabs.Tabs(tabs.Props{ID: "settings-tabs", DefaultValue: "appearance", Class: "w-full"}) {
-				@tabs.List(tabs.ListProps{Variant: tabs.VariantLine}) {
-					@tabs.Trigger(tabs.TriggerProps{Value: "appearance"}) {
-						Appearance
-					}
-					@tabs.Trigger(tabs.TriggerProps{Value: "terminal"}) {
-						Terminal
-					}
+	<section class="vault-page settings-shell" id="page-settings" data-page="settings">
+		<aside class="settings-rail" aria-label="Settings">
+			<button type="button" class="settings-back" data-settings-back>
+				@icon.ArrowLeft01(icon.Props{Class: "settings-back-icon"})
+				Back
+			</button>
+			@inputgroup.InputGroup(inputgroup.Props{Class: "settings-search h-9"}) {
+				@inputgroup.Addon() {
+					@icon.Search01(icon.Props{Class: "size-4 opacity-60"})
 				}
-				@tabs.Content(tabs.ContentProps{Value: "appearance", Class: "pt-3"}) {
-					@card.Card(card.Props{Size: card.SizeSm}) {
-						@card.Header() {
-							@card.Title() {
-								Appearance
-							}
-							@card.Description() {
-								Theme, chrome size, and how UI text is drawn.
-							}
-						}
-						@card.Content(card.ContentProps{Class: "flex flex-col gap-0"}) {
+				@inputgroup.Input(inputgroup.InputProps{
+					ID:          "settings-search",
+					Type:        "search",
+					Class:       "h-9",
+					Placeholder: "Search settings",
+					Attributes: templ.Attributes{
+						"autocomplete": "off",
+						"spellcheck":   "false",
+						"aria-label":   "Search settings",
+					},
+				})
+			}
+			<nav class="settings-nav-list" role="tablist">
+				@settingsNav("appearance", "Appearance", true)
+				@settingsNav("terminal", "Terminal", false)
+			</nav>
+		</aside>
+		<div class="settings-main">
+			<form class="settings-form" id="settings-form">
+				<div class="settings-main-inner">
+					<div class="settings-panel is-active" data-settings-panel="appearance" role="tabpanel">
+						<h1>Appearance</h1>
+						@settingsGroup("Display") {
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">Theme</div>
@@ -413,7 +416,6 @@ templ SettingsPage() {
 								</div>
 								@settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"})
 							</div>
-							@separator.Separator(separator.Props{Class: "my-1"})
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">UI size</div>
@@ -431,28 +433,18 @@ templ SettingsPage() {
 									<output id="set-ui-size-out">12</output>
 								</div>
 							</div>
-							@separator.Separator(separator.Props{Class: "my-1"})
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">Font smoothing</div>
-									<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI. Terminal glyphs stay as rendered.</p>
+									<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI.</p>
 								</div>
 								@settingsSelect("set-smooth", "smoothing", "Font smoothing", "Smoothing", "antialiased", []string{"antialiased", "subpixel", "none"}, []string{"Antialiased", "Subpixel", "None"})
 							</div>
 						}
-					}
-				}
-				@tabs.Content(tabs.ContentProps{Value: "terminal", Class: "pt-3"}) {
-					@card.Card(card.Props{Size: card.SizeSm}) {
-						@card.Header() {
-							@card.Title() {
-								Terminal
-							}
-							@card.Description() {
-								Font, size, and copy/paste for every pane.
-							}
-						}
-						@card.Content(card.ContentProps{Class: "flex flex-col gap-0"}) {
+					</div>
+					<div class="settings-panel" data-settings-panel="terminal" role="tabpanel" hidden>
+						<h1>Terminal</h1>
+						@settingsGroup("Session") {
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">Font</div>
@@ -460,7 +452,6 @@ templ SettingsPage() {
 								</div>
 								@settingsSelect("set-font", "font", "Terminal font", "Font", "jetbrains", []string{"jetbrains", "ibmplex", "menlo", "consolas", "system"}, []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono"})
 							</div>
-							@separator.Separator(separator.Props{Class: "my-1"})
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">Text size</div>
@@ -479,10 +470,13 @@ templ SettingsPage() {
 									@hintKbd("+ − 0")
 								</div>
 							</div>
-							@aspectratio.AspectRatio(aspectratio.Props{Ratio: "16/5", Class: "pref-preview mt-2 overflow-hidden"}) {
-								<pre id="term-preview" class="absolute inset-0 m-0 flex items-center px-3">guest@keel:~ $ ssh prod-api</pre>
-							}
-							@separator.Separator(separator.Props{Class: "my-1"})
+							<div class="pref-row pref-row-preview">
+								@aspectratio.AspectRatio(aspectratio.Props{Ratio: "16/5", Class: "pref-preview overflow-hidden w-full"}) {
+									<pre id="term-preview" class="absolute inset-0 m-0 flex items-center px-3">guest@keel:~ $ ssh prod-api</pre>
+								}
+							</div>
+						}
+						@settingsGroup("Input") {
 							<div class="pref-row">
 								<div class="pref-copy">
 									<div class="pref-title">Copy on select</div>
@@ -498,10 +492,37 @@ templ SettingsPage() {
 								@switchcomp.Switch(switchcomp.Props{ID: "set-paste"})
 							</div>
 						}
-					}
-				}
-			}
-		</form>
+					</div>
+				</div>
+			</form>
+		</div>
+	</section>
+}
+
+templ settingsNav(id, label string, active bool) {
+	<button
+		type="button"
+		class={ "settings-nav", templ.KV("is-active", active) }
+		data-settings-section={ id }
+		role="tab"
+		if active {
+			aria-selected="true"
+		} else {
+			aria-selected="false"
+		}
+	>
+		{ label }
+	</button>
+}
+
+templ settingsGroup(title string) {
+	<section class="settings-group">
+		if title != "" {
+			<h2 class="settings-group-title">{ title }</h2>
+		}
+		<div class="settings-group-body">
+			{ children... }
+		</div>
 	</section>
 }
 
