@@ -808,8 +808,7 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), `html[data-native] .term-tab.is-split .term-host`) ||
 		!strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-host`) ||
 		!strings.Contains(string(cssBody), `.term-host {
-  position: absolute;
-  inset: 0;`) {
+  flex: 1 1 0%;`) {
 		t.Fatal("split panes must fill with the terminal surface; solo native panes keep glass")
 	}
 	if !strings.Contains(string(cssBody), ".scrollbar.vertical") ||
@@ -895,9 +894,10 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("term.js must close the focused pane with ⌘W before closing the last session tab")
 	}
 	if !strings.Contains(string(termBody), `className = "term-host"`) ||
-		!strings.Contains(string(termBody), "term.open(host)") ||
-		!strings.Contains(string(termBody), "overviewRuler: { width: 6 }") {
-		t.Fatal("term.js must open xterm in a term-host with a thin overlay scrollbar")
+		!strings.Contains(string(termBody), "ensurePaneTerm") ||
+		!strings.Contains(string(termBody), ".open(pane.host)") ||
+		!strings.Contains(string(termBody), "overviewRuler: { width: 0 }") {
+		t.Fatal("term.js must disable the xterm overview ruler strip beside the scrollbar")
 	}
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")

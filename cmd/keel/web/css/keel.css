@@ -1053,7 +1053,12 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+.split-pane > .term-wrap {
+  flex: 1 1 0%;
+  width: 100%;
 }
 .split-sash {
   flex: 0 0 6px;
@@ -1306,10 +1311,12 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   font-weight: 600;
 }
 .pane-fail-start:hover { filter: brightness(1.06); }
-.term-body { flex: 1; min-height: 0; position: relative; overflow: hidden; padding: 0; }
+.term-body { flex: 1 1 0%; min-height: 0; position: relative; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
 .term-host {
-  position: absolute;
-  inset: 0;
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
   background: var(--stage);
 }
 .term-body .xterm {
@@ -1340,6 +1347,15 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 }
 .term-body .xterm .xterm-scrollable-element > .scrollbar.vertical {
   width: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.term-body .xterm .xterm-scrollable-element > .scrollbar {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.term-body .xterm .xterm-decoration-overview-ruler {
+  display: none !important;
 }
 .term-body .xterm .xterm-scrollable-element > .scrollbar > .slider {
   background: color-mix(in srgb, var(--text) 18%, transparent) !important;

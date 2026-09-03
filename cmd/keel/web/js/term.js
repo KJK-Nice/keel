@@ -210,7 +210,7 @@
       letterSpacing: 0,
       customGlyphs: true,
       allowTransparency: false,
-      overviewRuler: { width: 6 },
+      overviewRuler: { width: 0 },
       theme: xtermTheme(),
     };
   }
@@ -1440,6 +1440,104 @@
       else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
     renderControl(pane);
+    pane.term?.focus();
+  }
+
+  function paneBodyBox(pane) {
+    const body = pane.wrap?.querySelector(".term-body");
+    if (!body) return null;
+    const r = body.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    return r;
+  }
+
+  function flushPanePending(pane) {
+    if (!pane?.pending?.length || !pane.term?.element) return;
+    for (const chunk of pane.pending) pane.term.write(chunk);
+    pane.pending = [];
+  }
+
+  function writePaneBytes(pane, data) {
+    const chunk = data instanceof Uint8Array ? data : new Uint8Array(data);
+    if (!pane.term?.element) {
+      if (!pane.pending) pane.pending = [];
+      pane.pending.push(chunk);
+      return;
+    }
+    pane.term.write(chunk);
+  }
+
+  function reflowPane(pane) {
+    if (!pane?.wrap?.isConnected || !pane.term || !pane.fit) return;
+    try {
+      if (!pane.term.element) return;
+      let cell = pane.term._core?._renderService?.dimensions?.css?.cell;
+      if (!cell?.width || !cell?.height) {
+        pane.term.resize(80, 24);
+        cell = pane.term._core?._renderService?.dimensions?.css?.cell;
+      }
+      const box = paneBodyBox(pane);
+      if (box && cell?.width && cell?.height) {
+        const ruler = pane.term.options.overviewRuler?.width || 0;
+        const cols = Math.max(2, Math.floor((box.width - ruler) / cell.width));
+        const rows = Math.max(1, Math.floor(box.height / cell.height));
+        if (cols !== pane.term.cols || rows !== pane.term.rows) pane.term.resize(cols, rows);
+      } else {
+        pane.fit.fit();
+      }
+      pane.term.refresh(0, Math.max(0, (pane.term.rows || 1) - 1));
+      sendResize(pane);
+      flushPanePending(pane);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function syncNativeSplitTheme(pane) {
+    if (!isNativeWindow() || !pane?.term) return;
+    const tab = state.tabs.get(pane.tabId);
+    const split = tab && leafCount(tab.layout) > 1 && !tab.zoomedPaneId;
+    const theme = { ...xtermTheme() };
+    if (split) theme.background = resolvedTheme() === "light" ? "#fbfbfa" : "#0a0a0a";
+    pane.term.options.theme = theme;
+  }
+
+  function refreshPaneRender(pane) {
+    if (!pane?.term?.element) return;
+    syncNativeSplitTheme(pane);
+    reflowPane(pane);
+    if (!isNativeWindow()) return;
+    const cols = pane.term.cols;
+    const rows = pane.term.rows;
+    if (cols > 2 && rows > 1) {
+      pane.term.resize(cols - 1, rows);
+      pane.term.resize(cols, rows);
+    }
+    pane.term.refresh(0, Math.max(0, rows - 1));
+  }
+
+  function schedulePaneReflow(pane, tries = 12) {
+    refreshPaneRender(pane);
+    if (!isNativeWindow() || tries <= 0) return;
+    if (paneBodyBox(pane)) return;
+    requestAnimationFrame(() => schedulePaneReflow(pane, tries - 1));
+  }
+
+  function ensurePaneTerm(pane) {
+    if (!pane?.term || !pane.wrap?.isConnected) return;
+    if (!pane.term.element) {
+      if (!pane.host) return;
+      pane.term.open(pane.host);
+      attachWebgl(pane.term);
+      observePaneFit(pane);
+    }
+    schedulePaneReflow(pane);
+  }
+
+  function observePaneFit(pane) {
+    if (typeof ResizeObserver === "undefined" || pane.fitObs) return;
+    pane.fitObs = new ResizeObserver(() => refreshPaneRender(pane));
+    pane.fitObs.observe(pane.wrap);
   }
 
   function renderControl(pane) {
@@ -1501,6 +1599,10 @@
     else if (tab.layout) node = buildNode(tab.layout, tab);
     else node = document.createElement("div");
     tab.root.replaceChildren(node);
+    for (const pane of tabPanes(tab)) {
+      dropNativeWebgl(pane);
+      ensurePaneTerm(pane);
+    }
   }
 
   function buildNode(node, tab) {
@@ -1632,7 +1734,10 @@
       }
       walkLeaves(tab.layout, (pid) => {
         const p = state.panes.get(pid);
-        if (p) syncPaneChrome(tab, p);
+        if (p) {
+          syncPaneChrome(tab, p);
+          syncNativeSplitTheme(p);
+        }
       });
     }
 
@@ -1670,16 +1775,7 @@
     if (!tab) return;
     const run = () => {
       const list = tab.zoomedPaneId ? [state.panes.get(tab.zoomedPaneId)].filter(Boolean) : tabPanes(tab);
-      for (const p of list) {
-        if (!p.wrap?.isConnected) continue;
-        try {
-          p.fit.fit();
-          p.term.refresh(0, Math.max(0, (p.term.rows || 1) - 1));
-          sendResize(p);
-        } catch {
-          /* ignore */
-        }
-      }
+      for (const p of list) ensurePaneTerm(p);
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
   }
@@ -2208,6 +2304,7 @@
   }
 
   function attachWebgl(term) {
+    if (isNativeWindow()) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
     try {
@@ -2218,11 +2315,23 @@
         } catch {
           /* DOM renderer */
         }
+        term._keelWebgl = null;
       });
       term.loadAddon(addon);
+      term._keelWebgl = addon;
     } catch {
       /* xterm 6 default DOM renderer */
     }
+  }
+
+  function dropNativeWebgl(pane) {
+    if (!isNativeWindow() || !pane?.term?._keelWebgl) return;
+    try {
+      pane.term._keelWebgl.dispose();
+    } catch {
+      /* ignore */
+    }
+    pane.term._keelWebgl = null;
   }
 
   function loadTermAddon(term, Ctor, ...args) {
@@ -2486,17 +2595,10 @@
     const progress = loadTermAddon(term, ProgressAddonCtor);
     progress?.onChange?.((st) => paintPaneProgress(progressEl, st));
     search?.onDidChangeResults?.((ev) => paintFindCount(findEl.querySelector(".term-find-count"), ev));
-    term.open(host);
-    attachWebgl(term);
     body.appendChild(findEl);
     body.appendChild(failEl);
     wireFindEl(findEl, paneId);
-    try {
-      fit.fit();
-    } catch {
-      /* ignore */
-    }
-    return { wrap, banner, body, term, fit, search, findEl, failEl };
+    return { wrap, banner, body, term, fit, search, findEl, failEl, host };
   }
 
   function createTab(paneSeed) {
@@ -2547,6 +2649,7 @@
       status: info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "",
       term: shell.term,
       fit: shell.fit,
+      host: shell.host,
       wrap: shell.wrap,
       banner: shell.banner,
       search: shell.search,
@@ -2593,14 +2696,14 @@
         a: { type: "leaf", paneId: focused },
         b: { type: "leaf", paneId: pane.id },
       });
-      tab.focusedPaneId = pane.id;
+      tab.focusedPaneId = focused;
       tab.dirty = true;
     }
 
     if (pane.status !== "is-ready") seedConnectLog(pane);
     if (pane.status === "is-error" && info.error) pushFailLog(pane, "fail", info.error);
-    connectSessionWS(pane);
     renderTabs();
+    requestAnimationFrame(() => requestAnimationFrame(() => connectSessionWS(pane)));
     return pane;
   }
 
@@ -2684,7 +2787,7 @@
         return;
       }
       if (!live) return;
-      pane.term.write(new Uint8Array(ev.data));
+      writePaneBytes(pane, ev.data);
     });
     ws.addEventListener("close", () => {
       if (pane.wsGen !== gen || pane.closing || !state.panes.has(pane.id)) return;
@@ -2840,13 +2943,7 @@
     pane.wrap.classList.toggle("is-connecting-fail", show && connecting);
     el.hidden = !show;
     if (!show) {
-      if (pane.status === "is-ready") {
-        try {
-          pane.fit?.fit();
-        } catch {
-          /* ignore */
-        }
-      }
+      if (pane.status === "is-ready") reflowPane(pane);
       return;
     }
     const title = el.querySelector("[data-fail-title]");
@@ -2926,6 +3023,8 @@
 
   function disposePane(pane) {
     pane.closing = true;
+    pane.fitObs?.disconnect();
+    pane.fitObs = null;
     pane.ws?.close();
     pane.sigWs?.close();
     try {
@@ -3599,6 +3698,7 @@
       status: "",
       term: shell.term,
       fit: shell.fit,
+      host: shell.host,
       wrap: shell.wrap,
       banner: shell.banner,
       search: shell.search,
