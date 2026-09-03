@@ -806,7 +806,10 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(cssBody), ".term-host") ||
 		!strings.Contains(string(cssBody), `html[data-native] .term-tab.is-split .term-host`) ||
-		!strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-host`) {
+		!strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-host`) ||
+		!strings.Contains(string(cssBody), `.term-host {
+  position: absolute;
+  inset: 0;`) {
 		t.Fatal("split panes must fill with the terminal surface; solo native panes keep glass")
 	}
 	if !strings.Contains(string(cssBody), ".scrollbar.vertical") ||
