@@ -801,12 +801,12 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
 		strings.Contains(string(cssBody), "padding: 12px 14px 14px") ||
-		strings.Contains(string(cssBody), ".term-tab.is-split .term-body .xterm") {
-		t.Fatal("keel.css must not keep an xterm inset that the canvas ignores")
+		strings.Contains(string(cssBody), ".term-tab.is-split .term-body .xterm") ||
+		strings.Contains(string(cssBody), ".term-tab.is-split .term-body {") {
+		t.Fatal("split panes must not inset the terminal; the canvas should fill the pane")
 	}
-	if !strings.Contains(string(cssBody), ".term-tab.is-split .term-body {") ||
-		!strings.Contains(string(cssBody), ".term-host") {
-		t.Fatal("split pane padding must inset term-body around a term-host")
+	if !strings.Contains(string(cssBody), ".term-host") {
+		t.Fatal("keel.css missing term-host so xterm can fill the pane body")
 	}
 	if !strings.Contains(string(cssBody), ".scrollbar.vertical") ||
 		!strings.Contains(string(cssBody), "width: 6px !important") {
@@ -893,7 +893,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), `className = "term-host"`) ||
 		!strings.Contains(string(termBody), "term.open(host)") ||
 		!strings.Contains(string(termBody), "overviewRuler: { width: 6 }") {
-		t.Fatal("term.js must open xterm in a padded host with a thin overlay scrollbar")
+		t.Fatal("term.js must open xterm in a term-host with a thin overlay scrollbar")
 	}
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")

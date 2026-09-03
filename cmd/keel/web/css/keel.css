@@ -243,6 +243,7 @@ html[data-native] .terminals,
 html[data-native] .term-tab,
 html[data-native] .term-wrap,
 html[data-native] .term-body,
+html[data-native] .term-host,
 html[data-native] .term-body .xterm,
 html[data-native] .term-body .xterm-screen,
 html[data-native] .term-body .xterm-screen canvas {
@@ -1301,9 +1302,7 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   min-width: 0;
   min-height: 0;
   position: relative;
-}
-.term-tab.is-split .term-body {
-  padding: 8px 10px 10px;
+  background: var(--stage);
 }
 .term-body .xterm {
   height: 100%;
