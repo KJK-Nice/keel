@@ -249,6 +249,14 @@ html[data-native] .term-body .xterm-screen,
 html[data-native] .term-body .xterm-screen canvas {
   background: transparent;
 }
+html[data-native] .term-tab.is-split .term-wrap,
+html[data-native] .term-tab.is-split .term-body,
+html[data-native] .term-tab.is-split .term-host,
+html[data-native] .term-tab.is-split .term-body .xterm,
+html[data-native] .term-tab.is-split .term-body .xterm-screen,
+html[data-native] .term-tab.is-split .term-body .xterm-screen canvas {
+  background: var(--stage);
+}
 html[data-native] .start-page {
   background: color-mix(in srgb, var(--keel-stage) 66%, transparent);
 }
