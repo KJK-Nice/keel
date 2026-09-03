@@ -853,6 +853,16 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `.tab:has(.tab-rename) .tab-icon`) || !strings.Contains(string(cssBody), "align-self: center") {
 		t.Fatal("tab rename must keep the tab icon vertically centered")
 	}
+	if !strings.Contains(string(cssBody), `.tab .tab-icon svg { display: block; width: 16px; height: 16px; }`) ||
+		!strings.Contains(string(cssBody), `.tab .close svg { display: block; width: 16px; height: 16px; }`) {
+		t.Fatal("keel.css tab icons should stay 16px")
+	}
+	if strings.Contains(string(termBody), `viewBox="0 0 16 16"`) ||
+		!strings.Contains(string(termBody), `M18 6L6.00081 17.9992`) ||
+		!strings.Contains(string(termBody), `M7.5 7.5L8.72654 8.55719`) ||
+		!strings.Contains(string(termBody), `class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}`) {
+		t.Fatal("session tab and pane close glyphs must use Hugeicons computer-terminal-01 and cancel-01")
+	}
 	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
 	}

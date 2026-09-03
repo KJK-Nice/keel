@@ -739,14 +739,13 @@ body.is-pane-dragging { user-select: none; }
   display: grid;
   place-items: center;
   padding: 0;
-  font-size: 1rem;
-  line-height: 1;
   color: var(--keel-muted);
   background: var(--bg);
   border: 0;
   border-radius: 4px;
   corner-shape: squircle;
 }
+.tab .close svg { display: block; width: 16px; height: 16px; }
 .tab.is-active .close { background: var(--panel); color: var(--text); }
 @media (hover: hover) {
   .tab:not(.is-vault) .close {
@@ -1135,10 +1134,6 @@ body.is-pane-dragging .pane-bar { cursor: grabbing; }
 .pane-bar .icon-btn:disabled {
   opacity: 0.32;
   pointer-events: none;
-}
-.pane-bar .pane-close {
-  font-size: 1.05rem;
-  line-height: 1;
 }
 .term-wrap.is-zoomed .pane-zoom-in,
 .term-wrap:not(.is-zoomed) .pane-zoom-out { display: none; }
