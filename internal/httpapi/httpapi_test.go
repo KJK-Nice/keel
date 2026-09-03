@@ -1006,6 +1006,18 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), "skipSnapshot") {
 		t.Fatal("term.js must reattach the session websocket when the user clicks Reconnect")
 	}
+	if !strings.Contains(string(termBody), "pane-fail") ||
+		!strings.Contains(string(termBody), "Start over") ||
+		!strings.Contains(string(termBody), "Copy logs") ||
+		!strings.Contains(string(termBody), "data-pane-edit-host") ||
+		!strings.Contains(string(termBody), "function syncPaneFail") {
+		t.Fatal("term.js must show a connection transition page with Start over")
+	}
+	if !strings.Contains(string(cssBody), ".pane-fail") ||
+		!strings.Contains(string(cssBody), ".pane-fail-start") ||
+		!strings.Contains(string(cssBody), ".pane-fail-log") {
+		t.Fatal("keel.css missing connection transition page")
+	}
 	if strings.Contains(string(termBody), "function renderHerd") {
 		t.Fatal("term.js should not render a Hosts Live list")
 	}

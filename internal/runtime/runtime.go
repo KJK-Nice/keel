@@ -616,6 +616,9 @@ func (s *Session) runLoop() {
 			}
 			s.setConnectError(err)
 			s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+			s.mu.Lock()
+			s.forceReconnect = false
+			s.mu.Unlock()
 			return
 		}
 

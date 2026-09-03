@@ -754,3 +754,56 @@ func TestDialFailureRetriesThenConnects(t *testing.T) {
 		t.Fatalf("expected retry after dial failure, calls=%d", calls)
 	}
 }
+
+func TestManualReconnectConnectErrorDoesNotLoop(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	host.NoAutoReconnect = true
+	if _, err := st.UpsertHost(host); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var n int
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		n++
+		mu.Unlock()
+		return nil, errors.New("ssh dial 10.0.0.1:22: connection refused")
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if sess.Info().Status == StatusError {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if sess.Info().Status == StatusError {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(40 * time.Millisecond)
+	mu.Lock()
+	calls := n
+	mu.Unlock()
+	if calls > 3 {
+		t.Fatalf("manual reconnect should not spin, calls=%d", calls)
+	}
+	if sess.Info().Status != StatusError {
+		t.Fatalf("status = %s", sess.Info().Status)
+	}
+}
