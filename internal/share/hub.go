@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
+	"keel/internal/inject"
 	"keel/internal/runtime"
 )
 
@@ -375,6 +376,9 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 			if m.IsString {
 				var ctl struct {
 					Type     string `json:"type"`
+					Surface  string `json:"surface"`
+					Command  string `json:"command"`
+					Approved bool   `json:"approved"`
 					Cols     int    `json:"cols"`
 					Rows     int    `json:"rows"`
 					TargetID uint64 `json:"targetId"`
@@ -391,6 +395,14 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 					_ = sess.GrantControl(cl.ID, ctl.TargetID)
 				case "take-control":
 					_ = sess.TakeControl(cl.ID)
+				case "focus":
+					_ = sess.SetFocus(cl.ID, inject.Surface(ctl.Surface))
+				case "inject":
+					var approved inject.Approval
+					if ctl.Approved {
+						approved = inject.Approve()
+					}
+					_ = sess.Inject(cl.ID, []byte(ctl.Command), approved)
 				}
 				return
 			}

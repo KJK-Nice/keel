@@ -272,8 +272,9 @@ func (r *Runtime) emitHerd(ev HerdEvent) {
 }
 
 type clientConn struct {
-	Client Client
-	ch     chan Event
+	Client  Client
+	ch      chan Event
+	focused inject.Surface
 }
 
 type Session struct {
@@ -359,7 +360,7 @@ func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
 		}
 	}
 	cl.Role = s.roleLocked(id)
-	s.clients[id] = &clientConn{Client: cl, ch: ch}
+	s.clients[id] = &clientConn{Client: cl, ch: ch, focused: inject.SurfaceTerm}
 	snap := s.buf.Bytes()
 	s.mu.Unlock()
 	s.emitPresence("joined")
@@ -427,6 +428,38 @@ func (s *Session) Write(clientID uint64, p []byte) error {
 	}
 	_, err := br.Write(p)
 	return err
+}
+
+// SetFocus records which UI surface owns this client's keyboard. Palette
+// and chrome must not leave SurfaceTerm in place or Keystroke will type.
+func (s *Session) SetFocus(clientID uint64, focused inject.Surface) error {
+	switch focused {
+	case inject.SurfaceTerm, inject.SurfacePalette, inject.SurfaceChrome:
+	case "":
+		focused = inject.SurfaceTerm
+	default:
+		focused = inject.SurfaceChrome
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.clients[clientID]
+	if !ok {
+		return ErrNoClient
+	}
+	c.focused = focused
+	return nil
+}
+
+// Focus is the surface last set for this client. Empty/unknown clients
+// report SurfaceTerm so live typing keeps working until palette opens.
+func (s *Session) Focus(clientID uint64) inject.Surface {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.clients[clientID]
+	if !ok || c.focused == "" {
+		return inject.SurfaceTerm
+	}
+	return c.focused
 }
 
 // Inject writes p to the PTY only after an explicit approve. Live typing

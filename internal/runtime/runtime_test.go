@@ -301,6 +301,79 @@ func TestApprovedInjectWorksWhilePaletteFocused(t *testing.T) {
 	}
 }
 
+func TestSetFocusPaletteBlocksKeystrokeUntilTermRestored(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+	if sess.Focus(alice.ID) != inject.SurfaceTerm {
+		t.Fatalf("default focus = %q", sess.Focus(alice.ID))
+	}
+
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+
+	if err := sess.SetFocus(alice.ID, inject.SurfacePalette); err != nil {
+		t.Fatal(err)
+	}
+	if sess.Focus(alice.ID) != inject.SurfacePalette {
+		t.Fatalf("palette focus = %q", sess.Focus(alice.ID))
+	}
+	if err := sess.Keystroke(alice.ID, []byte("i"), sess.Focus(alice.ID)); !errors.Is(err, inject.ErrNotTerminalFocus) {
+		t.Fatalf("palette keystroke err = %v", err)
+	}
+	if err := sess.Write(alice.ID, []byte("live")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "live" {
+			t.Fatalf("Write while palette focused got %q, want live WS still ungated", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for ungated Write")
+	}
+
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+	if err := sess.Inject(alice.ID, []byte("ls\n"), inject.Approve()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "ls\n" {
+			t.Fatalf("approved inject got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+
+	if err := sess.SetFocus(alice.ID, inject.SurfaceTerm); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+	if err := sess.Keystroke(alice.ID, []byte("x"), sess.Focus(alice.ID)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "x" {
+			t.Fatalf("restored term keystroke got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for restored keystroke")
+	}
+}
+
 func TestKeystrokeWriteDoesNotNeedInjectApprove(t *testing.T) {
 	_, sess, fb := spawnReady(t)
 	alice, _, _ := sess.Subscribe(Join{Name: "alice"})

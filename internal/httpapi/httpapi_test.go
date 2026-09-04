@@ -313,6 +313,69 @@ func TestSessionControlAndFanout(t *testing.T) {
 	}
 }
 
+func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
+	srv, _, st, fb := testServer(t)
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
+	defer alice.Close()
+	waitJSON(t, alice, "ready")
+
+	got := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- string(buf[:n])
+	}()
+
+	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "palette"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("i")); err != nil {
+		t.Fatal(err)
+	}
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "rm\n", "approved": false}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received palette keystroke or unapproved inject %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "approved": true}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "ls\n" {
+			t.Fatalf("approved inject got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- string(buf[:n])
+	}()
+	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "x" {
+			t.Fatalf("restored term keystroke got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for restored keystroke")
+	}
+}
+
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
@@ -1305,21 +1368,30 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	}
 	fn := js[fnStart:fnEnd]
 	approveAt := strings.Index(fn, "await approveBeforeType")
-	sendAt := strings.Index(fn, "sendSnippet(id")
+	sendAt := strings.Index(fn, "sendApprovedInject")
 	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
-		t.Fatal("palette snippet inject must await approveBeforeType before sendSnippet")
+		t.Fatal("palette snippet inject must await approveBeforeType before Inject")
 	}
 	if !strings.Contains(fn, "if (!ok) return") {
 		t.Fatal("palette snippet inject must abort when approve-before-type is cancelled")
 	}
-	if !strings.Contains(fn, `sendSnippet(id, { clearLine: true })`) {
-		t.Fatal("palette inject must clear the current line before typing the snippet")
+	if strings.Contains(fn, "sendSnippet") || strings.Contains(fn, "sendSessionBytes") {
+		t.Fatal("palette inject must not call sendSnippet or raw session bytes")
+	}
+	if !strings.Contains(js, `type: "inject"`) || !strings.Contains(js, "approved: true") {
+		t.Fatal("palette inject must send WS inject with approved true")
+	}
+	if !strings.Contains(js, `type: "focus", surface`) && !strings.Contains(js, `type: "focus", surface:`) {
+		t.Fatal("palette must set session focus surface")
+	}
+	if !strings.Contains(js, `setSessionSurface("palette")`) || !strings.Contains(js, `setSessionSurface("term")`) {
+		t.Fatal("palette open must set SurfacePalette and close must restore SurfaceTerm")
+	}
+	if !strings.Contains(fn, `"\u0015" + command`) {
+		t.Fatal("palette inject must clear the line then send the snippet through Inject")
 	}
 	if !strings.Contains(js, "function approveBeforeType") {
 		t.Fatal("term.js missing approveBeforeType")
-	}
-	if !strings.Contains(js, `if (opts.clearLine) command = "\u0015" + command`) {
-		t.Fatal("palette inject clearLine must send Ctrl-U before snippet bytes")
 	}
 	if !strings.Contains(js, "if (ptyWritesBlocked()) return") {
 		t.Fatal("xterm onData must consult ptyWritesBlocked")

@@ -2506,6 +2506,7 @@
   function closeCommandPalette() {
     if (!isCommandPaletteOpen()) return;
     closeModal(els.cmdPalette);
+    syncSessionSurface();
   }
 
   function openCommandPalette() {
@@ -2516,7 +2517,20 @@
     paintCommandPalette();
     focusedPane()?.term?.blur?.();
     openModal(els.cmdPalette);
+    setSessionSurface("palette");
     requestAnimationFrame(() => els.cmdPaletteInput?.focus());
+  }
+
+  function setSessionSurface(surface) {
+    for (const pane of state.panes.values()) {
+      sendSessionJSON(pane, { type: "focus", surface });
+    }
+  }
+
+  function syncSessionSurface() {
+    if (isCommandPaletteOpen()) setSessionSurface("palette");
+    else if (els.ptyInjectModal?.open) setSessionSurface("chrome");
+    else setSessionSurface("term");
   }
 
   // approve-before-type: palette (and any chrome) must resolve true before PTY writes.
@@ -2534,6 +2548,7 @@
     return new Promise((resolve) => {
       ptyInjectWaiter = resolve;
       openModal(modal);
+      setSessionSurface("chrome");
     });
   }
 
@@ -2542,6 +2557,7 @@
     holdPtyFromChrome();
     ptyInjectWaiter = null;
     closeModal(els.ptyInjectModal);
+    syncSessionSurface();
     if (done) done(!!ok);
   }
 
@@ -2562,7 +2578,7 @@
     if (!ok) return;
     holdPtyFromChrome();
     focusedPane()?.term?.clearSelection?.();
-    sendSnippet(id, { clearLine: true });
+    sendApprovedInject("\u0015" + command);
   }
 
   async function runPaletteItem(item) {
@@ -3235,6 +3251,10 @@
     const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
     ws.binaryType = "arraybuffer";
     pane.ws = ws;
+    ws.addEventListener("open", () => {
+      if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
+      else if (els.ptyInjectModal?.open) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+    });
     let live = !opts.skipSnapshot;
 
     const applyPresence = (msg) => {
@@ -3723,7 +3743,29 @@
     return true;
   }
 
-  function sendSnippet(id, opts = {}) {
+  function sendApprovedInject(command) {
+    const pane = focusedPane();
+    if (!pane) {
+      toast("Open a session first");
+      return;
+    }
+    const tab = state.tabs.get(pane.tabId);
+    const targets = tab?.sync ? tabPanes(tab) : [pane];
+    let sent = false;
+    for (const p of targets) {
+      const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
+      if (!open || !isDriving(p)) continue;
+      sendSessionJSON(p, { type: "inject", command, approved: true });
+      sent = true;
+    }
+    if (!sent) {
+      toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
+      return;
+    }
+    pane.term.focus();
+  }
+
+  function sendSnippet(id) {
     const sn = state.snippets.find((s) => s.id === id);
     if (!sn) return;
     const pane = focusedPane();
@@ -3731,8 +3773,7 @@
       toast("Open a session first");
       return;
     }
-    let command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
-    if (opts.clearLine) command = "\u0015" + command;
+    const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
     const bytes = new TextEncoder().encode(command);
     const tab = state.tabs.get(pane.tabId);
     const targets = tab?.sync ? tabPanes(tab) : [pane];
@@ -5024,6 +5065,7 @@
       if (state.openModal === modal) state.openModal = null;
       els.modalScrim?.classList.remove("is-open");
       fitVisiblePanes();
+      if (modal === els.cmdPalette) syncSessionSurface();
     }));
     on(els.ptyInjectModal, "close", () => {
       if (ptyInjectWaiter) {
@@ -5034,6 +5076,7 @@
       if (state.openModal === els.ptyInjectModal) state.openModal = null;
       els.modalScrim?.classList.remove("is-open");
       fitVisiblePanes();
+      syncSessionSurface();
     });
     on(els.cmdPaletteForm, "submit", (ev) => {
       ev.preventDefault();
