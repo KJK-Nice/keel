@@ -918,6 +918,18 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), ".term-tab.is-active { visibility: visible") {
 		t.Fatal("keel.css must keep inactive terminals visible to the compositor so WebGL contexts survive")
 	}
+	if strings.Contains(string(body), `id="terminals" hidden`) {
+		t.Fatal("#terminals must not use the hidden attribute; it is display:none and blocks every session tab")
+	}
+	if !strings.Contains(string(termBody), "els.terminals.hidden = false") {
+		t.Fatal("term.js must clear #terminals.hidden when showing a session")
+	}
+	if !strings.Contains(string(cssBody), ".terminals[hidden] { display: block !important; }") {
+		t.Fatal("keel.css must override HTML hidden on #terminals so display:none cannot blank every session")
+	}
+	if !strings.Contains(string(cssBody), ".term-tab:not(.is-split):not(.is-zoomed) .term-stage > .term-wrap:not(.is-parked)") {
+		t.Fatal("keel.css must fill a solo pane across the stage if JS layout has not sized it yet")
+	}
 	if !strings.Contains(string(body), "addon-search.js") ||
 		!strings.Contains(string(body), "addon-web-links.js") ||
 		!strings.Contains(string(body), "addon-unicode-graphemes.js") ||

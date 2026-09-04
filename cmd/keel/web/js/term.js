@@ -1711,8 +1711,8 @@
 
   function layoutTabPanes(tab) {
     if (!tab?.stage) return;
-    const w = tab.stage.clientWidth;
-    const h = tab.stage.clientHeight;
+    const w = tab.stage.clientWidth || tab.root.clientWidth;
+    const h = tab.stage.clientHeight || tab.root.clientHeight;
     if (w < 2 || h < 2) return;
     const shown = new Set();
     if (tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId)) {
@@ -1875,6 +1875,7 @@
     syncTabOverflow();
 
     els.vault.classList.toggle("is-active", vaultOn);
+    els.terminals.hidden = false;
     els.terminals.classList.toggle("is-active", !vaultOn);
 
     for (const tab of state.tabs.values()) {
