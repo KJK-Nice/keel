@@ -68,7 +68,8 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 - **⌘T** new tab (recent hosts to pick). **⌘W** closes the focused pane first; with one pane left it closes the session tab if another is open. The last session tab stays (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
 - Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
-- **⌘K** focuses host search (switches to Vault if needed). **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
+- **⌘K** / **⌘⇧P** opens the command palette (connect a host, focus a pane or tab, split, settings, and other chrome actions). Host search on Vault still works; the palette includes **Search hosts in Vault**. **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
+- Palette actions that would type into a live session (**Type snippet**) always show **approve-before-type**: the bytes are previewed and nothing is written until you click **Type**. Vault snippet list clicks are unchanged.
 - Open a host: new session tab. Close tab = kill that PTY. Close the window = detach (sessions stay in `keel serve`; reopen Keel to attach). SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane brings it back.
 - **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
 - **⌘+** / **⌘-** bigger or smaller terminal text (10–22px). **⌘0** resets to 12.

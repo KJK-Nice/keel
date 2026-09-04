@@ -1210,6 +1210,113 @@ func TestIndexServesVault(t *testing.T) {
 	}
 }
 
+func TestIndexServesCommandPalette(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	html := string(body)
+	if !strings.Contains(html, `id="cmd-palette"`) || !strings.Contains(html, `id="cmd-palette-input"`) {
+		t.Fatal("index missing command palette dialog")
+	}
+	if !strings.Contains(html, `id="pty-inject-modal"`) || !strings.Contains(html, `id="pty-inject-preview"`) {
+		t.Fatal("index missing approve-before-type dialog")
+	}
+	if !strings.Contains(html, "Nothing is typed until you approve") || !strings.Contains(html, `id="pty-inject-ok"`) {
+		t.Fatal("approve-before-type dialog must explain the gate and have a Type button")
+	}
+
+	cssRes, err := http.Get(srv.URL + "/css/keel.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cssRes.Body.Close()
+	cssBody, _ := io.ReadAll(cssRes.Body)
+	css := string(cssBody)
+	if !strings.Contains(css, ".cmd-palette") || !strings.Contains(css, "--keel-panel") || !strings.Contains(css, "--keel-sidebar") {
+		t.Fatal("keel.css missing command palette chrome tokens")
+	}
+
+	jsRes, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsRes.Body.Close()
+	jsBody, _ := io.ReadAll(jsRes.Body)
+	js := string(jsBody)
+	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, `runShortcut("palette")`) {
+		t.Fatal("term.js must open the command palette through runShortcut")
+	}
+	kIdx := strings.Index(js, `if (key === "k" && !ev.shiftKey)`)
+	if kIdx < 0 {
+		t.Fatal("term.js missing ⌘K handler")
+	}
+	kChunk := js[kIdx:min(len(js), kIdx+220)]
+	if !strings.Contains(kChunk, `runShortcut("palette")`) {
+		t.Fatal("⌘K must open the command palette")
+	}
+	if strings.Contains(kChunk, `runShortcut("search")`) {
+		t.Fatal("⌘K must not focus host search")
+	}
+	if !strings.Contains(js, `if (key === "p" && ev.shiftKey)`) {
+		t.Fatal("term.js missing ⌘⇧P palette shortcut")
+	}
+
+	catStart := strings.Index(js, "function paletteCatalog()")
+	catEndRel := strings.Index(js[catStart:], "\n  function paletteMatches")
+	if catStart < 0 || catEndRel < 0 {
+		t.Fatal("term.js missing palette catalog")
+	}
+	catalog := js[catStart : catStart+catEndRel]
+	if strings.Contains(catalog, "sendSnippet") || strings.Contains(catalog, "sendSessionBytes") {
+		t.Fatal("palette catalog must not write a PTY; snippet runs must go through paletteRunSnippet")
+	}
+	if !strings.Contains(catalog, "paletteRunSnippet") || !strings.Contains(catalog, "Connect ") {
+		t.Fatal("palette catalog must include host connect and gated snippet actions")
+	}
+
+	fnStart := strings.Index(js, "async function paletteRunSnippet")
+	if fnStart < 0 {
+		t.Fatal("term.js missing paletteRunSnippet")
+	}
+	fnEndRel := strings.Index(js[fnStart+1:], "\n  async function ")
+	fnAlt := strings.Index(js[fnStart+1:], "\n  function ")
+	fnEnd := len(js)
+	if fnEndRel >= 0 {
+		fnEnd = fnStart + 1 + fnEndRel
+	}
+	if fnAlt >= 0 && fnStart+1+fnAlt < fnEnd {
+		fnEnd = fnStart + 1 + fnAlt
+	}
+	fn := js[fnStart:fnEnd]
+	approveAt := strings.Index(fn, "await approveBeforeType")
+	sendAt := strings.Index(fn, "sendSnippet(id)")
+	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
+		t.Fatal("palette snippet inject must await approveBeforeType before sendSnippet")
+	}
+	if !strings.Contains(fn, "if (!ok) return") {
+		t.Fatal("palette snippet inject must abort when approve-before-type is cancelled")
+	}
+	if !strings.Contains(js, "function approveBeforeType") {
+		t.Fatal("term.js missing approveBeforeType")
+	}
+}
+
 func TestManualServe(t *testing.T) {
 	if os.Getenv("KEEL_SERVE") != "1" {
 		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")

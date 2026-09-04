@@ -318,6 +318,12 @@
     hostKeyForm: document.getElementById("hostkey-form"),
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
+    cmdPalette: document.getElementById("cmd-palette"),
+    cmdPaletteForm: document.getElementById("cmd-palette-form"),
+    cmdPaletteInput: document.getElementById("cmd-palette-input"),
+    cmdPaletteList: document.getElementById("cmd-palette-list"),
+    ptyInjectModal: document.getElementById("pty-inject-modal"),
+    ptyInjectForm: document.getElementById("pty-inject-form"),
   };
 
   function on(el, type, fn, opts) {
@@ -2262,6 +2268,303 @@
   let kbdTimer = 0;
   let lastShortcutAt = 0;
   let lastShortcutName = "";
+  let paletteCursor = 0;
+  let paletteVisible = [];
+  let ptyInjectWaiter = null;
+
+  function paletteQuery() {
+    return (els.cmdPaletteInput?.value || "").trim().toLowerCase();
+  }
+
+  function paletteCatalog() {
+    const items = [];
+    const add = (item) => items.push(item);
+    add({ id: "new-tab", group: "Tabs", title: "New tab", keys: `${MOD}T`, run: () => newTab() });
+    add({ id: "new-local", group: "Tabs", title: "New Local Shell", run: () => newLocalTab() });
+    add({
+      id: "close-tab",
+      group: "Tabs",
+      title: "Close pane or tab",
+      keys: `${MOD}W`,
+      run: () => closeActivePaneOrTab(),
+    });
+    add({
+      id: "reopen-tab",
+      group: "Tabs",
+      title: "Reopen last tab",
+      keys: `${MOD}⇧T`,
+      run: () => reopenLastTab(),
+    });
+    add({ id: "vault", group: "Vault", title: "Go to Vault", keys: `${MOD}1`, run: () => showVault() });
+    add({
+      id: "search-hosts",
+      group: "Vault",
+      title: "Search hosts in Vault",
+      run: () => runShortcut("search"),
+    });
+    add({
+      id: "new-host",
+      group: "Vault",
+      title: "New host",
+      keys: `${MOD}N`,
+      run: () => runShortcut("new-host"),
+    });
+    add({
+      id: "quick-connect",
+      group: "Vault",
+      title: "Quick connect",
+      keys: `${MOD}⇧O`,
+      run: () => runShortcut("quick-connect"),
+    });
+    add({ id: "join", group: "Vault", title: "Join session", keys: `${MOD}J`, run: () => runShortcut("join") });
+    add({
+      id: "vault-hosts",
+      group: "Vault",
+      title: "Hosts",
+      run: () => {
+        showVault();
+        setVaultSection("hosts");
+      },
+    });
+    add({
+      id: "vault-keychain",
+      group: "Vault",
+      title: "Keychain",
+      run: () => {
+        showVault();
+        setVaultSection("keychain");
+      },
+    });
+    add({
+      id: "vault-forwards",
+      group: "Vault",
+      title: "Port forwarding",
+      run: () => {
+        showVault();
+        setVaultSection("forwards");
+      },
+    });
+    add({
+      id: "vault-snippets",
+      group: "Vault",
+      title: "Snippets",
+      run: () => {
+        showVault();
+        setVaultSection("snippets");
+      },
+    });
+    add({
+      id: "vault-logs",
+      group: "Vault",
+      title: "Logs",
+      run: () => {
+        showVault();
+        setVaultSection("logs");
+      },
+    });
+    add({ id: "settings", group: "Vault", title: "Settings", keys: `${MOD},`, run: () => runShortcut("settings") });
+    add({
+      id: "split-right",
+      group: "Panes",
+      title: "Split right",
+      keys: `${MOD}⇧D`,
+      run: () => splitActive("h"),
+    });
+    add({
+      id: "split-down",
+      group: "Panes",
+      title: "Split down",
+      keys: `${MOD}⇧E`,
+      run: () => splitActive("v"),
+    });
+    add({
+      id: "focus-pane-zoom",
+      group: "Panes",
+      title: "Focus view (zoom pane)",
+      keys: `${MOD}⇧↵`,
+      run: () => runShortcut("focus-pane"),
+    });
+    add({ id: "find-term", group: "Panes", title: "Find in terminal", keys: `${MOD}F`, run: () => runShortcut("find-term") });
+    add({
+      id: "sync-panes",
+      group: "Panes",
+      title: "Toggle sync input",
+      run: () => toggleTabSync(state.activeId),
+    });
+    add({ id: "font-up", group: "Terminal", title: "Larger text", keys: `${MOD}+`, run: () => runShortcut("zoom-in") });
+    add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: `${MOD}-`, run: () => runShortcut("zoom-out") });
+    add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: `${MOD}0`, run: () => runShortcut("zoom-reset") });
+    add({
+      id: "stop-runtime",
+      group: "Terminal",
+      title: "Stop Keel runtime",
+      run: () => runShortcut("stop-runtime"),
+    });
+    for (const h of state.hosts) {
+      add({
+        id: `host:${h.id}`,
+        group: "Connect",
+        title: `Connect ${h.name}`,
+        hint: hostSubtitle(h),
+        run: () => openSession(h).catch((err) => toast(err.message, true)),
+      });
+    }
+    for (const tab of state.tabs.values()) {
+      add({
+        id: `tab:${tab.id}`,
+        group: "Tabs",
+        title: `Focus tab ${tabTitle(tab)}`,
+        run: () => {
+          state.activeId = tab.id;
+          renderTabs();
+        },
+      });
+    }
+    const active = state.tabs.get(state.activeId);
+    if (active) {
+      for (const p of tabPanes(active)) {
+        add({
+          id: `pane:${p.id}`,
+          group: "Panes",
+          title: `Focus pane ${p.title || "session"}`,
+          hint: p.subtitle || "",
+          run: () => markFocusedPane(p),
+        });
+      }
+    }
+    for (const sn of state.snippets) {
+      add({
+        id: `snippet:${sn.id}`,
+        group: "Snippets",
+        title: `Type snippet: ${sn.name}`,
+        hint: "Confirm before sending to the terminal",
+        run: () => paletteRunSnippet(sn.id),
+      });
+    }
+    return items;
+  }
+
+  function paletteMatches(item, q) {
+    if (!q) return true;
+    const hay = `${item.title} ${item.hint || ""} ${item.group} ${item.keys || ""}`.toLowerCase();
+    return q.split(/\s+/).filter(Boolean).every((part) => hay.includes(part));
+  }
+
+  function paintCommandPalette() {
+    const list = els.cmdPaletteList;
+    if (!list) return;
+    const q = paletteQuery();
+    paletteVisible = paletteCatalog().filter((item) => paletteMatches(item, q));
+    if (paletteCursor >= paletteVisible.length) paletteCursor = Math.max(0, paletteVisible.length - 1);
+    if (!paletteVisible.length) {
+      list.innerHTML = `<p class="cmd-palette-empty">No matching commands</p>`;
+      els.cmdPaletteInput?.removeAttribute("aria-activedescendant");
+      return;
+    }
+    const parts = [];
+    let lastGroup = "";
+    paletteVisible.forEach((item, i) => {
+      if (item.group !== lastGroup) {
+        lastGroup = item.group;
+        parts.push(`<div class="cmd-palette-group">${escapeHtml(item.group)}</div>`);
+      }
+      const selected = i === paletteCursor;
+      const active = selected ? " is-active" : "";
+      const hint = item.hint ? `<span class="cmd-palette-item-hint">${escapeHtml(item.hint)}</span>` : "";
+      const keys = item.keys ? `<kbd class="cmd-palette-item-keys">${escapeHtml(item.keys)}</kbd>` : "";
+      parts.push(
+        `<button type="button" class="cmd-palette-item${active}" role="option" data-palette-index="${i}" id="cmd-palette-opt-${i}" aria-selected="${selected ? "true" : "false"}">
+          <span class="cmd-palette-item-text"><span class="cmd-palette-item-title">${escapeHtml(item.title)}</span>${hint}</span>
+          ${keys}
+        </button>`
+      );
+    });
+    list.innerHTML = parts.join("");
+    if (els.cmdPaletteInput) {
+      if (paletteVisible.length) {
+        els.cmdPaletteInput.setAttribute("aria-activedescendant", `cmd-palette-opt-${paletteCursor}`);
+      } else {
+        els.cmdPaletteInput.removeAttribute("aria-activedescendant");
+      }
+    }
+    list.querySelector(".cmd-palette-item.is-active")?.scrollIntoView({ block: "nearest" });
+  }
+
+  function isCommandPaletteOpen() {
+    return !!(els.cmdPalette && els.cmdPalette.open);
+  }
+
+  function closeCommandPalette() {
+    if (!isCommandPaletteOpen()) return;
+    closeModal(els.cmdPalette);
+  }
+
+  function openCommandPalette() {
+    if (!els.cmdPalette) return;
+    if (state.openModal && state.openModal !== els.cmdPalette) closeModal();
+    if (els.cmdPaletteInput) els.cmdPaletteInput.value = "";
+    paletteCursor = 0;
+    paintCommandPalette();
+    openModal(els.cmdPalette);
+    requestAnimationFrame(() => els.cmdPaletteInput?.focus());
+  }
+
+  // approve-before-type: palette (and any chrome) must resolve true before PTY writes.
+  function approveBeforeType(command, sessionLabel) {
+    const modal = els.ptyInjectModal;
+    const preview = document.getElementById("pty-inject-preview");
+    const sess = document.getElementById("pty-inject-session");
+    if (!modal || typeof modal.showModal !== "function") {
+      return Promise.resolve(window.confirm(`Type into ${sessionLabel || "the terminal"}?\n\n${command}`));
+    }
+    if (sess) sess.textContent = sessionLabel || "the focused session";
+    if (preview) preview.textContent = command;
+    return new Promise((resolve) => {
+      ptyInjectWaiter = resolve;
+      openModal(modal);
+    });
+  }
+
+  function settlePtyInject(ok) {
+    const done = ptyInjectWaiter;
+    ptyInjectWaiter = null;
+    closeModal(els.ptyInjectModal);
+    if (done) done(!!ok);
+  }
+
+  async function paletteRunSnippet(id) {
+    const sn = state.snippets.find((s) => s.id === id);
+    if (!sn) return;
+    const pane = focusedPane();
+    if (!pane) {
+      toast("Open a session first");
+      return;
+    }
+    if (!isDriving(pane)) {
+      toast("You are following — take or request control to type");
+      return;
+    }
+    const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
+    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
+    if (!ok) return;
+    sendSnippet(id);
+  }
+
+  async function runPaletteItem(item) {
+    closeCommandPalette();
+    if (!item?.run) return;
+    try {
+      await item.run();
+    } catch (err) {
+      toast(err?.message || String(err), true);
+    }
+  }
+
+  function movePaletteCursor(delta) {
+    if (!paletteVisible.length) return;
+    paletteCursor = (paletteCursor + delta + paletteVisible.length) % paletteVisible.length;
+    paintCommandPalette();
+  }
 
   function runShortcut(name) {
     const now = Date.now();
@@ -2314,6 +2617,9 @@
           state.runtimeStopping = false;
           toast(err.message, true);
         });
+    } else if (name === "palette") {
+      if (isCommandPaletteOpen()) closeCommandPalette();
+      else openCommandPalette();
     }
   }
 
@@ -2369,6 +2675,16 @@
       runShortcut("zoom-reset");
       return true;
     }
+    if (key === "k" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("palette");
+      return true;
+    }
+    if (key === "p" && ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("palette");
+      return true;
+    }
     if (state.openModal) return false;
     if (key === "f" && !ev.shiftKey) {
       ev.preventDefault();
@@ -2382,11 +2698,6 @@
         runPaneFind(pane, ev.shiftKey ? "prev" : "next", false);
         return true;
       }
-    }
-    if (key === "k" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("search");
-      return true;
     }
     if (key === "n" && !ev.shiftKey) {
       ev.preventDefault();
@@ -4690,11 +5001,53 @@
       els.identityModal,
       els.tunnelModal,
       els.hostKeyModal,
+      els.cmdPalette,
     ].forEach((modal) => on(modal, "close", () => {
       if (state.openModal === modal) state.openModal = null;
       els.modalScrim?.classList.remove("is-open");
       fitVisiblePanes();
     }));
+    on(els.ptyInjectModal, "close", () => {
+      if (ptyInjectWaiter) {
+        const done = ptyInjectWaiter;
+        ptyInjectWaiter = null;
+        done(false);
+      }
+      if (state.openModal === els.ptyInjectModal) state.openModal = null;
+      els.modalScrim?.classList.remove("is-open");
+      fitVisiblePanes();
+    });
+    on(els.cmdPaletteForm, "submit", (ev) => {
+      ev.preventDefault();
+      runPaletteItem(paletteVisible[paletteCursor]);
+    });
+    on(els.cmdPaletteInput, "input", () => {
+      paletteCursor = 0;
+      paintCommandPalette();
+    });
+    on(els.cmdPaletteInput, "keydown", (ev) => {
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        movePaletteCursor(1);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        movePaletteCursor(-1);
+      }
+    });
+    on(els.cmdPaletteList, "pointerdown", (ev) => {
+      const btn = ev.target.closest?.("[data-palette-index]");
+      if (!btn) return;
+      ev.preventDefault();
+      const i = Number(btn.dataset.paletteIndex);
+      if (!Number.isFinite(i)) return;
+      paletteCursor = i;
+      runPaletteItem(paletteVisible[i]);
+    });
+    on(els.ptyInjectForm, "submit", (ev) => {
+      ev.preventDefault();
+      settlePtyInject(true);
+    });
+    on(document.getElementById("pty-inject-cancel"), "click", () => settlePtyInject(false));
     on(els.hostForm?.authType, "change", toggleAuthFields);
     on(els.hostForm?.keepAlive, "change", toggleKeepAliveFields);
     on(els.identityForm?.kind, "change", toggleIdentFields);
