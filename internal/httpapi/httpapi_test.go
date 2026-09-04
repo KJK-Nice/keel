@@ -1315,6 +1315,9 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	if !strings.Contains(js, "function approveBeforeType") {
 		t.Fatal("term.js missing approveBeforeType")
 	}
+	if !strings.Contains(js, "if (state.openModal || ptyInjectWaiter) return") {
+		t.Fatal("xterm onData must not write a PTY while the palette or approve-before-type dialog is open")
+	}
 }
 
 func TestManualServe(t *testing.T) {

@@ -2505,6 +2505,7 @@
     if (els.cmdPaletteInput) els.cmdPaletteInput.value = "";
     paletteCursor = 0;
     paintCommandPalette();
+    focusedPane()?.term?.blur?.();
     openModal(els.cmdPalette);
     requestAnimationFrame(() => els.cmdPaletteInput?.focus());
   }
@@ -2519,6 +2520,7 @@
     }
     if (sess) sess.textContent = sessionLabel || "the focused session";
     if (preview) preview.textContent = command;
+    focusedPane()?.term?.blur?.();
     return new Promise((resolve) => {
       ptyInjectWaiter = resolve;
       openModal(modal);
@@ -2740,6 +2742,7 @@
     const term = pane.term;
     term.attachCustomKeyEventHandler(termKeyHandler);
     term.onData((data) => {
+      if (state.openModal || ptyInjectWaiter) return;
       if (!isDriving(pane)) return;
       const bytes = new TextEncoder().encode(data);
       const tab = state.tabs.get(pane.tabId);
