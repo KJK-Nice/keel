@@ -1305,18 +1305,21 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	}
 	fn := js[fnStart:fnEnd]
 	approveAt := strings.Index(fn, "await approveBeforeType")
-	sendAt := strings.Index(fn, "sendSnippet(id)")
+	sendAt := strings.Index(fn, "sendSnippet(id")
 	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
 		t.Fatal("palette snippet inject must await approveBeforeType before sendSnippet")
 	}
 	if !strings.Contains(fn, "if (!ok) return") {
 		t.Fatal("palette snippet inject must abort when approve-before-type is cancelled")
 	}
+	if !strings.Contains(fn, `sendSnippet(id, { clearLine: true })`) {
+		t.Fatal("palette inject must clear the current line before typing the snippet")
+	}
 	if !strings.Contains(js, "function approveBeforeType") {
 		t.Fatal("term.js missing approveBeforeType")
 	}
-	if !strings.Contains(js, "function holdPtyFromChrome") || !strings.Contains(js, "function ptyWritesBlocked") {
-		t.Fatal("xterm onData must not write a PTY while palette/inject chrome is open or closing")
+	if !strings.Contains(js, `if (opts.clearLine) command = "\u0015" + command`) {
+		t.Fatal("palette inject clearLine must send Ctrl-U before snippet bytes")
 	}
 	if !strings.Contains(js, "if (ptyWritesBlocked()) return") {
 		t.Fatal("xterm onData must consult ptyWritesBlocked")

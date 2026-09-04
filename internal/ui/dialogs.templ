@@ -55,7 +55,7 @@ templ ptyInjectDialog() {
 					Type into the terminal?
 				}
 				@dialog.Description(dialog.DescriptionProps{ID: "pty-inject-hint"}) {
-					This sends keystrokes to the focused session. Nothing is typed until you approve.
+					This sends keystrokes to the focused session. The current line is cleared first. Nothing is typed until you approve.
 				}
 			}
 			<p class="hint">Session: <span id="pty-inject-session"></span></p>
@@ -64,7 +64,7 @@ templ ptyInjectDialog() {
 				@button.Button(button.Props{ID: "pty-inject-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{ID: "pty-inject-ok", Type: button.TypeSubmit}) {
+				@button.Button(button.Props{ID: "pty-inject-ok", Type: button.TypeButton}) {
 					Type
 				}
 			</div>

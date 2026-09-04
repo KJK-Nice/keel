@@ -2530,6 +2530,7 @@
     if (sess) sess.textContent = sessionLabel || "the focused session";
     if (preview) preview.textContent = command;
     focusedPane()?.term?.blur?.();
+    focusedPane()?.term?.clearSelection?.();
     return new Promise((resolve) => {
       ptyInjectWaiter = resolve;
       openModal(modal);
@@ -2560,7 +2561,8 @@
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    sendSnippet(id);
+    focusedPane()?.term?.clearSelection?.();
+    sendSnippet(id, { clearLine: true });
   }
 
   async function runPaletteItem(item) {
@@ -3721,7 +3723,7 @@
     return true;
   }
 
-  function sendSnippet(id) {
+  function sendSnippet(id, opts = {}) {
     const sn = state.snippets.find((s) => s.id === id);
     if (!sn) return;
     const pane = focusedPane();
@@ -3729,7 +3731,8 @@
       toast("Open a session first");
       return;
     }
-    const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
+    let command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
+    if (opts.clearLine) command = "\u0015" + command;
     const bytes = new TextEncoder().encode(command);
     const tab = state.tabs.get(pane.tabId);
     const targets = tab?.sync ? tabPanes(tab) : [pane];
@@ -5061,6 +5064,14 @@
     on(els.ptyInjectForm, "submit", (ev) => {
       ev.preventDefault();
       settlePtyInject(true);
+    });
+    on(document.getElementById("pty-inject-ok"), "click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      settlePtyInject(true);
+    });
+    on(document.getElementById("pty-inject-ok"), "pointerdown", (ev) => {
+      ev.stopPropagation();
     });
     on(document.getElementById("pty-inject-cancel"), "click", () => settlePtyInject(false));
     on(els.hostForm?.authType, "change", toggleAuthFields);
