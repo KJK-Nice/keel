@@ -13,6 +13,7 @@
   const ProgressAddonCtor = window.ProgressAddon?.ProgressAddon || window.ProgressAddon;
   const params = new URLSearchParams(location.search);
   const VAULT = "vault";
+  const SASH_PX = 6;
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes("Mac");
   const MOD = isMac ? "⌘" : "Ctrl+";
   const FONT_STACKS = {
@@ -1538,8 +1539,7 @@
       pane.term.open(pane.host);
       observePaneFit(pane);
     }
-    if (paneWantsWebgl(pane)) attachWebgl(pane);
-    else dropWebgl(pane);
+    attachWebgl(pane);
     schedulePaneReflow(pane);
   }
 
@@ -1630,75 +1630,188 @@
     renderTabs();
   }
 
-  function paneWantsWebgl(pane) {
-    if (!pane?.term) return false;
-    if (!isNativeWindow()) return true;
-    const tab = state.tabs.get(pane.tabId);
-    return visiblePanes(tab).length <= 1;
-  }
-
-  function paintLayout(tab) {
-    const zoomed = tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId);
-    for (const pane of tabPanes(tab)) dropWebgl(pane);
-    let node;
-    if (zoomed) node = buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab);
-    else if (tab.layout) node = buildNode(tab.layout, tab);
-    else node = document.createElement("div");
-    tab.root.replaceChildren(node);
-    for (const pane of tabPanes(tab)) ensurePaneTerm(pane);
-  }
-
-  function buildNode(node, tab) {
-    if (node.type === "leaf") {
-      const pane = state.panes.get(node.paneId);
-      if (!pane) return document.createElement("div");
-      syncPaneChrome(tab, pane);
-      return pane.wrap;
+  function ensureTabStage(tab) {
+    if (!tab?.root) return;
+    if (tab.stage?.isConnected) return;
+    tab.stage = document.createElement("div");
+    tab.stage.className = "term-stage";
+    tab.root.replaceChildren(tab.stage);
+    if (typeof ResizeObserver !== "undefined" && !tab.stageObs) {
+      tab.stageObs = new ResizeObserver(() => {
+        if (tab.start || !tab.layout) return;
+        layoutTabPanes(tab);
+        syncSashElements(tab);
+        if (tab.id !== state.activeId) return;
+        for (const p of visiblePanes(tab)) refreshPaneRender(p);
+      });
+      tab.stageObs.observe(tab.stage);
     }
-    const wrap = document.createElement("div");
-    wrap.className = node.dir === "h" ? "split-row" : "split-col";
-    const a = document.createElement("div");
-    a.className = "split-pane";
-    a.style.flex = String(node.sizes[0]);
-    const sash = document.createElement("div");
-    sash.className = `split-sash ${node.dir === "h" ? "is-vert" : "is-horiz"}`;
-    const b = document.createElement("div");
-    b.className = "split-pane";
-    b.style.flex = String(node.sizes[1]);
-    a.appendChild(buildNode(node.a, tab));
-    b.appendChild(buildNode(node.b, tab));
-    wrap.appendChild(a);
-    wrap.appendChild(sash);
-    wrap.appendChild(b);
-    bindSash(sash, node, a, b);
-    return wrap;
   }
 
-  function bindSash(sash, node, a, b) {
-    sash.addEventListener("pointerdown", (ev) => {
+  function splitRect(tab, target) {
+    const w = tab.stage?.clientWidth || 0;
+    const h = tab.stage?.clientHeight || 0;
+    let found = null;
+    const walk = (node, x, y, rw, rh) => {
+      if (!node || found) return;
+      if (node === target) {
+        found = { x, y, w: rw, h: rh };
+        return;
+      }
+      if (node.type === "leaf") return;
+      const total = node.sizes[0] + node.sizes[1] || 1;
+      const aFrac = node.sizes[0] / total;
+      if (node.dir === "h") {
+        const aW = Math.max(0, Math.floor((rw - SASH_PX) * aFrac));
+        walk(node.a, x, y, aW, rh);
+        walk(node.b, x + aW + SASH_PX, y, Math.max(0, rw - SASH_PX - aW), rh);
+      } else {
+        const aH = Math.max(0, Math.floor((rh - SASH_PX) * aFrac));
+        walk(node.a, x, y, rw, aH);
+        walk(node.b, x, y + aH + SASH_PX, rw, Math.max(0, rh - SASH_PX - aH));
+      }
+    };
+    if (tab.layout) walk(tab.layout, 0, 0, w, h);
+    return found;
+  }
+
+  function placePane(tab, paneId, x, y, w, h) {
+    const pane = state.panes.get(paneId);
+    if (!pane?.wrap) return;
+    if (pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
+    pane.wrap.classList.remove("is-parked");
+    pane.wrap.style.position = "absolute";
+    pane.wrap.style.left = `${x}px`;
+    pane.wrap.style.top = `${y}px`;
+    pane.wrap.style.width = `${Math.max(0, w)}px`;
+    pane.wrap.style.height = `${Math.max(0, h)}px`;
+  }
+
+  function layoutSplit(tab, node, x, y, w, h, shown) {
+    if (!node) return;
+    if (node.type === "leaf") {
+      placePane(tab, node.paneId, x, y, w, h);
+      shown.add(node.paneId);
+      return;
+    }
+    const total = node.sizes[0] + node.sizes[1] || 1;
+    const aFrac = node.sizes[0] / total;
+    if (node.dir === "h") {
+      const aW = Math.max(0, Math.floor((w - SASH_PX) * aFrac));
+      const bW = Math.max(0, w - SASH_PX - aW);
+      layoutSplit(tab, node.a, x, y, aW, h, shown);
+      layoutSplit(tab, node.b, x + aW + SASH_PX, y, bW, h, shown);
+    } else {
+      const aH = Math.max(0, Math.floor((h - SASH_PX) * aFrac));
+      const bH = Math.max(0, h - SASH_PX - aH);
+      layoutSplit(tab, node.a, x, y, w, aH, shown);
+      layoutSplit(tab, node.b, x, y + aH + SASH_PX, w, bH, shown);
+    }
+  }
+
+  function layoutTabPanes(tab) {
+    if (!tab?.stage) return;
+    const w = tab.stage.clientWidth;
+    const h = tab.stage.clientHeight;
+    if (w < 2 || h < 2) return;
+    const shown = new Set();
+    if (tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId)) {
+      placePane(tab, tab.zoomedPaneId, 0, 0, w, h);
+      shown.add(tab.zoomedPaneId);
+    } else if (tab.layout) {
+      layoutSplit(tab, tab.layout, 0, 0, w, h, shown);
+    }
+    for (const pane of tabPanes(tab)) {
+      if (shown.has(pane.id) || !pane.wrap) continue;
+      if (pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
+      pane.wrap.classList.add("is-parked");
+      pane.wrap.style.position = "absolute";
+      pane.wrap.style.left = "-10000px";
+      pane.wrap.style.top = "0px";
+    }
+  }
+
+  function syncSashElements(tab) {
+    if (!tab?.sashes) return;
+    for (const { el, node } of tab.sashes) {
+      const box = splitRect(tab, node);
+      if (!box) continue;
+      const total = node.sizes[0] + node.sizes[1] || 1;
+      const aFrac = node.sizes[0] / total;
+      if (node.dir === "h") {
+        const aW = Math.max(0, Math.floor((box.w - SASH_PX) * aFrac));
+        el.style.left = `${box.x + aW}px`;
+        el.style.top = `${box.y}px`;
+        el.style.width = `${SASH_PX}px`;
+        el.style.height = `${box.h}px`;
+      } else {
+        const aH = Math.max(0, Math.floor((box.h - SASH_PX) * aFrac));
+        el.style.left = `${box.x}px`;
+        el.style.top = `${box.y + aH}px`;
+        el.style.width = `${box.w}px`;
+        el.style.height = `${SASH_PX}px`;
+      }
+    }
+  }
+
+  function bindAbsSash(el, node, tab) {
+    el.addEventListener("pointerdown", (ev) => {
       ev.preventDefault();
-      sash.setPointerCapture(ev.pointerId);
-      const parent = sash.parentElement.getBoundingClientRect();
-      const total = node.dir === "h" ? parent.width : parent.height;
-      const origin = node.dir === "h" ? parent.left : parent.top;
+      el.setPointerCapture(ev.pointerId);
       const move = (e) => {
+        const box = splitRect(tab, node);
+        if (!box) return;
+        const stage = tab.stage.getBoundingClientRect();
+        const total = node.dir === "h" ? box.w : box.h;
+        if (total < 8) return;
+        const origin = node.dir === "h" ? stage.left + box.x : stage.top + box.y;
         const pos = node.dir === "h" ? e.clientX : e.clientY;
         let pct = ((pos - origin) / total) * 100;
         pct = Math.min(80, Math.max(20, pct));
         node.sizes = [pct, 100 - pct];
-        a.style.flex = String(pct);
-        b.style.flex = String(100 - pct);
-        fitVisiblePanes();
+        layoutTabPanes(tab);
+        syncSashElements(tab);
+        for (const p of visiblePanes(tab)) refreshPaneRender(p);
       };
       const up = () => {
-        sash.removeEventListener("pointermove", move);
-        sash.removeEventListener("pointerup", up);
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
         fitVisiblePanes();
         persistWorkspace();
       };
-      sash.addEventListener("pointermove", move);
-      sash.addEventListener("pointerup", up);
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
     });
+  }
+
+  function paintSashes(tab) {
+    if (!tab?.stage) return;
+    tab.stage.querySelectorAll(":scope > .split-sash").forEach((el) => el.remove());
+    tab.sashes = [];
+    if (tab.zoomedPaneId || !tab.layout || tab.layout.type === "leaf") return;
+    const walk = (node) => {
+      if (!node || node.type === "leaf") return;
+      const el = document.createElement("div");
+      el.className = `split-sash ${node.dir === "h" ? "is-vert" : "is-horiz"}`;
+      tab.stage.appendChild(el);
+      tab.sashes.push({ el, node });
+      bindAbsSash(el, node, tab);
+      walk(node.a);
+      walk(node.b);
+    };
+    walk(tab.layout);
+    syncSashElements(tab);
+  }
+
+  function paintLayout(tab) {
+    ensureTabStage(tab);
+    for (const pane of tabPanes(tab)) {
+      syncPaneChrome(tab, pane);
+      if (pane.wrap && pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
+    }
+    layoutTabPanes(tab);
+    paintSashes(tab);
+    for (const pane of visiblePanes(tab)) ensurePaneTerm(pane);
   }
 
   function kbdHint(key) {
@@ -1763,7 +1876,6 @@
 
     els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.classList.toggle("is-active", !vaultOn);
-    els.terminals.hidden = vaultOn;
 
     for (const tab of state.tabs.values()) {
       const split = leafCount(tab.layout) > 1;
@@ -1817,8 +1929,9 @@
     const tab = state.tabs.get(state.activeId);
     if (!tab) return;
     const run = () => {
-      const list = visiblePanes(tab);
-      for (const p of list) ensurePaneTerm(p);
+      layoutTabPanes(tab);
+      syncSashElements(tab);
+      for (const p of visiblePanes(tab)) ensurePaneTerm(p);
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
   }
@@ -2349,7 +2462,7 @@
 
   function attachWebgl(pane) {
     const term = pane?.term;
-    if (!term || term._keelWebgl || !paneWantsWebgl(pane)) return;
+    if (!term || term._keelWebgl) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
     try {
@@ -2361,6 +2474,7 @@
           /* DOM renderer */
         }
         term._keelWebgl = null;
+        requestAnimationFrame(() => attachWebgl(pane));
       });
       term.loadAddon(addon);
       term._keelWebgl = addon;
@@ -2659,6 +2773,7 @@
       root: document.createElement("div"),
     };
     tab.root.className = "term-tab";
+    ensureTabStage(tab);
     els.terminals.appendChild(tab.root);
     paneSeed.tabId = tab.id;
     state.tabs.set(tab.id, tab);
@@ -3147,6 +3262,8 @@
         disposePane(p);
       }
     }
+    tab.stageObs?.disconnect();
+    tab.stageObs = null;
     tab.root.remove();
     state.tabs.delete(id);
     const remain = [...state.tabs.keys()];
