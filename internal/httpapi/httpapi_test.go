@@ -907,15 +907,23 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("term.js must define attachWebgl")
 	}
 	attachHead := string(termBody)[attachIdx:]
-	if n := 180; len(attachHead) > n {
+	if n := 220; len(attachHead) > n {
 		attachHead = attachHead[:n]
 	}
 	if strings.Contains(attachHead, "isNativeWindow()") {
 		t.Fatal("native WKWebView must load WebGL so block glyphs fill the cell")
 	}
-	if !strings.Contains(string(termBody), "dropWebgl(pane)") ||
-		!strings.Contains(string(termBody), "attachWebgl(pane.term)") {
-		t.Fatal("term.js must drop and re-attach WebGL after pane remount so native splits keep solid glyphs")
+	if !strings.Contains(string(termBody), "ensureTabSurface") ||
+		!strings.Contains(string(termBody), "syncPaneSlots") ||
+		!strings.Contains(string(termBody), `className = "term-layer"`) ||
+		!strings.Contains(string(termBody), `className = "term-slot"`) {
+		t.Fatal("split layout must park terminals in a stable layer so WebGL canvases are not remounted")
+	}
+	if strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
+		t.Fatal("paintLayout must not dispose WebGL when splitting panes")
+	}
+	if !strings.Contains(string(cssBody), ".term-layer") || !strings.Contains(string(cssBody), ".term-slot") {
+		t.Fatal("keel.css missing stable term layer/slots for split panes")
 	}
 	if !strings.Contains(string(body), "addon-search.js") ||
 		!strings.Contains(string(body), "addon-web-links.js") ||

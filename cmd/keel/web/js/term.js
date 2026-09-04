@@ -998,6 +998,12 @@
     return out;
   }
 
+  function visiblePanes(tab) {
+    if (!tab) return [];
+    if (tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId)) return [state.panes.get(tab.zoomedPaneId)];
+    return tabPanes(tab);
+  }
+
   function walkLeaves(node, fn) {
     if (!node) return;
     if (node.type === "leaf") {
@@ -1508,7 +1514,7 @@
     if (!pane?.term?.element) return;
     syncNativeSplitTheme(pane);
     reflowPane(pane);
-    if (!isNativeWindow()) return;
+    if (!isNativeWindow() || pane.term._keelWebgl) return;
     const cols = pane.term.cols;
     const rows = pane.term.rows;
     if (cols > 2 && rows > 1) {
@@ -1519,20 +1525,29 @@
   }
 
   function schedulePaneReflow(pane, tries = 12) {
+    if (!pane?.term?.element) return;
+    const box = paneBodyBox(pane);
+    if (!box) {
+      if (tries <= 0) {
+        attachWebgl(pane.term);
+        refreshPaneRender(pane);
+        return;
+      }
+      requestAnimationFrame(() => schedulePaneReflow(pane, tries - 1));
+      return;
+    }
+    attachWebgl(pane.term);
     refreshPaneRender(pane);
-    if (!isNativeWindow() || tries <= 0) return;
-    if (paneBodyBox(pane)) return;
-    requestAnimationFrame(() => schedulePaneReflow(pane, tries - 1));
   }
 
   function ensurePaneTerm(pane) {
     if (!pane?.term || !pane.wrap?.isConnected) return;
+    if (pane.wrap.classList.contains("is-parked")) return;
     if (!pane.term.element) {
       if (!pane.host) return;
       pane.term.open(pane.host);
       observePaneFit(pane);
     }
-    attachWebgl(pane.term);
     schedulePaneReflow(pane);
   }
 
@@ -1623,15 +1638,67 @@
     renderTabs();
   }
 
+  function ensureTabSurface(tab) {
+    if (!tab?.root) return;
+    if (tab.layoutEl?.isConnected && tab.layer?.isConnected) return;
+    tab.layoutEl = document.createElement("div");
+    tab.layoutEl.className = "term-layout";
+    tab.layer = document.createElement("div");
+    tab.layer.className = "term-layer";
+    tab.root.replaceChildren(tab.layoutEl, tab.layer);
+    observeTabLayout(tab);
+  }
+
+  function observeTabLayout(tab) {
+    if (typeof ResizeObserver === "undefined" || tab.layoutObs || !tab.layoutEl) return;
+    tab.layoutObs = new ResizeObserver(() => {
+      syncPaneSlots(tab);
+      if (tab.id !== state.activeId) return;
+      for (const p of visiblePanes(tab)) refreshPaneRender(p);
+    });
+    tab.layoutObs.observe(tab.layoutEl);
+  }
+
+  function syncPaneSlots(tab) {
+    if (!tab?.layer || !tab.layoutEl) return;
+    const shown = new Set();
+    const slots = [...tab.layoutEl.querySelectorAll(".term-slot")];
+    for (const slot of slots) {
+      const pane = state.panes.get(slot.dataset.paneId);
+      if (!pane?.wrap) continue;
+      shown.add(pane.id);
+      if (pane.wrap.parentNode !== tab.layer) tab.layer.appendChild(pane.wrap);
+      pane.wrap.classList.remove("is-parked");
+    }
+    for (const pane of tabPanes(tab)) {
+      if (shown.has(pane.id)) continue;
+      if (pane.wrap.parentNode !== tab.layer) tab.layer.appendChild(pane.wrap);
+      pane.wrap.classList.add("is-parked");
+    }
+    const layerBox = tab.layer.getBoundingClientRect();
+    if (layerBox.width < 2 || layerBox.height < 2) return;
+    for (const slot of slots) {
+      const pane = state.panes.get(slot.dataset.paneId);
+      if (!pane?.wrap || pane.wrap.classList.contains("is-parked")) continue;
+      const r = slot.getBoundingClientRect();
+      pane.wrap.style.position = "absolute";
+      pane.wrap.style.left = `${r.left - layerBox.left}px`;
+      pane.wrap.style.top = `${r.top - layerBox.top}px`;
+      pane.wrap.style.width = `${Math.max(0, r.width)}px`;
+      pane.wrap.style.height = `${Math.max(0, r.height)}px`;
+    }
+  }
+
   function paintLayout(tab) {
+    ensureTabSurface(tab);
     const zoomed = tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId);
-    for (const pane of tabPanes(tab)) dropWebgl(pane);
     let node;
     if (zoomed) node = buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab);
     else if (tab.layout) node = buildNode(tab.layout, tab);
     else node = document.createElement("div");
-    tab.root.replaceChildren(node);
-    for (const pane of tabPanes(tab)) ensurePaneTerm(pane);
+    tab.layoutEl.replaceChildren(node);
+    syncPaneSlots(tab);
+    for (const pane of visiblePanes(tab)) ensurePaneTerm(pane);
   }
 
   function buildNode(node, tab) {
@@ -1639,7 +1706,10 @@
       const pane = state.panes.get(node.paneId);
       if (!pane) return document.createElement("div");
       syncPaneChrome(tab, pane);
-      return pane.wrap;
+      const slot = document.createElement("div");
+      slot.className = "term-slot";
+      slot.dataset.paneId = node.paneId;
+      return slot;
     }
     const wrap = document.createElement("div");
     wrap.className = node.dir === "h" ? "split-row" : "split-col";
@@ -1674,6 +1744,8 @@
         node.sizes = [pct, 100 - pct];
         a.style.flex = String(pct);
         b.style.flex = String(100 - pct);
+        const tab = state.tabs.get(state.activeId);
+        if (tab) syncPaneSlots(tab);
         fitVisiblePanes();
       };
       const up = () => {
@@ -1803,8 +1875,8 @@
     const tab = state.tabs.get(state.activeId);
     if (!tab) return;
     const run = () => {
-      const list = tab.zoomedPaneId ? [state.panes.get(tab.zoomedPaneId)].filter(Boolean) : tabPanes(tab);
-      for (const p of list) ensurePaneTerm(p);
+      syncPaneSlots(tab);
+      for (const p of visiblePanes(tab)) ensurePaneTerm(p);
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
   }
@@ -2335,6 +2407,11 @@
 
   function attachWebgl(term) {
     if (!term || term._keelWebgl) return;
+    const host = term.element?.parentElement;
+    if (host) {
+      const r = host.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+    }
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
     try {
@@ -2644,6 +2721,7 @@
       root: document.createElement("div"),
     };
     tab.root.className = "term-tab";
+    ensureTabSurface(tab);
     els.terminals.appendChild(tab.root);
     paneSeed.tabId = tab.id;
     state.tabs.set(tab.id, tab);
@@ -3055,6 +3133,7 @@
     pane.closing = true;
     pane.fitObs?.disconnect();
     pane.fitObs = null;
+    dropWebgl(pane);
     pane.ws?.close();
     pane.sigWs?.close();
     try {
@@ -3131,6 +3210,8 @@
         disposePane(p);
       }
     }
+    tab.layoutObs?.disconnect();
+    tab.layoutObs = null;
     tab.root.remove();
     state.tabs.delete(id);
     const remain = [...state.tabs.keys()];
