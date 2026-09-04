@@ -13,6 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"keel/internal/inject"
+	"keel/internal/scrollback"
 	"keel/internal/session"
 	"keel/internal/store"
 )
@@ -425,6 +427,30 @@ func (s *Session) Write(clientID uint64, p []byte) error {
 	}
 	_, err := br.Write(p)
 	return err
+}
+
+// Inject writes p to the PTY only after an explicit approve. Live typing
+// still uses Write. Palette/snippet inject must not call Write directly.
+func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) error {
+	if err := inject.Guard(approved); err != nil {
+		return err
+	}
+	return s.Write(clientID, p)
+}
+
+// Keystroke is live typing. Palette and other chrome must not call this
+// unless the terminal owns focus; they inject through Inject after approve.
+func (s *Session) Keystroke(clientID uint64, p []byte, focused inject.Surface) error {
+	if err := inject.CanType(focused); err != nil {
+		return err
+	}
+	return s.Write(clientID, p)
+}
+
+// ReadScrollback returns PTY history for inspection. Secrets are redacted
+// by default. Subscribe snapshots stay raw so the live terminal can replay.
+func (s *Session) ReadScrollback() []byte {
+	return scrollback.Read(s.buf.Bytes())
 }
 
 func (s *Session) Resize(clientID uint64, cols, rows int) error {
