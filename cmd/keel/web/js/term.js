@@ -112,13 +112,13 @@
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", view: "card" };
+    const fallback = { size: 12, smoothing: "antialiased", view: "card", sidebar: false };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
       const view = raw.view === "list" ? "list" : "card";
-      return { size, smoothing, view };
+      return { size, smoothing, view, sidebar: raw.sidebar === true };
     } catch {
       return fallback;
     }
@@ -132,6 +132,58 @@
     document.documentElement.style.setProperty("--ui-size", `${state.ui.size}px`);
     document.documentElement.dataset.smooth = state.ui.smoothing;
     applyVaultView(state.ui.view);
+    applySessionRail();
+  }
+
+  function sessionRailOpen() {
+    return state.ui.sidebar === true;
+  }
+
+  function applySessionRail() {
+    const open = sessionRailOpen();
+    document.documentElement.dataset.sessionRail = open ? "open" : "closed";
+    const btn = document.getElementById("btn-session-rail");
+    if (btn) {
+      btn.setAttribute("aria-pressed", String(open));
+      btn.setAttribute("aria-expanded", String(open));
+    }
+  }
+
+  function setSessionRail(open) {
+    const next = !!open;
+    if (next === sessionRailOpen()) {
+      applySessionRail();
+      return;
+    }
+    state.ui.sidebar = next;
+    saveUiPrefs();
+    applySessionRail();
+    fitVisiblePanes();
+  }
+
+  function toggleSessionRail() {
+    setSessionRail(!sessionRailOpen());
+  }
+
+  function paintSessionRail() {
+    const title = document.getElementById("session-rail-title");
+    const sub = document.getElementById("session-rail-sub");
+    if (!title || !sub) return;
+    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
+    const tab = vaultOn ? null : state.tabs.get(state.activeId);
+    const pane = tab && !tab.start ? state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] : null;
+    if (pane) {
+      title.textContent = pane.title || tabTitle(tab) || "Session";
+      sub.textContent = pane.subtitle || "";
+      return;
+    }
+    if (tab?.start) {
+      title.textContent = "New tab";
+      sub.textContent = tab.connecting ? "Connecting…" : "Pick a host to connect.";
+      return;
+    }
+    title.textContent = "No session";
+    sub.textContent = "Open a session tab to see its details.";
   }
 
   function applyVaultView(next) {
@@ -1917,6 +1969,7 @@
       else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
     renderControl(pane);
+    paintSessionRail();
     if (tabDrag?.id) {
       const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
       dragging?.classList.add("is-dragging");
@@ -2637,7 +2690,8 @@
     else if (name === "find-term") {
       const pane = focusedPane();
       if (pane?.search) openFind(pane);
-    } else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
+    } else if (name === "toggle-sidebar") toggleSessionRail();
+    else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
     else if (name === "stop-runtime") {
@@ -2720,6 +2774,11 @@
     if (key === "f" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("find-term");
+      return true;
+    }
+    if (key === "b" && !ev.shiftKey) {
+      ev.preventDefault();
+      runShortcut("toggle-sidebar");
       return true;
     }
     if (key === "g") {
@@ -4758,6 +4817,7 @@
     );
 
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
+    on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
     on(els.terminals, "click", (ev) => {
       const split = ev.target.closest("[data-pane-split]");
       if (split) {
@@ -5144,6 +5204,7 @@
   if (searchKbd) searchKbd.textContent = `${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
   document.getElementById("btn-new-tab")?.blur();
+  document.getElementById("btn-session-rail")?.setAttribute("title", `Session sidebar  ${MOD}B`);
   toggleAuthFields();
   toggleIdentFields();
   toggleTunnelDest();

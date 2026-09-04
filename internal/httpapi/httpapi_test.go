@@ -736,6 +736,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), `data-vault="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
+	if !strings.Contains(string(body), `id="session-rail"`) || !strings.Contains(string(body), `id="btn-session-rail"`) || !strings.Contains(string(body), `class="workspace"`) {
+		t.Fatal("index missing collapsible right session sidebar")
+	}
 	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
 		t.Fatal("index should have vault rail icons and no titlebar settings button")
 	}
@@ -930,6 +933,11 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(cssBody), "--keel-sidebar") {
 		t.Fatal("keel.css missing prefixed chrome sidebar token")
+	}
+	if !strings.Contains(string(cssBody), ".session-rail") ||
+		!strings.Contains(string(cssBody), `html[data-session-rail="open"] .session-rail`) ||
+		!strings.Contains(string(cssBody), "border-left: 1px solid var(--keel-border)") {
+		t.Fatal("keel.css must layout a right session rail with vault sidebar tokens")
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")
 	if err != nil {
@@ -1304,6 +1312,18 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "setVaultView") || !strings.Contains(string(termBody), `class="tile-grid"`) {
 		t.Fatal("term.js must persist vault view mode and render tile-grid fallbacks")
+	}
+	if !strings.Contains(string(termBody), "function toggleSessionRail") ||
+		!strings.Contains(string(termBody), "function paintSessionRail") ||
+		!strings.Contains(string(termBody), `key === "b"`) {
+		t.Fatal("term.js must open and close the right session sidebar")
+	}
+	paint := termBody[bytes.Index(termBody, []byte("function paintSessionRail")):]
+	if i := bytes.Index(paint[1:], []byte("\n  function ")); i > 0 {
+		paint = paint[:i]
+	}
+	if bytes.Contains(paint, []byte("sendSessionBytes")) || bytes.Contains(paint, []byte("sendSessionJSON")) {
+		t.Fatal("session sidebar must not write into a live PTY")
 	}
 	if !strings.Contains(string(fragBody), `class="tile-grid"`) {
 		t.Fatal("ui hosts fragment should use tile-grid")
