@@ -322,24 +322,37 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	waitJSON(t, alice, "ready")
 
 	got := make(chan string, 1)
-	go func() {
-		buf := make([]byte, 32)
-		n, _ := fb.inR.Read(buf)
-		got <- string(buf[:n])
-	}()
+	readPTY := func() {
+		go func() {
+			buf := make([]byte, 32)
+			n, _ := fb.inR.Read(buf)
+			got <- string(buf[:n])
+		}()
+	}
 
 	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "palette"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("i")); err != nil {
+	readPTY()
+	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
 		t.Fatal(err)
 	}
+	select {
+	case hit := <-got:
+		if hit != "live" {
+			t.Fatalf("live WS Write while palette focused got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("live websocket binary must still use ungated Session.Write")
+	}
+
+	readPTY()
 	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "rm\n", "approved": false}); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case leak := <-got:
-		t.Fatalf("PTY received palette keystroke or unapproved inject %q", leak)
+		t.Fatalf("PTY received unapproved inject %q", leak)
 	case <-time.After(80 * time.Millisecond):
 	}
 
@@ -358,21 +371,51 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
 		t.Fatal(err)
 	}
-	go func() {
-		buf := make([]byte, 32)
-		n, _ := fb.inR.Read(buf)
-		got <- string(buf[:n])
-	}()
+	readPTY()
 	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case hit := <-got:
 		if hit != "x" {
-			t.Fatalf("restored term keystroke got %q", hit)
+			t.Fatalf("restored live WS got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for restored keystroke")
+		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
+	}
+}
+
+func TestSessionWSKeepsWriteUngated(t *testing.T) {
+	src, err := os.ReadFile("httpapi.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	if !strings.Contains(body, "sess.Write(cl.ID, msg)") {
+		t.Fatal("live websocket binary must call Session.Write")
+	}
+	if strings.Contains(body, "sess.Keystroke(cl.ID, msg") {
+		t.Fatal("live websocket binary must not be routed through Keystroke")
+	}
+	if !strings.Contains(body, "sess.Inject(cl.ID") {
+		t.Fatal("palette/chrome inject JSON must call Session.Inject")
+	}
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	injStart := strings.Index(term, "function sendApprovedInject")
+	injEndRel := strings.Index(term[injStart+1:], "\n  function ")
+	if injStart < 0 || injEndRel < 0 {
+		t.Fatal("missing sendApprovedInject")
+	}
+	inj := term[injStart : injStart+1+injEndRel]
+	if strings.Contains(inj, "sendSessionBytes") {
+		t.Fatal("palette inject must not send live websocket binary")
+	}
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "approved: true") {
+		t.Fatal("palette inject must use Inject JSON with approve")
 	}
 }
 

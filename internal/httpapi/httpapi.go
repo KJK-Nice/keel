@@ -732,8 +732,10 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		if err := sess.Keystroke(cl.ID, msg, sess.Focus(cl.ID)); err != nil {
-			if errors.Is(err, runtime.ErrReadOnly) || errors.Is(err, inject.ErrNotTerminalFocus) {
+		// Live keystrokes stay on Write (ungated). Palette/chrome must not
+		// send binary here; they use type=inject → Inject(Approve()).
+		if err := sess.Write(cl.ID, msg); err != nil {
+			if errors.Is(err, runtime.ErrReadOnly) {
 				continue
 			}
 			_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
