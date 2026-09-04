@@ -32,11 +32,13 @@ func TestNativeSplitDropsWebGLWithoutRemountingTerm(t *testing.T) {
 	if addon == nil {
 		t.Fatal("expected initial WebGL")
 	}
+	beforeSplit := len(tab.Log)
 
 	b := NewPane("b")
 	tab.Panes = append(tab.Panes, b)
 	tab.SetVisible("a", "b")
 	PaintLayout(tab)
+	splitLog := tab.Log[beforeSplit:]
 
 	if wrap != a.Wrap || term != a.Term || host != a.Host {
 		t.Fatal("split remounted pane a wrap/term/host")
@@ -57,8 +59,11 @@ func TestNativeSplitDropsWebGLWithoutRemountingTerm(t *testing.T) {
 	if a.Wrap.Parent != tab.Stage || b.Wrap.Parent != tab.Stage {
 		t.Fatal("both wraps must stay on the same stage")
 	}
-	if !orderOK(tab.Log, "drop:a", "layout") {
-		t.Fatalf("drop must happen before layout/reparent work: %v", tab.Log)
+	if slices.Contains(splitLog, "open:a") || slices.Contains(splitLog, "reparent:a") {
+		t.Fatalf("pane a remounted during split: %v", splitLog)
+	}
+	if !orderOK(splitLog, "drop:a", "layout") {
+		t.Fatalf("drop must happen before layout/reparent work: %v", splitLog)
 	}
 }
 
