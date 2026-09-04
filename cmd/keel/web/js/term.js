@@ -2271,6 +2271,15 @@
   let paletteCursor = 0;
   let paletteVisible = [];
   let ptyInjectWaiter = null;
+  let ptyChromeHoldUntil = 0;
+
+  function holdPtyFromChrome(ms = 500) {
+    ptyChromeHoldUntil = Math.max(ptyChromeHoldUntil, Date.now() + ms);
+  }
+
+  function ptyWritesBlocked() {
+    return !!(state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil);
+  }
 
   function paletteQuery() {
     return (els.cmdPaletteInput?.value || "").trim().toLowerCase();
@@ -2529,6 +2538,7 @@
 
   function settlePtyInject(ok) {
     const done = ptyInjectWaiter;
+    holdPtyFromChrome();
     ptyInjectWaiter = null;
     closeModal(els.ptyInjectModal);
     if (done) done(!!ok);
@@ -2549,6 +2559,7 @@
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
+    holdPtyFromChrome();
     sendSnippet(id);
   }
 
@@ -2742,7 +2753,7 @@
     const term = pane.term;
     term.attachCustomKeyEventHandler(termKeyHandler);
     term.onData((data) => {
-      if (state.openModal || ptyInjectWaiter) return;
+      if (ptyWritesBlocked()) return;
       if (!isDriving(pane)) return;
       const bytes = new TextEncoder().encode(data);
       const tab = state.tabs.get(pane.tabId);
@@ -4023,6 +4034,7 @@
       els.modalScrim?.classList.remove("is-open");
       return;
     }
+    holdPtyFromChrome();
     try {
       if (typeof el.close === "function" && el.open) el.close();
     } catch {

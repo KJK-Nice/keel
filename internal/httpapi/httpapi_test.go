@@ -1315,8 +1315,11 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	if !strings.Contains(js, "function approveBeforeType") {
 		t.Fatal("term.js missing approveBeforeType")
 	}
-	if !strings.Contains(js, "if (state.openModal || ptyInjectWaiter) return") {
-		t.Fatal("xterm onData must not write a PTY while the palette or approve-before-type dialog is open")
+	if !strings.Contains(js, "function holdPtyFromChrome") || !strings.Contains(js, "function ptyWritesBlocked") {
+		t.Fatal("xterm onData must not write a PTY while palette/inject chrome is open or closing")
+	}
+	if !strings.Contains(js, "if (ptyWritesBlocked()) return") {
+		t.Fatal("xterm onData must consult ptyWritesBlocked")
 	}
 }
 
