@@ -902,15 +902,21 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
-	if !strings.Contains(string(termBody), "function paneWantsWebgl") ||
-		!strings.Contains(string(termBody), "visiblePanes(tab).length <= 1") {
-		t.Fatal("native WKWebView must keep WebGL on a solo pane and drop it before a split remount")
+	if strings.Contains(string(termBody), "function paneWantsWebgl") ||
+		strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
+		t.Fatal("split panes must keep WebGL; do not drop the addon on remount")
 	}
-	if !strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
-		t.Fatal("paintLayout must dispose WebGL before moving pane DOM")
+	if !strings.Contains(string(termBody), "ensureTabStage") ||
+		!strings.Contains(string(termBody), "layoutTabPanes") ||
+		!strings.Contains(string(termBody), `className = "term-stage"`) {
+		t.Fatal("split layout must position pane wraps in a stable stage so WebGL canvases are not remounted")
 	}
 	if strings.Contains(string(termBody), "function attachWebgl(term) {\n    if (isNativeWindow()) return;") {
-		t.Fatal("solo native window must still load WebGL so block glyphs fill the cell")
+		t.Fatal("native window must still load WebGL so block glyphs fill the cell")
+	}
+	if !strings.Contains(string(cssBody), ".term-stage") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-active { visibility: visible") {
+		t.Fatal("keel.css must keep inactive terminals visible to the compositor so WebGL contexts survive")
 	}
 	if !strings.Contains(string(body), "addon-search.js") ||
 		!strings.Contains(string(body), "addon-web-links.js") ||
