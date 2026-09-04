@@ -438,6 +438,15 @@ func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) er
 	return s.Write(clientID, p)
 }
 
+// Keystroke is live typing. Palette and other chrome must not call this
+// unless the terminal owns focus; they inject through Inject after approve.
+func (s *Session) Keystroke(clientID uint64, p []byte, focused inject.Surface) error {
+	if err := inject.CanType(focused); err != nil {
+		return err
+	}
+	return s.Write(clientID, p)
+}
+
 // ReadScrollback returns PTY history for inspection. Secrets are redacted
 // by default. Subscribe snapshots stay raw so the live terminal can replay.
 func (s *Session) ReadScrollback() []byte {
