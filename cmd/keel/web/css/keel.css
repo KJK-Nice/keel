@@ -941,6 +941,7 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   border-left: 1px solid var(--keel-border);
   min-height: 0;
   overflow: auto;
+  outline: none;
 }
 html[data-session-rail="open"] .session-rail {
   display: flex;

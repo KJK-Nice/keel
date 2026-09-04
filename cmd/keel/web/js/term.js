@@ -158,6 +158,14 @@
     state.ui.sidebar = next;
     saveUiPrefs();
     applySessionRail();
+    if (next) {
+      focusedPane()?.term?.blur?.();
+      document.getElementById("session-rail")?.focus({ preventScroll: true });
+    } else {
+      document.getElementById("session-rail")?.blur?.();
+      focusedPane()?.term?.focus?.();
+    }
+    syncSessionSurface();
     fitVisiblePanes();
   }
 
@@ -2331,7 +2339,7 @@
   }
 
   function ptyWritesBlocked() {
-    return !!(state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil);
+    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil);
   }
 
   function paletteQuery() {
@@ -2582,7 +2590,7 @@
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sessionRailOpen()) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -3312,7 +3320,7 @@
     pane.ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
-      else if (els.ptyInjectModal?.open) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+      else if (els.ptyInjectModal?.open || sessionRailOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
     });
     let live = !opts.skipSnapshot;
 
@@ -4818,6 +4826,8 @@
 
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
     on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
+    on(document.getElementById("session-rail"), "focusin", () => syncSessionSurface());
+    on(els.terminals, "focusin", () => syncSessionSurface());
     on(els.terminals, "click", (ev) => {
       const split = ev.target.closest("[data-pane-split]");
       if (split) {

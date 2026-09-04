@@ -451,7 +451,7 @@ func (s *Session) SetFocus(clientID uint64, focused inject.Surface) error {
 }
 
 // Focus is the surface last set for this client. Empty/unknown clients
-// report SurfaceTerm so live typing keeps working until palette opens.
+// report SurfaceTerm so live typing keeps working until palette or chrome opens.
 func (s *Session) Focus(clientID uint64) inject.Surface {
 	s.mu.Lock()
 	defer s.mu.Unlock()
