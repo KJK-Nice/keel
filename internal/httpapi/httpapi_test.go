@@ -902,6 +902,21 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
+	attachIdx := strings.Index(string(termBody), "function attachWebgl(term)")
+	if attachIdx < 0 {
+		t.Fatal("term.js must define attachWebgl")
+	}
+	attachHead := string(termBody)[attachIdx:]
+	if n := 180; len(attachHead) > n {
+		attachHead = attachHead[:n]
+	}
+	if strings.Contains(attachHead, "isNativeWindow()") {
+		t.Fatal("native WKWebView must load WebGL so block glyphs fill the cell")
+	}
+	if !strings.Contains(string(termBody), "dropWebgl(pane)") ||
+		!strings.Contains(string(termBody), "attachWebgl(pane.term)") {
+		t.Fatal("term.js must drop and re-attach WebGL after pane remount so native splits keep solid glyphs")
+	}
 	if !strings.Contains(string(body), "addon-search.js") ||
 		!strings.Contains(string(body), "addon-web-links.js") ||
 		!strings.Contains(string(body), "addon-unicode-graphemes.js") ||
