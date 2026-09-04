@@ -902,9 +902,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
-	if strings.Contains(string(termBody), "function paneWantsWebgl") ||
-		strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
-		t.Fatal("split panes must keep WebGL; do not drop the addon on remount")
+	if !strings.Contains(string(termBody), "function paneWantsWebgl") ||
+		!strings.Contains(string(termBody), "visiblePanes(tab).length <= 1") {
+		t.Fatal("native WKWebView must keep WebGL on a solo pane and drop it while split")
+	}
+	if !strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
+		t.Fatal("paintLayout must dispose WebGL on native splits so dead GPU canvases cannot eat clicks")
 	}
 	if !strings.Contains(string(termBody), "ensureTabStage") ||
 		!strings.Contains(string(termBody), "layoutTabPanes") ||

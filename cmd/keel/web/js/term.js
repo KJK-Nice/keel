@@ -1539,7 +1539,8 @@
       pane.term.open(pane.host);
       observePaneFit(pane);
     }
-    attachWebgl(pane);
+    if (paneWantsWebgl(pane)) attachWebgl(pane);
+    else dropWebgl(pane);
     schedulePaneReflow(pane);
   }
 
@@ -1805,6 +1806,9 @@
 
   function paintLayout(tab) {
     ensureTabStage(tab);
+    if (isNativeWindow() && visiblePanes(tab).length > 1) {
+      for (const pane of tabPanes(tab)) dropWebgl(pane);
+    }
     for (const pane of tabPanes(tab)) {
       syncPaneChrome(tab, pane);
       if (pane.wrap && pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
@@ -2461,9 +2465,16 @@
     });
   }
 
+  function paneWantsWebgl(pane) {
+    if (!pane?.term) return false;
+    if (!isNativeWindow()) return true;
+    const tab = state.tabs.get(pane.tabId);
+    return visiblePanes(tab).length <= 1;
+  }
+
   function attachWebgl(pane) {
     const term = pane?.term;
-    if (!term || term._keelWebgl) return;
+    if (!term || term._keelWebgl || !paneWantsWebgl(pane)) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
     try {
@@ -2475,7 +2486,7 @@
           /* DOM renderer */
         }
         term._keelWebgl = null;
-        requestAnimationFrame(() => attachWebgl(pane));
+        if (paneWantsWebgl(pane)) requestAnimationFrame(() => attachWebgl(pane));
       });
       term.loadAddon(addon);
       term._keelWebgl = addon;
@@ -3296,12 +3307,16 @@
     }
     tab.focusedPaneId = pane.id;
     tab.zoomedPaneId = "";
+    if (isNativeWindow()) {
+      for (const p of tabPanes(tab)) dropWebgl(p);
+    }
     try {
       const info = await spawnHost(pane.hostId);
       attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
       loadAll().catch(() => {});
     } catch (err) {
       toast(err.message, true);
+      ensurePaneTerm(pane);
     }
   }
 
