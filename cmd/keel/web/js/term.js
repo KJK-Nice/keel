@@ -1530,9 +1530,9 @@
     if (!pane.term.element) {
       if (!pane.host) return;
       pane.term.open(pane.host);
-      attachWebgl(pane.term);
       observePaneFit(pane);
     }
+    attachWebgl(pane.term);
     schedulePaneReflow(pane);
   }
 
@@ -1625,15 +1625,13 @@
 
   function paintLayout(tab) {
     const zoomed = tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId);
+    for (const pane of tabPanes(tab)) dropWebgl(pane);
     let node;
     if (zoomed) node = buildNode({ type: "leaf", paneId: tab.zoomedPaneId }, tab);
     else if (tab.layout) node = buildNode(tab.layout, tab);
     else node = document.createElement("div");
     tab.root.replaceChildren(node);
-    for (const pane of tabPanes(tab)) {
-      dropNativeWebgl(pane);
-      ensurePaneTerm(pane);
-    }
+    for (const pane of tabPanes(tab)) ensurePaneTerm(pane);
   }
 
   function buildNode(node, tab) {
@@ -2336,7 +2334,7 @@
   }
 
   function attachWebgl(term) {
-    if (isNativeWindow()) return;
+    if (!term || term._keelWebgl) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
     try {
@@ -2356,8 +2354,8 @@
     }
   }
 
-  function dropNativeWebgl(pane) {
-    if (!isNativeWindow() || !pane?.term?._keelWebgl) return;
+  function dropWebgl(pane) {
+    if (!pane?.term?._keelWebgl) return;
     try {
       pane.term._keelWebgl.dispose();
     } catch {
