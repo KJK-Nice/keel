@@ -1131,6 +1131,7 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
 }
 
 .terminals { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+.terminals[hidden] { display: block !important; }
 .terminals.is-active { visibility: visible; pointer-events: auto; }
 .term-tab {
   display: flex;
@@ -1154,6 +1155,11 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
 .term-stage > .term-wrap {
   position: absolute;
   flex: none;
+}
+.term-tab:not(.is-split):not(.is-zoomed) .term-stage > .term-wrap:not(.is-parked) {
+  inset: 0;
+  width: auto !important;
+  height: auto !important;
 }
 .term-stage > .split-sash {
   position: absolute;
