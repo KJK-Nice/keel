@@ -238,6 +238,50 @@ func TestInjectApprovedStillRequiresDriver(t *testing.T) {
 	}
 }
 
+func TestInjectTicketRejectsReplayAndClientFlag(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+
+	got := make(chan []byte, 1)
+	readPTY := func() {
+		go func() {
+			buf := make([]byte, 32)
+			n, _ := fb.inR.Read(buf)
+			got <- append([]byte(nil), buf[:n]...)
+		}()
+	}
+
+	readPTY()
+	if err := sess.InjectTicket(alice.ID, "ls\n", ""); !errors.Is(err, inject.ErrNotApproved) {
+		t.Fatalf("empty nonce err = %v", err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received empty-nonce inject %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	nonce, err := sess.IssueInjectTicket(alice.ID, "ls\n")
+	if err != nil || nonce == "" {
+		t.Fatalf("issue nonce=%q err=%v", nonce, err)
+	}
+	readPTY()
+	if err := sess.InjectTicket(alice.ID, "ls\n", nonce); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "ls\n" {
+			t.Fatalf("got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for ticket inject")
+	}
+	if err := sess.InjectTicket(alice.ID, "ls\n", nonce); !errors.Is(err, inject.ErrBadTicket) {
+		t.Fatalf("replay err = %v", err)
+	}
+}
+
 func TestKeystrokeFromPaletteOrChromeDoesNotWritePTY(t *testing.T) {
 	_, sess, fb := spawnReady(t)
 	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
