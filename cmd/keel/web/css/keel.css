@@ -922,7 +922,61 @@ html.show-kbd .tab .tab-icon { visibility: hidden; }
   color: var(--text);
 }
 
-.stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.stage { flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+.workspace {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.session-rail {
+  display: none;
+  flex: 0 0 240px;
+  width: 240px;
+  min-width: 240px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 12px;
+  background: var(--keel-sidebar);
+  border-left: 1px solid var(--keel-border);
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+html[data-session-rail="open"] .session-rail {
+  display: flex;
+}
+html[data-native] .session-rail {
+  background: color-mix(in srgb, var(--keel-sidebar) 58%, transparent);
+}
+.session-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.session-rail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.session-rail-title {
+  margin: 0;
+  font-size: 1.083rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.session-rail-sub {
+  margin: 0;
+}
+.session-rail-notes [data-slot="empty"] {
+  padding: 16px 12px;
+}
+#btn-session-rail[aria-pressed="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
 .lede { color: var(--keel-muted); line-height: 1.45; font-size: 1.083rem; margin: 0; }
 .eyebrow {
   color: var(--keel-muted);
@@ -2123,4 +2177,9 @@ html[data-native] .cmd-palette-foot {
   }
   .settings-nav { white-space: nowrap; }
   .bar-meta { flex-wrap: wrap; max-width: 48vw; }
+  .session-rail {
+    flex-basis: 196px;
+    width: 196px;
+    min-width: 196px;
+  }
 }

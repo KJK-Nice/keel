@@ -7,6 +7,7 @@ import (
 	"keel/components/buttongroup"
 	"keel/components/card"
 	"keel/components/dropdownmenu"
+	"keel/components/empty"
 	"keel/components/field"
 	"keel/components/icon"
 	"keel/components/input"
@@ -47,17 +48,19 @@ templ Page(p PageProps) {
 					}
 					window.__keelApplyTheme = applyTheme;
 					applyTheme(localStorage.getItem("keel-theme") || "system");
-					var uiSize = 12, smooth = "antialiased", vaultView = "card";
+					var uiSize = 12, smooth = "antialiased", vaultView = "card", sessionRail = "closed";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
 						if (n >= 11 && n <= 16) uiSize = n;
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
 						if (ui.view === "list") vaultView = "list";
+						if (ui.sidebar === true) sessionRail = "open";
 					} catch (e) {}
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
 					document.documentElement.dataset.vaultView = vaultView;
+					document.documentElement.dataset.sessionRail = sessionRail;
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
@@ -121,12 +124,39 @@ templ Page(p PageProps) {
 									Copy internet join link
 								}
 							}
+							@tooltip.Tooltip() {
+								@button.Button(button.Props{
+									ID:         "btn-session-rail",
+									Variant:    button.VariantGhost,
+									Size:       button.SizeIconSm,
+									Class:      "tiny",
+									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{
+										"data-kbd":       "B",
+										"aria-label":     "Toggle sidebar",
+										"aria-pressed":   "false",
+										"aria-expanded":  "false",
+										"aria-controls":  "session-rail",
+									}),
+								}) {
+									@icon.PanelRight()
+									@hintKbd("B")
+								}
+								@tooltip.Content() {
+									Session sidebar
+									@kbd.Kbd() {
+										⌘B
+									}
+								}
+							}
 						</div>
 					</header>
-					<section class="stage" id="stage">
-						@Vault(p)
-						<div class="terminals" id="terminals"></div>
-					</section>
+					<div class="workspace">
+						<section class="stage" id="stage">
+							@Vault(p)
+							<div class="terminals" id="terminals"></div>
+						</section>
+						@SessionRail()
+					</div>
 				</main>
 			</div>
 			@Dialogs(p)
@@ -142,6 +172,34 @@ templ Page(p PageProps) {
 			<script src="/js/term.js"></script>
 		</body>
 	</html>
+}
+
+templ SessionRail() {
+	<aside class="session-rail" id="session-rail" aria-label="Session sidebar" tabindex="-1">
+		<div class="session-rail-head">
+			<span class="eyebrow">Session</span>
+		</div>
+		<section class="session-rail-block" aria-live="polite">
+			<h2 class="session-rail-title" id="session-rail-title">No session</h2>
+			<p class="session-rail-sub lede" id="session-rail-sub">Open a session tab to see its details.</p>
+		</section>
+		<section class="session-rail-block session-rail-notes">
+			<span class="eyebrow">Notes</span>
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.NotepadText()
+					}
+					@empty.Title() {
+						No notes yet
+					}
+					@empty.Description() {
+						Session notes will live here.
+					}
+				}
+			}
+		</section>
+	</aside>
 }
 
 templ Vault(p PageProps) {
