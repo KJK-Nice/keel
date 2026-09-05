@@ -644,6 +644,20 @@ func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	waitJSON(t, alice, "ready")
+	const marker = "ws-pre-flap-scrollback-marker"
+	mu.Lock()
+	if len(bridges) < 1 {
+		mu.Unlock()
+		t.Fatal("no bridge")
+	}
+	if _, err := bridges[0].outW.Write([]byte(marker)); err != nil {
+		mu.Unlock()
+		t.Fatal(err)
+	}
+	mu.Unlock()
+	if got := waitBinary(t, alice, marker); !strings.Contains(got, marker) {
+		t.Fatalf("alice bytes %q", got)
+	}
 	_ = alice.Close()
 
 	res, err := http.Post(srv.URL+"/api/sessions/"+info.ID+"/reconnect", "application/json", nil)
@@ -668,9 +682,24 @@ func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotRead := string(sess.ReadScrollback())
+	if len(gotRead) == 0 || !strings.Contains(gotRead, marker) {
+		t.Fatalf("ReadScrollback empty/missing after reconnect: %q", gotRead)
+	}
+
 	bob := dialSession(t, srv.URL, info.ID, "bob", "web")
 	defer bob.Close()
-	waitJSON(t, bob, "ready")
+	_, snap := waitReadySnapshot(t, bob)
+	if len(snap) == 0 {
+		t.Fatal("websocket snapshot empty after reconnect")
+	}
+	if !strings.Contains(snap, marker) {
+		t.Fatalf("reattach snapshot lost scrollback: %q", snap)
+	}
 	mu.Lock()
 	if len(bridges) < 2 {
 		mu.Unlock()
@@ -1296,8 +1325,22 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "function connectSessionWS") ||
 		!strings.Contains(string(termBody), "function reconnectPane") ||
-		!strings.Contains(string(termBody), "skipSnapshot") {
+		!strings.Contains(string(termBody), "function replaySessionSnapshot") {
 		t.Fatal("term.js must reattach the session websocket when the user clicks Reconnect")
+	}
+	recStart := strings.Index(string(termBody), "function reconnectPane")
+	if recStart < 0 {
+		t.Fatal("missing reconnectPane")
+	}
+	rec := string(termBody)[recStart:]
+	if i := strings.Index(rec[1:], "\n  function "); i > 0 {
+		rec = rec[:i]
+	}
+	if strings.Contains(rec, "skipSnapshot: true") {
+		t.Fatal("reconnectPane must replay the server scrollback snapshot instead of skipping it")
+	}
+	if !strings.Contains(rec, "replaySessionSnapshot(pane)") || !strings.Contains(rec, "connectSessionWS(pane)") {
+		t.Fatal("reconnectPane must reset the local xterm and replay Subscribe snapshot bytes")
 	}
 	if !strings.Contains(string(termBody), "pane-fail") ||
 		!strings.Contains(string(termBody), "Start over") ||
@@ -1636,6 +1679,35 @@ func dialSession(t *testing.T, base, id, name, kind string) *websocket.Conn {
 		t.Fatal(err)
 	}
 	return conn
+}
+
+func waitReadySnapshot(t *testing.T, conn *websocket.Conn) (map[string]any, string) {
+	t.Helper()
+	var snap string
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		mt, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mt == websocket.BinaryMessage {
+			snap += string(msg)
+			continue
+		}
+		if mt != websocket.TextMessage {
+			continue
+		}
+		var body map[string]any
+		if json.Unmarshal(msg, &body) != nil {
+			continue
+		}
+		if body["type"] == "ready" {
+			return body, snap
+		}
+	}
+	t.Fatalf("timeout waiting for ready snapshot=%q", snap)
+	return nil, snap
 }
 
 func waitJSON(t *testing.T, conn *websocket.Conn, typ string) map[string]any {

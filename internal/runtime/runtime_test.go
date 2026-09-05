@@ -724,6 +724,24 @@ func waitReady(t *testing.T, s *Session) {
 	t.Fatalf("session never became ready: %+v", s.Info())
 }
 
+func waitBridges(t *testing.T, s *Session, mu *sync.Mutex, bridges *[]*fakeBridge, min int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(*bridges)
+		mu.Unlock()
+		if n >= min && s.Info().Status == StatusReady {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	n := len(*bridges)
+	mu.Unlock()
+	t.Fatalf("expected %d bridges, opener calls = %d status=%s", min, n, s.Info().Status)
+}
+
 func waitBytes(t *testing.T, ch <-chan Event, want string) string {
 	t.Helper()
 	var out string
@@ -795,6 +813,75 @@ func sshHost(t *testing.T, st *store.Store) store.Host {
 	return h
 }
 
+func TestReconnectPreservesScrollback(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	host.NoAutoReconnect = true
+	if _, err := st.UpsertHost(host); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var bridges []*fakeBridge
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fb := newFakeBridge()
+		bridges = append(bridges, fb)
+		return fb, nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+
+	cl, ch, _ := sess.Subscribe(Join{Name: "alice"})
+	const marker = "pre-reconnect-scrollback-marker"
+	const secret = "leaked-reconnect-secret"
+	payload := marker + " password=" + secret + "\n"
+	if _, err := bridges[0].outW.Write([]byte(payload)); err != nil {
+		t.Fatal(err)
+	}
+	waitBytes(t, ch, payload)
+	ring := sess.buf
+
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitBridges(t, sess, &mu, &bridges, 2)
+	if sess.buf != ring {
+		t.Fatal("reconnect replaced the scrollback ring")
+	}
+
+	got := string(sess.ReadScrollback())
+	if len(got) == 0 {
+		t.Fatal("ReadScrollback empty after reconnect")
+	}
+	if !strings.Contains(got, marker) {
+		t.Fatalf("scrollback lost marker after reconnect: %q", got)
+	}
+	if strings.Contains(got, secret) {
+		t.Fatalf("read path leaked secret after reconnect: %q", got)
+	}
+
+	sess.Unsubscribe(cl.ID)
+	_, _, snap := sess.Subscribe(Join{Name: "bob"})
+	if len(snap) == 0 {
+		t.Fatal("Subscribe snapshot empty after reconnect")
+	}
+	if !strings.Contains(string(snap), marker) {
+		t.Fatalf("live snapshot lost marker after reconnect: %q", snap)
+	}
+	if !strings.Contains(string(snap), secret) {
+		t.Fatal("live PTY replay snapshot must stay raw after reconnect")
+	}
+}
+
 func TestAutoReconnectAfterDrop(t *testing.T) {
 	st := testStore(t)
 	host := sshHost(t, st)
@@ -820,31 +907,35 @@ func TestAutoReconnectAfterDrop(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitReady(t, sess)
+	cl, ch, _ := sess.Subscribe(Join{Name: "alice"})
+	const marker = "pre-flap-scrollback-marker"
+	if _, err := bridges[0].outW.Write([]byte(marker)); err != nil {
+		t.Fatal(err)
+	}
+	waitBytes(t, ch, marker)
 	_ = bridges[0].Close()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		n := len(bridges)
-		mu.Unlock()
-		if n >= 2 && sess.Info().Status == StatusReady {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	mu.Lock()
-	n := len(bridges)
-	mu.Unlock()
-	if n < 2 {
-		t.Fatalf("expected reconnect, opener calls = %d status=%s", n, sess.Info().Status)
-	}
+	waitBridges(t, sess, &mu, &bridges, 2)
 	if sess.Info().Status != StatusReady {
 		t.Fatalf("status = %s", sess.Info().Status)
 	}
-	_, ch, _ := sess.Subscribe(Join{Name: "alice"})
+
+	sess.Unsubscribe(cl.ID)
+	_, ch2, snap := sess.Subscribe(Join{Name: "bob"})
+	if len(snap) == 0 {
+		t.Fatal("Subscribe snapshot empty after connection flap")
+	}
+	if !strings.Contains(string(snap), marker) {
+		t.Fatalf("snapshot lost pre-flap scrollback: %q", snap)
+	}
+	gotRead := string(sess.ReadScrollback())
+	if len(gotRead) == 0 || !strings.Contains(gotRead, marker) {
+		t.Fatalf("ReadScrollback empty/missing after flap: %q", gotRead)
+	}
+
 	if _, err := bridges[1].outW.Write([]byte("back")); err != nil {
 		t.Fatal(err)
 	}
-	if got := waitBytes(t, ch, "back"); !strings.Contains(got, "back") {
+	if got := waitBytes(t, ch2, "back"); !strings.Contains(got, "back") {
 		t.Fatalf("got %q", got)
 	}
 }

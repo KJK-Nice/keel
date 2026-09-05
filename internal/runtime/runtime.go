@@ -601,6 +601,7 @@ func (s *Session) requestReconnect() error {
 	s.reconnectN = 0
 	looping := s.looping
 	br := s.br
+	// Keep s.buf. Reconnect replaces the PTY bridge, not scrollback.
 	s.kickWaitLocked()
 	s.mu.Unlock()
 	if br != nil {
