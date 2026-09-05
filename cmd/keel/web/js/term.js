@@ -1077,6 +1077,25 @@
     return state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] || null;
   }
 
+  function paneKind(pane) {
+    return pane?.kind || "term";
+  }
+
+  function isNotebookPane(pane) {
+    return paneKind(pane) === "notebook";
+  }
+
+  function isTermPane(pane) {
+    return paneKind(pane) === "term";
+  }
+
+  function termTarget(pane) {
+    if (isTermPane(pane) && pane.runtimeId) return pane;
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!tab) return null;
+    return tabPanes(tab).find((p) => isTermPane(p) && p.runtimeId) || null;
+  }
+
   function tabPanes(tab) {
     const out = [];
     walkLeaves(tab.layout, (id) => {
@@ -1160,7 +1179,7 @@
   }
 
   function tabStatus(tab) {
-    const panes = tabPanes(tab);
+    const panes = tabPanes(tab).filter(isTermPane);
     if (panes.some((p) => p.status === "is-error")) return "is-error";
     if (panes.some((p) => p.status === "is-connecting")) return "is-connecting";
     if (panes.length && panes.every((p) => p.status === "is-ready")) return "is-ready";
@@ -1171,7 +1190,7 @@
     if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
-    const first = panes[0];
+    const first = panes.find(isTermPane) || panes[0];
     const name = first?.title || tab.title || "Session";
     const n = panes.length;
     const follow = first && !isDriving(first) && first.you ? " · follow" : "";
@@ -1506,7 +1525,7 @@
     syncPaneFail(pane);
     const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
     if (syncBtn) {
-      syncBtn.hidden = !!tab.remote;
+      syncBtn.hidden = !!tab.remote || isNotebookPane(pane);
       syncBtn.classList.toggle("is-on", !!tab.sync);
       syncBtn.setAttribute("aria-pressed", String(!!tab.sync));
       syncBtn.title = tab.sync ? "Stop syncing input" : "Sync input";
@@ -1531,12 +1550,14 @@
     tab.focusedPaneId = pane.id;
     state.activeId = pane.tabId;
     for (const p of tabPanes(tab)) syncPaneChrome(tab, p);
+    const statusPane = isNotebookPane(pane) ? termTarget(pane) || pane : pane;
     if (els.barStatus) {
-      if (isDriving(pane)) els.barStatus.textContent = `${pane.subtitle} · driving`;
-      else els.barStatus.textContent = `${pane.subtitle} · following`;
+      if (isDriving(statusPane)) els.barStatus.textContent = `${statusPane.subtitle} · driving`;
+      else els.barStatus.textContent = `${statusPane.subtitle} · following`;
     }
     renderControl(pane);
-    pane.term?.focus();
+    if (!isNotebookPane(pane)) pane.term?.focus();
+    syncSessionSurface();
   }
 
   function paneBodyBox(pane) {
@@ -1554,6 +1575,7 @@
   }
 
   function writePaneBytes(pane, data) {
+    if (!isTermPane(pane)) return;
     const chunk = data instanceof Uint8Array ? data : new Uint8Array(data);
     if (!pane.term?.element) {
       if (!pane.pending) pane.pending = [];
@@ -1620,7 +1642,7 @@
   }
 
   function ensurePaneTerm(pane) {
-    if (!pane?.term || !pane.wrap?.isConnected) return;
+    if (!isTermPane(pane) || !pane?.term || !pane.wrap?.isConnected) return;
     if (!pane.term.element) {
       if (!pane.host) return;
       pane.term.open(pane.host);
@@ -1639,6 +1661,7 @@
 
   function renderControl(pane) {
     if (!els.controlWidget) return;
+    if (isNotebookPane(pane)) pane = termTarget(pane);
     if (!pane || state.activeId === VAULT) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
@@ -2012,7 +2035,7 @@
           return;
         }
         fitVisiblePanes();
-        pane?.term?.focus();
+        if (!isNotebookPane(pane)) pane?.term?.focus();
       });
     }
     persistWorkspace();
@@ -2360,7 +2383,13 @@
   }
 
   function ptyWritesBlocked() {
-    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil);
+    return !!(
+      sessionRailOpen() ||
+      state.openModal ||
+      ptyInjectWaiter ||
+      Date.now() < ptyChromeHoldUntil ||
+      isNotebookPane(focusedPane())
+    );
   }
 
   function paletteQuery() {
@@ -2467,6 +2496,12 @@
       title: "Split down",
       keys: `${MOD}⇧E`,
       run: () => splitActive("v"),
+    });
+    add({
+      id: "split-notebook",
+      group: "Panes",
+      title: "Split notebook",
+      run: () => splitNotebook("h"),
     });
     add({
       id: "focus-pane-zoom",
@@ -2605,13 +2640,14 @@
 
   function setSessionSurface(surface) {
     for (const pane of state.panes.values()) {
+      if (!isTermPane(pane)) continue;
       sendSessionJSON(pane, { type: "focus", surface });
     }
   }
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open || sessionRailOpen()) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane())) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -2646,7 +2682,7 @@
   async function paletteRunSnippet(id) {
     const sn = state.snippets.find((s) => s.id === id);
     if (!sn) return;
-    const pane = focusedPane();
+    const pane = termTarget(focusedPane());
     if (!pane) {
       toast("Open a session first");
       return;
@@ -2659,8 +2695,8 @@
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    focusedPane()?.term?.clearSelection?.();
-    sendApprovedInject("\u0015" + command);
+    pane.term?.clearSelection?.();
+    sendApprovedInject("\u0015" + command, pane);
   }
 
   async function runPaletteItem(item) {
@@ -2712,6 +2748,7 @@
       renderTabs();
     } else if (name === "split-right") splitActive("h");
     else if (name === "split-down") splitActive("v");
+    else if (name === "split-notebook") splitNotebook("h");
     else if (name === "focus-pane") {
       const pane = focusedPane();
       if (pane) togglePaneZoom(pane.id);
@@ -2860,12 +2897,12 @@
     term.attachCustomKeyEventHandler(termKeyHandler);
     term.onData((data) => {
       if (ptyWritesBlocked()) return;
-      if (!isDriving(pane)) return;
+      if (!isDriving(pane) || !isTermPane(pane)) return;
       const bytes = new TextEncoder().encode(data);
       const tab = state.tabs.get(pane.tabId);
       if (tab?.sync) {
         for (const p of tabPanes(tab)) {
-          if (isDriving(p)) sendSessionBytes(p, bytes);
+          if (isDriving(p) && isTermPane(p)) sendSessionBytes(p, bytes);
         }
       } else {
         sendSessionBytes(pane, bytes);
@@ -3132,6 +3169,7 @@
         <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
         <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
+        <button type="button" class="icon-btn" data-pane-notebook="${paneId}" title="Split notebook">Note</button>
         <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
         <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
@@ -3245,6 +3283,7 @@
     const pane = {
       id: paneId,
       tabId: opts.tab?.id,
+      kind: "term",
       runtimeId: info.id,
       hostId: info.hostId,
       title: info.title,
@@ -3315,7 +3354,7 @@
   }
 
   function connectSessionWS(pane, opts = {}) {
-    if (!pane?.runtimeId || pane.remote) return;
+    if (!isTermPane(pane) || !pane?.runtimeId || pane.remote) return;
     const gen = (pane.wsGen || 0) + 1;
     pane.wsGen = gen;
     const prev = pane.ws;
@@ -3341,7 +3380,7 @@
     pane.ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
-      else if (els.ptyInjectModal?.open || sessionRailOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+      else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane())) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
     });
     let live = !opts.skipSnapshot;
 
@@ -3451,7 +3490,7 @@
   }
 
   function reconnectPane(pane) {
-    if (!pane?.runtimeId || pane.remote) return;
+    if (!isTermPane(pane) || !pane?.runtimeId || pane.remote) return;
     const socketWasOpen = sessionSocketOpen(pane);
     pane.startingOver = true;
     pane.failKind = pane.wasReady ? "lost" : "fail";
@@ -3625,6 +3664,7 @@
   }
 
   function sendSessionBytes(pane, bytes) {
+    if (!isTermPane(pane) || !pane?.runtimeId) return;
     if (pane?.remote) {
       if (pane.dc?.readyState === "open") pane.dc.send(bytes);
       return;
@@ -3638,7 +3678,7 @@
   }
 
   function sendControl(type, extra = {}) {
-    sendSessionJSON(focusedPane(), { type, ...extra });
+    sendSessionJSON(termTarget(focusedPane()) || focusedPane(), { type, ...extra });
   }
 
   function disposePane(pane) {
@@ -3654,7 +3694,7 @@
       /* ignore */
     }
     try {
-      pane.term.dispose();
+      pane.term?.dispose?.();
     } catch {
       /* ignore */
     }
@@ -3768,6 +3808,135 @@
     }
   }
 
+  function makeNotebookShell(paneId, title) {
+    const wrap = document.createElement("div");
+    wrap.className = "term-wrap is-notebook";
+    wrap.dataset.paneId = paneId;
+    wrap.dataset.paneKind = "notebook";
+    const bar = document.createElement("div");
+    bar.className = "pane-bar";
+    bar.innerHTML = `<span class="pane-title" title="Drag to rearrange">${escapeHtml(title || "Notebook")}</span>
+      <div class="pane-actions">
+        <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input" hidden>${paneGlyph("sync")}</button>
+        <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
+        <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
+        <button type="button" class="icon-btn" data-pane-notebook="${paneId}" title="Split notebook">Note</button>
+        <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
+      </div>`;
+    const body = document.createElement("div");
+    body.className = "term-body notebook-pane";
+    wrap.appendChild(bar);
+    wrap.appendChild(body);
+    wrap.addEventListener("mousedown", (ev) => {
+      if (ev.target.closest?.(".pane-bar button, .pane-actions")) return;
+      const pane = state.panes.get(paneId);
+      if (pane) markFocusedPane(pane);
+    });
+    wrap.addEventListener("focusin", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) {
+        markFocusedPane(pane);
+        syncSessionSurface();
+      }
+    });
+    return { wrap, body };
+  }
+
+  function createNotebookPane(tab, sibling) {
+    const paneId = uid("pane");
+    const shell = makeNotebookShell(paneId, "Notebook");
+    const pane = {
+      id: paneId,
+      tabId: tab.id,
+      kind: "notebook",
+      hostId: sibling?.hostId || tab.hostId || "",
+      title: "Notebook",
+      subtitle: sibling?.subtitle || "notebook",
+      status: "",
+      wrap: shell.wrap,
+      body: shell.body,
+      cells: [{ id: uid("cell"), body: "" }],
+      remote: !!tab.remote,
+    };
+    state.panes.set(pane.id, pane);
+    paintNotebook(pane);
+    return pane;
+  }
+
+  function paintNotebook(pane) {
+    const body = pane.body || pane.wrap?.querySelector(".notebook-pane");
+    if (!body || !isNotebookPane(pane)) return;
+    if (!Array.isArray(pane.cells) || !pane.cells.length) {
+      pane.cells = [{ id: uid("cell"), body: "" }];
+    }
+    const cells = pane.cells
+      .map((cell, i) => `<article class="notebook-cell" data-notebook-cell="${cell.id}">
+          <header class="notebook-cell-head">
+            <span class="notebook-cell-label">Cell ${i + 1}</span>
+            <div class="notebook-cell-actions">
+              <button type="button" class="tiny" data-notebook-run="${cell.id}">Type into terminal</button>
+              <button type="button" class="icon-btn" data-notebook-remove="${cell.id}" title="Remove cell">${closeGlyph()}</button>
+            </div>
+          </header>
+          <textarea class="notebook-cell-body" data-notebook-body="${cell.id}" rows="4" spellcheck="false" placeholder="Markdown or a shell command — nothing is typed until you approve">${escapeHtml(cell.body || "")}</textarea>
+        </article>`)
+      .join("");
+    body.innerHTML = `<div class="notebook-scroll">
+      <p class="notebook-lede">Notebook cells never write the shell until you approve. Same bar as the command palette.</p>
+      ${cells}
+      <button type="button" class="tiny notebook-add" data-notebook-add="${pane.id}">Add cell</button>
+    </div>`;
+  }
+
+  function splitNotebook(dir) {
+    const pane = focusedPane();
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!tab || tab.start || !tab.layout) {
+      toast("Open a session first");
+      return;
+    }
+    const sibling = termTarget(pane) || pane;
+    tab.focusedPaneId = pane.id;
+    tab.zoomedPaneId = "";
+    const nb = createNotebookPane(tab, sibling);
+    tab.layout = replaceLeaf(tab.layout, pane.id, {
+      type: "split",
+      dir: dir === "v" ? "v" : "h",
+      sizes: [50, 50],
+      a: { type: "leaf", paneId: pane.id },
+      b: { type: "leaf", paneId: nb.id },
+    });
+    tab.focusedPaneId = nb.id;
+    tab.dirty = true;
+    renderTabs();
+    markFocusedPane(nb);
+  }
+
+  async function runNotebookCell(pane, cellId) {
+    if (!isNotebookPane(pane)) return;
+    const cell = pane.cells?.find((c) => c.id === cellId);
+    const line = (cell?.body || "").trim();
+    if (!line) {
+      toast("Write a command first");
+      return;
+    }
+    const term = termTarget(pane);
+    if (!term) {
+      toast("Split a terminal beside this notebook first");
+      return;
+    }
+    if (!isDriving(term)) {
+      toast("You are following — take or request control to type");
+      return;
+    }
+    const command = line.endsWith("\n") ? line : line + "\n";
+    const ok = await approveBeforeType(command, term.subtitle || term.title || "session");
+    if (!ok) return;
+    holdPtyFromChrome();
+    sendApprovedInject(command, term);
+  }
+
   function toggleTabSync(tabId) {
     const tab = state.tabs.get(tabId || state.activeId);
     if (!tab || tab.remote || tab.start) return;
@@ -3844,18 +4013,18 @@
     return true;
   }
 
-  function sendApprovedInject(command) {
-    const pane = focusedPane();
-    if (!pane) {
+  function sendApprovedInject(command, targetPane) {
+    const pane = termTarget(targetPane || focusedPane());
+    if (!pane || !isTermPane(pane)) {
       toast("Open a session first");
       return;
     }
     const tab = state.tabs.get(pane.tabId);
-    const targets = tab?.sync ? tabPanes(tab) : [pane];
+    const targets = tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
     let sent = false;
     for (const p of targets) {
       const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p)) continue;
+      if (!open || !isDriving(p) || !isTermPane(p)) continue;
       sendSessionJSON(p, { type: "inject", command, approved: true });
       sent = true;
     }
@@ -3863,25 +4032,29 @@
       toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
       return;
     }
-    pane.term.focus();
+    if (!isNotebookPane(focusedPane())) pane.term?.focus?.();
   }
 
   function sendSnippet(id) {
     const sn = state.snippets.find((s) => s.id === id);
     if (!sn) return;
     const pane = focusedPane();
-    if (!pane) {
+    if (isNotebookPane(pane)) {
+      toast("Notebooks cannot type into the shell. Use Type into terminal to approve.");
+      return;
+    }
+    if (!pane || !isTermPane(pane)) {
       toast("Open a session first");
       return;
     }
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
     const bytes = new TextEncoder().encode(command);
     const tab = state.tabs.get(pane.tabId);
-    const targets = tab?.sync ? tabPanes(tab) : [pane];
+    const targets = tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
     let sent = false;
     for (const p of targets) {
       const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p)) continue;
+      if (!open || !isDriving(p) || !isTermPane(p)) continue;
       sendSessionBytes(p, bytes);
       sent = true;
     }
@@ -4343,6 +4516,7 @@
     const shell = makePaneShell(info, paneId);
     const pane = {
       id: paneId,
+      kind: "term",
       runtimeId,
       hostId: "",
       title: "Follow",
@@ -4884,6 +5058,46 @@
         togglePaneZoom(zoom.dataset.paneZoom);
         return;
       }
+      const note = ev.target.closest("[data-pane-notebook]");
+      if (note) {
+        ev.preventDefault();
+        const p = state.panes.get(note.dataset.paneNotebook);
+        if (p) {
+          markFocusedPane(p);
+          splitNotebook("h");
+        }
+        return;
+      }
+      const runCell = ev.target.closest("[data-notebook-run]");
+      if (runCell) {
+        ev.preventDefault();
+        const wrap = runCell.closest(".term-wrap");
+        const p = wrap && state.panes.get(wrap.dataset.paneId);
+        if (p) runNotebookCell(p, runCell.dataset.notebookRun);
+        return;
+      }
+      const addCell = ev.target.closest("[data-notebook-add]");
+      if (addCell) {
+        ev.preventDefault();
+        const p = state.panes.get(addCell.dataset.notebookAdd);
+        if (p && isNotebookPane(p)) {
+          p.cells.push({ id: uid("cell"), body: "" });
+          paintNotebook(p);
+        }
+        return;
+      }
+      const removeCell = ev.target.closest("[data-notebook-remove]");
+      if (removeCell) {
+        ev.preventDefault();
+        const wrap = removeCell.closest(".term-wrap");
+        const p = wrap && state.panes.get(wrap.dataset.paneId);
+        if (p && isNotebookPane(p)) {
+          p.cells = (p.cells || []).filter((c) => c.id !== removeCell.dataset.notebookRemove);
+          if (!p.cells.length) p.cells.push({ id: uid("cell"), body: "" });
+          paintNotebook(p);
+        }
+        return;
+      }
       const tab = tabFromRoot(ev.target);
       if (!tab?.start) return;
       const connect = ev.target.closest("[data-start-connect]");
@@ -4896,6 +5110,14 @@
       else if (join) openJoin();
     });
     on(els.terminals, "input", (ev) => {
+      const area = ev.target.closest?.("[data-notebook-body]");
+      if (area) {
+        const wrap = area.closest(".term-wrap");
+        const pane = wrap && state.panes.get(wrap.dataset.paneId);
+        const cell = pane?.cells?.find((c) => c.id === area.dataset.notebookBody);
+        if (cell) cell.body = area.value;
+        return;
+      }
       const input = ev.target.closest?.(".start-search");
       if (!input) return;
       const tab = tabFromRoot(input);
