@@ -171,6 +171,60 @@ func TestHealthUnlocked(t *testing.T) {
 	}
 }
 
+func TestHostTagsAPI(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	body := `{"name":"gpu-box","address":"10.0.0.9","port":22,"username":"ubuntu","authType":"password","password":"pw","color":"#6ea8ff","tags":[" prod ","#GPU","prod"]}`
+	res, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("create %d %s", res.StatusCode, b)
+	}
+	var saved store.Host
+	if err := json.NewDecoder(res.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Tags) != 2 || saved.Tags[0] != "prod" || saved.Tags[1] != "GPU" {
+		t.Fatalf("create tags = %#v", saved.Tags)
+	}
+
+	listRes, err := http.Get(srv.URL + "/api/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listRes.Body.Close()
+	var hosts []store.Host
+	if err := json.NewDecoder(listRes.Body).Decode(&hosts); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, h := range hosts {
+		if h.ID != saved.ID {
+			continue
+		}
+		found = true
+		if len(h.Tags) != 2 || h.Tags[0] != "prod" || h.Tags[1] != "GPU" {
+			t.Fatalf("list tags = %#v", h.Tags)
+		}
+	}
+	if !found {
+		t.Fatal("created host missing from list")
+	}
+
+	uiRes, err := http.Get(srv.URL + "/ui/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer uiRes.Body.Close()
+	frag, _ := io.ReadAll(uiRes.Body)
+	if !strings.Contains(string(frag), `data-tag-filter="prod"`) || !strings.Contains(string(frag), `data-tag-filter="GPU"`) {
+		t.Fatalf("host list missing tag chips: %s", frag)
+	}
+}
+
 func TestRuntimeStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
@@ -1050,6 +1104,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="host-name"`) || !strings.Contains(string(body), `for="host-name"`) {
 		t.Fatal("index missing labeled host name input")
 	}
+	if !strings.Contains(string(body), `id="host-tags"`) || !strings.Contains(string(body), `name="tags"`) {
+		t.Fatal("host form missing tags field")
+	}
 	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `settings-shell`) {
 		t.Fatal("index missing settings slider or settings shell")
 	}
@@ -1274,6 +1331,9 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
 		t.Fatal("term.js must connect from host search and filter by group cards")
+	}
+	if !strings.Contains(string(termBody), "function parseHostTags") || !strings.Contains(string(termBody), "data-tag-filter") {
+		t.Fatal("term.js must assign host tags and filter the vault list by tag chips")
 	}
 	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
 		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {

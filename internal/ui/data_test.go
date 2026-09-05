@@ -14,10 +14,15 @@ func TestGroupHostsFiltersQuery(t *testing.T) {
 	hosts := []store.Host{
 		{Name: "prod-api", Address: "10.0.0.1", Group: "Production"},
 		{Name: "laptop", Address: "127.0.0.1", Group: "Local", AuthType: "local"},
+		{Name: "trainer", Address: "10.0.0.9", Group: "Labs", Tags: []string{"gpu", "ml"}},
 	}
 	got := groupHosts(hosts, "prod")
 	if len(got) != 1 || got[0].Name != "Production" || len(got[0].Hosts) != 1 {
 		t.Fatalf("got %+v", got)
+	}
+	byTag := groupHosts(hosts, "gpu")
+	if len(byTag) != 1 || byTag[0].Hosts[0].Name != "trainer" {
+		t.Fatalf("tag filter got %+v", byTag)
 	}
 }
 

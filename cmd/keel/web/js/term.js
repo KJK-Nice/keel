@@ -604,12 +604,31 @@
       .replaceAll('"', "&quot;");
   }
 
+  function hostSearchHay(h) {
+    const tags = Array.isArray(h.tags) ? h.tags.join(" ") : "";
+    return `${h.name} ${h.group} ${h.address} ${h.username} ${tags}`.toLowerCase();
+  }
+
+  function parseHostTags(value) {
+    return String(value || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function hostTagBadges(h) {
+    if (!Array.isArray(h.tags) || !h.tags.length) return "";
+    return h.tags
+      .map(
+        (tag) =>
+          `<span data-slot="badge" class="border-border h-5 cursor-pointer rounded-4xl border px-2 text-xs" data-tag-filter="${escapeHtml(tag)}" title="Filter by ${escapeHtml(tag)}">${escapeHtml(tag)}</span>`
+      )
+      .join("");
+  }
+
   function groupHosts(hosts) {
     const q = state.query.trim().toLowerCase();
-    const filtered = hosts.filter((h) => {
-      const hay = `${h.name} ${h.group} ${h.address} ${h.username}`.toLowerCase();
-      return !q || hay.includes(q);
-    });
+    const filtered = hosts.filter((h) => !q || hostSearchHay(h).includes(q));
     const groups = new Map();
     for (const h of filtered) {
       const key = h.group || "Ungrouped";
@@ -884,6 +903,7 @@
               <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
                 <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind}</span>
                 ${groupBadge}
+                ${hostTagBadges(h)}
                 <span class="truncate">${escapeHtml(hostSubtitle(h))}</span>
               </p>
             </div>
@@ -2118,7 +2138,7 @@
   function hostMatches(h, q) {
     const needle = (q || "").trim().toLowerCase();
     if (!needle) return true;
-    return `${h.name} ${h.group} ${h.address} ${h.username}`.toLowerCase().includes(needle);
+    return hostSearchHay(h).includes(needle);
   }
 
   function startHostList(tab) {
@@ -3888,6 +3908,7 @@
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
     form.group.value = host?.group || "";
+    if (form.tags) form.tags.value = Array.isArray(host?.tags) ? host.tags.join(", ") : "";
     form.address.value = host?.address && host.address !== "localhost" ? host.address : host?.address || "";
     form.port.value = host?.port || 22;
     form.username.value = host?.username || "";
@@ -3960,6 +3981,7 @@
     const payload = {
       name: form.name.value.trim(),
       group: form.group.value.trim(),
+      tags: parseHostTags(form.tags?.value),
       address: form.address.value.trim(),
       port: Number(form.port.value || 22),
       username: form.username.value.trim(),
@@ -4981,6 +5003,14 @@
       const groupFilter = ev.target.closest("[data-group-filter]");
       if (groupFilter && els.search) {
         const next = groupFilter.getAttribute("data-group-filter") || "";
+        els.search.value = next;
+        state.query = next;
+        els.search.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      const tagFilter = ev.target.closest("[data-tag-filter]");
+      if (tagFilter && els.search) {
+        const next = tagFilter.getAttribute("data-tag-filter") || "";
         els.search.value = next;
         state.query = next;
         els.search.dispatchEvent(new Event("input", { bubbles: true }));

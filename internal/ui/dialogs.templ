@@ -118,6 +118,7 @@ templ hostDialog() {
 			<input type="hidden" name="id"/>
 			@labeledInput("host-name", "Label", "name", "prod-api", true)
 			@labeledInput("host-group", "Group", "group", "Production", false)
+			@labeledInput("host-tags", "Tags", "tags", "prod, gpu", false)
 			<div class="grid-2">
 				@labeledInput("host-address", "Hostname / IP", "address", "10.0.0.12", false)
 				@labeledNumber("host-port", "Port", "port", "22", "0", "65535")
