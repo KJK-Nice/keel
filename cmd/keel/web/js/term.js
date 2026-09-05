@@ -2383,13 +2383,7 @@
   }
 
   function ptyWritesBlocked() {
-    return !!(
-      sessionRailOpen() ||
-      state.openModal ||
-      ptyInjectWaiter ||
-      Date.now() < ptyChromeHoldUntil ||
-      isNotebookPane(focusedPane())
-    );
+    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()));
   }
 
   function paletteQuery() {
