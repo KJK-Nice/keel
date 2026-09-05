@@ -470,7 +470,7 @@ func TestKeystrokeWriteDoesNotNeedInjectApprove(t *testing.T) {
 }
 
 func TestReadScrollbackRedactsByDefault(t *testing.T) {
-	_, sess, fb := spawnReady(t)
+	rt, sess, fb := spawnReady(t)
 	cl, ch, _ := sess.Subscribe(Join{Name: "alice"})
 	const secret = "super-secret-token"
 	payload := "ok password=" + secret + " done\n"
@@ -485,6 +485,17 @@ func TestReadScrollbackRedactsByDefault(t *testing.T) {
 	}
 	if !strings.Contains(got, "ok password=") || !strings.Contains(got, "done") {
 		t.Fatalf("innocent scrollback missing: %q", got)
+	}
+
+	viaRT, err := rt.ReadScrollback(sess.Info().ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(viaRT) != got {
+		t.Fatalf("Runtime.ReadScrollback = %q, Session.ReadScrollback = %q", viaRT, got)
+	}
+	if _, err := rt.ReadScrollback("missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing session err = %v", err)
 	}
 
 	_, _, snap := sess.Subscribe(Join{Name: "replay"})

@@ -194,6 +194,16 @@ func (r *Runtime) Get(id string) (*Session, error) {
 	return s, nil
 }
 
+// ReadScrollback returns redacted PTY history for inspection. Clients and
+// later AI must use this path — not a live Subscribe snapshot or raw ring.
+func (r *Runtime) ReadScrollback(id string) ([]byte, error) {
+	s, err := r.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	return s.ReadScrollback(), nil
+}
+
 func (r *Runtime) Reconnect(id string) (Info, error) {
 	s, err := r.Get(id)
 	if err != nil {
@@ -482,6 +492,7 @@ func (s *Session) Keystroke(clientID uint64, p []byte, focused inject.Surface) e
 
 // ReadScrollback returns PTY history for inspection. Secrets are redacted
 // by default. Subscribe snapshots stay raw so the live terminal can replay.
+// HTTP GET /api/sessions/{id}/scrollback must use this, never the raw ring.
 func (s *Session) ReadScrollback() []byte {
 	return scrollback.Read(s.buf.Bytes())
 }

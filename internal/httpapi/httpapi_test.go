@@ -774,6 +774,86 @@ func TestSessionReconnect(t *testing.T) {
 	t.Fatalf("reconnect stuck calls=%d status=%s", n, st2.Info().Status)
 }
 
+func TestReadScrollbackAPIRedactsByDefault(t *testing.T) {
+	srv, rt, st, fb := testServer(t)
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := rt.Get(info.ID)
+		if err == nil && got.Info().Status == runtime.StatusReady {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
+	defer alice.Close()
+	_, _ = waitReadySnapshot(t, alice)
+
+	const secret = "super-secret-token"
+	payload := "ok password=" + secret + " done\n"
+	if _, err := fb.outW.Write([]byte(payload)); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitBinary(t, alice, payload); !strings.Contains(got, secret) {
+		t.Fatalf("live websocket must stay raw, got %q", got)
+	}
+
+	res, err := http.Get(srv.URL + "/api/sessions/" + info.ID + "/scrollback?raw=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("scrollback %d %s", res.StatusCode, b)
+	}
+	var body struct {
+		ID       string `json:"id"`
+		Redacted bool   `json:"redacted"`
+		Text     string `json:"text"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.ID != info.ID {
+		t.Fatalf("id = %q", body.ID)
+	}
+	if !body.Redacted {
+		t.Fatal("read API must declare redacted=true")
+	}
+	if strings.Contains(body.Text, secret) {
+		t.Fatalf("read API leaked secret: %q", body.Text)
+	}
+	if !strings.Contains(body.Text, "[redacted]") {
+		t.Fatalf("read API missing mask: %q", body.Text)
+	}
+	if !strings.Contains(body.Text, "ok password=") || !strings.Contains(body.Text, "done") {
+		t.Fatalf("innocent text missing: %q", body.Text)
+	}
+
+	bob := dialSession(t, srv.URL, info.ID, "bob", "web")
+	defer bob.Close()
+	_, snap := waitReadySnapshot(t, bob)
+	if !strings.Contains(snap, secret) {
+		t.Fatal("Subscribe snapshot must stay raw for the local UI")
+	}
+}
+
+func TestReadScrollbackAPINotFound(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	res, err := http.Get(srv.URL + "/api/sessions/missing/scrollback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("status %d %s", res.StatusCode, b)
+	}
+}
+
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")

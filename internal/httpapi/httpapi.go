@@ -92,6 +92,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
+	mux.HandleFunc("GET /api/sessions/{id}/scrollback", s.readScrollback)
 	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
@@ -493,6 +494,27 @@ func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.note("session", "session spawned: "+info.Title, info.HostID, info.ID, "")
 	writeJSON(w, http.StatusCreated, info)
+}
+
+// readScrollback is the inspection path for clients (and later AI). It always
+// returns redacted history. Live UI replay uses Subscribe snapshots on
+// /ws/session, which stay raw. There is no raw= query bypass.
+func (s *Server) readScrollback(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	text, err := s.rt.ReadScrollback(id)
+	if err != nil {
+		if errors.Is(err, runtime.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "session not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":       id,
+		"redacted": true,
+		"text":     string(text),
+	})
 }
 
 func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
