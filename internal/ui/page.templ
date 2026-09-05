@@ -184,17 +184,17 @@ templ SessionRail() {
 			<p class="session-rail-sub lede" id="session-rail-sub">Open a session tab to see its details.</p>
 		</section>
 		<section class="session-rail-block session-rail-notes">
-			<span class="eyebrow">Notes</span>
+			<span class="eyebrow">Notebooks</span>
 			@empty.Empty() {
 				@empty.Header() {
 					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
 						@icon.NotepadText()
 					}
 					@empty.Title() {
-						No notes yet
+						No notebooks yet
 					}
 					@empty.Description() {
-						Session notes will live here.
+						Pin a notebook or open one beside the terminal.
 					}
 				}
 			}

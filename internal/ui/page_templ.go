@@ -415,7 +415,7 @@ func SessionRail() templ.Component {
 			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<aside class=\"session-rail\" id=\"session-rail\" aria-label=\"Session sidebar\" tabindex=\"-1\"><div class=\"session-rail-head\"><span class=\"eyebrow\">Session</span></div><section class=\"session-rail-block\" aria-live=\"polite\"><h2 class=\"session-rail-title\" id=\"session-rail-title\">No session</h2><p class=\"session-rail-sub lede\" id=\"session-rail-sub\">Open a session tab to see its details.</p></section><section class=\"session-rail-block session-rail-notes\"><span class=\"eyebrow\">Notes</span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<aside class=\"session-rail\" id=\"session-rail\" aria-label=\"Session sidebar\" tabindex=\"-1\"><div class=\"session-rail-head\"><span class=\"eyebrow\">Session</span></div><section class=\"session-rail-block\" aria-live=\"polite\"><h2 class=\"session-rail-title\" id=\"session-rail-title\">No session</h2><p class=\"session-rail-sub lede\" id=\"session-rail-sub\">Open a session tab to see its details.</p></section><section class=\"session-rail-block session-rail-notes\"><span class=\"eyebrow\">Notebooks</span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -481,7 +481,7 @@ func SessionRail() templ.Component {
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "No notes yet")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "No notebooks yet")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -507,7 +507,7 @@ func SessionRail() templ.Component {
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "Session notes will live here.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "Pin a notebook or open one beside the terminal.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

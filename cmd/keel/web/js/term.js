@@ -27,6 +27,7 @@
   const state = {
     hosts: [],
     snippets: [],
+    notebooks: [],
     identities: [],
     tunnels: [],
     logs: [],
@@ -176,22 +177,44 @@
   function paintSessionRail() {
     const title = document.getElementById("session-rail-title");
     const sub = document.getElementById("session-rail-sub");
-    if (!title || !sub) return;
+    const notes = document.querySelector(".session-rail-notes");
     const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
     const tab = vaultOn ? null : state.tabs.get(state.activeId);
     const pane = tab && !tab.start ? state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] : null;
-    if (pane) {
-      title.textContent = pane.title || tabTitle(tab) || "Session";
-      sub.textContent = pane.subtitle || "";
-      return;
+    if (title && sub) {
+      if (pane) {
+        title.textContent = pane.title || tabTitle(tab) || "Session";
+        sub.textContent = pane.subtitle || "";
+      } else if (tab?.start) {
+        title.textContent = "New tab";
+        sub.textContent = tab.connecting ? "Connecting…" : "Pick a host to connect.";
+      } else {
+        title.textContent = "No session";
+        sub.textContent = "Open a session tab to see its details.";
+      }
     }
-    if (tab?.start) {
-      title.textContent = "New tab";
-      sub.textContent = tab.connecting ? "Connecting…" : "Pick a host to connect.";
-      return;
-    }
-    title.textContent = "No session";
-    sub.textContent = "Open a session tab to see its details.";
+    if (!notes) return;
+    const list = [...(state.notebooks || [])].sort(
+      (a, b) =>
+        Number(!!b.pinned) - Number(!!a.pinned) ||
+        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+    );
+    const rows = list
+      .map((nb) => {
+        const pinLabel = nb.pinned ? "Unpin" : "Pin";
+        return `<article class="rail-notebook${nb.pinned ? " is-pinned" : ""}">
+          <div class="rail-notebook-name">${escapeHtml(nb.name || "Notebook")}</div>
+          <div class="rail-notebook-actions">
+            <button type="button" class="tiny" data-notebook-open="${nb.id}">Open</button>
+            <button type="button" class="tiny" data-notebook-pin="${nb.id}">${pinLabel}</button>
+          </div>
+        </article>`;
+      })
+      .join("");
+    notes.innerHTML = `<span class="eyebrow">Notebooks</span>
+      ${rows || `<p class="lede">Pin a notebook or open one beside the terminal. Cells never type until you approve.</p>`}
+      <button type="button" class="tiny" data-notebook-new>New notebook</button>`;
   }
 
   function applyVaultView(next) {
@@ -663,7 +686,11 @@
   function serializeLayout(node) {
     if (!node) return null;
     if (node.type === "leaf") {
-      const runtimeId = paneRuntimeId(node.paneId);
+      const pane = state.panes.get(node.paneId);
+      if (isNotebookPane(pane) && pane.notebookId) {
+        return { type: "leaf", kind: "notebook", notebookId: pane.notebookId };
+      }
+      const runtimeId = pane?.runtimeId || paneRuntimeId(node.paneId);
       return runtimeId ? { type: "leaf", runtimeId } : null;
     }
     const a = serializeLayout(node.a);
@@ -687,11 +714,14 @@
     return out;
   }
 
-  function pruneLayout(node, live) {
+  function pruneLayout(node, live, notebooks) {
     if (!node) return null;
-    if (node.type === "leaf") return live.has(node.runtimeId) ? node : null;
-    const a = pruneLayout(node.a, live);
-    const b = pruneLayout(node.b, live);
+    if (node.type === "leaf") {
+      if (node.kind === "notebook") return notebooks?.has(node.notebookId) ? node : null;
+      return live.has(node.runtimeId) ? node : null;
+    }
+    const a = pruneLayout(node.a, live, notebooks);
+    const b = pruneLayout(node.b, live, notebooks);
     if (!a) return b;
     if (!b) return a;
     return {
@@ -703,14 +733,25 @@
     };
   }
 
-  function remapLayout(node, runtimeToPane) {
+  function walkSavedLeaves(node, fn) {
+    if (!node) return;
+    if (node.type === "leaf") {
+      fn(node);
+      return;
+    }
+    walkSavedLeaves(node.a, fn);
+    walkSavedLeaves(node.b, fn);
+  }
+
+  function remapLayout(node, runtimeToPane, notebookToPane) {
     if (!node) return null;
     if (node.type === "leaf") {
-      const paneId = runtimeToPane.get(node.runtimeId);
+      const paneId =
+        node.kind === "notebook" ? notebookToPane?.get(node.notebookId) : runtimeToPane.get(node.runtimeId);
       return paneId ? { type: "leaf", paneId } : null;
     }
-    const a = remapLayout(node.a, runtimeToPane);
-    const b = remapLayout(node.b, runtimeToPane);
+    const a = remapLayout(node.a, runtimeToPane, notebookToPane);
+    const b = remapLayout(node.b, runtimeToPane, notebookToPane);
     if (!a) return b;
     if (!b) return a;
     return {
@@ -729,18 +770,23 @@
       if (tab.start || tab.remote || !tab.layout) continue;
       const layout = serializeLayout(tab.layout);
       if (!layout) continue;
+      const focused = state.panes.get(tab.focusedPaneId);
+      const zoomed = state.panes.get(tab.zoomedPaneId);
       tabs.push({
         title: tab.customTitle || "",
         sync: !!tab.sync,
-        focusedRuntimeId: paneRuntimeId(tab.focusedPaneId),
-        zoomedRuntimeId: paneRuntimeId(tab.zoomedPaneId),
+        focusedRuntimeId: focused?.runtimeId || "",
+        zoomedRuntimeId: zoomed?.runtimeId || "",
+        focusedNotebookId: isNotebookPane(focused) ? focused.notebookId || "" : "",
+        zoomedNotebookId: isNotebookPane(zoomed) ? zoomed.notebookId || "" : "",
         layout,
       });
     }
     const activePane = state.activeId !== VAULT ? focusedPane() : null;
+    const activeTerm = activePane && (activePane.runtimeId ? activePane : termTarget(activePane));
     const payload = {
       v: 1,
-      active: state.activeId === VAULT ? VAULT : activePane?.runtimeId || "",
+      active: state.activeId === VAULT ? VAULT : activeTerm?.runtimeId || "",
       tabs,
     };
     try {
@@ -761,10 +807,12 @@
   }
 
   function restoreSavedTab(saved, live) {
-    const layout = pruneLayout(saved?.layout, live);
+    const notebooks = new Set((state.notebooks || []).map((n) => n.id).filter(Boolean));
+    const layout = pruneLayout(saved?.layout, live, notebooks);
     const runtimeIds = layoutRuntimeIds(layout);
     if (!runtimeIds.length) return;
     const runtimeToPane = new Map();
+    const notebookToPane = new Map();
     let tab = null;
     for (const rid of runtimeIds) {
       const existing = findPaneByRuntime(rid);
@@ -783,17 +831,38 @@
       runtimeToPane.set(rid, pane.id);
     }
     if (!tab) return;
-    const remapped = remapLayout(layout, runtimeToPane);
+    walkSavedLeaves(layout, (leaf) => {
+      if (leaf.kind !== "notebook" || !leaf.notebookId || notebookToPane.has(leaf.notebookId)) return;
+      const rec = notebookById(leaf.notebookId);
+      if (!rec) return;
+      const existing = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === rec.id);
+      if (existing) {
+        if (existing.tabId === tab.id) notebookToPane.set(rec.id, existing.id);
+        return;
+      }
+      const sibling = tabPanes(tab).find((p) => isTermPane(p)) || tabPanes(tab)[0];
+      const nb = createNotebookPane(tab, sibling, rec);
+      notebookToPane.set(rec.id, nb.id);
+    });
+    const remapped = remapLayout(layout, runtimeToPane, notebookToPane);
     if (remapped) {
       tab.layout = remapped;
       tab.dirty = true;
     }
     if (saved.title) tab.customTitle = saved.title;
     if (saved.sync) tab.sync = true;
-    const focusedId = runtimeToPane.get(saved.focusedRuntimeId);
-    if (focusedId) tab.focusedPaneId = focusedId;
-    const zoomedId = runtimeToPane.get(saved.zoomedRuntimeId);
-    if (zoomedId && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedId;
+    const focusedNb = notebookToPane.get(saved.focusedNotebookId);
+    if (focusedNb) tab.focusedPaneId = focusedNb;
+    else {
+      const focusedId = runtimeToPane.get(saved.focusedRuntimeId);
+      if (focusedId) tab.focusedPaneId = focusedId;
+    }
+    const zoomedNb = notebookToPane.get(saved.zoomedNotebookId);
+    if (zoomedNb && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedNb;
+    else {
+      const zoomedId = runtimeToPane.get(saved.zoomedRuntimeId);
+      if (zoomedId && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedId;
+    }
   }
 
   function restoreOpenSessions() {
@@ -2109,15 +2178,17 @@
   }
 
   async function loadAll() {
-    const [hosts, snippets, herd, identities, tunnels] = await Promise.all([
+    const [hosts, snippets, notebooks, herd, identities, tunnels] = await Promise.all([
       api("/api/hosts"),
       api("/api/snippets"),
+      api("/api/notebooks"),
       api("/api/sessions"),
       api("/api/identities"),
       api("/api/tunnels"),
     ]);
     state.hosts = hosts;
     state.snippets = snippets;
+    state.notebooks = notebooks || [];
     state.herd = herd;
     state.identities = identities;
     state.tunnels = tunnels;
@@ -2134,6 +2205,7 @@
     if (!tnOk) renderTunnels();
     refreshStartTabs();
     if (state.vaultSection === "logs") await loadLogs().catch(() => {});
+    paintSessionRail();
   }
 
   function localHost() {
@@ -2559,6 +2631,21 @@
         title: `Type snippet: ${sn.name}`,
         hint: "Confirm before sending to the terminal",
         run: () => paletteRunSnippet(sn.id),
+      });
+    }
+    add({
+      id: "notebook-new",
+      group: "Notebooks",
+      title: "New notebook",
+      run: () => splitNotebook("h"),
+    });
+    for (const nb of state.notebooks || []) {
+      add({
+        id: `notebook:${nb.id}`,
+        group: "Notebooks",
+        title: `Open notebook ${nb.name || "Notebook"}`,
+        hint: nb.pinned ? "Pinned" : "Beside the terminal",
+        run: () => openNotebook(nb.id),
       });
     }
     return items;
@@ -3843,25 +3930,139 @@
     return { wrap, body };
   }
 
-  function createNotebookPane(tab, sibling) {
+  function copyNotebookCells(cells) {
+    if (!Array.isArray(cells) || !cells.length) return [{ id: uid("cell"), body: "" }];
+    return cells.map((c) => ({ id: c.id || uid("cell"), body: String(c.body || "") }));
+  }
+
+  function notebookById(id) {
+    return (state.notebooks || []).find((n) => n.id === id);
+  }
+
+  function rememberNotebook(rec) {
+    if (!rec?.id) return;
+    const i = state.notebooks.findIndex((n) => n.id === rec.id);
+    if (i >= 0) state.notebooks[i] = rec;
+    else state.notebooks.unshift(rec);
+  }
+
+  function createNotebookPane(tab, sibling, saved) {
     const paneId = uid("pane");
-    const shell = makeNotebookShell(paneId, "Notebook");
+    const title = saved?.name || "Notebook";
+    const shell = makeNotebookShell(paneId, title);
     const pane = {
       id: paneId,
       tabId: tab.id,
       kind: "notebook",
+      notebookId: saved?.id || "",
       hostId: sibling?.hostId || tab.hostId || "",
-      title: "Notebook",
+      title,
       subtitle: sibling?.subtitle || "notebook",
+      pinned: !!saved?.pinned,
       status: "",
       wrap: shell.wrap,
       body: shell.body,
-      cells: [{ id: uid("cell"), body: "" }],
+      cells: copyNotebookCells(saved?.cells),
       remote: !!tab.remote,
     };
     state.panes.set(pane.id, pane);
     paintNotebook(pane);
     return pane;
+  }
+
+  async function persistNotebook(pane) {
+    if (!isNotebookPane(pane)) return;
+    const payload = {
+      name: (pane.title || "Notebook").trim() || "Notebook",
+      cells: copyNotebookCells(pane.cells),
+      pinned: !!pane.pinned,
+    };
+    try {
+      const rec = pane.notebookId
+        ? await api(`/api/notebooks/${pane.notebookId}`, { method: "PUT", body: JSON.stringify(payload) })
+        : await api("/api/notebooks", { method: "POST", body: JSON.stringify(payload) });
+      pane.notebookId = rec.id;
+      pane.title = rec.name;
+      pane.pinned = !!rec.pinned;
+      if (Array.isArray(rec.cells) && rec.cells.length === pane.cells.length) {
+        rec.cells.forEach((cell, i) => {
+          if (pane.cells[i]) pane.cells[i].id = cell.id || pane.cells[i].id;
+        });
+      }
+      rememberNotebook(rec);
+      const tab = state.tabs.get(pane.tabId);
+      if (tab) syncPaneChrome(tab, pane);
+      persistWorkspace();
+      paintSessionRail();
+    } catch (err) {
+      toast(err.message || "Could not save notebook", true);
+    }
+  }
+
+  function scheduleNotebookSave(pane) {
+    if (!isNotebookPane(pane)) return;
+    clearTimeout(pane._saveTimer);
+    pane._saveTimer = setTimeout(() => persistNotebook(pane), 400);
+  }
+
+  function openNotebook(id) {
+    const rec = notebookById(id);
+    if (!rec) {
+      toast("Notebook not found");
+      return;
+    }
+    const existing = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === id);
+    if (existing) {
+      state.activeId = existing.tabId;
+      markFocusedPane(existing);
+      renderTabs();
+      return;
+    }
+    const tab = state.tabs.get(state.activeId);
+    if (!tab || tab.start || !tab.layout) {
+      toast("Open a session first");
+      return;
+    }
+    const focused = focusedPane();
+    const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
+    if (!sibling) {
+      toast("Open a session first");
+      return;
+    }
+    const nb = createNotebookPane(tab, sibling, rec);
+    tab.layout = replaceLeaf(tab.layout, sibling.id, {
+      type: "split",
+      dir: "h",
+      sizes: [50, 50],
+      a: { type: "leaf", paneId: sibling.id },
+      b: { type: "leaf", paneId: nb.id },
+    });
+    tab.zoomedPaneId = "";
+    tab.focusedPaneId = nb.id;
+    tab.dirty = true;
+    renderTabs();
+    markFocusedPane(nb);
+  }
+
+  async function toggleNotebookPin(id) {
+    const rec = notebookById(id);
+    if (!rec) return;
+    try {
+      const saved = await api(`/api/notebooks/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: rec.name, cells: rec.cells, pinned: !rec.pinned }),
+      });
+      rememberNotebook(saved);
+      for (const pane of state.panes.values()) {
+        if (isNotebookPane(pane) && pane.notebookId === id) {
+          pane.pinned = !!saved.pinned;
+          paintNotebook(pane);
+        }
+      }
+      paintSessionRail();
+    } catch (err) {
+      toast(err.message || "Could not pin notebook", true);
+    }
   }
 
   function paintNotebook(pane) {
@@ -3883,6 +4084,10 @@
         </article>`)
       .join("");
     body.innerHTML = `<div class="notebook-scroll">
+      <div class="notebook-toolbar">
+        <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Notebook title" />
+        <button type="button" class="tiny" data-notebook-pin-pane="${pane.id}" aria-pressed="${pane.pinned ? "true" : "false"}">${pane.pinned ? "Unpin" : "Pin"}</button>
+      </div>
       <p class="notebook-lede">Notebook cells never write the shell until you approve. Same bar as the command palette.</p>
       ${cells}
       <button type="button" class="tiny notebook-add" data-notebook-add="${pane.id}">Add cell</button>
@@ -3911,6 +4116,7 @@
     tab.dirty = true;
     renderTabs();
     markFocusedPane(nb);
+    persistNotebook(nb);
   }
 
   async function runNotebookCell(pane, cellId) {
@@ -5062,6 +5268,25 @@
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
     on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
     on(document.getElementById("session-rail"), "focusin", () => syncSessionSurface());
+    on(document.getElementById("session-rail"), "click", (ev) => {
+      const openNb = ev.target.closest("[data-notebook-open]");
+      if (openNb) {
+        ev.preventDefault();
+        openNotebook(openNb.dataset.notebookOpen);
+        return;
+      }
+      const pinNb = ev.target.closest("[data-notebook-pin]");
+      if (pinNb) {
+        ev.preventDefault();
+        toggleNotebookPin(pinNb.dataset.notebookPin);
+        return;
+      }
+      const newNb = ev.target.closest("[data-notebook-new]");
+      if (newNb) {
+        ev.preventDefault();
+        splitNotebook("h");
+      }
+    });
     on(els.terminals, "focusin", () => syncSessionSurface());
     on(els.terminals, "click", (ev) => {
       const split = ev.target.closest("[data-pane-split]");
@@ -5101,6 +5326,17 @@
         if (p) runNotebookCell(p, runCell.dataset.notebookRun);
         return;
       }
+      const pinPane = ev.target.closest("[data-notebook-pin-pane]");
+      if (pinPane) {
+        ev.preventDefault();
+        const p = state.panes.get(pinPane.dataset.notebookPinPane);
+        if (p && isNotebookPane(p)) {
+          p.pinned = !p.pinned;
+          paintNotebook(p);
+          persistNotebook(p);
+        }
+        return;
+      }
       const addCell = ev.target.closest("[data-notebook-add]");
       if (addCell) {
         ev.preventDefault();
@@ -5108,6 +5344,7 @@
         if (p && isNotebookPane(p)) {
           p.cells.push({ id: uid("cell"), body: "" });
           paintNotebook(p);
+          scheduleNotebookSave(p);
         }
         return;
       }
@@ -5120,6 +5357,7 @@
           p.cells = (p.cells || []).filter((c) => c.id !== removeCell.dataset.notebookRemove);
           if (!p.cells.length) p.cells.push({ id: uid("cell"), body: "" });
           paintNotebook(p);
+          scheduleNotebookSave(p);
         }
         return;
       }
@@ -5135,12 +5373,24 @@
       else if (join) openJoin();
     });
     on(els.terminals, "input", (ev) => {
+      const title = ev.target.closest?.("[data-notebook-title]");
+      if (title) {
+        const pane = state.panes.get(title.dataset.notebookTitle);
+        if (pane && isNotebookPane(pane)) {
+          pane.title = title.value;
+          const tab = state.tabs.get(pane.tabId);
+          if (tab) syncPaneChrome(tab, pane);
+          scheduleNotebookSave(pane);
+        }
+        return;
+      }
       const area = ev.target.closest?.("[data-notebook-body]");
       if (area) {
         const wrap = area.closest(".term-wrap");
         const pane = wrap && state.panes.get(wrap.dataset.paneId);
         const cell = pane?.cells?.find((c) => c.id === area.dataset.notebookBody);
         if (cell) cell.body = area.value;
+        if (pane) scheduleNotebookSave(pane);
         return;
       }
       const input = ev.target.closest?.(".start-search");

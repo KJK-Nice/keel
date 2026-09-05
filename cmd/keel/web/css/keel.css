@@ -973,6 +973,30 @@ html[data-native] .session-rail {
 .session-rail-notes [data-slot="empty"] {
   padding: 16px 12px;
 }
+.rail-notebook {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  background: var(--keel-panel);
+}
+.rail-notebook.is-pinned {
+  border-color: color-mix(in srgb, var(--keel-accent) 45%, var(--keel-border));
+}
+.rail-notebook-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-notebook-actions {
+  display: flex;
+  gap: 4px;
+}
 #btn-session-rail[aria-pressed="true"] {
   background: var(--hover);
   color: var(--text);
@@ -1554,6 +1578,26 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   font-size: 0.78rem;
   color: var(--keel-muted);
   line-height: 1.45;
+}
+.notebook-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notebook-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  background: var(--keel-bg);
+  color: var(--keel-text);
+  font: 0.9rem/1.3 inherit;
+  font-weight: 600;
+}
+.notebook-title:focus {
+  outline: 1px solid var(--keel-accent);
+  border-color: var(--keel-accent);
 }
 .notebook-cell {
   display: flex;

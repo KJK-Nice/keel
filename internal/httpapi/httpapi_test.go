@@ -779,6 +779,153 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(catalog, "sendSessionBytes") || strings.Contains(catalog, "sendSnippet") {
 		t.Fatal("palette catalog must not write a PTY")
 	}
+
+	persist := sliceJSFunc(term, "function persistNotebook")
+	open := sliceJSFunc(term, "function openNotebook")
+	paint := sliceJSFunc(term, "function paintSessionRail")
+	pin := sliceJSFunc(term, "function toggleNotebookPin")
+	for _, fn := range []string{persist, open, paint, pin, create, split} {
+		if fn == "" {
+			t.Fatal("missing notebook persist/open/pin helpers")
+		}
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
+			t.Fatal("notebook persist/open/sidebar must not write the shell")
+		}
+	}
+	if !strings.Contains(persist, "/api/notebooks") {
+		t.Fatal("notebook persist must use the vault notebooks API")
+	}
+	if !strings.Contains(open, "createNotebookPane") || strings.Contains(open, "spawnHost") {
+		t.Fatal("opening a notebook must hydrate a notebook pane, not spawn a PTY")
+	}
+	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
+		t.Fatal("session sidebar must pin and open notebooks")
+	}
+	if strings.Contains(paint, "inject") {
+		t.Fatal("session sidebar notebook chrome must not mention inject")
+	}
+
+	ser := sliceJSFunc(term, "function serializeLayout")
+	prune := sliceJSFunc(term, "function pruneLayout")
+	restore := sliceJSFunc(term, "function restoreSavedTab")
+	if !strings.Contains(ser, `kind: "notebook"`) || !strings.Contains(ser, "notebookId") {
+		t.Fatal("workspace layout must persist notebook leaves")
+	}
+	if !strings.Contains(prune, `kind === "notebook"`) {
+		t.Fatal("workspace restore must keep notebook leaves")
+	}
+	if !strings.Contains(restore, "createNotebookPane") || strings.Contains(restore, "sendSessionBytes") {
+		t.Fatal("workspace restore must reopen notebooks without writing the PTY")
+	}
+	if !strings.Contains(term, `api("/api/notebooks")`) {
+		t.Fatal("boot must load notebooks with the rest of the vault")
+	}
+	if !strings.Contains(catalog, "Open notebook") || !strings.Contains(catalog, "openNotebook") {
+		t.Fatal("palette catalog must offer Open notebook without writing a PTY")
+	}
+}
+
+func TestNotebookAPI(t *testing.T) {
+	srv, _, _, _ := testServer(t)
+	res, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{"name":"ops","cells":[{"body":"# hello\nls"}],"pinned":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("create %d %s", res.StatusCode, b)
+	}
+	var saved store.Notebook
+	if err := json.NewDecoder(res.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.ID == "" || saved.Name != "ops" || !saved.Pinned || len(saved.Cells) != 1 || saved.Cells[0].Body != "# hello\nls" {
+		t.Fatalf("created = %+v", saved)
+	}
+	if saved.Cells[0].ID == "" {
+		t.Fatal("cell id must be minted")
+	}
+
+	listRes, err := http.Get(srv.URL + "/api/notebooks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listRes.Body.Close()
+	if listRes.StatusCode != http.StatusOK {
+		t.Fatalf("list %d", listRes.StatusCode)
+	}
+	var listed []store.Notebook
+	if err := json.NewDecoder(listRes.Body).Decode(&listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].ID != saved.ID || !listed[0].Pinned {
+		t.Fatalf("list = %+v", listed)
+	}
+
+	saved.Name = "runbook"
+	saved.Pinned = false
+	saved.Cells = append(saved.Cells, store.NotebookCell{Body: "uptime"})
+	body, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/notebooks/"+saved.ID, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	putRes, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer putRes.Body.Close()
+	if putRes.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(putRes.Body)
+		t.Fatalf("update %d %s", putRes.StatusCode, b)
+	}
+	var updated store.Notebook
+	if err := json.NewDecoder(putRes.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "runbook" || updated.Pinned || len(updated.Cells) != 2 {
+		t.Fatalf("updated = %+v", updated)
+	}
+
+	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/notebooks/"+saved.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delRes, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer delRes.Body.Close()
+	if delRes.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete %d", delRes.StatusCode)
+	}
+
+	gone, err := http.Get(srv.URL + "/api/notebooks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gone.Body.Close()
+	var empty []store.Notebook
+	if err := json.NewDecoder(gone.Body).Decode(&empty); err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("expected empty list, got %+v", empty)
+	}
+
+	bad, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bad.Body.Close()
+	if bad.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid payload %d", bad.StatusCode)
+	}
 }
 
 func TestSessionReconnect(t *testing.T) {

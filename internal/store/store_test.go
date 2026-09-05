@@ -481,3 +481,61 @@ func TestDuplicateHost(t *testing.T) {
 		t.Fatalf("missing err = %v", err)
 	}
 }
+
+func TestNotebookRoundTripAndPin(t *testing.T) {
+	st := testStore(t)
+	saved, err := st.UpsertNotebook(Notebook{
+		Name:  "  ",
+		Cells: []NotebookCell{{Body: "# hello\nls"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.ID == "" || saved.Name != "Notebook" {
+		t.Fatalf("normalized = %+v", saved)
+	}
+	if len(saved.Cells) != 1 || saved.Cells[0].ID == "" || saved.Cells[0].Body != "# hello\nls" {
+		t.Fatalf("cells = %+v", saved.Cells)
+	}
+
+	saved.Name = "ops"
+	saved.Pinned = true
+	saved.Cells = append(saved.Cells, NotebookCell{Body: "uptime"})
+	updated, err := st.UpsertNotebook(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "ops" || !updated.Pinned || len(updated.Cells) != 2 {
+		t.Fatalf("updated = %+v", updated)
+	}
+	if updated.CreatedAt != saved.CreatedAt {
+		t.Fatal("createdAt should stick")
+	}
+
+	listed, err := st.ListNotebooks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].ID != updated.ID || !listed[0].Pinned {
+		t.Fatalf("list = %+v", listed)
+	}
+
+	st2, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := st2.GetNotebook(updated.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Name != "ops" || again.Cells[0].Body != "# hello\nls" || !again.Pinned {
+		t.Fatalf("reloaded = %+v", again)
+	}
+
+	if err := st2.DeleteNotebook(updated.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st2.GetNotebook(updated.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted err = %v", err)
+	}
+}
