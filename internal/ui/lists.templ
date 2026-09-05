@@ -155,11 +155,7 @@ templ hostCard(h store.Host) {
 				}
 			</div>
 			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
-				if h.AuthType == "local" {
-					@rowMenu("data-edit", h.ID, "", "")
-				} else {
-					@rowMenu("data-edit", h.ID, "data-delete", h.ID)
-				}
+				@hostRowMenu(h)
 			</div>
 		}
 	}

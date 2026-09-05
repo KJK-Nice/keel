@@ -543,6 +543,52 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	return s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1]), nil
 }
 
+func copyHostName(base string, taken []string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		base = "Host"
+	}
+	used := make(map[string]struct{}, len(taken))
+	for _, n := range taken {
+		used[n] = struct{}{}
+	}
+	name := base + " (copy)"
+	if _, ok := used[name]; !ok {
+		return name
+	}
+	for i := 2; ; i++ {
+		name = fmt.Sprintf("%s (copy %d)", base, i)
+		if _, ok := used[name]; !ok {
+			return name
+		}
+	}
+}
+
+// DuplicateHost clones connection settings (including secrets) into a new host
+// named like "api (copy)". The seeded local shell cannot be duplicated.
+func (s *Store) DuplicateHost(id string) (Host, error) {
+	src, err := s.GetHost(id)
+	if err != nil {
+		return Host{}, err
+	}
+	if src.AuthType == "local" {
+		return Host{}, errors.New("the local shell host cannot be duplicated")
+	}
+	hosts, err := s.ListHosts()
+	if err != nil {
+		return Host{}, err
+	}
+	names := make([]string, len(hosts))
+	for i, h := range hosts {
+		names[i] = h.Name
+	}
+	src.ID = ""
+	src.CreatedAt = time.Time{}
+	src.UpdatedAt = time.Time{}
+	src.Name = copyHostName(src.Name, names)
+	return s.UpsertHost(src)
+}
+
 func persistFrom(h Host) persistHost {
 	return persistHost{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
