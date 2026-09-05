@@ -415,12 +415,29 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
+	case leak := <-got:
+		t.Fatalf("PTY received client-only approved:true %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "inject-challenge", "command": "ls\n"}); err != nil {
+		t.Fatal(err)
+	}
+	chal := waitJSON(t, alice, "inject-challenge")
+	nonce, _ := chal["nonce"].(string)
+	if nonce == "" {
+		t.Fatal("inject-challenge must return a server nonce")
+	}
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "nonce": nonce}); err != nil {
+		t.Fatal(err)
+	}
+	select {
 	case hit := <-got:
 		if hit != "ls\n" {
-			t.Fatalf("approved inject got %q", hit)
+			t.Fatalf("ticket inject got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for approved inject")
+		t.Fatal("timeout waiting for ticket inject")
 	}
 
 	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
@@ -437,6 +454,65 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
+	}
+}
+
+func TestInjectNonceOneShotRejectsClientApprovedReplay(t *testing.T) {
+	srv, _, st, fb := testServer(t)
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
+	defer alice.Close()
+	waitJSON(t, alice, "ready")
+
+	got := make(chan string, 1)
+	readPTY := func() {
+		go func() {
+			buf := make([]byte, 32)
+			n, _ := fb.inR.Read(buf)
+			got <- string(buf[:n])
+		}()
+	}
+
+	readPTY()
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "approved": true}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received client-only approved:true %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "inject-challenge", "command": "ls\n"}); err != nil {
+		t.Fatal(err)
+	}
+	chal := waitJSON(t, alice, "inject-challenge")
+	nonce, _ := chal["nonce"].(string)
+	if nonce == "" {
+		t.Fatal("missing server nonce")
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "nonce": nonce, "approved": true}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "ls\n" {
+			t.Fatalf("first ticket inject got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for first ticket inject")
+	}
+
+	readPTY()
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "nonce": nonce, "approved": true}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received replayed nonce %q", leak)
+	case <-time.After(80 * time.Millisecond):
 	}
 }
 
@@ -548,8 +624,11 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	if !strings.Contains(body, "sess.SetFocus(cl.ID") {
 		t.Fatal("focus JSON must call Session.SetFocus")
 	}
-	if !strings.Contains(body, "sess.Inject(cl.ID") {
-		t.Fatal("palette/chrome inject JSON must call Session.Inject")
+	if !strings.Contains(body, "sess.IssueInjectTicket(cl.ID") || !strings.Contains(body, "sess.InjectTicket(cl.ID") {
+		t.Fatal("palette/chrome inject JSON must issue and consume a server ticket")
+	}
+	if strings.Contains(body, "if ctl.Approved") || strings.Contains(body, "approved = inject.Approve()") {
+		t.Fatal("inject must not mint Approve from a client approved flag")
 	}
 	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
 	if err != nil {
@@ -565,8 +644,11 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	if strings.Contains(inj, "sendSessionBytes") {
 		t.Fatal("palette inject must not send live websocket binary")
 	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "approved: true") {
-		t.Fatal("palette inject must use Inject JSON with approve")
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
+		t.Fatal("palette inject must send a server nonce, not client approved:true")
+	}
+	if !strings.Contains(term, `type: "inject-challenge"`) {
+		t.Fatal("palette inject must request a server inject-challenge")
 	}
 	if strings.Count(term, "function ptyWritesBlocked") != 1 {
 		t.Fatal("ptyWritesBlocked must be a single merged implementation")
@@ -681,8 +763,8 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(inj, "sendSessionBytes") {
 		t.Fatal("approved inject must not send live websocket binary")
 	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "approved: true") {
-		t.Fatal("approved inject must use Inject JSON with approve")
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
+		t.Fatal("approved inject must use a server nonce, not client approved:true")
 	}
 
 	catStart := strings.Index(term, "function paletteCatalog()")
@@ -1983,8 +2065,8 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	if strings.Contains(fn, "sendSnippet") || strings.Contains(fn, "sendSessionBytes") {
 		t.Fatal("palette inject must not call sendSnippet or raw session bytes")
 	}
-	if !strings.Contains(js, `type: "inject"`) || !strings.Contains(js, "approved: true") {
-		t.Fatal("palette inject must send WS inject with approved true")
+	if !strings.Contains(js, `type: "inject"`) || !strings.Contains(js, `type: "inject-challenge"`) || strings.Contains(js, "approved: true") {
+		t.Fatal("palette inject must send WS inject with a server nonce")
 	}
 	if !strings.Contains(js, `type: "focus", surface`) && !strings.Contains(js, `type: "focus", surface:`) {
 		t.Fatal("palette must set session focus surface")

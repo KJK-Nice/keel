@@ -134,16 +134,17 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 		rows = 24
 	}
 	s := &Session{
-		rt:      r,
-		id:      newID(),
-		host:    host,
-		buf:     newRing(256 * 1024),
-		clients: map[uint64]*clientConn{},
-		cols:    cols,
-		rows:    rows,
-		stop:    make(chan struct{}),
-		kick:    make(chan struct{}, 1),
-		backoff: r.backoff,
+		rt:            r,
+		id:            newID(),
+		host:          host,
+		buf:           newRing(256 * 1024),
+		clients:       map[uint64]*clientConn{},
+		cols:          cols,
+		rows:          rows,
+		stop:          make(chan struct{}),
+		kick:          make(chan struct{}, 1),
+		backoff:       r.backoff,
+		injectTickets: inject.NewIssuer(),
 		info: Info{
 			HostID:    host.ID,
 			Title:     host.Name,
@@ -309,6 +310,7 @@ type Session struct {
 	backoff        time.Duration
 	everReady      bool
 	forceReconnect bool
+	injectTickets  *inject.Issuer
 }
 
 func (s *Session) Info() Info {
@@ -479,6 +481,36 @@ func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) er
 		return err
 	}
 	return s.Write(clientID, p)
+}
+
+// IssueInjectTicket mints a one-shot nonce bound to this driver and command.
+// WS inject must consume it; a client approved:true flag is not enough.
+func (s *Session) IssueInjectTicket(clientID uint64, command string) (string, error) {
+	s.mu.Lock()
+	if _, ok := s.clients[clientID]; !ok {
+		s.mu.Unlock()
+		return "", ErrNoClient
+	}
+	if s.driverID != clientID {
+		s.mu.Unlock()
+		return "", ErrReadOnly
+	}
+	iss := s.injectTickets
+	s.mu.Unlock()
+	return iss.Issue(clientID, command)
+}
+
+// InjectTicket consumes a server-issued nonce then Injects. Replay and
+// client-only approved flags fail before the PTY is touched.
+func (s *Session) InjectTicket(clientID uint64, command, nonce string) error {
+	s.mu.Lock()
+	iss := s.injectTickets
+	s.mu.Unlock()
+	approved, err := iss.Consume(clientID, command, nonce)
+	if err != nil {
+		return err
+	}
+	return s.Inject(clientID, []byte(command), approved)
 }
 
 // Keystroke is live typing. Palette and other chrome must not call this

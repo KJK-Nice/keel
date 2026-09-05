@@ -378,6 +378,7 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 					Type     string `json:"type"`
 					Surface  string `json:"surface"`
 					Command  string `json:"command"`
+					Nonce    string `json:"nonce"`
 					Approved bool   `json:"approved"`
 					Cols     int    `json:"cols"`
 					Rows     int    `json:"rows"`
@@ -397,12 +398,13 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 					_ = sess.TakeControl(cl.ID)
 				case "focus":
 					_ = sess.SetFocus(cl.ID, inject.Surface(ctl.Surface))
-				case "inject":
-					var approved inject.Approval
-					if ctl.Approved {
-						approved = inject.Approve()
+				case "inject-challenge":
+					nonce, err := sess.IssueInjectTicket(cl.ID, ctl.Command)
+					if err == nil {
+						_ = dc.SendText(mustJSON(map[string]any{"type": "inject-challenge", "nonce": nonce}))
 					}
-					_ = sess.Inject(cl.ID, []byte(ctl.Command), approved)
+				case "inject":
+					_ = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
 				}
 				return
 			}

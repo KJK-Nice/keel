@@ -2690,7 +2690,7 @@
     if (!ok) return;
     holdPtyFromChrome();
     pane.term?.clearSelection?.();
-    sendApprovedInject("\u0015" + command, pane);
+    await sendApprovedInject("\u0015" + command, pane);
   }
 
   async function runPaletteItem(item) {
@@ -3400,6 +3400,12 @@
       if (pane.wsGen !== gen) return;
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
+        if (msg.type === "inject-challenge") {
+          const done = pane.injectTicketWaiter;
+          pane.injectTicketWaiter = null;
+          if (typeof done === "function") done(msg.nonce || "");
+          return;
+        }
         if (msg.type === "status") {
           recordFailStatus(pane, msg);
           if (msg.status === "ready") pane.status = "is-ready";
@@ -3928,7 +3934,7 @@
     const ok = await approveBeforeType(command, term.subtitle || term.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    sendApprovedInject(command, term);
+    await sendApprovedInject(command, term);
   }
 
   function toggleTabSync(tabId) {
@@ -4007,7 +4013,24 @@
     return true;
   }
 
-  function sendApprovedInject(command, targetPane) {
+  function requestInjectTicket(pane, command) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (pane.injectTicketWaiter) {
+          pane.injectTicketWaiter = null;
+          resolve("");
+        }
+      }, 2500);
+      pane.injectTicketWaiter = (nonce) => {
+        clearTimeout(timer);
+        pane.injectTicketWaiter = null;
+        resolve(nonce || "");
+      };
+      sendSessionJSON(pane, { type: "inject-challenge", command });
+    });
+  }
+
+  async function sendApprovedInject(command, targetPane) {
     const pane = termTarget(targetPane || focusedPane());
     if (!pane || !isTermPane(pane)) {
       toast("Open a session first");
@@ -4019,7 +4042,9 @@
     for (const p of targets) {
       const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
       if (!open || !isDriving(p) || !isTermPane(p)) continue;
-      sendSessionJSON(p, { type: "inject", command, approved: true });
+      const nonce = await requestInjectTicket(p, command);
+      if (!nonce) continue;
+      sendSessionJSON(p, { type: "inject", command, nonce });
       sent = true;
     }
     if (!sent) {
@@ -4604,6 +4629,12 @@
           try {
             msg = JSON.parse(ev2.data);
           } catch {
+            return;
+          }
+          if (msg.type === "inject-challenge") {
+            const done = pane.injectTicketWaiter;
+            pane.injectTicketWaiter = null;
+            if (typeof done === "function") done(msg.nonce || "");
             return;
           }
           if (msg.type === "error") {

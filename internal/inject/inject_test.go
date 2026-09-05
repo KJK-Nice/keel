@@ -81,3 +81,41 @@ func TestPaletteCannotSilentlyInjectOrType(t *testing.T) {
 		t.Fatalf("n = %d", n)
 	}
 }
+
+func TestIssuerRejectsEmptyNonceAndReplay(t *testing.T) {
+	iss := NewIssuer()
+	if _, err := iss.Consume(1, "ls\n", ""); !errors.Is(err, ErrNotApproved) {
+		t.Fatalf("empty nonce err = %v", err)
+	}
+	n, err := Write(denyWriter{}, []byte("ls\n"), Approval{})
+	if !errors.Is(err, ErrNotApproved) || n != 0 {
+		t.Fatalf("client-only approve n=%d err=%v", n, err)
+	}
+
+	nonce, err := iss.Issue(1, "ls\n")
+	if err != nil || nonce == "" {
+		t.Fatalf("issue nonce=%q err=%v", nonce, err)
+	}
+	a, err := iss.Consume(1, "ls\n", nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := Write(&buf, []byte("ls\n"), a); err != nil || buf.String() != "ls\n" {
+		t.Fatalf("first consume buf=%q err=%v", buf.String(), err)
+	}
+	if _, err := iss.Consume(1, "ls\n", nonce); !errors.Is(err, ErrBadTicket) {
+		t.Fatalf("replay err = %v", err)
+	}
+
+	nonce, err = iss.Issue(1, "ls\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := iss.Consume(1, "rm\n", nonce); !errors.Is(err, ErrBadTicket) {
+		t.Fatalf("command mismatch err = %v", err)
+	}
+	if _, err := iss.Consume(1, "ls\n", nonce); !errors.Is(err, ErrBadTicket) {
+		t.Fatalf("mismatch must spend the ticket, err = %v", err)
+	}
+}

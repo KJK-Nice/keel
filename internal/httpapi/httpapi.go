@@ -741,6 +741,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				Type     string `json:"type"`
 				Surface  string `json:"surface"`
 				Command  string `json:"command"`
+				Nonce    string `json:"nonce"`
 				Approved bool   `json:"approved"`
 				Cols     int    `json:"cols"`
 				Rows     int    `json:"rows"`
@@ -761,20 +762,22 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				err = sess.TakeControl(cl.ID)
 			case "focus":
 				err = sess.SetFocus(cl.ID, inject.Surface(ctl.Surface))
-			case "inject":
-				var approved inject.Approval
-				if ctl.Approved {
-					approved = inject.Approve()
+			case "inject-challenge":
+				var nonce string
+				nonce, err = sess.IssueInjectTicket(cl.ID, ctl.Command)
+				if err == nil {
+					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
-				err = sess.Inject(cl.ID, []byte(ctl.Command), approved)
+			case "inject":
+				err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
 			}
-			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) {
+			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {
 				_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
 			}
 			continue
 		}
 		// Live keystrokes stay on Write (ungated). Palette/chrome must not
-		// send binary here; they use type=inject → Inject(Approve()).
+		// send binary here; they use type=inject → InjectTicket (server nonce).
 		if err := sess.Write(cl.ID, msg); err != nil {
 			if errors.Is(err, runtime.ErrReadOnly) {
 				continue
