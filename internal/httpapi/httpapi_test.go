@@ -313,6 +313,112 @@ func TestSessionControlAndFanout(t *testing.T) {
 	}
 }
 
+func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
+	srv, _, st, fb := testServer(t)
+	host := firstHost(t, st)
+	info := spawn(t, srv.URL, host.ID)
+	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
+	defer alice.Close()
+	waitJSON(t, alice, "ready")
+
+	got := make(chan string, 1)
+	readPTY := func() {
+		go func() {
+			buf := make([]byte, 32)
+			n, _ := fb.inR.Read(buf)
+			got <- string(buf[:n])
+		}()
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "palette"}); err != nil {
+		t.Fatal(err)
+	}
+	readPTY()
+	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "live" {
+			t.Fatalf("live WS Write while palette focused got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("live websocket binary must still use ungated Session.Write")
+	}
+
+	readPTY()
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "rm\n", "approved": false}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received unapproved inject %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "ls\n", "approved": true}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "ls\n" {
+			t.Fatalf("approved inject got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+
+	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
+		t.Fatal(err)
+	}
+	readPTY()
+	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if hit != "x" {
+			t.Fatalf("restored live WS got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
+	}
+}
+
+func TestSessionWSKeepsWriteUngated(t *testing.T) {
+	src, err := os.ReadFile("httpapi.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	if !strings.Contains(body, "sess.Write(cl.ID, msg)") {
+		t.Fatal("live websocket binary must call Session.Write")
+	}
+	if strings.Contains(body, "sess.Keystroke(cl.ID, msg") {
+		t.Fatal("live websocket binary must not be routed through Keystroke")
+	}
+	if !strings.Contains(body, "sess.Inject(cl.ID") {
+		t.Fatal("palette/chrome inject JSON must call Session.Inject")
+	}
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	injStart := strings.Index(term, "function sendApprovedInject")
+	injEndRel := strings.Index(term[injStart+1:], "\n  function ")
+	if injStart < 0 || injEndRel < 0 {
+		t.Fatal("missing sendApprovedInject")
+	}
+	inj := term[injStart : injStart+1+injEndRel]
+	if strings.Contains(inj, "sendSessionBytes") {
+		t.Fatal("palette inject must not send live websocket binary")
+	}
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "approved: true") {
+		t.Fatal("palette inject must use Inject JSON with approve")
+	}
+}
+
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
@@ -1207,6 +1313,131 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(logsBody), `data-slot="card"`) {
 		t.Fatal("ui logs fragment should still render log rows as cards")
+	}
+}
+
+func TestIndexServesCommandPalette(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	html := string(body)
+	if !strings.Contains(html, `id="cmd-palette"`) || !strings.Contains(html, `id="cmd-palette-input"`) {
+		t.Fatal("index missing command palette dialog")
+	}
+	if !strings.Contains(html, `id="pty-inject-modal"`) || !strings.Contains(html, `id="pty-inject-preview"`) {
+		t.Fatal("index missing approve-before-type dialog")
+	}
+	if !strings.Contains(html, "Nothing is typed until you approve") || !strings.Contains(html, `id="pty-inject-ok"`) {
+		t.Fatal("approve-before-type dialog must explain the gate and have a Type button")
+	}
+
+	cssRes, err := http.Get(srv.URL + "/css/keel.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cssRes.Body.Close()
+	cssBody, _ := io.ReadAll(cssRes.Body)
+	css := string(cssBody)
+	if !strings.Contains(css, ".cmd-palette") || !strings.Contains(css, "--keel-panel") || !strings.Contains(css, "--keel-sidebar") {
+		t.Fatal("keel.css missing command palette chrome tokens")
+	}
+
+	jsRes, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsRes.Body.Close()
+	jsBody, _ := io.ReadAll(jsRes.Body)
+	js := string(jsBody)
+	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, `runShortcut("palette")`) {
+		t.Fatal("term.js must open the command palette through runShortcut")
+	}
+	kIdx := strings.Index(js, `if (key === "k" && !ev.shiftKey)`)
+	if kIdx < 0 {
+		t.Fatal("term.js missing ⌘K handler")
+	}
+	kChunk := js[kIdx:min(len(js), kIdx+220)]
+	if !strings.Contains(kChunk, `runShortcut("palette")`) {
+		t.Fatal("⌘K must open the command palette")
+	}
+	if strings.Contains(kChunk, `runShortcut("search")`) {
+		t.Fatal("⌘K must not focus host search")
+	}
+	if !strings.Contains(js, `if (key === "p" && ev.shiftKey)`) {
+		t.Fatal("term.js missing ⌘⇧P palette shortcut")
+	}
+
+	catStart := strings.Index(js, "function paletteCatalog()")
+	catEndRel := strings.Index(js[catStart:], "\n  function paletteMatches")
+	if catStart < 0 || catEndRel < 0 {
+		t.Fatal("term.js missing palette catalog")
+	}
+	catalog := js[catStart : catStart+catEndRel]
+	if strings.Contains(catalog, "sendSnippet") || strings.Contains(catalog, "sendSessionBytes") {
+		t.Fatal("palette catalog must not write a PTY; snippet runs must go through paletteRunSnippet")
+	}
+	if !strings.Contains(catalog, "paletteRunSnippet") || !strings.Contains(catalog, "Connect ") {
+		t.Fatal("palette catalog must include host connect and gated snippet actions")
+	}
+
+	fnStart := strings.Index(js, "async function paletteRunSnippet")
+	if fnStart < 0 {
+		t.Fatal("term.js missing paletteRunSnippet")
+	}
+	fnEndRel := strings.Index(js[fnStart+1:], "\n  async function ")
+	fnAlt := strings.Index(js[fnStart+1:], "\n  function ")
+	fnEnd := len(js)
+	if fnEndRel >= 0 {
+		fnEnd = fnStart + 1 + fnEndRel
+	}
+	if fnAlt >= 0 && fnStart+1+fnAlt < fnEnd {
+		fnEnd = fnStart + 1 + fnAlt
+	}
+	fn := js[fnStart:fnEnd]
+	approveAt := strings.Index(fn, "await approveBeforeType")
+	sendAt := strings.Index(fn, "sendApprovedInject")
+	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
+		t.Fatal("palette snippet inject must await approveBeforeType before Inject")
+	}
+	if !strings.Contains(fn, "if (!ok) return") {
+		t.Fatal("palette snippet inject must abort when approve-before-type is cancelled")
+	}
+	if strings.Contains(fn, "sendSnippet") || strings.Contains(fn, "sendSessionBytes") {
+		t.Fatal("palette inject must not call sendSnippet or raw session bytes")
+	}
+	if !strings.Contains(js, `type: "inject"`) || !strings.Contains(js, "approved: true") {
+		t.Fatal("palette inject must send WS inject with approved true")
+	}
+	if !strings.Contains(js, `type: "focus", surface`) && !strings.Contains(js, `type: "focus", surface:`) {
+		t.Fatal("palette must set session focus surface")
+	}
+	if !strings.Contains(js, `setSessionSurface("palette")`) || !strings.Contains(js, `setSessionSurface("term")`) {
+		t.Fatal("palette open must set SurfacePalette and close must restore SurfaceTerm")
+	}
+	if !strings.Contains(fn, `"\u0015" + command`) {
+		t.Fatal("palette inject must clear the line then send the snippet through Inject")
+	}
+	if !strings.Contains(js, "function approveBeforeType") {
+		t.Fatal("term.js missing approveBeforeType")
+	}
+	if !strings.Contains(js, "if (ptyWritesBlocked()) return") {
+		t.Fatal("xterm onData must consult ptyWritesBlocked")
 	}
 }
 

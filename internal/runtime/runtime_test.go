@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"keel/internal/inject"
 	"keel/internal/session"
 	"keel/internal/store"
 )
@@ -193,6 +194,231 @@ func TestFirstSubscriberIsOwnerDriver(t *testing.T) {
 	if bobClient.Role != RoleFollower {
 		t.Fatalf("bob role = %s", bobClient.Role)
 	}
+}
+
+func TestInjectWithoutApproveDoesNotWritePTY(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+
+	if err := sess.Inject(alice.ID, []byte("rm -rf /\n"), inject.Approval{}); !errors.Is(err, inject.ErrNotApproved) {
+		t.Fatalf("unapproved inject err = %v", err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received unapproved inject %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := sess.Inject(alice.ID, []byte("ls\n"), inject.Approve()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "ls\n" {
+			t.Fatalf("got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+}
+
+func TestInjectApprovedStillRequiresDriver(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	_, _, _ = sess.Subscribe(Join{Name: "alice"})
+	bob, _, _ := sess.Subscribe(Join{Name: "bob"})
+	if err := sess.Inject(bob.ID, []byte("ls\n"), inject.Approve()); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("follower inject err = %v", err)
+	}
+}
+
+func TestKeystrokeFromPaletteOrChromeDoesNotWritePTY(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+
+	for _, focused := range []inject.Surface{"", inject.SurfacePalette, inject.SurfaceChrome} {
+		if err := sess.Keystroke(alice.ID, []byte("i"), focused); !errors.Is(err, inject.ErrNotTerminalFocus) {
+			t.Fatalf("focused %q err = %v", focused, err)
+		}
+	}
+	if err := sess.Inject(alice.ID, []byte("rm\n"), inject.Approval{}); !errors.Is(err, inject.ErrNotApproved) {
+		t.Fatalf("palette inject without approve err = %v", err)
+	}
+	select {
+	case leak := <-got:
+		t.Fatalf("PTY received chrome/palette input %q", leak)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	if err := sess.Keystroke(alice.ID, []byte("x"), inject.SurfaceTerm); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "x" {
+			t.Fatalf("got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for terminal keystroke")
+	}
+}
+
+func TestApprovedInjectWorksWhilePaletteFocused(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+	done := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 16)
+		n, _ := fb.inR.Read(buf)
+		done <- string(buf[:n])
+	}()
+	if err := sess.Keystroke(alice.ID, []byte("i"), inject.SurfacePalette); !errors.Is(err, inject.ErrNotTerminalFocus) {
+		t.Fatalf("palette keystroke err = %v", err)
+	}
+	if err := sess.Inject(alice.ID, []byte("ls\n"), inject.Approve()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-done:
+		if got != "ls\n" {
+			t.Fatalf("got %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+}
+
+func TestSetFocusPaletteBlocksKeystrokeUntilTermRestored(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+	if sess.Focus(alice.ID) != inject.SurfaceTerm {
+		t.Fatalf("default focus = %q", sess.Focus(alice.ID))
+	}
+
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+
+	if err := sess.SetFocus(alice.ID, inject.SurfacePalette); err != nil {
+		t.Fatal(err)
+	}
+	if sess.Focus(alice.ID) != inject.SurfacePalette {
+		t.Fatalf("palette focus = %q", sess.Focus(alice.ID))
+	}
+	if err := sess.Keystroke(alice.ID, []byte("i"), sess.Focus(alice.ID)); !errors.Is(err, inject.ErrNotTerminalFocus) {
+		t.Fatalf("palette keystroke err = %v", err)
+	}
+	if err := sess.Write(alice.ID, []byte("live")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "live" {
+			t.Fatalf("Write while palette focused got %q, want live WS still ungated", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for ungated Write")
+	}
+
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+	if err := sess.Inject(alice.ID, []byte("ls\n"), inject.Approve()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "ls\n" {
+			t.Fatalf("approved inject got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approved inject")
+	}
+
+	if err := sess.SetFocus(alice.ID, inject.SurfaceTerm); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := fb.inR.Read(buf)
+		got <- append([]byte(nil), buf[:n]...)
+	}()
+	if err := sess.Keystroke(alice.ID, []byte("x"), sess.Focus(alice.ID)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case hit := <-got:
+		if string(hit) != "x" {
+			t.Fatalf("restored term keystroke got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for restored keystroke")
+	}
+}
+
+func TestKeystrokeWriteDoesNotNeedInjectApprove(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice"})
+	done := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 16)
+		n, _ := fb.inR.Read(buf)
+		done <- string(buf[:n])
+	}()
+	if err := sess.Write(alice.ID, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-done:
+		if got != "x" {
+			t.Fatalf("got %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for keystroke")
+	}
+}
+
+func TestReadScrollbackRedactsByDefault(t *testing.T) {
+	_, sess, fb := spawnReady(t)
+	cl, ch, _ := sess.Subscribe(Join{Name: "alice"})
+	const secret = "super-secret-token"
+	payload := "ok password=" + secret + " done\n"
+	if _, err := fb.outW.Write([]byte(payload)); err != nil {
+		t.Fatal(err)
+	}
+	waitBytes(t, ch, payload)
+
+	got := string(sess.ReadScrollback())
+	if strings.Contains(got, secret) {
+		t.Fatalf("read path leaked secret: %q", got)
+	}
+	if !strings.Contains(got, "ok password=") || !strings.Contains(got, "done") {
+		t.Fatalf("innocent scrollback missing: %q", got)
+	}
+
+	_, _, snap := sess.Subscribe(Join{Name: "replay"})
+	if !strings.Contains(string(snap), secret) {
+		t.Fatal("live PTY replay snapshot must stay raw")
+	}
+	sess.Unsubscribe(cl.ID)
 }
 
 func TestFollowerWriteDroppedThenGrant(t *testing.T) {

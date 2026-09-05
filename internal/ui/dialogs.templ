@@ -24,6 +24,52 @@ templ Dialogs(p PageProps) {
 	@hostKeyDialog()
 	@snippetDialog()
 	@confirmDialog()
+	@commandPalette()
+	@ptyInjectDialog()
+}
+
+templ commandPalette() {
+	<dialog class="cmd-palette" id="cmd-palette" aria-label="Command palette">
+		<form id="cmd-palette-form">
+			<input
+				id="cmd-palette-input"
+				type="search"
+				placeholder="Run a command or connect a host…"
+				autocomplete="off"
+				role="combobox"
+				aria-expanded="true"
+				aria-controls="cmd-palette-list"
+				aria-autocomplete="list"
+			/>
+			<div class="cmd-palette-list" id="cmd-palette-list" role="listbox"></div>
+			<p class="cmd-palette-foot">Type to filter · Enter to run · Esc to close</p>
+		</form>
+	</dialog>
+}
+
+templ ptyInjectDialog() {
+	<dialog class="modal" id="pty-inject-modal">
+		<form id="pty-inject-form">
+			@dialog.Header() {
+				@dialog.Title(dialog.TitleProps{ID: "pty-inject-title"}) {
+					Type into the terminal?
+				}
+				@dialog.Description(dialog.DescriptionProps{ID: "pty-inject-hint"}) {
+					This sends keystrokes to the focused session. The current line is cleared first. Nothing is typed until you approve.
+				}
+			}
+			<p class="hint">Session: <span id="pty-inject-session"></span></p>
+			<pre class="pty-inject-preview" id="pty-inject-preview"></pre>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "pty-inject-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{ID: "pty-inject-ok", Type: button.TypeButton}) {
+					Type
+				}
+			</div>
+		</form>
+	</dialog>
 }
 
 templ confirmDialog() {
