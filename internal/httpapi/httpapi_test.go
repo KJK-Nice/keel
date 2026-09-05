@@ -590,6 +590,115 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	}
 }
 
+func sliceJSFunc(src, sig string) string {
+	start := strings.Index(src, sig)
+	if start < 0 {
+		return ""
+	}
+	rest := src[start+1:]
+	nextFn := strings.Index(rest, "\n  function ")
+	nextAsync := strings.Index(rest, "\n  async function ")
+	end := len(src)
+	if nextFn >= 0 {
+		end = start + 1 + nextFn
+	}
+	if nextAsync >= 0 && start+1+nextAsync < end {
+		end = start + 1 + nextAsync
+	}
+	return src[start:end]
+}
+
+func TestNotebookCannotSilentWritePTY(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	cssb, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "css", "keel.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := string(cssb)
+
+	if !strings.Contains(css, ".notebook-pane") || !strings.Contains(term, `kind: "notebook"`) {
+		t.Fatal("notebook panes must exist in the split layout")
+	}
+	if !strings.Contains(term, `title: "Split notebook"`) || !strings.Contains(term, `run: () => splitNotebook("h")`) {
+		t.Fatal("command palette must offer Split notebook")
+	}
+
+	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
+	if blocked == "" {
+		t.Fatal("missing ptyWritesBlocked")
+	}
+	if !strings.Contains(blocked, "sessionRailOpen() ||") ||
+		!strings.Contains(blocked, "state.openModal") ||
+		!strings.Contains(blocked, "ptyInjectWaiter") ||
+		!strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") ||
+		!strings.Contains(blocked, "isNotebookPane(focusedPane())") {
+		t.Fatal("ptyWritesBlocked must OR notebook focus with palette/rail/inject chrome holds")
+	}
+
+	create := sliceJSFunc(term, "function createNotebookPane")
+	split := sliceJSFunc(term, "function splitNotebook")
+	if create == "" || split == "" {
+		t.Fatal("missing createNotebookPane or splitNotebook")
+	}
+	for _, fn := range []string{create, split} {
+		if strings.Contains(fn, "spawnHost") || strings.Contains(fn, "connectSessionWS") || strings.Contains(fn, "createTerminal") {
+			t.Fatal("splitting a notebook must not spawn a PTY or attach xterm")
+		}
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
+			t.Fatal("creating a notebook must not write the shell")
+		}
+	}
+
+	run := sliceJSFunc(term, "async function runNotebookCell")
+	if run == "" {
+		t.Fatal("missing runNotebookCell")
+	}
+	approveAt := strings.Index(run, "await approveBeforeType")
+	sendAt := strings.Index(run, "sendApprovedInject")
+	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
+		t.Fatal("notebook cells must await approveBeforeType before Inject")
+	}
+	if !strings.Contains(run, "if (!ok) return") {
+		t.Fatal("notebook cells must abort when approve-before-type is cancelled")
+	}
+	if strings.Contains(run, "sendSessionBytes") || strings.Contains(run, "sendSnippet") {
+		t.Fatal("notebook cells must not call sendSnippet or raw session bytes")
+	}
+
+	bytesFn := sliceJSFunc(term, "function sendSessionBytes")
+	if bytesFn == "" || !strings.Contains(bytesFn, "if (!isTermPane(pane) || !pane?.runtimeId) return") {
+		t.Fatal("sendSessionBytes must refuse non-term panes")
+	}
+
+	inj := sliceJSFunc(term, "function sendApprovedInject")
+	if inj == "" || !strings.Contains(inj, "termTarget") {
+		t.Fatal("approved inject must resolve a term pane, never a notebook")
+	}
+	if strings.Contains(inj, "sendSessionBytes") {
+		t.Fatal("approved inject must not send live websocket binary")
+	}
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "approved: true") {
+		t.Fatal("approved inject must use Inject JSON with approve")
+	}
+
+	catStart := strings.Index(term, "function paletteCatalog()")
+	catEndRel := strings.Index(term[catStart:], "\n  function paletteMatches")
+	if catStart < 0 || catEndRel < 0 {
+		t.Fatal("term.js missing palette catalog")
+	}
+	catalog := term[catStart : catStart+catEndRel]
+	if !strings.Contains(catalog, `"split-notebook"`) {
+		t.Fatal("palette catalog must include Split notebook")
+	}
+	if strings.Contains(catalog, "sendSessionBytes") || strings.Contains(catalog, "sendSnippet") {
+		t.Fatal("palette catalog must not write a PTY")
+	}
+}
+
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")

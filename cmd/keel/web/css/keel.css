@@ -1525,6 +1525,79 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 }
 .pane-fail-start:hover { filter: brightness(1.06); }
 .term-body { flex: 1 1 0%; min-height: 0; position: relative; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
+.term-wrap.is-notebook .follow-banner,
+.term-wrap.is-notebook .pane-progress,
+.term-wrap.is-notebook .pane-fail,
+.term-wrap.is-notebook .term-find { display: none; }
+.pane-bar .icon-btn[data-pane-notebook] {
+  width: auto;
+  padding: 0 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.notebook-pane {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: auto;
+  background: var(--stage);
+  padding: 12px 14px 16px;
+}
+.notebook-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100%;
+}
+.notebook-lede {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--keel-muted);
+  line-height: 1.45;
+}
+.notebook-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--keel-border);
+  border-radius: 10px;
+  background: var(--keel-panel);
+}
+.notebook-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notebook-cell-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--keel-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.notebook-cell-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.notebook-cell-body {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  background: var(--keel-bg);
+  color: var(--keel-text);
+  font: 0.875rem/1.45 ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+.notebook-cell-body:focus {
+  outline: 1px solid var(--keel-accent);
+  border-color: var(--keel-accent);
+}
+.notebook-add { align-self: flex-start; }
 .term-host {
   flex: 1 1 0%;
   min-width: 0;

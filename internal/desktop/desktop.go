@@ -72,6 +72,7 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	file.AddSeparator()
 	file.Add("Split Right").SetAccelerator("CmdOrCtrl+Shift+d").OnClick(w.menuAction("split-right"))
 	file.Add("Split Down").SetAccelerator("CmdOrCtrl+Shift+e").OnClick(w.menuAction("split-down"))
+	file.Add("Split Notebook").OnClick(w.menuAction("split-notebook"))
 	file.AddSeparator()
 	file.Add("Close Window").SetAccelerator("CmdOrCtrl+Shift+w").OnClick(func(*application.Context) {
 		if w.app != nil {
