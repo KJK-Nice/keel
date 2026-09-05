@@ -3420,6 +3420,15 @@
     renderTabs();
   }
 
+  function replaySessionSnapshot(pane) {
+    try {
+      pane.term?.reset();
+    } catch {
+      /* ignore */
+    }
+    pane.pending = [];
+  }
+
   function reconnectPane(pane) {
     if (!pane?.runtimeId || pane.remote) return;
     const socketWasOpen = sessionSocketOpen(pane);
@@ -3429,7 +3438,11 @@
     seedConnectLog(pane);
     pane.status = "is-connecting";
     renderTabs();
-    connectSessionWS(pane, { skipSnapshot: true });
+    // Local xterm is often empty after a flap (WebGL remount, overlay, or a
+    // fresh attach). Skipping the Subscribe snapshot dropped the server ring
+    // and left a blank terminal. Reset and replay those raw bytes instead.
+    replaySessionSnapshot(pane);
+    connectSessionWS(pane);
     const herd = state.herd.find((s) => s.id === pane.runtimeId);
     if (socketWasOpen || !herd || herd.status !== "ready") {
       api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => {
