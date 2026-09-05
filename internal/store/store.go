@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"filippo.io/age"
 )
@@ -53,6 +54,7 @@ type Host struct {
 	Color           string    `json:"color"`
 	KeepAliveSec    int       `json:"keepAliveSec"`
 	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
+	Tags            []string  `json:"tags,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -76,6 +78,45 @@ func (h Host) KeepAlive() time.Duration {
 // AutoReconnect is on for SSH hosts unless noAutoReconnect is set.
 func (h Host) AutoReconnect() bool {
 	return h.AuthType != "local" && !h.NoAutoReconnect
+}
+
+const (
+	maxHostTags     = 8
+	maxHostTagRunes = 32
+)
+
+// NormalizeTags trims, drops empties/# prefixes, de-dupes case-insensitively,
+// and caps length so host labels stay small vault metadata.
+func NormalizeTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(tags))
+	out := make([]string, 0, len(tags))
+	for _, raw := range tags {
+		tag := strings.TrimSpace(raw)
+		tag = strings.TrimPrefix(tag, "#")
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if n := utf8.RuneCountInString(tag); n > maxHostTagRunes {
+			tag = string([]rune(tag)[:maxHostTagRunes])
+		}
+		key := strings.ToLower(tag)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, tag)
+		if len(out) == maxHostTags {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 type Identity struct {
@@ -122,6 +163,7 @@ type persistHost struct {
 	Color           string    `json:"color"`
 	KeepAliveSec    int       `json:"keepAliveSec"`
 	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
+	Tags            []string  `json:"tags,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -455,6 +497,7 @@ func (s *Store) viewLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		Tags: append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -477,6 +520,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		Tags: append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -494,6 +538,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 		return Host{}, ErrLocked
 	}
 	now := time.Now().UTC()
+	h.Tags = NormalizeTags(h.Tags)
 	if h.Port == 0 && h.AuthType != "local" {
 		h.Port = 22
 	}
@@ -595,6 +640,7 @@ func persistFrom(h Host) persistHost {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
+		Tags: append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }

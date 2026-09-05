@@ -115,6 +115,96 @@ func TestHostRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHostTagsPersistAndNormalize(t *testing.T) {
+	st := testStore(t)
+	saved, err := st.UpsertHost(Host{
+		Name:     "gpu-box",
+		Address:  "10.0.0.9",
+		Port:     22,
+		Username: "ubuntu",
+		AuthType: "password",
+		Password: "x",
+		Color:    "#6ea8ff",
+		Tags:     []string{" prod ", "#GPU", "prod", "gpu", "", strings.Repeat("z", 40)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Tags) != 3 || saved.Tags[0] != "prod" || saved.Tags[1] != "GPU" {
+		t.Fatalf("normalized tags = %#v", saved.Tags)
+	}
+	if len([]rune(saved.Tags[2])) != 32 {
+		t.Fatalf("long tag should truncate, got %q", saved.Tags[2])
+	}
+
+	got, err := st.GetHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got.Tags, ",") != strings.Join(saved.Tags, ",") {
+		t.Fatalf("get tags = %#v", got.Tags)
+	}
+
+	listed, err := st.ListHosts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var view Host
+	for _, h := range listed {
+		if h.ID == saved.ID {
+			view = h
+		}
+	}
+	if strings.Join(view.Tags, ",") != strings.Join(saved.Tags, ",") {
+		t.Fatalf("list tags = %#v", view.Tags)
+	}
+
+	raw, err := os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"tags"`) || !strings.Contains(string(raw), `"prod"`) {
+		t.Fatalf("keel.json missing tags: %s", raw)
+	}
+
+	st2, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := st2.GetHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(again.Tags, ",") != strings.Join(saved.Tags, ",") {
+		t.Fatalf("reloaded tags = %#v", again.Tags)
+	}
+
+	cleared, err := st2.UpsertHost(Host{
+		ID: saved.ID, Name: saved.Name, Address: saved.Address, Port: saved.Port,
+		Username: saved.Username, AuthType: saved.AuthType, Color: saved.Color,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cleared.Tags) != 0 {
+		t.Fatalf("empty tags should clear, got %#v", cleared.Tags)
+	}
+}
+
+func TestNormalizeTags(t *testing.T) {
+	got := NormalizeTags([]string{" #prod ", "PROD", "staging", "  "})
+	if len(got) != 2 || got[0] != "prod" || got[1] != "staging" {
+		t.Fatalf("got %#v", got)
+	}
+	if NormalizeTags(nil) != nil || NormalizeTags([]string{"", "#"}) != nil {
+		t.Fatal("empty input should be nil")
+	}
+	long := NormalizeTags([]string{strings.Repeat("a", 8), strings.Repeat("b", 8), strings.Repeat("c", 8), strings.Repeat("d", 8), strings.Repeat("e", 8), strings.Repeat("f", 8), strings.Repeat("g", 8), strings.Repeat("h", 8), "overflow"})
+	if len(long) != 8 {
+		t.Fatalf("cap = %d", len(long))
+	}
+}
+
 func TestKnownHostsRequireTrust(t *testing.T) {
 	st := testStore(t)
 	err := st.CheckHostKey("example:22", "SHA256:abc")

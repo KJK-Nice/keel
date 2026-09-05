@@ -151,6 +151,19 @@ templ hostCard(h store.Host) {
 							{ h.Group }
 						}
 					}
+					for _, tag := range h.Tags {
+						@badge.Badge(badge.Props{
+							Variant: badge.VariantOutline,
+							Attributes: templ.Attributes{
+								"data-tag-filter": tag,
+								"role":            "button",
+								"tabindex":        "0",
+								"title":           "Filter by " + tag,
+							},
+						}) {
+							{ tag }
+						}
+					}
 					<span class="truncate">{ hostSubtitle(h) }</span>
 				}
 			</div>

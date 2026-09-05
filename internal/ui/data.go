@@ -137,7 +137,7 @@ func groupHosts(hosts []store.Host, query string) []hostGroup {
 	by := map[string][]store.Host{}
 	for _, h := range hosts {
 		if q != "" {
-			blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group)
+			blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group + " " + strings.Join(h.Tags, " "))
 			if !strings.Contains(blob, q) {
 				continue
 			}
