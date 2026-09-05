@@ -778,16 +778,9 @@ func hostCard(h store.Host) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if h.AuthType == "local" {
-					templ_7745c5c3_Err = rowMenu("data-edit", h.ID, "", "").Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else {
-					templ_7745c5c3_Err = rowMenu("data-edit", h.ID, "data-delete", h.ID).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
+				templ_7745c5c3_Err = hostRowMenu(h).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</div>")
 				if templ_7745c5c3_Err != nil {
@@ -1051,7 +1044,7 @@ func identityCard(id store.Identity) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(id.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 209, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 205, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 				if templ_7745c5c3_Err != nil {
@@ -1076,7 +1069,7 @@ func identityCard(id store.Identity) templ.Component {
 					var templ_7745c5c3_Var47 string
 					templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(id.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 212, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 208, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 					if templ_7745c5c3_Err != nil {
@@ -1115,7 +1108,7 @@ func identityCard(id store.Identity) templ.Component {
 						var templ_7745c5c3_Var50 string
 						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(identityKindLabel(id.Kind))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 216, Col: 34}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 212, Col: 34}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 						if templ_7745c5c3_Err != nil {
@@ -1139,7 +1132,7 @@ func identityCard(id store.Identity) templ.Component {
 						var templ_7745c5c3_Var51 string
 						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(id.Username)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 219, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 215, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 						if templ_7745c5c3_Err != nil {
@@ -1438,7 +1431,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 					var templ_7745c5c3_Var63 string
 					templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(t.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 269, Col: 13}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 265, Col: 13}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 					if templ_7745c5c3_Err != nil {
@@ -1477,7 +1470,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 						var templ_7745c5c3_Var66 string
 						templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(tunnelKindLabel(t.Kind))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 273, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 269, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 						if templ_7745c5c3_Err != nil {
@@ -1514,7 +1507,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 							var templ_7745c5c3_Var68 string
 							templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(string(t.Status))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 279, Col: 25}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 275, Col: 25}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 							if templ_7745c5c3_Err != nil {
@@ -1534,7 +1527,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 					var templ_7745c5c3_Var69 string
 					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(hostNameByID(hosts, t.HostID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 282, Col: 59}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 278, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 					if templ_7745c5c3_Err != nil {
@@ -1547,7 +1540,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 					var templ_7745c5c3_Var70 string
 					templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(tunnelListen(t))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 282, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 278, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 					if templ_7745c5c3_Err != nil {
@@ -1560,7 +1553,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 					var templ_7745c5c3_Var71 string
 					templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(tunnelDest(t))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 282, Col: 104}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 278, Col: 104}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 					if templ_7745c5c3_Err != nil {
@@ -1578,7 +1571,7 @@ func tunnelCard(hosts []store.Host, t tunnel.Info) templ.Component {
 						var templ_7745c5c3_Var72 string
 						templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(t.Error)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 284, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 280, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 						if templ_7745c5c3_Err != nil {
@@ -1923,7 +1916,7 @@ func snippetCard(s store.Snippet) templ.Component {
 				var templ_7745c5c3_Var85 string
 				templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 354, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 350, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var85)
 				if templ_7745c5c3_Err != nil {
@@ -1948,7 +1941,7 @@ func snippetCard(s store.Snippet) templ.Component {
 					var templ_7745c5c3_Var87 string
 					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(s.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 357, Col: 13}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 353, Col: 13}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
@@ -1975,7 +1968,7 @@ func snippetCard(s store.Snippet) templ.Component {
 					var templ_7745c5c3_Var89 string
 					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(snippetCommand(s))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 360, Col: 24}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 356, Col: 24}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 					if templ_7745c5c3_Err != nil {
@@ -2256,7 +2249,7 @@ func logCard(e applog.Entry) templ.Component {
 					var templ_7745c5c3_Var100 string
 					templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(logDateLabel(e.Time))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 409, Col: 27}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 405, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 					if templ_7745c5c3_Err != nil {
@@ -2283,7 +2276,7 @@ func logCard(e applog.Entry) templ.Component {
 					var templ_7745c5c3_Var102 string
 					templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(logTimeLabel(e.Time))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 412, Col: 27}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 408, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 					if templ_7745c5c3_Err != nil {
@@ -2314,7 +2307,7 @@ func logCard(e applog.Entry) templ.Component {
 					var templ_7745c5c3_Var104 string
 					templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(e.Kind)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 416, Col: 12}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 412, Col: 12}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 					if templ_7745c5c3_Err != nil {
@@ -2333,7 +2326,7 @@ func logCard(e applog.Entry) templ.Component {
 				var templ_7745c5c3_Var105 string
 				templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(e.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 418, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/lists.templ`, Line: 414, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 				if templ_7745c5c3_Err != nil {

@@ -889,6 +889,7 @@
             </div>
             <div class="flex items-center gap-1">
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit="${h.id}" title="Edit">Edit</button>
+              ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-duplicate="${h.id}" title="Duplicate">Duplicate</button>`}
               ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${h.id}" title="Remove">✕</button>`}
             </div>
           </div>
@@ -4998,6 +4999,19 @@
           fillHostForm(host);
           openModal(els.hostModal);
         }
+        return;
+      }
+      const dup = ev.target.closest("[data-duplicate]");
+      if (dup) {
+        const host = state.hosts.find((h) => h.id === dup.dataset.duplicate);
+        if (!host) return;
+        if (host.authType === "local") {
+          toast("Local Shell cannot be duplicated");
+          return;
+        }
+        const saved = await api(`/api/hosts/${host.id}/duplicate`, { method: "POST" });
+        await loadAll();
+        toast(`Duplicated as ${saved.name || host.name + " (copy)"}`);
         return;
       }
       const del = ev.target.closest("[data-delete]");

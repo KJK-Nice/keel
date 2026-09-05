@@ -325,3 +325,69 @@ func TestKeepAliveSecRoundTrip(t *testing.T) {
 		t.Fatalf("reload keepalive=%d noReconnect=%v", again.KeepAliveSec, again.NoAutoReconnect)
 	}
 }
+
+func TestDuplicateHost(t *testing.T) {
+	st := testStore(t)
+	hosts, err := st.ListHosts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var local Host
+	for _, h := range hosts {
+		if h.AuthType == "local" {
+			local = h
+		}
+	}
+	if local.ID == "" {
+		t.Fatal("expected seeded local host")
+	}
+	if _, err := st.DuplicateHost(local.ID); err == nil {
+		t.Fatal("local shell should not duplicate")
+	}
+
+	saved, err := st.UpsertHost(Host{
+		Name:         "api",
+		Group:        "prod",
+		Address:      "10.0.0.8",
+		Port:         2222,
+		Username:     "ubuntu",
+		AuthType:     "password",
+		Password:     "secret",
+		Color:        "#6ea8ff",
+		KeepAliveSec: 45,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copy1, err := st.DuplicateHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copy1.ID == "" || copy1.ID == saved.ID {
+		t.Fatalf("copy should be a new host, got %q", copy1.ID)
+	}
+	if copy1.Name != "api (copy)" {
+		t.Fatalf("name = %q", copy1.Name)
+	}
+	if copy1.Address != "10.0.0.8" || copy1.Port != 2222 || copy1.Username != "ubuntu" || copy1.Group != "prod" {
+		t.Fatalf("settings not copied: %+v", copy1)
+	}
+	if copy1.Password != "secret" {
+		t.Fatal("duplicate should copy the saved secret")
+	}
+	if copy1.KeepAliveSec != 45 || copy1.Color != "#6ea8ff" {
+		t.Fatalf("hygiene fields not copied: %+v", copy1)
+	}
+
+	copy2, err := st.DuplicateHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copy2.Name != "api (copy 2)" {
+		t.Fatalf("second copy name = %q", copy2.Name)
+	}
+
+	if _, err := st.DuplicateHost("missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing err = %v", err)
+	}
+}

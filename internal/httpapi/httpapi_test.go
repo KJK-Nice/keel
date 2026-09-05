@@ -858,6 +858,133 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	}
 }
 
+func TestDuplicateHostAPI(t *testing.T) {
+	srv, _, st, _ := testServer(t)
+	body := `{"name":"api","group":"prod","address":"10.0.0.8","port":22,"username":"ubuntu","authType":"password","password":"secret","color":"#6ea8ff"}`
+	res, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("create %d %s", res.StatusCode, b)
+	}
+	var src store.Host
+	if err := json.NewDecoder(res.Body).Decode(&src); err != nil {
+		t.Fatal(err)
+	}
+
+	dup, err := http.Post(srv.URL+"/api/hosts/"+src.ID+"/duplicate", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dup.Body.Close()
+	if dup.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(dup.Body)
+		t.Fatalf("duplicate %d %s", dup.StatusCode, b)
+	}
+	var copy store.Host
+	if err := json.NewDecoder(dup.Body).Decode(&copy); err != nil {
+		t.Fatal(err)
+	}
+	if copy.ID == src.ID || copy.Name != "api (copy)" {
+		t.Fatalf("copy = %+v src = %+v", copy, src)
+	}
+	if copy.Address != "10.0.0.8" || copy.Username != "ubuntu" || copy.Group != "prod" {
+		t.Fatalf("settings not copied: %+v", copy)
+	}
+	if copy.Password != "__saved__" {
+		t.Fatalf("api must redact copied secret, got %q", copy.Password)
+	}
+	got, err := st.GetHost(copy.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Password != "secret" {
+		t.Fatal("vault should persist the copied password")
+	}
+
+	again, err := http.Post(srv.URL+"/api/hosts/"+src.ID+"/duplicate", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer again.Body.Close()
+	var copy2 store.Host
+	if err := json.NewDecoder(again.Body).Decode(&copy2); err != nil {
+		t.Fatal(err)
+	}
+	if copy2.Name != "api (copy 2)" {
+		t.Fatalf("second copy name = %q", copy2.Name)
+	}
+
+	local := firstHost(t, st)
+	bad, err := http.Post(srv.URL+"/api/hosts/"+local.ID+"/duplicate", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bad.Body.Close()
+	if bad.StatusCode != http.StatusBadRequest {
+		t.Fatalf("local duplicate status = %d", bad.StatusCode)
+	}
+
+	missing, err := http.Post(srv.URL+"/api/hosts/nope/duplicate", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer missing.Body.Close()
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing duplicate status = %d", missing.StatusCode)
+	}
+}
+
+func TestHostListDuplicateAction(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.UpsertHost(store.Host{
+		Name: "api", Address: "10.0.0.8", Username: "ubuntu", AuthType: "password", Password: "secret",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	frag, err := http.Get(srv.URL + "/ui/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frag.Body.Close()
+	fragBody, _ := io.ReadAll(frag.Body)
+	if frag.StatusCode != http.StatusOK {
+		t.Fatalf("ui hosts %d", frag.StatusCode)
+	}
+	if !strings.Contains(string(fragBody), `data-duplicate="`) {
+		t.Fatal("host cards should offer Duplicate")
+	}
+
+	js, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer js.Body.Close()
+	jsBody, _ := io.ReadAll(js.Body)
+	term := string(jsBody)
+	if !strings.Contains(term, `data-duplicate="${h.id}"`) || !strings.Contains(term, "/duplicate") {
+		t.Fatal("term.js must duplicate hosts through the vault API")
+	}
+	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sessionRailOpen() || state.openModal || ptyInjectWaiter") {
+		t.Fatal("duplicate-host must not replace ptyWritesBlocked")
+	}
+}
+
 func TestIndexServesVault(t *testing.T) {
 	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")

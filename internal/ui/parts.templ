@@ -10,6 +10,7 @@ import (
 	"keel/components/kbd"
 	selectcomp "keel/components/select"
 	"keel/components/tooltip"
+	"keel/internal/store"
 )
 
 templ tabContextMenu() {
@@ -101,6 +102,36 @@ templ emptyBox(id, title, desc string) {
 			}
 			@empty.Description() {
 				{ desc }
+			}
+		}
+	}
+}
+
+templ hostRowMenu(h store.Host) {
+	@dropdownmenu.DropdownMenu() {
+		@button.Button(button.Props{
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIconXs,
+			Class:      "tiny",
+			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions"}),
+		}) {
+			@icon.EllipsisVertical()
+		}
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-edit": h.ID}}) {
+				Edit
+			}
+			if h.AuthType != "local" {
+				@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-duplicate": h.ID}}) {
+					Duplicate
+				}
+				@dropdownmenu.Separator()
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
+					Variant:    dropdownmenu.ItemVariantDestructive,
+					Attributes: templ.Attributes{"data-delete": h.ID},
+				}) {
+					Remove
+				}
 			}
 		}
 	}

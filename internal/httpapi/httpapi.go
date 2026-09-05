@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
+	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
 	mux.HandleFunc("GET /api/snippets", s.listSnippets)
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
@@ -363,6 +364,24 @@ func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, redactHost(saved))
 	s.note("host", "host updated: "+saved.Name, saved.ID, "", "")
+}
+
+func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
+	saved, err := s.store.DuplicateHost(r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "host not found")
+			return
+		}
+		if strings.Contains(err.Error(), "cannot be duplicated") {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, redactHost(saved))
+	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
 }
 
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
