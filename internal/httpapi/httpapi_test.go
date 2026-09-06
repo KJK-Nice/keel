@@ -886,8 +886,8 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
 		t.Fatal("session sidebar must pin and open notebooks")
 	}
-	if !strings.Contains(term, "data-notebook-rename") || !strings.Contains(term, "function renameNotebook") {
-		t.Fatal("vault notebook cards must offer Rename that persists the title")
+	if !strings.Contains(saveRename, `[name="id"]`) || !strings.Contains(saveRename, "/api/notebooks/") {
+		t.Fatal("vault card Rename must persist the title through PUT /api/notebooks")
 	}
 	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-rail-tab") {
 		t.Fatal("right sidebar must offer Snippets and Notebooks icon tabs")
