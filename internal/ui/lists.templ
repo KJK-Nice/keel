@@ -4,6 +4,7 @@ import (
 	"keel/components/badge"
 	"keel/components/button"
 	"keel/components/card"
+	"keel/components/dropdownmenu"
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/internal/applog"
@@ -92,6 +93,8 @@ templ tileGlyph(color, kind string) {
 				@icon.Key01()
 			} else if kind == "snippet" {
 				@icon.CodeXml()
+			} else if kind == "notebook" {
+				@icon.NotepadText()
 			} else if kind == "log" {
 				@icon.ScrollText()
 			} else {
@@ -372,6 +375,99 @@ templ snippetCard(s store.Snippet) {
 			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
 				@rowMenu("data-edit-snippet", s.ID, "data-delete-snippet", s.ID)
 			</div>
+		}
+	}
+}
+
+templ NotebookList(p PageProps) {
+	<div id="notebook-list" class="notebook-list flex flex-col gap-6">
+		if len(p.Notebooks) == 0 {
+			@empty.Empty() {
+				@empty.Header() {
+					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+						@icon.NotepadText()
+					}
+					@empty.Title() {
+						No notebooks yet
+					}
+					@empty.Description() {
+						Write markdown or commands here. Open a notebook without a session — cells never type until you confirm beside a terminal.
+					}
+				}
+			}
+		} else {
+			<section class="flex flex-col gap-2">
+				@sectionHeading("Notebooks")
+				@tileGrid() {
+					for _, nb := range vaultNotebooks(p.Notebooks) {
+						@notebookCard(nb)
+					}
+				}
+			</section>
+		}
+	</div>
+}
+
+templ notebookCard(nb store.Notebook) {
+	@card.Card(card.Props{
+		Size:       card.SizeSm,
+		Class:      "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{"data-id": nb.ID},
+	}) {
+		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
+			@tileGlyph("#e8b849", "notebook")
+			<div
+				class="min-w-0 flex-1 cursor-pointer"
+				role="button"
+				tabindex="0"
+				data-notebook-open={ nb.ID }
+			>
+				@card.Title(card.TitleProps{Class: "truncate"}) {
+					{ nb.Name }
+				}
+				@card.Description(card.DescriptionProps{Class: "notebook-preview truncate"}) {
+					if nb.Pinned {
+						Pinned · { notebookPreview(nb) }
+					} else {
+						{ notebookPreview(nb) }
+					}
+				}
+			</div>
+			<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100">
+				@notebookCardMenu(nb)
+			</div>
+		}
+	}
+}
+
+templ notebookCardMenu(nb store.Notebook) {
+	@dropdownmenu.DropdownMenu() {
+		@button.Button(button.Props{
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIconXs,
+			Class:      "tiny",
+			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions"}),
+		}) {
+			@icon.EllipsisVertical()
+		}
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-open": nb.ID}}) {
+				Open
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-pin": nb.ID}}) {
+				if nb.Pinned {
+					Unpin
+				} else {
+					Pin
+				}
+			}
+			@dropdownmenu.Separator()
+			@dropdownmenu.Item(dropdownmenu.ItemProps{
+				Variant:    dropdownmenu.ItemVariantDestructive,
+				Attributes: templ.Attributes{"data-delete-notebook": nb.ID},
+			}) {
+				Remove
+			}
 		}
 	}
 }

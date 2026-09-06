@@ -194,12 +194,7 @@
       }
     }
     if (!notes) return;
-    const list = [...(state.notebooks || [])].sort(
-      (a, b) =>
-        Number(!!b.pinned) - Number(!!a.pinned) ||
-        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")) ||
-        String(a.name || "").localeCompare(String(b.name || ""))
-    );
+    const list = sortedNotebooks();
     const rows = list
       .map((nb) => {
         const pinLabel = nb.pinned ? "Unpin" : "Pin";
@@ -374,6 +369,7 @@
   const els = {
     hostList: document.getElementById("host-list"),
     snippetList: document.getElementById("snippet-list"),
+    notebookList: document.getElementById("notebook-list"),
     identityList: document.getElementById("identity-list"),
     tunnelList: document.getElementById("tunnel-list"),
     logList: document.getElementById("log-list"),
@@ -714,6 +710,17 @@
     return out;
   }
 
+  function layoutNotebookIds(node, out = []) {
+    if (!node) return out;
+    if (node.type === "leaf") {
+      if (node.kind === "notebook" && node.notebookId && !out.includes(node.notebookId)) out.push(node.notebookId);
+      return out;
+    }
+    layoutNotebookIds(node.a, out);
+    layoutNotebookIds(node.b, out);
+    return out;
+  }
+
   function pruneLayout(node, live, notebooks) {
     if (!node) return null;
     if (node.type === "leaf") {
@@ -784,9 +791,14 @@
     }
     const activePane = state.activeId !== VAULT ? focusedPane() : null;
     const activeTerm = activePane && (activePane.runtimeId ? activePane : termTarget(activePane));
+    let active = VAULT;
+    if (state.activeId !== VAULT) {
+      if (activeTerm?.runtimeId) active = activeTerm.runtimeId;
+      else if (isNotebookPane(activePane) && activePane.notebookId) active = "nb:" + activePane.notebookId;
+    }
     const payload = {
       v: 1,
-      active: state.activeId === VAULT ? VAULT : activeTerm?.runtimeId || "",
+      active,
       tabs,
     };
     try {
@@ -810,7 +822,8 @@
     const notebooks = new Set((state.notebooks || []).map((n) => n.id).filter(Boolean));
     const layout = pruneLayout(saved?.layout, live, notebooks);
     const runtimeIds = layoutRuntimeIds(layout);
-    if (!runtimeIds.length) return;
+    const notebookIds = layoutNotebookIds(layout);
+    if (!runtimeIds.length && !notebookIds.length) return;
     const runtimeToPane = new Map();
     const notebookToPane = new Map();
     let tab = null;
@@ -829,6 +842,13 @@
       if (!pane) continue;
       tab = state.tabs.get(pane.tabId);
       runtimeToPane.set(rid, pane.id);
+    }
+    if (!tab && notebookIds.length) {
+      const rec = notebookById(notebookIds[0]);
+      if (!rec) return;
+      const created = createNotebookTab(rec, { activate: false });
+      tab = created.tab;
+      notebookToPane.set(rec.id, created.pane.id);
     }
     if (!tab) return;
     walkSavedLeaves(layout, (leaf) => {
@@ -877,7 +897,15 @@
         if (info?.id && !findPaneByRuntime(info.id)) attachRuntime(info);
       }
       if (saved?.active === VAULT) state.activeId = VAULT;
-      else if (saved?.active) {
+      else if (typeof saved?.active === "string" && saved.active.startsWith("nb:")) {
+        const nbId = saved.active.slice(3);
+        const pane = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === nbId);
+        if (pane) {
+          state.activeId = pane.tabId;
+          const tab = state.tabs.get(pane.tabId);
+          if (tab) tab.focusedPaneId = pane.id;
+        }
+      } else if (saved?.active) {
         const pane = findPaneByRuntime(saved.active);
         if (pane) {
           state.activeId = pane.tabId;
@@ -908,6 +936,9 @@
     }
     if (kind === "snippet") {
       return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/></svg>`;
+    }
+    if (kind === "notebook") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7h8M8 11h5"/><path d="M6 3h9.5A3.5 3.5 0 0 1 19 6.5V21H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"/><path d="M19 21H7"/></svg>`;
     }
     if (kind === "log") {
       return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M2 7C2 7.94281 2 8.41421 2.29289 8.70711C2.58579 9 3.05719 9 4 9H6V5C6 3.89543 5.10457 3 4 3C2.89543 3 2 3.89543 2 5V7Z"/><path d="M10 8H15M10 11H13"/><path d="M19 16V7C19 5.11438 19 4.17157 18.4142 3.58579C17.8284 3 16.8856 3 15 3H4"/></svg>`;
@@ -1012,6 +1043,62 @@
         .join("");
       els.snippetList.innerHTML = tileSection("Snippets", cards);
     }
+  }
+
+  function notebookPreview(nb) {
+    for (const cell of nb?.cells || []) {
+      const line = String(cell.body || "")
+        .split("\n")
+        .map((s) => s.trim())
+        .find(Boolean);
+      if (line) return line;
+    }
+    return "Empty notebook";
+  }
+
+  function sortedNotebooks() {
+    return [...(state.notebooks || [])].sort(
+      (a, b) =>
+        Number(!!b.pinned) - Number(!!a.pinned) ||
+        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+    );
+  }
+
+  function renderNotebooks() {
+    if (!els.notebookList) return;
+    if (!state.notebooks.length) {
+      els.notebookList.innerHTML = emptyHTML(
+        "No notebooks yet",
+        "Write markdown or commands here. Open a notebook without a session — cells never type until you confirm beside a terminal."
+      );
+      return;
+    }
+    const cards = sortedNotebooks()
+      .map((nb) => {
+        const preview = nb.pinned ? `Pinned · ${notebookPreview(nb)}` : notebookPreview(nb);
+        return `
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${nb.id}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
+            ${tileGlyph("#e8b849", "notebook")}
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-notebook-open="${nb.id}">
+              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(nb.name || "Notebook")}</div>
+              <p data-slot="card-description" class="text-muted-foreground notebook-preview truncate text-sm">${escapeHtml(preview)}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-notebook-pin="${nb.id}" title="${nb.pinned ? "Unpin" : "Pin"}">${nb.pinned ? "Unpin" : "Pin"}</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-notebook="${nb.id}" title="Remove">✕</button>
+            </div>
+          </div>
+        </div>`;
+      })
+      .join("");
+    els.notebookList.innerHTML = tileSection("Notebooks", cards);
+  }
+
+  async function paintVaultNotebooks() {
+    if (await paintList("notebook-list", "/ui/notebooks?" + datastarQS())) return;
+    renderNotebooks();
   }
 
   function renderIdentities() {
@@ -1607,7 +1694,7 @@
       zoomBtn.title = zoomed ? "Exit focus view" : "Focus view";
     }
     pane.wrap.querySelectorAll("[data-pane-split]").forEach((btn) => {
-      btn.hidden = !!pane.remote || !pane.hostId;
+      btn.hidden = !!pane.remote || !(pane.hostId || tab.hostId || localHost()?.id);
     });
     const closeBtn = pane.wrap.querySelector("[data-pane-close]");
     if (closeBtn) closeBtn.title = leafCount(tab.layout) > 1 ? "Close pane" : "Close tab";
@@ -2086,6 +2173,7 @@
       if (vaultOn) els.barStatus.textContent = "Vault";
       else if (tab?.start) els.barStatus.textContent = tab.connecting ? "Connecting…" : "New tab";
       else if (!pane) els.barStatus.textContent = "No session";
+      else if (isNotebookPane(pane)) els.barStatus.textContent = pane.title || "Notebook";
       else if (isDriving(pane)) els.barStatus.textContent = `${pane.subtitle} · driving`;
       else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
@@ -2193,14 +2281,16 @@
     state.identities = identities;
     state.tunnels = tunnels;
     const q = datastarQS();
-    const [hostsOk, snOk, idOk, tnOk] = await Promise.all([
+    const [hostsOk, snOk, nbOk, idOk, tnOk] = await Promise.all([
       paintList("host-list", "/ui/hosts?" + q),
       paintList("snippet-list", "/ui/snippets?" + q),
+      paintList("notebook-list", "/ui/notebooks?" + q),
       paintList("identity-list", "/ui/identities?" + q),
       paintList("tunnel-list", "/ui/tunnels?" + q),
     ]);
     if (!hostsOk) renderHosts();
     if (!snOk) renderSnippets();
+    if (!nbOk) renderNotebooks();
     if (!idOk) renderIdentities();
     if (!tnOk) renderTunnels();
     refreshStartTabs();
@@ -2548,6 +2638,15 @@
       },
     });
     add({
+      id: "vault-notebooks",
+      group: "Vault",
+      title: "Notebooks",
+      run: () => {
+        showVault();
+        setVaultSection("notebooks");
+      },
+    });
+    add({
       id: "vault-logs",
       group: "Vault",
       title: "Logs",
@@ -2645,14 +2744,14 @@
       id: "notebook-new",
       group: "Notebooks",
       title: "New notebook",
-      run: () => splitNotebook("h"),
+      run: () => newNotebook(),
     });
     for (const nb of state.notebooks || []) {
       add({
         id: `notebook:${nb.id}`,
         group: "Notebooks",
         title: `Open notebook ${nb.name || "Notebook"}`,
-        hint: nb.pinned ? "Pinned" : "Beside the terminal",
+        hint: nb.pinned ? "Pinned" : "Open without a session",
         run: () => openNotebook(nb.id),
       });
     }
@@ -3466,6 +3565,7 @@
       });
       tab.focusedPaneId = focused;
       tab.dirty = true;
+      if (!tab.hostId && pane.hostId) tab.hostId = pane.hostId;
     }
 
     if (pane.status !== "is-ready") seedConnectLog(pane);
@@ -3921,7 +4021,12 @@
       toast("Open a session first");
       return;
     }
-    if (tab.remote || pane.remote || !pane.hostId) {
+    if (tab.remote || pane.remote) {
+      toast("Split needs a local host session");
+      return;
+    }
+    const hostId = pane.hostId || tab.hostId || localHost()?.id;
+    if (!hostId) {
       toast("Split needs a local host session");
       return;
     }
@@ -3931,7 +4036,7 @@
       for (const p of tabPanes(tab)) dropWebgl(p);
     }
     try {
-      const info = await spawnHost(pane.hostId);
+      const info = await spawnHost(hostId);
       attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
       loadAll().catch(() => {});
     } catch (err) {
@@ -3989,6 +4094,32 @@
     const i = state.notebooks.findIndex((n) => n.id === rec.id);
     if (i >= 0) state.notebooks[i] = rec;
     else state.notebooks.unshift(rec);
+    paintSessionRail();
+    paintVaultNotebooks();
+  }
+
+  function createNotebookTab(saved, opts = {}) {
+    const tab = {
+      id: uid("tab"),
+      hostId: "",
+      title: saved?.name || "Notebook",
+      remote: false,
+      sync: false,
+      layout: null,
+      focusedPaneId: "",
+      zoomedPaneId: "",
+      root: document.createElement("div"),
+    };
+    tab.root.className = "term-tab";
+    ensureTabStage(tab);
+    els.terminals.appendChild(tab.root);
+    state.tabs.set(tab.id, tab);
+    const pane = createNotebookPane(tab, null, saved);
+    tab.layout = { type: "leaf", paneId: pane.id };
+    tab.focusedPaneId = pane.id;
+    tab.dirty = true;
+    if (opts.activate !== false) state.activeId = tab.id;
+    return { tab, pane };
   }
 
   function createNotebookPane(tab, sibling, saved) {
@@ -4039,6 +4170,7 @@
       if (tab) syncPaneChrome(tab, pane);
       persistWorkspace();
       paintSessionRail();
+      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not save notebook", true);
     }
@@ -4064,29 +4196,41 @@
       return;
     }
     const tab = state.tabs.get(state.activeId);
-    if (!tab || tab.start || !tab.layout) {
-      toast("Open a session first");
-      return;
+    if (tab && !tab.start && tab.layout) {
+      const focused = focusedPane();
+      const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
+      if (sibling) {
+        const nb = createNotebookPane(tab, sibling, rec);
+        tab.layout = replaceLeaf(tab.layout, sibling.id, {
+          type: "split",
+          dir: "h",
+          sizes: [50, 50],
+          a: { type: "leaf", paneId: sibling.id },
+          b: { type: "leaf", paneId: nb.id },
+        });
+        tab.zoomedPaneId = "";
+        tab.focusedPaneId = nb.id;
+        tab.dirty = true;
+        renderTabs();
+        markFocusedPane(nb);
+        return;
+      }
     }
-    const focused = focusedPane();
-    const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
-    if (!sibling) {
-      toast("Open a session first");
-      return;
-    }
-    const nb = createNotebookPane(tab, sibling, rec);
-    tab.layout = replaceLeaf(tab.layout, sibling.id, {
-      type: "split",
-      dir: "h",
-      sizes: [50, 50],
-      a: { type: "leaf", paneId: sibling.id },
-      b: { type: "leaf", paneId: nb.id },
-    });
-    tab.zoomedPaneId = "";
-    tab.focusedPaneId = nb.id;
-    tab.dirty = true;
+    const created = createNotebookTab(rec);
     renderTabs();
-    markFocusedPane(nb);
+    markFocusedPane(created.pane);
+  }
+
+  function newNotebook() {
+    const tab = state.tabs.get(state.activeId);
+    if (tab && !tab.start && tab.layout) {
+      splitNotebook("h");
+      return;
+    }
+    const created = createNotebookTab(null);
+    renderTabs();
+    markFocusedPane(created.pane);
+    persistNotebook(created.pane);
   }
 
   async function toggleNotebookPin(id) {
@@ -4105,8 +4249,25 @@
         }
       }
       paintSessionRail();
+      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not pin notebook", true);
+    }
+  }
+
+  async function deleteNotebook(id) {
+    const rec = notebookById(id);
+    if (!rec) return;
+    if (!(await askConfirm(`Delete notebook “${rec.name || "Notebook"}”?`))) return;
+    try {
+      await api(`/api/notebooks/${id}`, { method: "DELETE" });
+      state.notebooks = (state.notebooks || []).filter((n) => n.id !== id);
+      const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
+      for (const pane of open) closePane(pane.id);
+      paintSessionRail();
+      paintVaultNotebooks();
+    } catch (err) {
+      toast(err.message || "Could not delete notebook", true);
     }
   }
 
@@ -4143,7 +4304,10 @@
     const pane = focusedPane();
     const tab = pane && state.tabs.get(pane.tabId);
     if (!tab || tab.start || !tab.layout) {
-      toast("Open a session first");
+      const created = createNotebookTab(null);
+      renderTabs();
+      markFocusedPane(created.pane);
+      persistNotebook(created.pane);
       return;
     }
     const sibling = termTarget(pane) || pane;
@@ -5370,19 +5534,22 @@
       const openNb = ev.target.closest("[data-notebook-open]");
       if (openNb) {
         ev.preventDefault();
+        ev.stopPropagation();
         openNotebook(openNb.dataset.notebookOpen);
         return;
       }
       const pinNb = ev.target.closest("[data-notebook-pin]");
       if (pinNb) {
         ev.preventDefault();
+        ev.stopPropagation();
         toggleNotebookPin(pinNb.dataset.notebookPin);
         return;
       }
       const newNb = ev.target.closest("[data-notebook-new]");
       if (newNb) {
         ev.preventDefault();
-        splitNotebook("h");
+        ev.stopPropagation();
+        newNotebook();
       }
     });
     on(els.terminals, "focusin", () => syncSessionSurface());
@@ -5686,6 +5853,24 @@
         if (!sn || !(await askConfirm(`Delete snippet “${sn.name}”?`))) return;
         api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
       }
+      const openNb = ev.target.closest("[data-notebook-open]");
+      if (openNb) {
+        ev.preventDefault();
+        openNotebook(openNb.dataset.notebookOpen);
+        return;
+      }
+      const pinNb = ev.target.closest("[data-notebook-pin]");
+      if (pinNb) {
+        ev.preventDefault();
+        toggleNotebookPin(pinNb.dataset.notebookPin);
+        return;
+      }
+      const delNb = ev.target.closest("[data-delete-notebook]");
+      if (delNb) {
+        ev.preventDefault();
+        deleteNotebook(delNb.dataset.deleteNotebook);
+        return;
+      }
       const grant = ev.target.closest("[data-grant]");
       if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
       if (ev.target.closest("[data-request]")) sendControl("request-control");
@@ -5771,6 +5956,7 @@
       if (title) title.textContent = "New snippet";
       openModal(els.snippetModal);
     });
+    on(document.getElementById("btn-new-notebook"), "click", () => newNotebook());
     on(document.getElementById("btn-new-identity"), "click", () => {
       fillIdentityForm(null);
       openModal(els.identityModal);

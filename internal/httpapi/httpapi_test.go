@@ -841,6 +841,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if !strings.Contains(open, "createNotebookPane") || strings.Contains(open, "spawnHost") {
 		t.Fatal("opening a notebook must hydrate a notebook pane, not spawn a PTY")
 	}
+	if strings.Contains(open, `toast("Open a session first")`) || !strings.Contains(open, "createNotebookTab") {
+		t.Fatal("opening a notebook must work with no live session")
+	}
 	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
 		t.Fatal("session sidebar must pin and open notebooks")
 	}
@@ -859,6 +862,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	}
 	if !strings.Contains(restore, "createNotebookPane") || strings.Contains(restore, "sendSessionBytes") {
 		t.Fatal("workspace restore must reopen notebooks without writing the PTY")
+	}
+	if !strings.Contains(restore, "createNotebookTab") {
+		t.Fatal("workspace restore must reopen notebook-only tabs without a live session")
 	}
 	if !strings.Contains(term, `api("/api/notebooks")`) {
 		t.Fatal("boot must load notebooks with the rest of the vault")
@@ -938,6 +944,85 @@ func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
 	}
 
 	assertInjectNonceOneShotReplay(t)
+}
+
+func TestNotebookOpensWithoutSession(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	open := sliceJSFunc(term, "function openNotebook")
+	createTab := sliceJSFunc(term, "function createNotebookTab")
+	createPane := sliceJSFunc(term, "function createNotebookPane")
+	split := sliceJSFunc(term, "function splitNotebook")
+	fresh := sliceJSFunc(term, "function newNotebook")
+	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
+	if open == "" || createTab == "" || createPane == "" || split == "" || fresh == "" || insert == "" {
+		t.Fatal("missing notebook open/create helpers")
+	}
+	for _, fn := range []string{open, createTab, createPane, split, fresh} {
+		if strings.Contains(fn, `toast("Open a session first")`) {
+			t.Fatal("notebook open/new must not require an active session")
+		}
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
+			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) {
+			t.Fatal("opening or creating a notebook must not Write or Inject the PTY")
+		}
+		if strings.Contains(fn, "spawnHost") {
+			t.Fatal("opening a notebook must not spawn a session")
+		}
+	}
+	if !strings.Contains(open, "createNotebookTab") || !strings.Contains(fresh, "createNotebookTab") {
+		t.Fatal("vault/open with no session must create a standalone notebook tab")
+	}
+	if !strings.Contains(insert, "termTarget") || !strings.Contains(insert, "Split a terminal beside this notebook first") {
+		t.Fatal("Insert must refuse when no terminal target exists")
+	}
+
+	srv, _, _, _ := testServer(t)
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `data-vault="notebooks"`) || !strings.Contains(string(body), `id="page-notebooks"`) ||
+		!strings.Contains(string(body), `id="notebook-list"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) {
+		t.Fatal("vault must list notebooks as first-class entities")
+	}
+	if strings.Contains(string(body), "<h1>Notebooks</h1>") {
+		t.Fatal("notebooks vault page should use the hosts toolbar+cards pattern, not a page-head title")
+	}
+
+	frag, err := http.Get(srv.URL + "/ui/notebooks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frag.Body.Close()
+	fragBody, _ := io.ReadAll(frag.Body)
+	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="notebook-list"`) {
+		t.Fatalf("ui notebooks %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
+	}
+
+	created, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{"name":"ops","cells":[{"body":"ls"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer created.Body.Close()
+	if created.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(created.Body)
+		t.Fatalf("create %d %s", created.StatusCode, b)
+	}
+	listed, err := http.Get(srv.URL + "/ui/notebooks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listed.Body.Close()
+	listBody, _ := io.ReadAll(listed.Body)
+	if !strings.Contains(string(listBody), `data-notebook-open`) || !strings.Contains(string(listBody), "ops") {
+		t.Fatal("vault notebook cards must be openable without a session")
+	}
 }
 
 func TestNotebookAPI(t *testing.T) {
@@ -2162,7 +2247,8 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("settings page should use sidebar layout with section heading")
 	}
 	if !strings.Contains(string(body), `id="btn-new-identity"`) || !strings.Contains(string(body), `id="btn-new-tunnel"`) ||
-		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-refresh-logs"`) {
+		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) ||
+		!strings.Contains(string(body), `id="btn-refresh-logs"`) {
 		t.Fatal("index missing vault action buttons")
 	}
 	snip, err := http.Get(srv.URL + "/ui/snippets")
@@ -2199,6 +2285,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), `#page-keychain.is-active`) ||
 		!strings.Contains(string(cssBody), `#page-forwards.is-active`) ||
 		!strings.Contains(string(cssBody), `#page-snippets.is-active`) ||
+		!strings.Contains(string(cssBody), `#page-notebooks.is-active`) ||
 		!strings.Contains(string(cssBody), `#page-logs.is-active`) {
 		t.Fatal("keel.css must flex the vault list pages like hosts")
 	}

@@ -106,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
 	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)
 	mux.HandleFunc("GET /ui/snippets", s.uiSnippets)
+	mux.HandleFunc("GET /ui/notebooks", s.uiNotebooks)
 	mux.HandleFunc("GET /ui/logs", s.uiLogs)
 	mux.HandleFunc("POST /ui/vault", s.uiVault)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())

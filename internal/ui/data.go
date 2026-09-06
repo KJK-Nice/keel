@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,6 +62,7 @@ type PageProps struct {
 	Identities []store.Identity
 	Tunnels    []tunnel.Info
 	Snippets   []store.Snippet
+	Notebooks  []store.Notebook
 	Logs       []applog.Entry
 }
 
@@ -254,6 +256,36 @@ func tunnelKindLabel(kind string) string {
 
 func snippetCommand(s store.Snippet) string {
 	return strings.TrimSpace(s.Command)
+}
+
+func vaultNotebooks(nbs []store.Notebook) []store.Notebook {
+	out := append([]store.Notebook(nil), nbs...)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Pinned != out[j].Pinned {
+			return out[i].Pinned
+		}
+		if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].UpdatedAt.After(out[j].UpdatedAt)
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out
+}
+
+func notebookPreview(nb store.Notebook) string {
+	for _, cell := range nb.Cells {
+		line := strings.TrimSpace(cell.Body)
+		if line == "" {
+			continue
+		}
+		if i := strings.IndexByte(line, '\n'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		if line != "" {
+			return line
+		}
+	}
+	return "Empty notebook"
 }
 
 func logColor(kind string) string {
