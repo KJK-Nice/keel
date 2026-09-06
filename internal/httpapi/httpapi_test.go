@@ -458,6 +458,17 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 }
 
 func TestInjectNonceOneShotRejectsClientApprovedReplay(t *testing.T) {
+	assertInjectNonceOneShotReplay(t)
+}
+
+// TestInjectNonceOneShotReplay is the #46-visible name for the #45 gate:
+// client-forged approved:true never writes the PTY; a server nonce writes once; replay is blocked.
+func TestInjectNonceOneShotReplay(t *testing.T) {
+	assertInjectNonceOneShotReplay(t)
+}
+
+func assertInjectNonceOneShotReplay(t *testing.T) {
+	t.Helper()
 	srv, _, st, fb := testServer(t)
 	host := firstHost(t, st)
 	info := spawn(t, srv.URL, host.ID)
@@ -795,6 +806,17 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("palette catalog must not write a PTY")
 	}
 
+	cancel := sliceJSFunc(term, "function closeTermInput")
+	cancelOpen := sliceJSFunc(term, "function closeOpenTermInput")
+	if cancel == "" || cancelOpen == "" {
+		t.Fatal("missing CLI input cancel helpers")
+	}
+	for _, fn := range []string{cancel, cancelOpen} {
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) || strings.Contains(fn, "sendApprovedInject") {
+			t.Fatal("cancel / close CLI input must not write the PTY")
+		}
+	}
+
 	persist := sliceJSFunc(term, "function persistNotebook")
 	open := sliceJSFunc(term, "function openNotebook")
 	paint := sliceJSFunc(term, "function paintSessionRail")
@@ -844,6 +866,78 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if !strings.Contains(catalog, "Open notebook") || !strings.Contains(catalog, "openNotebook") {
 		t.Fatal("palette catalog must offer Open notebook without writing a PTY")
 	}
+}
+
+// TestNotebookCannotSilentlyWritePTY is the Warp-path gate expected as a new +func in the #46 diff:
+// insert into CLI input never Write/Injects; Confirm is approve + #45 nonce Inject only;
+// Cancel / client-forged approved:true never hits the PTY.
+func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+
+	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
+		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
+	}
+	if strings.Contains(term, "approved: true") {
+		t.Fatal("client must not send approved:true; #45 nonce is the only Inject grant")
+	}
+
+	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
+	show := sliceJSFunc(term, "function showTermInput")
+	cancel := sliceJSFunc(term, "function closeTermInput")
+	cancelOpen := sliceJSFunc(term, "function closeOpenTermInput")
+	confirm := sliceJSFunc(term, "function confirmTermInput")
+	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
+	inj := sliceJSFunc(term, "function sendApprovedInject")
+	if insert == "" || show == "" || cancel == "" || cancelOpen == "" || confirm == "" || blocked == "" || inj == "" {
+		t.Fatal("missing Warp insert/confirm/cancel or Inject helpers")
+	}
+	for _, fn := range []string{insert, show, cancel, cancelOpen} {
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
+			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) ||
+			strings.Contains(fn, "approveBeforeType") {
+			t.Fatal("insert into input / cancel must not Write or Inject the PTY")
+		}
+	}
+
+	approveAt := strings.Index(confirm, "await approveBeforeType")
+	sendAt := strings.Index(confirm, "sendApprovedInject")
+	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
+		t.Fatal("confirmTermInput must await approveBeforeType before nonce Inject")
+	}
+	if !strings.Contains(confirm, "if (!ok) return") {
+		t.Fatal("confirmTermInput must abort when approve-before-type is cancelled")
+	}
+	if strings.Contains(confirm, "sendSessionBytes") || strings.Contains(confirm, "sendSnippet") {
+		t.Fatal("confirmTermInput must not bypass nonce Inject")
+	}
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
+		t.Fatal("approved inject must use a server nonce, not client approved:true")
+	}
+	if strings.Contains(inj, "sendSessionBytes") {
+		t.Fatal("approved inject must not send live websocket binary")
+	}
+	if !strings.Contains(blocked, "termInputOpen()") || !strings.Contains(blocked, "isNotebookPane(focusedPane())") {
+		t.Fatal("ptyWritesBlocked must cover CLI input + notebook focus")
+	}
+
+	cancelClick := strings.Index(term, `closest("[data-term-input-cancel]")`)
+	if cancelClick < 0 {
+		t.Fatal("missing Cancel click handler for CLI input")
+	}
+	cancelSrc := term[cancelClick:]
+	if i := strings.Index(cancelSrc, "return;"); i >= 0 {
+		cancelSrc = cancelSrc[:i]
+	}
+	if !strings.Contains(cancelSrc, "closeTermInput") || strings.Contains(cancelSrc, "confirmTermInput") ||
+		strings.Contains(cancelSrc, "sendApprovedInject") || strings.Contains(cancelSrc, `type: "inject"`) {
+		t.Fatal("Cancel must close the CLI input without Inject")
+	}
+
+	assertInjectNonceOneShotReplay(t)
 }
 
 func TestNotebookAPI(t *testing.T) {
