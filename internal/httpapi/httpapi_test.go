@@ -750,6 +750,12 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
 		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
 	}
+	if strings.Contains(term, "data-notebook-add") || strings.Contains(term, "notebook-cell-body") || strings.Contains(term, "Add cell") {
+		t.Fatal("notebook pane must be a markdown document, not cell-run chrome")
+	}
+	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "KeelMarkdownEditor") {
+		t.Fatal("notebook pane must mount a rich markdown editor")
+	}
 	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
 	show := sliceJSFunc(term, "function showTermInput")
 	if insert == "" || show == "" {
@@ -821,7 +827,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	open := sliceJSFunc(term, "function openNotebook")
 	paint := sliceJSFunc(term, "function paintSessionRail")
 	pin := sliceJSFunc(term, "function toggleNotebookPin")
-	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show} {
+	paintNb := sliceJSFunc(term, "function paintNotebook")
+	mount := sliceJSFunc(term, "function mountNotebookEditor")
+	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show, paintNb, mount} {
 		if fn == "" {
 			t.Fatal("missing notebook persist/open/pin helpers")
 		}
@@ -833,7 +841,10 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("notebook persist must not store cell outputs")
 	}
 	if !strings.Contains(term, "Insert into input") || !strings.Contains(css, ".term-input") {
-		t.Fatal("notebook cells must insert into a CLI input buffer beside the terminal")
+		t.Fatal("fenced sh/bash blocks must insert into a CLI input buffer beside the terminal")
+	}
+	if !strings.Contains(css, ".notebook-doc") || !strings.Contains(css, ".notebook-fence") {
+		t.Fatal("notebook pane must style a rendered markdown document and shell fences")
 	}
 	if !strings.Contains(persist, "/api/notebooks") {
 		t.Fatal("notebook persist must use the vault notebooks API")
@@ -886,6 +897,9 @@ func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
 
 	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
 		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
+	}
+	if strings.Contains(term, "data-notebook-add") || strings.Contains(term, "notebook-cell-body") {
+		t.Fatal("notebook pane must be a markdown document, not cell-run chrome")
 	}
 	if strings.Contains(term, "approved: true") {
 		t.Fatal("client must not send approved:true; #45 nonce is the only Inject grant")
@@ -979,6 +993,9 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	if !strings.Contains(insert, "termTarget") || !strings.Contains(insert, "Split a terminal beside this notebook first") {
 		t.Fatal("Insert must refuse when no terminal target exists")
 	}
+	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "onRunFence") {
+		t.Fatal("shell send must be an explicit fence affordance on the markdown document")
+	}
 
 	srv, _, _, _ := testServer(t)
 	res, err := http.Get(srv.URL + "/")
@@ -990,6 +1007,16 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	if !strings.Contains(string(body), `data-vault="notebooks"`) || !strings.Contains(string(body), `id="page-notebooks"`) ||
 		!strings.Contains(string(body), `id="notebook-list"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) {
 		t.Fatal("vault must list notebooks as first-class entities")
+	}
+	if !strings.Contains(string(body), "/vendor/notebook/editor.js") {
+		t.Fatal("index must load the notebook markdown editor")
+	}
+	edBody, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "vendor", "notebook", "editor.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(edBody), "KeelMarkdownEditor") || !strings.Contains(string(edBody), "notebook-fence") {
+		t.Fatal("notebook markdown editor must be vendored")
 	}
 	if strings.Contains(string(body), "<h1>Notebooks</h1>") {
 		t.Fatal("notebooks vault page should use the hosts toolbar+cards pattern, not a page-head title")
@@ -2125,6 +2152,20 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
 		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
 		t.Fatal("xterm measure element must not inherit UI letter-spacing or line-height")
+	}
+	if !strings.Contains(string(body), "/vendor/notebook/editor.js") ||
+		!strings.Contains(string(body), "/vendor/notebook/prosemirror.css") {
+		t.Fatal("index must load the notebook markdown editor")
+	}
+	nbJS, err := http.Get(srv.URL + "/vendor/notebook/editor.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nbJS.Body.Close()
+	nbBody, _ := io.ReadAll(nbJS.Body)
+	if nbJS.StatusCode != http.StatusOK || !strings.Contains(string(nbBody), "KeelMarkdownEditor") ||
+		!strings.Contains(string(nbBody), "notebook-fence") {
+		t.Fatal("FileServer must serve the notebook markdown editor")
 	}
 	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
 		t.Fatal("term.js must not drive a session snippet footer")
