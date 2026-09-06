@@ -829,7 +829,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	pin := sliceJSFunc(term, "function toggleNotebookPin")
 	paintNb := sliceJSFunc(term, "function paintNotebook")
 	mount := sliceJSFunc(term, "function mountNotebookEditor")
-	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show, paintNb, mount} {
+	runFn := sliceJSFunc(term, "function runNotebookFence")
+	copyFn := sliceJSFunc(term, "function copyNotebookFence")
+	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show, paintNb, mount, copyFn} {
 		if fn == "" {
 			t.Fatal("missing notebook persist/open/pin helpers")
 		}
@@ -840,11 +842,35 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(persist, "output") || strings.Contains(persist, "stdout") {
 		t.Fatal("notebook persist must not store cell outputs")
 	}
-	if !strings.Contains(term, "Insert into input") || !strings.Contains(css, ".term-input") {
-		t.Fatal("fenced sh/bash blocks must insert into a CLI input buffer beside the terminal")
+	if !strings.Contains(term, "Run in terminal") || !strings.Contains(css, ".term-input") {
+		t.Fatal("fenced blocks must offer Run in terminal into a CLI input buffer beside the terminal")
 	}
-	if !strings.Contains(css, ".notebook-doc") || !strings.Contains(css, ".notebook-fence") {
-		t.Fatal("notebook pane must style a rendered markdown document and shell fences")
+	if !strings.Contains(term, "function runNotebookFence") || !strings.Contains(term, "function copyNotebookFence") {
+		t.Fatal("fenced blocks must offer Copy and Run in terminal")
+	}
+	if runFn == "" || copyFn == "" {
+		t.Fatal("missing run/copy fence helpers")
+	}
+	if strings.Contains(runFn, "sendSessionBytes") || strings.Contains(runFn, `type: "inject"`) || strings.Contains(runFn, "sendApprovedInject") {
+		t.Fatal("Run in terminal must not Write or Inject itself; Confirm owns the nonce path")
+	}
+	if !strings.Contains(runFn, "insertNotebookIntoInput") || !strings.Contains(runFn, "confirmTermInput") {
+		t.Fatal("Run in terminal must fill CLI input then Confirm (approve + nonce)")
+	}
+	if strings.Contains(copyFn, "sendSessionBytes") || strings.Contains(copyFn, "sendApprovedInject") || strings.Contains(copyFn, `type: "inject"`) {
+		t.Fatal("Copy must not Write or Inject the PTY")
+	}
+	if !strings.Contains(css, ".notebook-doc") || !strings.Contains(css, ".notebook-fence") || !strings.Contains(css, ".notebook-fence-lang") {
+		t.Fatal("notebook pane must style a rendered markdown document, shell fences, and a language selector")
+	}
+	if !strings.Contains(css, "list-style-type: disc") || !strings.Contains(css, "list-style-type: decimal") {
+		t.Fatal("notebook markdown lists must show bullet and numbered markers")
+	}
+	if strings.Contains(term, "data-notebook-pin-pane") || strings.Contains(term, "notebook-lede") || strings.Contains(term, `title="Split notebook">Note`) {
+		t.Fatal("notebook pane must not show pin, description, or a Note button in the title bar")
+	}
+	if !strings.Contains(term, "M9.99219 11H13.4922") {
+		t.Fatal("notebook tabs must use NotebookPenIcon, not the terminal glyph")
 	}
 	if !strings.Contains(persist, "/api/notebooks") {
 		t.Fatal("notebook persist must use the vault notebooks API")
@@ -857,6 +883,12 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	}
 	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
 		t.Fatal("session sidebar must pin and open notebooks")
+	}
+	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-rail-tab") {
+		t.Fatal("right sidebar must offer Snippets and Notebooks icon tabs")
+	}
+	if strings.Contains(paint, "session-rail-title") || strings.Contains(paint, "No session") {
+		t.Fatal("right sidebar must not show session info")
 	}
 	if strings.Contains(paint, "inject") {
 		t.Fatal("session sidebar notebook chrome must not mention inject")
@@ -912,15 +944,23 @@ func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
 	confirm := sliceJSFunc(term, "function confirmTermInput")
 	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
 	inj := sliceJSFunc(term, "function sendApprovedInject")
-	if insert == "" || show == "" || cancel == "" || cancelOpen == "" || confirm == "" || blocked == "" || inj == "" {
+	runFn := sliceJSFunc(term, "function runNotebookFence")
+	copyFn := sliceJSFunc(term, "function copyNotebookFence")
+	if insert == "" || show == "" || cancel == "" || cancelOpen == "" || confirm == "" || blocked == "" || inj == "" || runFn == "" || copyFn == "" {
 		t.Fatal("missing Warp insert/confirm/cancel or Inject helpers")
 	}
-	for _, fn := range []string{insert, show, cancel, cancelOpen} {
+	for _, fn := range []string{insert, show, cancel, cancelOpen, copyFn} {
 		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
 			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) ||
 			strings.Contains(fn, "approveBeforeType") {
 			t.Fatal("insert into input / cancel must not Write or Inject the PTY")
 		}
+	}
+	if strings.Contains(runFn, "sendSessionBytes") || strings.Contains(runFn, `type: "inject"`) || strings.Contains(runFn, "sendApprovedInject") {
+		t.Fatal("Run in terminal must not Write or Inject itself")
+	}
+	if !strings.Contains(runFn, "confirmTermInput") {
+		t.Fatal("Run in terminal must go through Confirm")
 	}
 
 	approveAt := strings.Index(confirm, "await approveBeforeType")
@@ -993,7 +1033,8 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	if !strings.Contains(insert, "termTarget") || !strings.Contains(insert, "Split a terminal beside this notebook first") {
 		t.Fatal("Insert must refuse when no terminal target exists")
 	}
-	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "onRunFence") {
+	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "onRunFence") ||
+		!strings.Contains(term, "function runNotebookFence") {
 		t.Fatal("shell send must be an explicit fence affordance on the markdown document")
 	}
 
@@ -1743,8 +1784,15 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="session-rail"`) || !strings.Contains(string(body), `id="btn-session-rail"`) || !strings.Contains(string(body), `class="workspace"`) {
 		t.Fatal("index missing collapsible right session sidebar")
 	}
-	if !strings.Contains(string(body), `id="session-rail" aria-label="Session sidebar" tabindex="-1"`) {
+	if !strings.Contains(string(body), `id="session-rail" aria-label="Sidebar" tabindex="-1"`) {
 		t.Fatal("session sidebar must be focusable so SurfaceChrome can own the keyboard")
+	}
+	if !strings.Contains(string(body), `data-rail-tab="notebooks"`) || !strings.Contains(string(body), `data-rail-tab="snippets"`) ||
+		!strings.Contains(string(body), `id="rail-notebooks"`) || !strings.Contains(string(body), `id="rail-snippets"`) {
+		t.Fatal("right sidebar must be Snippets + Notebooks icon tabs")
+	}
+	if strings.Contains(string(body), `id="session-rail-title"`) || strings.Contains(string(body), "Open a session tab to see its details.") {
+		t.Fatal("right sidebar must not show session info")
 	}
 	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
 		t.Fatal("index should have vault rail icons and no titlebar settings button")

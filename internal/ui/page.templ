@@ -143,7 +143,7 @@ templ Page(p PageProps) {
 									@hintKbd("B")
 								}
 								@tooltip.Content() {
-									Session sidebar
+									Sidebar
 									@kbd.Kbd() {
 										⌘B
 									}
@@ -177,30 +177,49 @@ templ Page(p PageProps) {
 }
 
 templ SessionRail() {
-	<aside class="session-rail" id="session-rail" aria-label="Session sidebar" tabindex="-1">
-		<div class="session-rail-head">
-			<span class="eyebrow">Session</span>
+	<aside class="session-rail" id="session-rail" aria-label="Sidebar" tabindex="-1">
+		<div class="rail-icon-tabs" role="tablist" aria-label="Sidebar">
+			<button type="button" class="rail-icon-tab" data-rail-tab="notebooks" role="tab" aria-selected="true" aria-pressed="true" title="Notebooks" aria-label="Notebooks">
+				@icon.NotebookPen()
+			</button>
+			<button type="button" class="rail-icon-tab" data-rail-tab="snippets" role="tab" aria-selected="false" aria-pressed="false" title="Snippets" aria-label="Snippets">
+				@icon.CodeXml()
+			</button>
 		</div>
-		<section class="session-rail-block" aria-live="polite">
-			<h2 class="session-rail-title" id="session-rail-title">No session</h2>
-			<p class="session-rail-sub lede" id="session-rail-sub">Open a session tab to see its details.</p>
-		</section>
-		<section class="session-rail-block session-rail-notes">
-			<span class="eyebrow">Notebooks</span>
-			@empty.Empty() {
-				@empty.Header() {
-					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
-						@icon.NotepadText()
-					}
-					@empty.Title() {
-						No notebooks yet
-					}
-					@empty.Description() {
-						Pin a notebook or open one from the vault.
+		<div class="rail-panels">
+			<section class="rail-panel session-rail-notes" id="rail-notebooks" data-rail-panel="notebooks" role="tabpanel">
+				<span class="eyebrow">Notebooks</span>
+				@empty.Empty() {
+					@empty.Header() {
+						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+							@icon.NotebookPen()
+						}
+						@empty.Title() {
+							No notebooks yet
+						}
+						@empty.Description() {
+							Open a notebook from the vault.
+						}
 					}
 				}
-			}
-		</section>
+			</section>
+			<section class="rail-panel" id="rail-snippets" data-rail-panel="snippets" role="tabpanel" hidden>
+				<span class="eyebrow">Snippets</span>
+				@empty.Empty() {
+					@empty.Header() {
+						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
+							@icon.CodeXml()
+						}
+						@empty.Title() {
+							No snippets yet
+						}
+						@empty.Description() {
+							Save commands in the vault. Run still asks before anything is typed.
+						}
+					}
+				}
+			</section>
+		</div>
 	</aside>
 }
 

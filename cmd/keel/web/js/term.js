@@ -113,13 +113,14 @@
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", view: "card", sidebar: false };
+    const fallback = { size: 12, smoothing: "antialiased", view: "card", sidebar: false, railTab: "notebooks" };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
       const view = raw.view === "list" ? "list" : "card";
-      return { size, smoothing, view, sidebar: raw.sidebar === true };
+      const railTab = raw.railTab === "snippets" ? "snippets" : "notebooks";
+      return { size, smoothing, view, sidebar: raw.sidebar === true, railTab };
     } catch {
       return fallback;
     }
@@ -133,6 +134,7 @@
     document.documentElement.style.setProperty("--ui-size", `${state.ui.size}px`);
     document.documentElement.dataset.smooth = state.ui.smoothing;
     applyVaultView(state.ui.view);
+    applyRailTab();
     applySessionRail();
   }
 
@@ -174,42 +176,68 @@
     setSessionRail(!sessionRailOpen());
   }
 
-  function paintSessionRail() {
-    const title = document.getElementById("session-rail-title");
-    const sub = document.getElementById("session-rail-sub");
-    const notes = document.querySelector(".session-rail-notes");
-    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
-    const tab = vaultOn ? null : state.tabs.get(state.activeId);
-    const pane = tab && !tab.start ? state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] : null;
-    if (title && sub) {
-      if (pane) {
-        title.textContent = pane.title || tabTitle(tab) || "Session";
-        sub.textContent = pane.subtitle || "";
-      } else if (tab?.start) {
-        title.textContent = "New tab";
-        sub.textContent = tab.connecting ? "Connectingâ€¦" : "Pick a host to connect.";
-      } else {
-        title.textContent = "No session";
-        sub.textContent = "Open a session tab to see its details.";
-      }
+  function railTab() {
+    return state.ui.railTab === "snippets" ? "snippets" : "notebooks";
+  }
+
+  function setRailTab(next) {
+    const tab = next === "snippets" ? "snippets" : "notebooks";
+    if (state.ui.railTab === tab) {
+      applyRailTab();
+      return;
     }
-    if (!notes) return;
-    const list = sortedNotebooks();
-    const rows = list
-      .map((nb) => {
-        const pinLabel = nb.pinned ? "Unpin" : "Pin";
-        return `<article class="rail-notebook${nb.pinned ? " is-pinned" : ""}">
+    state.ui.railTab = tab;
+    saveUiPrefs();
+    applyRailTab();
+  }
+
+  function applyRailTab() {
+    const current = railTab();
+    document.querySelectorAll("[data-rail-tab]").forEach((btn) => {
+      const on = btn.getAttribute("data-rail-tab") === current;
+      btn.setAttribute("aria-selected", String(on));
+      btn.setAttribute("aria-pressed", String(on));
+    });
+    document.querySelectorAll("[data-rail-panel]").forEach((panel) => {
+      panel.hidden = panel.getAttribute("data-rail-panel") !== current;
+    });
+  }
+
+  function paintSessionRail() {
+    applyRailTab();
+    const notes = document.getElementById("rail-notebooks") || document.querySelector(".session-rail-notes");
+    if (notes) {
+      const list = sortedNotebooks();
+      const rows = list
+        .map((nb) => {
+          const pinLabel = nb.pinned ? "Unpin" : "Pin";
+          return `<article class="rail-notebook${nb.pinned ? " is-pinned" : ""}">
           <div class="rail-notebook-name">${escapeHtml(nb.name || "Notebook")}</div>
           <div class="rail-notebook-actions">
             <button type="button" class="tiny" data-notebook-open="${nb.id}">Open</button>
             <button type="button" class="tiny" data-notebook-pin="${nb.id}">${pinLabel}</button>
           </div>
         </article>`;
-      })
-      .join("");
-    notes.innerHTML = `<span class="eyebrow">Notebooks</span>
+        })
+        .join("");
+      notes.innerHTML = `<span class="eyebrow">Notebooks</span>
       ${rows || `<p class="lede">Open a notebook from the vault. Markdown is a document â€” shell fences fill CLI input only after you confirm.</p>`}
       <button type="button" class="tiny" data-notebook-new>New notebook</button>`;
+    }
+    const snips = document.getElementById("rail-snippets");
+    if (!snips) return;
+    const snRows = (state.snippets || [])
+      .map(
+        (sn) => `<article class="rail-snippet">
+          <div class="rail-notebook-name">${escapeHtml(sn.name || "Snippet")}</div>
+          <div class="rail-notebook-actions">
+            <button type="button" class="tiny" data-snippet-run="${sn.id}">Run</button>
+          </div>
+        </article>`
+      )
+      .join("");
+    snips.innerHTML = `<span class="eyebrow">Snippets</span>
+      ${snRows || `<p class="lede">Save commands in the vault. Run still asks before anything is typed.</p>`}`;
   }
 
   function applyVaultView(next) {
@@ -1477,6 +1505,13 @@
       const next = String(raw || "").trim();
       if (next) tab.customTitle = next;
       else delete tab.customTitle;
+      const nb = tabPanes(tab).find(isNotebookPane);
+      if (nb && next) {
+        nb.title = next;
+        tab.title = next;
+        persistNotebook(nb);
+        paintNotebook(nb);
+      }
     }
   }
 
@@ -2092,7 +2127,12 @@
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
   }
 
-  function tabGlyph() {
+  function tabGlyph(tab) {
+    const panes = tab ? tabPanes(tab) : [];
+    const notebookOnly = panes.length > 0 && panes.every(isNotebookPane);
+    if (notebookOnly) {
+      return `<span class="tab-icon" aria-hidden="true">${hugeicon(`<path d="M9.99219 11H13.4922M9.99219 7H16.9922" /><path d="M5.99219 6H2.99219M5.99219 12H2.99219M5.99219 18H2.99219" /><path d="M8.99219 21.9388C7.41097 21.8363 6.39738 21.562 5.66376 20.8284C4.49219 19.6569 4.49219 17.7712 4.49219 14V10C4.49219 6.22877 4.49219 4.34315 5.66376 3.17158C6.83533 2 8.72096 2 12.4922 2H12.9922C16.7634 2 18.649 2 19.8206 3.17157C20.9922 4.34315 20.9922 6.22877 20.9922 10V10.5" /><path d="M19.856 14.4393L20.5511 15.1317C21.1392 15.7174 21.1392 16.6672 20.5511 17.2529L16.9093 20.9485C16.6228 21.2338 16.2563 21.4262 15.8581 21.5003L13.601 21.9883C13.2446 22.0653 12.9273 21.7502 13.0036 21.395L13.4841 19.1598C13.5584 18.7631 13.7516 18.3981 14.0381 18.1128L17.7262 14.4393C18.3143 13.8536 19.2679 13.8536 19.856 14.4393Z" />`)}</span>`;
+    }
     return `<span class="tab-icon" aria-hidden="true">${hugeicon(`<path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5" /><path d="M11.5 12.5H15.5" /><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z" />`)}</span>`;
   }
 
@@ -2125,7 +2165,7 @@
             const closeHint = id === state.activeId ? kbdHint("W") : "";
             return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
-            ${tabGlyph()}
+            ${tabGlyph(tab)}
             <span class="tab-label">${escapeHtml(tabTitle(tab))}</span>
             <span class="close" data-close="${id}" title="Close  ${MOD}W">${closeGlyph()}${closeHint}</span>
           </button>`;
@@ -3382,7 +3422,6 @@
         <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
         <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="â‡§D" title="Split right">${kbdHint("â‡§D")}${paneGlyph("splitH")}</button>
         <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="â‡§E" title="Split down">${kbdHint("â‡§E")}${paneGlyph("splitV")}</button>
-        <button type="button" class="icon-btn" data-pane-notebook="${paneId}" title="Split notebook">Note</button>
         <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="â‡§â†µ" title="Focus view" disabled>${kbdHint("â‡§â†µ")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
         <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
@@ -4060,7 +4099,6 @@
         <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input" hidden>${paneGlyph("sync")}</button>
         <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="â‡§D" title="Split right">${kbdHint("â‡§D")}${paneGlyph("splitH")}</button>
         <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="â‡§E" title="Split down">${kbdHint("â‡§E")}${paneGlyph("splitV")}</button>
-        <button type="button" class="icon-btn" data-pane-notebook="${paneId}" title="Split notebook">Note</button>
         <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="â‡§â†µ" title="Focus view" disabled>${kbdHint("â‡§â†µ")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
         <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
@@ -4085,7 +4123,12 @@
 
   const DEFAULT_NOTEBOOK_MD = `# Notebook
 
-Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€” nothing is typed until you confirm.
+Write a runbook here.
+
+- Bullet lists render here
+- Fenced \`\`\`sh or \`\`\`bash blocks can run in a terminal after you confirm
+
+1. Numbered lists render too
 `;
 
   function notebookMarkdown(pane) {
@@ -4299,16 +4342,11 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     if (!Array.isArray(pane.cells) || !pane.cells.length) {
       pane.cells = [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     }
-    const pinLabel = pane.pinned ? "Unpin" : "Pin";
     if (!pane._docEl || !body.contains(pane._docEl)) {
       pane.mdEditor?.destroy?.();
       pane.mdEditor = null;
       body.innerHTML = `<div class="notebook-scroll">
-      <div class="notebook-toolbar">
-        <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Notebook title" />
-        <button type="button" class="tiny" data-notebook-pin-pane="${pane.id}" aria-pressed="${pane.pinned ? "true" : "false"}">${pinLabel}</button>
-      </div>
-      <p class="notebook-lede">Markdown document â€” edit the rendered runbook. A fenced sh/bash block can fill CLI input; confirm still approves before anything is typed. Outputs stay in the terminal.</p>
+      <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
     </div>`;
       pane._docEl = body.querySelector("[data-notebook-doc]");
@@ -4317,11 +4355,6 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     }
     const titleEl = body.querySelector("[data-notebook-title]");
     if (titleEl && document.activeElement !== titleEl) titleEl.value = pane.title || "Notebook";
-    const pinBtn = body.querySelector("[data-notebook-pin-pane]");
-    if (pinBtn) {
-      pinBtn.textContent = pinLabel;
-      pinBtn.setAttribute("aria-pressed", String(!!pane.pinned));
-    }
   }
 
   function mountNotebookEditor(pane) {
@@ -4336,12 +4369,13 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     }
     pane.mdEditor = KeelMD.mount(host, {
       markdown: notebookMarkdown(pane),
-      buttonLabel: "Insert into input",
+      buttonLabel: "Run in terminal",
       onChange: (md) => {
         setNotebookMarkdown(pane, md);
         scheduleNotebookSave(pane);
       },
-      onRunFence: (code) => insertNotebookIntoInput(pane, code),
+      onCopyFence: (code) => copyNotebookFence(code),
+      onRunFence: (code) => runNotebookFence(pane, code),
     });
   }
 
@@ -4422,6 +4456,28 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     }
     showTermInput(term, line);
     markFocusedPane(term);
+  }
+
+  async function runNotebookFence(nbPane, command) {
+    insertNotebookIntoInput(nbPane, command);
+    const term = termTarget(nbPane) || termTarget(focusedPane());
+    if (term && termInputOpen(term)) await confirmTermInput(term);
+  }
+
+  function copyNotebookFence(text) {
+    const line = String(text || "");
+    if (!line) {
+      toast("Nothing to copy");
+      return;
+    }
+    const done = () => toast("Copied");
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(line).then(done).catch(() => {
+        toast("Could not copy", true);
+      });
+      return;
+    }
+    toast("Could not copy", true);
   }
 
   async function confirmTermInput(pane) {
@@ -4566,7 +4622,7 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     if (!sn) return;
     const pane = focusedPane();
     if (isNotebookPane(pane)) {
-      toast("Notebooks cannot type into the shell. Use Insert into input, then confirm.");
+      toast("Notebooks cannot type into the shell. Use Run in terminal, then confirm.");
       return;
     }
     if (!pane || !isTermPane(pane)) {
@@ -5575,6 +5631,12 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
     on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
     on(document.getElementById("session-rail"), "focusin", () => syncSessionSurface());
     on(document.getElementById("session-rail"), "click", (ev) => {
+      const railBtn = ev.target.closest("[data-rail-tab]");
+      if (railBtn) {
+        ev.preventDefault();
+        setRailTab(railBtn.getAttribute("data-rail-tab"));
+        return;
+      }
       const openNb = ev.target.closest("[data-notebook-open]");
       if (openNb) {
         ev.preventDefault();
@@ -5594,6 +5656,13 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
         ev.preventDefault();
         ev.stopPropagation();
         newNotebook();
+        return;
+      }
+      const runSn = ev.target.closest("[data-snippet-run]");
+      if (runSn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        paletteRunSnippet(runSn.dataset.snippetRun);
       }
     });
     on(els.terminals, "focusin", () => syncSessionSurface());
@@ -5627,13 +5696,20 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
         }
         return;
       }
+      const copyFence = ev.target.closest("[data-notebook-copy]");
+      if (copyFence) {
+        ev.preventDefault();
+        const code = copyFence.closest(".notebook-fence")?.querySelector("code")?.textContent || "";
+        copyNotebookFence(code);
+        return;
+      }
       const insertFence = ev.target.closest("[data-notebook-fence]");
       if (insertFence) {
         ev.preventDefault();
         const wrap = insertFence.closest(".term-wrap");
         const p = wrap && state.panes.get(wrap.dataset.paneId);
         const code = insertFence.closest(".notebook-fence")?.querySelector("code")?.textContent || "";
-        if (p) insertNotebookIntoInput(p, code);
+        if (p) runNotebookFence(p, code);
         return;
       }
       const confirmInput = ev.target.closest("[data-term-input-confirm]");
@@ -5648,17 +5724,6 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
         ev.preventDefault();
         const p = state.panes.get(cancelInput.dataset.termInputCancel);
         if (p) closeTermInput(p);
-        return;
-      }
-      const pinPane = ev.target.closest("[data-notebook-pin-pane]");
-      if (pinPane) {
-        ev.preventDefault();
-        const p = state.panes.get(pinPane.dataset.notebookPinPane);
-        if (p && isNotebookPane(p)) {
-          p.pinned = !p.pinned;
-          paintNotebook(p);
-          persistNotebook(p);
-        }
         return;
       }
       const tab = tabFromRoot(ev.target);
@@ -5679,7 +5744,11 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
         if (pane && isNotebookPane(pane)) {
           pane.title = title.value;
           const tab = state.tabs.get(pane.tabId);
-          if (tab) syncPaneChrome(tab, pane);
+          if (tab) {
+            tab.customTitle = title.value.trim() || tab.customTitle;
+            tab.title = pane.title;
+            syncPaneChrome(tab, pane);
+          }
           scheduleNotebookSave(pane);
         }
         return;
@@ -6087,7 +6156,7 @@ Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input â€
   if (searchKbd) searchKbd.textContent = `${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
   document.getElementById("btn-new-tab")?.blur();
-  document.getElementById("btn-session-rail")?.setAttribute("title", `Session sidebar  ${MOD}B`);
+  document.getElementById("btn-session-rail")?.setAttribute("title", `Sidebar  ${MOD}B`);
   toggleAuthFields();
   toggleIdentFields();
   toggleTunnelDest();
