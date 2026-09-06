@@ -1011,14 +1011,12 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	if !strings.Contains(string(body), "/vendor/notebook/editor.js") {
 		t.Fatal("index must load the notebook markdown editor")
 	}
-	ed, err := http.Get(srv.URL + "/vendor/notebook/editor.js")
+	edBody, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "vendor", "notebook", "editor.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ed.Body.Close()
-	edBody, _ := io.ReadAll(ed.Body)
-	if ed.StatusCode != http.StatusOK || !strings.Contains(string(edBody), "KeelMarkdownEditor") {
-		t.Fatal("notebook markdown editor must be served")
+	if !strings.Contains(string(edBody), "KeelMarkdownEditor") || !strings.Contains(string(edBody), "notebook-fence") {
+		t.Fatal("notebook markdown editor must be vendored")
 	}
 	if strings.Contains(string(body), "<h1>Notebooks</h1>") {
 		t.Fatal("notebooks vault page should use the hosts toolbar+cards pattern, not a page-head title")
@@ -2154,6 +2152,20 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
 		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
 		t.Fatal("xterm measure element must not inherit UI letter-spacing or line-height")
+	}
+	if !strings.Contains(string(body), "/vendor/notebook/editor.js") ||
+		!strings.Contains(string(body), "/vendor/notebook/prosemirror.css") {
+		t.Fatal("index must load the notebook markdown editor")
+	}
+	nbJS, err := http.Get(srv.URL + "/vendor/notebook/editor.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nbJS.Body.Close()
+	nbBody, _ := io.ReadAll(nbJS.Body)
+	if nbJS.StatusCode != http.StatusOK || !strings.Contains(string(nbBody), "KeelMarkdownEditor") ||
+		!strings.Contains(string(nbBody), "notebook-fence") {
+		t.Fatal("FileServer must serve the notebook markdown editor")
 	}
 	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
 		t.Fatal("term.js must not drive a session snippet footer")
