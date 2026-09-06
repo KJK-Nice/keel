@@ -2169,7 +2169,7 @@ func NotebookList(p PageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "Write markdown or commands here. Open a notebook without a session — cells never type until you confirm beside a terminal.")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "Write markdown runbooks here. Open a notebook without a session. Fenced sh/bash blocks can fill CLI input — nothing is typed until you confirm.")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

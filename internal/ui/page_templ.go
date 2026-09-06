@@ -72,7 +72,7 @@ func Page(p PageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Keel — SSH workspace</title><script>\n\t\t\t\t(function () {\n\t\t\t\t\tfunction applyTheme(t) {\n\t\t\t\t\t\tif (t !== \"light\" && t !== \"dark\" && t !== \"system\") t = \"system\";\n\t\t\t\t\t\tdocument.documentElement.dataset.theme = t;\n\t\t\t\t\t\tvar dark = t === \"dark\" || (t === \"system\" && !window.matchMedia(\"(prefers-color-scheme: light)\").matches);\n\t\t\t\t\t\tdocument.documentElement.classList.toggle(\"dark\", dark);\n\t\t\t\t\t\tdocument.documentElement.style.colorScheme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.body && document.body.classList.remove(\"dark\");\n\t\t\t\t\t}\n\t\t\t\t\twindow.__keelApplyTheme = applyTheme;\n\t\t\t\t\tapplyTheme(localStorage.getItem(\"keel-theme\") || \"system\");\n\t\t\t\t\tvar uiSize = 12, smooth = \"antialiased\", vaultView = \"card\", sessionRail = \"closed\";\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar ui = JSON.parse(localStorage.getItem(\"keel-ui\") || \"{}\");\n\t\t\t\t\t\tvar n = Math.round(Number(ui.size));\n\t\t\t\t\t\tif (n >= 11 && n <= 16) uiSize = n;\n\t\t\t\t\t\tif (ui.smoothing === \"subpixel\" || ui.smoothing === \"none\") smooth = ui.smoothing;\n\t\t\t\t\t\tif (ui.view === \"list\") vaultView = \"list\";\n\t\t\t\t\t\tif (ui.sidebar === true) sessionRail = \"open\";\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t\tdocument.documentElement.style.setProperty(\"--ui-size\", uiSize + \"px\");\n\t\t\t\t\tdocument.documentElement.dataset.smooth = smooth;\n\t\t\t\t\tdocument.documentElement.dataset.vaultView = vaultView;\n\t\t\t\t\tdocument.documentElement.dataset.sessionRail = sessionRail;\n\t\t\t\t\tvar q = new URLSearchParams(location.search);\n\t\t\t\t\tif (q.get(\"native\") === \"1\") document.documentElement.dataset.native = \"1\";\n\t\t\t\t\tif (q.get(\"chrome\") === \"titlebar\") {\n\t\t\t\t\t\tdocument.documentElement.dataset.chrome = \"titlebar\";\n\t\t\t\t\t\tfunction syncFullscreen() {\n\t\t\t\t\t\t\tvar fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;\n\t\t\t\t\t\t\tdocument.documentElement.toggleAttribute(\"data-fullscreen\", fs);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tsyncFullscreen();\n\t\t\t\t\t\twindow.addEventListener(\"resize\", syncFullscreen);\n\t\t\t\t\t}\n\t\t\t\t})();\n\t\t\t</script><link rel=\"stylesheet\" href=\"/vendor/xterm/xterm.css\"><link rel=\"stylesheet\" href=\"/css/output.css\"><link rel=\"stylesheet\" href=\"/css/keel.css\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7.2' fill='%23ffffff'/><path fill='%23141414' transform='translate(4,5.5) scale(0.24)' d='m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z'/></svg>\"><script type=\"module\" src=\"/js/datastar.js\"></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Keel — SSH workspace</title><script>\n\t\t\t\t(function () {\n\t\t\t\t\tfunction applyTheme(t) {\n\t\t\t\t\t\tif (t !== \"light\" && t !== \"dark\" && t !== \"system\") t = \"system\";\n\t\t\t\t\t\tdocument.documentElement.dataset.theme = t;\n\t\t\t\t\t\tvar dark = t === \"dark\" || (t === \"system\" && !window.matchMedia(\"(prefers-color-scheme: light)\").matches);\n\t\t\t\t\t\tdocument.documentElement.classList.toggle(\"dark\", dark);\n\t\t\t\t\t\tdocument.documentElement.style.colorScheme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.body && document.body.classList.remove(\"dark\");\n\t\t\t\t\t}\n\t\t\t\t\twindow.__keelApplyTheme = applyTheme;\n\t\t\t\t\tapplyTheme(localStorage.getItem(\"keel-theme\") || \"system\");\n\t\t\t\t\tvar uiSize = 12, smooth = \"antialiased\", vaultView = \"card\", sessionRail = \"closed\";\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar ui = JSON.parse(localStorage.getItem(\"keel-ui\") || \"{}\");\n\t\t\t\t\t\tvar n = Math.round(Number(ui.size));\n\t\t\t\t\t\tif (n >= 11 && n <= 16) uiSize = n;\n\t\t\t\t\t\tif (ui.smoothing === \"subpixel\" || ui.smoothing === \"none\") smooth = ui.smoothing;\n\t\t\t\t\t\tif (ui.view === \"list\") vaultView = \"list\";\n\t\t\t\t\t\tif (ui.sidebar === true) sessionRail = \"open\";\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t\tdocument.documentElement.style.setProperty(\"--ui-size\", uiSize + \"px\");\n\t\t\t\t\tdocument.documentElement.dataset.smooth = smooth;\n\t\t\t\t\tdocument.documentElement.dataset.vaultView = vaultView;\n\t\t\t\t\tdocument.documentElement.dataset.sessionRail = sessionRail;\n\t\t\t\t\tvar q = new URLSearchParams(location.search);\n\t\t\t\t\tif (q.get(\"native\") === \"1\") document.documentElement.dataset.native = \"1\";\n\t\t\t\t\tif (q.get(\"chrome\") === \"titlebar\") {\n\t\t\t\t\t\tdocument.documentElement.dataset.chrome = \"titlebar\";\n\t\t\t\t\t\tfunction syncFullscreen() {\n\t\t\t\t\t\t\tvar fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;\n\t\t\t\t\t\t\tdocument.documentElement.toggleAttribute(\"data-fullscreen\", fs);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tsyncFullscreen();\n\t\t\t\t\t\twindow.addEventListener(\"resize\", syncFullscreen);\n\t\t\t\t\t}\n\t\t\t\t})();\n\t\t\t</script><link rel=\"stylesheet\" href=\"/vendor/xterm/xterm.css\"><link rel=\"stylesheet\" href=\"/vendor/notebook/prosemirror.css\"><link rel=\"stylesheet\" href=\"/css/output.css\"><link rel=\"stylesheet\" href=\"/css/keel.css\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7.2' fill='%23ffffff'/><path fill='%23141414' transform='translate(4,5.5) scale(0.24)' d='m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z'/></svg>\"><script type=\"module\" src=\"/js/datastar.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -386,7 +386,7 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/js/term.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/vendor/notebook/editor.js\"></script><script src=\"/js/term.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -507,7 +507,7 @@ func SessionRail() templ.Component {
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "Pin a notebook or open one beside the terminal.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "Pin a notebook or open one from the vault.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -870,7 +870,7 @@ func vaultNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 262, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 264, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 		if templ_7745c5c3_Err != nil {
@@ -887,7 +887,7 @@ func vaultNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 265, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 267, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -2183,7 +2183,7 @@ func settingsNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var79 string
 		templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 581, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 583, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var79)
 		if templ_7745c5c3_Err != nil {
@@ -2211,7 +2211,7 @@ func settingsNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var80 string
 		templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 589, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 591, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 		if templ_7745c5c3_Err != nil {
@@ -2258,7 +2258,7 @@ func settingsGroup(title string) templ.Component {
 			var templ_7745c5c3_Var82 string
 			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 596, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 598, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 			if templ_7745c5c3_Err != nil {

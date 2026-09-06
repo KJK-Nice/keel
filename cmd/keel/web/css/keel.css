@@ -1602,49 +1602,74 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   outline: 1px solid var(--keel-accent);
   border-color: var(--keel-accent);
 }
-.notebook-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--keel-border);
-  border-radius: 10px;
-  background: var(--keel-panel);
+.notebook-doc {
+  flex: 1 1 auto;
+  min-height: 12rem;
 }
-.notebook-cell-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.notebook-cell-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--keel-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.notebook-cell-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.notebook-cell-body {
+.notebook-source {
   width: 100%;
+  min-height: 16rem;
   resize: vertical;
-  min-height: 72px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--keel-border);
   border-radius: 8px;
   background: var(--keel-bg);
   color: var(--keel-text);
-  font: 0.875rem/1.45 ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
+  font: 0.875rem/1.5 ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
 }
-.notebook-cell-body:focus {
-  outline: 1px solid var(--keel-accent);
-  border-color: var(--keel-accent);
+.notebook-doc .ProseMirror,
+.notebook-prose {
+  min-height: 12rem;
+  padding: 4px 2px 28px;
+  outline: none;
+  color: var(--keel-text);
+  font-size: 0.95rem;
+  line-height: 1.55;
 }
-.notebook-add { align-self: flex-start; }
+.notebook-doc .ProseMirror p { margin: 0.4rem 0 0.7rem; }
+.notebook-doc .ProseMirror h1,
+.notebook-doc .ProseMirror h2,
+.notebook-doc .ProseMirror h3 {
+  margin: 1rem 0 0.45rem;
+  line-height: 1.25;
+  font-weight: 650;
+}
+.notebook-doc .ProseMirror h1 { font-size: 1.55rem; }
+.notebook-doc .ProseMirror h2 { font-size: 1.25rem; }
+.notebook-doc .ProseMirror h3 { font-size: 1.05rem; }
+.notebook-doc .ProseMirror ul,
+.notebook-doc .ProseMirror ol { margin: 0.35rem 0 0.7rem; padding-left: 1.3rem; }
+.notebook-doc .ProseMirror blockquote {
+  margin: 0.5rem 0;
+  padding: 0 0 0 0.8rem;
+  border-left: 3px solid var(--keel-border);
+  color: var(--keel-muted);
+}
+.notebook-doc .ProseMirror code {
+  font-family: ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.88em;
+}
+.notebook-doc .ProseMirror a { color: var(--keel-accent); }
+.notebook-fence {
+  position: relative;
+  margin: 0.75rem 0;
+}
+.notebook-fence pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--keel-bg);
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  overflow: auto;
+  font: 0.82rem/1.45 ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+.notebook-fence.is-shell pre { padding-top: 36px; }
+.notebook-fence-run {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
 .term-input {
   flex: 0 0 auto;
   display: flex;

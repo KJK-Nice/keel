@@ -208,7 +208,7 @@
       })
       .join("");
     notes.innerHTML = `<span class="eyebrow">Notebooks</span>
-      ${rows || `<p class="lede">Pin a notebook or open one beside the terminal. Cells never type until you approve.</p>`}
+      ${rows || `<p class="lede">Open a notebook from the vault. Markdown is a document — shell fences fill CLI input only after you confirm.</p>`}
       <button type="button" class="tiny" data-notebook-new>New notebook</button>`;
   }
 
@@ -1070,7 +1070,7 @@
     if (!state.notebooks.length) {
       els.notebookList.innerHTML = emptyHTML(
         "No notebooks yet",
-        "Write markdown or commands here. Open a notebook without a session — cells never type until you confirm beside a terminal."
+        "Write markdown runbooks here. Open a notebook without a session. Fenced sh/bash blocks can fill CLI input — nothing is typed until you confirm."
       );
       return;
     }
@@ -3915,6 +3915,9 @@
 
   function disposePane(pane) {
     pane.closing = true;
+    pane.mdEditor?.destroy?.();
+    pane.mdEditor = null;
+    pane._docEl = null;
     pane.fitObs?.disconnect();
     pane.fitObs = null;
     dropWebgl(pane);
@@ -4080,8 +4083,27 @@
     return { wrap, body };
   }
 
+  const DEFAULT_NOTEBOOK_MD = `# Notebook
+
+Write a runbook here. Fenced \`\`\`sh or \`\`\`bash blocks can fill CLI input — nothing is typed until you confirm.
+`;
+
+  function notebookMarkdown(pane) {
+    return (pane?.cells || [])
+      .map((c) => String(c.body || ""))
+      .join("\n\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function setNotebookMarkdown(pane, md) {
+    if (!isNotebookPane(pane)) return;
+    const id = pane.cells?.[0]?.id || uid("cell");
+    pane.cells = [{ id, body: String(md ?? "") }];
+  }
+
   function copyNotebookCells(cells) {
-    if (!Array.isArray(cells) || !cells.length) return [{ id: uid("cell"), body: "" }];
+    if (!Array.isArray(cells) || !cells.length) return [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     return cells.map((c) => ({ id: c.id || uid("cell"), body: String(c.body || "") }));
   }
 
@@ -4275,29 +4297,52 @@
     const body = pane.body || pane.wrap?.querySelector(".notebook-pane");
     if (!body || !isNotebookPane(pane)) return;
     if (!Array.isArray(pane.cells) || !pane.cells.length) {
-      pane.cells = [{ id: uid("cell"), body: "" }];
+      pane.cells = [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     }
-    const cells = pane.cells
-      .map((cell, i) => `<article class="notebook-cell" data-notebook-cell="${cell.id}">
-          <header class="notebook-cell-head">
-            <span class="notebook-cell-label">Cell ${i + 1}</span>
-            <div class="notebook-cell-actions">
-              <button type="button" class="tiny" data-notebook-insert="${cell.id}">Insert into input</button>
-              <button type="button" class="icon-btn" data-notebook-remove="${cell.id}" title="Remove cell">${closeGlyph()}</button>
-            </div>
-          </header>
-          <textarea class="notebook-cell-body" data-notebook-body="${cell.id}" rows="4" spellcheck="false" placeholder="Markdown or a shell command — Insert into input, then confirm. Nothing is typed until you approve">${escapeHtml(cell.body || "")}</textarea>
-        </article>`)
-      .join("");
-    body.innerHTML = `<div class="notebook-scroll">
+    const pinLabel = pane.pinned ? "Unpin" : "Pin";
+    if (!pane._docEl || !body.contains(pane._docEl)) {
+      pane.mdEditor?.destroy?.();
+      pane.mdEditor = null;
+      body.innerHTML = `<div class="notebook-scroll">
       <div class="notebook-toolbar">
         <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Notebook title" />
-        <button type="button" class="tiny" data-notebook-pin-pane="${pane.id}" aria-pressed="${pane.pinned ? "true" : "false"}">${pane.pinned ? "Unpin" : "Pin"}</button>
+        <button type="button" class="tiny" data-notebook-pin-pane="${pane.id}" aria-pressed="${pane.pinned ? "true" : "false"}">${pinLabel}</button>
       </div>
-      <p class="notebook-lede">Insert a cell into the CLI input beside this notebook. Edit it there, then confirm — outputs stay in the terminal, not in this document.</p>
-      ${cells}
-      <button type="button" class="tiny notebook-add" data-notebook-add="${pane.id}">Add cell</button>
+      <p class="notebook-lede">Markdown document — edit the rendered runbook. A fenced sh/bash block can fill CLI input; confirm still approves before anything is typed. Outputs stay in the terminal.</p>
+      <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
     </div>`;
+      pane._docEl = body.querySelector("[data-notebook-doc]");
+      mountNotebookEditor(pane);
+      return;
+    }
+    const titleEl = body.querySelector("[data-notebook-title]");
+    if (titleEl && document.activeElement !== titleEl) titleEl.value = pane.title || "Notebook";
+    const pinBtn = body.querySelector("[data-notebook-pin-pane]");
+    if (pinBtn) {
+      pinBtn.textContent = pinLabel;
+      pinBtn.setAttribute("aria-pressed", String(!!pane.pinned));
+    }
+  }
+
+  function mountNotebookEditor(pane) {
+    const host = pane._docEl;
+    if (!host || !isNotebookPane(pane)) return;
+    pane.mdEditor?.destroy?.();
+    pane.mdEditor = null;
+    const KeelMD = window.KeelMarkdownEditor;
+    if (!KeelMD || typeof KeelMD.mount !== "function") {
+      host.innerHTML = `<textarea class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
+      return;
+    }
+    pane.mdEditor = KeelMD.mount(host, {
+      markdown: notebookMarkdown(pane),
+      buttonLabel: "Insert into input",
+      onChange: (md) => {
+        setNotebookMarkdown(pane, md);
+        scheduleNotebookSave(pane);
+      },
+      onRunFence: (code) => insertNotebookIntoInput(pane, code),
+    });
   }
 
   function splitNotebook(dir) {
@@ -4363,15 +4408,14 @@
     return closed;
   }
 
-  function insertNotebookIntoInput(nbPane, cellId) {
-    if (!isNotebookPane(nbPane)) return;
-    const cell = nbPane.cells?.find((c) => c.id === cellId);
-    const line = cell?.body || "";
-    if (!String(line).trim()) {
+  function insertNotebookIntoInput(nbPane, command) {
+    if (nbPane && !isNotebookPane(nbPane)) return;
+    const line = String(command || "").trim();
+    if (!line) {
       toast("Write a command first");
       return;
     }
-    const term = termTarget(nbPane);
+    const term = termTarget(nbPane) || termTarget(focusedPane());
     if (!term) {
       toast("Split a terminal beside this notebook first");
       return;
@@ -5583,12 +5627,13 @@
         }
         return;
       }
-      const insertCell = ev.target.closest("[data-notebook-insert]");
-      if (insertCell) {
+      const insertFence = ev.target.closest("[data-notebook-fence]");
+      if (insertFence) {
         ev.preventDefault();
-        const wrap = insertCell.closest(".term-wrap");
+        const wrap = insertFence.closest(".term-wrap");
         const p = wrap && state.panes.get(wrap.dataset.paneId);
-        if (p) insertNotebookIntoInput(p, insertCell.dataset.notebookInsert);
+        const code = insertFence.closest(".notebook-fence")?.querySelector("code")?.textContent || "";
+        if (p) insertNotebookIntoInput(p, code);
         return;
       }
       const confirmInput = ev.target.closest("[data-term-input-confirm]");
@@ -5616,30 +5661,6 @@
         }
         return;
       }
-      const addCell = ev.target.closest("[data-notebook-add]");
-      if (addCell) {
-        ev.preventDefault();
-        const p = state.panes.get(addCell.dataset.notebookAdd);
-        if (p && isNotebookPane(p)) {
-          p.cells.push({ id: uid("cell"), body: "" });
-          paintNotebook(p);
-          scheduleNotebookSave(p);
-        }
-        return;
-      }
-      const removeCell = ev.target.closest("[data-notebook-remove]");
-      if (removeCell) {
-        ev.preventDefault();
-        const wrap = removeCell.closest(".term-wrap");
-        const p = wrap && state.panes.get(wrap.dataset.paneId);
-        if (p && isNotebookPane(p)) {
-          p.cells = (p.cells || []).filter((c) => c.id !== removeCell.dataset.notebookRemove);
-          if (!p.cells.length) p.cells.push({ id: uid("cell"), body: "" });
-          paintNotebook(p);
-          scheduleNotebookSave(p);
-        }
-        return;
-      }
       const tab = tabFromRoot(ev.target);
       if (!tab?.start) return;
       const connect = ev.target.closest("[data-start-connect]");
@@ -5663,13 +5684,13 @@
         }
         return;
       }
-      const area = ev.target.closest?.("[data-notebook-body]");
-      if (area) {
-        const wrap = area.closest(".term-wrap");
-        const pane = wrap && state.panes.get(wrap.dataset.paneId);
-        const cell = pane?.cells?.find((c) => c.id === area.dataset.notebookBody);
-        if (cell) cell.body = area.value;
-        if (pane) scheduleNotebookSave(pane);
+      const src = ev.target.closest?.("[data-notebook-source]");
+      if (src) {
+        const pane = state.panes.get(src.dataset.notebookSource);
+        if (pane && isNotebookPane(pane)) {
+          setNotebookMarkdown(pane, src.value);
+          scheduleNotebookSave(pane);
+        }
         return;
       }
       const input = ev.target.closest?.(".start-search");
