@@ -4303,25 +4303,28 @@ Write a runbook here.
 
   function renameNotebook(id) {
     const rec = notebookById(id);
-    if (!rec || !els.notebookRenameForm) return;
-    els.notebookRenameForm.reset();
-    els.notebookRenameForm.id.value = rec.id;
-    els.notebookRenameForm.name.value = rec.name || "Notebook";
+    const form = els.notebookRenameForm;
+    if (!rec || !form) return;
+    form.reset();
+    const idInput = form.querySelector('[name="id"]');
+    const nameInput = form.querySelector('[name="name"]');
+    if (idInput) idInput.value = rec.id;
+    if (nameInput) nameInput.value = rec.name || "Notebook";
     openModal(els.notebookRenameModal);
     requestAnimationFrame(() => {
-      const input = els.notebookRenameForm?.name;
-      input?.focus();
-      input?.select();
+      nameInput?.focus();
+      nameInput?.select();
     });
   }
 
   async function saveNotebookRename(event) {
     event.preventDefault();
     const form = els.notebookRenameForm;
-    const id = form?.id?.value;
+    if (!form) return;
+    const id = form.querySelector('[name="id"]')?.value;
     const rec = notebookById(id);
     if (!rec) return;
-    const name = (form.name.value || "").trim() || "Notebook";
+    const name = (form.querySelector('[name="name"]')?.value || "").trim() || "Notebook";
     try {
       const saved = await api(`/api/notebooks/${id}`, {
         method: "PUT",
