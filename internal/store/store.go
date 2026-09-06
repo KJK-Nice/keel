@@ -151,6 +151,8 @@ type Snippet struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// NotebookCell is source markdown or a command. Outputs live in the terminal
+// and must never be stored on the notebook document.
 type NotebookCell struct {
 	ID   string `json:"id"`
 	Body string `json:"body"`

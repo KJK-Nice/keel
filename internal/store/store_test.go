@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -537,5 +538,31 @@ func TestNotebookRoundTripAndPin(t *testing.T) {
 	}
 	if _, err := st2.GetNotebook(updated.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted err = %v", err)
+	}
+}
+
+func TestNotebookStoresNoOutputs(t *testing.T) {
+	st := testStore(t)
+	var nb Notebook
+	if err := json.Unmarshal([]byte(`{"name":"ops","cells":[{"id":"c1","body":"ls","output":"PTY_OUTPUT_LEAK","stdout":"PTY_OUTPUT_LEAK"}]}`), &nb); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := st.UpsertNotebook(nb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "PTY_OUTPUT_LEAK") {
+		t.Fatalf("persisted outputs: %s", raw)
+	}
+	onDisk, err := os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(onDisk), "PTY_OUTPUT_LEAK") {
+		t.Fatal("keel.json must not store notebook cell outputs")
 	}
 }

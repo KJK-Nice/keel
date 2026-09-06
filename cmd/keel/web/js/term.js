@@ -164,7 +164,7 @@
       document.getElementById("session-rail")?.focus({ preventScroll: true });
     } else {
       document.getElementById("session-rail")?.blur?.();
-      focusedPane()?.term?.focus?.();
+      if (!termInputOpen(focusedPane())) focusedPane()?.term?.focus?.();
     }
     syncSessionSurface();
     fitVisiblePanes();
@@ -1625,7 +1625,7 @@
       else els.barStatus.textContent = `${statusPane.subtitle} · following`;
     }
     renderControl(pane);
-    if (!isNotebookPane(pane)) pane.term?.focus();
+    if (!isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus();
     syncSessionSurface();
   }
 
@@ -2104,7 +2104,7 @@
           return;
         }
         fitVisiblePanes();
-        if (!isNotebookPane(pane)) pane?.term?.focus();
+        if (!isNotebookPane(pane) && !termInputOpen(pane)) pane?.term?.focus();
       });
     }
     persistWorkspace();
@@ -2454,8 +2454,16 @@
     ptyChromeHoldUntil = Math.max(ptyChromeHoldUntil, Date.now() + ms);
   }
 
+  function termInputOpen(pane) {
+    if (pane) return !!(isTermPane(pane) && pane.inputEl && !pane.inputEl.hidden);
+    for (const p of state.panes.values()) {
+      if (isTermPane(p) && p.inputEl && !p.inputEl.hidden) return true;
+    }
+    return false;
+  }
+
   function ptyWritesBlocked() {
-    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()));
+    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
   }
 
   function paletteQuery() {
@@ -2728,7 +2736,7 @@
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane())) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -3239,6 +3247,31 @@
     });
   }
 
+  function wireTermInputEl(inputEl, paneId) {
+    inputEl.addEventListener("focusin", () => {
+      const pane = state.panes.get(paneId);
+      if (pane) {
+        markFocusedPane(pane);
+        syncSessionSurface();
+      }
+    });
+    inputEl.querySelector("[data-term-input]")?.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const pane = state.panes.get(paneId);
+        if (pane) closeTermInput(pane);
+        return;
+      }
+      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const pane = state.panes.get(paneId);
+        if (pane) confirmTermInput(pane);
+      }
+    });
+  }
+
   function makePaneShell(info, paneId) {
     const wrap = document.createElement("div");
     wrap.className = "term-wrap";
@@ -3302,10 +3335,20 @@
         <button type="button" class="btn pane-fail-start" data-pane-reconnect="${paneId}">Start over</button>
       </div>
     </div>`;
+    const inputEl = document.createElement("div");
+    inputEl.className = "term-input";
+    inputEl.hidden = true;
+    inputEl.innerHTML = `<span class="term-input-kicker">CLI input</span>
+      <textarea class="term-input-body" data-term-input rows="2" spellcheck="false" placeholder="Inserted from the notebook — edit here, then confirm. Nothing is typed until you approve."></textarea>
+      <div class="term-input-actions">
+        <button type="button" class="tiny" data-term-input-cancel="${paneId}">Cancel</button>
+        <button type="button" class="tiny" data-term-input-confirm="${paneId}">Confirm</button>
+      </div>`;
     wrap.appendChild(bar);
     wrap.appendChild(progressEl);
     wrap.appendChild(banner);
     wrap.appendChild(body);
+    wrap.appendChild(inputEl);
     const term = createTerminal(termOpts());
     const Addon = FitAddonCtor?.FitAddon || FitAddonCtor;
     const fit = typeof Addon === "function" ? new Addon() : { fit() {} };
@@ -3319,7 +3362,8 @@
     body.appendChild(findEl);
     body.appendChild(failEl);
     wireFindEl(findEl, paneId);
-    return { wrap, banner, body, term, fit, search, findEl, failEl, host };
+    wireTermInputEl(inputEl, paneId);
+    return { wrap, banner, body, term, fit, search, findEl, failEl, host, inputEl };
   }
 
   function createTab(paneSeed) {
@@ -3378,6 +3422,7 @@
       search: shell.search,
       findEl: shell.findEl,
       failEl: shell.failEl,
+      inputEl: shell.inputEl,
       failLog: [],
       failKind: info.status === "exited" ? "ended" : info.status === "error" ? "fail" : "",
       wasReady: info.status === "ready",
@@ -3461,7 +3506,7 @@
     pane.ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
-      else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane())) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+      else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
     });
     let live = !opts.skipSnapshot;
 
@@ -3974,7 +4019,7 @@
     if (!isNotebookPane(pane)) return;
     const payload = {
       name: (pane.title || "Notebook").trim() || "Notebook",
-      cells: copyNotebookCells(pane.cells),
+      cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
       pinned: !!pane.pinned,
     };
     try {
@@ -4076,11 +4121,11 @@
           <header class="notebook-cell-head">
             <span class="notebook-cell-label">Cell ${i + 1}</span>
             <div class="notebook-cell-actions">
-              <button type="button" class="tiny" data-notebook-run="${cell.id}">Type into terminal</button>
+              <button type="button" class="tiny" data-notebook-insert="${cell.id}">Insert into input</button>
               <button type="button" class="icon-btn" data-notebook-remove="${cell.id}" title="Remove cell">${closeGlyph()}</button>
             </div>
           </header>
-          <textarea class="notebook-cell-body" data-notebook-body="${cell.id}" rows="4" spellcheck="false" placeholder="Markdown or a shell command — nothing is typed until you approve">${escapeHtml(cell.body || "")}</textarea>
+          <textarea class="notebook-cell-body" data-notebook-body="${cell.id}" rows="4" spellcheck="false" placeholder="Markdown or a shell command — Insert into input, then confirm. Nothing is typed until you approve">${escapeHtml(cell.body || "")}</textarea>
         </article>`)
       .join("");
     body.innerHTML = `<div class="notebook-scroll">
@@ -4088,7 +4133,7 @@
         <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Notebook title" />
         <button type="button" class="tiny" data-notebook-pin-pane="${pane.id}" aria-pressed="${pane.pinned ? "true" : "false"}">${pane.pinned ? "Unpin" : "Pin"}</button>
       </div>
-      <p class="notebook-lede">Notebook cells never write the shell until you approve. Same bar as the command palette.</p>
+      <p class="notebook-lede">Insert a cell into the CLI input beside this notebook. Edit it there, then confirm — outputs stay in the terminal, not in this document.</p>
       ${cells}
       <button type="button" class="tiny notebook-add" data-notebook-add="${pane.id}">Add cell</button>
     </div>`;
@@ -4119,28 +4164,76 @@
     persistNotebook(nb);
   }
 
-  async function runNotebookCell(pane, cellId) {
-    if (!isNotebookPane(pane)) return;
-    const cell = pane.cells?.find((c) => c.id === cellId);
-    const line = (cell?.body || "").trim();
-    if (!line) {
+  function showTermInput(pane, text) {
+    if (!isTermPane(pane) || !pane.inputEl) return;
+    const area = pane.inputEl.querySelector("[data-term-input]");
+    if (area) area.value = String(text || "");
+    pane.inputEl.hidden = false;
+    pane.wrap?.classList.add("has-term-input");
+    pane.term?.blur?.();
+    pane.term?.clearSelection?.();
+    area?.focus();
+    area?.setSelectionRange?.(area.value.length, area.value.length);
+    syncSessionSurface();
+    fitVisiblePanes();
+  }
+
+  function closeTermInput(pane) {
+    if (!isTermPane(pane) || !pane.inputEl) return;
+    const area = pane.inputEl.querySelector("[data-term-input]");
+    if (area) area.value = "";
+    pane.inputEl.hidden = true;
+    pane.wrap?.classList.remove("has-term-input");
+    syncSessionSurface();
+    fitVisiblePanes();
+  }
+
+  function closeOpenTermInput() {
+    let closed = false;
+    for (const pane of state.panes.values()) {
+      if (termInputOpen(pane)) {
+        closeTermInput(pane);
+        closed = true;
+      }
+    }
+    return closed;
+  }
+
+  function insertNotebookIntoInput(nbPane, cellId) {
+    if (!isNotebookPane(nbPane)) return;
+    const cell = nbPane.cells?.find((c) => c.id === cellId);
+    const line = cell?.body || "";
+    if (!String(line).trim()) {
       toast("Write a command first");
       return;
     }
-    const term = termTarget(pane);
+    const term = termTarget(nbPane);
     if (!term) {
       toast("Split a terminal beside this notebook first");
       return;
     }
-    if (!isDriving(term)) {
+    showTermInput(term, line);
+    markFocusedPane(term);
+  }
+
+  async function confirmTermInput(pane) {
+    if (!isTermPane(pane) || !termInputOpen(pane)) return;
+    const area = pane.inputEl.querySelector("[data-term-input]");
+    const line = (area?.value || "").trim();
+    if (!line) {
+      toast("Write a command first");
+      return;
+    }
+    if (!isDriving(pane)) {
       toast("You are following — take or request control to type");
       return;
     }
     const command = line.endsWith("\n") ? line : line + "\n";
-    const ok = await approveBeforeType(command, term.subtitle || term.title || "session");
+    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    await sendApprovedInject(command, term);
+    await sendApprovedInject(command, pane);
+    closeTermInput(pane);
   }
 
   function toggleTabSync(tabId) {
@@ -4265,7 +4358,7 @@
     if (!sn) return;
     const pane = focusedPane();
     if (isNotebookPane(pane)) {
-      toast("Notebooks cannot type into the shell. Use Type into terminal to approve.");
+      toast("Notebooks cannot type into the shell. Use Insert into input, then confirm.");
       return;
     }
     if (!pane || !isTermPane(pane)) {
@@ -4754,6 +4847,7 @@
       banner: shell.banner,
       search: shell.search,
       findEl: shell.findEl,
+      inputEl: shell.inputEl,
       ws: null,
       sigWs: null,
       pc: null,
@@ -5042,6 +5136,10 @@
           return;
         }
         if (ev.key === "Escape") {
+          if (closeOpenTermInput()) {
+            ev.preventDefault();
+            return;
+          }
           if (closeOpenFind()) {
             ev.preventDefault();
             return;
@@ -5318,12 +5416,26 @@
         }
         return;
       }
-      const runCell = ev.target.closest("[data-notebook-run]");
-      if (runCell) {
+      const insertCell = ev.target.closest("[data-notebook-insert]");
+      if (insertCell) {
         ev.preventDefault();
-        const wrap = runCell.closest(".term-wrap");
+        const wrap = insertCell.closest(".term-wrap");
         const p = wrap && state.panes.get(wrap.dataset.paneId);
-        if (p) runNotebookCell(p, runCell.dataset.notebookRun);
+        if (p) insertNotebookIntoInput(p, insertCell.dataset.notebookInsert);
+        return;
+      }
+      const confirmInput = ev.target.closest("[data-term-input-confirm]");
+      if (confirmInput) {
+        ev.preventDefault();
+        const p = state.panes.get(confirmInput.dataset.termInputConfirm);
+        if (p) confirmTermInput(p);
+        return;
+      }
+      const cancelInput = ev.target.closest("[data-term-input-cancel]");
+      if (cancelInput) {
+        ev.preventDefault();
+        const p = state.panes.get(cancelInput.dataset.termInputCancel);
+        if (p) closeTermInput(p);
         return;
       }
       const pinPane = ev.target.closest("[data-notebook-pin-pane]");

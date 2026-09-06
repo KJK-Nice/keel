@@ -717,8 +717,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		!strings.Contains(blocked, "state.openModal") ||
 		!strings.Contains(blocked, "ptyInjectWaiter") ||
 		!strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") ||
-		!strings.Contains(blocked, "isNotebookPane(focusedPane())") {
-		t.Fatal("ptyWritesBlocked must OR notebook focus with palette/rail/inject chrome holds")
+		!strings.Contains(blocked, "isNotebookPane(focusedPane())") ||
+		!strings.Contains(blocked, "termInputOpen()") {
+		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/rail/inject chrome holds")
 	}
 
 	create := sliceJSFunc(term, "function createNotebookPane")
@@ -735,20 +736,34 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		}
 	}
 
-	run := sliceJSFunc(term, "async function runNotebookCell")
-	if run == "" {
-		t.Fatal("missing runNotebookCell")
+	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
+		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
 	}
-	approveAt := strings.Index(run, "await approveBeforeType")
-	sendAt := strings.Index(run, "sendApprovedInject")
+	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
+	show := sliceJSFunc(term, "function showTermInput")
+	if insert == "" || show == "" {
+		t.Fatal("missing insert-into-input helpers")
+	}
+	for _, fn := range []string{insert, show} {
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) || strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, "approveBeforeType") {
+			t.Fatal("insert-into-input must not write the PTY or Inject")
+		}
+	}
+
+	confirm := sliceJSFunc(term, "function confirmTermInput")
+	if confirm == "" {
+		t.Fatal("missing confirmTermInput")
+	}
+	approveAt := strings.Index(confirm, "await approveBeforeType")
+	sendAt := strings.Index(confirm, "sendApprovedInject")
 	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
-		t.Fatal("notebook cells must await approveBeforeType before Inject")
+		t.Fatal("confirm path must await approveBeforeType before Inject")
 	}
-	if !strings.Contains(run, "if (!ok) return") {
-		t.Fatal("notebook cells must abort when approve-before-type is cancelled")
+	if !strings.Contains(confirm, "if (!ok) return") {
+		t.Fatal("confirm path must abort when approve-before-type is cancelled")
 	}
-	if strings.Contains(run, "sendSessionBytes") || strings.Contains(run, "sendSnippet") {
-		t.Fatal("notebook cells must not call sendSnippet or raw session bytes")
+	if strings.Contains(confirm, "sendSessionBytes") || strings.Contains(confirm, "sendSnippet") {
+		t.Fatal("confirm path must not call sendSnippet or raw session bytes")
 	}
 
 	bytesFn := sliceJSFunc(term, "function sendSessionBytes")
@@ -784,13 +799,19 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	open := sliceJSFunc(term, "function openNotebook")
 	paint := sliceJSFunc(term, "function paintSessionRail")
 	pin := sliceJSFunc(term, "function toggleNotebookPin")
-	for _, fn := range []string{persist, open, paint, pin, create, split} {
+	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show} {
 		if fn == "" {
 			t.Fatal("missing notebook persist/open/pin helpers")
 		}
 		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
 			t.Fatal("notebook persist/open/sidebar must not write the shell")
 		}
+	}
+	if strings.Contains(persist, "output") || strings.Contains(persist, "stdout") {
+		t.Fatal("notebook persist must not store cell outputs")
+	}
+	if !strings.Contains(term, "Insert into input") || !strings.Contains(css, ".term-input") {
+		t.Fatal("notebook cells must insert into a CLI input buffer beside the terminal")
 	}
 	if !strings.Contains(persist, "/api/notebooks") {
 		t.Fatal("notebook persist must use the vault notebooks API")
@@ -925,6 +946,38 @@ func TestNotebookAPI(t *testing.T) {
 	defer bad.Body.Close()
 	if bad.StatusCode != http.StatusBadRequest {
 		t.Fatalf("invalid payload %d", bad.StatusCode)
+	}
+
+	leak, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{"name":"leak","cells":[{"body":"ls","output":"PTY_OUTPUT_LEAK","stdout":"PTY_OUTPUT_LEAK"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer leak.Body.Close()
+	if leak.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(leak.Body)
+		t.Fatalf("leak create %d %s", leak.StatusCode, b)
+	}
+	rawLeak, err := io.ReadAll(leak.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(rawLeak), "PTY_OUTPUT_LEAK") {
+		t.Fatal("notebook API must not persist cell outputs")
+	}
+	var leaked map[string]any
+	if err := json.Unmarshal(rawLeak, &leaked); err != nil {
+		t.Fatal(err)
+	}
+	cells, _ := leaked["cells"].([]any)
+	if len(cells) != 1 {
+		t.Fatalf("leak cells = %#v", leaked["cells"])
+	}
+	cell, _ := cells[0].(map[string]any)
+	if _, ok := cell["output"]; ok {
+		t.Fatal("cell JSON must omit output")
+	}
+	if _, ok := cell["stdout"]; ok {
+		t.Fatal("cell JSON must omit stdout")
 	}
 }
 

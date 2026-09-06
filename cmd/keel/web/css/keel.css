@@ -1552,7 +1552,8 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 .term-wrap.is-notebook .follow-banner,
 .term-wrap.is-notebook .pane-progress,
 .term-wrap.is-notebook .pane-fail,
-.term-wrap.is-notebook .term-find { display: none; }
+.term-wrap.is-notebook .term-find,
+.term-wrap.is-notebook .term-input { display: none; }
 .pane-bar .icon-btn[data-pane-notebook] {
   width: auto;
   padding: 0 6px;
@@ -1642,6 +1643,43 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   border-color: var(--keel-accent);
 }
 .notebook-add { align-self: flex-start; }
+.term-input {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 8px;
+  border-top: 1px solid var(--keel-border);
+  background: var(--keel-panel);
+}
+.term-input[hidden] { display: none; }
+.term-input-kicker {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--keel-muted);
+}
+.term-input-body {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--keel-border);
+  border-radius: 8px;
+  background: var(--keel-bg);
+  color: var(--keel-text);
+  font: 0.875rem/1.45 ui-monospace, "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+.term-input-body:focus {
+  outline: 1px solid var(--keel-accent);
+  border-color: var(--keel-accent);
+}
+.term-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
 .term-host {
   flex: 1 1 0%;
   min-width: 0;
