@@ -20,14 +20,13 @@ import {
   ellipsis,
 } from "prosemirror-inputrules";
 
-const SHELL_LANGS = new Set(["sh", "bash", "shell"]);
+const FENCE_LANGS = ["", "sh", "bash", "shell", "js", "ts", "python", "go", "json", "yaml", "toml", "sql", "html", "css", "md"];
 
-function isShellLang(params) {
-  const lang = String(params || "")
+function langOf(params) {
+  return String(params || "")
     .trim()
     .split(/[\s{]/)[0]
     .toLowerCase();
-  return SHELL_LANGS.has(lang);
 }
 
 function emptyDoc() {
@@ -53,7 +52,9 @@ function markdownInputRules() {
       wrappingInputRule(/^\s*>\s$/, schema.nodes.blockquote),
       wrappingInputRule(/^\s*([-+*])\s$/, schema.nodes.bullet_list),
       wrappingInputRule(/^(\d+)\.\s$/, schema.nodes.ordered_list),
-      textblockTypeInputRule(/^```(sh|bash|shell)\s$/, schema.nodes.code_block, (match) => ({ params: match[1] })),
+      textblockTypeInputRule(/^```(sh|bash|shell|js|ts|python|go|json|yaml|toml|sql|html|css|md)\s$/, schema.nodes.code_block, (match) => ({
+        params: match[1],
+      })),
       textblockTypeInputRule(/^```$/, schema.nodes.code_block),
       textblockTypeInputRule(/^(#{1,6})\s$/, schema.nodes.heading, (match) => ({ level: match[1].length })),
     ],
@@ -76,28 +77,71 @@ function editorKeymap() {
   });
 }
 
+function fillLangSelect(select, lang) {
+  const current = lang || "";
+  const langs = FENCE_LANGS.includes(current) ? FENCE_LANGS : [current, ...FENCE_LANGS];
+  select.replaceChildren();
+  for (const value of langs) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = value || "plain";
+    select.appendChild(opt);
+  }
+  select.value = current;
+}
+
 class CodeBlockView {
-  constructor(node, opts) {
+  constructor(node, view, getPos, opts) {
     this.opts = opts;
+    this.view = view;
+    this.getPos = getPos;
     this.node = node;
     this.dom = document.createElement("div");
     this.dom.className = "notebook-fence";
-    this.pre = document.createElement("pre");
-    this.contentDOM = document.createElement("code");
-    this.pre.appendChild(this.contentDOM);
-    this.dom.appendChild(this.pre);
-    this.btn = document.createElement("button");
-    this.btn.type = "button";
-    this.btn.className = "tiny notebook-fence-run";
-    this.btn.dataset.notebookFence = "1";
-    this.btn.textContent = opts.buttonLabel || "Insert into input";
-    this.btn.title = "Fill CLI input — nothing is typed until you confirm";
-    this.btn.addEventListener("mousedown", (ev) => ev.preventDefault());
-    this.btn.addEventListener("click", (ev) => {
+    this.bar = document.createElement("div");
+    this.bar.className = "notebook-fence-bar";
+    this.bar.contentEditable = "false";
+    this.select = document.createElement("select");
+    this.select.className = "notebook-fence-lang";
+    this.select.setAttribute("aria-label", "Code language");
+    this.select.addEventListener("mousedown", (ev) => ev.stopPropagation());
+    this.select.addEventListener("change", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const pos = typeof this.getPos === "function" ? this.getPos() : null;
+      if (typeof pos !== "number") return;
+      const params = this.select.value;
+      this.view.dispatch(this.view.state.tr.setNodeMarkup(pos, null, { params }));
+    });
+    this.copyBtn = document.createElement("button");
+    this.copyBtn.type = "button";
+    this.copyBtn.className = "tiny notebook-fence-copy";
+    this.copyBtn.dataset.notebookCopy = "1";
+    this.copyBtn.textContent = "Copy";
+    this.copyBtn.title = "Copy fence to clipboard";
+    this.copyBtn.addEventListener("mousedown", (ev) => ev.preventDefault());
+    this.copyBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      opts.onCopyFence?.(this.nodeText());
+    });
+    this.runBtn = document.createElement("button");
+    this.runBtn.type = "button";
+    this.runBtn.className = "tiny notebook-fence-run";
+    this.runBtn.dataset.notebookFence = "1";
+    this.runBtn.textContent = opts.buttonLabel || "Run in terminal";
+    this.runBtn.title = "Fill CLI input — nothing is typed until you confirm";
+    this.runBtn.addEventListener("mousedown", (ev) => ev.preventDefault());
+    this.runBtn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       opts.onRunFence?.(this.nodeText());
     });
+    this.bar.append(this.select, this.copyBtn, this.runBtn);
+    this.pre = document.createElement("pre");
+    this.contentDOM = document.createElement("code");
+    this.pre.appendChild(this.contentDOM);
+    this.dom.append(this.bar, this.pre);
     this.sync(node);
   }
 
@@ -107,15 +151,10 @@ class CodeBlockView {
 
   sync(node) {
     this.node = node;
-    const shell = isShellLang(node.attrs.params);
-    this.dom.classList.toggle("is-shell", shell);
-    const lang = String(node.attrs.params || "").trim().split(/\s+/)[0];
+    const lang = langOf(node.attrs.params);
+    this.dom.classList.toggle("is-shell", lang === "sh" || lang === "bash" || lang === "shell");
     this.contentDOM.className = lang ? `language-${lang}` : "";
-    if (shell) {
-      if (!this.btn.isConnected) this.dom.appendChild(this.btn);
-    } else {
-      this.btn.remove();
-    }
+    if (this.select.value !== lang) fillLangSelect(this.select, lang);
   }
 
   update(node) {
@@ -125,7 +164,7 @@ class CodeBlockView {
   }
 
   ignoreMutation(rec) {
-    return rec.type === "attributes" || this.btn.contains(rec.target);
+    return rec.type === "attributes" || this.bar.contains(rec.target);
   }
 }
 
@@ -133,9 +172,11 @@ export function mount(el, opts = {}) {
   if (!el) throw new Error("KeelMarkdownEditor.mount requires an element");
   const onChange = typeof opts.onChange === "function" ? opts.onChange : () => {};
   const onRunFence = typeof opts.onRunFence === "function" ? opts.onRunFence : () => {};
+  const onCopyFence = typeof opts.onCopyFence === "function" ? opts.onCopyFence : () => {};
   const fenceOpts = {
-    buttonLabel: opts.buttonLabel || "Insert into input",
+    buttonLabel: opts.buttonLabel || "Run in terminal",
     onRunFence,
+    onCopyFence,
   };
   const state = EditorState.create({
     doc: parseMarkdown(opts.markdown),
@@ -151,8 +192,8 @@ export function mount(el, opts = {}) {
       "data-notebook-editor": "1",
     },
     nodeViews: {
-      code_block(node) {
-        return new CodeBlockView(node, fenceOpts);
+      code_block(node, editorView, getPos) {
+        return new CodeBlockView(node, editorView, getPos, fenceOpts);
       },
     },
     dispatchTransaction(tr) {

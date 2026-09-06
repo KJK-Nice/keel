@@ -454,6 +454,9 @@ templ notebookCardMenu(nb store.Notebook) {
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-open": nb.ID}}) {
 				Open
 			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-rename": nb.ID}}) {
+				Rename
+			}
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-pin": nb.ID}}) {
 				if nb.Pinned {
 					Unpin
