@@ -78,6 +78,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
 	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
 	mux.HandleFunc("DELETE /api/snippets/{id}", s.deleteSnippet)
+	mux.HandleFunc("GET /api/notebooks", s.listNotebooks)
+	mux.HandleFunc("POST /api/notebooks", s.upsertNotebook)
+	mux.HandleFunc("PUT /api/notebooks/{id}", s.updateNotebook)
+	mux.HandleFunc("DELETE /api/notebooks/{id}", s.deleteNotebook)
 	mux.HandleFunc("GET /api/identities", s.listIdentities)
 	mux.HandleFunc("POST /api/identities", s.upsertIdentity)
 	mux.HandleFunc("PUT /api/identities/{id}", s.updateIdentity)
@@ -102,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
 	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)
 	mux.HandleFunc("GET /ui/snippets", s.uiSnippets)
+	mux.HandleFunc("GET /ui/notebooks", s.uiNotebooks)
 	mux.HandleFunc("GET /ui/logs", s.uiLogs)
 	mux.HandleFunc("POST /ui/vault", s.uiVault)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
@@ -467,6 +472,60 @@ func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 	s.note("snippet", "snippet deleted", "", "", "")
+}
+
+func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
+	nbs, err := s.store.ListNotebooks()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, nbs)
+}
+
+func (s *Server) upsertNotebook(w http.ResponseWriter, r *http.Request) {
+	var nb store.Notebook
+	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid notebook payload")
+		return
+	}
+	nb.ID = ""
+	saved, err := s.store.UpsertNotebook(nb)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, saved)
+	s.note("notebook", "notebook created: "+saved.Name, "", "", "")
+}
+
+func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
+	var nb store.Notebook
+	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid notebook payload")
+		return
+	}
+	nb.ID = r.PathValue("id")
+	saved, err := s.store.UpsertNotebook(nb)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, saved)
+	s.note("notebook", "notebook updated: "+saved.Name, "", "", "")
+}
+
+func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteNotebook(r.PathValue("id")); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "notebook not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+	s.note("notebook", "notebook deleted", "", "", "")
 }
 
 func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {

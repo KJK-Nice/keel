@@ -40,6 +40,7 @@ func (s *Server) pageProps(r *http.Request) ui.PageProps {
 	p.Hosts, _ = s.store.ListHosts()
 	p.Identities, _ = s.store.ListIdentities()
 	p.Snippets, _ = s.store.ListSnippets()
+	p.Notebooks, _ = s.store.ListNotebooks()
 	if s.tunnels != nil {
 		p.Tunnels = s.tunnels.List()
 	} else if saved, err := s.store.ListTunnels(); err == nil {
@@ -78,6 +79,10 @@ func (s *Server) uiTunnels(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) uiSnippets(w http.ResponseWriter, r *http.Request) {
 	writeTempl(w, r, ui.SnippetList(s.pageProps(r)))
+}
+
+func (s *Server) uiNotebooks(w http.ResponseWriter, r *http.Request) {
+	writeTempl(w, r, ui.NotebookList(s.pageProps(r)))
 }
 
 func (s *Server) uiLogs(w http.ResponseWriter, r *http.Request) {

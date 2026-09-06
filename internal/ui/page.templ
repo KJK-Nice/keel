@@ -184,17 +184,17 @@ templ SessionRail() {
 			<p class="session-rail-sub lede" id="session-rail-sub">Open a session tab to see its details.</p>
 		</section>
 		<section class="session-rail-block session-rail-notes">
-			<span class="eyebrow">Notes</span>
+			<span class="eyebrow">Notebooks</span>
 			@empty.Empty() {
 				@empty.Header() {
 					@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
 						@icon.NotepadText()
 					}
 					@empty.Title() {
-						No notes yet
+						No notebooks yet
 					}
 					@empty.Description() {
-						Session notes will live here.
+						Pin a notebook or open one beside the terminal.
 					}
 				}
 			}
@@ -216,6 +216,9 @@ templ Vault(p PageProps) {
 			}
 			@vaultNav("snippets", "Snippets", false) {
 				@icon.CodeXml(icon.Props{Class: "vault-nav-icon"})
+			}
+			@vaultNav("notebooks", "Notebooks", false) {
+				@icon.NotepadText(icon.Props{Class: "vault-nav-icon"})
 			}
 			@vaultNav("logs", "Logs", false) {
 				@icon.ScrollText(icon.Props{Class: "vault-nav-icon"})
@@ -245,6 +248,7 @@ templ Vault(p PageProps) {
 			@KeychainPage(p)
 			@ForwardsPage(p)
 			@SnippetsPage(p)
+			@NotebooksPage(p)
 			@LogsPage(p)
 			@SettingsPage()
 		</div>
@@ -393,6 +397,20 @@ templ SnippetsPage(p PageProps) {
 			}
 		}
 		@SnippetList(p)
+	</section>
+}
+
+templ NotebooksPage(p PageProps) {
+	<section class="vault-page flex flex-col gap-5" id="page-notebooks" data-page="notebooks">
+		@vaultToolbar() {
+			@button.Button(button.Props{
+				ID: "btn-new-notebook",
+			}) {
+				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+				New notebook
+			}
+		}
+		@NotebookList(p)
 	</section>
 }
 

@@ -151,6 +151,22 @@ type Snippet struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// NotebookCell is source markdown or a command. Outputs live in the terminal
+// and must never be stored on the notebook document.
+type NotebookCell struct {
+	ID   string `json:"id"`
+	Body string `json:"body"`
+}
+
+type Notebook struct {
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Cells     []NotebookCell `json:"cells"`
+	Pinned    bool           `json:"pinned,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
 type persistHost struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
@@ -184,6 +200,7 @@ type persistData struct {
 	Identities []persistIdentity `json:"identities"`
 	Tunnels    []Tunnel          `json:"tunnels"`
 	Snippets   []Snippet         `json:"snippets"`
+	Notebooks  []Notebook        `json:"notebooks,omitempty"`
 	KnownHosts map[string]string `json:"knownHosts"`
 }
 
@@ -256,6 +273,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Identities []persistIdentity `json:"identities"`
 		Tunnels    []Tunnel          `json:"tunnels"`
 		Snippets   []Snippet         `json:"snippets"`
+		Notebooks  []Notebook        `json:"notebooks"`
 		KnownHosts map[string]string `json:"knownHosts"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -267,6 +285,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Identities: raw.Identities,
 		Tunnels:    raw.Tunnels,
 		Snippets:   raw.Snippets,
+		Notebooks:  raw.Notebooks,
 		KnownHosts: raw.KnownHosts,
 	}
 	if out.KnownHosts == nil {
@@ -497,7 +516,7 @@ func (s *Store) viewLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags: append([]string(nil), h.Tags...),
+		Tags:      append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -520,7 +539,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags: append([]string(nil), h.Tags...),
+		Tags:      append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -640,7 +659,7 @@ func persistFrom(h Host) persistHost {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags: append([]string(nil), h.Tags...),
+		Tags:      append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }
