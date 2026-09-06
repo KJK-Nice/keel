@@ -23,6 +23,7 @@ templ Dialogs(p PageProps) {
 	@joinDialog()
 	@hostKeyDialog()
 	@snippetDialog()
+	@notebookRenameDialog()
 	@confirmDialog()
 	@commandPalette()
 	@ptyInjectDialog()
@@ -333,6 +334,28 @@ templ snippetDialog() {
 				}
 				@button.Button(button.Props{Type: button.TypeSubmit}) {
 					Save snippet
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ notebookRenameDialog() {
+	<dialog class="modal" id="notebook-rename-modal">
+		<form id="notebook-rename-form">
+			@dialog.Header() {
+				@dialog.Title(dialog.TitleProps{ID: "notebook-rename-title"}) {
+					Rename notebook
+				}
+			}
+			<input type="hidden" name="id"/>
+			@labeledInput("notebook-rename-name", "Name", "name", "Notebook", true)
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "notebook-rename-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Rename
 				}
 			</div>
 		</form>

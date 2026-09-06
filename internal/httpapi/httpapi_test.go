@@ -827,13 +827,15 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	open := sliceJSFunc(term, "function openNotebook")
 	paint := sliceJSFunc(term, "function paintSessionRail")
 	pin := sliceJSFunc(term, "function toggleNotebookPin")
+	rename := sliceJSFunc(term, "function renameNotebook")
+	saveRename := sliceJSFunc(term, "async function saveNotebookRename")
 	paintNb := sliceJSFunc(term, "function paintNotebook")
 	mount := sliceJSFunc(term, "function mountNotebookEditor")
 	runFn := sliceJSFunc(term, "function runNotebookFence")
 	copyFn := sliceJSFunc(term, "function copyNotebookFence")
-	for _, fn := range []string{persist, open, paint, pin, create, split, insert, show, paintNb, mount, copyFn} {
+	for _, fn := range []string{persist, open, paint, pin, rename, saveRename, create, split, insert, show, paintNb, mount, copyFn} {
 		if fn == "" {
-			t.Fatal("missing notebook persist/open/pin helpers")
+			t.Fatal("missing notebook persist/open/pin/rename helpers")
 		}
 		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
 			t.Fatal("notebook persist/open/sidebar must not write the shell")
@@ -883,6 +885,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	}
 	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
 		t.Fatal("session sidebar must pin and open notebooks")
+	}
+	if !strings.Contains(term, "data-notebook-rename") || !strings.Contains(term, "function renameNotebook") {
+		t.Fatal("vault notebook cards must offer Rename that persists the title")
 	}
 	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-rail-tab") {
 		t.Fatal("right sidebar must offer Snippets and Notebooks icon tabs")
@@ -1012,10 +1017,12 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	split := sliceJSFunc(term, "function splitNotebook")
 	fresh := sliceJSFunc(term, "function newNotebook")
 	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
-	if open == "" || createTab == "" || createPane == "" || split == "" || fresh == "" || insert == "" {
+	rename := sliceJSFunc(term, "function renameNotebook")
+	saveRename := sliceJSFunc(term, "async function saveNotebookRename")
+	if open == "" || createTab == "" || createPane == "" || split == "" || fresh == "" || insert == "" || rename == "" || saveRename == "" {
 		t.Fatal("missing notebook open/create helpers")
 	}
-	for _, fn := range []string{open, createTab, createPane, split, fresh} {
+	for _, fn := range []string{open, createTab, createPane, split, fresh, rename, saveRename} {
 		if strings.Contains(fn, `toast("Open a session first")`) {
 			t.Fatal("notebook open/new must not require an active session")
 		}
@@ -1090,6 +1097,9 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	listBody, _ := io.ReadAll(listed.Body)
 	if !strings.Contains(string(listBody), `data-notebook-open`) || !strings.Contains(string(listBody), "ops") {
 		t.Fatal("vault notebook cards must be openable without a session")
+	}
+	if !strings.Contains(string(listBody), `data-notebook-rename`) || !strings.Contains(string(listBody), "Rename") {
+		t.Fatal("vault notebook cards must offer Rename")
 	}
 }
 

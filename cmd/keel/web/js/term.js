@@ -421,6 +421,8 @@
     joinForm: document.getElementById("join-form"),
     snippetModal: document.getElementById("snippet-modal"),
     snippetForm: document.getElementById("snippet-form"),
+    notebookRenameModal: document.getElementById("notebook-rename-modal"),
+    notebookRenameForm: document.getElementById("notebook-rename-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
     gate: document.getElementById("gate"),
@@ -1114,6 +1116,7 @@
               <p data-slot="card-description" class="text-muted-foreground notebook-preview truncate text-sm">${escapeHtml(preview)}</p>
             </div>
             <div class="flex items-center gap-1">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-notebook-rename="${nb.id}" title="Rename">Rename</button>
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-notebook-pin="${nb.id}" title="${nb.pinned ? "Unpin" : "Pin"}">${nb.pinned ? "Unpin" : "Pin"}</button>
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-notebook="${nb.id}" title="Remove">✕</button>
             </div>
@@ -4298,6 +4301,54 @@ Write a runbook here.
     persistNotebook(created.pane);
   }
 
+  function renameNotebook(id) {
+    const rec = notebookById(id);
+    if (!rec || !els.notebookRenameForm) return;
+    els.notebookRenameForm.reset();
+    els.notebookRenameForm.id.value = rec.id;
+    els.notebookRenameForm.name.value = rec.name || "Notebook";
+    openModal(els.notebookRenameModal);
+    requestAnimationFrame(() => {
+      const input = els.notebookRenameForm?.name;
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  async function saveNotebookRename(event) {
+    event.preventDefault();
+    const form = els.notebookRenameForm;
+    const id = form?.id?.value;
+    const rec = notebookById(id);
+    if (!rec) return;
+    const name = (form.name.value || "").trim() || "Notebook";
+    try {
+      const saved = await api(`/api/notebooks/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, cells: rec.cells, pinned: !!rec.pinned }),
+      });
+      rememberNotebook(saved);
+      for (const pane of state.panes.values()) {
+        if (isNotebookPane(pane) && pane.notebookId === id) {
+          pane.title = saved.name;
+          const tab = state.tabs.get(pane.tabId);
+          if (tab) {
+            tab.customTitle = saved.name;
+            tab.title = saved.name;
+            syncPaneChrome(tab, pane);
+          }
+          paintNotebook(pane);
+        }
+      }
+      closeModal(els.notebookRenameModal);
+      persistWorkspace();
+      paintSessionRail();
+      paintVaultNotebooks();
+    } catch (err) {
+      toast(err.message || "Could not rename notebook", true);
+    }
+  }
+
   async function toggleNotebookPin(id) {
     const rec = notebookById(id);
     if (!rec) return;
@@ -5949,6 +6000,12 @@ Write a runbook here.
         openNotebook(openNb.dataset.notebookOpen);
         return;
       }
+      const renameNb = ev.target.closest("[data-notebook-rename]");
+      if (renameNb) {
+        ev.preventDefault();
+        renameNotebook(renameNb.dataset.notebookRename);
+        return;
+      }
       const pinNb = ev.target.closest("[data-notebook-pin]");
       if (pinNb) {
         ev.preventDefault();
@@ -6060,6 +6117,7 @@ Write a runbook here.
     on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
     on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
     on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));
+    on(document.getElementById("notebook-rename-cancel"), "click", () => closeModal(els.notebookRenameModal));
     on(document.getElementById("identity-cancel"), "click", () => closeModal(els.identityModal));
     on(document.getElementById("tunnel-cancel"), "click", () => closeModal(els.tunnelModal));
     on(document.getElementById("hostkey-cancel"), "click", () => closeModal(els.hostKeyModal));
@@ -6068,6 +6126,7 @@ Write a runbook here.
       els.hostModal,
       els.quickModal,
       els.snippetModal,
+      els.notebookRenameModal,
       els.joinModal,
       els.identityModal,
       els.tunnelModal,
@@ -6138,6 +6197,7 @@ Write a runbook here.
     on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
     on(els.snippetForm, "submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
+    on(els.notebookRenameForm, "submit", (ev) => saveNotebookRename(ev).catch((err) => toast(err.message, true)));
     on(els.joinForm, "submit", (ev) => submitJoin(ev));
     on(els.hostKeyForm, "submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));
   }
