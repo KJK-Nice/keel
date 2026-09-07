@@ -1764,8 +1764,10 @@
 
   function flushPanePending(pane) {
     if (!pane?.pending?.length || !pane.term?.element) return;
-    for (const chunk of pane.pending) pane.term.write(chunk);
+    const chunks = pane.pending;
     pane.pending = [];
+    for (const chunk of chunks) pane.term.write(chunk);
+    schedulePaneInvalidate(pane);
   }
 
   function writePaneBytes(pane, data) {
@@ -1776,7 +1778,35 @@
       pane.pending.push(chunk);
       return;
     }
-    pane.term.write(chunk);
+    pane.term.write(chunk, () => schedulePaneInvalidate(pane));
+    schedulePaneInvalidate(pane);
+  }
+
+  // WKWebView often keeps a stale compositor layer for the WebGL canvas after
+  // xterm paints. Window resize already kicks Relayout/Invalidate via a dummy
+  // term.resize + refresh. PTY writes must use that same kick, without a PTY size update.
+  function invalidatePaneRender(pane) {
+    if (!isNativeWindow() || !pane?.term?.element) return;
+    try {
+      const cols = pane.term.cols;
+      const rows = pane.term.rows;
+      if (cols > 2 && rows > 1) {
+        pane.term.resize(cols - 1, rows);
+        pane.term.resize(cols, rows);
+      }
+      pane.term.refresh(0, Math.max(0, (rows || 1) - 1));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function schedulePaneInvalidate(pane) {
+    if (!isNativeWindow() || !pane || pane._invalidateQueued) return;
+    pane._invalidateQueued = true;
+    requestAnimationFrame(() => {
+      pane._invalidateQueued = false;
+      if (pane.wrap?.isConnected) invalidatePaneRender(pane);
+    });
   }
 
   function reflowPane(pane) {
@@ -1818,14 +1848,7 @@
     if (!pane?.term?.element) return;
     syncNativeSplitTheme(pane);
     reflowPane(pane);
-    if (!isNativeWindow()) return;
-    const cols = pane.term.cols;
-    const rows = pane.term.rows;
-    if (cols > 2 && rows > 1) {
-      pane.term.resize(cols - 1, rows);
-      pane.term.resize(cols, rows);
-    }
-    pane.term.refresh(0, Math.max(0, rows - 1));
+    invalidatePaneRender(pane);
   }
 
   function schedulePaneReflow(pane, tries = 12) {
@@ -5271,7 +5294,7 @@ Write a runbook here.
           }
           return;
         }
-        pane.term.write(new Uint8Array(ev2.data));
+        writePaneBytes(pane, ev2.data);
       };
     };
 
