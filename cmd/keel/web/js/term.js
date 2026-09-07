@@ -4710,33 +4710,7 @@ Write a runbook here.
   }
 
   function sendSnippet(id) {
-    const sn = state.snippets.find((s) => s.id === id);
-    if (!sn) return;
-    const pane = focusedPane();
-    if (isNotebookPane(pane)) {
-      toast("Notebooks cannot type into the shell. Use Run in terminal, then confirm.");
-      return;
-    }
-    if (!pane || !isTermPane(pane)) {
-      toast("Open a session first");
-      return;
-    }
-    const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
-    const bytes = new TextEncoder().encode(command);
-    const tab = state.tabs.get(pane.tabId);
-    const targets = tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
-    let sent = false;
-    for (const p of targets) {
-      const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p) || !isTermPane(p)) continue;
-      sendSessionBytes(p, bytes);
-      sent = true;
-    }
-    if (!sent) {
-      toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
-      return;
-    }
-    pane.term.focus();
+    return paletteRunSnippet(id);
   }
 
   function fillIdentitySelect(selected) {
@@ -6019,7 +5993,11 @@ Write a runbook here.
         return;
       }
       const run = ev.target.closest("[data-run]");
-      if (run) sendSnippet(run.dataset.run);
+      if (run) {
+        ev.preventDefault();
+        await paletteRunSnippet(run.dataset.run);
+        return;
+      }
       const editSn = ev.target.closest("[data-edit-snippet]");
       if (editSn) {
         const sn = state.snippets.find((s) => s.id === editSn.dataset.editSnippet);
