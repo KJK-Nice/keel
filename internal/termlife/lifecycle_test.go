@@ -179,6 +179,40 @@ func TestEnsurePaneTermSkipsDisconnectedWrap(t *testing.T) {
 	}
 }
 
+func TestWriteInvalidatesNativeWithoutReflow(t *testing.T) {
+	a := NewPane("a")
+	tab := NewTab(true, a)
+	PaintLayout(tab)
+	before := len(tab.Log)
+
+	WriteBytes(tab, a)
+	got := tab.Log[before:]
+	if !slices.Contains(got, "write:a") || !slices.Contains(got, "invalidate:a") {
+		t.Fatalf("PTY write must Relayout/Invalidate the native canvas, got %v", got)
+	}
+	if slices.Contains(got, "reflow:a") {
+		t.Fatal("write path must not sendResize/reflow; that is the resize observer path")
+	}
+
+	RefreshPaneRender(tab, a)
+	after := tab.Log[len(tab.Log)-2:]
+	if !orderOK(after, "reflow:a", "invalidate:a") {
+		t.Fatalf("resize path must invalidate after reflow, got %v", tab.Log)
+	}
+}
+
+func TestWriteSkipsInvalidateWhenNotNative(t *testing.T) {
+	a := NewPane("a")
+	tab := NewTab(false, a)
+	PaintLayout(tab)
+	before := len(tab.Log)
+	WriteBytes(tab, a)
+	got := tab.Log[before:]
+	if slices.Contains(got, "invalidate:a") {
+		t.Fatal("browser compositor does not need the native dummy-resize kick")
+	}
+}
+
 func orderOK(log []string, steps ...string) bool {
 	last := -1
 	for _, step := range steps {

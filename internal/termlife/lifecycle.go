@@ -192,6 +192,38 @@ func PaintLayout(tab *Tab) {
 	}
 }
 
+// RefreshPaneRender is the resize observer path: reflow (PTY resize) then the
+// native compositor invalidate. WriteBytes must only do the invalidate.
+func RefreshPaneRender(tab *Tab, pane *Pane) {
+	if pane == nil || pane.Term == nil || !pane.Term.Element {
+		return
+	}
+	tab.note("reflow:" + pane.ID)
+	InvalidateNative(tab, pane)
+}
+
+func WriteBytes(tab *Tab, pane *Pane) {
+	if pane == nil || pane.Term == nil {
+		return
+	}
+	tab.note("write:" + pane.ID)
+	ScheduleInvalidate(tab, pane)
+}
+
+func ScheduleInvalidate(tab *Tab, pane *Pane) {
+	if !tab.Native || pane == nil || pane.Term == nil || !pane.Term.Element {
+		return
+	}
+	InvalidateNative(tab, pane)
+}
+
+func InvalidateNative(tab *Tab, pane *Pane) {
+	if !tab.Native || pane == nil || pane.Term == nil || !pane.Term.Element {
+		return
+	}
+	tab.note("invalidate:" + pane.ID)
+}
+
 func DisposePane(tab *Tab, pane *Pane) {
 	DropWebGL(tab, pane)
 	if pane.Term != nil {

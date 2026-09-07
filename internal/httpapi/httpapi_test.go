@@ -2102,6 +2102,34 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), "function attachWebgl(term) {\n    if (isNativeWindow()) return;") {
 		t.Fatal("native window must still load WebGL so block glyphs fill the cell")
 	}
+	writeFn := sliceJSFunc(string(termBody), "function writePaneBytes")
+	invFn := sliceJSFunc(string(termBody), "function invalidatePaneRender")
+	schedFn := sliceJSFunc(string(termBody), "function schedulePaneInvalidate")
+	refreshFn := sliceJSFunc(string(termBody), "function refreshPaneRender")
+	if writeFn == "" || invFn == "" || schedFn == "" || refreshFn == "" {
+		t.Fatal("PTY write must share the native Relayout/Invalidate kick used on resize")
+	}
+	if !strings.Contains(writeFn, "schedulePaneInvalidate") {
+		t.Fatal("writePaneBytes must schedule the same native invalidate as window resize")
+	}
+	if strings.Contains(writeFn, "sendResize") || strings.Contains(invFn, "sendResize") || strings.Contains(schedFn, "sendResize") {
+		t.Fatal("write/invalidate must not sendResize; Relayout is local to the canvas")
+	}
+	if !strings.Contains(invFn, "cols - 1") || !strings.Contains(invFn, "pane.term.refresh") {
+		t.Fatal("invalidatePaneRender must dummy-resize then refresh like the old resize path")
+	}
+	if !strings.Contains(invFn, "isNativeWindow()") {
+		t.Fatal("compositor invalidate is a WKWebView kick, not a browser-fit")
+	}
+	if !strings.Contains(refreshFn, "invalidatePaneRender") || !strings.Contains(refreshFn, "reflowPane") {
+		t.Fatal("resize observer path must still reflow then invalidate")
+	}
+	if !strings.Contains(schedFn, "requestAnimationFrame") {
+		t.Fatal("PTY writes must coalesce invalidates per frame")
+	}
+	if !strings.Contains(string(termBody), "writePaneBytes(pane, ev2.data)") {
+		t.Fatal("remote PTY bytes must go through writePaneBytes so they invalidate too")
+	}
 	if !strings.Contains(string(cssBody), ".term-stage") ||
 		!strings.Contains(string(cssBody), ".term-tab.is-active { visibility: visible") {
 		t.Fatal("keel.css must keep inactive terminals visible to the compositor so WebGL contexts survive")
