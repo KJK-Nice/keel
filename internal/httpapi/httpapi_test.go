@@ -752,6 +752,86 @@ func TestOpenSessionRailKeepsTermKeys(t *testing.T) {
 	}
 }
 
+func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+
+	if strings.Contains(term, "approved: true") {
+		t.Fatal("client must not forge approved:true; #45 nonce is the only Inject grant")
+	}
+
+	send := sliceJSFunc(term, "function sendSnippet")
+	if send == "" {
+		t.Fatal("missing sendSnippet")
+	}
+	if strings.Contains(send, "sendSessionBytes") {
+		t.Fatal("sendSnippet must not silent-Write live websocket binary")
+	}
+	if !strings.Contains(send, "paletteRunSnippet") {
+		t.Fatal("sendSnippet must reuse paletteRunSnippet")
+	}
+
+	run := sliceJSFunc(term, "async function paletteRunSnippet")
+	if run == "" {
+		t.Fatal("missing paletteRunSnippet")
+	}
+	approveAt := strings.Index(run, "await approveBeforeType")
+	injAt := strings.Index(run, "sendApprovedInject")
+	if approveAt < 0 || injAt < 0 || approveAt > injAt {
+		t.Fatal("snippet run must await approveBeforeType before nonce Inject")
+	}
+	if !strings.Contains(run, "if (!ok) return") {
+		t.Fatal("snippet run must abort when Confirm is cancelled")
+	}
+	if strings.Contains(run, "sendSessionBytes") || strings.Contains(run, "sendSnippet") {
+		t.Fatal("paletteRunSnippet must not silent-Write or recurse through sendSnippet")
+	}
+
+	inj := sliceJSFunc(term, "function sendApprovedInject")
+	if inj == "" || strings.Contains(inj, "sendSessionBytes") {
+		t.Fatal("approved inject must not send live websocket binary")
+	}
+	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") {
+		t.Fatal("approved inject must use a server nonce, not client approved:true")
+	}
+	if !strings.Contains(term, `type: "inject-challenge"`) {
+		t.Fatal("snippet inject must request a server inject-challenge")
+	}
+
+	hit := strings.Index(term, `closest("[data-run]")`)
+	if hit < 0 {
+		t.Fatal("missing vault [data-run] snippet click handler")
+	}
+	chunk := term[hit:]
+	if i := strings.Index(chunk, "const editSn"); i > 0 {
+		chunk = chunk[:i]
+	}
+	if strings.Contains(chunk, "sendSessionBytes") {
+		t.Fatal("[data-run] must not silent-Write")
+	}
+	if !strings.Contains(chunk, "paletteRunSnippet") {
+		t.Fatal("[data-run] must go through paletteRunSnippet Confirm → nonce Inject")
+	}
+
+	rail := strings.Index(term, `closest("[data-snippet-run]")`)
+	if rail < 0 {
+		t.Fatal("missing rail [data-snippet-run] handler")
+	}
+	railChunk := term[rail:]
+	if i := strings.Index(railChunk, "});"); i > 0 {
+		railChunk = railChunk[:i]
+	}
+	if strings.Contains(railChunk, "sendSessionBytes") || strings.Contains(railChunk, "sendSnippet") {
+		t.Fatal("rail snippet Run must not silent-Write")
+	}
+	if !strings.Contains(railChunk, "paletteRunSnippet") {
+		t.Fatal("rail snippet Run must go through paletteRunSnippet")
+	}
+}
+
 func sliceJSFunc(src, sig string) string {
 	start := strings.Index(src, sig)
 	if start < 0 {
