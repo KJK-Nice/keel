@@ -664,12 +664,12 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	if strings.Count(term, "function ptyWritesBlocked") != 1 {
 		t.Fatal("ptyWritesBlocked must be a single merged implementation")
 	}
-	if !strings.Contains(term, "sessionRailOpen() || state.openModal || ptyInjectWaiter") ||
+	if !strings.Contains(term, "sessionRailFocused() || state.openModal || ptyInjectWaiter") ||
 		!strings.Contains(term, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("ptyWritesBlocked must OR the session rail with palette/inject chrome holds")
+		t.Fatal("ptyWritesBlocked must OR rail keyboard focus with palette/inject chrome holds")
 	}
-	if !strings.Contains(term, `els.ptyInjectModal?.open || sessionRailOpen()`) {
-		t.Fatal("session rail open must SetFocus SurfaceChrome; close restores term when palette/inject are gone")
+	if !strings.Contains(term, `els.ptyInjectModal?.open || sessionRailFocused()`) {
+		t.Fatal("session rail focus must SetFocus SurfaceChrome; term focus restores SurfaceTerm while the rail stays open")
 	}
 	if !strings.Contains(term, "if (ptyWritesBlocked()) return") {
 		t.Fatal("xterm onData must not Write while the session rail or inject chrome owns focus")
@@ -680,6 +680,75 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	}
 	if strings.Contains(paint, `type: "inject"`) || strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") {
 		t.Fatal("session sidebar chrome must not Inject or write a live PTY")
+	}
+}
+
+func TestOpenSessionRailKeepsTermKeys(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+
+	focused := sliceJSFunc(term, "function sessionRailFocused")
+	if focused == "" {
+		t.Fatal("missing sessionRailFocused")
+	}
+	if !strings.Contains(focused, `"session-rail"`) || !strings.Contains(focused, "contains") || !strings.Contains(focused, "activeElement") {
+		t.Fatal("sessionRailFocused must be DOM focus inside #session-rail, not sidebar visibility")
+	}
+
+	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
+	if blocked == "" {
+		t.Fatal("missing ptyWritesBlocked")
+	}
+	if strings.Contains(blocked, "sessionRailOpen()") {
+		t.Fatal("ptyWritesBlocked must not OR rail-open alone; that eats term keys while the rail stays visible")
+	}
+	if !strings.Contains(blocked, "sessionRailFocused()") || !strings.Contains(blocked, "state.openModal") ||
+		!strings.Contains(blocked, "ptyInjectWaiter") || !strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") {
+		t.Fatal("only rail/chrome focus (plus palette/inject/notebook/CLI holds) may block silent Writes")
+	}
+
+	wire := sliceJSFunc(term, "function wirePaneTerminal")
+	if !strings.Contains(wire, "if (ptyWritesBlocked()) return") || !strings.Contains(wire, "sendSessionBytes") {
+		t.Fatal("rail open + term focused must still reach sendSessionBytes; chrome never silent-Writes")
+	}
+
+	setRail := sliceJSFunc(term, "function setSessionRail")
+	restore := sliceJSFunc(term, "function restoreTermKeyboard")
+	release := sliceJSFunc(term, "function releaseSessionRailFocus")
+	if setRail == "" || restore == "" || release == "" {
+		t.Fatal("missing setSessionRail / restoreTermKeyboard / releaseSessionRailFocus")
+	}
+	if strings.Contains(setRail, `getElementById("session-rail")?.focus`) || strings.Contains(setRail, `setSessionSurface("chrome")`) {
+		t.Fatal("opening the rail must not steal term focus or permanently pin SurfaceChrome")
+	}
+	if !strings.Contains(setRail, "restoreTermKeyboard") || !strings.Contains(restore, "term?.focus") {
+		t.Fatal("opening the rail must restore terminal keyboard so keys reach the PTY")
+	}
+
+	mark := sliceJSFunc(term, "function markFocusedPane")
+	if !strings.Contains(mark, "releaseSessionRailFocus") || !strings.Contains(mark, "syncSessionSurface") ||
+		!strings.Contains(mark, "term?.focus") {
+		t.Fatal("click/focus back on the term must drop rail focus and sync SurfaceTerm while the rail stays open")
+	}
+
+	sync := sliceJSFunc(term, "function syncSessionSurface")
+	if strings.Contains(sync, "sessionRailOpen()") {
+		t.Fatal("syncSessionSurface must not send SurfaceChrome just because the rail is visible")
+	}
+	if !strings.Contains(sync, "sessionRailFocused()") || !strings.Contains(sync, `setSessionSurface("chrome")`) ||
+		!strings.Contains(sync, `setSessionSurface("term")`) {
+		t.Fatal("focus follows the active surface: rail/chrome focus → SurfaceChrome, else SurfaceTerm")
+	}
+	if strings.Contains(term, "sessionRailOpen() || isNotebookPane") {
+		t.Fatal("WS focus handshake must use rail focus, not rail visibility")
+	}
+
+	paint := sliceJSFunc(term, "function paintSessionRail")
+	if strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") || strings.Contains(paint, `type: "inject"`) {
+		t.Fatal("session sidebar chrome must not Write or Inject a live PTY")
 	}
 }
 
@@ -724,13 +793,14 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if blocked == "" {
 		t.Fatal("missing ptyWritesBlocked")
 	}
-	if !strings.Contains(blocked, "sessionRailOpen() ||") ||
+	if !strings.Contains(blocked, "sessionRailFocused() ||") ||
+		strings.Contains(blocked, "sessionRailOpen()") ||
 		!strings.Contains(blocked, "state.openModal") ||
 		!strings.Contains(blocked, "ptyInjectWaiter") ||
 		!strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") ||
 		!strings.Contains(blocked, "isNotebookPane(focusedPane())") ||
 		!strings.Contains(blocked, "termInputOpen()") {
-		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/rail/inject chrome holds")
+		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/rail-focus/inject chrome holds")
 	}
 
 	create := sliceJSFunc(term, "function createNotebookPane")
@@ -1762,7 +1832,7 @@ func TestHostListDuplicateAction(t *testing.T) {
 	if !strings.Contains(term, `data-duplicate="${h.id}"`) || !strings.Contains(term, "/duplicate") {
 		t.Fatal("term.js must duplicate hosts through the vault API")
 	}
-	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sessionRailOpen() || state.openModal || ptyInjectWaiter") {
+	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sessionRailFocused() || state.openModal || ptyInjectWaiter") {
 		t.Fatal("duplicate-host must not replace ptyWritesBlocked")
 	}
 }
@@ -2445,8 +2515,8 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "function toggleSessionRail") ||
 		!strings.Contains(string(termBody), "function paintSessionRail") ||
 		!strings.Contains(string(termBody), "function setSessionSurface") ||
-		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sessionRailOpen()`) ||
-		!strings.Contains(string(termBody), `sessionRailOpen() || state.openModal || ptyInjectWaiter`) ||
+		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sessionRailFocused()`) ||
+		!strings.Contains(string(termBody), `sessionRailFocused() || state.openModal || ptyInjectWaiter`) ||
 		!strings.Contains(string(termBody), `key === "b"`) {
 		t.Fatal("term.js must open and close the right session sidebar")
 	}
