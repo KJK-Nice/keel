@@ -142,6 +142,12 @@
     return state.ui.sidebar === true;
   }
 
+  function sessionRailFocused() {
+    const rail = document.getElementById("session-rail");
+    const ae = document.activeElement;
+    return !!(rail && ae && rail.contains(ae));
+  }
+
   function applySessionRail() {
     const open = sessionRailOpen();
     document.documentElement.dataset.sessionRail = open ? "open" : "closed";
@@ -161,13 +167,12 @@
     state.ui.sidebar = next;
     saveUiPrefs();
     applySessionRail();
-    if (next) {
-      focusedPane()?.term?.blur?.();
-      document.getElementById("session-rail")?.focus({ preventScroll: true });
-    } else {
+    if (!next && sessionRailFocused()) {
+      document.activeElement?.blur?.();
       document.getElementById("session-rail")?.blur?.();
-      if (!termInputOpen(focusedPane())) focusedPane()?.term?.focus?.();
     }
+    const pane = focusedPane();
+    if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus?.();
     syncSessionSurface();
     fitVisiblePanes();
   }
@@ -2619,7 +2624,7 @@
   }
 
   function ptyWritesBlocked() {
-    return !!(sessionRailOpen() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
+    return !!(sessionRailFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
   }
 
   function paletteQuery() {
@@ -2901,7 +2906,7 @@
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sessionRailFocused() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -3671,7 +3676,7 @@
     pane.ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
-      else if (els.ptyInjectModal?.open || sessionRailOpen() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+      else if (els.ptyInjectModal?.open || sessionRailFocused() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
     });
     let live = !opts.skipSnapshot;
 
@@ -5707,6 +5712,9 @@ Write a runbook here.
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
     on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
     on(document.getElementById("session-rail"), "focusin", () => syncSessionSurface());
+    on(document.getElementById("session-rail"), "focusout", () => {
+      requestAnimationFrame(() => syncSessionSurface());
+    });
     on(document.getElementById("session-rail"), "click", (ev) => {
       const railBtn = ev.target.closest("[data-rail-tab]");
       if (railBtn) {
