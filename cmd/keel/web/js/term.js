@@ -148,6 +148,18 @@
     return !!(rail && ae && rail.contains(ae));
   }
 
+  function releaseSessionRailFocus() {
+    if (!sessionRailFocused()) return;
+    document.activeElement?.blur?.();
+    document.getElementById("session-rail")?.blur?.();
+  }
+
+  function restoreTermKeyboard() {
+    releaseSessionRailFocus();
+    const pane = focusedPane();
+    if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus?.();
+  }
+
   function applySessionRail() {
     const open = sessionRailOpen();
     document.documentElement.dataset.sessionRail = open ? "open" : "closed";
@@ -167,12 +179,7 @@
     state.ui.sidebar = next;
     saveUiPrefs();
     applySessionRail();
-    if (!next && sessionRailFocused()) {
-      document.activeElement?.blur?.();
-      document.getElementById("session-rail")?.blur?.();
-    }
-    const pane = focusedPane();
-    if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus?.();
+    restoreTermKeyboard();
     syncSessionSurface();
     fitVisiblePanes();
   }
@@ -1755,7 +1762,10 @@
       else els.barStatus.textContent = `${statusPane.subtitle} · following`;
     }
     renderControl(pane);
-    if (!isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus();
+    if (!isNotebookPane(pane) && !termInputOpen(pane)) {
+      releaseSessionRailFocus();
+      pane.term?.focus();
+    }
     syncSessionSurface();
   }
 

@@ -703,27 +703,35 @@ func TestOpenSessionRailKeepsTermKeys(t *testing.T) {
 		t.Fatal("missing ptyWritesBlocked")
 	}
 	if strings.Contains(blocked, "sessionRailOpen()") {
-		t.Fatal("ptyWritesBlocked must not treat a visible rail as chrome; term keys must work while the rail stays open")
+		t.Fatal("ptyWritesBlocked must not OR rail-open alone; that eats term keys while the rail stays visible")
 	}
 	if !strings.Contains(blocked, "sessionRailFocused()") || !strings.Contains(blocked, "state.openModal") ||
 		!strings.Contains(blocked, "ptyInjectWaiter") || !strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("ptyWritesBlocked must still block writes while the rail owns keyboard focus")
+		t.Fatal("only rail/chrome focus (plus palette/inject/notebook/CLI holds) may block silent Writes")
 	}
 
 	wire := sliceJSFunc(term, "function wirePaneTerminal")
 	if !strings.Contains(wire, "if (ptyWritesBlocked()) return") || !strings.Contains(wire, "sendSessionBytes") {
-		t.Fatal("xterm onData must still reach sendSessionBytes when ptyWritesBlocked is false")
+		t.Fatal("rail open + term focused must still reach sendSessionBytes; chrome never silent-Writes")
 	}
 
 	setRail := sliceJSFunc(term, "function setSessionRail")
-	if setRail == "" {
-		t.Fatal("missing setSessionRail")
+	restore := sliceJSFunc(term, "function restoreTermKeyboard")
+	release := sliceJSFunc(term, "function releaseSessionRailFocus")
+	if setRail == "" || restore == "" || release == "" {
+		t.Fatal("missing setSessionRail / restoreTermKeyboard / releaseSessionRailFocus")
 	}
-	if strings.Contains(setRail, `getElementById("session-rail")?.focus`) {
-		t.Fatal("opening the rail must not steal terminal focus onto #session-rail")
+	if strings.Contains(setRail, `getElementById("session-rail")?.focus`) || strings.Contains(setRail, `setSessionSurface("chrome")`) {
+		t.Fatal("opening the rail must not steal term focus or permanently pin SurfaceChrome")
 	}
-	if !strings.Contains(setRail, "term?.focus") {
-		t.Fatal("setSessionRail must restore terminal focus so keystrokes reach SurfaceTerm")
+	if !strings.Contains(setRail, "restoreTermKeyboard") || !strings.Contains(restore, "term?.focus") {
+		t.Fatal("opening the rail must restore terminal keyboard so keys reach the PTY")
+	}
+
+	mark := sliceJSFunc(term, "function markFocusedPane")
+	if !strings.Contains(mark, "releaseSessionRailFocus") || !strings.Contains(mark, "syncSessionSurface") ||
+		!strings.Contains(mark, "term?.focus") {
+		t.Fatal("click/focus back on the term must drop rail focus and sync SurfaceTerm while the rail stays open")
 	}
 
 	sync := sliceJSFunc(term, "function syncSessionSurface")
@@ -732,7 +740,7 @@ func TestOpenSessionRailKeepsTermKeys(t *testing.T) {
 	}
 	if !strings.Contains(sync, "sessionRailFocused()") || !strings.Contains(sync, `setSessionSurface("chrome")`) ||
 		!strings.Contains(sync, `setSessionSurface("term")`) {
-		t.Fatal("syncSessionSurface must send SurfaceChrome only while the rail is focused, else SurfaceTerm")
+		t.Fatal("focus follows the active surface: rail/chrome focus → SurfaceChrome, else SurfaceTerm")
 	}
 	if strings.Contains(term, "sessionRailOpen() || isNotebookPane") {
 		t.Fatal("WS focus handshake must use rail focus, not rail visibility")
