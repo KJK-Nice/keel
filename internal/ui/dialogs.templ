@@ -17,6 +17,7 @@ import (
 templ Dialogs(p PageProps) {
 	<div class="modal-scrim" id="modal-scrim"></div>
 	@hostDialog()
+	@groupDialog()
 	@identityDialog()
 	@tunnelDialog()
 	@quickDialog()
@@ -118,7 +119,7 @@ templ hostDialog() {
 			}
 			<input type="hidden" name="id"/>
 			@labeledInput("host-name", "Label", "name", "prod-api", true)
-			@labeledInput("host-group", "Group", "group", "Production", false)
+			@labeledSelect("host-parent-group", "Parent Group", "groupId", "No group", "", false, []string{""}, []string{"No group"})
 			@labeledInput("host-tags", "Tags", "tags", "prod, gpu", false)
 			<div class="grid-2">
 				@labeledInput("host-address", "Hostname / IP", "address", "10.0.0.12", false)
@@ -170,6 +171,32 @@ templ hostDialog() {
 				}
 				@button.Button(button.Props{Type: button.TypeSubmit}) {
 					Save host
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ groupDialog() {
+	<dialog class="modal" id="group-modal">
+		<form id="group-form">
+			@dialog.Header() {
+				@dialog.Title(dialog.TitleProps{ID: "group-modal-title"}) {
+					New group
+				}
+				@dialog.Description() {
+					Label plus an optional parent. Hosts in this group and its subgroups show on the Hosts screen.
+				}
+			}
+			<input type="hidden" name="id"/>
+			@labeledInput("group-label", "Label", "name", "Production", true)
+			@labeledSelect("group-parent", "Parent Group", "parentId", "No parent", "", false, []string{""}, []string{"No parent"})
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "group-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Cancel
+				}
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					Save group
 				}
 			</div>
 		</form>

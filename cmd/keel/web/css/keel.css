@@ -437,9 +437,16 @@ html[data-vault-view="list"] .tile-grid {
   outline: 2px dashed color-mix(in srgb, var(--primary) 70%, transparent);
   outline-offset: 1px;
 }
-.group-tree-heading [data-group-title] input {
-  width: 100%;
-  min-width: 8rem;
+.host-tile.is-selected {
+  outline: 2px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  outline-offset: 1px;
+}
+.group-focus-path button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
 }
 html[data-vault-view="card"] [data-vault-view-btn="card"],
 html[data-vault-view="list"] [data-vault-view-btn="list"] {

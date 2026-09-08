@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
+	mux.HandleFunc("POST /api/hosts/move", s.moveHosts)
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
 	mux.HandleFunc("GET /api/groups", s.listGroups)
 	mux.HandleFunc("POST /api/groups", s.upsertGroup)
@@ -392,6 +393,25 @@ func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
 	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
+}
+
+type moveHostsReq struct {
+	IDs     []string `json:"ids"`
+	GroupID string   `json:"groupId"`
+}
+
+func (s *Server) moveHosts(w http.ResponseWriter, r *http.Request) {
+	var req moveHostsReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid move payload")
+		return
+	}
+	if err := s.store.AssignHostsGroup(req.IDs, req.GroupID); err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+	s.note("group", "hosts moved", "", "", "")
 }
 
 func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {

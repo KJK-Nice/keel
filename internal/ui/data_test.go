@@ -66,7 +66,7 @@ func TestNestGroupTreeParentsAndCounts(t *testing.T) {
 		{ID: "h2", Name: "gpu", Group: "labs", GroupID: "labs", Address: "10.0.0.9", Tags: []string{"ml"}},
 		{ID: "h3", Name: "solo", Address: "10.0.0.8"},
 	}
-	tree := nestGroupTree(groups, hosts, "")
+	tree := nestGroupTree(groups, hosts, "", "")
 	if len(tree) != 2 {
 		t.Fatalf("roots = %d", len(tree))
 	}
@@ -88,9 +88,25 @@ func TestNestGroupTreeParentsAndCounts(t *testing.T) {
 	if n := len(ungroupedHosts(hosts, groups, "")); n != 1 {
 		t.Fatalf("ungrouped = %d", n)
 	}
-	filtered := nestGroupTree(groups, hosts, "work")
+	filtered := nestGroupTree(groups, hosts, "work", "")
 	if len(filtered) != 1 || filtered[0].Group.ID != "root" || filtered[0].Count != 1 {
 		t.Fatalf("ancestor query = %+v", filtered)
+	}
+	all := hostsInCurrentAndSubgroups(groups, hosts, "", "")
+	if len(all) != 3 {
+		t.Fatalf("root hosts (current+subgroups) = %d", len(all))
+	}
+	workHosts := hostsInCurrentAndSubgroups(groups, hosts, "root", "")
+	if len(workHosts) != 1 || workHosts[0].ID != "h1" {
+		t.Fatalf("work subtree = %+v", workHosts)
+	}
+	byTag := hostsInCurrentAndSubgroups(groups, hosts, "", "ml")
+	if len(byTag) != 1 || byTag[0].ID != "h2" {
+		t.Fatalf("tags stay orthogonal: %+v", byTag)
+	}
+	path := groupFocusPath(groups, "prod")
+	if len(path) != 2 || path[0].ID != "root" || path[1].ID != "prod" {
+		t.Fatalf("focus path = %+v", path)
 	}
 	if vaultTreeEmpty(tree, ungroupedHosts(hosts, groups, "")) {
 		t.Fatal("tree should not be empty")

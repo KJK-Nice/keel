@@ -2020,7 +2020,29 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 		t.Fatal("vault tree missing expand/create/rename/drag hooks")
 	}
 	if !strings.Contains(html, `data-group-filter="prod"`) || !strings.Contains(html, `data-connect="`+host.ID+`"`) {
-		t.Fatal("nested host should stay under its folder with group filter")
+		t.Fatal("nested host should stay visible on the Hosts screen (current group + subgroups)")
+	}
+	if !strings.Contains(html, `data-group-open="`+child.ID+`"`) {
+		t.Fatal("group cards should drill into a parent group")
+	}
+
+	other, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"db","address":"10.0.0.9","username":"ubuntu","authType":"password","password":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Body.Close()
+	var db store.Host
+	if err := json.NewDecoder(other.Body).Decode(&db); err != nil {
+		t.Fatal(err)
+	}
+	move, err := http.Post(srv.URL+"/api/hosts/move", "application/json", strings.NewReader(`{"ids":["`+host.ID+`","`+db.ID+`"],"groupId":"`+root.ID+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer move.Body.Close()
+	if move.StatusCode != http.StatusNoContent {
+		b, _ := io.ReadAll(move.Body)
+		t.Fatalf("move %d %s", move.StatusCode, b)
 	}
 
 	js, err := http.Get(srv.URL + "/js/term.js")
@@ -2033,13 +2055,31 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	for _, want := range []string{
 		"const MAX_GROUP_DEPTH = 8",
 		"function nestGroupTreeJS",
+		"function hostsInCurrentAndSubgroups",
+		"function assignHostsGroup",
 		"data-group-rename",
 		"data-drag-group",
 		"/api/groups",
+		"/api/hosts/move",
 		"parentId",
+		"host-parent-group",
+		"kind: \"hosts\"",
 	} {
 		if !strings.Contains(term, want) {
 			t.Fatalf("term.js missing %q", want)
+		}
+	}
+	for _, fn := range []string{"async function assignHostsGroup", "async function saveGroup"} {
+		i := strings.Index(term, fn)
+		if i < 0 {
+			t.Fatalf("missing %s", fn)
+		}
+		chunk := term[i:]
+		if n := 900; len(chunk) > n {
+			chunk = chunk[:n]
+		}
+		if strings.Contains(chunk, "inject") || strings.Contains(chunk, "sendSnippet") || strings.Contains(chunk, "ptyWritesBlocked") {
+			t.Fatalf("%s must not touch PTY/Inject", fn)
 		}
 	}
 }
@@ -2664,6 +2704,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) ||
 		!strings.Contains(string(body), `id="btn-refresh-logs"`) {
 		t.Fatal("index missing vault action buttons")
+	}
+	if !strings.Contains(string(body), `id="group-modal"`) || !strings.Contains(string(body), `id="host-parent-group"`) ||
+		!strings.Contains(string(body), `id="btn-new-group"`) {
+		t.Fatal("index missing Parent Group dialogs")
 	}
 	snip, err := http.Get(srv.URL + "/ui/snippets")
 	if err != nil {

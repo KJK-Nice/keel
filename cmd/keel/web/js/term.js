@@ -27,6 +27,8 @@
   const state = {
     hosts: [],
     groups: [],
+    groupFocus: "",
+    selectedHostIds: [],
     snippets: [],
     notebooks: [],
     identities: [],
@@ -424,6 +426,8 @@
     modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
     hostForm: document.getElementById("host-form"),
+    groupModal: document.getElementById("group-modal"),
+    groupForm: document.getElementById("group-form"),
     identityModal: document.getElementById("identity-modal"),
     identityForm: document.getElementById("identity-form"),
     tunnelModal: document.getElementById("tunnel-modal"),
@@ -458,6 +462,7 @@
       datastar: JSON.stringify({
         query: state.query || "",
         logFilter: state.logFilter || "",
+        groupFocus: state.groupFocus || "",
       }),
     }).toString();
   }
@@ -474,7 +479,10 @@
       const next = tpl.content.querySelector("#" + CSS.escape(id));
       if (!next) return false;
       current.innerHTML = next.innerHTML;
-      if (id === "host-list") syncGroupTree();
+      if (id === "host-list") {
+        syncGroupTree();
+        syncHostSelection();
+      }
       return true;
     } catch {
       return false;
@@ -508,6 +516,17 @@
     trigger.removeAttribute("data-placeholder");
     const input = trigger.previousElementSibling;
     if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  }
+
+  function fieldValue(form, name, triggerId) {
+    const el = form?.elements?.[name];
+    if (el && typeof el.value === "string") return el.value;
+    const trigger = document.getElementById(triggerId);
+    const input = trigger?.previousElementSibling;
+    if (input?.hasAttribute?.("data-tui-select-input") && typeof input.value === "string") return input.value;
+    const contentId = trigger?.getAttribute("aria-controls");
+    const selected = contentId && document.getElementById(contentId)?.querySelector("[data-selected]");
+    return selected?.getAttribute("data-tui-select-value") || "";
   }
 
   function fillSelectItems(triggerId, entries, selected, emptyLabel) {
@@ -758,8 +777,9 @@
     return false;
   }
 
-  function nestGroupTreeJS(query) {
+  function nestGroupTreeJS(query, parentId) {
     const q = String(query || "").trim().toLowerCase();
+    const root = String(parentId || "");
     const byParent = new Map();
     for (const g of state.groups || []) {
       const parent = g.parentId || "";
@@ -767,18 +787,14 @@
       byParent.get(parent).push(g);
     }
     const hostsBy = new Map();
-    const ungrouped = [];
     for (const h of state.hosts || []) {
       if (q && !hostSearchHay(h).includes(q)) continue;
-      if (!h.groupId) {
-        ungrouped.push(h);
-        continue;
-      }
+      if (!h.groupId) continue;
       if (!hostsBy.has(h.groupId)) hostsBy.set(h.groupId, []);
       hostsBy.get(h.groupId).push(h);
     }
-    function build(parentId, depth) {
-      const kids = [...(byParent.get(parentId) || [])].sort((a, b) =>
+    function build(pid, depth) {
+      const kids = [...(byParent.get(pid) || [])].sort((a, b) =>
         String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" })
       );
       const out = [];
@@ -792,7 +808,97 @@
       }
       return out;
     }
-    return { tree: build("", 1), ungrouped };
+    return build(root, 1);
+  }
+
+  function subtreeGroupIds(root) {
+    if (!root) return null;
+    const ids = new Set([root]);
+    const walk = (id) => {
+      for (const g of state.groups || []) {
+        if (g.parentId === id && !ids.has(g.id)) {
+          ids.add(g.id);
+          walk(g.id);
+        }
+      }
+    };
+    walk(root);
+    return ids;
+  }
+
+  function hostsInCurrentAndSubgroups(focus, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const allow = subtreeGroupIds(focus);
+    return (state.hosts || []).filter((h) => {
+      if (allow && !allow.has(h.groupId || "")) return false;
+      if (q && !hostSearchHay(h).includes(q)) return false;
+      return true;
+    });
+  }
+
+  function groupOptionEntries(excludeId) {
+    const skip = new Set();
+    if (excludeId) {
+      skip.add(excludeId);
+      const walk = (id) => {
+        for (const g of state.groups || []) {
+          if (g.parentId === id && !skip.has(g.id)) {
+            skip.add(g.id);
+            walk(g.id);
+          }
+        }
+      };
+      walk(excludeId);
+    }
+    return (state.groups || [])
+      .filter((g) => !skip.has(g.id))
+      .map((g) => ({ value: g.id, label: groupOptionLabel(g) }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }
+
+  function groupOptionLabel(g) {
+    const parts = [];
+    let cur = g;
+    const seen = new Set();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      parts.unshift(cur.name || "");
+      cur = groupById(cur.parentId);
+    }
+    return parts.join(" / ");
+  }
+
+  function fillParentGroupSelect(triggerId, selected, excludeId, emptyLabel) {
+    const entries = [{ value: "", label: emptyLabel || "No parent" }, ...groupOptionEntries(excludeId)];
+    fillSelectItems(triggerId, entries, selected || "", emptyLabel || "No parent");
+  }
+
+  function selectedHostSet() {
+    return new Set(state.selectedHostIds || []);
+  }
+
+  function setHostSelection(ids) {
+    state.selectedHostIds = [...new Set(ids.filter(Boolean))];
+    syncHostSelection();
+  }
+
+  function toggleHostSelect(id, additive) {
+    if (!id) return;
+    const next = selectedHostSet();
+    if (!additive) {
+      setHostSelection(next.has(id) && next.size === 1 ? [] : [id]);
+      return;
+    }
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setHostSelection([...next]);
+  }
+
+  function syncHostSelection() {
+    const selected = selectedHostSet();
+    document.querySelectorAll("[data-drag-host]").forEach((el) => {
+      el.classList.toggle("is-selected", selected.has(el.getAttribute("data-drag-host")));
+    });
   }
 
   function parseHostTags(value) {
@@ -1163,7 +1269,6 @@
   function groupFolderHTML(n) {
     const g = n.group;
     const kids = n.kids.map(groupFolderHTML).join("");
-    const hosts = n.hosts.map(hostCardHTML).join("");
     return `
       <div class="group-tree-node" data-group-id="${escapeHtml(g.id)}" data-group-drop="${escapeHtml(g.id)}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
         <div class="ring-foreground/10 bg-card text-card-foreground group-tree-heading host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" draggable="true" data-drag-group="${escapeHtml(g.id)}">
@@ -1171,7 +1276,7 @@
             <button type="button" class="group-tree-toggle tiny shrink-0 hover:bg-muted inline-flex size-6 items-center justify-center rounded-md" data-group-toggle="${escapeHtml(g.id)}" aria-label="Expand folder" aria-expanded="true">
               <span class="group-tree-chevron">${glyphSVG("chevron")}</span>
             </button>
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-group-filter="${escapeHtml(g.name)}">
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-group-filter="${escapeHtml(g.name)}" data-group-open="${escapeHtml(g.id)}">
               <div class="flex flex-row items-center gap-3">
                 ${tileGlyph("", "folder")}
                 <div class="min-w-0 flex-1">
@@ -1181,6 +1286,7 @@
               </div>
             </div>
             <div data-group-menu="${escapeHtml(g.id)}">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-edit="${escapeHtml(g.id)}" title="Edit">Edit</button>
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-new="${escapeHtml(g.id)}" title="New subgroup">+</button>
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-rename="${escapeHtml(g.id)}" title="Rename">Rename</button>
               <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-move="${escapeHtml(g.id)}" title="Move">Move</button>
@@ -1188,29 +1294,48 @@
             </div>
           </div>
         </div>
-        <div class="group-tree-children">${kids}${n.hosts.length ? `<div class="tile-grid">${hosts}</div>` : ""}</div>
+        <div class="group-tree-children">${kids}</div>
       </div>`;
   }
 
+  function groupFocusPathHTML() {
+    if (!state.groupFocus) return "";
+    const crumbs = [];
+    let cur = groupById(state.groupFocus);
+    const seen = new Set();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      crumbs.unshift(cur);
+      cur = groupById(cur.parentId);
+    }
+    const parts = [`<button type="button" class="hover:text-foreground" data-group-open="">All</button>`];
+    for (const g of crumbs) {
+      parts.push(`<span aria-hidden="true">/</span><button type="button" class="hover:text-foreground" data-group-open="${escapeHtml(g.id)}">${escapeHtml(g.name)}</button>`);
+    }
+    return `<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">${parts.join("")}</nav>`;
+  }
+
   function renderHosts() {
-    const { tree, ungrouped } = nestGroupTreeJS(state.query);
-    if (!tree.length && !ungrouped.length) {
+    const tree = nestGroupTreeJS(state.query, state.groupFocus);
+    const visible = hostsInCurrentAndSubgroups(state.groupFocus, state.query);
+    if (!tree.length && !visible.length) {
       els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
       return;
     }
-    const html = [];
+    const html = [groupFocusPathHTML()];
     if (tree.length) {
       html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="group-tree">`);
       html.push(tree.map(groupFolderHTML).join(""));
       html.push(`</div></section>`);
     }
-    if (ungrouped.length) {
+    if (visible.length) {
       html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="tile-grid">`);
-      html.push(ungrouped.map(hostCardHTML).join(""));
+      html.push(visible.map(hostCardHTML).join(""));
       html.push(`</div></section>`);
     }
     els.hostList.innerHTML = html.join("");
     syncGroupTree();
+    syncHostSelection();
   }
 
   function renderSnippets() {
@@ -4890,7 +5015,7 @@ Write a runbook here.
     form.reset();
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
-    form.group.value = host?.group || "";
+    fillParentGroupSelect("host-parent-group", host?.groupId || "", "", "No group");
     if (form.tags) form.tags.value = Array.isArray(host?.tags) ? host.tags.join(", ") : "";
     form.address.value = host?.address && host.address !== "localhost" ? host.address : host?.address || "";
     form.port.value = host?.port || 22;
@@ -4963,7 +5088,8 @@ Write a runbook here.
     const form = els.hostForm;
     const payload = {
       name: form.name.value.trim(),
-      group: form.group.value.trim(),
+      groupId: fieldValue(form, "groupId", "host-parent-group"),
+      group: "",
       tags: parseHostTags(form.tags?.value),
       address: form.address.value.trim(),
       port: Number(form.port.value || 22),
@@ -4977,10 +5103,6 @@ Write a runbook here.
       keepAliveSec: form.authType.value === "local" ? 0 : form.keepAlive?.checked ? Number(form.keepAliveSec.value || 30) : -1,
       noAutoReconnect: form.authType.value !== "local" && !form.autoReconnect?.checked,
     };
-    const existing = form.id.value ? state.hosts.find((h) => h.id === form.id.value) : null;
-    if (existing && payload.group === (existing.group || "")) {
-      payload.groupId = existing.groupId || "";
-    }
     if (form.id.value) {
       await api(`/api/hosts/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
     } else {
@@ -4991,21 +5113,66 @@ Write a runbook here.
     toast("Host saved");
   }
 
+  function openGroupForm(group, parentId) {
+    const form = els.groupForm;
+    if (!form) return;
+    form.reset();
+    form.id.value = group?.id || "";
+    form.name.value = group?.name || "";
+    const exclude = group?.id || "";
+    const selected = group ? group.parentId || "" : parentId || "";
+    fillParentGroupSelect("group-parent", selected, exclude, "No parent");
+    const title = document.getElementById("group-modal-title");
+    if (title) title.textContent = group?.id ? "Edit group" : "New group";
+    openModal(els.groupModal);
+  }
+
   async function createGroup(parentId) {
     const parent = parentId ? groupById(parentId) : null;
     if (parentId && !parent) {
-      toast("Folder not found", true);
+      toast("Group not found", true);
       return;
     }
     if (parent && groupDepth(parent.id) >= MAX_GROUP_DEPTH) {
       toast("group nest is deeper than 8", true);
       return;
     }
-    const name = window.prompt("Folder name", "Folder");
-    if (name === null || !String(name).trim()) return;
-    await api("/api/groups", { method: "POST", body: JSON.stringify({ name: String(name).trim(), parentId: parentId || "" }) });
+    openGroupForm(null, parentId || "");
+  }
+
+  function editGroup(id) {
+    const g = groupById(id);
+    if (!g) return;
+    openGroupForm(g, g.parentId || "");
+  }
+
+  async function saveGroup(event) {
+    event.preventDefault();
+    const form = els.groupForm;
+    const name = form.name.value.trim();
+    if (!name) {
+      toast("Label is required", true);
+      return;
+    }
+    const parentId = fieldValue(form, "parentId", "group-parent");
+    const id = form.id.value;
+    if (id && (parentId === id || isGroupUnder(parentId, id))) {
+      toast("group cannot nest under itself", true);
+      return;
+    }
+    if (parentId && groupDepth(parentId) + 1 + (id ? groupDescendantDepth(id) : 0) > MAX_GROUP_DEPTH) {
+      toast("group nest is deeper than 8", true);
+      return;
+    }
+    if (id) {
+      const g = groupById(id) || { id };
+      await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name, parentId }) });
+    } else {
+      await api("/api/groups", { method: "POST", body: JSON.stringify({ name, parentId }) });
+    }
+    closeModal(els.groupModal);
     await loadAll();
-    toast("Folder saved");
+    toast("Group saved");
   }
 
   async function renameGroup(id) {
@@ -5013,10 +5180,7 @@ Write a runbook here.
     if (!g) return;
     const title = document.querySelector(`[data-group-title="${CSS.escape(id)}"]`);
     if (!title) {
-      const name = window.prompt("Rename folder", g.name || "");
-      if (name === null || !String(name).trim()) return;
-      await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name: String(name).trim() }) });
-      await loadAll();
+      openGroupForm(g, g.parentId || "");
       return;
     }
     if (title.querySelector("input")) return;
@@ -5061,53 +5225,23 @@ Write a runbook here.
   async function moveGroup(id) {
     const g = groupById(id);
     if (!g) return;
-    const label = window.prompt("Move into folder (blank for top level)", groupById(g.parentId)?.name || "");
-    if (label === null) return;
-    let parentId = "";
-    const want = label.trim();
-    if (want) {
-      const parent = (state.groups || []).find((x) => x.id !== id && String(x.name || "").toLowerCase() === want.toLowerCase());
-      if (!parent) {
-        toast("Folder not found", true);
-        return;
-      }
-      if (parent.id === id || isGroupUnder(parent.id, id)) {
-        toast("group cannot nest under itself", true);
-        return;
-      }
-      if (groupDepth(parent.id) + 1 + groupDescendantDepth(id) > MAX_GROUP_DEPTH) {
-        toast("group nest is deeper than 8", true);
-        return;
-      }
-      parentId = parent.id;
-    }
-    await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, parentId }) });
-    await loadAll();
-    toast("Folder moved");
+    openGroupForm(g, g.parentId || "");
   }
 
   async function deleteGroup(id) {
     const g = groupById(id);
     if (!g) return;
-    if (!(await askConfirm(`Remove folder ${g.name}? Hosts and subgroups move up one level.`))) return;
+    if (!(await askConfirm(`Remove group ${g.name}? Hosts and subgroups move up one level.`))) return;
     await api(`/api/groups/${id}`, { method: "DELETE" });
     await loadAll();
-    toast("Folder removed");
+    toast("Group removed");
   }
 
-  async function assignHostGroup(hostId, groupId) {
-    const host = state.hosts.find((h) => h.id === hostId);
-    if (!host) return;
-    const group = groupId ? groupById(groupId) : null;
-    await api(`/api/hosts/${host.id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        ...host,
-        id: host.id,
-        groupId: group ? group.id : "",
-        group: group ? group.name : "",
-      }),
-    });
+  async function assignHostsGroup(ids, groupId) {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (!unique.length) return;
+    await api("/api/hosts/move", { method: "POST", body: JSON.stringify({ ids: unique, groupId: groupId || "" }) });
+    setHostSelection([]);
     await loadAll();
   }
 
@@ -6227,10 +6361,31 @@ Write a runbook here.
         toggleGroupNode(groupToggle.getAttribute("data-group-toggle") || groupToggle.closest("[data-group-id]")?.getAttribute("data-group-id"));
         return;
       }
+      const groupOpen = ev.target.closest("[data-group-open]");
+      if (groupOpen) {
+        ev.preventDefault();
+        state.groupFocus = groupOpen.getAttribute("data-group-open") || "";
+        paintList("host-list", "/ui/hosts?" + datastarQS()).then((ok) => {
+          if (!ok) renderHosts();
+        });
+        return;
+      }
+      const hostTile = ev.target.closest("[data-drag-host]");
+      if (hostTile && (ev.metaKey || ev.ctrlKey || ev.shiftKey)) {
+        ev.preventDefault();
+        toggleHostSelect(hostTile.getAttribute("data-drag-host"), ev.metaKey || ev.ctrlKey || ev.shiftKey);
+        return;
+      }
       const groupNew = ev.target.closest("[data-group-new]");
       if (groupNew) {
         ev.preventDefault();
         createGroup(groupNew.getAttribute("data-group-new") || "").catch((err) => toast(err.message, true));
+        return;
+      }
+      const groupEdit = ev.target.closest("[data-group-edit]");
+      if (groupEdit) {
+        ev.preventDefault();
+        editGroup(groupEdit.getAttribute("data-group-edit"));
         return;
       }
       const groupRename = ev.target.closest("[data-group-rename]");
@@ -6430,7 +6585,10 @@ Write a runbook here.
       const host = ev.target.closest("[data-drag-host]");
       const folder = ev.target.closest("[data-drag-group]");
       if (host) {
-        nestDrag = { kind: "host", id: host.getAttribute("data-drag-host") };
+        const id = host.getAttribute("data-drag-host");
+        const selected = selectedHostSet();
+        const ids = selected.has(id) && selected.size ? [...selected] : [id];
+        nestDrag = { kind: "hosts", ids };
       } else if (folder) {
         nestDrag = { kind: "group", id: folder.getAttribute("data-drag-group") };
       } else {
@@ -6461,9 +6619,9 @@ Write a runbook here.
       const dest = target.getAttribute("data-group-drop") || "";
       const drag = nestDrag;
       nestDrag = null;
-      if (drag.kind === "host") {
-        if (drag.id && dest !== undefined) {
-          assignHostGroup(drag.id, dest).catch((err) => toast(err.message, true));
+      if (drag.kind === "hosts") {
+        if (drag.ids?.length && dest !== undefined) {
+          assignHostsGroup(drag.ids, dest).catch((err) => toast(err.message, true));
         }
         return;
       }
@@ -6529,6 +6687,7 @@ Write a runbook here.
     on(document.getElementById("btn-join"), "click", openJoin);
     on(document.getElementById("join-cancel"), "click", () => closeModal(els.joinModal));
     on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
+    on(document.getElementById("group-cancel"), "click", () => closeModal(els.groupModal));
     on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
     on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));
     on(document.getElementById("notebook-rename-cancel"), "click", () => closeModal(els.notebookRenameModal));
@@ -6538,6 +6697,7 @@ Write a runbook here.
     on(els.modalScrim, "click", () => closeModal());
     [
       els.hostModal,
+      els.groupModal,
       els.quickModal,
       els.snippetModal,
       els.notebookRenameModal,
@@ -6607,6 +6767,7 @@ Write a runbook here.
     on(els.identityForm?.kind, "change", toggleIdentFields);
     on(els.tunnelForm?.kind, "change", toggleTunnelDest);
     on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
+    on(els.groupForm, "submit", (ev) => saveGroup(ev).catch((err) => toast(err.message, true)));
     on(els.identityForm, "submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
     on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));

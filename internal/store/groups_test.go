@@ -236,6 +236,37 @@ func TestHostGroupNameStillCreatesRoot(t *testing.T) {
 	}
 }
 
+func TestAssignHostsGroupBatch(t *testing.T) {
+	st := testStore(t)
+	g, err := st.UpsertGroup(Group{Name: "prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := st.UpsertHost(Host{Name: "a", Address: "10.0.0.1", Username: "u", AuthType: "password", Password: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := st.UpsertHost(Host{Name: "b", Address: "10.0.0.2", Username: "u", AuthType: "password", Password: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AssignHostsGroup([]string{a.ID, b.ID}, g.ID); err != nil {
+		t.Fatal(err)
+	}
+	gotA, _ := st.GetHost(a.ID)
+	gotB, _ := st.GetHost(b.ID)
+	if gotA.GroupID != g.ID || gotB.GroupID != g.ID {
+		t.Fatalf("batch move: %+v %+v", gotA, gotB)
+	}
+	if err := st.AssignHostsGroup([]string{a.ID}, ""); err != nil {
+		t.Fatal(err)
+	}
+	gotA, _ = st.GetHost(a.ID)
+	if gotA.GroupID != "" {
+		t.Fatalf("ungroup = %+v", gotA)
+	}
+}
+
 func TestGroupMissingParent(t *testing.T) {
 	st := testStore(t)
 	if _, err := st.UpsertGroup(Group{Name: "orphan", ParentID: "missing"}); !errors.Is(err, ErrNotFound) {

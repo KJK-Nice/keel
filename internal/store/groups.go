@@ -231,6 +231,49 @@ func (s *Store) validateNestLocked(id, parentID string) error {
 	return nil
 }
 
+// AssignHostsGroup sets Parent Group for one or more hosts in a single save.
+// Empty groupID ungroups. Does not touch PTY, inject, or host secrets.
+func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked {
+		return ErrLocked
+	}
+	if err := s.ensureGroupsLocked(); err != nil {
+		return err
+	}
+	groupID = strings.TrimSpace(groupID)
+	if groupID != "" {
+		if _, ok := s.groupByIDLocked(groupID); !ok {
+			return ErrNotFound
+		}
+	}
+	want := map[string]struct{}{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			want[id] = struct{}{}
+		}
+	}
+	if len(want) == 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	found := 0
+	for i, h := range s.data.Hosts {
+		if _, ok := want[h.ID]; !ok {
+			continue
+		}
+		s.data.Hosts[i].Group = groupID
+		s.data.Hosts[i].UpdatedAt = now
+		found++
+	}
+	if found == 0 {
+		return ErrNotFound
+	}
+	return s.saveLocked()
+}
+
 func (s *Store) descendantDepthLocked(id string) int {
 	max := 0
 	for _, g := range s.data.Groups {

@@ -13,13 +13,14 @@ import (
 )
 
 templ HostList(p PageProps) {
-	<div id="host-list" class="host-list flex flex-col gap-6" data-max-group-depth={ nestDepthAttr(store.MaxGroupDepth) }>
+	<div id="host-list" class="host-list flex flex-col gap-6" data-max-group-depth={ nestDepthAttr(store.MaxGroupDepth) } data-group-focus={ p.GroupFocus }>
 		if p.Locked {
 			@emptyBox("", "Vault locked", "Unlock the vault to see hosts.")
 		} else {
-			{{ tree := nestGroupTree(p.Groups, p.Hosts, p.Query) }}
-			{{ loose := ungroupedHosts(p.Hosts, p.Groups, p.Query) }}
-			if vaultTreeEmpty(tree, loose) {
+			{{ tree := nestGroupTree(p.Groups, p.Hosts, p.Query, p.GroupFocus) }}
+			{{ visible := hostsInCurrentAndSubgroups(p.Groups, p.Hosts, p.GroupFocus, p.Query) }}
+			{{ crumbs := groupFocusPath(p.Groups, p.GroupFocus) }}
+			if vaultTreeEmpty(tree, visible) {
 				@empty.Empty() {
 					@empty.Header() {
 						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
@@ -34,6 +35,15 @@ templ HostList(p PageProps) {
 					}
 				}
 			} else {
+				if len(crumbs) > 0 {
+					<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">
+						<button type="button" class="hover:text-foreground" data-group-open="">All</button>
+						for _, g := range crumbs {
+							<span aria-hidden="true">/</span>
+							<button type="button" class="hover:text-foreground" data-group-open={ g.ID }>{ g.Name }</button>
+						}
+					</nav>
+				}
 				if len(tree) > 0 {
 					<section class="flex flex-col gap-2">
 						@sectionHeading("Groups")
@@ -44,11 +54,11 @@ templ HostList(p PageProps) {
 						</div>
 					</section>
 				}
-				if len(loose) > 0 {
+				if len(visible) > 0 {
 					<section class="flex flex-col gap-2">
 						@sectionHeading("Hosts")
 						@tileGrid() {
-							for _, h := range loose {
+							for _, h := range visible {
 								@hostCard(h)
 							}
 						}
@@ -165,6 +175,7 @@ templ groupFolder(n groupNode) {
 					role="button"
 					tabindex="0"
 					data-group-filter={ n.Group.Name }
+					data-group-open={ n.Group.ID }
 				>
 					<div class="flex flex-row items-center gap-3">
 						@tileGlyph("", "folder")
@@ -187,13 +198,6 @@ templ groupFolder(n groupNode) {
 			for _, k := range n.Kids {
 				@groupFolder(k)
 			}
-			if len(n.Hosts) > 0 {
-				@tileGrid() {
-					for _, h := range n.Hosts {
-						@hostCard(h)
-					}
-				}
-			}
 		</div>
 	</div>
 }
@@ -209,6 +213,9 @@ templ groupRowMenu(n groupNode) {
 			@icon.EllipsisVertical()
 		}
 		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-edit": n.Group.ID}}) {
+				Edit
+			}
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-new": n.Group.ID}}) {
 				New subgroup
 			}

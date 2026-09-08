@@ -64,6 +64,7 @@ type PageProps struct {
 	Snippets   []store.Snippet
 	Notebooks  []store.Notebook
 	Groups     []store.Group
+	GroupFocus string
 	Logs       []applog.Entry
 }
 
@@ -77,9 +78,10 @@ func (p PageProps) SignalsJSON() string {
 	}
 	q, _ := json.Marshal(p.Query)
 	lf, _ := json.Marshal(p.LogFilter)
+	gf, _ := json.Marshal(p.GroupFocus)
 	return fmt.Sprintf(
-		`{"vault":"hosts","query":%s,"logFilter":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
-		q, lf, locked, setup,
+		`{"vault":"hosts","query":%s,"logFilter":%s,"groupFocus":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
+		q, lf, gf, locked, setup,
 	)
 }
 
@@ -175,7 +177,7 @@ type groupNode struct {
 	Depth int
 }
 
-func nestGroupTree(groups []store.Group, hosts []store.Host, query string) []groupNode {
+func nestGroupTree(groups []store.Group, hosts []store.Host, query, parentID string) []groupNode {
 	byID := map[string]store.Group{}
 	for _, g := range groups {
 		byID[g.ID] = g
@@ -226,7 +228,79 @@ func nestGroupTree(groups []store.Group, hosts []store.Host, query string) []gro
 		}
 		return out
 	}
-	return build("", 1)
+	return build(strings.TrimSpace(parentID), 1)
+}
+
+func subtreeGroupIDs(groups []store.Group, root string) map[string]struct{} {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return nil
+	}
+	kids := map[string][]string{}
+	for _, g := range groups {
+		kids[g.ParentID] = append(kids[g.ParentID], g.ID)
+	}
+	out := map[string]struct{}{root: {}}
+	var walk func(id string)
+	walk = func(id string) {
+		for _, child := range kids[id] {
+			if _, ok := out[child]; ok {
+				continue
+			}
+			out[child] = struct{}{}
+			walk(child)
+		}
+	}
+	walk(root)
+	return out
+}
+
+// hostsInCurrentAndSubgroups is the Termius Hosts list: current group plus
+// every nested subgroup. An empty focus shows every matching host (root).
+// Tags stay in the query blob and are not group membership.
+func hostsInCurrentAndSubgroups(groups []store.Group, hosts []store.Host, focus, query string) []store.Host {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	allow := subtreeGroupIDs(groups, focus)
+	out := make([]store.Host, 0)
+	for _, h := range hosts {
+		if allow != nil {
+			if _, ok := allow[h.GroupID]; !ok {
+				continue
+			}
+		}
+		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out
+}
+
+func groupFocusPath(groups []store.Group, id string) []store.Group {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	var path []store.Group
+	seen := map[string]struct{}{}
+	cur := strings.TrimSpace(id)
+	for cur != "" {
+		if _, ok := seen[cur]; ok {
+			break
+		}
+		seen[cur] = struct{}{}
+		g, ok := byID[cur]
+		if !ok {
+			break
+		}
+		path = append([]store.Group{g}, path...)
+		cur = g.ParentID
+	}
+	return path
 }
 
 func ungroupedHosts(hosts []store.Host, groups []store.Group, query string) []store.Host {

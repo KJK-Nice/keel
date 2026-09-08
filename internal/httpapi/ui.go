@@ -14,8 +14,9 @@ import (
 )
 
 type uiSignals struct {
-	Query     string `json:"query"`
-	LogFilter string `json:"logFilter"`
+	Query      string `json:"query"`
+	LogFilter  string `json:"logFilter"`
+	GroupFocus string `json:"groupFocus"`
 }
 
 func (s *Server) pageProps(r *http.Request) ui.PageProps {
@@ -34,6 +35,7 @@ func (s *Server) pageProps(r *http.Request) ui.PageProps {
 	_ = datastar.ReadSignals(r, &sig)
 	p.Query = sig.Query
 	p.LogFilter = sig.LogFilter
+	p.GroupFocus = sig.GroupFocus
 	if p.Locked {
 		return p
 	}

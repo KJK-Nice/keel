@@ -60,8 +60,9 @@ type Host struct {
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
-// Group is a Termius-style vault folder. ParentID empty means a root folder.
-// Nesting is capped at MaxGroupDepth; Move/Upsert reject cycles.
+// Group is a Termius-style parent tree (not a filesystem folder).
+// ParentID empty means a root group. Hosts belong to at most one group;
+// tags stay orthogonal. v1 does not inherit creds/proxy/theme from parents.
 type Group struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -70,6 +71,8 @@ type Group struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// MaxGroupDepth is the Termius-like nest cap (6–8). Moves/creates that would
+// exceed it return ErrGroupDepth. Upsert also rejects parent cycles.
 const MaxGroupDepth = 8
 
 var (
