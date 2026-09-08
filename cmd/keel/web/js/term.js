@@ -1798,20 +1798,28 @@
   }
 
   // WKWebView often keeps a stale compositor layer for the WebGL canvas after
-  // xterm paints. Window resize already kicks Relayout/Invalidate via a dummy
-  // term.resize + refresh. PTY writes must use that same kick, without a PTY size update.
+  // xterm paints. Dummy term.resize(cols±1) kicks Relayout but reflows the
+  // whole grid and blinks on every keystroke. Refresh + a subpixel canvas
+  // layer nudge republishes the GPU texture without changing PTY size.
   function invalidatePaneRender(pane) {
     if (!isNativeWindow() || !pane?.term?.element) return;
     try {
-      const cols = pane.term.cols;
       const rows = pane.term.rows;
-      if (cols > 2 && rows > 1) {
-        pane.term.resize(cols - 1, rows);
-        pane.term.resize(cols, rows);
-      }
       pane.term.refresh(0, Math.max(0, (rows || 1) - 1));
+      kickNativeCanvasCompositor(pane);
     } catch {
       /* ignore */
+    }
+  }
+
+  function kickNativeCanvasCompositor(pane) {
+    const root = pane.term?.element;
+    if (!root) return;
+    for (const canvas of root.querySelectorAll("canvas")) {
+      const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+      if (gl) gl.flush();
+      canvas.style.transform = canvas._keelLayerFlip ? "translateZ(0)" : "translateZ(0.01px)";
+      canvas._keelLayerFlip = !canvas._keelLayerFlip;
     }
   }
 
