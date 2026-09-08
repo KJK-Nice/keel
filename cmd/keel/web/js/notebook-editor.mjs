@@ -166,6 +166,15 @@ class CodeBlockView {
   ignoreMutation(rec) {
     return rec.type === "attributes" || this.bar.contains(rec.target);
   }
+
+  destroy() {
+    this.select = null;
+    this.copyBtn = null;
+    this.runBtn = null;
+    this.view = null;
+    this.contentDOM = null;
+    this.dom = null;
+  }
 }
 
 export function mount(el, opts = {}) {
@@ -213,7 +222,12 @@ export function mount(el, opts = {}) {
       view.updateState(next);
     },
     destroy() {
-      view.destroy();
+      try {
+        view.destroy();
+      } catch {
+        /* already gone */
+      }
+      el.replaceChildren();
     },
   };
 }

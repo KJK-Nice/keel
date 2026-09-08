@@ -1,4 +1,6 @@
 (() => {
+  if (window.__keelTermBound) return;
+  window.__keelTermBound = true;
   function createTerminal(opts) {
     const Ctor = window.Terminal;
     if (typeof Ctor !== "function") {
@@ -2876,7 +2878,12 @@
     return isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;
   }
 
+  let newTabLockUntil = 0;
+
   function newTab() {
+    const now = Date.now();
+    if (now < newTabLockUntil) return;
+    newTabLockUntil = now + 300;
     createStartTab();
   }
 
@@ -3273,7 +3280,7 @@
 
   function runShortcut(name) {
     const now = Date.now();
-    if (name === lastShortcutName && now - lastShortcutAt < 80) return;
+    if (name === lastShortcutName && now - lastShortcutAt < 300) return;
     lastShortcutName = name;
     lastShortcutAt = now;
     if (name === "new-tab") newTab();
@@ -3330,12 +3337,33 @@
     }
   }
 
+  function nativeMenuOwnsShortcut(ev) {
+    if (!isNativeWindow()) return false;
+    const raw = ev.key || "";
+    const key = raw.length === 1 ? raw.toLowerCase() : raw;
+    if (key === "t" || key === "w") return true;
+    if (key === "n" && !ev.shiftKey) return true;
+    if (key === "o" && ev.shiftKey) return true;
+    if (key === "j" && !ev.shiftKey) return true;
+    if (key === "f" && !ev.shiftKey) return true;
+    if (key === "b" && !ev.shiftKey) return true;
+    if (key === "d" && ev.shiftKey) return true;
+    if (key === "e" && ev.shiftKey) return true;
+    if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) return true;
+    if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") return true;
+    if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") return true;
+    if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) return true;
+    return false;
+  }
+
   function handleShortcut(ev) {
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
+    if (nativeMenuOwnsShortcut(ev)) return false;
     const raw = ev.key || "";
     const key = raw.length === 1 ? raw.toLowerCase() : raw;
+    if (ev.repeat && (key === "t" || key === "w")) return false;
     if (key === "w") {
       ev.preventDefault();
       runShortcut("close-tab");
@@ -4280,11 +4308,23 @@
     sendSessionJSON(termTarget(focusedPane()) || focusedPane(), { type, ...extra });
   }
 
+  function disposeNotebookEditor(pane) {
+    if (!pane) return;
+    clearTimeout(pane._saveTimer);
+    pane._saveTimer = 0;
+    try {
+      pane.mdEditor?.destroy?.();
+    } catch {
+      /* ignore */
+    }
+    pane.mdEditor = null;
+    if (pane._docEl) pane._docEl.replaceChildren();
+    pane._docEl = null;
+  }
+
   function disposePane(pane) {
     pane.closing = true;
-    pane.mdEditor?.destroy?.();
-    pane.mdEditor = null;
-    pane._docEl = null;
+    disposeNotebookEditor(pane);
     pane.fitObs?.disconnect();
     pane.fitObs = null;
     dropWebgl(pane);
@@ -4717,29 +4757,33 @@ Write a runbook here.
 
   function paintNotebook(pane) {
     const body = pane.body || pane.wrap?.querySelector(".notebook-pane");
-    if (!body || !isNotebookPane(pane)) return;
+    if (!body || !isNotebookPane(pane) || pane.closing) return;
     if (!Array.isArray(pane.cells) || !pane.cells.length) {
       pane.cells = [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     }
-    if (!pane._docEl || !body.contains(pane._docEl)) {
-      pane.mdEditor?.destroy?.();
-      pane.mdEditor = null;
-      body.innerHTML = `<div class="notebook-scroll">
+    const live = pane.mdEditor && pane._docEl && body.contains(pane._docEl);
+    if (live) {
+      const titleEl = body.querySelector("[data-notebook-title]");
+      if (titleEl && document.activeElement !== titleEl) titleEl.value = pane.title || "Notebook";
+      return;
+    }
+    disposeNotebookEditor(pane);
+    body.innerHTML = `<div class="notebook-scroll">
       <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
     </div>`;
-      pane._docEl = body.querySelector("[data-notebook-doc]");
-      mountNotebookEditor(pane);
-      return;
-    }
-    const titleEl = body.querySelector("[data-notebook-title]");
-    if (titleEl && document.activeElement !== titleEl) titleEl.value = pane.title || "Notebook";
+    pane._docEl = body.querySelector("[data-notebook-doc]");
+    mountNotebookEditor(pane);
   }
 
   function mountNotebookEditor(pane) {
     const host = pane._docEl;
-    if (!host || !isNotebookPane(pane)) return;
-    pane.mdEditor?.destroy?.();
+    if (!host || !isNotebookPane(pane) || pane.closing) return;
+    try {
+      pane.mdEditor?.destroy?.();
+    } catch {
+      /* ignore */
+    }
     pane.mdEditor = null;
     const KeelMD = window.KeelMarkdownEditor;
     if (!KeelMD || typeof KeelMD.mount !== "function") {
@@ -4750,6 +4794,7 @@ Write a runbook here.
       markdown: notebookMarkdown(pane),
       buttonLabel: "Run in terminal",
       onChange: (md) => {
+        if (pane.closing || !pane.mdEditor) return;
         setNotebookMarkdown(pane, md);
         scheduleNotebookSave(pane);
       },
@@ -5865,6 +5910,8 @@ Write a runbook here.
   }
 
   function bindChrome() {
+    if (window.__keelChromeBound) return;
+    window.__keelChromeBound = true;
     window.addEventListener(
       "keydown",
       (ev) => {

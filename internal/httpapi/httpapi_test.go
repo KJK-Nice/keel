@@ -3052,3 +3052,79 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 	t.Fatalf("timeout waiting for binary %q got %q", want, out)
 	return out
 }
+
+func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	ed, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "vendor", "notebook", "editor.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(ed)
+
+	if !strings.Contains(term, "if (window.__keelTermBound) return") || !strings.Contains(term, "window.__keelTermBound = true") {
+		t.Fatal("term.js IIFE must refuse a second mount")
+	}
+	bind := sliceJSFunc(term, "function bindChrome")
+	if bind == "" || !strings.Contains(bind, "if (window.__keelChromeBound) return") {
+		t.Fatal("bindChrome must register window keydown once")
+	}
+	owns := sliceJSFunc(term, "function nativeMenuOwnsShortcut")
+	if owns == "" || !strings.Contains(owns, `key === "t"`) || !strings.Contains(owns, "isNativeWindow()") {
+		t.Fatal("native Cmd+T must belong to the File menu, not a second JS listener")
+	}
+	handle := sliceJSFunc(term, "function handleShortcut")
+	if handle == "" || !strings.Contains(handle, "nativeMenuOwnsShortcut(ev)") {
+		t.Fatal("handleShortcut must defer Cmd+T to the native menu in the desktop app")
+	}
+	idxOwns := strings.Index(handle, "nativeMenuOwnsShortcut(ev)")
+	idxNew := strings.Index(handle, `runShortcut("new-tab")`)
+	if idxOwns < 0 || idxNew < 0 || idxOwns > idxNew {
+		t.Fatal("native menu must win before JS creates a tab")
+	}
+	created := sliceJSFunc(term, "function newTab")
+	if created == "" || !strings.Contains(created, "newTabLockUntil") || !strings.Contains(created, "createStartTab") {
+		t.Fatal("newTab must coalesce duplicate gestures into one createStartTab")
+	}
+	if strings.Count(created, "createStartTab") != 1 {
+		t.Fatal("newTab must create exactly one start tab per call")
+	}
+	run := sliceJSFunc(term, "function runShortcut")
+	if run == "" || !strings.Contains(run, "lastShortcutAt < 300") {
+		t.Fatal("runShortcut must debounce duplicate new-tab within one gesture")
+	}
+
+	disposeEd := sliceJSFunc(term, "function disposeNotebookEditor")
+	disposePane := sliceJSFunc(term, "function disposePane")
+	paint := sliceJSFunc(term, "function paintNotebook")
+	mount := sliceJSFunc(term, "function mountNotebookEditor")
+	if disposeEd == "" || disposePane == "" || paint == "" || mount == "" {
+		t.Fatal("missing notebook editor lifecycle helpers")
+	}
+	if !strings.Contains(disposePane, "disposeNotebookEditor(pane)") {
+		t.Fatal("closing a pane must tear down the markdown editor")
+	}
+	if !strings.Contains(disposeEd, "clearTimeout(pane._saveTimer)") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
+		t.Fatal("disposeNotebookEditor must destroy ProseMirror and drop the save timer")
+	}
+	if !strings.Contains(paint, "pane.mdEditor && pane._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
+		t.Fatal("paintNotebook must keep a live editor and destroy before remount")
+	}
+	if !strings.Contains(mount, "pane.closing || !pane.mdEditor") {
+		t.Fatal("onChange after close must not reschedule saves")
+	}
+	if !strings.Contains(src, "t.replaceChildren()") {
+		t.Fatal("KeelMarkdownEditor.destroy must empty the host so views cannot leak")
+	}
+
+	for _, fn := range []string{created, handle, disposeEd, disposePane, paint, mount} {
+		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
+			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) ||
+			strings.Contains(fn, "approved: true") {
+			t.Fatal("tab create / notebook dispose must not Write or Inject the PTY")
+		}
+	}
+}
