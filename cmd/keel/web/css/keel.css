@@ -402,6 +402,52 @@ code { font-family: var(--mono); font-size: 0.92em; }
 html[data-vault-view="list"] .tile-grid {
   grid-template-columns: 1fr;
 }
+
+.group-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.group-tree-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.group-tree-children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-left: 1.15rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+}
+.group-tree-children .tile-grid {
+  grid-template-columns: 1fr;
+}
+.group-tree-node.is-collapsed > .group-tree-children {
+  display: none;
+}
+.group-tree-chevron {
+  transition: transform 0.12s ease;
+}
+.group-tree-node:not(.is-collapsed) .group-tree-toggle .group-tree-chevron {
+  transform: rotate(90deg);
+}
+.group-tree-node.is-drop-target > .group-tree-heading {
+  outline: 2px dashed color-mix(in srgb, var(--primary) 70%, transparent);
+  outline-offset: 1px;
+}
+.host-tile.is-selected {
+  outline: 2px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  outline-offset: 1px;
+}
+.group-focus-path button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
 html[data-vault-view="card"] [data-vault-view-btn="card"],
 html[data-vault-view="list"] [data-vault-view-btn="list"] {
   background: var(--hover);

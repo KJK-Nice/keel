@@ -13,14 +13,14 @@ import (
 )
 
 templ HostList(p PageProps) {
-	<div id="host-list" class="host-list flex flex-col gap-6">
+	<div id="host-list" class="host-list flex flex-col gap-6" data-max-group-depth={ nestDepthAttr(store.MaxGroupDepth) } data-group-focus={ p.GroupFocus }>
 		if p.Locked {
 			@emptyBox("", "Vault locked", "Unlock the vault to see hosts.")
 		} else {
-			{{ groups := groupHosts(p.Hosts, p.Query) }}
-			{{ folders := folderGroups(groups) }}
-			{{ hosts := flatHosts(groups) }}
-			if len(hosts) == 0 {
+			{{ tree := nestGroupTree(p.Groups, p.Hosts, p.Query, p.GroupFocus) }}
+			{{ visible := hostsInCurrentAndSubgroups(p.Groups, p.Hosts, p.GroupFocus, p.Query) }}
+			{{ crumbs := groupFocusPath(p.Groups, p.GroupFocus) }}
+			if vaultTreeEmpty(tree, visible) {
 				@empty.Empty() {
 					@empty.Header() {
 						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
@@ -35,24 +35,35 @@ templ HostList(p PageProps) {
 					}
 				}
 			} else {
-				if len(folders) > 0 {
+				if len(crumbs) > 0 {
+					<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">
+						<button type="button" class="hover:text-foreground" data-group-open="">All</button>
+						for _, g := range crumbs {
+							<span aria-hidden="true">/</span>
+							<button type="button" class="hover:text-foreground" data-group-open={ g.ID }>{ g.Name }</button>
+						}
+					</nav>
+				}
+				if len(tree) > 0 {
 					<section class="flex flex-col gap-2">
 						@sectionHeading("Groups")
+						<div class="group-tree">
+							for _, n := range tree {
+								@groupFolder(n)
+							}
+						</div>
+					</section>
+				}
+				if len(visible) > 0 {
+					<section class="flex flex-col gap-2">
+						@sectionHeading("Hosts")
 						@tileGrid() {
-							for _, g := range folders {
-								@groupCard(g)
+							for _, h := range visible {
+								@hostCard(h)
 							}
 						}
 					</section>
 				}
-				<section class="flex flex-col gap-2">
-					@sectionHeading("Hosts")
-					@tileGrid() {
-						for _, h := range hosts {
-							@hostCard(h)
-						}
-					}
-				</section>
 			}
 		}
 	</div>
@@ -128,11 +139,112 @@ templ groupCard(g hostGroup) {
 	}
 }
 
+templ groupFolder(n groupNode) {
+	<div
+		class="group-tree-node"
+		data-group-id={ n.Group.ID }
+		data-group-drop={ n.Group.ID }
+		data-group-parent={ n.Group.ParentID }
+		data-group-depth={ nestDepthAttr(n.Depth) }
+		data-group-name={ n.Group.Name }
+	>
+		@card.Card(card.Props{
+			Size:  card.SizeSm,
+			Class: "group-tree-heading host-tile py-0 hover:bg-muted/50",
+			Attributes: templ.Attributes{
+				"draggable":       "true",
+				"data-drag-group": n.Group.ID,
+			},
+		}) {
+			@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-2 py-3"}) {
+				@button.Button(button.Props{
+					Type:    button.TypeButton,
+					Variant: button.VariantGhost,
+					Size:    button.SizeIconXs,
+					Class:   "group-tree-toggle tiny shrink-0",
+					Attributes: templ.Attributes{
+						"data-group-toggle": n.Group.ID,
+						"aria-label":        "Expand folder",
+						"aria-expanded":     "true",
+					},
+				}) {
+					@icon.ChevronRight(icon.Props{Class: "group-tree-chevron size-4"})
+				}
+				<div
+					class="min-w-0 flex-1 cursor-pointer"
+					role="button"
+					tabindex="0"
+					data-group-filter={ n.Group.Name }
+					data-group-open={ n.Group.ID }
+				>
+					<div class="flex flex-row items-center gap-3">
+						@tileGlyph("", "folder")
+						<div class="min-w-0 flex-1">
+							@card.Title() {
+								<span data-group-title={ n.Group.ID }>{ n.Group.Name }</span>
+							}
+							@card.Description() {
+								{ hostCountLabel(n.Count) }
+							}
+						</div>
+					</div>
+				</div>
+				<div class="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100" data-group-menu={ n.Group.ID }>
+					@groupRowMenu(n)
+				</div>
+			}
+		}
+		<div class="group-tree-children">
+			for _, k := range n.Kids {
+				@groupFolder(k)
+			}
+		</div>
+	</div>
+}
+
+templ groupRowMenu(n groupNode) {
+	@dropdownmenu.DropdownMenu() {
+		@button.Button(button.Props{
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIconXs,
+			Class:      "tiny",
+			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Folder actions"}),
+		}) {
+			@icon.EllipsisVertical()
+		}
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-edit": n.Group.ID}}) {
+				Edit
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-new": n.Group.ID}}) {
+				New subgroup
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-rename": n.Group.ID}}) {
+				Rename
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-move": n.Group.ID}}) {
+				Move into…
+			}
+			@dropdownmenu.Separator()
+			@dropdownmenu.Item(dropdownmenu.ItemProps{
+				Variant:    dropdownmenu.ItemVariantDestructive,
+				Attributes: templ.Attributes{"data-group-delete": n.Group.ID},
+			}) {
+				Remove
+			}
+		}
+	}
+}
+
 templ hostCard(h store.Host) {
 	@card.Card(card.Props{
-		Size:       card.SizeSm,
-		Class:      "host-tile py-0 hover:bg-muted/50",
-		Attributes: templ.Attributes{"data-id": h.ID},
+		Size:  card.SizeSm,
+		Class: "host-tile py-0 hover:bg-muted/50",
+		Attributes: templ.Attributes{
+			"data-id":        h.ID,
+			"draggable":      "true",
+			"data-drag-host": h.ID,
+		},
 	}) {
 		@card.Content(card.ContentProps{Class: "flex flex-row items-center gap-3 py-3"}) {
 			@tileGlyph(h.Color, hostProtocol(h))

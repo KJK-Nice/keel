@@ -63,6 +63,8 @@ type PageProps struct {
 	Tunnels    []tunnel.Info
 	Snippets   []store.Snippet
 	Notebooks  []store.Notebook
+	Groups     []store.Group
+	GroupFocus string
 	Logs       []applog.Entry
 }
 
@@ -76,9 +78,10 @@ func (p PageProps) SignalsJSON() string {
 	}
 	q, _ := json.Marshal(p.Query)
 	lf, _ := json.Marshal(p.LogFilter)
+	gf, _ := json.Marshal(p.GroupFocus)
 	return fmt.Sprintf(
-		`{"vault":"hosts","query":%s,"logFilter":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
-		q, lf, locked, setup,
+		`{"vault":"hosts","query":%s,"logFilter":%s,"groupFocus":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
+		q, lf, gf, locked, setup,
 	)
 }
 
@@ -163,6 +166,187 @@ func groupHosts(hosts []store.Host, query string) []hostGroup {
 type hostGroup struct {
 	Name  string
 	Hosts []store.Host
+}
+
+// groupNode is one Termius-style folder in the vault tree.
+type groupNode struct {
+	Group store.Group
+	Hosts []store.Host
+	Kids  []groupNode
+	Count int
+	Depth int
+}
+
+func nestGroupTree(groups []store.Group, hosts []store.Host, query, parentID string) []groupNode {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	byParent := map[string][]store.Group{}
+	for _, g := range groups {
+		parent := g.ParentID
+		if parent != "" {
+			if _, ok := byID[parent]; !ok {
+				parent = ""
+			}
+		}
+		byParent[parent] = append(byParent[parent], g)
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	hostsByGID := map[string][]store.Host{}
+	for _, h := range hosts {
+		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
+			continue
+		}
+		if h.GroupID == "" {
+			continue
+		}
+		hostsByGID[h.GroupID] = append(hostsByGID[h.GroupID], h)
+	}
+	var build func(parentID string, depth int) []groupNode
+	build = func(parentID string, depth int) []groupNode {
+		kids := append([]store.Group(nil), byParent[parentID]...)
+		sort.SliceStable(kids, func(i, j int) bool {
+			return strings.ToLower(kids[i].Name) < strings.ToLower(kids[j].Name)
+		})
+		out := make([]groupNode, 0, len(kids))
+		for _, g := range kids {
+			n := groupNode{
+				Group: g,
+				Hosts: hostsByGID[g.ID],
+				Kids:  build(g.ID, depth+1),
+				Depth: depth,
+			}
+			n.Count = len(n.Hosts)
+			for _, k := range n.Kids {
+				n.Count += k.Count
+			}
+			if q != "" && n.Count == 0 && !strings.Contains(strings.ToLower(g.Name), q) {
+				continue
+			}
+			out = append(out, n)
+		}
+		return out
+	}
+	return build(strings.TrimSpace(parentID), 1)
+}
+
+func subtreeGroupIDs(groups []store.Group, root string) map[string]struct{} {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return nil
+	}
+	kids := map[string][]string{}
+	for _, g := range groups {
+		kids[g.ParentID] = append(kids[g.ParentID], g.ID)
+	}
+	out := map[string]struct{}{root: {}}
+	var walk func(id string)
+	walk = func(id string) {
+		for _, child := range kids[id] {
+			if _, ok := out[child]; ok {
+				continue
+			}
+			out[child] = struct{}{}
+			walk(child)
+		}
+	}
+	walk(root)
+	return out
+}
+
+// hostsInCurrentAndSubgroups is the Termius Hosts list: current group plus
+// every nested subgroup. An empty focus shows every matching host (root).
+// Tags stay in the query blob and are not group membership.
+func hostsInCurrentAndSubgroups(groups []store.Group, hosts []store.Host, focus, query string) []store.Host {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	allow := subtreeGroupIDs(groups, focus)
+	out := make([]store.Host, 0)
+	for _, h := range hosts {
+		if allow != nil {
+			if _, ok := allow[h.GroupID]; !ok {
+				continue
+			}
+		}
+		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out
+}
+
+func groupFocusPath(groups []store.Group, id string) []store.Group {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	var path []store.Group
+	seen := map[string]struct{}{}
+	cur := strings.TrimSpace(id)
+	for cur != "" {
+		if _, ok := seen[cur]; ok {
+			break
+		}
+		seen[cur] = struct{}{}
+		g, ok := byID[cur]
+		if !ok {
+			break
+		}
+		path = append([]store.Group{g}, path...)
+		cur = g.ParentID
+	}
+	return path
+}
+
+func ungroupedHosts(hosts []store.Host, groups []store.Group, query string) []store.Host {
+	byID := map[string]store.Group{}
+	for _, g := range groups {
+		byID[g.ID] = g
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	out := make([]store.Host, 0)
+	for _, h := range hosts {
+		if h.GroupID != "" {
+			continue
+		}
+		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out
+}
+
+func hostMatchesGroupQuery(h store.Host, byID map[string]store.Group, q string) bool {
+	blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group + " " + strings.Join(h.Tags, " "))
+	gid := h.GroupID
+	seen := map[string]struct{}{}
+	for gid != "" {
+		if _, ok := seen[gid]; ok {
+			break
+		}
+		seen[gid] = struct{}{}
+		g, ok := byID[gid]
+		if !ok {
+			break
+		}
+		blob += " " + strings.ToLower(g.Name)
+		gid = g.ParentID
+	}
+	return strings.Contains(blob, q)
+}
+
+func nestDepthAttr(depth int) string {
+	return fmt.Sprintf("%d", depth)
+}
+
+func vaultTreeEmpty(tree []groupNode, hosts []store.Host) bool {
+	return len(tree) == 0 && len(hosts) == 0
 }
 
 func filterLogs(logs []applog.Entry, query string) []applog.Entry {

@@ -26,6 +26,9 @@
 
   const state = {
     hosts: [],
+    groups: [],
+    groupFocus: "",
+    selectedHostIds: [],
     snippets: [],
     notebooks: [],
     identities: [],
@@ -423,6 +426,8 @@
     modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
     hostForm: document.getElementById("host-form"),
+    groupModal: document.getElementById("group-modal"),
+    groupForm: document.getElementById("group-form"),
     identityModal: document.getElementById("identity-modal"),
     identityForm: document.getElementById("identity-form"),
     tunnelModal: document.getElementById("tunnel-modal"),
@@ -457,6 +462,7 @@
       datastar: JSON.stringify({
         query: state.query || "",
         logFilter: state.logFilter || "",
+        groupFocus: state.groupFocus || "",
       }),
     }).toString();
   }
@@ -473,6 +479,10 @@
       const next = tpl.content.querySelector("#" + CSS.escape(id));
       if (!next) return false;
       current.innerHTML = next.innerHTML;
+      if (id === "host-list") {
+        syncGroupTree();
+        syncHostSelection();
+      }
       return true;
     } catch {
       return false;
@@ -506,6 +516,17 @@
     trigger.removeAttribute("data-placeholder");
     const input = trigger.previousElementSibling;
     if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  }
+
+  function fieldValue(form, name, triggerId) {
+    const el = form?.elements?.[name];
+    if (el && typeof el.value === "string") return el.value;
+    const trigger = document.getElementById(triggerId);
+    const input = trigger?.previousElementSibling;
+    if (input?.hasAttribute?.("data-tui-select-input") && typeof input.value === "string") return input.value;
+    const contentId = trigger?.getAttribute("aria-controls");
+    const selected = contentId && document.getElementById(contentId)?.querySelector("[data-selected]");
+    return selected?.getAttribute("data-tui-select-value") || "";
   }
 
   function fillSelectItems(triggerId, entries, selected, emptyLabel) {
@@ -667,7 +688,217 @@
 
   function hostSearchHay(h) {
     const tags = Array.isArray(h.tags) ? h.tags.join(" ") : "";
-    return `${h.name} ${h.group} ${h.address} ${h.username} ${tags}`.toLowerCase();
+    return `${h.name} ${h.group} ${groupPathHay(h.groupId)} ${h.address} ${h.username} ${tags}`.toLowerCase();
+  }
+
+  const MAX_GROUP_DEPTH = 8;
+  const GROUP_COLLAPSED_KEY = "keel-group-collapsed";
+
+  function groupPathHay(groupId) {
+    const names = [];
+    let id = groupId;
+    const seen = new Set();
+    while (id && !seen.has(id)) {
+      seen.add(id);
+      const g = (state.groups || []).find((x) => x.id === id);
+      if (!g) break;
+      names.push(g.name || "");
+      id = g.parentId;
+    }
+    return names.join(" ");
+  }
+
+  function loadCollapsedGroups() {
+    try {
+      const ids = JSON.parse(localStorage.getItem(GROUP_COLLAPSED_KEY) || "[]");
+      return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCollapsedGroups(ids) {
+    localStorage.setItem(GROUP_COLLAPSED_KEY, JSON.stringify(ids));
+  }
+
+  function syncGroupTree() {
+    const collapsed = new Set(loadCollapsedGroups());
+    document.querySelectorAll(".group-tree-node[data-group-id]").forEach((node) => {
+      const id = node.getAttribute("data-group-id");
+      const on = collapsed.has(id);
+      node.classList.toggle("is-collapsed", on);
+      const btn = node.querySelector(":scope > .group-tree-heading [data-group-toggle]");
+      if (btn) btn.setAttribute("aria-expanded", on ? "false" : "true");
+    });
+  }
+
+  function toggleGroupNode(id) {
+    if (!id) return;
+    const ids = new Set(loadCollapsedGroups());
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    saveCollapsedGroups([...ids]);
+    syncGroupTree();
+  }
+
+  function groupById(id) {
+    return (state.groups || []).find((g) => g.id === id) || null;
+  }
+
+  function groupDescendantDepth(id) {
+    let max = 0;
+    for (const g of state.groups || []) {
+      if (g.parentId !== id) continue;
+      max = Math.max(max, 1 + groupDescendantDepth(g.id));
+    }
+    return max;
+  }
+
+  function groupDepth(id) {
+    let depth = 0;
+    let cur = id;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      depth += 1;
+      cur = groupById(cur)?.parentId;
+    }
+    return depth;
+  }
+
+  function isGroupUnder(id, ancestorId) {
+    let cur = id;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      if (cur === ancestorId) return true;
+      seen.add(cur);
+      cur = groupById(cur)?.parentId;
+    }
+    return false;
+  }
+
+  function nestGroupTreeJS(query, parentId) {
+    const q = String(query || "").trim().toLowerCase();
+    const root = String(parentId || "");
+    const byParent = new Map();
+    for (const g of state.groups || []) {
+      const parent = g.parentId || "";
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      byParent.get(parent).push(g);
+    }
+    const hostsBy = new Map();
+    for (const h of state.hosts || []) {
+      if (q && !hostSearchHay(h).includes(q)) continue;
+      if (!h.groupId) continue;
+      if (!hostsBy.has(h.groupId)) hostsBy.set(h.groupId, []);
+      hostsBy.get(h.groupId).push(h);
+    }
+    function build(pid, depth) {
+      const kids = [...(byParent.get(pid) || [])].sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" })
+      );
+      const out = [];
+      for (const g of kids) {
+        const nested = build(g.id, depth + 1);
+        const hosts = hostsBy.get(g.id) || [];
+        let count = hosts.length;
+        for (const k of nested) count += k.count;
+        if (q && count === 0 && !String(g.name || "").toLowerCase().includes(q)) continue;
+        out.push({ group: g, hosts, kids: nested, count, depth });
+      }
+      return out;
+    }
+    return build(root, 1);
+  }
+
+  function subtreeGroupIds(root) {
+    if (!root) return null;
+    const ids = new Set([root]);
+    const walk = (id) => {
+      for (const g of state.groups || []) {
+        if (g.parentId === id && !ids.has(g.id)) {
+          ids.add(g.id);
+          walk(g.id);
+        }
+      }
+    };
+    walk(root);
+    return ids;
+  }
+
+  function hostsInCurrentAndSubgroups(focus, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const allow = subtreeGroupIds(focus);
+    return (state.hosts || []).filter((h) => {
+      if (allow && !allow.has(h.groupId || "")) return false;
+      if (q && !hostSearchHay(h).includes(q)) return false;
+      return true;
+    });
+  }
+
+  function groupOptionEntries(excludeId) {
+    const skip = new Set();
+    if (excludeId) {
+      skip.add(excludeId);
+      const walk = (id) => {
+        for (const g of state.groups || []) {
+          if (g.parentId === id && !skip.has(g.id)) {
+            skip.add(g.id);
+            walk(g.id);
+          }
+        }
+      };
+      walk(excludeId);
+    }
+    return (state.groups || [])
+      .filter((g) => !skip.has(g.id))
+      .map((g) => ({ value: g.id, label: groupOptionLabel(g) }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }
+
+  function groupOptionLabel(g) {
+    const parts = [];
+    let cur = g;
+    const seen = new Set();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      parts.unshift(cur.name || "");
+      cur = groupById(cur.parentId);
+    }
+    return parts.join(" / ");
+  }
+
+  function fillParentGroupSelect(triggerId, selected, excludeId, emptyLabel) {
+    const entries = [{ value: "", label: emptyLabel || "No parent" }, ...groupOptionEntries(excludeId)];
+    fillSelectItems(triggerId, entries, selected || "", emptyLabel || "No parent");
+  }
+
+  function selectedHostSet() {
+    return new Set(state.selectedHostIds || []);
+  }
+
+  function setHostSelection(ids) {
+    state.selectedHostIds = [...new Set(ids.filter(Boolean))];
+    syncHostSelection();
+  }
+
+  function toggleHostSelect(id, additive) {
+    if (!id) return;
+    const next = selectedHostSet();
+    if (!additive) {
+      setHostSelection(next.has(id) && next.size === 1 ? [] : [id]);
+      return;
+    }
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setHostSelection([...next]);
+  }
+
+  function syncHostSelection() {
+    const selected = selectedHostSet();
+    document.querySelectorAll("[data-drag-host]").forEach((el) => {
+      el.classList.toggle("is-selected", selected.has(el.getAttribute("data-drag-host")));
+    });
   }
 
   function parseHostTags(value) {
@@ -967,6 +1198,9 @@
     if (kind === "folder") {
       return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7"/></svg>`;
     }
+    if (kind === "chevron") {
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M9 6L15 12L9 18"/></svg>`;
+    }
     if (kind === "local") {
       return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
     }
@@ -1007,37 +1241,11 @@
     return `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="tile-grid">${cards}</div></section>`;
   }
 
-  function renderHosts() {
-    const groups = groupHosts(state.hosts);
-    if (!groups.size) {
-      els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
-      return;
-    }
-    const folders = [...groups.entries()].filter(([name]) => name && name !== "Hosts" && name !== "Ungrouped");
-    const hosts = [...groups.values()].flat();
-    const html = [];
-    if (folders.length) {
-      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="tile-grid">`);
-      for (const [name, list] of folders) {
-        html.push(`
-          <div class="ring-foreground/10 bg-card text-card-foreground host-tile cursor-pointer overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-group-filter="${escapeHtml(name)}" role="button" tabindex="0">
-            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-              ${tileGlyph("", "folder")}
-              <div class="min-w-0 flex-1">
-                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(name)}</div>
-                <p data-slot="card-description" class="text-muted-foreground text-sm">${list.length === 1 ? "1 Host" : `${list.length} Hosts`}</p>
-              </div>
-            </div>
-          </div>`);
-      }
-      html.push(`</div></section>`);
-    }
-    html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="tile-grid">`);
-    for (const h of hosts) {
-      const kind = h.authType === "local" ? "local" : "ssh";
-      const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
-      html.push(`
-        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${h.id}">
+  function hostCardHTML(h) {
+    const kind = h.authType === "local" ? "local" : "ssh";
+    const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
+    return `
+        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${h.id}" draggable="true" data-drag-host="${h.id}">
           <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
             ${tileGlyph(h.color, kind)}
             <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-connect="${h.id}">
@@ -1055,10 +1263,79 @@
               ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${h.id}" title="Remove">✕</button>`}
             </div>
           </div>
-        </div>`);
+        </div>`;
+  }
+
+  function groupFolderHTML(n) {
+    const g = n.group;
+    const kids = n.kids.map(groupFolderHTML).join("");
+    return `
+      <div class="group-tree-node" data-group-id="${escapeHtml(g.id)}" data-group-drop="${escapeHtml(g.id)}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
+        <div class="ring-foreground/10 bg-card text-card-foreground group-tree-heading host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" draggable="true" data-drag-group="${escapeHtml(g.id)}">
+          <div data-slot="card-content" class="flex flex-row items-center gap-2 px-3 py-3">
+            <button type="button" class="group-tree-toggle tiny shrink-0 hover:bg-muted inline-flex size-6 items-center justify-center rounded-md" data-group-toggle="${escapeHtml(g.id)}" aria-label="Expand folder" aria-expanded="true">
+              <span class="group-tree-chevron">${glyphSVG("chevron")}</span>
+            </button>
+            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-group-filter="${escapeHtml(g.name)}" data-group-open="${escapeHtml(g.id)}">
+              <div class="flex flex-row items-center gap-3">
+                ${tileGlyph("", "folder")}
+                <div class="min-w-0 flex-1">
+                  <div data-slot="card-title" class="truncate text-sm font-medium"><span data-group-title="${escapeHtml(g.id)}">${escapeHtml(g.name)}</span></div>
+                  <p data-slot="card-description" class="text-muted-foreground text-sm">${n.count === 1 ? "1 Host" : `${n.count} Hosts`}</p>
+                </div>
+              </div>
+            </div>
+            <div data-group-menu="${escapeHtml(g.id)}">
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-edit="${escapeHtml(g.id)}" title="Edit">Edit</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-new="${escapeHtml(g.id)}" title="New subgroup">+</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-rename="${escapeHtml(g.id)}" title="Rename">Rename</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-move="${escapeHtml(g.id)}" title="Move">Move</button>
+              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-delete="${escapeHtml(g.id)}" title="Remove">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="group-tree-children">${kids}</div>
+      </div>`;
+  }
+
+  function groupFocusPathHTML() {
+    if (!state.groupFocus) return "";
+    const crumbs = [];
+    let cur = groupById(state.groupFocus);
+    const seen = new Set();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      crumbs.unshift(cur);
+      cur = groupById(cur.parentId);
     }
-    html.push(`</div></section>`);
+    const parts = [`<button type="button" class="hover:text-foreground" data-group-open="">All</button>`];
+    for (const g of crumbs) {
+      parts.push(`<span aria-hidden="true">/</span><button type="button" class="hover:text-foreground" data-group-open="${escapeHtml(g.id)}">${escapeHtml(g.name)}</button>`);
+    }
+    return `<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">${parts.join("")}</nav>`;
+  }
+
+  function renderHosts() {
+    const tree = nestGroupTreeJS(state.query, state.groupFocus);
+    const visible = hostsInCurrentAndSubgroups(state.groupFocus, state.query);
+    if (!tree.length && !visible.length) {
+      els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
+      return;
+    }
+    const html = [groupFocusPathHTML()];
+    if (tree.length) {
+      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="group-tree">`);
+      html.push(tree.map(groupFolderHTML).join(""));
+      html.push(`</div></section>`);
+    }
+    if (visible.length) {
+      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="tile-grid">`);
+      html.push(visible.map(hostCardHTML).join(""));
+      html.push(`</div></section>`);
+    }
     els.hostList.innerHTML = html.join("");
+    syncGroupTree();
+    syncHostSelection();
   }
 
   function renderSnippets() {
@@ -2355,13 +2632,14 @@
   }
 
   async function loadAll() {
-    const [hosts, snippets, notebooks, herd, identities, tunnels] = await Promise.all([
+    const [hosts, snippets, notebooks, herd, identities, tunnels, groups] = await Promise.all([
       api("/api/hosts"),
       api("/api/snippets"),
       api("/api/notebooks"),
       api("/api/sessions"),
       api("/api/identities"),
       api("/api/tunnels"),
+      api("/api/groups").catch(() => []),
     ]);
     state.hosts = hosts;
     state.snippets = snippets;
@@ -2369,6 +2647,7 @@
     state.herd = herd;
     state.identities = identities;
     state.tunnels = tunnels;
+    state.groups = Array.isArray(groups) ? groups : [];
     const q = datastarQS();
     const [hostsOk, snOk, nbOk, idOk, tnOk] = await Promise.all([
       paintList("host-list", "/ui/hosts?" + q),
@@ -4736,7 +5015,7 @@ Write a runbook here.
     form.reset();
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
-    form.group.value = host?.group || "";
+    fillParentGroupSelect("host-parent-group", host?.groupId || "", "", "No group");
     if (form.tags) form.tags.value = Array.isArray(host?.tags) ? host.tags.join(", ") : "";
     form.address.value = host?.address && host.address !== "localhost" ? host.address : host?.address || "";
     form.port.value = host?.port || 22;
@@ -4809,7 +5088,8 @@ Write a runbook here.
     const form = els.hostForm;
     const payload = {
       name: form.name.value.trim(),
-      group: form.group.value.trim(),
+      groupId: fieldValue(form, "groupId", "host-parent-group"),
+      group: "",
       tags: parseHostTags(form.tags?.value),
       address: form.address.value.trim(),
       port: Number(form.port.value || 22),
@@ -4831,6 +5111,138 @@ Write a runbook here.
     closeModal(els.hostModal);
     await loadAll();
     toast("Host saved");
+  }
+
+  function openGroupForm(group, parentId) {
+    const form = els.groupForm;
+    if (!form) return;
+    form.reset();
+    form.id.value = group?.id || "";
+    form.name.value = group?.name || "";
+    const exclude = group?.id || "";
+    const selected = group ? group.parentId || "" : parentId || "";
+    fillParentGroupSelect("group-parent", selected, exclude, "No parent");
+    const title = document.getElementById("group-modal-title");
+    if (title) title.textContent = group?.id ? "Edit group" : "New group";
+    openModal(els.groupModal);
+  }
+
+  async function createGroup(parentId) {
+    const parent = parentId ? groupById(parentId) : null;
+    if (parentId && !parent) {
+      toast("Group not found", true);
+      return;
+    }
+    if (parent && groupDepth(parent.id) >= MAX_GROUP_DEPTH) {
+      toast("group nest is deeper than 8", true);
+      return;
+    }
+    openGroupForm(null, parentId || "");
+  }
+
+  function editGroup(id) {
+    const g = groupById(id);
+    if (!g) return;
+    openGroupForm(g, g.parentId || "");
+  }
+
+  async function saveGroup(event) {
+    event.preventDefault();
+    const form = els.groupForm;
+    const name = form.name.value.trim();
+    if (!name) {
+      toast("Label is required", true);
+      return;
+    }
+    const parentId = fieldValue(form, "parentId", "group-parent");
+    const id = form.id.value;
+    if (id && (parentId === id || isGroupUnder(parentId, id))) {
+      toast("group cannot nest under itself", true);
+      return;
+    }
+    if (parentId && groupDepth(parentId) + 1 + (id ? groupDescendantDepth(id) : 0) > MAX_GROUP_DEPTH) {
+      toast("group nest is deeper than 8", true);
+      return;
+    }
+    if (id) {
+      const g = groupById(id) || { id };
+      await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name, parentId }) });
+    } else {
+      await api("/api/groups", { method: "POST", body: JSON.stringify({ name, parentId }) });
+    }
+    closeModal(els.groupModal);
+    await loadAll();
+    toast("Group saved");
+  }
+
+  async function renameGroup(id) {
+    const g = groupById(id);
+    if (!g) return;
+    const title = document.querySelector(`[data-group-title="${CSS.escape(id)}"]`);
+    if (!title) {
+      openGroupForm(g, g.parentId || "");
+      return;
+    }
+    if (title.querySelector("input")) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = g.name || "";
+    input.className = "group-rename";
+    const original = title.textContent;
+    title.replaceChildren(input);
+    input.focus();
+    input.select();
+    let settled = false;
+    const finish = async (ok) => {
+      if (settled) return;
+      settled = true;
+      const next = input.value.trim();
+      if (!ok || !next || next === g.name) {
+        title.textContent = original;
+        return;
+      }
+      try {
+        await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name: next }) });
+        await loadAll();
+      } catch (err) {
+        title.textContent = original;
+        toast(err.message, true);
+      }
+    };
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        finish(true);
+      }
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  async function moveGroup(id) {
+    const g = groupById(id);
+    if (!g) return;
+    openGroupForm(g, g.parentId || "");
+  }
+
+  async function deleteGroup(id) {
+    const g = groupById(id);
+    if (!g) return;
+    if (!(await askConfirm(`Remove group ${g.name}? Hosts and subgroups move up one level.`))) return;
+    await api(`/api/groups/${id}`, { method: "DELETE" });
+    await loadAll();
+    toast("Group removed");
+  }
+
+  async function assignHostsGroup(ids, groupId) {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (!unique.length) return;
+    await api("/api/hosts/move", { method: "POST", body: JSON.stringify({ ids: unique, groupId: groupId || "" }) });
+    setHostSelection([]);
+    await loadAll();
   }
 
   function fillIdentityForm(id) {
@@ -5943,6 +6355,57 @@ Write a runbook here.
         openJoin();
         return;
       }
+      const groupToggle = ev.target.closest("[data-group-toggle]");
+      if (groupToggle) {
+        ev.preventDefault();
+        toggleGroupNode(groupToggle.getAttribute("data-group-toggle") || groupToggle.closest("[data-group-id]")?.getAttribute("data-group-id"));
+        return;
+      }
+      const groupOpen = ev.target.closest("[data-group-open]");
+      if (groupOpen) {
+        ev.preventDefault();
+        state.groupFocus = groupOpen.getAttribute("data-group-open") || "";
+        paintList("host-list", "/ui/hosts?" + datastarQS()).then((ok) => {
+          if (!ok) renderHosts();
+        });
+        return;
+      }
+      const hostTile = ev.target.closest("[data-drag-host]");
+      if (hostTile && (ev.metaKey || ev.ctrlKey || ev.shiftKey)) {
+        ev.preventDefault();
+        toggleHostSelect(hostTile.getAttribute("data-drag-host"), ev.metaKey || ev.ctrlKey || ev.shiftKey);
+        return;
+      }
+      const groupNew = ev.target.closest("[data-group-new]");
+      if (groupNew) {
+        ev.preventDefault();
+        createGroup(groupNew.getAttribute("data-group-new") || "").catch((err) => toast(err.message, true));
+        return;
+      }
+      const groupEdit = ev.target.closest("[data-group-edit]");
+      if (groupEdit) {
+        ev.preventDefault();
+        editGroup(groupEdit.getAttribute("data-group-edit"));
+        return;
+      }
+      const groupRename = ev.target.closest("[data-group-rename]");
+      if (groupRename) {
+        ev.preventDefault();
+        renameGroup(groupRename.getAttribute("data-group-rename")).catch((err) => toast(err.message, true));
+        return;
+      }
+      const groupMove = ev.target.closest("[data-group-move]");
+      if (groupMove) {
+        ev.preventDefault();
+        moveGroup(groupMove.getAttribute("data-group-move")).catch((err) => toast(err.message, true));
+        return;
+      }
+      const groupDelete = ev.target.closest("[data-group-delete]");
+      if (groupDelete) {
+        ev.preventDefault();
+        deleteGroup(groupDelete.getAttribute("data-group-delete")).catch((err) => toast(err.message, true));
+        return;
+      }
       const groupFilter = ev.target.closest("[data-group-filter]");
       if (groupFilter && els.search) {
         const next = groupFilter.getAttribute("data-group-filter") || "";
@@ -6104,6 +6567,85 @@ Write a runbook here.
       }
     });
 
+    let nestDrag = null;
+    const clearDropTargets = () => {
+      document.querySelectorAll(".group-tree-node.is-drop-target").forEach((el) => el.classList.remove("is-drop-target"));
+    };
+    document.body.addEventListener("dragstart", (ev) => {
+      if (ev.target.closest("[data-group-menu], [data-group-toggle], [data-group-filter], input, textarea, button")) {
+        if (!ev.target.closest("[data-drag-host], [data-drag-group]")) {
+          ev.preventDefault();
+          return;
+        }
+      }
+      if (ev.target.closest("[data-group-menu], [data-group-toggle]")) {
+        ev.preventDefault();
+        return;
+      }
+      const host = ev.target.closest("[data-drag-host]");
+      const folder = ev.target.closest("[data-drag-group]");
+      if (host) {
+        const id = host.getAttribute("data-drag-host");
+        const selected = selectedHostSet();
+        const ids = selected.has(id) && selected.size ? [...selected] : [id];
+        nestDrag = { kind: "hosts", ids };
+      } else if (folder) {
+        nestDrag = { kind: "group", id: folder.getAttribute("data-drag-group") };
+      } else {
+        nestDrag = null;
+        return;
+      }
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/plain", nestDrag.id);
+    });
+    document.body.addEventListener("dragover", (ev) => {
+      if (!nestDrag) return;
+      const target = ev.target.closest("[data-group-drop]");
+      clearDropTargets();
+      if (!target) return;
+      ev.preventDefault();
+      target.classList.add("is-drop-target");
+      ev.dataTransfer.dropEffect = "move";
+    });
+    document.body.addEventListener("dragleave", (ev) => {
+      const node = ev.target.closest?.(".group-tree-node");
+      if (node && !node.contains(ev.relatedTarget)) node.classList.remove("is-drop-target");
+    });
+    document.body.addEventListener("drop", (ev) => {
+      const target = ev.target.closest("[data-group-drop]");
+      clearDropTargets();
+      if (!nestDrag || !target) return;
+      ev.preventDefault();
+      const dest = target.getAttribute("data-group-drop") || "";
+      const drag = nestDrag;
+      nestDrag = null;
+      if (drag.kind === "hosts") {
+        if (drag.ids?.length && dest !== undefined) {
+          assignHostsGroup(drag.ids, dest).catch((err) => toast(err.message, true));
+        }
+        return;
+      }
+      if (drag.kind === "group") {
+        if (!drag.id || drag.id === dest || isGroupUnder(dest, drag.id)) {
+          toast("group cannot nest under itself", true);
+          return;
+        }
+        const g = groupById(drag.id);
+        if (!g) return;
+        if (dest && groupDepth(dest) + 1 + groupDescendantDepth(drag.id) > MAX_GROUP_DEPTH) {
+          toast("group nest is deeper than 8", true);
+          return;
+        }
+        api(`/api/groups/${drag.id}`, { method: "PUT", body: JSON.stringify({ ...g, parentId: dest }) })
+          .then(loadAll)
+          .catch((err) => toast(err.message, true));
+      }
+    });
+    document.body.addEventListener("dragend", () => {
+      nestDrag = null;
+      clearDropTargets();
+    });
+
     on(els.search, "input", () => {
       state.query = els.search.value;
       paintList("host-list", "/ui/hosts?" + datastarQS());
@@ -6145,6 +6687,7 @@ Write a runbook here.
     on(document.getElementById("btn-join"), "click", openJoin);
     on(document.getElementById("join-cancel"), "click", () => closeModal(els.joinModal));
     on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
+    on(document.getElementById("group-cancel"), "click", () => closeModal(els.groupModal));
     on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
     on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));
     on(document.getElementById("notebook-rename-cancel"), "click", () => closeModal(els.notebookRenameModal));
@@ -6154,6 +6697,7 @@ Write a runbook here.
     on(els.modalScrim, "click", () => closeModal());
     [
       els.hostModal,
+      els.groupModal,
       els.quickModal,
       els.snippetModal,
       els.notebookRenameModal,
@@ -6223,6 +6767,7 @@ Write a runbook here.
     on(els.identityForm?.kind, "change", toggleIdentFields);
     on(els.tunnelForm?.kind, "change", toggleTunnelDest);
     on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
+    on(els.groupForm, "submit", (ev) => saveGroup(ev).catch((err) => toast(err.message, true)));
     on(els.identityForm, "submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
     on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));

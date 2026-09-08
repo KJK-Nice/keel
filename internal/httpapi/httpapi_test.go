@@ -1917,6 +1917,173 @@ func TestHostListDuplicateAction(t *testing.T) {
 	}
 }
 
+func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	create := func(body string) store.Group {
+		t.Helper()
+		res, err := http.Post(srv.URL+"/api/groups", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(res.Body)
+			t.Fatalf("create group %d %s", res.StatusCode, b)
+		}
+		var g store.Group
+		if err := json.NewDecoder(res.Body).Decode(&g); err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+
+	root := create(`{"name":"work"}`)
+	child := create(`{"name":"prod","parentId":"` + root.ID + `"}`)
+	if child.ParentID != root.ID {
+		t.Fatalf("child parent = %q", child.ParentID)
+	}
+
+	cycle, err := http.NewRequest(http.MethodPut, srv.URL+"/api/groups/"+root.ID, strings.NewReader(`{"name":"work","parentId":"`+child.ID+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cycle.Header.Set("Content-Type", "application/json")
+	cres, err := http.DefaultClient.Do(cycle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cres.Body.Close()
+	if cres.StatusCode != http.StatusBadRequest {
+		t.Fatalf("cycle status = %d", cres.StatusCode)
+	}
+
+	hostRes, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"api","groupId":"`+child.ID+`","address":"10.0.0.8","username":"ubuntu","authType":"password","password":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hostRes.Body.Close()
+	if hostRes.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(hostRes.Body)
+		t.Fatalf("host %d %s", hostRes.StatusCode, b)
+	}
+	var host store.Host
+	if err := json.NewDecoder(hostRes.Body).Decode(&host); err != nil {
+		t.Fatal(err)
+	}
+	if host.Group != "prod" || host.GroupID != child.ID {
+		t.Fatalf("host group view = %+v", host)
+	}
+
+	listRes, err := http.Get(srv.URL + "/api/groups")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listRes.Body.Close()
+	var groups []store.Group
+	if err := json.NewDecoder(listRes.Body).Decode(&groups); err != nil {
+		t.Fatal(err)
+	}
+	foundChild := false
+	for _, g := range groups {
+		if g.ID == child.ID && g.ParentID == root.ID {
+			foundChild = true
+		}
+	}
+	if !foundChild {
+		t.Fatalf("nested child missing from list: %+v", groups)
+	}
+
+	frag, err := http.Get(srv.URL + "/ui/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frag.Body.Close()
+	body, _ := io.ReadAll(frag.Body)
+	html := string(body)
+	if !strings.Contains(html, `data-group-id="`+root.ID+`"`) || !strings.Contains(html, `data-group-id="`+child.ID+`"`) {
+		t.Fatalf("vault tree missing nested group ids: %s", html)
+	}
+	if !strings.Contains(html, `data-group-toggle`) || !strings.Contains(html, `data-group-new="`+child.ID+`"`) ||
+		!strings.Contains(html, `data-group-rename="`+child.ID+`"`) || !strings.Contains(html, `data-drag-group`) {
+		t.Fatal("vault tree missing expand/create/rename/drag hooks")
+	}
+	if !strings.Contains(html, `data-group-filter="prod"`) || !strings.Contains(html, `data-connect="`+host.ID+`"`) {
+		t.Fatal("nested host should stay visible on the Hosts screen (current group + subgroups)")
+	}
+	if !strings.Contains(html, `data-group-open="`+child.ID+`"`) {
+		t.Fatal("group cards should drill into a parent group")
+	}
+
+	other, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"db","address":"10.0.0.9","username":"ubuntu","authType":"password","password":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Body.Close()
+	var db store.Host
+	if err := json.NewDecoder(other.Body).Decode(&db); err != nil {
+		t.Fatal(err)
+	}
+	move, err := http.Post(srv.URL+"/api/hosts/move", "application/json", strings.NewReader(`{"ids":["`+host.ID+`","`+db.ID+`"],"groupId":"`+root.ID+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer move.Body.Close()
+	if move.StatusCode != http.StatusNoContent {
+		b, _ := io.ReadAll(move.Body)
+		t.Fatalf("move %d %s", move.StatusCode, b)
+	}
+
+	js, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer js.Body.Close()
+	jsBody, _ := io.ReadAll(js.Body)
+	term := string(jsBody)
+	for _, want := range []string{
+		"const MAX_GROUP_DEPTH = 8",
+		"function nestGroupTreeJS",
+		"function hostsInCurrentAndSubgroups",
+		"function assignHostsGroup",
+		"data-group-rename",
+		"data-drag-group",
+		"/api/groups",
+		"/api/hosts/move",
+		"parentId",
+		"host-parent-group",
+		"kind: \"hosts\"",
+	} {
+		if !strings.Contains(term, want) {
+			t.Fatalf("term.js missing %q", want)
+		}
+	}
+	for _, fn := range []string{"async function assignHostsGroup", "async function saveGroup"} {
+		i := strings.Index(term, fn)
+		if i < 0 {
+			t.Fatalf("missing %s", fn)
+		}
+		chunk := term[i:]
+		if n := 900; len(chunk) > n {
+			chunk = chunk[:n]
+		}
+		if strings.Contains(chunk, "inject") || strings.Contains(chunk, "sendSnippet") || strings.Contains(chunk, "ptyWritesBlocked") {
+			t.Fatalf("%s must not touch PTY/Inject", fn)
+		}
+	}
+}
+
 func TestIndexServesVault(t *testing.T) {
 	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
@@ -2537,6 +2704,10 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) ||
 		!strings.Contains(string(body), `id="btn-refresh-logs"`) {
 		t.Fatal("index missing vault action buttons")
+	}
+	if !strings.Contains(string(body), `id="group-modal"`) || !strings.Contains(string(body), `id="host-parent-group"`) ||
+		!strings.Contains(string(body), `id="btn-new-group"`) {
+		t.Fatal("index missing Parent Group dialogs")
 	}
 	snip, err := http.Get(srv.URL + "/ui/snippets")
 	if err != nil {

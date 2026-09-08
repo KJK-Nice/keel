@@ -363,6 +363,13 @@ templ HostsPage(p PageProps) {
 									⌘J
 								}
 							}
+							@dropdownmenu.Item(dropdownmenu.ItemProps{
+								ID:         "btn-new-group",
+								Attributes: templ.Attributes{"data-group-new": ""},
+							}) {
+								@icon.Folder01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								New group
+							}
 						}
 					}
 				}

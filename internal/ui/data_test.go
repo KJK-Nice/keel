@@ -55,6 +55,67 @@ func TestSignalsJSONIncludesLocked(t *testing.T) {
 	}
 }
 
+func TestNestGroupTreeParentsAndCounts(t *testing.T) {
+	groups := []store.Group{
+		{ID: "root", Name: "work"},
+		{ID: "prod", Name: "prod", ParentID: "root"},
+		{ID: "labs", Name: "labs"},
+	}
+	hosts := []store.Host{
+		{ID: "h1", Name: "api", Group: "prod", GroupID: "prod", Address: "10.0.0.1"},
+		{ID: "h2", Name: "gpu", Group: "labs", GroupID: "labs", Address: "10.0.0.9", Tags: []string{"ml"}},
+		{ID: "h3", Name: "solo", Address: "10.0.0.8"},
+	}
+	tree := nestGroupTree(groups, hosts, "", "")
+	if len(tree) != 2 {
+		t.Fatalf("roots = %d", len(tree))
+	}
+	var work, labs groupNode
+	for _, n := range tree {
+		switch n.Group.ID {
+		case "root":
+			work = n
+		case "labs":
+			labs = n
+		}
+	}
+	if work.Count != 1 || len(work.Kids) != 1 || work.Kids[0].Group.ID != "prod" || len(work.Kids[0].Hosts) != 1 {
+		t.Fatalf("work tree = %+v", work)
+	}
+	if labs.Count != 1 || labs.Depth != 1 {
+		t.Fatalf("labs = %+v", labs)
+	}
+	if n := len(ungroupedHosts(hosts, groups, "")); n != 1 {
+		t.Fatalf("ungrouped = %d", n)
+	}
+	filtered := nestGroupTree(groups, hosts, "work", "")
+	if len(filtered) != 1 || filtered[0].Group.ID != "root" || filtered[0].Count != 1 {
+		t.Fatalf("ancestor query = %+v", filtered)
+	}
+	all := hostsInCurrentAndSubgroups(groups, hosts, "", "")
+	if len(all) != 3 {
+		t.Fatalf("root hosts (current+subgroups) = %d", len(all))
+	}
+	workHosts := hostsInCurrentAndSubgroups(groups, hosts, "root", "")
+	if len(workHosts) != 1 || workHosts[0].ID != "h1" {
+		t.Fatalf("work subtree = %+v", workHosts)
+	}
+	byTag := hostsInCurrentAndSubgroups(groups, hosts, "", "ml")
+	if len(byTag) != 1 || byTag[0].ID != "h2" {
+		t.Fatalf("tags stay orthogonal: %+v", byTag)
+	}
+	path := groupFocusPath(groups, "prod")
+	if len(path) != 2 || path[0].ID != "root" || path[1].ID != "prod" {
+		t.Fatalf("focus path = %+v", path)
+	}
+	if vaultTreeEmpty(tree, ungroupedHosts(hosts, groups, "")) {
+		t.Fatal("tree should not be empty")
+	}
+	if nestDepthAttr(3) != "3" {
+		t.Fatal("depth attr")
+	}
+}
+
 func TestTunnelAndLogBadgeVariants(t *testing.T) {
 	if tunnelBadgeVariant(tunnel.StatusReady) != badge.VariantDefault {
 		t.Fatal("ready tunnel should be default badge")
