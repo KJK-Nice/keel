@@ -55,9 +55,27 @@ type Host struct {
 	KeepAliveSec    int       `json:"keepAliveSec"`
 	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
 	Tags            []string  `json:"tags,omitempty"`
+	GroupID         string    `json:"groupId,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
+
+// Group is a Termius-style vault folder. ParentID empty means a root folder.
+// Nesting is capped at MaxGroupDepth; Move/Upsert reject cycles.
+type Group struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	ParentID  string    `json:"parentId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+const MaxGroupDepth = 8
+
+var (
+	ErrGroupCycle = errors.New("group cannot nest under itself")
+	ErrGroupDepth = errors.New("group nest is deeper than 8")
+)
 
 const defaultKeepAlive = 30 * time.Second
 
@@ -201,6 +219,7 @@ type persistData struct {
 	Tunnels    []Tunnel          `json:"tunnels"`
 	Snippets   []Snippet         `json:"snippets"`
 	Notebooks  []Notebook        `json:"notebooks,omitempty"`
+	Groups     []Group           `json:"groups,omitempty"`
 	KnownHosts map[string]string `json:"knownHosts"`
 }
 
@@ -274,6 +293,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Tunnels    []Tunnel          `json:"tunnels"`
 		Snippets   []Snippet         `json:"snippets"`
 		Notebooks  []Notebook        `json:"notebooks"`
+		Groups     []Group           `json:"groups"`
 		KnownHosts map[string]string `json:"knownHosts"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -286,6 +306,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Tunnels:    raw.Tunnels,
 		Snippets:   raw.Snippets,
 		Notebooks:  raw.Notebooks,
+		Groups:     raw.Groups,
 		KnownHosts: raw.KnownHosts,
 	}
 	if out.KnownHosts == nil {
@@ -489,6 +510,9 @@ func (s *Store) ListHosts() ([]Host, error) {
 	if s.locked {
 		return nil, ErrLocked
 	}
+	if err := s.ensureGroupsLocked(); err != nil {
+		return nil, err
+	}
 	out := make([]Host, len(s.data.Hosts))
 	for i, h := range s.data.Hosts {
 		out[i] = s.viewLocked(h)
@@ -519,6 +543,7 @@ func (s *Store) viewLocked(h persistHost) Host {
 		Tags:      append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
+	out = s.hydrateGroupLocked(out, h.Group)
 	if sec, ok := s.secrets[h.ID]; ok {
 		if sec.Password != "" {
 			out.Password = "x"
@@ -542,6 +567,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 		Tags:      append([]string(nil), h.Tags...),
 		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
+	out = s.hydrateGroupLocked(out, h.Group)
 	if sec, ok := s.secrets[h.ID]; ok {
 		out.Password = sec.Password
 		out.PrivateKey = sec.PrivateKey
@@ -561,6 +587,15 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if h.Port == 0 && h.AuthType != "local" {
 		h.Port = 22
 	}
+	if err := s.ensureGroupsLocked(); err != nil {
+		return Host{}, err
+	}
+	gid, err := s.resolveGroupRefLocked(h.GroupID, h.Group)
+	if err != nil {
+		return Host{}, err
+	}
+	h.Group = gid
+	h.GroupID = gid
 	if h.ID == "" {
 		h.ID = newID()
 		h.CreatedAt = now
@@ -654,8 +689,12 @@ func (s *Store) DuplicateHost(id string) (Host, error) {
 }
 
 func persistFrom(h Host) persistHost {
+	gid := strings.TrimSpace(h.GroupID)
+	if gid == "" {
+		gid = strings.TrimSpace(h.Group)
+	}
 	return persistHost{
-		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
+		ID: h.ID, Name: h.Name, Group: gid, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,

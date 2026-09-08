@@ -1917,6 +1917,133 @@ func TestHostListDuplicateAction(t *testing.T) {
 	}
 }
 
+func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
+	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	create := func(body string) store.Group {
+		t.Helper()
+		res, err := http.Post(srv.URL+"/api/groups", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(res.Body)
+			t.Fatalf("create group %d %s", res.StatusCode, b)
+		}
+		var g store.Group
+		if err := json.NewDecoder(res.Body).Decode(&g); err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+
+	root := create(`{"name":"work"}`)
+	child := create(`{"name":"prod","parentId":"` + root.ID + `"}`)
+	if child.ParentID != root.ID {
+		t.Fatalf("child parent = %q", child.ParentID)
+	}
+
+	cycle, err := http.NewRequest(http.MethodPut, srv.URL+"/api/groups/"+root.ID, strings.NewReader(`{"name":"work","parentId":"`+child.ID+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cycle.Header.Set("Content-Type", "application/json")
+	cres, err := http.DefaultClient.Do(cycle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cres.Body.Close()
+	if cres.StatusCode != http.StatusBadRequest {
+		t.Fatalf("cycle status = %d", cres.StatusCode)
+	}
+
+	hostRes, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"api","groupId":"`+child.ID+`","address":"10.0.0.8","username":"ubuntu","authType":"password","password":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hostRes.Body.Close()
+	if hostRes.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(hostRes.Body)
+		t.Fatalf("host %d %s", hostRes.StatusCode, b)
+	}
+	var host store.Host
+	if err := json.NewDecoder(hostRes.Body).Decode(&host); err != nil {
+		t.Fatal(err)
+	}
+	if host.Group != "prod" || host.GroupID != child.ID {
+		t.Fatalf("host group view = %+v", host)
+	}
+
+	listRes, err := http.Get(srv.URL + "/api/groups")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listRes.Body.Close()
+	var groups []store.Group
+	if err := json.NewDecoder(listRes.Body).Decode(&groups); err != nil {
+		t.Fatal(err)
+	}
+	foundChild := false
+	for _, g := range groups {
+		if g.ID == child.ID && g.ParentID == root.ID {
+			foundChild = true
+		}
+	}
+	if !foundChild {
+		t.Fatalf("nested child missing from list: %+v", groups)
+	}
+
+	frag, err := http.Get(srv.URL + "/ui/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frag.Body.Close()
+	body, _ := io.ReadAll(frag.Body)
+	html := string(body)
+	if !strings.Contains(html, `data-group-id="`+root.ID+`"`) || !strings.Contains(html, `data-group-id="`+child.ID+`"`) {
+		t.Fatalf("vault tree missing nested group ids: %s", html)
+	}
+	if !strings.Contains(html, `data-group-toggle`) || !strings.Contains(html, `data-group-new="`+child.ID+`"`) ||
+		!strings.Contains(html, `data-group-rename="`+child.ID+`"`) || !strings.Contains(html, `data-drag-group`) {
+		t.Fatal("vault tree missing expand/create/rename/drag hooks")
+	}
+	if !strings.Contains(html, `data-group-filter="prod"`) || !strings.Contains(html, `data-connect="`+host.ID+`"`) {
+		t.Fatal("nested host should stay under its folder with group filter")
+	}
+
+	js, err := http.Get(srv.URL + "/js/term.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer js.Body.Close()
+	jsBody, _ := io.ReadAll(js.Body)
+	term := string(jsBody)
+	for _, want := range []string{
+		"const MAX_GROUP_DEPTH = 8",
+		"function nestGroupTreeJS",
+		"data-group-rename",
+		"data-drag-group",
+		"/api/groups",
+		"parentId",
+	} {
+		if !strings.Contains(term, want) {
+			t.Fatalf("term.js missing %q", want)
+		}
+	}
+}
+
 func TestIndexServesVault(t *testing.T) {
 	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")

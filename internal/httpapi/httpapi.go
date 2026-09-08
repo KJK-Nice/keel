@@ -74,6 +74,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
+	mux.HandleFunc("GET /api/groups", s.listGroups)
+	mux.HandleFunc("POST /api/groups", s.upsertGroup)
+	mux.HandleFunc("PUT /api/groups/{id}", s.updateGroup)
+	mux.HandleFunc("DELETE /api/groups/{id}", s.deleteGroup)
 	mux.HandleFunc("GET /api/snippets", s.listSnippets)
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
 	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
@@ -388,6 +392,64 @@ func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
 	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
+}
+
+func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
+	groups, err := s.store.ListGroups()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, groups)
+}
+
+func (s *Server) upsertGroup(w http.ResponseWriter, r *http.Request) {
+	var g store.Group
+	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid group payload")
+		return
+	}
+	g.ID = ""
+	if strings.TrimSpace(g.Name) == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	saved, err := s.store.UpsertGroup(g)
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, saved)
+	s.note("group", "group created: "+saved.Name, "", "", "")
+}
+
+func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
+	var g store.Group
+	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid group payload")
+		return
+	}
+	g.ID = r.PathValue("id")
+	if strings.TrimSpace(g.Name) == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	saved, err := s.store.UpsertGroup(g)
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, saved)
+	s.note("group", "group updated: "+saved.Name, "", "", "")
+}
+
+func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteGroup(r.PathValue("id")); err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+	s.note("group", "group deleted", "", "", "")
 }
 
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
@@ -945,6 +1007,10 @@ func writeStoreErr(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if errors.Is(err, store.ErrGroupCycle) || errors.Is(err, store.ErrGroupDepth) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())
