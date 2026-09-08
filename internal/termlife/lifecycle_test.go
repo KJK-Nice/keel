@@ -209,7 +209,7 @@ func TestWriteSkipsInvalidateWhenNotNative(t *testing.T) {
 	WriteBytes(tab, a)
 	got := tab.Log[before:]
 	if slices.Contains(got, "invalidate:a") {
-		t.Fatal("browser compositor does not need the native dummy-resize kick")
+		t.Fatal("browser compositor does not need the native canvas invalidate")
 	}
 }
 

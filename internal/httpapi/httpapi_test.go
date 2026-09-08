@@ -2265,8 +2265,18 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(writeFn, "sendResize") || strings.Contains(invFn, "sendResize") || strings.Contains(schedFn, "sendResize") {
 		t.Fatal("write/invalidate must not sendResize; Relayout is local to the canvas")
 	}
-	if !strings.Contains(invFn, "cols - 1") || !strings.Contains(invFn, "pane.term.refresh") {
-		t.Fatal("invalidatePaneRender must dummy-resize then refresh like the old resize path")
+	if strings.Contains(invFn, "cols - 1") || strings.Contains(invFn, "term.resize") {
+		t.Fatal("invalidatePaneRender must not dummy-resize; cols±1 blinks the frame on every type")
+	}
+	if !strings.Contains(invFn, "pane.term.refresh") || !strings.Contains(invFn, "kickNativeCanvasCompositor") {
+		t.Fatal("write invalidate must refresh then kick the WKWebView canvas compositor")
+	}
+	kickFn := sliceJSFunc(string(termBody), "function kickNativeCanvasCompositor")
+	if kickFn == "" || strings.Contains(kickFn, "term.resize") || strings.Contains(kickFn, "sendResize") {
+		t.Fatal("canvas compositor kick must not resize the PTY or xterm grid")
+	}
+	if !strings.Contains(kickFn, `querySelectorAll("canvas")`) || !strings.Contains(kickFn, "translateZ") {
+		t.Fatal("compositor kick must nudge WebGL/canvas layers without a dummy grid resize")
 	}
 	if !strings.Contains(invFn, "isNativeWindow()") {
 		t.Fatal("compositor invalidate is a WKWebView kick, not a browser-fit")
