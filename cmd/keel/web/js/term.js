@@ -3353,25 +3353,6 @@
     }
   }
 
-  function nativeMenuOwnsShortcut(ev) {
-    if (!isNativeWindow()) return false;
-    const raw = ev.key || "";
-    const key = raw.length === 1 ? raw.toLowerCase() : raw;
-    if (key === "t" || key === "w") return true;
-    if (key === "n" && !ev.shiftKey) return true;
-    if (key === "o" && ev.shiftKey) return true;
-    if (key === "j" && !ev.shiftKey) return true;
-    if (key === "f" && !ev.shiftKey) return true;
-    if (key === "b" && !ev.shiftKey) return true;
-    if (key === "d" && ev.shiftKey) return true;
-    if (key === "e" && ev.shiftKey) return true;
-    if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) return true;
-    if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") return true;
-    if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") return true;
-    if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) return true;
-    return false;
-  }
-
   function tabCycleDelta(ev) {
     const raw = ev.key || "";
     const key = raw.length === 1 ? raw.toLowerCase() : raw;
@@ -3401,11 +3382,10 @@
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
-    if (nativeMenuOwnsShortcut(ev)) return false;
     const raw = ev.key || "";
     const key = raw.length === 1 ? raw.toLowerCase() : raw;
     if (ev.repeat && (key === "t" || key === "w")) return false;
-    if (key === "w") {
+    if (key === "w" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("close-tab");
       return true;

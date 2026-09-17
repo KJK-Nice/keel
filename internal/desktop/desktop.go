@@ -68,7 +68,7 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	file.Add("Quick Connect").SetAccelerator("CmdOrCtrl+Shift+o").OnClick(w.menuAction("quick-connect"))
 	file.Add("Join Session").SetAccelerator("CmdOrCtrl+j").OnClick(w.menuAction("join"))
 	file.AddSeparator()
-	file.Add("Find Host").SetAccelerator("CmdOrCtrl+k").OnClick(w.menuAction("search"))
+	file.Add("Find Host").OnClick(w.menuAction("search"))
 	file.AddSeparator()
 	file.Add("Split Right").SetAccelerator("CmdOrCtrl+Shift+d").OnClick(w.menuAction("split-right"))
 	file.Add("Split Down").SetAccelerator("CmdOrCtrl+Shift+e").OnClick(w.menuAction("split-down"))

@@ -68,6 +68,9 @@ func TestAppMenuHasTabShortcuts(t *testing.T) {
 	if m.FindByLabel("New Tab").GetAccelerator() == "" {
 		t.Error("New Tab missing accelerator")
 	}
+	if acc := m.FindByLabel("Find Host").GetAccelerator(); acc != "" {
+		t.Errorf("Find Host must not steal Cmd+K from the palette, got %q", acc)
+	}
 }
 
 func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
