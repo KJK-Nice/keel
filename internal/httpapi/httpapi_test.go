@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -3072,18 +3073,19 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if bind == "" || !strings.Contains(bind, "if (window.__keelChromeBound) return") {
 		t.Fatal("bindChrome must register window keydown once")
 	}
-	owns := sliceJSFunc(term, "function nativeMenuOwnsShortcut")
-	if owns == "" || !strings.Contains(owns, `key === "t"`) || !strings.Contains(owns, "isNativeWindow()") {
-		t.Fatal("native Cmd+T must belong to the File menu, not a second JS listener")
-	}
 	handle := sliceJSFunc(term, "function handleShortcut")
-	if handle == "" || !strings.Contains(handle, "nativeMenuOwnsShortcut(ev)") {
-		t.Fatal("handleShortcut must defer Cmd+T to the native menu in the desktop app")
+	if handle == "" {
+		t.Fatal("missing handleShortcut")
 	}
-	idxOwns := strings.Index(handle, "nativeMenuOwnsShortcut(ev)")
+	if strings.Contains(handle, "nativeMenuOwnsShortcut") {
+		t.Fatal("handleShortcut must run chrome keys in JS; deferring to the File menu leaves most shortcuts dead when the accelerator does not fire")
+	}
 	idxNew := strings.Index(handle, `runShortcut("new-tab")`)
-	if idxOwns < 0 || idxNew < 0 || idxOwns > idxNew {
-		t.Fatal("native menu must win before JS creates a tab")
+	if idxNew < 0 {
+		t.Fatal("handleShortcut must create a tab on Cmd+T")
+	}
+	if !strings.Contains(handle, `key === "w" && !ev.shiftKey`) {
+		t.Fatal("Cmd+W closes a pane or tab; Cmd+Shift+W must still reach Close Window")
 	}
 	created := sliceJSFunc(term, "function newTab")
 	if created == "" || !strings.Contains(created, "newTabLockUntil") || !strings.Contains(created, "createStartTab") {
@@ -3095,6 +3097,15 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	run := sliceJSFunc(term, "function runShortcut")
 	if run == "" || !strings.Contains(run, "lastShortcutAt < 300") {
 		t.Fatal("runShortcut must debounce duplicate new-tab within one gesture")
+	}
+	for _, name := range []string{
+		"new-tab", "close-tab", "reopen-tab", "new-host", "quick-connect", "join",
+		"find-term", "toggle-sidebar", "split-right", "split-down", "focus-pane",
+		"zoom-in", "zoom-out", "zoom-reset", "palette", "settings",
+	} {
+		if !strings.Contains(handle, `runShortcut("`+name+`")`) {
+			t.Fatalf("handleShortcut must run %s in JS", name)
+		}
 	}
 
 	disposeEd := sliceJSFunc(term, "function disposeNotebookEditor")
@@ -3126,5 +3137,112 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 			strings.Contains(fn, "approved: true") {
 			t.Fatal("tab create / notebook dispose must not Write or Inject the PTY")
 		}
+	}
+}
+
+func nodeBin(t *testing.T) string {
+	t.Helper()
+	if p, err := exec.LookPath("node"); err == nil {
+		return p
+	}
+	if _, err := os.Stat("/exec-daemon/node"); err == nil {
+		return "/exec-daemon/node"
+	}
+	t.Fatal("node is required to eval tabCycleDelta")
+	return ""
+}
+
+func TestCmdAngleCycleTabs(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	deltaFn := sliceJSFunc(term, "function tabCycleDelta")
+	targetFn := sliceJSFunc(term, "function tabCycleTarget")
+	if deltaFn == "" || targetFn == "" {
+		t.Fatal("tabCycleDelta and tabCycleTarget must map Cmd+< / Cmd+> onto chrome tabs")
+	}
+
+	script := filepath.Join(t.TempDir(), "tabcycle.js")
+	harness := deltaFn + "\n" + targetFn + `
+function eq(name, got, want) {
+  if (got !== want) throw new Error(name + ": got " + JSON.stringify(got) + " want " + JSON.stringify(want));
+}
+const cases = [
+  [{ key: "<", code: "Comma", shiftKey: true }, -1, "us shift comma"],
+  [{ key: ",", code: "Comma", shiftKey: true }, -1, "us shift comma key comma"],
+  [{ key: ">", code: "Period", shiftKey: true }, 1, "us shift period"],
+  [{ key: ".", code: "Period", shiftKey: true }, 1, "us shift period key dot"],
+  [{ key: "<", code: "IntlBackslash", shiftKey: false }, -1, "iso less-than"],
+  [{ key: ">", code: "IntlBackslash", shiftKey: true }, 1, "iso greater-than"],
+  [{ key: "{", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left"],
+  [{ key: "[", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left key"],
+  [{ key: "}", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right"],
+  [{ key: "]", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right key"],
+  [{ key: ",", code: "Comma", shiftKey: false }, 0, "settings comma"],
+  [{ key: "[", code: "BracketLeft", shiftKey: false }, 0, "unshifted bracket is not back"],
+  [{ key: "\\", code: "IntlBackslash", shiftKey: false }, 0, "uk backslash is not prev tab"],
+  [{ key: "+", code: "Equal", shiftKey: true }, 0, "zoom in"],
+  [{ key: "t", code: "KeyT", shiftKey: false }, 0, "new tab"],
+];
+for (const [ev, want, name] of cases) eq(name, tabCycleDelta(ev), want);
+eq("wrap prev from first", tabCycleTarget(["vault", "a", "b"], "vault", -1), "b");
+eq("wrap next from last", tabCycleTarget(["vault", "a", "b"], "b", 1), "vault");
+eq("prev from middle", tabCycleTarget(["vault", "a", "b"], "a", -1), "vault");
+eq("next from middle", tabCycleTarget(["vault", "a", "b"], "a", 1), "b");
+eq("missing id starts at 0", tabCycleTarget(["vault", "a", "b"], "gone", 1), "a");
+eq("single tab wraps to self", tabCycleTarget(["vault"], "vault", 1), "vault");
+eq("empty list", tabCycleTarget([], "vault", 1), "");
+eq("zero delta", tabCycleTarget(["vault", "a"], "a", 0), "");
+console.log("ok");
+`
+	if err := os.WriteFile(script, []byte(harness), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(nodeBin(t), script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("tab cycle eval: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "ok") {
+		t.Fatalf("tab cycle eval missing ok: %s", out)
+	}
+
+	handle := sliceJSFunc(term, "function handleShortcut")
+	run := sliceJSFunc(term, "function runShortcut")
+	if handle == "" || run == "" {
+		t.Fatal("missing shortcut helpers")
+	}
+	if !strings.Contains(handle, "tabCycleDelta(ev)") {
+		t.Fatal("handleShortcut must classify Cmd+< / Cmd+> through tabCycleDelta")
+	}
+	idxCycle := strings.Index(handle, "tabCycleDelta(ev)")
+	idxSettings := strings.Index(handle, `key === "," && !ev.shiftKey`)
+	if idxCycle < 0 || idxSettings < 0 || idxCycle > idxSettings {
+		t.Fatal("tab cycle must run before the Cmd+, settings match")
+	}
+	if !strings.Contains(run, `name === "prev-tab"`) || !strings.Contains(run, `name === "next-tab"`) {
+		t.Fatal("runShortcut must activate prev-tab and next-tab")
+	}
+	if !strings.Contains(run, "activateTabDelta") {
+		t.Fatal("runShortcut must move the chrome tab via activateTabDelta")
+	}
+	if strings.Contains(handle, "_keelTabCycle") {
+		t.Fatal("window capture must own the keydown; do not stamp the event to hide a second listener")
+	}
+	if !strings.Contains(handle, "ev.repeat") {
+		t.Fatal("hold-to-repeat tab cycling must pass ev.repeat into runShortcut")
+	}
+	if !strings.Contains(run, "!repeat") || !strings.Contains(run, "lastShortcutAt < 300") {
+		t.Fatal("runShortcut must debounce a duplicate gesture and still run key repeat")
+	}
+	bind := sliceJSFunc(term, "function bindChrome")
+	if !strings.Contains(bind, "if (handleShortcut(ev)) ev.stopPropagation()") {
+		t.Fatal("bindChrome must stop the keydown after JS handles it so xterm does not run it again")
+	}
+
+	cat := sliceJSFunc(term, "function paletteCatalog")
+	if !strings.Contains(cat, `id: "prev-tab"`) || !strings.Contains(cat, `id: "next-tab"`) {
+		t.Fatal("command palette must list previous and next tab")
 	}
 }

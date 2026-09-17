@@ -2954,6 +2954,20 @@
       keys: `${MOD}⇧T`,
       run: () => reopenLastTab(),
     });
+    add({
+      id: "prev-tab",
+      group: "Tabs",
+      title: "Previous tab",
+      keys: `${MOD}<`,
+      run: () => runShortcut("prev-tab"),
+    });
+    add({
+      id: "next-tab",
+      group: "Tabs",
+      title: "Next tab",
+      keys: `${MOD}>`,
+      run: () => runShortcut("next-tab"),
+    });
     add({ id: "vault", group: "Vault", title: "Go to Vault", keys: `${MOD}1`, run: () => showVault() });
     add({
       id: "search-hosts",
@@ -3278,9 +3292,9 @@
     paintCommandPalette();
   }
 
-  function runShortcut(name) {
+  function runShortcut(name, repeat) {
     const now = Date.now();
-    if (name === lastShortcutName && now - lastShortcutAt < 300) return;
+    if (!repeat && name === lastShortcutName && now - lastShortcutAt < 300) return;
     lastShortcutName = name;
     lastShortcutAt = now;
     if (name === "new-tab") newTab();
@@ -3331,40 +3345,47 @@
           state.runtimeStopping = false;
           toast(err.message, true);
         });
-    } else if (name === "palette") {
+    } else if (name === "prev-tab") activateTabDelta(-1);
+    else if (name === "next-tab") activateTabDelta(1);
+    else if (name === "palette") {
       if (isCommandPaletteOpen()) closeCommandPalette();
       else openCommandPalette();
     }
   }
 
-  function nativeMenuOwnsShortcut(ev) {
-    if (!isNativeWindow()) return false;
+  function tabCycleDelta(ev) {
     const raw = ev.key || "";
     const key = raw.length === 1 ? raw.toLowerCase() : raw;
-    if (key === "t" || key === "w") return true;
-    if (key === "n" && !ev.shiftKey) return true;
-    if (key === "o" && ev.shiftKey) return true;
-    if (key === "j" && !ev.shiftKey) return true;
-    if (key === "f" && !ev.shiftKey) return true;
-    if (key === "b" && !ev.shiftKey) return true;
-    if (key === "d" && ev.shiftKey) return true;
-    if (key === "e" && ev.shiftKey) return true;
-    if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) return true;
-    if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") return true;
-    if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") return true;
-    if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) return true;
-    return false;
+    const code = ev.code || "";
+    const shift = !!ev.shiftKey;
+    const prev =
+      key === "<" ||
+      key === "{" ||
+      (shift && (key === "," || key === "[" || code === "Comma" || code === "BracketLeft"));
+    const next =
+      key === ">" ||
+      key === "}" ||
+      (shift && (key === "." || key === "]" || code === "Period" || code === "BracketRight"));
+    if (prev === next) return 0;
+    return prev ? -1 : 1;
+  }
+
+  function tabCycleTarget(list, activeId, delta) {
+    if (!list.length || !delta) return "";
+    const i = list.indexOf(activeId);
+    const from = i < 0 ? 0 : i;
+    const len = list.length;
+    return list[(from + (delta % len) + len) % len] || "";
   }
 
   function handleShortcut(ev) {
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
-    if (nativeMenuOwnsShortcut(ev)) return false;
     const raw = ev.key || "";
     const key = raw.length === 1 ? raw.toLowerCase() : raw;
     if (ev.repeat && (key === "t" || key === "w")) return false;
-    if (key === "w") {
+    if (key === "w" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("close-tab");
       return true;
@@ -3452,6 +3473,12 @@
     if (key === "j" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("join");
+      return true;
+    }
+    const delta = tabCycleDelta(ev);
+    if (delta) {
+      ev.preventDefault();
+      runShortcut(delta < 0 ? "prev-tab" : "next-tab", ev.repeat);
       return true;
     }
     if (key === "," && !ev.shiftKey) {
@@ -5835,6 +5862,13 @@ Write a runbook here.
     renderTabs();
   }
 
+  function activateTabDelta(delta) {
+    const id = tabCycleTarget(chromeTabs(), state.activeId, delta);
+    if (!id) return;
+    state.activeId = id;
+    renderTabs();
+  }
+
   async function boot() {
     persistName();
     try {
@@ -5953,7 +5987,7 @@ Write a runbook here.
           closeModal();
           return;
         }
-        handleShortcut(ev);
+        if (handleShortcut(ev)) ev.stopPropagation();
       },
       true
     );

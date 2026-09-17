@@ -67,6 +67,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
 - **⌘T** new tab (recent hosts to pick). **⌘W** closes the focused pane first; with one pane left it closes the session tab if another is open. The last session tab stays (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
 - **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
+- **⌘<** / **⌘>** previous or next tab. The strip wraps and includes Vault. **⌘⇧[** / **⌘⇧]** do the same.
 - Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
 - **⌘K** / **⌘⇧P** opens the command palette (connect a host, focus a pane or tab, split, settings, and other chrome actions). Host search on Vault still works; the palette includes **Search hosts in Vault**. **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
 - Palette actions that would type into a live session (**Type snippet**) always show **approve-before-type**: the bytes are previewed and nothing is written until you click **Type**. Vault snippet list clicks are unchanged.
