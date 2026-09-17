@@ -3292,9 +3292,9 @@
     paintCommandPalette();
   }
 
-  function runShortcut(name) {
+  function runShortcut(name, repeat) {
     const now = Date.now();
-    if (name === lastShortcutName && now - lastShortcutAt < 300 && name !== "prev-tab" && name !== "next-tab") return;
+    if (!repeat && name === lastShortcutName && now - lastShortcutAt < 300) return;
     lastShortcutName = name;
     lastShortcutAt = now;
     if (name === "new-tab") newTab();
@@ -3498,10 +3498,7 @@
     const delta = tabCycleDelta(ev);
     if (delta) {
       ev.preventDefault();
-      if (!ev._keelTabCycle) {
-        ev._keelTabCycle = true;
-        runShortcut(delta < 0 ? "prev-tab" : "next-tab");
-      }
+      runShortcut(delta < 0 ? "prev-tab" : "next-tab", ev.repeat);
       return true;
     }
     if (key === "," && !ev.shiftKey) {
@@ -6010,7 +6007,7 @@ Write a runbook here.
           closeModal();
           return;
         }
-        handleShortcut(ev);
+        if (handleShortcut(ev)) ev.stopPropagation();
       },
       true
     );

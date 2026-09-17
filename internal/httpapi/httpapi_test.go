@@ -3218,12 +3218,18 @@ console.log("ok");
 	if !strings.Contains(run, "activateTabDelta") {
 		t.Fatal("runShortcut must move the chrome tab via activateTabDelta")
 	}
-	debounce := ""
-	if i := strings.Index(run, "lastShortcutAt"); i >= 0 {
-		debounce = run[i : i+180]
+	if strings.Contains(handle, "_keelTabCycle") {
+		t.Fatal("window capture must own the keydown; do not stamp the event to hide a second listener")
 	}
-	if !strings.Contains(debounce, "prev-tab") || !strings.Contains(debounce, "next-tab") {
-		t.Fatal("runShortcut must not debounce hold-to-repeat tab cycling")
+	if !strings.Contains(handle, "ev.repeat") {
+		t.Fatal("hold-to-repeat tab cycling must pass ev.repeat into runShortcut")
+	}
+	if !strings.Contains(run, "!repeat") || !strings.Contains(run, "lastShortcutAt < 300") {
+		t.Fatal("runShortcut must debounce a duplicate gesture and still run key repeat")
+	}
+	bind := sliceJSFunc(term, "function bindChrome")
+	if !strings.Contains(bind, "if (handleShortcut(ev)) ev.stopPropagation()") {
+		t.Fatal("bindChrome must stop the keydown after JS handles it so xterm does not run it again")
 	}
 	if strings.Contains(owns, `key === "<"`) || strings.Contains(owns, `"Comma"`) {
 		t.Fatal("native menu must not swallow Cmd+< so ISO key=\\\"<\\\" still reaches JS")
