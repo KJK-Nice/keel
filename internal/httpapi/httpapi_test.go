@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -3126,5 +3127,110 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 			strings.Contains(fn, "approved: true") {
 			t.Fatal("tab create / notebook dispose must not Write or Inject the PTY")
 		}
+	}
+}
+
+func nodeBin(t *testing.T) string {
+	t.Helper()
+	if p, err := exec.LookPath("node"); err == nil {
+		return p
+	}
+	if _, err := os.Stat("/exec-daemon/node"); err == nil {
+		return "/exec-daemon/node"
+	}
+	t.Fatal("node is required to eval tabCycleDelta")
+	return ""
+}
+
+func TestCmdAngleCycleTabs(t *testing.T) {
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := string(js)
+	deltaFn := sliceJSFunc(term, "function tabCycleDelta")
+	targetFn := sliceJSFunc(term, "function tabCycleTarget")
+	if deltaFn == "" || targetFn == "" {
+		t.Fatal("tabCycleDelta and tabCycleTarget must map Cmd+< / Cmd+> onto chrome tabs")
+	}
+
+	script := filepath.Join(t.TempDir(), "tabcycle.js")
+	harness := deltaFn + "\n" + targetFn + `
+function eq(name, got, want) {
+  if (got !== want) throw new Error(name + ": got " + JSON.stringify(got) + " want " + JSON.stringify(want));
+}
+const cases = [
+  [{ key: "<", code: "Comma", shiftKey: true }, -1, "us shift comma"],
+  [{ key: ",", code: "Comma", shiftKey: true }, -1, "us shift comma key comma"],
+  [{ key: ">", code: "Period", shiftKey: true }, 1, "us shift period"],
+  [{ key: ".", code: "Period", shiftKey: true }, 1, "us shift period key dot"],
+  [{ key: "<", code: "IntlBackslash", shiftKey: false }, -1, "iso less-than"],
+  [{ key: ">", code: "IntlBackslash", shiftKey: true }, 1, "iso greater-than"],
+  [{ key: "{", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left"],
+  [{ key: "[", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left key"],
+  [{ key: "}", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right"],
+  [{ key: "]", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right key"],
+  [{ key: ",", code: "Comma", shiftKey: false }, 0, "settings comma"],
+  [{ key: "[", code: "BracketLeft", shiftKey: false }, 0, "unshifted bracket is not back"],
+  [{ key: "\\", code: "IntlBackslash", shiftKey: false }, 0, "uk backslash is not prev tab"],
+  [{ key: "+", code: "Equal", shiftKey: true }, 0, "zoom in"],
+  [{ key: "t", code: "KeyT", shiftKey: false }, 0, "new tab"],
+];
+for (const [ev, want, name] of cases) eq(name, tabCycleDelta(ev), want);
+eq("wrap prev from first", tabCycleTarget(["vault", "a", "b"], "vault", -1), "b");
+eq("wrap next from last", tabCycleTarget(["vault", "a", "b"], "b", 1), "vault");
+eq("prev from middle", tabCycleTarget(["vault", "a", "b"], "a", -1), "vault");
+eq("next from middle", tabCycleTarget(["vault", "a", "b"], "a", 1), "b");
+eq("missing id starts at 0", tabCycleTarget(["vault", "a", "b"], "gone", 1), "a");
+eq("single tab wraps to self", tabCycleTarget(["vault"], "vault", 1), "vault");
+eq("empty list", tabCycleTarget([], "vault", 1), "");
+eq("zero delta", tabCycleTarget(["vault", "a"], "a", 0), "");
+console.log("ok");
+`
+	if err := os.WriteFile(script, []byte(harness), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(nodeBin(t), script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("tab cycle eval: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "ok") {
+		t.Fatalf("tab cycle eval missing ok: %s", out)
+	}
+
+	handle := sliceJSFunc(term, "function handleShortcut")
+	run := sliceJSFunc(term, "function runShortcut")
+	owns := sliceJSFunc(term, "function nativeMenuOwnsShortcut")
+	if handle == "" || run == "" || owns == "" {
+		t.Fatal("missing shortcut helpers")
+	}
+	if !strings.Contains(handle, "tabCycleDelta(ev)") {
+		t.Fatal("handleShortcut must classify Cmd+< / Cmd+> through tabCycleDelta")
+	}
+	idxCycle := strings.Index(handle, "tabCycleDelta(ev)")
+	idxSettings := strings.Index(handle, `key === "," && !ev.shiftKey`)
+	if idxCycle < 0 || idxSettings < 0 || idxCycle > idxSettings {
+		t.Fatal("tab cycle must run before the Cmd+, settings match")
+	}
+	if !strings.Contains(run, `name === "prev-tab"`) || !strings.Contains(run, `name === "next-tab"`) {
+		t.Fatal("runShortcut must activate prev-tab and next-tab")
+	}
+	if !strings.Contains(run, "activateTabDelta") {
+		t.Fatal("runShortcut must move the chrome tab via activateTabDelta")
+	}
+	debounce := ""
+	if i := strings.Index(run, "lastShortcutAt"); i >= 0 {
+		debounce = run[i : i+180]
+	}
+	if !strings.Contains(debounce, "prev-tab") || !strings.Contains(debounce, "next-tab") {
+		t.Fatal("runShortcut must not debounce hold-to-repeat tab cycling")
+	}
+	if strings.Contains(owns, `key === "<"`) || strings.Contains(owns, `"Comma"`) {
+		t.Fatal("native menu must not swallow Cmd+< so ISO key=\\\"<\\\" still reaches JS")
+	}
+
+	cat := sliceJSFunc(term, "function paletteCatalog")
+	if !strings.Contains(cat, `id: "prev-tab"`) || !strings.Contains(cat, `id: "next-tab"`) {
+		t.Fatal("command palette must list previous and next tab")
 	}
 }
