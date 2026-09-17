@@ -2954,6 +2954,20 @@
       keys: `${MOD}⇧T`,
       run: () => reopenLastTab(),
     });
+    add({
+      id: "prev-tab",
+      group: "Tabs",
+      title: "Previous tab",
+      keys: `${MOD}<`,
+      run: () => runShortcut("prev-tab"),
+    });
+    add({
+      id: "next-tab",
+      group: "Tabs",
+      title: "Next tab",
+      keys: `${MOD}>`,
+      run: () => runShortcut("next-tab"),
+    });
     add({ id: "vault", group: "Vault", title: "Go to Vault", keys: `${MOD}1`, run: () => showVault() });
     add({
       id: "search-hosts",
@@ -3280,7 +3294,7 @@
 
   function runShortcut(name) {
     const now = Date.now();
-    if (name === lastShortcutName && now - lastShortcutAt < 300) return;
+    if (name === lastShortcutName && now - lastShortcutAt < 300 && name !== "prev-tab" && name !== "next-tab") return;
     lastShortcutName = name;
     lastShortcutAt = now;
     if (name === "new-tab") newTab();
@@ -3331,7 +3345,9 @@
           state.runtimeStopping = false;
           toast(err.message, true);
         });
-    } else if (name === "palette") {
+    } else if (name === "prev-tab") activateTabDelta(-1);
+    else if (name === "next-tab") activateTabDelta(1);
+    else if (name === "palette") {
       if (isCommandPaletteOpen()) closeCommandPalette();
       else openCommandPalette();
     }
@@ -3354,6 +3370,31 @@
     if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") return true;
     if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) return true;
     return false;
+  }
+
+  function tabCycleDelta(ev) {
+    const raw = ev.key || "";
+    const key = raw.length === 1 ? raw.toLowerCase() : raw;
+    const code = ev.code || "";
+    const shift = !!ev.shiftKey;
+    const prev =
+      key === "<" ||
+      key === "{" ||
+      (shift && (key === "," || key === "[" || code === "Comma" || code === "BracketLeft"));
+    const next =
+      key === ">" ||
+      key === "}" ||
+      (shift && (key === "." || key === "]" || code === "Period" || code === "BracketRight"));
+    if (prev === next) return 0;
+    return prev ? -1 : 1;
+  }
+
+  function tabCycleTarget(list, activeId, delta) {
+    if (!list.length || !delta) return "";
+    const i = list.indexOf(activeId);
+    const from = i < 0 ? 0 : i;
+    const len = list.length;
+    return list[(from + (delta % len) + len) % len] || "";
   }
 
   function handleShortcut(ev) {
@@ -3452,6 +3493,15 @@
     if (key === "j" && !ev.shiftKey) {
       ev.preventDefault();
       runShortcut("join");
+      return true;
+    }
+    const delta = tabCycleDelta(ev);
+    if (delta) {
+      ev.preventDefault();
+      if (!ev._keelTabCycle) {
+        ev._keelTabCycle = true;
+        runShortcut(delta < 0 ? "prev-tab" : "next-tab");
+      }
       return true;
     }
     if (key === "," && !ev.shiftKey) {
@@ -5830,6 +5880,13 @@ Write a runbook here.
     let idx = n - 1;
     if (n === 9) idx = list.length - 1;
     const id = list[idx];
+    if (!id) return;
+    state.activeId = id;
+    renderTabs();
+  }
+
+  function activateTabDelta(delta) {
+    const id = tabCycleTarget(chromeTabs(), state.activeId, delta);
     if (!id) return;
     state.activeId = id;
     renderTabs();
