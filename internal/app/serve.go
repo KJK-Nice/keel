@@ -50,7 +50,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("Keel could not bind %s (is it already running?): %w", addr, err)
+		return fmt.Errorf("keel could not bind %s (is it already running?): %w", addr, err)
 	}
 	if err := writePid(dataDir); err != nil {
 		log.Printf("pid file: %v", err)

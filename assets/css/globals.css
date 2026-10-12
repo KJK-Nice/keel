@@ -6,6 +6,9 @@
 @source "../../components/**/*.templ";
 @source "../../components/toast/toast.js";
 @source "../../cmd/keel/web/js/term.js";
+/* Vendored third-party bundles (xterm, ProseMirror) are minified JS, not
+   markup: scanning them turns stray tokens like `inline!` into classes. */
+@source not "../../cmd/keel/web/vendor";
 
 @custom-variant dark (&:is(.dark *));
 

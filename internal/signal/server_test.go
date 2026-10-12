@@ -115,9 +115,9 @@ func TestJoinPage(t *testing.T) {
 		t.Fatal("join page must vendor xterm 6.0.0")
 	}
 	for _, spec := range []struct {
-		path    string
-		banner  string
-		global  string
+		path   string
+		banner string
+		global string
 	}{
 		{"/vendor/xterm/addon-unicode-graphemes.js", "@xterm/addon-unicode-graphemes@0.4.0", "window.UnicodeGraphemesAddon=i"},
 		{"/vendor/xterm/addon-web-links.js", "@xterm/addon-web-links@0.12.0", "window.WebLinksAddon=i"},
