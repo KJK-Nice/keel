@@ -761,9 +761,7 @@ func (s *Session) runLoop() {
 		for {
 			n, rerr := br.Read(buf)
 			if n > 0 {
-				chunk := append([]byte(nil), buf[:n]...)
-				s.buf.Write(chunk)
-				s.broadcast(Event{Kind: "bytes", Bytes: chunk})
+				s.output(append([]byte(nil), buf[:n]...))
 			}
 			if rerr == nil {
 				continue
@@ -882,9 +880,22 @@ func (s *Session) backoffWait() bool {
 }
 
 func (s *Session) noteLine(msg string) {
-	line := []byte("\r\n\x1b[38;2;139;149;168m" + msg + "\x1b[0m\r\n")
-	s.buf.Write(line)
-	s.broadcast(Event{Kind: "bytes", Bytes: line})
+	s.output([]byte("\r\n\x1b[38;2;139;149;168m" + msg + "\x1b[0m\r\n"))
+}
+
+// output appends b to the scrollback ring and fans it out to the attached
+// clients under s.mu, the lock Subscribe holds while it registers a client
+// and copies the ring. Doing the two steps under separate locks let a
+// Subscribe land between them: its snapshot already held b, and the
+// broadcast then delivered b again, so the new client printed it twice.
+func (s *Session) output(b []byte) {
+	s.mu.Lock()
+	s.buf.Write(b)
+	slow := s.fanoutLocked(Event{Kind: "bytes", Bytes: b})
+	s.mu.Unlock()
+	for _, id := range slow {
+		s.dropClient(id, true)
+	}
 }
 
 func (s *Session) setStatus(st Status, msg string) {
@@ -926,6 +937,16 @@ func (s *Session) setConnectError(err error) {
 
 func (s *Session) broadcast(ev Event) {
 	s.mu.Lock()
+	slow := s.fanoutLocked(ev)
+	s.mu.Unlock()
+	for _, id := range slow {
+		s.dropClient(id, true)
+	}
+}
+
+// fanoutLocked offers ev to every client without blocking and returns the
+// clients whose buffers were full (slow consumers to drop).
+func (s *Session) fanoutLocked(ev Event) []uint64 {
 	var slow []uint64
 	for id, c := range s.clients {
 		select {
@@ -934,10 +955,7 @@ func (s *Session) broadcast(ev Event) {
 			slow = append(slow, id)
 		}
 	}
-	s.mu.Unlock()
-	for _, id := range slow {
-		s.dropClient(id, true)
-	}
+	return slow
 }
 
 func (s *Session) close() {
