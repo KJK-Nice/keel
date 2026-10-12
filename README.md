@@ -14,11 +14,14 @@ make build && ./bin/keel
 make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
-`make build` runs `templ generate` and the Tailwind CLI (`assets/css/globals.css` → `cmd/keel/web/css/output.css`), then compiles the Go app. Install those tools with:
+`make build` runs `templ generate` and the Tailwind CLI (`assets/css/globals.css` → `cmd/keel/web/css/output.css`), then compiles the Go app. Both tools are pinned: templ comes from `go.mod` (`go tool templ`), and the Makefile downloads the Tailwind standalone binary at `TAILWIND_VERSION` into `bin/` on first use. Use your own with `make TAILWIND=tailwindcss …`, but a different version rewrites `output.css`.
+
+Checks (the same ones CI runs on every PR):
 
 ```bash
-go install github.com/a-h/templ/cmd/templ@latest
-# Tailwind v4 standalone: https://github.com/tailwindlabs/tailwindcss/releases
+make test              # go test, desktop tags
+make lint              # gofmt, go vet, staticcheck, govulncheck
+make check-generated   # committed *_templ.go and output.css match the pinned tools
 ```
 
 Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
