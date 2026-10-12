@@ -48,6 +48,19 @@ func (d sshDialer) Close() error {
 	return d.client.Close()
 }
 
+// Wait blocks until the SSH connection closes.
+func (d sshDialer) Wait() error {
+	return d.client.Wait()
+}
+
+// waiter is implemented by dialers that can report their connection
+// closing (sshDialer). run uses it to notice a dead SSH connection: local
+// and dynamic forwards otherwise keep accepting on their local listener
+// and show "ready" while every Dial fails.
+type waiter interface {
+	Wait() error
+}
+
 func DefaultFactory(st *store.Store) Factory {
 	return func(host store.Host) (Dialer, error) {
 		client, err := session.SSHClient(host, st.CheckHostKey)
@@ -124,6 +137,12 @@ func (r *Runtime) Start(id string) (Info, error) {
 		r.mu.Unlock()
 		return r.infoLocked(tn), nil
 	}
+	if prev, ok := r.live[id]; ok {
+		// Restarting after an error: stop the previous run so its goroutine
+		// and SSH connection don't outlive it.
+		prev.stopped = true
+		prev.cancel()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	lv := &live{cancel: cancel, status: StatusConnecting}
 	r.live[id] = lv
@@ -131,7 +150,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 
 	dialer, err := r.factory(host)
 	if err != nil {
-		r.fail(id, err.Error())
+		r.fail(id, lv, err.Error())
 		return Info{}, err
 	}
 	go r.run(ctx, lv, tn, dialer)
@@ -178,86 +197,100 @@ func (r *Runtime) StopAll() {
 	r.mu.Unlock()
 }
 
-func (r *Runtime) fail(id, msg string) {
+// The state helpers below only touch r.live[id] while it still is lv: a
+// previous run that exits after Start replaced it must not overwrite or
+// delete the new entry.
+
+func (r *Runtime) fail(id string, lv *live, msg string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if lv, ok := r.live[id]; ok {
+	if r.live[id] == lv {
 		lv.status = StatusError
 		lv.err = msg
-	} else {
-		r.live[id] = &live{cancel: func() {}, status: StatusError, err: msg}
+		lv.listenAddr = ""
 	}
 }
 
-func (r *Runtime) setReady(id, listen string) {
+func (r *Runtime) setReady(id string, lv *live, listen string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if lv, ok := r.live[id]; ok {
+	if r.live[id] == lv {
 		lv.status = StatusReady
 		lv.err = ""
 		lv.listenAddr = listen
 	}
 }
 
-func (r *Runtime) setStopped(id string) {
+// finish records how a run ended: removed when stopped on purpose, kept as
+// an error otherwise so the UI shows why. An error already recorded (a
+// failed listen) is kept; anything else is a lost connection.
+func (r *Runtime) finish(id string, lv *live) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.live, id)
-}
-
-// setDisconnected marks the tunnel as having lost its connection unexpectedly.
-// It keeps the live entry so the error is visible in the UI.
-func (r *Runtime) setDisconnected(id string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if lv, ok := r.live[id]; ok {
+	if r.live[id] != lv {
+		return
+	}
+	if lv.stopped {
+		delete(r.live, id)
+		return
+	}
+	if lv.status != StatusError {
 		lv.status = StatusError
 		lv.err = "connection lost"
-		lv.listenAddr = ""
-	} else {
-		r.live[id] = &live{cancel: func() {}, status: StatusError, err: "connection lost"}
 	}
+	lv.listenAddr = ""
 }
 
 func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dialer) {
+	// lost ends this run when the SSH connection dies, without marking it
+	// stopped, so finish reports "connection lost".
+	ctx, lost := context.WithCancel(ctx)
+	defer lost()
 	defer dialer.Close()
-	defer func() {
-		r.mu.Lock()
-		intentional := lv.stopped
-		r.mu.Unlock()
-		if intentional {
-			r.setStopped(tn.ID)
-		} else {
-			// Unexpected exit: keep the live entry visible with an error so the
-			// UI can inform the user that the connection was lost.
-			r.setDisconnected(tn.ID)
-		}
-	}()
+	defer r.finish(tn.ID, lv)
 
-	go keepalive(ctx, dialer)
+	if w, ok := dialer.(waiter); ok {
+		go func() {
+			_ = w.Wait()
+			lost()
+		}()
+	}
+	go keepalive(ctx, dialer, keepaliveInterval, keepaliveTimeout)
 
 	bind := net.JoinHostPort(tn.BindAddr, strconv.Itoa(tn.BindPort))
 	dest := net.JoinHostPort(tn.DestHost, strconv.Itoa(tn.DestPort))
 
+	var (
+		ln  net.Listener
+		err error
+	)
 	switch tn.Kind {
-	case "local":
-		ln, err := net.Listen("tcp", bind)
+	case "local", "dynamic":
+		ln, err = net.Listen("tcp", bind)
+	case "remote":
+		ln, err = dialer.Listen("tcp", bind)
+	default:
+		err = fmt.Errorf("unknown tunnel kind %q", tn.Kind)
+	}
+	if err != nil {
+		// Fatal for this run: report it and release the SSH connection
+		// instead of parking on it until someone presses Stop.
+		r.fail(tn.ID, lv, err.Error())
+		return
+	}
+	defer ln.Close()
+	r.setReady(tn.ID, lv, ln.Addr().String())
+	go func() {
+		<-ctx.Done()
+		_ = ln.Close()
+	}()
+	for {
+		c, err := ln.Accept()
 		if err != nil {
-			r.fail(tn.ID, err.Error())
-			<-ctx.Done()
 			return
 		}
-		defer ln.Close()
-		r.setReady(tn.ID, ln.Addr().String())
-		go func() {
-			<-ctx.Done()
-			_ = ln.Close()
-		}()
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				return
-			}
+		switch tn.Kind {
+		case "local":
 			go func(local net.Conn) {
 				remote, err := dialer.Dial("tcp", dest)
 				if err != nil {
@@ -266,25 +299,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		}
-	case "remote":
-		ln, err := dialer.Listen("tcp", bind)
-		if err != nil {
-			r.fail(tn.ID, err.Error())
-			<-ctx.Done()
-			return
-		}
-		defer ln.Close()
-		r.setReady(tn.ID, ln.Addr().String())
-		go func() {
-			<-ctx.Done()
-			_ = ln.Close()
-		}()
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				return
-			}
+		case "remote":
 			go func(remote net.Conn) {
 				local, err := net.Dial("tcp", dest)
 				if err != nil {
@@ -293,30 +308,9 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		}
-	case "dynamic":
-		ln, err := net.Listen("tcp", bind)
-		if err != nil {
-			r.fail(tn.ID, err.Error())
-			<-ctx.Done()
-			return
-		}
-		defer ln.Close()
-		r.setReady(tn.ID, ln.Addr().String())
-		go func() {
-			<-ctx.Done()
-			_ = ln.Close()
-		}()
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				return
-			}
+		case "dynamic":
 			go serveSOCKS5(c, dialer.Dial)
 		}
-	default:
-		r.fail(tn.ID, "unknown tunnel kind")
-		<-ctx.Done()
 	}
 }
 
@@ -335,19 +329,49 @@ func pipe(a, b net.Conn) {
 	<-done
 }
 
-func keepalive(ctx context.Context, d Dialer) {
-	sd, ok := d.(sshDialer)
+var (
+	keepaliveInterval = 30 * time.Second
+	keepaliveTimeout  = 15 * time.Second
+)
+
+// pinger is implemented by dialers that can probe their connection.
+type pinger interface {
+	Ping() error
+}
+
+func (d sshDialer) Ping() error {
+	_, _, err := d.client.SendRequest("keepalive@openssh.com", true, nil)
+	return err
+}
+
+// keepalive pings the connection every interval. A ping that fails or gets
+// no reply within timeout closes the dialer, which ends the run through
+// Wait (or through the listener and Dial errors for dialers without it).
+func keepalive(ctx context.Context, d Dialer, interval, timeout time.Duration) {
+	p, ok := d.(pinger)
 	if !ok {
 		return
 	}
-	t := time.NewTicker(30 * time.Second)
+	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_, _, _ = sd.client.SendRequest("keepalive@openssh.com", true, nil)
 		}
+		res := make(chan error, 1)
+		go func() { res <- p.Ping() }()
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-res:
+			if err == nil {
+				continue
+			}
+		case <-time.After(timeout):
+		}
+		_ = d.Close()
+		return
 	}
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 )
@@ -37,11 +38,12 @@ func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 	if s.locked {
 		return Tunnel{}, ErrLocked
 	}
-	if err := validateTunnel(tn); err != nil {
-		return Tunnel{}, err
-	}
+	tn.BindAddr = strings.TrimSpace(tn.BindAddr)
 	if tn.BindAddr == "" {
 		tn.BindAddr = "127.0.0.1"
+	}
+	if err := validateTunnel(tn); err != nil {
+		return Tunnel{}, err
 	}
 	now := time.Now().UTC()
 	if tn.ID == "" {
@@ -101,6 +103,11 @@ func validateTunnel(tn Tunnel) error {
 			return fmt.Errorf("destHost and destPort are required")
 		}
 	case "dynamic":
+		// The SOCKS5 proxy has no authentication: bound beyond loopback
+		// it would be an open proxy into the remote network.
+		if !isLoopbackAddr(tn.BindAddr) {
+			return fmt.Errorf("a dynamic (SOCKS) tunnel must bind to 127.0.0.1, ::1 or localhost: it has no authentication")
+		}
 	default:
 		return fmt.Errorf("kind must be local, remote, or dynamic")
 	}
@@ -108,4 +115,12 @@ func validateTunnel(tn Tunnel) error {
 		return fmt.Errorf("bindPort out of range")
 	}
 	return nil
+}
+
+func isLoopbackAddr(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsLoopback()
 }
