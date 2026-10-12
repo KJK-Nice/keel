@@ -271,6 +271,10 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.Setup(req.Passphrase); err != nil {
+		if errors.Is(err, store.ErrVaultExists) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

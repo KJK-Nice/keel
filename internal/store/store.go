@@ -447,6 +447,9 @@ func (s *Store) Setup(passphrase string) error {
 	if passphrase == "" {
 		return errors.New("passphrase is required")
 	}
+	if !s.locked || !s.needSetup {
+		return ErrVaultExists
+	}
 	return s.setupLocked(passphrase)
 }
 
