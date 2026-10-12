@@ -8,6 +8,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"keel/internal/session"
+	"keel/internal/store"
 )
 
 var seqToken = regexp.MustCompile(`<(\d{5})>`)
@@ -99,4 +102,42 @@ func tail(s string) string {
 		return "…" + s[len(s)-200:]
 	}
 	return s
+}
+
+// Herd clients must hear "spawn" for a session before any "update" for it;
+// runLoop used to start first, and a fast connect reported "ready" ahead
+// of the spawn event (the intermittent TestHerdWS failure).
+func TestHerdSpawnPrecedesUpdates(t *testing.T) {
+	st := testStore(t)
+	host := firstHost(t, st)
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	hid, ch, _ := rt.SubscribeHerd()
+	defer rt.UnsubscribeHerd(hid)
+
+	const spawns = 25
+	seen := map[string]bool{}
+	for i := 0; i < spawns; i++ {
+		info, err := rt.Spawn(host.ID, 80, 24)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Drain until this session's spawn event; nothing about it may come first.
+		deadline := time.After(2 * time.Second)
+		for !seen[info.ID] {
+			select {
+			case ev := <-ch:
+				if ev.Type == "spawn" {
+					seen[ev.ID] = true
+					continue
+				}
+				if !seen[ev.ID] {
+					t.Fatalf("herd %q for session %s arrived before its spawn", ev.Type, ev.ID)
+				}
+			case <-deadline:
+				t.Fatalf("no spawn event for %s", info.ID)
+			}
+		}
+	}
 }

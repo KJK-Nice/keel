@@ -160,9 +160,12 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	r.mu.Lock()
 	r.sess[s.id] = s
 	r.mu.Unlock()
-	go s.runLoop()
+	// Announce the session before runLoop can report on it: a fast connect
+	// (Local Shell) otherwise emitted "update" ahead of "spawn", so herd
+	// clients got an update for a session they did not know yet.
 	info := s.Info()
 	r.emitHerd(HerdEvent{Type: "spawn", Session: info, ID: s.id})
+	go s.runLoop()
 	return info, nil
 }
 
