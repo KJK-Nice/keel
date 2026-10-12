@@ -1,6 +1,7 @@
 import { escapeHtml } from "./lib/html.js";
 import { parseJoinLink } from "./lib/joinlink.js";
-import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";
+import { tabCycleTarget } from "./lib/keys.js";
+import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -2871,7 +2872,7 @@ import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";
   }
 
   function hasAppMod(ev) {
-    return isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;
+    return isAppMod(ev, isMac);
   }
 
   let newTabLockUntil = 0;
@@ -3351,118 +3352,22 @@ import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";
 
   function handleShortcut(ev) {
     if (ev.target?.closest?.(".tab-rename")) return false;
-    if (!hasAppMod(ev) || ev.altKey) return false;
     if (els.gate && !els.gate.hidden) return false;
-    const raw = ev.key || "";
-    const key = raw.length === 1 ? raw.toLowerCase() : raw;
-    if (ev.repeat && (key === "t" || key === "w")) return false;
-    if (key === "w" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("close-tab");
-      return true;
+    const action = classifyShortcut(ev, {
+      mac: isMac,
+      modalOpen: !!state.openModal,
+      findOpen: () => isFindOpen(focusedPane()),
+    });
+    if (!action) return false;
+    ev.preventDefault();
+    if (action.name === "find-next" || action.name === "find-prev") {
+      runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
+    } else if (action.name === "tab-index") {
+      activateTabIndex(action.index);
+    } else {
+      runShortcut(action.name, action.repeat);
     }
-    if (key === "t" && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("reopen-tab");
-      return true;
-    }
-    if (key === "t") {
-      if (state.openModal) return false;
-      ev.preventDefault();
-      runShortcut("new-tab");
-      return true;
-    }
-    if (key === "d" && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("split-right");
-      return true;
-    }
-    if (key === "e" && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("split-down");
-      return true;
-    }
-    if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("focus-pane");
-      return true;
-    }
-    if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") {
-      ev.preventDefault();
-      runShortcut("zoom-in");
-      return true;
-    }
-    if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") {
-      ev.preventDefault();
-      runShortcut("zoom-out");
-      return true;
-    }
-    if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("zoom-reset");
-      return true;
-    }
-    if (key === "k" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("palette");
-      return true;
-    }
-    if (key === "p" && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("palette");
-      return true;
-    }
-    if (state.openModal) return false;
-    if (key === "f" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("find-term");
-      return true;
-    }
-    if (key === "b" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("toggle-sidebar");
-      return true;
-    }
-    if (key === "g") {
-      const pane = focusedPane();
-      if (isFindOpen(pane)) {
-        ev.preventDefault();
-        runPaneFind(pane, ev.shiftKey ? "prev" : "next", false);
-        return true;
-      }
-    }
-    if (key === "n" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("new-host");
-      return true;
-    }
-    if (key === "o" && ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("quick-connect");
-      return true;
-    }
-    if (key === "j" && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("join");
-      return true;
-    }
-    const delta = tabCycleDelta(ev);
-    if (delta) {
-      ev.preventDefault();
-      runShortcut(delta < 0 ? "prev-tab" : "next-tab", ev.repeat);
-      return true;
-    }
-    if (key === "," && !ev.shiftKey) {
-      ev.preventDefault();
-      runShortcut("settings");
-      return true;
-    }
-    if (!ev.shiftKey && /^[1-9]$/.test(ev.key)) {
-      ev.preventDefault();
-      activateTabIndex(Number(ev.key));
-      return true;
-    }
-    return false;
+    return true;
   }
 
   window.__keelShortcut = (name) => runShortcut(name);
