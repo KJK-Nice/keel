@@ -73,8 +73,7 @@ test: ui
 # Fails when the committed templ output or output.css differs from what the
 # pinned tools generate.
 check-generated: ui
-	@git diff --exit-code -- '*_templ.go' cmd/keel/web/css/output.css || \
-		(echo "generated files are stale: run make ui and commit the result" >&2; exit 1)
+	@sh scripts/check-generated.sh
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \
