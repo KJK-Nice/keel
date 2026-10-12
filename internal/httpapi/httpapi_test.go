@@ -8,9 +8,11 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -3158,14 +3160,20 @@ func TestCmdAngleCycleTabs(t *testing.T) {
 		t.Fatal(err)
 	}
 	term := string(js)
-	deltaFn := sliceJSFunc(term, "function tabCycleDelta")
-	targetFn := sliceJSFunc(term, "function tabCycleTarget")
-	if deltaFn == "" || targetFn == "" {
-		t.Fatal("tabCycleDelta and tabCycleTarget must map Cmd+< / Cmd+> onto chrome tabs")
+	if !strings.Contains(term, `import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";`) {
+		t.Fatal("term.js must take tabCycleDelta and tabCycleTarget from lib/keys.js")
 	}
-
-	script := filepath.Join(t.TempDir(), "tabcycle.js")
-	harness := deltaFn + "\n" + targetFn + `
+	keys, err := filepath.Abs(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "keys.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keysPath := filepath.ToSlash(keys)
+	if !strings.HasPrefix(keysPath, "/") {
+		keysPath = "/" + keysPath // Windows drive path
+	}
+	keysURL := (&url.URL{Scheme: "file", Path: keysPath}).String()
+	script := filepath.Join(t.TempDir(), "tabcycle.mjs")
+	harness := "import { tabCycleDelta, tabCycleTarget } from " + strconv.Quote(keysURL) + ";" + `
 function eq(name, got, want) {
   if (got !== want) throw new Error(name + ": got " + JSON.stringify(got) + " want " + JSON.stringify(want));
 }

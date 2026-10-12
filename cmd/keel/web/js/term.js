@@ -1,3 +1,7 @@
+import { escapeHtml } from "./lib/html.js";
+import { parseJoinLink } from "./lib/joinlink.js";
+import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";
+
 (() => {
   if (window.__keelTermBound) return;
   window.__keelTermBound = true;
@@ -678,14 +682,6 @@
 
   function persistName() {
     if (state.name) localStorage.setItem("keel-name", state.name);
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
   }
 
   function hostSearchHay(h) {
@@ -3353,31 +3349,6 @@
     }
   }
 
-  function tabCycleDelta(ev) {
-    const raw = ev.key || "";
-    const key = raw.length === 1 ? raw.toLowerCase() : raw;
-    const code = ev.code || "";
-    const shift = !!ev.shiftKey;
-    const prev =
-      key === "<" ||
-      key === "{" ||
-      (shift && (key === "," || key === "[" || code === "Comma" || code === "BracketLeft"));
-    const next =
-      key === ">" ||
-      key === "}" ||
-      (shift && (key === "." || key === "]" || code === "Period" || code === "BracketRight"));
-    if (prev === next) return 0;
-    return prev ? -1 : 1;
-  }
-
-  function tabCycleTarget(list, activeId, delta) {
-    if (!list.length || !delta) return "";
-    const i = list.indexOf(activeId);
-    const from = i < 0 ? 0 : i;
-    const len = list.length;
-    return list[(from + (delta % len) + len) % len] || "";
-  }
-
   function handleShortcut(ev) {
     if (ev.target?.closest?.(".tab-rename")) return false;
     if (!hasAppMod(ev) || ev.altKey) return false;
@@ -5617,23 +5588,6 @@ Write a runbook here.
     els.joinForm.reset();
     openModal(els.joinModal);
     queueMicrotask(() => els.joinForm.url.focus());
-  }
-
-  function parseJoinLink(input, fallbackOrigin) {
-    const raw = String(input || "").trim();
-    if (!raw) throw new Error("paste a Share link");
-    try {
-      const u = new URL(raw);
-      const room = u.searchParams.get("room");
-      if (!room) throw new Error("link has no room");
-      return { origin: u.origin, room };
-    } catch (err) {
-      if (err.message === "link has no room") throw err;
-      if (/^[0-9a-f]{8,}$/i.test(raw) && fallbackOrigin) {
-        return { origin: String(fallbackOrigin).replace(/\/$/, ""), room: raw };
-      }
-      throw new Error("paste the full Share link");
-    }
   }
 
   function joinRemote({ origin, room }) {
