@@ -88,7 +88,12 @@ func TestRoomCreationRateLimited(t *testing.T) {
 func TestRateLimiterRefills(t *testing.T) {
 	l := newRateLimiter(2, time.Second)
 	now := time.Unix(1000, 0)
-	if !l.allow("a", now) || !l.allow("a", now) || l.allow("a", now) {
+	for i := 0; i < 2; i++ {
+		if !l.allow("a", now) {
+			t.Fatalf("request %d within the burst refused", i+1)
+		}
+	}
+	if l.allow("a", now) {
 		t.Fatal("burst of 2 not enforced")
 	}
 	if !l.allow("a", now.Add(time.Second)) {

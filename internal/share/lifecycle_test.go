@@ -1,8 +1,11 @@
 package share
 
 import (
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -107,21 +110,75 @@ func TestStopShareDropsLink(t *testing.T) {
 	}
 }
 
+// dropProxy forwards TCP to target until drop() cuts every connection,
+// standing in for the network or the signal server going away. (httptest's
+// CloseClientConnections skips hijacked WebSocket connections.)
+type dropProxy struct {
+	ln    net.Listener
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+func newDropProxy(t *testing.T, target string) *dropProxy {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &dropProxy{ln: ln}
+	t.Cleanup(func() { ln.Close(); p.drop() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			up, err := net.Dial("tcp", target)
+			if err != nil {
+				c.Close()
+				continue
+			}
+			p.mu.Lock()
+			p.conns = append(p.conns, c, up)
+			p.mu.Unlock()
+			go func() { _, _ = io.Copy(up, c); up.Close() }()
+			go func() { _, _ = io.Copy(c, up); c.Close() }()
+		}
+	}()
+	return p
+}
+
+func (p *dropProxy) url() string { return "http://" + p.ln.Addr().String() }
+
+func (p *dropProxy) drop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.conns {
+		c.Close()
+	}
+	p.conns = nil
+}
+
 // When the signaling connection drops, the share must be forgotten so the
 // next Share creates a working room instead of returning a dead link.
 func TestSignalDropForgetsShare(t *testing.T) {
 	rt, id := shareFixture(t)
 	sig, _ := countingSignal(t)
-	hub := New(sig.URL, rt)
+	proxy := newDropProxy(t, strings.TrimPrefix(sig.URL, "http://"))
+	hub := New(proxy.url(), rt)
+	t.Cleanup(func() { hub.Stop(id) })
 	if _, err := hub.Share(id); err != nil {
 		t.Fatal(err)
 	}
-	sig.CloseClientConnections()
+	proxy.drop()
 	deadline := time.Now().Add(3 * time.Second)
 	for hub.JoinURL(id) != "" {
 		if time.Now().After(deadline) {
 			t.Fatal("share still listed after its signaling connection dropped")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := hub.Share(id); err != nil {
+		t.Fatalf("sharing again after the drop: %v", err)
 	}
 }
