@@ -4,7 +4,7 @@ A local SSH workspace. `keel` opens a **native desktop window** (macOS WebKit, W
 
 The desktop UI is **templ** + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev), hosted in a [Wails v3](https://v3.wails.io) webview pointed at a loopback HTTP server (Wails cannot proxy WebSockets). Terminals still use xterm.js over WebSocket.
 
-Host passwords and keys live in an encrypted **vault**, not in plaintext `keel.json`. Share a session over the internet with WebRTC — joiners never reach your LAN or your vault.
+Host passwords and keys live in an encrypted **vault**, not in plaintext `keel.json`. Share a session over the internet with WebRTC — joiners only see that session's terminal, not your hosts, keys or LAN (unless you give them control of a shell that can reach them; see below).
 
 ## Install / build
 
@@ -119,7 +119,11 @@ KEEL_SIGNAL=https://your-signal.example ./bin/keel
 
 4. On the other machine, open Keel → **Join session** → paste the link. They follow until you pass control. They never see hosts or keys. A browser can open the same link if they don't have Keel.
 
-Rooms on `keel-signal` expire after two minutes if no host connects, and the server refuses more than 512 idle rooms. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
+5. To end it, run **Stop sharing this session** from the command palette (⌘K). Viewers are disconnected and the link stops working; closing the session tab does the same.
+
+The join link is the only secret: anyone who has it can watch until you stop sharing. Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
+
+Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours. The server refuses more than 512 rooms, more than 6 new rooms per client address in a burst (then one per 10 s), more than 16 joiners per room, and messages over 64 KB. Only the client that created a room (it gets a host key) can host it. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
 
 Two Keel windows on one Mac (test): second instance needs its own port and data dir:
 

@@ -2,12 +2,14 @@ package signal
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,17 @@ import (
 const (
 	defaultRoomTTL  = 2 * time.Minute
 	defaultMaxRooms = 512
+	// maxRoomAge bounds a hosted room; the host's 30-minute read deadline
+	// alone let any traffic keep a room alive forever.
+	maxRoomAge = 24 * time.Hour
+	// maxJoiners caps peers per room: each joiner costs the host a WebRTC
+	// PeerConnection.
+	maxJoiners = 16
+	// maxMessage bounds one signaling message (SDP offers are a few KB).
+	maxMessage = 64 << 10
+	// Room creation per client address: a burst, then one per interval.
+	roomBurst    = 6
+	roomInterval = 10 * time.Second
 )
 
 var upgrader = websocket.Upgrader{
@@ -51,6 +64,7 @@ func (p *peer) send(v any) error {
 
 type room struct {
 	id      string
+	hostKey string
 	created time.Time
 	mu      sync.Mutex
 	host    *peer
@@ -62,6 +76,7 @@ type Server struct {
 	rooms    map[string]*room
 	roomTTL  time.Duration
 	maxRooms int
+	limiter  *rateLimiter
 }
 
 func New() *Server {
@@ -69,6 +84,7 @@ func New() *Server {
 		rooms:    map[string]*room{},
 		roomTTL:  defaultRoomTTL,
 		maxRooms: defaultMaxRooms,
+		limiter:  newRateLimiter(roomBurst, roomInterval),
 	}
 }
 
@@ -90,8 +106,14 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-func (s *Server) createRoom(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
+	if !s.limiter.allow(clientAddr(r), time.Now()) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
+		http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
+		return
+	}
 	id := newID()
+	hostKey := newID()
 	s.mu.Lock()
 	s.sweepLocked(time.Now())
 	if s.maxRooms > 0 && len(s.rooms) >= s.maxRooms {
@@ -99,10 +121,12 @@ func (s *Server) createRoom(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
 		return
 	}
-	s.rooms[id] = &room{id: id, created: time.Now(), joiners: map[string]*peer{}}
+	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
+	// hostKey proves the caller created the room: anyone who learns the
+	// room ID from a join link could otherwise connect as its host first.
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "hostKey": hostKey})
 }
 
 func (s *Server) getRoom(id string) *room {
@@ -131,6 +155,7 @@ func (s *Server) sweepLocked(now time.Time) {
 			delete(s.rooms, id)
 		}
 	}
+	s.limiter.sweep(now)
 }
 
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
@@ -146,11 +171,25 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "room not found", http.StatusNotFound)
 		return
 	}
+	if role == "host" && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("key")), []byte(rm.hostKey)) != 1 {
+		http.Error(w, "host key required", http.StatusForbidden)
+		return
+	}
+	if role == "join" {
+		rm.mu.Lock()
+		full := len(rm.joiners) >= maxJoiners
+		rm.mu.Unlock()
+		if full {
+			http.Error(w, "room is full", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("signal upgrade: %v", err)
 		return
 	}
+	conn.SetReadLimit(maxMessage)
 	p := &peer{id: newID(), name: name, role: role, conn: conn}
 	if role == "host" {
 		rm.mu.Lock()
@@ -208,13 +247,21 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	_ = conn.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	expires := rm.created.Add(maxRoomAge)
+	readDeadline := func() time.Time {
+		d := time.Now().Add(30 * time.Minute)
+		if d.After(expires) {
+			return expires
+		}
+		return d
+	}
+	_ = conn.SetReadDeadline(readDeadline())
 	for {
 		var msg envelope
 		if err := conn.ReadJSON(&msg); err != nil {
 			return
 		}
-		_ = conn.SetReadDeadline(time.Now().Add(30 * time.Minute))
+		_ = conn.SetReadDeadline(readDeadline())
 		if msg.Type != "signal" {
 			continue
 		}
@@ -271,8 +318,26 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// clientAddr is the address room creation is rate-limited by. Behind a
+// proxy (Railway) the client is the last X-Forwarded-For entry, the one the
+// proxy itself appended; earlier entries are client-supplied.
+func clientAddr(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+			return last
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// newID returns 128 random bits: a room ID is the only secret in a join link.
 func newID() string {
-	b := make([]byte, 8)
+	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return hex.EncodeToString([]byte("fallback"))
 	}
