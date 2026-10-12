@@ -24,6 +24,9 @@ const (
 var (
 	ErrLocked     = errors.New("vault locked")
 	ErrPassphrase = errors.New("incorrect vault passphrase")
+	// ErrVaultExists is returned by Setup when a vault already exists. Setup
+	// would otherwise re-key (and, while locked, overwrite) the existing vault.
+	ErrVaultExists = errors.New("vault already exists; unlock it instead")
 )
 
 type hostSecret struct {

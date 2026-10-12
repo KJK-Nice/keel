@@ -834,6 +834,30 @@ func (s *Session) kickWaitLocked() {
 	}
 }
 
+// maxReconnectDelay caps the wait between reconnect attempts.
+const maxReconnectDelay = 15 * time.Second
+
+// reconnectDelay returns unit doubled n times, capped at maxReconnectDelay.
+// It doubles step by step instead of shifting by n: a host that stays down
+// keeps n growing, and unit<<n overflows time.Duration (negative or zero)
+// after ~34 attempts, which turned the wait into a busy retry loop.
+func reconnectDelay(unit time.Duration, n int) time.Duration {
+	if unit <= 0 {
+		unit = time.Second
+	}
+	if unit >= maxReconnectDelay {
+		return maxReconnectDelay
+	}
+	d := unit
+	for i := 0; i < n; i++ {
+		d *= 2
+		if d >= maxReconnectDelay {
+			return maxReconnectDelay
+		}
+	}
+	return d
+}
+
 func (s *Session) backoffWait() bool {
 	s.mu.Lock()
 	n := s.reconnectN
@@ -845,14 +869,7 @@ func (s *Session) backoffWait() bool {
 	}
 	kick := s.kick
 	s.mu.Unlock()
-	if unit == 0 {
-		unit = time.Second
-	}
-	d := unit << n
-	if cap := 15 * time.Second; d > cap {
-		d = cap
-	}
-	t := time.NewTimer(d)
+	t := time.NewTimer(reconnectDelay(unit, n))
 	defer t.Stop()
 	select {
 	case <-stop:

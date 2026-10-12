@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -564,5 +565,56 @@ func TestNotebookStoresNoOutputs(t *testing.T) {
 	}
 	if strings.Contains(string(onDisk), "PTY_OUTPUT_LEAK") {
 		t.Fatal("keel.json must not store notebook cell outputs")
+	}
+}
+
+func TestSetupRefusesExistingVault(t *testing.T) {
+	st := testStore(t)
+	saved, err := st.UpsertHost(Host{
+		Name: "box", Address: "10.0.0.1", Port: 22, Username: "root",
+		AuthType: "password", Password: "keep-me",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Setup("other-phrase"); !errors.Is(err, ErrVaultExists) {
+		t.Fatalf("setup on unlocked vault = %v, want ErrVaultExists", err)
+	}
+
+	vault := st.vaultPath
+	before, err := os.ReadFile(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopen without the passphrase: the existing scrypt vault is locked but
+	// does not need setup. Setup must not overwrite it.
+	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	reopened, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reopened.Locked() || reopened.NeedsSetup() {
+		t.Fatalf("locked=%v needsSetup=%v, want locked existing vault", reopened.Locked(), reopened.NeedsSetup())
+	}
+	if err := reopened.Setup("attacker-phrase"); !errors.Is(err, ErrVaultExists) {
+		t.Fatalf("setup on locked vault = %v, want ErrVaultExists", err)
+	}
+	after, err := os.ReadFile(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("Setup rewrote the existing vault")
+	}
+	if err := reopened.Unlock("test-vault-pass"); err != nil {
+		t.Fatalf("unlock with original passphrase: %v", err)
+	}
+	got, err := reopened.GetHost(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Password != "keep-me" {
+		t.Fatalf("password = %q after refused setup", got.Password)
 	}
 }

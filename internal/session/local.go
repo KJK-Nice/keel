@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/creack/pty"
@@ -29,7 +30,7 @@ func openLocal(cols, rows int) (Bridge, error) {
 	if dir := localWorkingDir(); dir != "" {
 		cmd.Dir = dir
 	}
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(shellEnv(os.Environ()),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
 	)
@@ -43,6 +44,25 @@ func openLocal(cols, rows int) (Bridge, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// secretEnv lists variables the daemon reads that must not reach programs
+// running in a local shell: anything there can read its own environment.
+var secretEnv = []string{"KEEL_VAULT_PASSPHRASE"}
+
+// shellEnv returns environ without the daemon's secret variables.
+func shellEnv(environ []string) []string {
+	out := make([]string, 0, len(environ))
+next:
+	for _, kv := range environ {
+		for _, name := range secretEnv {
+			if strings.HasPrefix(kv, name+"=") {
+				continue next
+			}
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 func localWorkingDir() string {

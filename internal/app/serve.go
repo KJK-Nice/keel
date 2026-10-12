@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -109,15 +110,25 @@ func StopServe(addr, dataDir string) error {
 	if posted == nil && waitUntilDown(addr, stopWait) {
 		return nil
 	}
+	livePid, up := healthPid(addr)
+	if !up {
+		if !listening(addr) {
+			// Nothing holds the port. A pid file left by a crashed daemon may
+			// now name an unrelated process, so drop it instead of signalling.
+			_ = os.Remove(paths.PidFile(dataDir))
+			return fmt.Errorf("keel serve is not running")
+		}
+		return fmt.Errorf("keel serve on %s is not responding; not signalling the pid file", addr)
+	}
 	pid, err := readPid(dataDir)
 	if err != nil {
-		if ProbeHealth(addr) {
-			if posted == nil {
-				return fmt.Errorf("keel serve did not stop")
-			}
-			return fmt.Errorf("keel serve is running but has no pid file")
+		if posted == nil {
+			return fmt.Errorf("keel serve did not stop")
 		}
-		return fmt.Errorf("keel serve is not running")
+		return fmt.Errorf("keel serve is running but has no pid file")
+	}
+	if livePid != pid {
+		return fmt.Errorf("pid file names %d but keel serve on %s reports %d; not signalling", pid, addr, livePid)
 	}
 	if err := signalStop(pid); err != nil && ProbeHealth(addr) {
 		return err
@@ -126,6 +137,36 @@ func StopServe(addr, dataDir string) error {
 		return nil
 	}
 	return fmt.Errorf("keel serve did not stop")
+}
+
+// healthPid asks the daemon on addr for its pid. up reports a 200 from
+// /api/health; pid is 0 when the reply carries none.
+func healthPid(addr string) (pid int, up bool) {
+	client := &http.Client{Timeout: 400 * time.Millisecond}
+	res, err := client.Get(healthURL(addr))
+	if err != nil {
+		return 0, false
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, res.Body)
+		return 0, false
+	}
+	var body struct {
+		Pid int `json:"pid"`
+	}
+	_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body)
+	return body.Pid, true
+}
+
+// listening reports whether anything accepts TCP connections on addr.
+func listening(addr string) bool {
+	c, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 func ProbeHealth(addr string) bool {

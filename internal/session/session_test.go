@@ -25,3 +25,28 @@ func TestLocalWorkingDirIsHome(t *testing.T) {
 		t.Fatalf("local shell dir %q, want home %q", got, home)
 	}
 }
+
+func TestShellEnvDropsVaultPassphrase(t *testing.T) {
+	in := []string{
+		"HOME=/home/u",
+		"KEEL_VAULT_PASSPHRASE=hunter2",
+		"KEEL_VAULT_PASSPHRASE_HINT=kept",
+		"KEEL_ADDR=127.0.0.1:47241",
+		"PATH=/usr/bin",
+	}
+	got := shellEnv(in)
+	want := []string{
+		"HOME=/home/u",
+		"KEEL_VAULT_PASSPHRASE_HINT=kept",
+		"KEEL_ADDR=127.0.0.1:47241",
+		"PATH=/usr/bin",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("shellEnv = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("shellEnv = %q, want %q", got, want)
+		}
+	}
+}

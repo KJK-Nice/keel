@@ -56,7 +56,10 @@ func Run(url, _ string) error {
 
 func (w *nativeWindow) appMenu() *application.Menu {
 	m := application.NewMenu()
-	if stdruntime.GOOS == "darwin" {
+	// The macOS roles build their items from Wails' global application,
+	// which is nil until application.New runs; skip them without an app.
+	macRoles := stdruntime.GOOS == "darwin" && w.app != nil
+	if macRoles {
 		m.AddRole(application.AppMenu)
 	}
 	file := m.AddSubmenu("File")
@@ -90,7 +93,7 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	view.Add("Zoom Out").SetAccelerator("CmdOrCtrl+-").OnClick(w.menuAction("zoom-out"))
 	view.Add("Actual Size").SetAccelerator("CmdOrCtrl+0").OnClick(w.menuAction("zoom-reset"))
 	m.AddRole(application.EditMenu)
-	if stdruntime.GOOS == "darwin" {
+	if macRoles {
 		m.AddRole(application.WindowMenu)
 	}
 	return m
