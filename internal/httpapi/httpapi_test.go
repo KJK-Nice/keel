@@ -2781,7 +2781,7 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), "function setSessionSurface") ||
 		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sessionRailFocused()`) ||
 		!strings.Contains(string(termBody), `sessionRailFocused() || state.openModal || ptyInjectWaiter`) ||
-		!strings.Contains(string(termBody), `key === "b"`) {
+		!strings.Contains(readShortcutsJS(t), `key === "b"`) {
 		t.Fatal("term.js must open and close the right session sidebar")
 	}
 	paint := termBody[bytes.Index(termBody, []byte("function paintSessionRail")):]
@@ -2851,22 +2851,27 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	defer jsRes.Body.Close()
 	jsBody, _ := io.ReadAll(jsRes.Body)
 	js := string(jsBody)
-	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, `runShortcut("palette")`) {
+	// Keys map to actions in lib/shortcuts.js; term.js runs them.
+	keyTable := readShortcutsJS(t)
+	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "runShortcut(action.name, action.repeat)") {
 		t.Fatal("term.js must open the command palette through runShortcut")
 	}
-	kIdx := strings.Index(js, `if (key === "k" && !ev.shiftKey)`)
+	kIdx := strings.Index(keyTable, `if (key === "k" && !ev.shiftKey)`)
 	if kIdx < 0 {
-		t.Fatal("term.js missing ⌘K handler")
+		t.Fatal("shortcut table missing ⌘K")
 	}
-	kChunk := js[kIdx:min(len(js), kIdx+220)]
-	if !strings.Contains(kChunk, `runShortcut("palette")`) {
+	kLine := keyTable[kIdx:]
+	if nl := strings.Index(kLine, "\n"); nl >= 0 {
+		kLine = kLine[:nl]
+	}
+	if !strings.Contains(kLine, `name: "palette"`) {
 		t.Fatal("⌘K must open the command palette")
 	}
-	if strings.Contains(kChunk, `runShortcut("search")`) {
+	if strings.Contains(kLine, `name: "search"`) {
 		t.Fatal("⌘K must not focus host search")
 	}
-	if !strings.Contains(js, `if (key === "p" && ev.shiftKey)`) {
-		t.Fatal("term.js missing ⌘⇧P palette shortcut")
+	if !strings.Contains(keyTable, `if (key === "p" && ev.shiftKey) return { name: "palette" }`) {
+		t.Fatal("shortcut table missing ⌘⇧P palette shortcut")
 	}
 
 	catStart := strings.Index(js, "function paletteCatalog()")
@@ -3268,4 +3273,15 @@ console.log("ok");
 	if !strings.Contains(cat, `id: "prev-tab"`) || !strings.Contains(cat, `id: "next-tab"`) {
 		t.Fatal("command palette must list previous and next tab")
 	}
+}
+
+// readShortcutsJS returns lib/shortcuts.js, where term.js's key -> action
+// table lives (behaviour tests: cmd/keel/web/js/test/shortcuts.test.mjs).
+func readShortcutsJS(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
