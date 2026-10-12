@@ -14,6 +14,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"keel/internal/authtoken"
 	"keel/internal/paths"
 )
 
@@ -105,6 +106,19 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	if pid != os.Getpid() {
 		t.Fatalf("pid file = %d, want %d", pid, os.Getpid())
 	}
+	token, err := authtoken.Read(dir)
+	if err != nil {
+		t.Fatalf("serve did not write its token: %v", err)
+	}
+	if err := VerifyServe(addr, token); err != nil {
+		t.Fatalf("VerifyServe on our own serve: %v", err)
+	}
+	if err := postRuntimeStop(addr, ""); err == nil {
+		t.Fatal("runtime stop without the token was accepted")
+	}
+	if !ProbeHealth(addr) {
+		t.Fatal("unauthenticated stop brought serve down")
+	}
 	if err := StopServe(addr, dir); err != nil {
 		t.Fatal(err)
 	}
@@ -151,5 +165,71 @@ func TestStopServeAlreadyDown(t *testing.T) {
 	err := StopServe("127.0.0.1:1", t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "not running") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPostRuntimeStopSendsToken(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get(authtoken.Header)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := postRuntimeStop(u.Host, "tok"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "tok" {
+		t.Fatalf("%s = %q, want tok", authtoken.Header, got)
+	}
+}
+
+func TestVerifyServeRejectsImpostor(t *testing.T) {
+	cases := map[string]http.HandlerFunc{
+		"no proof (older keel serve or another program)": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		},
+		"proof for a different token": func(w http.ResponseWriter, r *http.Request) {
+			proof := authtoken.Proof("someone-elses-token", r.URL.Query().Get("nonce"))
+			_, _ = w.Write([]byte(`{"proof":"` + proof + `"}`))
+		},
+		"not healthy": func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "nope", http.StatusInternalServerError)
+		},
+	}
+	for name, h := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(h)
+			t.Cleanup(srv.Close)
+			u, err := url.Parse(srv.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := VerifyServe(u.Host, "our-token"); err == nil {
+				t.Fatal("VerifyServe trusted a server that does not hold the token")
+			}
+		})
+	}
+}
+
+func TestVerifyServeNeverSendsToken(t *testing.T) {
+	const token = "our-token"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.String(), token) || r.Header.Get(authtoken.Header) != "" {
+			t.Errorf("VerifyServe sent the token: %s", r.URL)
+		}
+		proof := authtoken.Proof(token, r.URL.Query().Get("nonce"))
+		_, _ = w.Write([]byte(`{"proof":"` + proof + `"}`))
+	}))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyServe(u.Host, token); err != nil {
+		t.Fatal(err)
 	}
 }

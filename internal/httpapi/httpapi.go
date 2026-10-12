@@ -41,6 +41,8 @@ type Server struct {
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
 	onStop  func()
+	// authToken, when set, is required on privileged routes (auth.go).
+	authToken string
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -116,7 +118,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /ui/vault", s.uiVault)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
 	mux.Handle("/", noCacheStatic(http.FileServer(http.FS(s.web))))
-	return withLogging(withLocalOrigin(s.withVault(mux)))
+	return withLogging(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux)))))
 }
 
 func noCacheStatic(next http.Handler) http.Handler {
@@ -217,7 +219,7 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
 		"status":     "ok",
 		"role":       "runtime",
@@ -229,6 +231,9 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	}
 	if s.share != nil && s.share.Enabled() {
 		out["signalURL"] = s.share.URL()
+	}
+	if proof, ok := s.healthProof(r); ok {
+		out["proof"] = proof
 	}
 	writeJSON(w, http.StatusOK, out)
 }
