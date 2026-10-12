@@ -63,6 +63,12 @@ Existing plaintext `keel.json` files are migrated on unlock: secrets move into `
 
 The first time you connect to an SSH host, Keel asks you to trust its key. A different key later is rejected until you replace it.
 
+## Loopback API
+
+`keel serve` listens on loopback only and answers only requests whose `Host` is `127.0.0.1`, `::1` or `localhost`, so a web page that rebinds its own domain to 127.0.0.1 is refused. The UI, `/api/`, `/ws/` and `/ui/` also need the token in `keel-serve.token` (mode 0600 in `KEEL_DATA`): the desktop app trades it for an HttpOnly cookie on first load, and `keel serve stop` sends it as `X-Keel-Token`. Before handing over the token, the app asks the server to prove it holds it (HMAC of a random nonce), so another program that grabbed the port gets nothing.
+
+After upgrading from a build without the token, an older `keel serve` may still be running; the app then asks you to run `keel serve stop` once.
+
 ## Tabs, split, shortcuts
 
 On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.

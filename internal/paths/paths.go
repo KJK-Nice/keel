@@ -18,6 +18,11 @@ func PidFile(dataDir string) string {
 	return filepath.Join(dataDir, "keel-serve.pid")
 }
 
+// TokenFile holds the secret that authenticates clients of keel serve.
+func TokenFile(dataDir string) string {
+	return filepath.Join(dataDir, "keel-serve.token")
+}
+
 func DataDir() string {
 	if v := os.Getenv("KEEL_DATA"); v != "" {
 		return v

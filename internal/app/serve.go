@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"keel/internal/applog"
+	"keel/internal/authtoken"
 	"keel/internal/httpapi"
 	"keel/internal/paths"
 	"keel/internal/runtime"
@@ -34,6 +36,10 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("store: %w", err)
 	}
+	token, err := authtoken.LoadOrCreate(dataDir)
+	if err != nil {
+		return fmt.Errorf("auth token: %w", err)
+	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
@@ -45,7 +51,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).Handler(),
+		Handler:           httpapi.New(st, rt, web, hub).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)
@@ -106,7 +112,9 @@ func EnsureServe(addr, dataDir string) error {
 var stopWait = 5 * time.Second
 
 func StopServe(addr, dataDir string) error {
-	posted := postRuntimeStop(addr)
+	// Old daemons without a token ignore the header; current ones require it.
+	token, _ := authtoken.Read(dataDir)
+	posted := postRuntimeStop(addr, token)
 	if posted == nil && waitUntilDown(addr, stopWait) {
 		return nil
 	}
@@ -184,9 +192,45 @@ func healthURL(addr string) string {
 	return "http://" + addr + "/api/health"
 }
 
-func postRuntimeStop(addr string) error {
+// VerifyServe checks that the keel serve on addr holds token before a
+// client hands the token to it. It sends a random nonce, never the token,
+// and expects HMAC(token, nonce) back: another program that grabbed the
+// port first cannot answer.
+func VerifyServe(addr, token string) error {
+	nonce, err := authtoken.NewNonce()
+	if err != nil {
+		return err
+	}
 	client := &http.Client{Timeout: 2 * time.Second}
-	res, err := client.Post("http://"+addr+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
+	res, err := client.Get(healthURL(addr) + "?nonce=" + url.QueryEscape(nonce))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	var body struct {
+		Proof string `json:"proof"`
+	}
+	if res.StatusCode == http.StatusOK {
+		_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body)
+	}
+	if !authtoken.CheckProof(token, nonce, body.Proof) {
+		return fmt.Errorf("the server on %s did not prove it is this user's keel serve "+
+			"(an older keel serve, or another program on that port); run `keel serve stop` and try again", addr)
+	}
+	return nil
+}
+
+func postRuntimeStop(addr, token string) error {
+	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/api/runtime/stop", strings.NewReader("{}"))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set(authtoken.Header, token)
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	res, err := client.Do(req)
 	if err != nil {
 		return err
 	}
