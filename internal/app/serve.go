@@ -32,6 +32,11 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
+	release, err := lockDataDir(dataDir)
+	if err != nil {
+		return err
+	}
+	defer release()
 	st, err := store.New(filepath.Join(dataDir, "keel.json"))
 	if err != nil {
 		return fmt.Errorf("store: %w", err)
