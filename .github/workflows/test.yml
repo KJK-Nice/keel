@@ -1,4 +1,4 @@
-name: test
+name: ci
 
 on:
   push:
@@ -9,19 +9,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      TAILWIND_VERSION: v4.1.17
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
       - name: Install GTK4 and WebKitGTK 6 (Wails v3)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
@@ -34,13 +38,43 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Tailwind CLI
-        run: |
-          mkdir -p "$RUNNER_TEMP/bin"
-          curl -fsSL -o "$RUNNER_TEMP/bin/tailwindcss" \
-            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
-          chmod +x "$RUNNER_TEMP/bin/tailwindcss"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
       - name: make test
-        run: make test
+        run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
+
+  generated:
+    name: generated files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: make check-generated
+        run: sh scripts/ci-run.sh "generated files" make check-generated
+
+  lint:
+    name: ${{ matrix.check }}
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [fmt, vet, staticcheck, vulncheck]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK4 and WebKitGTK 6 (Wails v3)
+        if: matrix.check != 'fmt'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: make ${{ matrix.check }}
+        run: sh scripts/ci-run.sh "${{ matrix.check }}" make ${{ matrix.check }}
