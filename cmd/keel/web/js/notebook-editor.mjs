@@ -1,8 +1,9 @@
 // Document-first notebook editor (ProseMirror + CommonMark).
-// Rebuild vendor bundle (no app bundler): copy this file to a temp dir that
-// has node_modules, then:
+// Rebuild the vendor bundle with `make notebook-editor` (runs
+// notebook-editor.build.sh: pinned deps in a temp dir, then
 //   esbuild entry.mjs --bundle --format=iife --global-name=KeelMarkdownEditor \
-//     --outfile=cmd/keel/web/vendor/notebook/editor.js --minify
+//     --outfile=cmd/keel/web/vendor/notebook/editor.js --minify).
+// Never hand-edit vendor/notebook/editor.js; commit the .mjs and the bundle together.
 import { EditorState } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { defaultMarkdownParser, defaultMarkdownSerializer, schema } from "prosemirror-markdown";

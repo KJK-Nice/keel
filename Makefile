@@ -1,4 +1,4 @@
-.PHONY: app build test test-js signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app build test test-js notebook-editorsignal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -70,6 +70,10 @@ signal:
 
 test: ui test-js
 	$(GO) test $(GO_TAGS) ./...
+
+# Regenerate the vendored notebook editor bundle from js/notebook-editor.mjs.
+notebook-editor:
+	sh cmd/keel/web/js/notebook-editor.build.sh
 
 # Pure frontend modules (cmd/keel/web/js/lib) with node's built-in runner.
 test-js:
