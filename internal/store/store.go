@@ -879,7 +879,10 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	if sum != s.vaultSum || s.recipient != s.vaultRecipient {
+	// Rewrite when the secrets or recipient changed, or when keel.vault is
+	// gone: every save used to recreate it, and a missing vault at the next
+	// start is read as "no secrets".
+	if sum != s.vaultSum || s.recipient != s.vaultRecipient || !fileExists(s.vaultPath) {
 		blob, err := encryptVault(s.secrets, s.recipient)
 		if err != nil {
 			return err
@@ -890,6 +893,11 @@ func (s *Store) saveLocked() error {
 		s.vaultSum, s.vaultRecipient = sum, s.recipient
 	}
 	return writePrivate(s.path, b)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func secretsSum(secrets map[string]hostSecret) ([32]byte, error) {

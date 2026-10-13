@@ -133,3 +133,36 @@ func TestSaveRewritesVaultOnlyWhenSecretsChange(t *testing.T) {
 		t.Fatalf("after reopen password = %q, want second", got.Password)
 	}
 }
+
+// A vault deleted while the daemon runs must be recreated by the next save,
+// as every save did before saves started skipping unchanged vaults.
+func TestSaveRecreatesMissingVault(t *testing.T) {
+	st := testStore(t)
+	h, err := st.UpsertHost(Host{
+		Name: "box", Address: "10.0.0.1", Port: 22, Username: "root",
+		AuthType: "password", Password: "keep",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(st.vaultPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(st.vaultPath); err != nil {
+		t.Fatalf("vault not recreated: %v", err)
+	}
+	reopened, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopened.GetHost(h.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Password != "keep" {
+		t.Fatalf("password after reopen = %q", got.Password)
+	}
+}
