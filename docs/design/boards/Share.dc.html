@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel share and pass control</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--stage); font-family: var(--font-sans); color: var(--ink)">
+<dc-import name="Main" theme="{{theme}}" agent="{{no}}" hint-size="1440px,900px"></dc-import>
+
+<div class="k-menu" role="dialog" aria-label="Share prod-db-01" style="position: absolute; top: 40px; right: 96px; width: 400px; padding: 0; overflow: hidden; box-shadow: var(--shadow-modal)">
+<div style="padding: 14px 16px 12px; display: grid; gap: 4px; border-bottom: 1px solid var(--line)">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font: 600 15px/20px var(--font-sans)">Share session</span><span class="k-mono k-muted" style="font-size: 12px">prod-db-01</span><span class="k-badge k-badge--tide" style="margin-left: auto"><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>Live link</span></div>
+<span class="k-help">People with the link see this tab's terminals only. Never your hosts, keys or other tabs.</span>
+</div>
+
+<div style="padding: 14px 16px; display: grid; gap: 14px">
+<div class="k-field">
+<span class="k-label">Join link</span>
+<div class="k-inputgroup"><input class="k-input k-input--mono" value="keel://join/7QX4-MR2K-PL9A" aria-label="Join link" readonly=""><button class="k-btn k-btn--ghost k-btn--sm" style="margin-right: 2px"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-copy"></use></svg>Copy</button></div>
+<span class="k-help">Expires in 59 min or when you close the tab. Peer-to-peer over WebRTC; your loopback API stays private.</span>
+</div>
+
+<div class="k-field">
+<span class="k-label">People who join can</span>
+<div style="display: grid; gap: 8px">
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="false"></span>Watch only</label>
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="true"></span>Watch and ask for control</label>
+</div>
+</div>
+</div>
+
+<div style="border-top: 1px solid var(--line)">
+<div class="k-menu-label" style="padding: 10px 16px 4px">In this session · 2</div>
+<div style="display: grid; padding: 0 8px 8px">
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px">
+<span style="width: 26px; height: 26px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--brass-soft); color: var(--brass-ink); font: 600 11px/1 var(--font-sans)">KH</span>
+<div style="display: grid; gap: 1px; flex: 1; min-width: 0"><span style="font: 500 13px/16px var(--font-sans)">You</span><span class="k-muted" style="font: 400 11px/14px var(--font-mono)">owner · this Mac</span></div>
+<span class="k-role k-role--driver"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-steering"></use></svg>Driving</span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px; border-radius: var(--radius-sm); background: var(--hover)">
+<span style="width: 26px; height: 26px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--haze-soft); color: var(--haze); font: 600 11px/1 var(--font-sans)">NP</span>
+<div style="display: grid; gap: 1px; flex: 1; min-width: 0"><span style="font: 500 13px/16px var(--font-sans)">Niran P.</span><span class="k-muted" style="font: 400 11px/14px var(--font-mono)">joined 4 min ago · 38 ms</span></div>
+<span class="k-role k-role--follower"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-eye"></use></svg>Following</span>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Actions for Niran P."><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-more"></use></svg></button>
+</div>
+</div>
+</div>
+
+<div class="k-dialog-foot" style="justify-content: space-between">
+<button class="k-btn k-btn--danger k-btn--sm">Stop sharing</button>
+<button class="k-btn k-btn--sm"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-steering"></use></svg>Pass control to Niran</button>
+</div>
+</div>
+
+<div class="k-toast k-toast--haze" role="alert" style="position: absolute; right: 16px; bottom: 40px; width: 360px">
+<svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" style="margin-top: 1px"><use href="#i-steering"></use></svg>
+<div class="k-toast-title">Niran P. asks for control</div>
+<span></span>
+<div class="k-toast-desc">Of <span class="k-mono">prod-db-01</span>, all 3 panes. You become a follower until you take it back.</div>
+<div class="k-toast-actions"><button class="k-btn k-btn--sm">Hand over</button><button class="k-btn k-btn--sm k-btn--ghost">Keep driving</button></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark', no: false };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel port forwarding</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="f-panel-left" viewBox="0 0 24 24"><path d="M13 3H11C7.2 3 5.3 3 4.2 4.2C3 5.3 3 7.2 3 11V13C3 16.8 3 18.7 4.2 19.8C5.3 21 7.2 21 11 21H13C16.8 21 18.7 21 19.8 19.8C21 18.7 21 16.8 21 13V11C21 7.2 21 5.3 19.8 4.2C18.7 3 16.8 3 13 3Z"></path><path d="M9 3V21"></path></symbol>
+<symbol id="f-x" viewBox="0 0 24 24"><path d="M18 6L6 18M18 18L6 6"></path></symbol>
+<symbol id="f-add" viewBox="0 0 24 24"><path d="M12 5V19"></path><path d="M19 12H5"></path></symbol>
+<symbol id="f-forward" viewBox="0 0 24 24"><path d="M20 17L4 17"></path><path d="M17 14C17 14 20 16.2 20 17C20 17.8 17 20 17 20"></path><path d="M5 7L20 7"></path><path d="M7 4C7 4 4 6.2 4 7C4 7.8 7 10 7 10"></path></symbol>
+<symbol id="f-search" viewBox="0 0 24 24"><path d="M17 17L21 21"></path><path d="M19 11C19 6.6 15.4 3 11 3C6.6 3 3 6.6 3 11C3 15.4 6.6 19 11 19C15.4 19 19 15.4 19 11Z"></path></symbol>
+<symbol id="f-more" viewBox="0 0 24 24"><path d="M12 5H12.01M12 12H12.01M12 19H12.01" stroke-width="3"></path></symbol>
+<symbol id="f-alert" viewBox="0 0 24 24"><path d="M13.9 21H10.1C5.4 21 3.1 21 2.3 19.5C1.4 18 2.6 16 5 12L6.9 8.8C9.2 4.9 10.3 3 12 3C13.7 3 14.8 4.9 17.1 8.8L19 12C21.4 16 22.6 18 21.7 19.5C20.9 21 18.6 21 13.9 21Z"></path><path d="M12 9V13"></path><path d="M12 16.8H12.01" stroke-width="2.2"></path></symbol>
+<symbol id="f-copy" viewBox="0 0 24 24"><path d="M7.5 14.5C7.5 11.2 7.5 9.6 8.5 8.5C9.6 7.5 11.2 7.5 14.5 7.5C17.8 7.5 19.4 7.5 20.5 8.5C21.5 9.6 21.5 11.2 21.5 14.5C21.5 17.8 21.5 19.4 20.5 20.5C19.4 21.5 17.8 21.5 14.5 21.5C11.2 21.5 9.6 21.5 8.5 20.5C7.5 19.4 7.5 17.8 7.5 14.5Z"></path><path d="M7.5 16.5C6.1 16.5 5.4 16.5 4.8 16.3C3.8 16 3 15.2 2.7 14.2C2.5 13.6 2.5 12.9 2.5 11.5V9.5C2.5 6.2 2.5 4.6 3.5 3.5C4.6 2.5 6.2 2.5 9.5 2.5H11.5C12.9 2.5 13.6 2.5 14.2 2.7C15.2 3 16 3.8 16.3 4.8C16.5 5.4 16.5 6.1 16.5 7.5"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; gap: 2px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Show vault sidebar" aria-pressed="false" style="margin-right: 6px"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#f-panel-left"></use></svg></button>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">prod-db-01</span></div>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">bastion</span></div>
+<div class="k-tab" aria-selected="true" style="font-family: var(--font-sans)"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#f-forward"></use></svg><span class="k-tab-label">Port forwarding</span><span class="k-tab-close"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-x"></use></svg></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-tab-new" aria-label="New tab"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-add"></use></svg></button>
+</header>
+
+<main class="kw-page">
+<div class="kw-page-head">
+<div style="flex: 1"><h1>Port forwarding</h1><p>Each forward opens its own SSH connection. It keeps running when you close the window.</p></div>
+<button class="k-btn k-btn--primary"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-add"></use></svg>New forward<span class="k-kbd">⌘N</span></button>
+</div>
+<div class="kw-toolbar">
+<div class="k-inputgroup" style="width: 280px"><span class="k-addon"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-search"></use></svg></span><input class="k-input" placeholder="Filter 5 forwards" aria-label="Filter forwards"></div>
+<button class="kw-filter" aria-pressed="true">All 5</button>
+<button class="kw-filter" aria-pressed="false">Running 3</button>
+<button class="kw-filter" aria-pressed="false">Stopped 2</button>
+</div>
+
+<table class="kw-table">
+<thead><tr><th>Name</th><th>Type</th><th>Route</th><th>Through</th><th>Status</th><th>Traffic</th><th style="text-align: right">On</th><th></th></tr></thead>
+<tbody>
+<tr>
+<td><span style="font-weight: 500">Patroni primary</span></td>
+<td><span class="k-badge k-badge--mono">-L</span></td>
+<td><span class="kw-flow">127.0.0.1:5432<span class="arr">→</span>db.internal:5432</span></td>
+<td><span class="kw-mono k-muted">bastion</span></td>
+<td><span class="k-state k-state--live"><span class="k-dot k-dot--live"></span>Running · 2 h</span></td>
+<td><span class="kw-mono k-muted">48.2 MB</span></td>
+<td style="text-align: right"><button class="k-switch" role="switch" aria-checked="true" aria-label="Patroni primary on"></button></td>
+<td><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="More"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-more"></use></svg></button></td>
+</tr>
+<tr>
+<td><span style="font-weight: 500">Grafana</span></td>
+<td><span class="k-badge k-badge--mono">-L</span></td>
+<td><span class="kw-flow">127.0.0.1:3000<span class="arr">→</span>grafana.mon:3000</span></td>
+<td><span class="kw-mono k-muted">bastion</span></td>
+<td><span class="k-state k-state--live"><span class="k-dot k-dot--live"></span>Running · 41 min</span></td>
+<td><span class="kw-mono k-muted">3.1 MB</span></td>
+<td style="text-align: right"><button class="k-switch" role="switch" aria-checked="true" aria-label="Grafana on"></button></td>
+<td><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="More"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-more"></use></svg></button></td>
+</tr>
+<tr>
+<td><span style="font-weight: 500">SOCKS via bastion</span></td>
+<td><span class="k-badge k-badge--mono">-D</span></td>
+<td><span class="kw-flow">0.0.0.0:1080<span class="arr">→</span>dynamic</span> <span class="k-badge k-badge--signal" style="margin-left: 6px"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#f-alert"></use></svg>Every interface</span></td>
+<td><span class="kw-mono k-muted">bastion</span></td>
+<td><span class="k-state k-state--live"><span class="k-dot k-dot--live"></span>Running · 6 min</span></td>
+<td><span class="kw-mono k-muted">612 KB</span></td>
+<td style="text-align: right"><button class="k-switch" role="switch" aria-checked="true" aria-label="SOCKS on"></button></td>
+<td><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="More"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-more"></use></svg></button></td>
+</tr>
+<tr>
+<td><span style="font-weight: 500">NATS monitoring</span></td>
+<td><span class="k-badge k-badge--mono">-L</span></td>
+<td><span class="kw-flow">127.0.0.1:8222<span class="arr">→</span>nats-03:8222</span></td>
+<td><span class="kw-mono k-muted">nats-03</span></td>
+<td><span class="k-state k-state--dead"><span class="k-dot k-dot--dead"></span>Failed · host unreachable</span></td>
+<td><span class="kw-mono k-faint">—</span></td>
+<td style="text-align: right"><button class="k-switch" role="switch" aria-checked="false" aria-label="NATS monitoring on"></button></td>
+<td><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="More"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-more"></use></svg></button></td>
+</tr>
+<tr>
+<td><span style="font-weight: 500">Webhook to laptop</span></td>
+<td><span class="k-badge k-badge--mono">-R</span></td>
+<td><span class="kw-flow">ci.internal:9000<span class="arr">→</span>127.0.0.1:9000</span></td>
+<td><span class="kw-mono k-muted">gitlab-runner-3</span></td>
+<td><span class="k-state"><span class="k-dot k-dot--idle"></span>Stopped</span></td>
+<td><span class="kw-mono k-faint">—</span></td>
+<td style="text-align: right"><button class="k-switch" role="switch" aria-checked="false" aria-label="Webhook on"></button></td>
+<td><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="More"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#f-more"></use></svg></button></td>
+</tr>
+</tbody>
+</table>
+
+<div style="padding: 20px 32px; display: flex; gap: 16px; align-items: flex-start">
+<div class="k-toast k-toast--flare" role="status" style="box-shadow: none; width: 460px">
+<svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#f-alert"></use></svg>
+<div class="k-toast-title">NATS monitoring stopped</div><span></span>
+<div class="k-toast-desc">nats-03 did not answer within 15 s (5 tries). The forward turns back on by itself when the host is reachable again.</div>
+<div class="k-toast-actions"><button class="k-btn k-btn--sm">Retry now</button><button class="k-btn k-btn--sm k-btn--ghost">Edit forward</button></div>
+</div>
+</div>
+</main>
+
+<footer class="kw-status">
+<span><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>keel serve · 3 forwards running</span>
+<div style="flex: 1"></div>
+<span>Default bind 127.0.0.1</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

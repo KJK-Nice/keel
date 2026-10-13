@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel unlock vault</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="u-lock" viewBox="0 0 24 24"><path d="M12 14V17"></path><path d="M16.5 9V6.5C16.5 4 14.5 2 12 2C9.5 2 7.5 4 7.5 6.5V9"></path><path d="M4.3 18.8C4.5 20.5 5.9 21.8 7.6 21.9C9 22 10.4 22 12 22C13.6 22 15 22 16.4 21.9C18.1 21.8 19.5 20.5 19.7 18.8C19.9 17.8 20 16.6 20 15.5C20 14.4 19.9 13.2 19.7 12.2C19.5 10.5 18.1 9.2 16.4 9.1C15 9 13.6 9 12 9C10.4 9 9 9 7.6 9.1C5.9 9.2 4.5 10.5 4.3 12.2C4.1 13.2 4 14.4 4 15.5C4 16.6 4.1 17.8 4.3 18.8Z"></path></symbol>
+<symbol id="u-alert" viewBox="0 0 24 24"><path d="M13.9 21H10.1C5.4 21 3.1 21 2.3 19.5C1.4 18 2.6 16 5 12L6.9 8.8C9.2 4.9 10.3 3 12 3C13.7 3 14.8 4.9 17.1 8.8L19 12C21.4 16 22.6 18 21.7 19.5C20.9 21 18.6 21 13.9 21Z"></path><path d="M12 9V13"></path><path d="M12 16.8H12.01" stroke-width="2.2"></path></symbol>
+<symbol id="u-eye" viewBox="0 0 24 24"><path d="M21.5 11C21.8 11.5 22 11.7 22 12C22 12.3 21.8 12.5 21.5 13C20.2 14.9 16.7 19 12 19C7.3 19 3.8 14.9 2.5 13C2.2 12.5 2 12.3 2 12C2 11.7 2.2 11.5 2.5 11C3.8 9.1 7.3 5 12 5C16.7 5 20.2 9.1 21.5 11Z"></path><path d="M15 12C15 10.3 13.7 9 12 9C10.3 9 9 10.3 9 12C9 13.7 10.3 15 12 15C13.7 15 15 13.7 15 12Z"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+</header>
+
+<div class="kw-unlock">
+<div class="kw-unlock-card">
+<img src="/_blob/a89ee41697ecb193a4319b37c4453b86" alt="Keel" width="48" height="48" style="display: block; border-radius: 11px">
+<div style="display: grid; gap: 6px">
+<h1 style="margin: 0; font: 600 28px/32px var(--font-display); letter-spacing: -0.01em">Unlock your vault</h1>
+<p class="k-muted" style="margin: 0">Your hosts, keys and snippets are encrypted on this Mac. 4 sessions are waiting in <span class="k-mono" style="font-size: 12px">keel serve</span>.</p>
+</div>
+
+<div class="k-pane-banner k-pane-banner--signal" style="width: 100%; border: 0; border-radius: var(--radius-sm)">
+<svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#u-alert"></use></svg>
+<span>macOS Keychain didn't answer, so Keel needs your passphrase this time.</span>
+</div>
+
+<div class="k-field" style="width: 100%">
+<label class="k-label" for="pp">Vault passphrase</label>
+<div class="k-inputgroup" style="height: 36px; border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus)"><span class="k-addon"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#u-lock"></use></svg></span><input id="pp" class="k-input" type="password" value="correct-horse-staple" style="font-size: 15px"><button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Show passphrase" style="margin-right: 4px"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#u-eye"></use></svg></button></div>
+</div>
+
+<label class="k-choice"><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 14L8.5 17.5L19 6.5"></path></svg></span>Try macOS Keychain again next time</label>
+
+<div style="display: flex; gap: 8px; width: 100%">
+<button class="k-btn k-btn--primary k-btn--lg" style="flex: 1">Unlock<span class="k-kbd">↵</span></button>
+</div>
+<p class="k-help" style="margin: 0">Forgot it? Keel can't recover the vault without the passphrase. Sessions already running keep working; you can still open a Local shell.</p>
+</div>
+</div>
+
+<footer class="kw-status">
+<span><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>keel serve · 4 sessions waiting</span>
+<div style="flex: 1"></div>
+<span>keel.vault · age encrypted</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

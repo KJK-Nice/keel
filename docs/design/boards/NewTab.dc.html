@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel new tab</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="n-panel-left" viewBox="0 0 24 24"><path d="M13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3Z"></path><path d="M9 3V21"></path></symbol>
+<symbol id="n-x" viewBox="0 0 24 24"><path d="M18 6L6 18M18 18L6 6"></path></symbol>
+<symbol id="n-add" viewBox="0 0 24 24"><path d="M12 5V19"></path><path d="M19 12H5"></path></symbol>
+<symbol id="n-ai" viewBox="0 0 24 24"><path d="M13.427 8.08396C12.8007 5.84272 12.3226 4 11.0004 4C9.67824 4 9.19964 5.84274 8.5731 8.08399C8.31853 8.99465 8.19125 9.44998 7.82042 9.82077C7.4496 10.1916 6.99434 10.3188 6.08381 10.5732C3.84273 11.1995 2 11.6775 2 13C2 14.3225 3.84273 14.8005 6.08381 15.4268C6.99434 15.6812 7.4496 15.8084 7.82042 16.1792C8.19125 16.55 8.31853 17.0054 8.5731 17.916C9.19964 20.1573 9.67824 22 11.0004 22C12.3226 22 12.8007 20.1573 13.427 17.916C13.6815 17.0054 13.8087 16.5501 14.1795 16.1793C14.5504 15.8085 15.0056 15.6812 15.9162 15.4268C18.1573 14.8005 20 14.3225 20 13C20 11.6775 18.1573 11.1995 15.9162 10.5732C15.0056 10.3188 14.5504 10.1915 14.1795 9.8207C13.8087 9.44986 13.6815 8.99456 13.427 8.08396Z"></path><path d="M19.5 2.9V6.1M17.9 4.5H21.1"></path></symbol>
+<symbol id="n-server" viewBox="0 0 24 24"><path d="M2 8C2 6.1 2 5.2 2.6 4.6C3.2 4 4.1 4 6 4H18C19.9 4 20.8 4 21.4 4.6C22 5.2 22 6.1 22 8C22 9.9 22 10.8 21.4 11.4C20.8 12 19.9 12 18 12H6C4.1 12 3.2 12 2.6 11.4C2 10.8 2 9.9 2 8Z"></path><path d="M2 16C2 14.1 2 13.2 2.6 12.6C3.2 12 4.1 12 6 12H18C19.9 12 20.8 12 21.4 12.6C22 13.2 22 14.1 22 16C22 17.9 22 18.8 21.4 19.4C20.8 20 19.9 20 18 20H6C4.1 20 3.2 20 2.6 19.4C2 18.8 2 17.9 2 16Z"></path><path d="M6 8H6.01M6 16H6.01M10 8H10.01M10 16H10.01" stroke-width="2.2"></path></symbol>
+<symbol id="n-terminal" viewBox="0 0 24 24"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"></path><path d="M11.5 12.5H15.5"></path><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"></path></symbol>
+<symbol id="n-cmd" viewBox="0 0 24 24"><path d="M14 4H10C6.22876 4 4.34315 4 3.17157 5.17157C2 6.34315 2 8.22876 2 12C2 15.7712 2 17.6569 3.17157 18.8284C4.34315 20 6.22876 20 10 20H14C17.7712 20 19.6569 20 20.8284 18.8284C22 17.6569 22 15.7712 22 12C22 8.22876 22 6.34315 20.8284 5.17157C19.6569 4 17.7712 4 14 4Z"></path><path d="M7 9L8.83981 10.5858C9.61327 11.2525 10 11.5858 10 12C10 12.4142 9.61327 12.7475 8.83981 13.4142L7 15"></path><path d="M13 16H17"></path></symbol>
+<symbol id="n-link" viewBox="0 0 24 24"><path d="M15 17H17C19.7614 17 22 14.7614 22 12C22 9.23858 19.7614 7 17 7H15M9 17H7C4.23858 17 2 14.7614 2 12C2 9.23858 4.23858 7 7 7H9"></path><path d="M8.5 12H15.5"></path></symbol>
+<symbol id="n-refresh" viewBox="0 0 24 24"><path d="M20 2V5.1C20 5.4 19.6 5.6 19.5 5.3C17.6 3.3 15 2 12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; gap: 2px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Show vault sidebar" aria-pressed="false" style="margin-right: 6px"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#n-panel-left"></use></svg></button>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">prod-db-01</span><span class="k-badge k-badge--mono" style="height: 16px; padding: 0 4px; font-size: 10px">3</span></div>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">bastion</span></div>
+<div class="k-tab"><span class="k-dot k-dot--connecting"></span><span class="k-tab-label">nats-03</span></div>
+<div class="k-tab"><span class="k-dot k-dot--idle"></span><span class="k-tab-label">~ local</span></div>
+<div class="k-tab" aria-selected="true" style="font-family: var(--font-sans)"><span class="k-tab-label">New tab</span><span class="k-tab-close"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-x"></use></svg></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-tab-new" aria-label="New tab"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-add"></use></svg></button>
+<div style="flex: 1"></div>
+<button class="k-btn k-btn--ghost k-btn--sm" aria-pressed="false"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#n-ai"></use></svg>Agent<span class="k-kbd" style="height: 16px; min-width: 16px; font-size: 10px">⌘I</span></button>
+</header>
+
+<div class="kw-start">
+<div class="kw-start-col">
+
+<div style="display: grid; gap: 10px">
+<h1 style="margin: 0; font: 600 28px/32px var(--font-display); letter-spacing: -0.01em">Where to?</h1>
+<label class="kw-connect">
+<svg class="kw-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-faint)"><use href="#n-terminal"></use></svg>
+<input aria-label="Host to connect to" placeholder="saved host, user@host:port, or paste an ssh command">
+<span class="k-kbd">↵</span>
+</label>
+<p class="k-help" style="margin: 0">Paste <span class="k-mono">ssh -J bastion deploy@10.0.4.21 -p 2222</span> and Keel opens it, then offers to save it as a host.</p>
+</div>
+
+<section class="kw-section" aria-label="Recent hosts">
+<div class="kw-section-h"><span>Recent</span><span>⌥1–⌥6 to open</span></div>
+<div class="kw-recent">
+<button class="kw-card" data-highlighted=""><span class="k-tile" style="--host: var(--ansi-14)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-server"></use></svg></span><span class="kw-card-name">prod-db-01</span><span class="kw-card-sub"><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>3 live · open now</span><span class="k-keyhint">⌥1</span></button>
+<button class="kw-card"><span class="k-tile" style="--host: var(--ansi-11)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-server"></use></svg></span><span class="kw-card-name">bastion</span><span class="kw-card-sub"><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>1 live · ops@:2222</span><span class="k-keyhint">⌥2</span></button>
+<button class="kw-card"><span class="k-tile" style="--host: var(--ansi-13)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-server"></use></svg></span><span class="kw-card-name">nats-03</span><span class="kw-card-sub" style="color: var(--signal)"><span class="k-dot k-dot--connecting" style="width: 6px; height: 6px"></span>reconnecting 2/5</span><span class="k-keyhint">⌥3</span></button>
+<button class="kw-card"><span class="k-tile" style="--host: var(--ansi-10)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-server"></use></svg></span><span class="kw-card-name">ceph-rgw-1</span><span class="kw-card-sub">admin@10.0.9.11 · yesterday</span><span class="k-keyhint">⌥4</span></button>
+<button class="kw-card"><span class="k-tile" style="--host: var(--ansi-9)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-server"></use></svg></span><span class="kw-card-name">gitlab-runner-3</span><span class="kw-card-sub">root@10.0.12.3 · 2 days ago</span><span class="k-keyhint">⌥5</span></button>
+<button class="kw-card"><span class="k-tile" style="--host: var(--ink-muted)"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#n-terminal"></use></svg></span><span class="kw-card-name">Local shell</span><span class="kw-card-sub">zsh · ~/dev/keel</span><span class="k-keyhint">⌥6</span></button>
+</div>
+</section>
+
+<section class="kw-section" aria-label="Start something else">
+<div class="kw-section-h"><span>Start</span></div>
+<div class="kw-actions">
+<button class="kw-action"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#n-cmd"></use></svg>Quick connect<span class="k-kbd">⌘⇧O</span></button>
+<button class="kw-action"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-link"></use></svg>Join session<span class="k-kbd">⌘J</span></button>
+<button class="kw-action"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-add"></use></svg>New host<span class="k-kbd">⌘N</span></button>
+<button class="kw-action"><svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><use href="#n-ai"></use></svg>Ask agent<span class="k-kbd">⌘I</span></button>
+</div>
+</section>
+
+<section class="kw-section" aria-label="Recently closed">
+<div class="kw-section-h"><span>Recently closed</span><span>reopens as a new session</span></div>
+<div class="kw-closed">
+<div class="kw-closed-row"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-refresh"></use></svg>staging-api-01<span class="when">12 min ago</span><span class="k-keys"><span class="k-kbd">⌘</span><span class="k-kbd">⇧</span><span class="k-kbd">T</span></span></div>
+<div class="kw-closed-row"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-refresh"></use></svg>prod-db-01 · split pane<span class="when">40 min ago</span></div>
+<div class="kw-closed-row"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#n-refresh"></use></svg>ceph-rgw-2<span class="when">yesterday</span></div>
+</div>
+</section>
+
+</div>
+</div>
+
+<footer class="kw-status">
+<span><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>keel serve · 5 sessions</span>
+<div style="flex: 1"></div>
+<span>Vault unlocked · 24 hosts</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

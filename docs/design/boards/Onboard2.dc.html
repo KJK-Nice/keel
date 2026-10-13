@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel first run, import hosts</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="o-tick" viewBox="0 0 24 24"><path d="M5 14L8.5 17.5L19 6.5"></path></symbol>
+<symbol id="o-key" viewBox="0 0 24 24"><path d="M15 15.5C18.6 15.5 21.5 12.6 21.5 9C21.5 5.4 18.6 2.5 15 2.5C11.4 2.5 8.5 5.4 8.5 9C8.5 9.4 8.5 9.8 8.6 10.2C8.8 11 8.8 11.3 8.8 11.6C8.7 11.8 8.5 12 8.1 12.5L3.7 16.8C3.1 17.4 2.8 17.7 2.7 18.1C2.5 18.4 2.5 18.8 2.5 19.7V21.5H6V19.5H8V17.5H10L11.6 15.9C12 15.5 12.2 15.3 12.4 15.2C12.7 15.2 13 15.2 13.8 15.4C14.2 15.5 14.6 15.5 15 15.5Z"></path></symbol>
+<symbol id="o-alert" viewBox="0 0 24 24"><path d="M13.9 21H10.1C5.4 21 3.1 21 2.3 19.5C1.4 18 2.6 16 5 12L6.9 8.8C9.2 4.9 10.3 3 12 3C13.7 3 14.8 4.9 17.1 8.8L19 12C21.4 16 22.6 18 21.7 19.5C20.9 21 18.6 21 13.9 21Z"></path><path d="M12 9V13"></path><path d="M12 16.8H12.01" stroke-width="2.2"></path></symbol>
+</svg>
+<header class="k-tabs" style="padding-left: 76px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+</header>
+
+<div class="kw-onb">
+<div class="kw-onb-col" style="width: 760px; padding-top: 44px">
+<div class="kw-steps" aria-label="Setup progress">
+<span class="kw-step" data-state="done"><span class="kw-step-n"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span>Vault</span><span class="kw-step-sep"></span>
+<span class="kw-step" data-state="now"><span class="kw-step-n">2</span>Hosts</span><span class="kw-step-sep"></span>
+<span class="kw-step"><span class="kw-step-n">3</span>Agent</span>
+</div>
+
+<div style="display: grid; gap: 8px">
+<h1>Bring your hosts</h1>
+<p class="kw-onb-lead">Keel found <span class="k-mono" style="font-size: 12px">~/.ssh/config</span> with 14 hosts. Pick the ones to add. Your config file is not changed.</p>
+</div>
+
+<div class="kw-import">
+<table class="kw-table">
+<thead><tr><th><span class="k-check" role="checkbox" aria-checked="true" aria-label="Select all"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></th><th>Host</th><th>Address</th><th>User</th><th>Key</th><th>Via</th></tr></thead>
+<tbody>
+<tr><td><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">bastion</td><td class="kw-mono k-muted">bastion.example.net:2222</td><td class="kw-mono k-muted">ops</td><td class="kw-mono k-muted">id_rsa_ops</td><td class="k-faint">—</td></tr>
+<tr><td><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">prod-db-*</td><td class="kw-mono k-muted">10.0.4.21, 10.0.4.22</td><td class="kw-mono k-muted">deploy</td><td class="kw-mono k-muted">id_ed25519</td><td class="kw-mono k-muted">bastion</td></tr>
+<tr><td><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">prod-api-*</td><td class="kw-mono k-muted">10.0.4.40, 10.0.4.41</td><td class="kw-mono k-muted">deploy</td><td class="kw-mono k-muted">id_ed25519</td><td class="kw-mono k-muted">bastion</td></tr>
+<tr><td><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">ceph-rgw-1, -2</td><td class="kw-mono k-muted">10.0.9.11, 10.0.9.12</td><td class="kw-mono k-muted">admin</td><td class="kw-mono k-muted">id_ecdsa_ceph</td><td class="kw-mono k-muted">bastion</td></tr>
+<tr><td><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">nats-01…03</td><td class="kw-mono k-muted">10.0.7.11–13</td><td class="kw-mono k-muted">root</td><td class="kw-mono k-muted">id_ed25519</td><td class="kw-mono k-muted">bastion</td></tr>
+<tr><td><span class="k-check" role="checkbox" aria-checked="false"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#o-tick"></use></svg></span></td><td class="kw-mono">old-jenkins</td><td class="kw-mono k-muted">192.168.1.40</td><td class="kw-mono k-muted">jenkins</td><td class="k-faint">password</td><td><span class="k-badge k-badge--signal"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#o-alert"></use></svg>ProxyCommand, kept as-is</span></td></tr>
+</tbody>
+</table>
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-muted)">Wildcards expand to one host each · 12 of 14 selected<span style="flex: 1"></span><button class="k-btn k-btn--ghost k-btn--sm">Show all 14</button></div>
+</div>
+
+<div class="kw-box" style="background: var(--surface)">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-muted)"><use href="#o-key"></use></svg>
+<span style="flex: 1">Copy the 4 private keys these hosts use into the vault</span>
+<button class="k-switch" role="switch" aria-checked="true" aria-label="Copy keys into vault"></button>
+</div>
+<span class="k-help">The files in <span class="k-mono">~/.ssh</span> stay where they are. Keys with a passphrase ask for it once, then it is stored in the vault.</span>
+</div>
+
+<div class="kw-onb-foot">
+<button class="k-btn k-btn--ghost">Back</button>
+<span class="grow"></span>
+<button class="k-btn">Skip, add hosts later</button>
+<button class="k-btn k-btn--primary k-btn--lg">Add 12 hosts<span class="k-kbd">↵</span></button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel command suggestion in a pane</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="s-steering" viewBox="0 0 24 24"><path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"></path><path d="M18.9181 10.4125C17.9491 10.8367 16.4851 11.218 15.1595 10.7168C13.2638 10 12.2893 10 12 10C11.7107 10 10.7362 10 8.84049 10.7168C7.51492 11.218 6.05092 10.8367 5.08186 10.4125M19 13.2548C16.8546 13.6631 13.6079 14.878 13.5238 19M10.4762 19C10.3921 14.878 7.14544 13.6631 5 13.2548"></path></symbol>
+<symbol id="s-ai" viewBox="0 0 24 24"><path d="M13.427 8.08396C12.8007 5.84272 12.3226 4 11.0004 4C9.67824 4 9.19964 5.84274 8.5731 8.08399C8.31853 8.99465 8.19125 9.44998 7.82042 9.82077C7.4496 10.1916 6.99434 10.3188 6.08381 10.5732C3.84273 11.1995 2 11.6775 2 13C2 14.3225 3.84273 14.8005 6.08381 15.4268C6.99434 15.6812 7.4496 15.8084 7.82042 16.1792C8.19125 16.55 8.31853 17.0054 8.5731 17.916C9.19964 20.1573 9.67824 22 11.0004 22C12.3226 22 12.8007 20.1573 13.427 17.916C13.6815 17.0054 13.8087 16.5501 14.1795 16.1793C14.5504 15.8085 15.0056 15.6812 15.9162 15.4268C18.1573 14.8005 20 14.3225 20 13C20 11.6775 18.1573 11.1995 15.9162 10.5732C15.0056 10.3188 14.5504 10.1915 14.1795 9.8207C13.8087 9.44986 13.6815 8.99456 13.427 8.08396Z"></path><path d="M19.5 2.9V6.1M17.9 4.5H21.1"></path></symbol>
+<symbol id="s-alert" viewBox="0 0 24 24"><path d="M13.9248 21H10.0752C5.44476 21 3.12955 21 2.27636 19.4939C1.42317 17.9879 2.60736 15.9914 4.97574 11.9985L6.90057 8.75333C9.17559 4.91778 10.3131 3 12 3C13.6869 3 14.8244 4.91777 17.0994 8.75332L19.0243 11.9985C21.3926 15.9914 22.5768 17.9879 21.7236 19.4939C20.8704 21 18.5552 21 13.9248 21Z"></path><path d="M12 9V13"></path><path d="M12 16.75H12.01" stroke-width="2.2"></path></symbol>
+</svg>
+
+<div class="kw-states">
+
+<section class="k-pane" data-focused="" style="position: relative" aria-label="State 1: Keel notices a request">
+<div class="k-panebar"><span class="k-dot k-dot--live"></span><span class="k-panebar-host">prod-db-01</span><span class="k-panebar-addr">deploy@10.0.4.21</span><span class="k-role k-role--driver"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#s-steering"></use></svg>Driving</span></div>
+<span class="kw-state-label">1 · Notice</span>
+<pre class="k-term"><span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ systemctl status pgbouncer --no-pager | head -3
+<span class="a1">●</span> pgbouncer.service - connection pooler
+     Loaded: loaded (/lib/systemd/system/pgbouncer.service)
+     Active: <span class="a1">failed</span> (Result: exit-code) since 09:02:14
+<span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ <span class="kw-nl">which process is listening on 5432</span><span class="k-cursor"> </span><span class="kw-hintline"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#s-ai"></use></svg>Looks like a request<span class="k-kbd">⇥</span>suggest a command</span></pre>
+</section>
+
+<section class="k-pane" data-focused="" style="position: relative" aria-label="State 2: suggestion">
+<div class="k-panebar"><span class="k-dot k-dot--live"></span><span class="k-panebar-host">prod-db-01</span><span class="k-panebar-addr">deploy@10.0.4.21</span><span class="k-role k-role--driver"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#s-steering"></use></svg>Driving</span></div>
+<span class="kw-state-label">2 · Suggest</span>
+<pre class="k-term"><span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ <span class="kw-ghost">which process is listening on 5432</span>
+<div class="kw-sug" role="dialog" aria-label="Suggested command">
+<div class="kw-sug-head"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#s-ai"></use></svg>Suggested from your words<span class="k-badge k-badge--tide">Read-only</span></div>
+<div class="kw-sug-cmd">sudo ss -ltnp 'sport = :5432'</div>
+<div class="kw-sug-why">Lists TCP sockets listening on port 5432 and the process that owns each one.</div>
+<div class="kw-sug-alt">
+<div><span class="k-kbd" style="height: 16px; min-width: 16px; font-size: 10px">2</span>sudo lsof -iTCP:5432 -sTCP:LISTEN</div>
+<div><span class="k-kbd" style="height: 16px; min-width: 16px; font-size: 10px">3</span>sudo fuser -v 5432/tcp</div>
+</div>
+<div class="kw-sug-foot"><span><span class="k-kbd">⇥</span>insert</span><span><span class="k-kbd">↑</span><span class="k-kbd">↓</span>other options</span><span><span class="k-kbd">esc</span>keep my words</span></div>
+</div></pre>
+</section>
+
+<section class="k-pane" data-focused="" style="position: relative" aria-label="State 3: inserted, not run">
+<div class="k-panebar"><span class="k-dot k-dot--live"></span><span class="k-panebar-host">prod-db-01</span><span class="k-panebar-addr">deploy@10.0.4.21</span><span class="k-role k-role--driver"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#s-steering"></use></svg>Driving</span></div>
+<span class="kw-state-label">3 · Inserted</span>
+<pre class="k-term"><span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ systemctl status pgbouncer --no-pager | head -3
+<span class="a1">●</span> pgbouncer.service - connection pooler
+     Loaded: loaded (/lib/systemd/system/pgbouncer.service)
+     Active: <span class="a1">failed</span> (Result: exit-code) since 09:02:14
+<span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ <span class="kw-inserted">sudo ss -ltnp 'sport = :5432'</span><span class="k-cursor"> </span><span class="kw-hintline">Inserted, not run<span class="k-kbd">↵</span>run<span class="k-kbd">⌘Z</span>back to your words</span></pre>
+</section>
+
+<section class="k-pane" data-focused="" style="position: relative" aria-label="State 4: destructive suggestion">
+<div class="k-panebar"><span class="k-dot k-dot--live"></span><span class="k-panebar-host">prod-db-02</span><span class="k-panebar-addr">deploy@10.0.4.22</span><span class="k-role k-role--driver"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#s-steering"></use></svg>Driving</span></div>
+<span class="kw-state-label">4 · Destructive</span>
+<pre class="k-term"><span class="a2">deploy@prod-db-02</span>:<span class="a4">~</span>$ <span class="kw-ghost">clean up old wal files</span>
+<div class="kw-sug kw-sug--danger" role="dialog" aria-label="Suggested command that deletes files">
+<div class="kw-sug-head"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#s-ai"></use></svg>Suggested from your words<span class="k-badge k-badge--flare"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><use href="#s-alert"></use></svg>Deletes files</span></div>
+<div class="kw-sug-cmd">sudo -u postgres pg_archivecleanup /var/lib/postgresql/16/main/pg_wal 000000070000003A0000009C</div>
+<div class="kw-sug-why">Removes every WAL file older than segment …3A0000009C. This replica is still replaying from 3A/9D, so check that it has caught up first.</div>
+<div class="kw-sug-foot"><span><span class="k-kbd">⇧</span><span class="k-kbd">⇥</span>insert anyway</span><span><span class="k-kbd">esc</span>keep my words</span><span style="margin-left: auto">Plain ⇥ never inserts a destructive command</span></div>
+</div></pre>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>
