@@ -32,11 +32,20 @@ type Hub struct {
 type liveShare struct {
 	sessionID string
 	roomID    string
-	joinURL   string
+	hostKey   string
+	joinURL   string // set under Hub.mu once the host is connected
 	cancel    context.CancelFunc
-	ready     chan struct{}
-	err       error
+	ready     chan struct{} // closed when the share is up or has failed
+	err       error         // set before ready is closed
 }
+
+const (
+	// maxPeers caps WebRTC viewers per share (each is a PeerConnection).
+	maxPeers = 16
+	// maxBuffered is how far a viewer's data channel may fall behind before
+	// it is dropped; pion queues sends without bound.
+	maxBuffered = 4 << 20
+)
 
 // DefaultSignal is the compile-time signaling URL. Finder-launched Keel.app
 // has no shell env, so bake it in:
@@ -83,6 +92,9 @@ func (h *Hub) JoinURL(sessionID string) string {
 	return ""
 }
 
+// Share returns the join link for sessionID, starting a share if there is
+// none. Concurrent calls for one session wait for the same share instead of
+// each creating a room.
 func (h *Hub) Share(sessionID string) (string, error) {
 	if h == nil || h.signal == "" {
 		return "", errors.New("set KEEL_SIGNAL to a public signaling server (keel-signal)")
@@ -92,35 +104,63 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	}
 	h.mu.Lock()
 	if s := h.bySess[sessionID]; s != nil {
-		url := s.joinURL
 		h.mu.Unlock()
-		return url, nil
+		return h.await(s, false)
 	}
-	h.mu.Unlock()
-
-	roomID, err := createRoom(h.signal)
-	if err != nil {
-		return "", err
-	}
-	join := h.signal + "/join?room=" + url.QueryEscape(roomID)
 	ctx, cancel := context.WithCancel(context.Background())
-	live := &liveShare{sessionID: sessionID, roomID: roomID, joinURL: join, cancel: cancel, ready: make(chan struct{})}
-	h.mu.Lock()
+	live := &liveShare{sessionID: sessionID, cancel: cancel, ready: make(chan struct{})}
 	h.bySess[sessionID] = live
 	h.mu.Unlock()
-	go h.hostLoop(ctx, live)
-	select {
-	case <-live.ready:
-	case <-time.After(8 * time.Second):
-		h.Stop(sessionID)
-		return "", errors.New("signaling host did not connect")
+
+	roomID, hostKey, err := createRoom(h.signal)
+	if err != nil {
+		h.fail(live, err)
+		return "", err
 	}
-	if live.err != nil {
-		return "", live.err
-	}
-	return join, nil
+	live.roomID, live.hostKey = roomID, hostKey
+	go h.hostLoop(ctx, live, h.signal+"/join?room="+url.QueryEscape(roomID))
+	return h.await(live, true)
 }
 
+// await waits for s to come up. Only the caller that created the share
+// ends it on timeout: a caller that joined later would otherwise cancel a
+// share the creator is still waiting on, failing both.
+func (h *Hub) await(s *liveShare, creator bool) (string, error) {
+	select {
+	case <-s.ready:
+	case <-time.After(10 * time.Second):
+		if creator {
+			h.end(s)
+		}
+		return "", errors.New("signaling host did not connect")
+	}
+	if s.err != nil {
+		return "", s.err
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return s.joinURL, nil
+}
+
+// fail ends a share that never came up.
+func (h *Hub) fail(s *liveShare, err error) {
+	s.err = err
+	close(s.ready)
+	h.end(s)
+}
+
+// end removes s if it is still the session's share and cancels it.
+func (h *Hub) end(s *liveShare) {
+	h.mu.Lock()
+	if h.bySess[s.sessionID] == s {
+		delete(h.bySess, s.sessionID)
+	}
+	h.mu.Unlock()
+	s.cancel()
+}
+
+// Stop ends sharing for sessionID: the signaling room closes, every viewer
+// is disconnected, and the join link stops working.
 func (h *Hub) Stop(sessionID string) {
 	if h == nil {
 		return
@@ -134,32 +174,33 @@ func (h *Hub) Stop(sessionID string) {
 	}
 }
 
-func createRoom(base string) (string, error) {
+func createRoom(base string) (id, hostKey string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/rooms", nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("signaling: %w", err)
+		return "", "", fmt.Errorf("signaling: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(res.Body)
-		return "", fmt.Errorf("signaling room: %s", bytes.TrimSpace(b))
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+		return "", "", fmt.Errorf("signaling room: %s", bytes.TrimSpace(b))
 	}
 	var body struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		HostKey string `json:"hostKey"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		return "", err
+	if err := json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body); err != nil {
+		return "", "", err
 	}
 	if body.ID == "" {
-		return "", errors.New("signaling did not return a room id")
+		return "", "", errors.New("signaling did not return a room id")
 	}
-	return body.ID, nil
+	return body.ID, body.HostKey, nil
 }
 
 type sigMsg struct {
@@ -173,19 +214,27 @@ type sigMsg struct {
 	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
 }
 
-func (h *Hub) hostLoop(ctx context.Context, live *liveShare) {
-	var once sync.Once
-	ready := func() { once.Do(func() { close(live.ready) }) }
-	defer ready()
-	wsURL := wsBase(h.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID)
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
+	// However the loop ends (Stop, signaling server gone, network), the
+	// session no longer has a share: drop the entry so the next Share makes
+	// a fresh room instead of handing out a dead link.
+	defer h.end(live)
+	wsURL := wsBase(h.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID) +
+		"&key=" + url.QueryEscape(live.hostKey)
+	dialer := *websocket.DefaultDialer
+	dialer.HandshakeTimeout = 8 * time.Second // DefaultDialer allows 45s
+	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
-		live.err = fmt.Errorf("signaling: %w", err)
 		log.Printf("share signal dial: %v", err)
-		h.Stop(live.sessionID)
+		live.err = fmt.Errorf("signaling: %w", err)
+		close(live.ready)
 		return
 	}
-	ready()
+	conn.SetReadLimit(64 << 10)
+	h.mu.Lock()
+	live.joinURL = joinURL
+	h.mu.Unlock()
+	close(live.ready)
 	defer conn.Close()
 
 	var writeMu sync.Mutex
@@ -217,6 +266,13 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare) {
 		}
 		switch msg.Type {
 		case "peer":
+			mu.Lock()
+			full := len(peers) >= maxPeers
+			mu.Unlock()
+			if full {
+				log.Printf("share: %d viewers already, ignoring another", maxPeers)
+				continue
+			}
 			peerID, name := msg.PeerID, msg.Name
 			p, err := h.acceptPeer(live.sessionID, peerID, name, func(out sigMsg) {
 				out.Type = "signal"
@@ -355,6 +411,13 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 		go func() {
 			for ev := range events {
 				if ev.Kind == "bytes" {
+					if dc.BufferedAmount() > maxBuffered {
+						// A viewer this far behind would grow the send queue
+						// without bound; drop it like a slow websocket client.
+						sess.Unsubscribe(cl.ID)
+						_ = dc.Close()
+						return
+					}
 					if err := dc.Send(ev.Bytes); err != nil {
 						sess.Unsubscribe(cl.ID)
 						return
