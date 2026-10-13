@@ -197,3 +197,24 @@ func TestLoopbackHostRequired(t *testing.T) {
 		}
 	}
 }
+
+func TestHealthReportsBuild(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
+	srv := httptest.NewServer(New(st, rt, fs.FS(fstest.MapFS{}), nil).WithBuild("abc123-def456").Handler())
+	t.Cleanup(srv.Close)
+	var body struct {
+		Build string `json:"build"`
+	}
+	if err := json.NewDecoder(get(t, srv.Client(), srv.URL+"/api/health", nil).Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Build != "abc123-def456" {
+		t.Fatalf("health build %q", body.Build)
+	}
+}

@@ -20,6 +20,7 @@ import (
 
 	"keel/internal/applog"
 	"keel/internal/authtoken"
+	"keel/internal/buildid"
 	"keel/internal/httpapi"
 	"keel/internal/paths"
 	"keel/internal/runtime"
@@ -56,7 +57,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).Handler(),
+		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)

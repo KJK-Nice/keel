@@ -71,6 +71,8 @@ The first time you connect to an SSH host, Keel asks you to trust its key. A dif
 
 After upgrading from a build without the token, an older `keel serve` may still be running; the app then asks you to run `keel serve stop` once.
 
+`keel serve`, not the app, serves the UI, and it keeps running across app launches. After you rebuild or upgrade, the old runtime would keep serving the old UI, so the window shows a bar when the runtime is from a different build: stop the runtime (this ends open sessions) and reopen Keel.
+
 ## Tabs, split, shortcuts
 
 On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.

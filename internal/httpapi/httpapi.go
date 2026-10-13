@@ -43,6 +43,7 @@ type Server struct {
 	onStop  func()
 	// authToken, when set, is required on privileged routes (auth.go).
 	authToken string
+	build     string
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -56,6 +57,12 @@ func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
 
 func (s *Server) WithLogs(l *applog.Book) *Server {
 	s.logs = l
+	return s
+}
+
+// WithBuild sets the build id /api/health reports (see internal/buildid).
+func (s *Server) WithBuild(id string) *Server {
+	s.build = id
 	return s
 }
 
@@ -230,6 +237,9 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		"locked":     s.store.Locked(),
 		"needsSetup": s.store.NeedsSetup(),
 		"signal":     s.share != nil && s.share.Enabled(),
+	}
+	if s.build != "" {
+		out["build"] = s.build
 	}
 	if s.share != nil && s.share.Enabled() {
 		out["signalURL"] = s.share.URL()
