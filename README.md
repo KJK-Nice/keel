@@ -117,13 +117,17 @@ open bin/Keel.app
 KEEL_SIGNAL=https://your-signal.example ./bin/keel
 ```
 
-3. Open a session, click **Share**, send the copied `/join?room=…` link.
+3. Open a session, click **Share**, send the copied `/join?room=…#k=…` link.
 
-4. On the other machine, open Keel → **Join session** → paste the link. They follow until you pass control. They never see hosts or keys. A browser can open the same link if they don't have Keel.
+4. On the other machine, open Keel → **Join session** → paste the link. A browser can open the same link if they don't have Keel.
 
-5. To end it, run **Stop sharing this session** from the command palette (⌘K). Viewers are disconnected and the link stops working; closing the session tab does the same.
+5. On your side, Keel asks **Allow** or **Deny** for each person who opens the link (a request nobody answers is denied after two minutes). Allowed viewers see output from the moment you clicked Share, not what was on screen before; press Ctrl-L or redraw a full-screen program to fill their screen. They follow until you pass control, and never see hosts or keys.
 
-The join link is the only secret: anyone who has it can watch until you stop sharing. Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
+6. To end it, run **Stop sharing this session** from the command palette (⌘K). Viewers are disconnected and the link stops working; closing the session tab does the same.
+
+The part after `#k=` is a secret that never reaches the signaling server (browsers don't send the `#fragment`). Both ends use it to check each other's WebRTC certificate, so a signaling server that tried to sit in the middle of the connection is refused. Keel's own joiner does this check in its own code; a browser joiner runs `join.js` served by the signaling server, so for the browser the check is only as trustworthy as that server. Anyone with the full link can ask to watch, so share it like a password; you still decide who gets in. Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
+
+Update `keel-signal` before Keel itself: it has to pass the new `mac` field through, and Keel refuses joiners (and links) without it.
 
 Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. Only the client that created a room (it gets a host key) can host it.
 

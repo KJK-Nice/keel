@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
 	mux.HandleFunc("POST /api/share", s.shareSession)
 	mux.HandleFunc("DELETE /api/share/{id}", s.stopShare)
+	mux.HandleFunc("POST /api/share/{id}/admit", s.admitShare)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
@@ -312,6 +313,28 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 	// WKWebView clipboard dies after await fetch (user gesture gone).
 	pasteboardWrite(join)
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
+}
+
+// admitShare answers a share joiner's request to watch:
+// {"peerId": "…", "allow": true}.
+func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		PeerID string `json:"peerId"`
+		Allow  bool   `json:"allow"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" {
+		writeError(w, http.StatusBadRequest, "peerId is required")
+		return
+	}
+	if s.share == nil {
+		writeError(w, http.StatusNotFound, "session is not shared")
+		return
+	}
+	if err := s.share.Admit(r.PathValue("id"), req.PeerID, req.Allow); err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // stopShare ends sharing for a session: viewers are disconnected and the
@@ -867,6 +890,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				if err := ws.writeBinary(ev.Bytes); err != nil {
 					return
 				}
+				continue
+			}
+			if ev.Kind == "join-request" || ev.Kind == "join-resolved" {
+				// From the share hub (Session.Announce): someone asked to
+				// watch, or that request was answered. No session state.
+				_ = ws.writeJSON(map[string]any{"type": ev.Kind, "id": info.ID, "peerId": ev.Peer, "message": ev.Message})
 				continue
 			}
 			msg := sessionPayload(ev.Kind, ev.Message, ev.Info, cl, ev.FromID, ev.TargetID)

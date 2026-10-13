@@ -56,6 +56,9 @@ type envelope struct {
 	Candidate string `json:"candidate,omitempty"`
 	SDPMid    string `json:"sdpMid,omitempty"`
 	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
+	// Mac binds an offer or answer to the secret in the join link's
+	// #fragment, which this server never sees (see internal/share/verify.go).
+	Mac string `json:"mac,omitempty"`
 }
 
 type peer struct {
@@ -113,7 +116,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /rooms", s.createRoom)
 	mux.HandleFunc("GET /ws", s.ws)
 	mux.Handle("GET /join", http.HandlerFunc(s.joinPage))
-	mux.Handle("GET /join.js", http.HandlerFunc(s.joinJS))
+	mux.Handle("GET /join.js", http.HandlerFunc(s.script("join.js")))
+	mux.Handle("GET /sharemac.js", http.HandlerFunc(s.script("sharemac.js")))
 	web, err := fsSub()
 	if err == nil {
 		mux.Handle("GET /vendor/", http.FileServer(http.FS(web)))

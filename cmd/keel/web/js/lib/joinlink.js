@@ -1,20 +1,22 @@
 // Share-link parsing for term.js. Pure function: no DOM, no state.
 
-// parseJoinLink accepts a full /join?room=… link, or a bare room id when
-// fallbackOrigin (the configured signal server) is known.
-export function parseJoinLink(input, fallbackOrigin) {
+// parseJoinLink reads a /join?room=…#k=… link. The #k secret never reaches
+// the signal server; it authenticates the host's WebRTC peer (sharemac.js),
+// so a link without one is refused rather than joined unverified.
+export function parseJoinLink(input) {
   const raw = String(input || "").trim();
   if (!raw) throw new Error("paste a Share link");
+  let u;
   try {
-    const u = new URL(raw);
-    const room = u.searchParams.get("room");
-    if (!room) throw new Error("link has no room");
-    return { origin: u.origin, room };
-  } catch (err) {
-    if (err.message === "link has no room") throw err;
-    if (/^[0-9a-f]{8,}$/i.test(raw) && fallbackOrigin) {
-      return { origin: String(fallbackOrigin).replace(/\/$/, ""), room: raw };
-    }
+    u = new URL(raw);
+  } catch {
     throw new Error("paste the full Share link");
   }
+  const room = u.searchParams.get("room");
+  if (!room) throw new Error("link has no room");
+  const key = new URLSearchParams(u.hash.replace(/^#/, "")).get("k") || "";
+  if (!/^[0-9a-f]{32}$/.test(key)) {
+    throw new Error("link has no key (#k=…): ask the host for a new Share link");
+  }
+  return { origin: u.origin, room, key };
 }
