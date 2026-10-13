@@ -376,7 +376,7 @@ func (s *Session) Announce(ev Event) {
 	s.mu.Lock()
 	var slow []uint64
 	for id, c := range s.clients {
-		if isRemoteJoin(c.Kind) {
+		if isRemoteJoin(c.Client.Kind) {
 			continue
 		}
 		select {
