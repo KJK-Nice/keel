@@ -736,6 +736,13 @@ func (s *Session) runLoop() {
 		}
 		old := s.br
 		s.br = br
+		// A driver may have resized while the bridge was connecting (an SSH
+		// connect takes seconds; the client fits and sends its size as soon
+		// as it attaches). Resize only recorded that size, since there was
+		// no bridge, and later resizes to the same size are skipped, so the
+		// PTY stayed at the size it was opened with (80x24) while xterm
+		// showed the fitted grid: shells redrew lines for the wrong width.
+		wantCols, wantRows := s.cols, s.rows
 		s.reconnectN = 0
 		s.forceReconnect = false
 		retry := s.everReady
@@ -749,6 +756,9 @@ func (s *Session) runLoop() {
 		s.mu.Unlock()
 		if old != nil {
 			_ = old.Close()
+		}
+		if wantCols != cols || wantRows != rows {
+			_ = br.Resize(wantCols, wantRows)
 		}
 		if retry {
 			s.noteLine("Reconnected")

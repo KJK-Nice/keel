@@ -364,6 +364,21 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     fitVisiblePanes();
   }
 
+  // xterm measures its cell size when a terminal opens and when the font
+  // options change. JetBrains Mono / IBM Plex Mono load asynchronously
+  // (font-display: swap), so a terminal opened before they arrive keeps
+  // the fallback font's cell size and its grid no longer fits the pane
+  // until a window resize happens to re-measure. Re-measure once fonts load.
+  function remeasureTerminalFonts() {
+    for (const p of state.panes.values()) {
+      if (!p.term) continue;
+      const family = p.term.options.fontFamily;
+      p.term.options.fontFamily = `${family} `;
+      p.term.options.fontFamily = family;
+    }
+    fitVisiblePanes();
+  }
+
   function syncThemeSwitch() {
     const choice = document.documentElement.dataset.theme || "system";
     setSelectValue("set-theme", choice);
@@ -4268,8 +4283,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
       closePane(target.id);
       return;
     }
-    // Keep the last remaining session tab (one live pane). Tab × / pane × can still close it.
-    if (state.tabs.size <= 1 && panes.length === 1) return;
+    // The last session tab closes too, like its × button; Vault stays.
     closeTab(tab.id);
   }
 
@@ -5818,6 +5832,8 @@ Write a runbook here.
   function bindChrome() {
     if (window.__keelChromeBound) return;
     window.__keelChromeBound = true;
+    document.fonts?.ready?.then(remeasureTerminalFonts);
+    document.fonts?.addEventListener?.("loadingdone", remeasureTerminalFonts);
     window.addEventListener(
       "keydown",
       (ev) => {
