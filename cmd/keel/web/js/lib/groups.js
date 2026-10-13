@@ -74,7 +74,7 @@ export function subtreeGroupIds(groups, root) {
   return ids;
 }
 
-// hostSearchHay is the lowercase text a host search matches against,
+// hostSearchHay is the lower-cased text a host search matches against,
 // including the names of every group above the host.
 export function hostSearchHay(groups, h) {
   const tags = Array.isArray(h.tags) ? h.tags.join(" ") : "";
