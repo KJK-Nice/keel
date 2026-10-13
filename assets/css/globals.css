@@ -9,6 +9,11 @@
 /* Vendored third-party bundles (xterm, ProseMirror) are minified JS, not
    markup: scanning them turns stray tokens like `inline!` into classes. */
 @source not "../../cmd/keel/web/vendor";
+/* Auto-detection also walks untracked local dirs CI lacks (agent worktrees
+   hold full repo copies, whose docs add stray classes like `rounded`). */
+@source not "../../.claude";
+@source not "../../.e2e";
+@source not "../../bin";
 
 @custom-variant dark (&:is(.dark *));
 
