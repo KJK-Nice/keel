@@ -187,7 +187,10 @@ html[data-theme="system"]:not(.dark) {
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+/* The chrome never scrolls: only panes, lists and the vault scroll inside
+   it. overflow:hidden still lets focus()/scrollIntoView() scroll these, so
+   term.js also pins them (lib/scrollpin.js). */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 html {
   font-size: var(--ui-size, 12px);
   -webkit-font-smoothing: antialiased;
