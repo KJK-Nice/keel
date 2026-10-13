@@ -2,6 +2,7 @@ import { escapeHtml } from "./lib/html.js";
 import { parseJoinLink } from "./lib/joinlink.js";
 import { tabCycleTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
+import { pinScroll } from "./lib/scrollpin.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -1840,7 +1841,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     input.value = tabTitle(tab);
     input.setAttribute("aria-label", "Rename tab");
     label.replaceWith(input);
-    input.focus();
+    input.focus({ preventScroll: true });
     input.select();
     fitTabRename(input);
     let done = false;
@@ -2568,7 +2569,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
       requestAnimationFrame(() => {
         if (tab?.start) {
           const input = tab.root.querySelector(".start-search");
-          if (input && document.activeElement !== input) input.focus();
+          if (input && document.activeElement !== input) input.focus({ preventScroll: true });
           return;
         }
         fitVisiblePanes();
@@ -2779,7 +2780,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     const input = tab.root.querySelector(".start-search");
     if (input) input.value = tab.query || "";
     if (keepFocus && input) {
-      input.focus();
+      input.focus({ preventScroll: true });
       if (caret != null) input.setSelectionRange(caret, caret);
     }
     if (tab.pick) {
@@ -2815,7 +2816,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     state.activeId = tab.id;
     paintStartPage(tab);
     renderTabs();
-    tab.root.querySelector(".start-search")?.focus();
+    tab.root.querySelector(".start-search")?.focus({ preventScroll: true });
     return tab;
   }
 
@@ -3226,7 +3227,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     focusedPane()?.term?.blur?.();
     openModal(els.cmdPalette);
     setSessionSurface("palette");
-    requestAnimationFrame(() => els.cmdPaletteInput?.focus());
+    requestAnimationFrame(() => els.cmdPaletteInput?.focus({ preventScroll: true }));
   }
 
   function setSessionSurface(surface) {
@@ -3325,7 +3326,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
       } else {
         setVaultSection("hosts");
       }
-      els.search.focus();
+      els.search.focus({ preventScroll: true });
       els.search.select?.();
     } else if (name === "new-host") {
       fillHostForm(null);
@@ -3589,7 +3590,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
     }
     pane.findEl.hidden = false;
     const input = pane.findEl.querySelector(".term-find-input");
-    input?.focus();
+    input?.focus({ preventScroll: true });
     input?.select();
     if (input?.value) runPaneFind(pane, "next", true);
   }
@@ -4596,7 +4597,7 @@ Write a runbook here.
     if (nameInput) nameInput.value = rec.name || "Notebook";
     openModal(els.notebookRenameModal);
     requestAnimationFrame(() => {
-      nameInput?.focus();
+      nameInput?.focus({ preventScroll: true });
       nameInput?.select();
     });
   }
@@ -4758,7 +4759,7 @@ Write a runbook here.
     pane.wrap?.classList.add("has-term-input");
     pane.term?.blur?.();
     pane.term?.clearSelection?.();
-    area?.focus();
+    area?.focus({ preventScroll: true });
     area?.setSelectionRange?.(area.value.length, area.value.length);
     syncSessionSurface();
     fitVisiblePanes();
@@ -5154,7 +5155,7 @@ Write a runbook here.
     input.className = "group-rename";
     const original = title.textContent;
     title.replaceChildren(input);
-    input.focus();
+    input.focus({ preventScroll: true });
     input.select();
     let settled = false;
     const finish = async (ok) => {
@@ -5519,7 +5520,7 @@ Write a runbook here.
   function openJoin() {
     els.joinForm.reset();
     openModal(els.joinModal);
-    queueMicrotask(() => els.joinForm.url.focus());
+    queueMicrotask(() => els.joinForm.url.focus({ preventScroll: true }));
   }
 
   function joinRemote({ origin, room }) {
@@ -5733,7 +5734,7 @@ Write a runbook here.
     }
     if (els.gateForm?.passphrase) {
       els.gateForm.passphrase.value = "";
-      els.gateForm.passphrase.focus();
+      els.gateForm.passphrase.focus({ preventScroll: true });
     }
     if (els.gateForm) els.gateForm.dataset.setup = needsSetup ? "1" : "0";
   }
@@ -6766,5 +6767,6 @@ Write a runbook here.
   toggleTunnelDest();
 
   if (!state.name) state.name = "guest";
+  pinScroll(document, [document.scrollingElement, document.body, document.querySelector(".app"), document.querySelector(".main")]);
   boot();
 })();
