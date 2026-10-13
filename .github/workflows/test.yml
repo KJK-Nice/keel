@@ -78,3 +78,18 @@ jobs:
 
       - name: make ${{ matrix.check }}
         run: sh scripts/ci-run.sh "${{ matrix.check }}" make ${{ matrix.check }}
+
+  signal-image:
+    name: signal image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker build (keel-signal, as Railway builds it)
+        run: sh scripts/ci-run.sh "signal image" docker build -t keel-signal:ci .
+
+      - name: go.mod and Dockerfile agree on the Go version
+        run: |
+          want=$(awk '/^go /{print $2}' go.mod)
+          grep -q "^FROM golang:${want}-alpine" Dockerfile || { echo "::error::Dockerfile Go image does not match go.mod (go ${want})"; exit 1; }
