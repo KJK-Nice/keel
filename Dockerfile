@@ -1,5 +1,5 @@
 # Isolated signal binary — do not build cmd/keel (Wails/CGO).
-FROM golang:1.27.0-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
