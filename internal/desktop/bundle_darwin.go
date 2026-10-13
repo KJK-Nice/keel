@@ -50,12 +50,31 @@ func EnsureMacApp() error {
 	if err != nil {
 		return fmt.Errorf("cache dir: %w", err)
 	}
-	appDir := filepath.Join(cache, "keel", "Keel.app")
+	appDir, dest, err := buildMacApp(src, cache)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("relaunching as %s (WebKit needs an app bundle)", appDir)
+	argv := append([]string{dest}, os.Args[1:]...)
+	return syscall.Exec(dest, argv, withBundleEnv(os.Environ()))
+}
+
+// buildMacApp assembles and ad-hoc signs Keel.app under cache and returns the
+// bundle and executable paths.
+func buildMacApp(src, cache string) (appDir, dest string, err error) {
+	appDir = filepath.Join(cache, "keel", "Keel.app")
+	err = build(src, appDir, &dest)
+	return appDir, dest, err
+}
+
+func build(src, appDir string, destOut *string) error {
 	macOSDir := filepath.Join(appDir, "Contents", "MacOS")
 	if err := os.MkdirAll(macOSDir, 0o755); err != nil {
 		return err
 	}
 	dest := filepath.Join(macOSDir, "keel")
+	*destOut = dest
 	if err := copyFile(src, dest); err != nil {
 		return fmt.Errorf("copy into app bundle: %w", err)
 	}
@@ -72,8 +91,21 @@ func EnsureMacApp() error {
 	if err := writeIconComposer(resDir); err != nil {
 		return err
 	}
-	ent := filepath.Join(appDir, "Contents", "keel.entitlements")
-	if err := os.WriteFile(ent, macEntitlements, 0o644); err != nil {
+	// Entitlements must live outside the bundle: a loose file in Contents is
+	// treated by codesign as an unsigned subcomponent. Also drop the stale
+	// copy older versions left in cached bundles.
+	_ = os.Remove(filepath.Join(appDir, "Contents", "keel.entitlements"))
+	entFile, err := os.CreateTemp("", "keel-entitlements-*.plist")
+	if err != nil {
+		return err
+	}
+	ent := entFile.Name()
+	defer os.Remove(ent)
+	if _, err := entFile.Write(macEntitlements); err != nil {
+		entFile.Close()
+		return err
+	}
+	if err := entFile.Close(); err != nil {
 		return err
 	}
 	// Ad-hoc sign, no hardened runtime. --options runtime without a
@@ -85,9 +117,7 @@ func EnsureMacApp() error {
 		return err
 	}
 
-	log.Printf("relaunching as %s (WebKit needs an app bundle)", appDir)
-	argv := append([]string{dest}, os.Args[1:]...)
-	return syscall.Exec(dest, argv, withBundleEnv(os.Environ()))
+	return nil
 }
 
 func codesign(ent, target string) error {
