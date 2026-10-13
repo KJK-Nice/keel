@@ -62,7 +62,11 @@ func TestHostKeyRequired(t *testing.T) {
 }
 
 func TestRoomCreationRateLimited(t *testing.T) {
-	srv := httptest.NewServer(New().Handler())
+	sig := New()
+	if err := sig.SetClientIP("xff:1"); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(sig.Handler())
 	t.Cleanup(srv.Close)
 	for i := 0; i < roomBurst; i++ {
 		if res, _ := postRoom(t, srv.URL, "203.0.113.7"); res.StatusCode != http.StatusOK {
@@ -161,4 +165,122 @@ func TestOversizedMessageClosesConnection(t *testing.T) {
 	if _, _, err := host.ReadMessage(); err == nil {
 		t.Fatal("connection still open after an oversized message")
 	}
+}
+
+func TestRateLimitOffByDefault(t *testing.T) {
+	srv := httptest.NewServer(New().Handler())
+	t.Cleanup(srv.Close)
+	for i := 0; i < roomBurst+3; i++ {
+		if res, _ := postRoom(t, srv.URL, "203.0.113.7"); res.StatusCode != http.StatusOK {
+			t.Fatalf("room %d with no client IP source configured: %d, want 200", i, res.StatusCode)
+		}
+	}
+}
+
+func TestSetClientIP(t *testing.T) {
+	req := func(remote string, xff ...string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/rooms", nil)
+		r.RemoteAddr = remote
+		for _, v := range xff {
+			r.Header.Add("X-Forwarded-For", v)
+		}
+		return r
+	}
+	cases := []struct {
+		spec string
+		r    *http.Request
+		want string
+	}{
+		{"remote", req("198.51.100.4:5555", "1.2.3.4"), "198.51.100.4"},
+		{"xff:1", req("10.0.0.1:1", "1.2.3.4, 203.0.113.9"), "203.0.113.9"},
+		{"xff:2", req("10.0.0.1:1", "203.0.113.9, 100.64.0.7"), "203.0.113.9"},
+		{"xff:2", req("10.0.0.1:1", "203.0.113.9", "100.64.0.7"), "203.0.113.9"},
+		{"xff:2", req("10.0.0.1:1", "100.64.0.7"), "unknown"},
+		{"xff:1", req("10.0.0.1:1", "not-an-ip"), "unknown"},
+		{"xff:1", req("10.0.0.1:1", "2001:db8:1:2:aaaa::1"), "2001:db8:1:2::/64"},
+		{"remote", req("[2001:db8:1:2::9]:443"), "2001:db8:1:2::/64"},
+	}
+	for _, c := range cases {
+		s := New()
+		if err := s.SetClientIP(c.spec); err != nil {
+			t.Fatal(err)
+		}
+		if got := s.clientKey(c.r); got != c.want {
+			t.Errorf("%s %v: key %q, want %q", c.spec, c.r.Header.Values("X-Forwarded-For"), got, c.want)
+		}
+	}
+	for _, bad := range []string{"xff", "xff:0", "xff:-1", "xff:x", "proxy"} {
+		if err := New().SetClientIP(bad); err == nil {
+			t.Errorf("SetClientIP(%q) accepted", bad)
+		}
+	}
+	s := New()
+	if err := s.SetClientIP(""); err != nil || s.clientKey != nil {
+		t.Fatal(`SetClientIP("") must turn the limit off`)
+	}
+}
+
+// Joiners that connect before the host all wait; the cap must still hold
+// once the host arrives.
+func TestJoinerCapHoldsForJoinersWaitingOnHost(t *testing.T) {
+	srv := httptest.NewServer(New().Handler())
+	t.Cleanup(srv.Close)
+	_, room := postRoom(t, srv.URL, "")
+	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?room=" + room.ID
+	const extra = 4
+	for i := 0; i < maxJoiners+extra; i++ {
+		c, _, err := websocket.DefaultDialer.Dial(ws+"&role=join", nil)
+		if err != nil {
+			t.Fatalf("joiner %d: %v", i, err)
+		}
+		t.Cleanup(func() { c.Close() })
+	}
+	host, _, err := websocket.DefaultDialer.Dial(ws+"&role=host&key="+room.HostKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { host.Close() })
+	peers := 0
+	_ = host.SetReadDeadline(time.Now().Add(1500 * time.Millisecond))
+	for {
+		var msg envelope
+		if err := host.ReadJSON(&msg); err != nil {
+			break
+		}
+		if msg.Type == "peer" {
+			peers++
+		}
+	}
+	if peers != maxJoiners {
+		t.Fatalf("host saw %d joiners, want the cap of %d", peers, maxJoiners)
+	}
+}
+
+// Pings keep a quiet connection open past the idle timeout.
+func TestPingsKeepQuietConnectionsOpen(t *testing.T) {
+	sig := New()
+	sig.idleTimeout, sig.pingInterval = 300*time.Millisecond, 50*time.Millisecond
+	srv := httptest.NewServer(sig.Handler())
+	t.Cleanup(srv.Close)
+	_, room := postRoom(t, srv.URL, "")
+	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?room=" + room.ID
+	host, _, err := websocket.DefaultDialer.Dial(ws+"&role=host&key="+room.HostKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { host.Close() })
+	// The gorilla client answers pings while it reads.
+	go func() {
+		for {
+			if _, _, err := host.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+	time.Sleep(4 * sig.idleTimeout)
+	j, _, err := websocket.DefaultDialer.Dial(ws+"&role=join", nil)
+	if err != nil {
+		t.Fatalf("room gone after a quiet host: %v", err)
+	}
+	j.Close()
 }

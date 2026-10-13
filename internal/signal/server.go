@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -31,6 +32,15 @@ const (
 	// Room creation per client address: a burst, then one per interval.
 	roomBurst    = 6
 	roomInterval = 10 * time.Second
+)
+
+const (
+	// defaultIdleTimeout closes a connection that has neither sent a message
+	// nor answered a ping for this long.
+	defaultIdleTimeout = 30 * time.Minute
+	// defaultPingInterval keeps quiet connections (after the SDP exchange)
+	// alive.
+	defaultPingInterval = 5 * time.Minute
 )
 
 var upgrader = websocket.Upgrader{
@@ -77,6 +87,13 @@ type Server struct {
 	roomTTL  time.Duration
 	maxRooms int
 	limiter  *rateLimiter
+	// idleTimeout and pingInterval: see defaultIdleTimeout and
+	// defaultPingInterval. Fields so tests can shorten them.
+	idleTimeout  time.Duration
+	pingInterval time.Duration
+	// clientKey says who a request comes from for per-address rate limiting.
+	// nil disables it (the default: see SetClientIP).
+	clientKey func(*http.Request) string
 }
 
 func New() *Server {
@@ -85,6 +102,9 @@ func New() *Server {
 		roomTTL:  defaultRoomTTL,
 		maxRooms: defaultMaxRooms,
 		limiter:  newRateLimiter(roomBurst, roomInterval),
+
+		idleTimeout:  defaultIdleTimeout,
+		pingInterval: defaultPingInterval,
 	}
 }
 
@@ -107,7 +127,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
-	if !s.limiter.allow(clientAddr(r), time.Now()) {
+	if s.clientKey != nil && !s.limiter.allow(s.clientKey(r), time.Now()) {
 		w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
 		http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
 		return
@@ -217,6 +237,13 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rm.mu.Lock()
+		// Re-check under the lock: joiners that connected while no host was
+		// there all passed the early check, as can concurrent ones.
+		if len(rm.joiners) >= maxJoiners {
+			rm.mu.Unlock()
+			_ = conn.Close()
+			return
+		}
 		rm.joiners[p.id] = p
 		host = rm.host
 		rm.mu.Unlock()
@@ -249,13 +276,34 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 
 	expires := rm.created.Add(maxRoomAge)
 	readDeadline := func() time.Time {
-		d := time.Now().Add(30 * time.Minute)
+		d := time.Now().Add(s.idleTimeout)
 		if d.After(expires) {
 			return expires
 		}
 		return d
 	}
 	_ = conn.SetReadDeadline(readDeadline())
+	// After the SDP exchange host and joiners send nothing, so without pings
+	// a share ended after idleTimeout of signaling silence. Browsers and the
+	// gorilla client answer pings automatically; each pong extends the
+	// deadline, up to the room's maximum age.
+	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(readDeadline()) })
+	stopPing := make(chan struct{})
+	defer close(stopPing)
+	go func() {
+		t := time.NewTicker(s.pingInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stopPing:
+				return
+			case <-t.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+					return
+				}
+			}
+		}
+	}()
 	for {
 		var msg envelope
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -318,21 +366,65 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// clientAddr is the address room creation is rate-limited by. Behind a
-// proxy (Railway) the client is the last X-Forwarded-For entry, the one the
-// proxy itself appended; earlier entries are client-supplied.
-func clientAddr(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
-			return last
+// SetClientIP chooses where the client address for per-address rate
+// limiting of room creation comes from:
+//
+//	""       off (default)
+//	"remote" the TCP peer — for a server reached directly, with no proxy
+//	"xff:N"  the Nth X-Forwarded-For entry from the right (1 = last) — for
+//	         a server behind N proxies that each append the address they saw
+//
+// Only the proxy's own entries can be trusted; anything to their left is
+// client-supplied. A wrong choice either lets clients pick their own key
+// (too far left) or puts every client behind one proxy in one bucket (too
+// far right), which lets anyone block sharing for everyone. That is why it
+// is off until the deployment's header chain has been checked.
+func (s *Server) SetClientIP(spec string) error {
+	switch {
+	case spec == "":
+		s.clientKey = nil
+	case spec == "remote":
+		s.clientKey = func(r *http.Request) string {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				host = r.RemoteAddr
+			}
+			return addrKey(host)
 		}
+	case strings.HasPrefix(spec, "xff:"):
+		n, err := strconv.Atoi(strings.TrimPrefix(spec, "xff:"))
+		if err != nil || n < 1 {
+			return fmt.Errorf("client IP %q: want xff:N with N >= 1", spec)
+		}
+		s.clientKey = func(r *http.Request) string {
+			var parts []string
+			for _, h := range r.Header.Values("X-Forwarded-For") {
+				parts = append(parts, strings.Split(h, ",")...)
+			}
+			if len(parts) < n {
+				// Fewer hops than configured: not from the expected proxy.
+				return "unknown"
+			}
+			return addrKey(strings.TrimSpace(parts[len(parts)-n]))
+		}
+	default:
+		return fmt.Errorf("client IP %q: want \"\", \"remote\" or \"xff:N\"", spec)
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
+	return nil
+}
+
+// addrKey normalizes an address for rate limiting: IPv6 by /64 (one host
+// usually has the whole prefix), anything unparsable as one shared key so
+// junk can't create unbounded buckets.
+func addrKey(host string) string {
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip == nil {
+		return "unknown"
 	}
-	return host
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
 }
 
 // newID returns 128 random bits: a room ID is the only secret in a join link.

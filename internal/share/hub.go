@@ -105,7 +105,7 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	h.mu.Lock()
 	if s := h.bySess[sessionID]; s != nil {
 		h.mu.Unlock()
-		return h.await(s)
+		return h.await(s, false)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	live := &liveShare{sessionID: sessionID, cancel: cancel, ready: make(chan struct{})}
@@ -119,14 +119,19 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	}
 	live.roomID, live.hostKey = roomID, hostKey
 	go h.hostLoop(ctx, live, h.signal+"/join?room="+url.QueryEscape(roomID))
-	return h.await(live)
+	return h.await(live, true)
 }
 
-func (h *Hub) await(s *liveShare) (string, error) {
+// await waits for s to come up. Only the caller that created the share
+// ends it on timeout: a caller that joined later would otherwise cancel a
+// share the creator is still waiting on, failing both.
+func (h *Hub) await(s *liveShare, creator bool) (string, error) {
 	select {
 	case <-s.ready:
 	case <-time.After(10 * time.Second):
-		h.end(s)
+		if creator {
+			h.end(s)
+		}
 		return "", errors.New("signaling host did not connect")
 	}
 	if s.err != nil {
@@ -216,7 +221,9 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	defer h.end(live)
 	wsURL := wsBase(h.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID) +
 		"&key=" + url.QueryEscape(live.hostKey)
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	dialer := *websocket.DefaultDialer
+	dialer.HandshakeTimeout = 8 * time.Second // DefaultDialer allows 45s
+	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
 		log.Printf("share signal dial: %v", err)
 		live.err = fmt.Errorf("signaling: %w", err)

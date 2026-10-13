@@ -123,7 +123,17 @@ KEEL_SIGNAL=https://your-signal.example ./bin/keel
 
 The join link is the only secret: anyone who has it can watch until you stop sharing. Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
 
-Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours. The server refuses more than 512 rooms, more than 6 new rooms per client address in a burst (then one per 10 s), more than 16 joiners per room, and messages over 64 KB. Only the client that created a room (it gets a host key) can host it. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
+Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. Only the client that created a room (it gets a host key) can host it.
+
+Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `KEEL_SIGNAL_CLIENT_IP`:
+
+| Value | Use when |
+| --- | --- |
+| *(unset)* | off |
+| `remote` | clients connect to `keel-signal` directly (no proxy) |
+| `xff:N` | behind N proxies that each append to `X-Forwarded-For`: the Nth entry from the right is the client |
+
+Pick N from what your platform actually sends (log the header once): too far left and clients choose their own key; too far right and every client shares one, so one client can block sharing for everyone. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
 
 Two Keel windows on one Mac (test): second instance needs its own port and data dir:
 
