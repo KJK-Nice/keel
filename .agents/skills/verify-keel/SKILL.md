@@ -55,7 +55,7 @@ page ("open this window from the Keel app").
 ```bash
 make build                          # only if bin/keel is older than your change
 npx e2e list                        # loads the config, starts nothing; exit 0, each test listed for webkit and chromium
-npx e2e run tests/smoke.e2e.ts --target webkit  # starts keel serve, opens the Vault, pins New host + Search hosts; exit 0
+npx e2e run tests/smoke.e2e.ts --target webkit  # starts keel serve, opens the window, pins the Vault sidebar's New host + Search hosts; exit 0
 ```
 
 `list` failing is the config or `npm install`. `run` failing with
@@ -82,8 +82,13 @@ the Vault's controls have accessible names. Use `agent.act` only for a flow
 that varies; it needs `AI_GATEWAY_API_KEY` (the config's model is
 `gateway('openai/gpt-6-luna-fast')`). Handles that hold:
 
-- Vault sections are buttons: `getByRole('button', 'Hosts' | 'Keychain' |
-  'Port forwarding' | 'Snippets' | 'Notebooks' | 'Logs' | 'Settings')`.
+- The Vault is a sidebar: `screen.getByRole('complementary', 'Vault')`;
+  scope to it, since the tab strip and the New tab repeat names. Its
+  segments are buttons `Hosts` | `Snippets` | `Forwards`, its footer
+  `Keychain` | `Logs` | `Settings`. Tab pages are regions:
+  `getByRole('region', 'Keychain' | 'Port forwarding' | 'Snippets' |
+  'Notebooks' | 'Logs' | 'Settings')`. The sidebar segment and open state
+  persist in `localStorage` across tests in one browser.
 - Modals (`New host`, `New identity`, `New snippet`) are `<dialog>`s with
   no accessible name: `screen.getByRole('dialog').filter({ hasText: 'New
   host' })`, fields by label inside it.
@@ -114,7 +119,7 @@ Visual-only changes (tokens, CSS, fonts): `tests/visual.e2e.ts` saves
 `--output .e2e/proof/<name>-after`; compare the pairs by name. It sets the
 theme through `localStorage['keel-theme']`, as the Settings select does.
 
-A proof drives the page the way a user does: the Vault section button, the
+A proof drives the page the way a user does: the sidebar or footer button, the
 labelled field, the Save button, the card's menu, and captures the action
 and the state after it, not only the final screen. Check side effects in
 keel serve, read-only, with `keelApi` (the `X-Keel-Token` header, like
@@ -150,8 +155,9 @@ serve, but each also needs its own data dir, so the fan-out sets
   'KEEL_E2E_DATA=".e2e/bugbash-data/$1" npx e2e explore "$4" --config e2e.bugbash.config.ts --target "$2" --agent "$3" --output ".e2e/bugbash/$1" --max-steps 6 --video --reporter list,markdown < /dev/null > ".e2e/bugbash/$1.log" 2>&1' _
 ```
 
-Explorers start on the Vault (the header and cookie above): begin each
-charter with "Starting at the Vault (the app opens there),". `.e2e/bugbash/`, `.e2e/bugbash-data/`,
+Explorers start on the window with the Vault sidebar (the header and
+cookie above): begin each charter with "Starting at the Vault sidebar (the
+app opens with it beside a New tab),". `.e2e/bugbash/`, `.e2e/bugbash-data/`,
 `.e2e/proof/`, and `.e2e/keel-data/` are in `.gitignore`. A finding is a bug
 once `tests/bugbash/<slug>.e2e.ts` fails with `ASSERTION_FAILED` on the
 assertion that encodes it; anything else is the explorer's claim.

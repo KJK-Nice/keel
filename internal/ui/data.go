@@ -9,7 +9,6 @@ import (
 
 	"github.com/a-h/templ"
 
-	"keel/components/badge"
 	"keel/internal/applog"
 	"keel/internal/store"
 	"keel/internal/tunnel"
@@ -25,28 +24,6 @@ func mergeAttrs(parts ...templ.Attributes) templ.Attributes {
 		}
 	}
 	return out
-}
-
-func tunnelBadgeVariant(status tunnel.Status) badge.Variant {
-	switch status {
-	case tunnel.StatusReady:
-		return badge.VariantDefault
-	case tunnel.StatusError:
-		return badge.VariantDestructive
-	case tunnel.StatusConnecting:
-		return badge.VariantSecondary
-	default:
-		return badge.VariantOutline
-	}
-}
-
-func logBadgeVariant(kind string) badge.Variant {
-	switch strings.ToLower(kind) {
-	case "error", "fail", "denied":
-		return badge.VariantDestructive
-	default:
-		return badge.VariantSecondary
-	}
 }
 
 type PageProps struct {
@@ -311,7 +288,9 @@ func ungroupedHosts(hosts []store.Host, groups []store.Group, query string) []st
 	q := strings.ToLower(strings.TrimSpace(query))
 	out := make([]store.Host, 0)
 	for _, h := range hosts {
-		if h.GroupID != "" {
+		// A host whose group is gone sits at the root of the tree, not
+		// nowhere.
+		if _, ok := byID[h.GroupID]; h.GroupID != "" && ok {
 			continue
 		}
 		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
@@ -389,55 +368,6 @@ func hostNameByID(hosts []store.Host, id string) string {
 	return id
 }
 
-func identityColor(kind string) string {
-	if kind == "key" {
-		return "#c084fc"
-	}
-	return "#6ea8ff"
-}
-
-func identityKindLabel(kind string) string {
-	if kind == "key" {
-		return "Private key"
-	}
-	return "Auth password"
-}
-
-func tunnelColor(status tunnel.Status) string {
-	switch status {
-	case tunnel.StatusReady:
-		return "#5ee0b5"
-	case tunnel.StatusConnecting:
-		return "#f5c15d"
-	case tunnel.StatusError:
-		return "#ff6b7a"
-	default:
-		return "#8a8a8a"
-	}
-}
-
-func tunnelKindLetter(kind string) string {
-	switch kind {
-	case "remote":
-		return "R"
-	case "dynamic":
-		return "D"
-	default:
-		return "L"
-	}
-}
-
-func tunnelKindLabel(kind string) string {
-	switch kind {
-	case "remote":
-		return "Remote"
-	case "dynamic":
-		return "Dynamic"
-	default:
-		return "Local"
-	}
-}
-
 func snippetCommand(s store.Snippet) string {
 	return strings.TrimSpace(s.Command)
 }
@@ -472,19 +402,6 @@ func notebookPreview(nb store.Notebook) string {
 	return "Empty notebook"
 }
 
-func logColor(kind string) string {
-	switch strings.ToLower(kind) {
-	case "error", "fail", "denied":
-		return "#ff6b7a"
-	case "session":
-		return "#5ee0b5"
-	case "tunnel":
-		return "#6ea8ff"
-	default:
-		return "#8a8a8a"
-	}
-}
-
 func logDateLabel(t time.Time) string {
 	if t.IsZero() {
 		return ""
@@ -497,4 +414,158 @@ func logTimeLabel(t time.Time) string {
 		return ""
 	}
 	return t.Local().Format("15:04:05")
+}
+
+// countLabel is a bare count for tree and list badges.
+func countLabel(n int) string {
+	return fmt.Sprintf("%d", n)
+}
+
+func identitiesOfKind(ids []store.Identity, kind string) []store.Identity {
+	out := make([]store.Identity, 0, len(ids))
+	for _, id := range ids {
+		k := id.Kind
+		if k != "key" {
+			k = "password"
+		}
+		if k == kind {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// identityHostCount is how many saved hosts authenticate with id.
+func identityHostCount(hosts []store.Host, id string) int {
+	n := 0
+	for _, h := range hosts {
+		if h.AuthType == "identity" && h.IdentityID == id {
+			n++
+		}
+	}
+	return n
+}
+
+func identityKindLabel(kind string) string {
+	if kind == "key" {
+		return "SSH key"
+	}
+	return "Password"
+}
+
+// identitySubtitle is the list line under an identity: kind, user, hosts.
+func identitySubtitle(hosts []store.Host, id store.Identity) string {
+	parts := []string{identityKindLabel(id.Kind)}
+	if id.Username != "" {
+		parts = append(parts, id.Username)
+	}
+	n := identityHostCount(hosts, id.ID)
+	if n == 1 {
+		parts = append(parts, "1 host")
+	} else {
+		parts = append(parts, fmt.Sprintf("%d hosts", n))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// tunnelFlag is the ssh flag a forward kind maps to.
+func tunnelFlag(kind string) string {
+	switch kind {
+	case "remote":
+		return "-R"
+	case "dynamic":
+		return "-D"
+	default:
+		return "-L"
+	}
+}
+
+// tunnelStatus is how a forward's state reads in the table and sidebar:
+// a dot and a word, never colour alone.
+type tunnelStatus struct {
+	Label      string
+	DotClass   string
+	StateClass string
+	Filter     string // running | stopped
+	On         bool
+}
+
+func tunnelState(t tunnel.Info) tunnelStatus {
+	switch t.Status {
+	case tunnel.StatusReady:
+		return tunnelStatus{Label: "Running", DotClass: "k-dot--live", StateClass: "k-state--live", Filter: "running", On: true}
+	case tunnel.StatusConnecting:
+		return tunnelStatus{Label: "Connecting", DotClass: "k-dot--connecting", StateClass: "k-state--connecting", Filter: "running", On: true}
+	case tunnel.StatusError:
+		label := "Failed"
+		if t.Error != "" {
+			label = "Failed · " + t.Error
+		}
+		return tunnelStatus{Label: label, DotClass: "k-dot--dead", StateClass: "k-state--dead", Filter: "stopped"}
+	default:
+		return tunnelStatus{Label: "Stopped", DotClass: "k-dot--idle", Filter: "stopped"}
+	}
+}
+
+// tunnelEveryInterface reports a forward that listens on every interface
+// rather than on loopback only.
+func tunnelEveryInterface(t tunnel.Info) bool {
+	switch strings.TrimSpace(t.BindAddr) {
+	case "0.0.0.0", "::", "[::]", "*":
+		return true
+	}
+	return false
+}
+
+// snippetFirstLine is a snippet's first command, with an ellipsis when
+// more lines follow.
+func snippetFirstLine(s store.Snippet) string {
+	line := strings.TrimSpace(s.Command)
+	if i := strings.IndexByte(line, '\n'); i >= 0 {
+		return strings.TrimSpace(line[:i]) + " …"
+	}
+	return line
+}
+
+// logGroup is the Logs filter chip a log kind belongs to.
+func logGroup(kind string) string {
+	switch strings.ToLower(kind) {
+	case "session":
+		return "sessions"
+	case "tunnel":
+		return "forwards"
+	case "vault", "host", "group", "identity", "snippet", "notebook":
+		return "vault"
+	default:
+		return "other"
+	}
+}
+
+// logBadgeClass marks failures with flare; every other kind stays neutral.
+func logBadgeClass(kind string) string {
+	switch strings.ToLower(kind) {
+	case "error", "fail", "denied":
+		return "k-badge--flare"
+	default:
+		return ""
+	}
+}
+
+// logTarget names what a log entry is about: its forward or host, or a dash.
+func logTarget(p PageProps, e applog.Entry) string {
+	if e.TunnelID != "" {
+		for _, t := range p.Tunnels {
+			if t.ID == e.TunnelID {
+				return t.Name
+			}
+		}
+	}
+	if e.HostID != "" {
+		for _, h := range p.Hosts {
+			if h.ID == e.HostID {
+				return h.Name
+			}
+		}
+	}
+	return "—"
 }

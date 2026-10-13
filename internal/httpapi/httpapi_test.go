@@ -218,14 +218,25 @@ func TestHostTagsAPI(t *testing.T) {
 		t.Fatal("created host missing from list")
 	}
 
-	uiRes, err := http.Get(srv.URL + "/ui/hosts")
+	// The sidebar tree has no tag chips; typing a tag into its filter
+	// finds the host.
+	uiRes, err := http.Get(srv.URL + "/ui/hosts?datastar=" + url.QueryEscape(`{"query":"gpu"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer uiRes.Body.Close()
 	frag, _ := io.ReadAll(uiRes.Body)
-	if !strings.Contains(string(frag), `data-tag-filter="prod"`) || !strings.Contains(string(frag), `data-tag-filter="GPU"`) {
-		t.Fatalf("host list missing tag chips: %s", frag)
+	if !strings.Contains(string(frag), `data-connect="`+saved.ID+`"`) {
+		t.Fatalf("host list filtered by tag misses the host: %s", frag)
+	}
+	missRes, err := http.Get(srv.URL + "/ui/hosts?datastar=" + url.QueryEscape(`{"query":"no-such-tag"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer missRes.Body.Close()
+	miss, _ := io.ReadAll(missRes.Body)
+	if strings.Contains(string(miss), `data-connect="`+saved.ID+`"`) {
+		t.Fatal("host list filter must drop hosts whose tags do not match")
 	}
 }
 
@@ -670,91 +681,94 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	if strings.Count(term, "function ptyWritesBlocked") != 1 {
 		t.Fatal("ptyWritesBlocked must be a single merged implementation")
 	}
-	if !strings.Contains(term, "sessionRailFocused() || state.openModal || ptyInjectWaiter") ||
+	if !strings.Contains(term, "sidebarFocused() || state.openModal || ptyInjectWaiter") ||
 		!strings.Contains(term, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("ptyWritesBlocked must OR rail keyboard focus with palette/inject chrome holds")
+		t.Fatal("ptyWritesBlocked must OR vault sidebar keyboard focus with palette/inject chrome holds")
 	}
-	if !strings.Contains(term, `els.ptyInjectModal?.open || sessionRailFocused()`) {
-		t.Fatal("session rail focus must SetFocus SurfaceChrome; term focus restores SurfaceTerm while the rail stays open")
+	if !strings.Contains(term, `els.ptyInjectModal?.open || sidebarFocused()`) {
+		t.Fatal("vault sidebar focus must SetFocus SurfaceChrome; term focus restores SurfaceTerm while the sidebar stays open")
 	}
 	if !strings.Contains(term, "if (ptyWritesBlocked()) return") {
 		t.Fatal("xterm onData must not Write while the session rail or inject chrome owns focus")
 	}
-	paint := term[strings.Index(term, "function paintSessionRail"):]
+	paint := term[strings.Index(term, "function paintSidebar"):]
 	if i := strings.Index(paint[1:], "\n  function "); i > 0 {
 		paint = paint[:i]
 	}
 	if strings.Contains(paint, `type: "inject"`) || strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") {
-		t.Fatal("session sidebar chrome must not Inject or write a live PTY")
+		t.Fatal("vault sidebar chrome must not Inject or write a live PTY")
 	}
 }
 
-func TestOpenSessionRailKeepsTermKeys(t *testing.T) {
+// TestOpenSidebarKeepsTermKeys: the Vault sidebar (which replaced the right
+// session rail in phase 2) is chrome only while keyboard focus is inside
+// it. Open beside a focused terminal, keys still reach the PTY.
+func TestOpenSidebarKeepsTermKeys(t *testing.T) {
 	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	term := string(js)
 
-	focused := sliceJSFunc(term, "function sessionRailFocused")
+	focused := sliceJSFunc(term, "function sidebarFocused")
 	if focused == "" {
-		t.Fatal("missing sessionRailFocused")
+		t.Fatal("missing sidebarFocused")
 	}
-	if !strings.Contains(focused, `"session-rail"`) || !strings.Contains(focused, "contains") || !strings.Contains(focused, "activeElement") {
-		t.Fatal("sessionRailFocused must be DOM focus inside #session-rail, not sidebar visibility")
+	if !strings.Contains(focused, `"vault-sidebar"`) || !strings.Contains(focused, "contains") || !strings.Contains(focused, "activeElement") {
+		t.Fatal("sidebarFocused must be DOM focus inside #vault-sidebar, not sidebar visibility")
 	}
 
 	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
 	if blocked == "" {
 		t.Fatal("missing ptyWritesBlocked")
 	}
-	if strings.Contains(blocked, "sessionRailOpen()") {
-		t.Fatal("ptyWritesBlocked must not OR rail-open alone; that eats term keys while the rail stays visible")
+	if strings.Contains(blocked, "sidebarOpen()") {
+		t.Fatal("ptyWritesBlocked must not OR sidebar-open alone; that eats term keys while the sidebar stays visible")
 	}
-	if !strings.Contains(blocked, "sessionRailFocused()") || !strings.Contains(blocked, "state.openModal") ||
+	if !strings.Contains(blocked, "sidebarFocused()") || !strings.Contains(blocked, "state.openModal") ||
 		!strings.Contains(blocked, "ptyInjectWaiter") || !strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("only rail/chrome focus (plus palette/inject/notebook/CLI holds) may block silent Writes")
+		t.Fatal("only sidebar/chrome focus (plus palette/inject/notebook/CLI holds) may block silent Writes")
 	}
 
 	wire := sliceJSFunc(term, "function wirePaneTerminal")
 	if !strings.Contains(wire, "if (ptyWritesBlocked()) return") || !strings.Contains(wire, "sendSessionBytes") {
-		t.Fatal("rail open + term focused must still reach sendSessionBytes; chrome never silent-Writes")
+		t.Fatal("sidebar open + term focused must still reach sendSessionBytes; chrome never silent-Writes")
 	}
 
-	setRail := sliceJSFunc(term, "function setSessionRail")
+	setSide := sliceJSFunc(term, "function setSidebar")
 	restore := sliceJSFunc(term, "function restoreTermKeyboard")
-	release := sliceJSFunc(term, "function releaseSessionRailFocus")
-	if setRail == "" || restore == "" || release == "" {
-		t.Fatal("missing setSessionRail / restoreTermKeyboard / releaseSessionRailFocus")
+	release := sliceJSFunc(term, "function releaseSidebarFocus")
+	if setSide == "" || restore == "" || release == "" {
+		t.Fatal("missing setSidebar / restoreTermKeyboard / releaseSidebarFocus")
 	}
-	if strings.Contains(setRail, `getElementById("session-rail")?.focus`) || strings.Contains(setRail, `setSessionSurface("chrome")`) {
-		t.Fatal("opening the rail must not steal term focus or permanently pin SurfaceChrome")
+	if strings.Contains(setSide, `getElementById("vault-sidebar")?.focus`) || strings.Contains(setSide, `setSessionSurface("chrome")`) {
+		t.Fatal("toggling the sidebar must not steal term focus or permanently pin SurfaceChrome")
 	}
-	if !strings.Contains(setRail, "restoreTermKeyboard") || !strings.Contains(restore, "term?.focus") {
-		t.Fatal("opening the rail must restore terminal keyboard so keys reach the PTY")
+	if !strings.Contains(setSide, "restoreTermKeyboard") || !strings.Contains(restore, "term?.focus") {
+		t.Fatal("toggling the sidebar must restore terminal keyboard so keys reach the PTY")
 	}
 
 	mark := sliceJSFunc(term, "function markFocusedPane")
-	if !strings.Contains(mark, "releaseSessionRailFocus") || !strings.Contains(mark, "syncSessionSurface") ||
+	if !strings.Contains(mark, "releaseSidebarFocus") || !strings.Contains(mark, "syncSessionSurface") ||
 		!strings.Contains(mark, "term?.focus") {
-		t.Fatal("click/focus back on the term must drop rail focus and sync SurfaceTerm while the rail stays open")
+		t.Fatal("click/focus back on the term must drop sidebar focus and sync SurfaceTerm while the sidebar stays open")
 	}
 
 	sync := sliceJSFunc(term, "function syncSessionSurface")
-	if strings.Contains(sync, "sessionRailOpen()") {
-		t.Fatal("syncSessionSurface must not send SurfaceChrome just because the rail is visible")
+	if strings.Contains(sync, "sidebarOpen()") {
+		t.Fatal("syncSessionSurface must not send SurfaceChrome just because the sidebar is visible")
 	}
-	if !strings.Contains(sync, "sessionRailFocused()") || !strings.Contains(sync, `setSessionSurface("chrome")`) ||
+	if !strings.Contains(sync, "sidebarFocused()") || !strings.Contains(sync, `setSessionSurface("chrome")`) ||
 		!strings.Contains(sync, `setSessionSurface("term")`) {
-		t.Fatal("focus follows the active surface: rail/chrome focus → SurfaceChrome, else SurfaceTerm")
+		t.Fatal("focus follows the active surface: sidebar/chrome focus → SurfaceChrome, else SurfaceTerm")
 	}
-	if strings.Contains(term, "sessionRailOpen() || isNotebookPane") {
-		t.Fatal("WS focus handshake must use rail focus, not rail visibility")
+	if strings.Contains(term, "sidebarOpen() || isNotebookPane") {
+		t.Fatal("WS focus handshake must use sidebar focus, not sidebar visibility")
 	}
 
-	paint := sliceJSFunc(term, "function paintSessionRail")
+	paint := sliceJSFunc(term, "function paintSidebar")
 	if strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") || strings.Contains(paint, `type: "inject"`) {
-		t.Fatal("session sidebar chrome must not Write or Inject a live PTY")
+		t.Fatal("vault sidebar chrome must not Write or Inject a live PTY")
 	}
 }
 
@@ -813,17 +827,17 @@ func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
 
 	rail := strings.Index(term, `closest("[data-snippet-run]")`)
 	if rail < 0 {
-		t.Fatal("missing rail [data-snippet-run] handler")
+		t.Fatal("missing sidebar [data-snippet-run] handler")
 	}
 	railChunk := term[rail:]
 	if i := strings.Index(railChunk, "});"); i > 0 {
 		railChunk = railChunk[:i]
 	}
 	if strings.Contains(railChunk, "sendSessionBytes") || strings.Contains(railChunk, "sendSnippet") {
-		t.Fatal("rail snippet Run must not silent-Write")
+		t.Fatal("sidebar snippet Run must not silent-Write")
 	}
 	if !strings.Contains(railChunk, "paletteRunSnippet") {
-		t.Fatal("rail snippet Run must go through paletteRunSnippet")
+		t.Fatal("sidebar snippet Run must go through paletteRunSnippet")
 	}
 }
 
@@ -868,14 +882,14 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if blocked == "" {
 		t.Fatal("missing ptyWritesBlocked")
 	}
-	if !strings.Contains(blocked, "sessionRailFocused() ||") ||
-		strings.Contains(blocked, "sessionRailOpen()") ||
+	if !strings.Contains(blocked, "sidebarFocused() ||") ||
+		strings.Contains(blocked, "sidebarOpen()") ||
 		!strings.Contains(blocked, "state.openModal") ||
 		!strings.Contains(blocked, "ptyInjectWaiter") ||
 		!strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") ||
 		!strings.Contains(blocked, "isNotebookPane(focusedPane())") ||
 		!strings.Contains(blocked, "termInputOpen()") {
-		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/rail-focus/inject chrome holds")
+		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/sidebar-focus/inject chrome holds")
 	}
 
 	create := sliceJSFunc(term, "function createNotebookPane")
@@ -970,7 +984,7 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 
 	persist := sliceJSFunc(term, "function persistNotebook")
 	open := sliceJSFunc(term, "function openNotebook")
-	paint := sliceJSFunc(term, "function paintSessionRail")
+	paint := sliceJSFunc(term, "function paintSidebar")
 	pin := sliceJSFunc(term, "function toggleNotebookPin")
 	rename := sliceJSFunc(term, "function renameNotebook")
 	saveRename := sliceJSFunc(term, "async function saveNotebookRename")
@@ -1029,19 +1043,19 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("opening a notebook must work with no live session")
 	}
 	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
-		t.Fatal("session sidebar must pin and open notebooks")
+		t.Fatal("vault sidebar (Snippets segment) must pin and open notebooks")
 	}
 	if !strings.Contains(saveRename, `[name="id"]`) || !strings.Contains(saveRename, "/api/notebooks/") {
 		t.Fatal("vault card Rename must persist the title through PUT /api/notebooks")
 	}
-	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-rail-tab") {
-		t.Fatal("right sidebar must offer Snippets and Notebooks icon tabs")
+	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-sidebar-seg") {
+		t.Fatal("vault sidebar must offer Snippets (with notebooks) as a segment")
 	}
-	if strings.Contains(paint, "session-rail-title") || strings.Contains(paint, "No session") {
-		t.Fatal("right sidebar must not show session info")
+	if strings.Contains(paint, "No session") {
+		t.Fatal("vault sidebar must not show session info")
 	}
 	if strings.Contains(paint, "inject") {
-		t.Fatal("session sidebar notebook chrome must not mention inject")
+		t.Fatal("vault sidebar notebook chrome must not mention inject")
 	}
 
 	ser := sliceJSFunc(term, "function savedLeaf")
@@ -1198,9 +1212,9 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), `data-vault="notebooks"`) || !strings.Contains(string(body), `id="page-notebooks"`) ||
+	if !strings.Contains(string(body), `id="page-notebooks"`) || !strings.Contains(term, `data-open-page="notebooks"`) ||
 		!strings.Contains(string(body), `id="notebook-list"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) {
-		t.Fatal("vault must list notebooks as first-class entities")
+		t.Fatal("notebooks must be a tab page reachable from the vault sidebar")
 	}
 	if !strings.Contains(string(body), "/vendor/notebook/editor.js") {
 		t.Fatal("index must load the notebook markdown editor")
@@ -1212,8 +1226,8 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	if !strings.Contains(string(edBody), "KeelMarkdownEditor") || !strings.Contains(string(edBody), "notebook-fence") {
 		t.Fatal("notebook markdown editor must be vendored")
 	}
-	if strings.Contains(string(body), "<h1>Notebooks</h1>") {
-		t.Fatal("notebooks vault page should use the hosts toolbar+cards pattern, not a page-head title")
+	if !strings.Contains(string(body), `<h1 class="k-page-title">Notebooks</h1>`) {
+		t.Fatal("the Notebooks tab page has a page head like the other tab pages")
 	}
 
 	frag, err := http.Get(srv.URL + "/ui/notebooks")
@@ -1905,10 +1919,10 @@ func TestHostListDuplicateAction(t *testing.T) {
 	defer js.Body.Close()
 	jsBody, _ := io.ReadAll(js.Body)
 	term := string(jsBody)
-	if !strings.Contains(readWebLib(t, "lib/vaultview.js"), `data-duplicate="${escapeHtml(h.id)}"`) || !strings.Contains(term, "/duplicate") {
+	if !strings.Contains(readWebLib(t, "lib/vaultview.js"), `["data-duplicate", h.id, "Duplicate"]`) || !strings.Contains(term, "/duplicate") {
 		t.Fatal("term.js must duplicate hosts through the vault API")
 	}
-	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sessionRailFocused() || state.openModal || ptyInjectWaiter") {
+	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sidebarFocused() || state.openModal || ptyInjectWaiter") {
 		t.Fatal("duplicate-host must not replace ptyWritesBlocked")
 	}
 }
@@ -2015,11 +2029,13 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 		!strings.Contains(html, `data-group-rename="`+child.ID+`"`) || !strings.Contains(html, `data-drag-group`) {
 		t.Fatal("vault tree missing expand/create/rename/drag hooks")
 	}
-	if !strings.Contains(html, `data-group-filter="prod"`) || !strings.Contains(html, `data-connect="`+host.ID+`"`) {
-		t.Fatal("nested host should stay visible on the Hosts screen (current group + subgroups)")
+	if !strings.Contains(html, `data-connect="`+host.ID+`"`) {
+		t.Fatal("a nested host must show in its group in the sidebar tree")
 	}
-	if !strings.Contains(html, `data-group-open="`+child.ID+`"`) {
-		t.Fatal("group cards should drill into a parent group")
+	childAt := strings.Index(html, `data-group-id="`+child.ID+`"`)
+	hostAt := strings.Index(html, `data-connect="`+host.ID+`"`)
+	if childAt < 0 || hostAt < childAt {
+		t.Fatal("the sidebar tree must nest a host inside its group")
 	}
 
 	other, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"db","address":"10.0.0.9","username":"ubuntu","authType":"password","password":"x"}`))
@@ -2051,7 +2067,6 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	for _, want := range []string{
 		"const MAX_GROUP_DEPTH = 8",
 		"const nestGroupTreeJS = ",
-		"const hostsInCurrentAndSubgroups = ",
 		"function assignHostsGroup",
 		"data-group-rename",
 		"data-drag-group",
@@ -2101,24 +2116,32 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "vault-rail") || !strings.Contains(string(body), `data-vault="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
+	// Phase 2 IA (docs/ui-redesign.md §4): the Vault is a collapsible left
+	// sidebar on every tab, not a pinned tab; the right session rail is gone.
+	if !strings.Contains(string(body), `id="vault-sidebar"`) || !strings.Contains(string(body), `data-open-page="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
 		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
 	}
-	if !strings.Contains(string(body), `id="session-rail"`) || !strings.Contains(string(body), `id="btn-session-rail"`) || !strings.Contains(string(body), `class="workspace"`) {
-		t.Fatal("index missing collapsible right session sidebar")
+	if !strings.Contains(string(body), `id="btn-sidebar"`) || !strings.Contains(string(body), `aria-label="Toggle vault sidebar"`) || !strings.Contains(string(body), `class="workspace"`) {
+		t.Fatal("index missing the collapsible vault sidebar and its titlebar toggle")
 	}
-	if !strings.Contains(string(body), `id="session-rail" aria-label="Sidebar" tabindex="-1"`) {
-		t.Fatal("session sidebar must be focusable so SurfaceChrome can own the keyboard")
+	if !strings.Contains(string(body), `id="vault-sidebar" aria-label="Vault" tabindex="-1"`) {
+		t.Fatal("vault sidebar must be focusable so SurfaceChrome can own the keyboard")
 	}
-	if !strings.Contains(string(body), `data-rail-tab="notebooks"`) || !strings.Contains(string(body), `data-rail-tab="snippets"`) ||
-		!strings.Contains(string(body), `id="rail-notebooks"`) || !strings.Contains(string(body), `id="rail-snippets"`) {
-		t.Fatal("right sidebar must be Snippets + Notebooks icon tabs")
+	for _, seg := range []string{"hosts", "snippets", "forwards"} {
+		if !strings.Contains(string(body), `data-sidebar-seg="`+seg+`"`) || !strings.Contains(string(body), `data-sidebar-panel="`+seg+`"`) {
+			t.Fatalf("vault sidebar missing the %s segment", seg)
+		}
 	}
-	if strings.Contains(string(body), `id="session-rail-title"`) || strings.Contains(string(body), "Open a session tab to see its details.") {
-		t.Fatal("right sidebar must not show session info")
+	for _, page := range []string{"keychain", "logs", "settings"} {
+		if !strings.Contains(string(body), `data-open-page="`+page+`"`) {
+			t.Fatalf("vault sidebar footer missing %s", page)
+		}
 	}
-	if !strings.Contains(string(body), `class="vault-nav-icon"`) || strings.Contains(string(body), `id="btn-settings"`) {
-		t.Fatal("index should have vault rail icons and no titlebar settings button")
+	if strings.Contains(string(body), `id="session-rail"`) || strings.Contains(string(body), `data-rail-tab=`) || strings.Contains(string(body), "vault-rail") {
+		t.Fatal("the right session rail and the vault tab rail are gone")
+	}
+	if strings.Contains(string(body), `id="btn-settings"`) {
+		t.Fatal("index should have no titlebar settings button")
 	}
 	if !strings.Contains(string(body), `data-hugeicons="icon"`) || strings.Contains(string(body), `data-lucide="icon"`) {
 		t.Fatal("index should render Hugeicons, not Lucide")
@@ -2155,43 +2178,20 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="host-tags"`) || !strings.Contains(string(body), `name="tags"`) {
 		t.Fatal("host form missing tags field")
 	}
-	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `settings-shell`) {
-		t.Fatal("index missing settings slider or settings shell")
-	}
-	if !strings.Contains(string(body), `data-slot="input-group"`) || !strings.Contains(string(body), `data-slot="button-group"`) {
-		t.Fatal("index missing hosts input-group or button-group")
-	}
-	ig := strings.Index(string(body), `data-slot="input-group"`)
-	if ig < 0 {
-		t.Fatal("missing input-group")
-	}
-	igRest := string(body)[ig:]
-	igEnd := strings.Index(igRest, ">")
-	if igEnd < 0 || !strings.Contains(igRest[:igEnd], "h-10") {
-		t.Fatal("hosts search input-group must use custom h-10")
+	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `k-page--settings`) {
+		t.Fatal("index missing settings slider or the Settings tab page")
 	}
 	if !strings.Contains(string(body), "min-w-max") {
-		t.Fatal("host action dropdown must size to content, not the chevron")
+		t.Fatal("host action dropdown must size to content, not the trigger")
 	}
-	if !strings.Contains(string(body), `id="btn-host-connect"`) || !strings.Contains(string(body), "Find a host or ssh user@hostname") {
-		t.Fatal("index missing Termius-style host search connect")
+	// The sidebar filter is the host search (Enter still connects or parses
+	// user@host); its controls are k-* components sized by tokens.
+	if !strings.Contains(string(body), `id="search"`) || !strings.Contains(string(body), `aria-label="Search hosts"`) {
+		t.Fatal("vault sidebar missing the host filter")
 	}
-	for _, id := range []string{`id="btn-host-connect"`, `id="btn-new-host"`, `id="btn-welcome-local"`} {
-		i := strings.Index(string(body), id)
-		if i < 0 {
-			t.Fatalf("missing %s", id)
-		}
-		rest := string(body)[i:]
-		tagEnd := strings.Index(rest, ">")
-		if tagEnd < 0 {
-			t.Fatalf("%s: unclosed tag", id)
-		}
-		tag := rest[:tagEnd]
-		if !strings.Contains(tag, "h-8") && !strings.Contains(tag, "size-8") {
-			t.Fatalf("%s must use shadcn default height (h-8), not xs/sm", id)
-		}
-		if strings.Contains(tag, "h-6 ") || strings.Contains(tag, "h-7 ") {
-			t.Fatalf("%s must not use compact xs/sm height", id)
+	for _, id := range []string{`id="btn-new-host"`, `id="btn-welcome-local"`, `id="btn-quick"`, `id="btn-join"`} {
+		if !strings.Contains(string(body), id) {
+			t.Fatalf("vault sidebar missing %s", id)
 		}
 	}
 	if strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-list"`) {
@@ -2279,8 +2279,8 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), ".tab-new:focus") || !strings.Contains(string(cssBody), "html.is-window-dragging") {
 		t.Fatal("new-tab must not show a focus ring; window drag must keep the default cursor")
 	}
-	if !strings.Contains(string(cssBody), ".tab:not(.is-vault) { cursor: pointer") {
-		t.Fatal("session tabs must use a pointer cursor, not grab")
+	if !strings.Contains(string(cssBody), ".tab { cursor: pointer") {
+		t.Fatal("tabs must use a pointer cursor, not grab")
 	}
 	if !strings.Contains(string(cssBody), ".tabs::-webkit-scrollbar") ||
 		!strings.Contains(string(cssBody), "scrollbar-width: none") ||
@@ -2322,10 +2322,10 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), "var(--chrome)") {
 		t.Fatal("keel.css missing chrome token")
 	}
-	if !strings.Contains(string(cssBody), ".session-rail") ||
-		!strings.Contains(string(cssBody), `html[data-session-rail="open"] .session-rail`) ||
-		!strings.Contains(string(cssBody), "border-left: 1px solid var(--line)") {
-		t.Fatal("keel.css must layout a right session rail with vault sidebar tokens")
+	if !strings.Contains(string(cssBody), ".k-sidebar {") ||
+		!strings.Contains(string(cssBody), `html[data-sidebar="closed"] .k-sidebar`) ||
+		!strings.Contains(string(cssBody), "width: var(--size-sidebar)") {
+		t.Fatal("keel.css must lay out the collapsible vault sidebar at the size-sidebar token")
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")
 	if err != nil {
@@ -2387,11 +2387,13 @@ func TestIndexServesVault(t *testing.T) {
 		strings.Contains(string(termBody), "#0a0a0a") || strings.Contains(string(termBody), "#fbfbfa") {
 		t.Fatal("term.js must build the xterm theme from the Keel tokens and glass the native background per theme")
 	}
-	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
-		t.Fatal("term.js must connect from host search and filter by group cards")
+	if !strings.Contains(string(termBody), "connectFromSearch") {
+		t.Fatal("term.js must connect from the sidebar host filter")
 	}
-	if !strings.Contains(string(termBody), "parseHostTags(") || !strings.Contains(readWebLib(t, "lib/vaultview.js"), "data-tag-filter") {
-		t.Fatal("term.js must assign host tags and filter the vault list by tag chips")
+	// No tag chips in the sidebar tree: the filter matches tags (and group
+	// names) instead.
+	if !strings.Contains(string(termBody), "parseHostTags(") || !strings.Contains(readWebLib(t, "lib/groups.js"), "h.tags.join") {
+		t.Fatal("term.js must assign host tags and the host filter must match them")
 	}
 	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
 		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {
@@ -2696,15 +2698,23 @@ func TestIndexServesVault(t *testing.T) {
 	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="host-list"`) {
 		t.Fatalf("ui hosts %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
 	}
-	if !strings.Contains(string(fragBody), `data-slot="card"`) || !strings.Contains(string(fragBody), `data-connect`) {
-		t.Fatal("ui hosts fragment should render host cards")
+	if !strings.Contains(string(fragBody), `class="k-tree-host"`) || !strings.Contains(string(fragBody), `data-connect`) {
+		t.Fatal("ui hosts fragment should render the sidebar host tree")
 	}
-	if strings.Contains(string(body), "<h1>Keychain</h1>") || strings.Contains(string(body), "<h1>Snippets</h1>") ||
-		strings.Contains(string(body), "<h1>Logs</h1>") || strings.Contains(string(body), "<h1>Port forwarding</h1>") {
-		t.Fatal("vault list pages should use the hosts toolbar+cards pattern, not page-head titles")
+	// Tab pages carry the boards' page heads (Port forwarding, Logs,
+	// Notebooks) or list titles (Keychain, Snippets).
+	for _, head := range []string{
+		`<h1 class="k-page-title">Port forwarding</h1>`,
+		`<h1 class="k-page-title">Logs</h1>`,
+		`<h1 class="k-split-title">Keychain</h1>`,
+		`<h1 class="k-split-title">Snippets</h1>`,
+	} {
+		if !strings.Contains(string(body), head) {
+			t.Fatalf("tab pages missing %s", head)
+		}
 	}
-	if !strings.Contains(string(body), "<h1>Appearance</h1>") || !strings.Contains(string(body), `data-settings-back`) {
-		t.Fatal("settings page should use sidebar layout with section heading")
+	if !strings.Contains(string(body), `<h1 class="k-page-title">Appearance</h1>`) || strings.Contains(string(body), `data-settings-back`) {
+		t.Fatal("settings is a tab page: section rail and heading, no Back button")
 	}
 	if !strings.Contains(string(body), `id="btn-new-identity"`) || !strings.Contains(string(body), `id="btn-new-tunnel"`) ||
 		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) ||
@@ -2724,8 +2734,8 @@ func TestIndexServesVault(t *testing.T) {
 	if snip.StatusCode != http.StatusOK || !strings.Contains(string(snipBody), `id="snippet-list"`) {
 		t.Fatalf("ui snippets %d: %s", snip.StatusCode, snipBody[:min(len(snipBody), 200)])
 	}
-	if !strings.Contains(string(snipBody), `data-slot="card"`) || !strings.Contains(string(snipBody), `data-run`) {
-		t.Fatal("ui snippets fragment should render snippet cards")
+	if !strings.Contains(string(snipBody), `data-snippet-select`) {
+		t.Fatal("ui snippets fragment should render the snippet list")
 	}
 	ident, err := http.Get(srv.URL + "/ui/identities")
 	if err != nil {
@@ -2746,18 +2756,16 @@ func TestIndexServesVault(t *testing.T) {
 	if logsFrag.StatusCode != http.StatusOK || !strings.Contains(string(logsBody), `id="log-list"`) {
 		t.Fatal("ui logs fragment missing log-list")
 	}
-	if !strings.Contains(string(cssBody), `#page-keychain.is-active`) ||
-		!strings.Contains(string(cssBody), `#page-forwards.is-active`) ||
-		!strings.Contains(string(cssBody), `#page-snippets.is-active`) ||
-		!strings.Contains(string(cssBody), `#page-notebooks.is-active`) ||
-		!strings.Contains(string(cssBody), `#page-logs.is-active`) {
-		t.Fatal("keel.css must flex the vault list pages like hosts")
+	if !strings.Contains(string(cssBody), ".k-page {") ||
+		!strings.Contains(string(cssBody), ".k-split {") ||
+		!strings.Contains(string(cssBody), ".k-table {") {
+		t.Fatal("keel.css must lay out the tab pages")
 	}
-	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "tileSection") || !strings.Contains(vv, "Auth password") {
-		t.Fatal("term.js fallback lists should render host-style cards")
+	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "export function identityDetailHTML") || !strings.Contains(vv, "SSH keys") {
+		t.Fatal("term.js fallback lists must match the tab pages")
 	}
-	if !strings.Contains(string(body), `data-vault-view-btn="card"`) || !strings.Contains(string(body), `data-vault-view-btn="list"`) {
-		t.Fatal("vault list pages should include a card/list view selector")
+	if strings.Contains(string(body), `data-vault-view-btn`) {
+		t.Fatal("the card/list view toggle left with the Hosts page")
 	}
 	settingsStart := strings.Index(string(body), `id="page-settings"`)
 	if settingsStart < 0 {
@@ -2773,35 +2781,29 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(body)[logsStart:settingsStart], `data-vault-view-btn`) {
 		t.Fatal("logs should not include the vault view selector")
 	}
-	if !strings.Contains(string(cssBody), ".tile-grid") || !strings.Contains(string(cssBody), "data-vault-view") {
-		t.Fatal("keel.css must layout tile-grid from the vault view mode")
-	}
-	if !strings.Contains(string(termBody), "setVaultView") || !strings.Contains(readWebLib(t, "lib/vaultview.js"), `class="tile-grid"`) {
-		t.Fatal("term.js must persist vault view mode and render tile-grid fallbacks")
-	}
-	if !strings.Contains(string(termBody), "function toggleSessionRail") ||
-		!strings.Contains(string(termBody), "function paintSessionRail") ||
+	if !strings.Contains(string(termBody), "function toggleSidebar") ||
+		!strings.Contains(string(termBody), "function paintSidebar") ||
 		!strings.Contains(string(termBody), "function setSessionSurface") ||
-		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sessionRailFocused()`) ||
-		!strings.Contains(string(termBody), `sessionRailFocused() || state.openModal || ptyInjectWaiter`) ||
+		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sidebarFocused()`) ||
+		!strings.Contains(string(termBody), `sidebarFocused() || state.openModal || ptyInjectWaiter`) ||
 		!strings.Contains(readShortcutsJS(t), `key === "b"`) {
-		t.Fatal("term.js must open and close the right session sidebar")
+		t.Fatal("term.js must open and close the vault sidebar")
 	}
-	paint := termBody[bytes.Index(termBody, []byte("function paintSessionRail")):]
+	// Tab pages are tabs: one instance each (page:<name>), and with no tab
+	// left the window shows a New tab, not a Vault tab.
+	if !strings.Contains(string(termBody), "function openPage") || !strings.Contains(string(termBody), `const PAGE_PREFIX = "page:"`) ||
+		strings.Contains(string(termBody), "VAULT") {
+		t.Fatal("term.js must open tab pages as tabs and keep no Vault tab")
+	}
+	paint := termBody[bytes.Index(termBody, []byte("function paintSidebar")):]
 	if i := bytes.Index(paint[1:], []byte("\n  function ")); i > 0 {
 		paint = paint[:i]
 	}
 	if bytes.Contains(paint, []byte("sendSessionBytes")) || bytes.Contains(paint, []byte("sendSessionJSON")) {
 		t.Fatal("session sidebar must not write into a live PTY")
 	}
-	if !strings.Contains(string(fragBody), `class="tile-grid"`) {
-		t.Fatal("ui hosts fragment should use tile-grid")
-	}
-	if strings.Contains(string(logsBody), `class="tile-grid"`) {
-		t.Fatal("ui logs should stay a single-column list, not tile-grid")
-	}
-	if !strings.Contains(string(logsBody), `data-slot="card"`) {
-		t.Fatal("ui logs fragment should still render log rows as cards")
+	if !strings.Contains(string(logsBody), `<tbody id="log-list">`) || !strings.Contains(string(logsBody), `data-log-kind=`) {
+		t.Fatal("ui logs fragment should render table rows the kind chips can filter")
 	}
 }
 
@@ -3174,7 +3176,7 @@ func TestCmdAngleCycleTabs(t *testing.T) {
 		t.Fatal(err)
 	}
 	term := string(js)
-	if !strings.Contains(term, `import { tabCycleTarget } from "./lib/keys.js";`) ||
+	if !strings.Contains(term, `import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";`) ||
 		!strings.Contains(term, `import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";`) {
 		t.Fatal("term.js must take tab cycling from lib/keys.js and the shortcut table from lib/shortcuts.js")
 	}

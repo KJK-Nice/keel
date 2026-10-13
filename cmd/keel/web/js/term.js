@@ -21,7 +21,7 @@ import { parseJoinLink } from "./lib/joinlink.js";
 import { openJoinPeer } from "./lib/joinpeer.js";
 import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSocketURL, statusClass } from "./lib/session.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
-import { tabCycleTarget } from "./lib/keys.js";
+import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
@@ -43,7 +43,20 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   const UnicodeGraphemesCtor = window.UnicodeGraphemesAddon?.UnicodeGraphemesAddon || window.UnicodeGraphemesAddon;
   const ProgressAddonCtor = window.ProgressAddon?.ProgressAddon || window.ProgressAddon;
   const params = new URLSearchParams(location.search);
-  const VAULT = "vault";
+  // Tab pages (docs/ui-redesign.md §4): each opens as its own tab, one
+  // instance each, with the id page:<name>. The page markup is server
+  // rendered into #pages and moved into the tab while it is open.
+  const PAGES = {
+    keychain: { title: "Keychain", glyph: '<path d="M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z"/><path d="M17.5 6.5L16.5 7.5"/>' },
+    forwards: { title: "Port forwarding", glyph: '<path d="M20 17L4 17"/><path d="M17 14C17 14 20 16.2 20 17C20 17.8 17 20 17 20"/><path d="M5 7L20 7"/><path d="M7 4C7 4 4 6.2 4 7C4 7.8 7 10 7 10"/>' },
+    snippets: { title: "Snippets", glyph: '<path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/>' },
+    notebooks: { title: "Notebooks", glyph: '<path d="M9.99219 11H13.4922M9.99219 7H16.9922"/><path d="M5.99219 6H2.99219M5.99219 12H2.99219M5.99219 18H2.99219"/><path d="M8.99219 21.9388C7.41097 21.8363 6.39738 21.562 5.66376 20.8284C4.49219 19.6569 4.49219 17.7712 4.49219 14V10C4.49219 6.22877 4.49219 4.34315 5.66376 3.17158C6.83533 2 8.72096 2 12.4922 2H12.9922C16.7634 2 18.649 2 19.8206 3.17157C20.9922 4.34315 20.9922 6.22877 20.9922 10V10.5"/>' },
+    logs: { title: "Logs", glyph: '<path d="M2 7C2 7.94281 2 8.41421 2.29289 8.70711C2.58579 9 3.05719 9 4 9H6V5C6 3.89543 5.10457 3 4 3C2.89543 3 2 3.89543 2 5V7Z"/><path d="M10 8H15M10 11H13"/><path d="M19 16V7C19 5.11438 19 4.17157 18.4142 3.58579C17.8284 3 16.8856 3 15 3H4"/><path d="M6 9V18C6 19.6569 7.34315 21 9 21H18C19.6569 21 21 19.6569 21 18V16H11"/>' },
+    settings: { title: "Settings", glyph: '<path d="M21.3175 7.14139L20.8239 6.28479C20.4506 5.63696 20.264 5.31305 19.9464 5.18388C19.6288 5.05472 19.2696 5.15664 18.5513 5.36048L17.3311 5.70418C16.8725 5.80994 16.3913 5.74994 15.9726 5.53479L15.6357 5.34042C15.2766 5.11043 15.0004 4.77133 14.8475 4.37274L14.5136 3.37536C14.294 2.71534 14.1842 2.38533 13.9228 2.19657C13.6615 2.00781 13.3143 2.00781 12.6199 2.00781H11.5051C10.8108 2.00781 10.4636 2.00781 10.2022 2.19657C9.94085 2.38533 9.83106 2.71534 9.61149 3.37536L9.27753 4.37274C9.12465 4.77133 8.84845 5.11043 8.48937 5.34042L8.15249 5.53479C7.73374 5.74994 7.25259 5.80994 6.79398 5.70418L5.57375 5.36048C4.85541 5.15664 4.49625 5.05472 4.17867 5.18388C3.86109 5.31305 3.67445 5.63696 3.30115 6.28479L2.80757 7.14139C2.45766 7.74864 2.2827 8.05227 2.31666 8.37549C2.35061 8.69871 2.58483 8.95918 3.05326 9.48012L4.0843 10.6328C4.3363 10.9518 4.51521 11.5078 4.51521 12.0077C4.51521 12.5078 4.33636 13.0636 4.08433 13.3827L3.05326 14.5354C2.58483 15.0564 2.35062 15.3168 2.31666 15.6401C2.2827 15.9633 2.45766 16.2669 2.80757 16.8741L3.30114 17.7307C3.67443 18.3785 3.86109 18.7025 4.17867 18.8316C4.49625 18.9608 4.85542 18.8589 5.57377 18.655L6.79394 18.3113C7.25263 18.2055 7.73387 18.2656 8.15267 18.4808L8.4895 18.6752C8.84851 18.9052 9.12464 19.2442 9.2775 19.6428L9.61149 20.6403C9.83106 21.3003 9.94085 21.6303 10.2022 21.8191C10.4636 22.0078 10.8108 22.0078 11.5051 22.0078H12.6199C13.3143 22.0078 13.6615 22.0078 13.9228 21.8191C14.1842 21.6303 14.294 21.3003 14.5136 20.6403L14.8476 19.6428C15.0004 19.2442 15.2765 18.9052 15.6356 18.6752L15.9724 18.4808C16.3912 18.2656 16.8724 18.2055 17.3311 18.3113L18.5513 18.655C19.2696 18.8589 19.6288 18.9608 19.9464 18.8316C20.264 18.7025 20.4506 18.3785 20.8239 17.7307L21.3175 16.8741C21.6674 16.2669 21.8423 15.9633 21.8084 15.6401C21.7744 15.3168 21.5402 15.0564 21.0718 14.5354L20.0407 13.3827C19.7887 13.0636 19.6098 12.5078 19.6098 12.0077C19.6098 11.5078 19.7888 10.9518 20.0407 10.6328L21.0718 9.48012C21.5402 8.95918 21.7744 8.69871 21.8084 8.37549C21.8423 8.05227 21.6674 7.74864 21.3175 7.14139Z"/><path d="M15.5195 12C15.5195 13.933 13.9525 15.5 12.0195 15.5C10.0865 15.5 8.51953 13.933 8.51953 12C8.51953 10.067 10.0865 8.5 12.0195 8.5C13.9525 8.5 15.5195 10.067 15.5195 12Z"/>' },
+  };
+  const PAGE_PREFIX = "page:";
+  const pageTabId = (name) => PAGE_PREFIX + name;
+  const SIDEBAR_SEGS = ["hosts", "snippets", "forwards"];
   const SASH_PX = 1; // 1px line gutter between panes; keel.css .split-sash widens the hit area
   // Pane bar tool buttons: ghost icon buttons from the k-* set. icon-btn and the
   // data-pane-* attributes stay as JS hooks.
@@ -61,7 +74,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   const state = {
     hosts: [],
     groups: [],
-    groupFocus: "",
     selectedHostIds: [],
     snippets: [],
     notebooks: [],
@@ -71,10 +83,18 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     herd: [],
     tabs: new Map(),
     panes: new Map(),
-    activeId: VAULT,
-    vaultSection: "hosts",
+    activeId: "",
+    // The session tab last shown, so sidebar and page actions that type or
+    // split (snippets, notebooks) know their target while a page tab is up.
+    lastSessionTabId: "",
+    booted: false,
     settingsSection: "appearance",
     query: "",
+    sidebarQuery: { snippets: "", forwards: "" },
+    selectedIdentity: "",
+    selectedSnippet: "",
+    tunnelFilter: "all",
+    logKind: "all",
     logFilter: "",
     name: params.get("name") || localStorage.getItem("keel-name") || "",
     pendingSession: params.get("session") || params.get("id") || "",
@@ -115,14 +135,13 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", view: "card", sidebar: false, railTab: "notebooks" };
+    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts" };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
-      const view = raw.view === "list" ? "list" : "card";
-      const railTab = raw.railTab === "snippets" ? "snippets" : "notebooks";
-      return { size, smoothing, view, sidebar: raw.sidebar === true, railTab };
+      const sidebarSeg = SIDEBAR_SEGS.includes(raw.sidebarSeg) ? raw.sidebarSeg : "hosts";
+      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg };
     } catch {
       return fallback;
     }
@@ -135,139 +154,215 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function applyUiPrefs() {
     document.documentElement.style.setProperty("--ui-size", `${state.ui.size}px`);
     document.documentElement.dataset.smooth = state.ui.smoothing;
-    applyVaultView(state.ui.view);
-    applyRailTab();
-    applySessionRail();
+    applySidebarSeg();
+    applySidebar();
   }
 
-  function sessionRailOpen() {
-    return state.ui.sidebar === true;
+  // Vault sidebar (left, every tab). Open or closed is a window preference;
+  // keyboard focus inside it is what makes it chrome (SurfaceChrome), never
+  // the fact that it is visible.
+  function sidebarOpen() {
+    return state.ui.vaultSidebar !== false;
   }
 
-  function sessionRailFocused() {
-    const rail = document.getElementById("session-rail");
+  function sidebarFocused() {
+    const side = document.getElementById("vault-sidebar");
     const ae = document.activeElement;
-    return !!(rail && ae && rail.contains(ae));
+    return !!(side && ae && side.contains(ae));
   }
 
-  function releaseSessionRailFocus() {
-    if (!sessionRailFocused()) return;
+  function releaseSidebarFocus() {
+    if (!sidebarFocused()) return;
     document.activeElement?.blur?.();
-    document.getElementById("session-rail")?.blur?.();
+    document.getElementById("vault-sidebar")?.blur?.();
   }
 
   function restoreTermKeyboard() {
-    releaseSessionRailFocus();
+    releaseSidebarFocus();
     const pane = focusedPane();
     if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus?.();
   }
 
-  function applySessionRail() {
-    const open = sessionRailOpen();
-    document.documentElement.dataset.sessionRail = open ? "open" : "closed";
-    const btn = document.getElementById("btn-session-rail");
+  function applySidebar() {
+    const open = sidebarOpen();
+    document.documentElement.dataset.sidebar = open ? "open" : "closed";
+    const btn = document.getElementById("btn-sidebar");
     if (btn) {
       btn.setAttribute("aria-pressed", String(open));
       btn.setAttribute("aria-expanded", String(open));
     }
   }
 
-  function setSessionRail(open) {
+  function setSidebar(open) {
     const next = !!open;
-    if (next === sessionRailOpen()) {
-      applySessionRail();
+    if (next === sidebarOpen()) {
+      applySidebar();
       return;
     }
-    state.ui.sidebar = next;
+    state.ui.vaultSidebar = next;
     saveUiPrefs();
-    applySessionRail();
+    applySidebar();
     restoreTermKeyboard();
     syncSessionSurface();
     fitVisiblePanes();
   }
 
-  function toggleSessionRail() {
-    setSessionRail(!sessionRailOpen());
+  function toggleSidebar() {
+    setSidebar(!sidebarOpen());
   }
 
-  function railTab() {
-    return state.ui.railTab === "snippets" ? "snippets" : "notebooks";
+  function sidebarSeg() {
+    return SIDEBAR_SEGS.includes(state.ui.sidebarSeg) ? state.ui.sidebarSeg : "hosts";
   }
 
-  function setRailTab(next) {
-    const tab = next === "snippets" ? "snippets" : "notebooks";
-    if (state.ui.railTab === tab) {
-      applyRailTab();
-      return;
+  const SIDEBAR_FILTER = {
+    hosts: { placeholder: "Filter hosts", label: "Search hosts" },
+    snippets: { placeholder: "Filter snippets", label: "Filter snippets" },
+    forwards: { placeholder: "Filter forwards", label: "Filter forwards" },
+  };
+
+  function setSidebarSeg(next) {
+    const seg = SIDEBAR_SEGS.includes(next) ? next : "hosts";
+    if (state.ui.sidebarSeg !== seg) {
+      state.ui.sidebarSeg = seg;
+      saveUiPrefs();
     }
-    state.ui.railTab = tab;
-    saveUiPrefs();
-    applyRailTab();
+    applySidebarSeg();
   }
 
-  function applyRailTab() {
-    const current = railTab();
-    document.querySelectorAll("[data-rail-tab]").forEach((btn) => {
-      const on = btn.getAttribute("data-rail-tab") === current;
-      btn.setAttribute("aria-selected", String(on));
-      btn.setAttribute("aria-pressed", String(on));
+  function applySidebarSeg() {
+    const current = sidebarSeg();
+    document.querySelectorAll("[data-sidebar-seg]").forEach((btn) => {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-sidebar-seg") === current));
     });
-    document.querySelectorAll("[data-rail-panel]").forEach((panel) => {
-      panel.hidden = panel.getAttribute("data-rail-panel") !== current;
+    document.querySelectorAll("[data-sidebar-panel]").forEach((panel) => {
+      panel.hidden = panel.getAttribute("data-sidebar-panel") !== current;
     });
+    const input = els.search;
+    if (input) {
+      const f = SIDEBAR_FILTER[current];
+      input.placeholder = f.placeholder;
+      input.setAttribute("aria-label", f.label);
+      const value = current === "hosts" ? state.query : state.sidebarQuery[current] || "";
+      if (input.value !== value) input.value = value;
+    }
   }
 
-  function paintSessionRail() {
-    applyRailTab();
-    const notes = document.getElementById("rail-notebooks") || document.querySelector(".session-rail-notes");
-    if (notes) {
-      const list = V.sortedNotebooks(state.notebooks);
-      const rows = list
+  // revealVault opens the sidebar on Hosts and puts the caret in its filter
+  // (what ⌘1 / "Go to Vault" did while the vault was a tab).
+  function revealVault() {
+    if (state.openModal) closeModal();
+    setSidebar(true);
+    setSidebarSeg("hosts");
+    els.search?.focus({ preventScroll: true });
+    els.search?.select?.();
+    syncSessionSurface();
+  }
+
+  const SIDE_ICONS = {
+    snippet: hugeicon('<path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/>'),
+    notebook: hugeicon(PAGES.notebooks.glyph),
+    pin: hugeicon('<path d="M3 21L8 16"/><path d="M13.2585 18.8714C9.51516 18.0215 5.97844 14.4848 5.12853 10.7415C4.99399 10.1489 4.92672 9.85266 5.12161 9.37197C5.3165 8.89129 5.55457 8.74255 6.03071 8.44509C7.10705 7.77265 8.27254 7.55888 9.48209 7.66586C11.1793 7.81598 12.0279 7.89104 12.4512 7.67048C12.8746 7.44991 13.1622 6.93417 13.7376 5.90269L14.4664 4.59604C14.9465 3.73528 15.1866 3.3049 15.7513 3.10202C16.316 2.89913 16.6558 3.02199 17.3355 3.26771C18.9249 3.84236 20.1576 5.07505 20.7323 6.66449C20.978 7.34417 21.1009 7.68401 20.898 8.2487C20.6951 8.8134 20.2647 9.05346 19.4039 9.53358L18.0672 10.2792C17.0376 10.8534 16.5229 11.1406 16.3024 11.568C16.0819 11.9955 16.162 12.8256 16.3221 14.4859C16.4399 15.7068 16.2369 16.88 15.5555 17.9697C15.2577 18.4458 15.1088 18.6839 14.6283 18.8786C14.1477 19.0733 13.8513 19.006 13.2585 18.8714Z"/>'),
+  };
+
+  function sideMatches(text, q) {
+    const needle = String(q || "").trim().toLowerCase();
+    return !needle || String(text || "").toLowerCase().includes(needle);
+  }
+
+  // paintSidebar fills the Snippets (snippets, then notebooks) and Forwards
+  // panels. Running a snippet goes through paletteRunSnippet, which asks
+  // Approve before type; nothing here writes a PTY.
+  function paintSidebar() {
+    applySidebarSeg();
+    const snips = document.getElementById("sidebar-snippets");
+    if (snips) {
+      const q = state.sidebarQuery.snippets;
+      const snRows = (state.snippets || [])
+        .filter((sn) => sideMatches(`${sn.name} ${sn.command}`, q))
+        .map(
+          (sn) => `<button type="button" class="k-side-item" data-snippet-run="${escapeHtml(sn.id)}" title="Type into the focused pane after you approve">
+            <span class="k-tile k-tile--sm">${SIDE_ICONS.snippet}</span>
+            <span class="k-side-main"><span class="k-side-name">${escapeHtml(sn.name || "Snippet")}</span><span class="k-side-sub">${escapeHtml(String(sn.command || "").trim().split("\n")[0])}</span></span>
+          </button>`
+        )
+        .join("");
+      const nbRows = V.sortedNotebooks(state.notebooks)
+        .filter((nb) => sideMatches(nb.name, q))
         .map((nb) => {
           const pinLabel = nb.pinned ? "Unpin" : "Pin";
-          return `<article class="rail-notebook${nb.pinned ? " is-pinned" : ""}">
-          <div class="rail-notebook-name">${escapeHtml(nb.name || "Notebook")}</div>
-          <div class="rail-notebook-actions">
-            <button type="button" class="tiny" data-notebook-open="${nb.id}">Open</button>
-            <button type="button" class="tiny" data-notebook-pin="${nb.id}">${pinLabel}</button>
-          </div>
-        </article>`;
+          return `<div class="k-side-row">
+            <button type="button" class="k-side-item" data-notebook-open="${escapeHtml(nb.id)}">
+              <span class="k-tile k-tile--sm">${SIDE_ICONS.notebook}</span>
+              <span class="k-side-main"><span class="k-side-name">${escapeHtml(nb.name || "Notebook")}</span></span>
+            </button>
+            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-side-pin" data-notebook-pin="${escapeHtml(nb.id)}" aria-label="${pinLabel} ${escapeHtml(nb.name || "Notebook")}" aria-pressed="${nb.pinned ? "true" : "false"}" title="${pinLabel}">${SIDE_ICONS.pin}</button>
+          </div>`;
         })
         .join("");
-      notes.innerHTML = `<span class="eyebrow">Notebooks</span>
-      ${rows || `<p class="lede">Open a notebook from the vault. Markdown is a document — shell fences fill CLI input only after you confirm.</p>`}
-      <button type="button" class="tiny" data-notebook-new>New notebook</button>`;
-    }
-    const snips = document.getElementById("rail-snippets");
-    if (!snips) return;
-    const snRows = (state.snippets || [])
-      .map(
-        (sn) => `<article class="rail-snippet">
-          <div class="rail-notebook-name">${escapeHtml(sn.name || "Snippet")}</div>
-          <div class="rail-notebook-actions">
-            <button type="button" class="tiny" data-snippet-run="${sn.id}">Run</button>
+      snips.innerHTML = `<div class="k-side-section">
+          ${snRows || `<p class="k-side-note">${q ? "No snippets match." : "No snippets yet."}</p>`}
+          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="snippets">Manage snippets</button>
+        </div>
+        <div class="k-side-label">Notebooks</div>
+        <div class="k-side-section">
+          ${nbRows || `<p class="k-side-note">${q ? "No notebooks match." : "No notebooks yet."}</p>`}
+          <div class="k-side-actions">
+            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-notebook-new>New notebook</button>
+            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="notebooks">All notebooks</button>
           </div>
-        </article>`
-      )
-      .join("");
-    snips.innerHTML = `<span class="eyebrow">Snippets</span>
-      ${snRows || `<p class="lede">Save commands in the vault. Run still asks before anything is typed.</p>`}`;
+        </div>`;
+    }
+    const fwd = document.getElementById("sidebar-forwards");
+    if (fwd) {
+      const q = state.sidebarQuery.forwards;
+      const hostName = (id) => state.hosts.find((h) => h.id === id)?.name || "";
+      const rows = (state.tunnels || [])
+        .filter((t) => sideMatches(`${t.name} ${hostName(t.hostId)} ${t.destHost || ""}`, q))
+        .map((t) => {
+          const st = V.tunnelState(t);
+          return `<div class="k-side-row">
+            <button type="button" class="k-side-item" data-open-page="forwards" title="${escapeHtml(st.label)}">
+              <span class="k-dot ${st.dot}" aria-hidden="true"></span>
+              <span class="k-side-main"><span class="k-side-name">${escapeHtml(t.name)}</span><span class="k-side-sub">${escapeHtml(V.tunnelRoute(t))}</span></span>
+            </button>
+            <button type="button" class="k-switch" role="switch" aria-checked="${st.on ? "true" : "false"}" aria-label="${escapeHtml(t.name)} on" ${st.on ? `data-tunnel-stop="${escapeHtml(t.id)}"` : `data-tunnel-start="${escapeHtml(t.id)}"`}></button>
+          </div>`;
+        })
+        .join("");
+      fwd.innerHTML = `<div class="k-side-section">
+          ${rows || `<p class="k-side-note">${q ? "No forwards match." : "No forwards yet."}</p>`}
+          <div class="k-side-actions">
+            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-new-tunnel>New forward</button>
+            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="forwards">Manage forwards</button>
+          </div>
+        </div>`;
+    }
+    syncHostLive();
   }
 
-  function applyVaultView(next) {
-    const view = next === "list" ? "list" : "card";
-    document.documentElement.dataset.vaultView = view;
-    document.querySelectorAll("[data-vault-view-btn]").forEach((btn) => {
-      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-vault-view-btn") === view));
+  // syncHostLive puts each host's running session count (and its worst
+  // state) beside it in the sidebar tree.
+  function syncHostLive() {
+    const byHost = new Map();
+    for (const p of state.panes.values()) {
+      if (!isTermPane(p) || !p.runtimeId || !p.hostId || p.remote) continue;
+      const cur = byHost.get(p.hostId) || { n: 0, status: "is-ready" };
+      cur.n += 1;
+      if (p.status === "is-error" || (p.status === "is-connecting" && cur.status !== "is-error")) cur.status = p.status;
+      byHost.set(p.hostId, cur);
+    }
+    document.querySelectorAll("[data-host-live]").forEach((el) => {
+      const live = byHost.get(el.getAttribute("data-host-live"));
+      el.hidden = !live;
+      if (!live) {
+        el.textContent = "";
+        return;
+      }
+      const dot = dotFor(live.status);
+      el.innerHTML = `<span class="k-dot ${dot.cls}" aria-hidden="true"></span>${live.n}`;
+      el.title = `${live.n} ${live.n === 1 ? "session" : "sessions"} · ${dot.label}`;
     });
-  }
-
-  function setVaultView(next) {
-    const view = next === "list" ? "list" : "card";
-    if (view === state.ui.view) return;
-    state.ui.view = view;
-    saveUiPrefs();
-    applyUiPrefs();
   }
 
   function setUiSize(next) {
@@ -504,7 +599,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     logList: document.getElementById("log-list"),
     tabs: document.getElementById("tabs"),
     terminals: document.getElementById("terminals"),
-    vault: document.getElementById("vault"),
+    sidebar: document.getElementById("vault-sidebar"),
+    pages: document.getElementById("pages"),
     barStatus: document.getElementById("bar-status"),
     controlWidget: document.getElementById("control-widget"),
     btnShare: document.getElementById("btn-share"),
@@ -548,7 +644,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       datastar: JSON.stringify({
         query: state.query || "",
         logFilter: state.logFilter || "",
-        groupFocus: state.groupFocus || "",
       }),
     }).toString();
   }
@@ -565,10 +660,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       const next = tpl.content.querySelector("#" + CSS.escape(id));
       if (!next) return false;
       current.innerHTML = next.innerHTML;
-      if (id === "host-list") {
-        syncGroupTree();
-        syncHostSelection();
-      }
+      afterListPaint(id);
       return true;
     } catch {
       return false;
@@ -771,7 +863,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   const groupDepth = (id) => G.groupDepth(state.groups, id);
   const isGroupUnder = (id, ancestorId) => G.isGroupUnder(state.groups, id, ancestorId);
   const nestGroupTreeJS = (query, parentId) => G.nestGroupTree(state.groups, state.hosts, query, parentId);
-  const hostsInCurrentAndSubgroups = (focus, query) => G.hostsInSubtree(state.groups, state.hosts, focus, query);
   const groupOptionEntries = (excludeId) => G.groupOptionEntries(state.groups, excludeId);
   const { parseHostTags, hostSubtitle } = G;
 
@@ -865,7 +956,12 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function persistWorkspace() {
     if (restoringWorkspace || !workspaceReady) return;
     const tabs = [];
+    const pages = [];
     for (const tab of state.tabs.values()) {
+      if (tab.page) {
+        pages.push(tab.page);
+        continue;
+      }
       if (tab.start || tab.remote || !tab.layout) continue;
       const layout = serializeLayoutWith(tab.layout, savedLeaf);
       if (!layout) continue;
@@ -881,17 +977,20 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         layout,
       });
     }
-    const activePane = state.activeId !== VAULT ? focusedPane() : null;
+    // active is a runtime id, "nb:<notebook>", "page:<name>", or "" (a
+    // New tab or nothing).
+    const activeTab = state.tabs.get(state.activeId);
+    const activePane = activeTab && !activeTab.page ? focusedPane() : null;
     const activeTerm = activePane && (activePane.runtimeId ? activePane : termTarget(activePane));
-    let active = VAULT;
-    if (state.activeId !== VAULT) {
-      if (activeTerm?.runtimeId) active = activeTerm.runtimeId;
-      else if (isNotebookPane(activePane) && activePane.notebookId) active = "nb:" + activePane.notebookId;
-    }
+    let active = "";
+    if (activeTab?.page) active = activeTab.id;
+    else if (activeTerm?.runtimeId) active = activeTerm.runtimeId;
+    else if (isNotebookPane(activePane) && activePane.notebookId) active = "nb:" + activePane.notebookId;
     const payload = {
       v: 1,
       active,
       tabs,
+      pages,
     };
     try {
       localStorage.setItem(WORKSPACE_KEY, JSON.stringify(payload));
@@ -988,8 +1087,13 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       for (const info of state.herd) {
         if (info?.id && !findPaneByRuntime(info.id)) attachRuntime(info);
       }
-      if (saved?.active === VAULT) state.activeId = VAULT;
-      else if (typeof saved?.active === "string" && saved.active.startsWith("nb:")) {
+      // Tab pages come back after the sessions, in the order they had.
+      for (const name of Array.isArray(saved?.pages) ? saved.pages : []) {
+        if (PAGES[name]) openPage(name, { activate: false, render: false });
+      }
+      if (typeof saved?.active === "string" && saved.active.startsWith(PAGE_PREFIX)) {
+        if (state.tabs.has(saved.active)) state.activeId = saved.active;
+      } else if (typeof saved?.active === "string" && saved.active.startsWith("nb:")) {
         const nbId = saved.active.slice(3);
         const pane = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === nbId);
         if (pane) {
@@ -1013,23 +1117,25 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
   }
 
+  // Hosts outside any (existing) group sit at the root of the sidebar tree.
+  function looseHosts(query) {
+    const ids = new Set((state.groups || []).map((g) => g.id));
+    return state.hosts.filter((h) => (!h.groupId || !ids.has(h.groupId)) && hostMatches(h, query));
+  }
+
   function renderHosts() {
-    els.hostList.innerHTML = V.hostsHTML({
-      tree: nestGroupTreeJS(state.query, state.groupFocus),
-      hosts: hostsInCurrentAndSubgroups(state.groupFocus, state.query),
-      groups: state.groups,
-      focus: state.groupFocus,
-    });
-    syncGroupTree();
-    syncHostSelection();
+    els.hostList.innerHTML = V.hostsHTML({ tree: nestGroupTreeJS(state.query, ""), loose: looseHosts(state.query) });
+    afterListPaint("host-list");
   }
 
   function renderSnippets() {
     els.snippetList.innerHTML = V.snippetsHTML(state.snippets);
+    afterListPaint("snippet-list");
   }
 
   function renderNotebooks() {
     if (els.notebookList) els.notebookList.innerHTML = V.notebooksHTML(state.notebooks);
+    afterListPaint("notebook-list");
   }
 
   async function paintVaultNotebooks() {
@@ -1038,16 +1144,166 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function renderIdentities() {
-    els.identityList.innerHTML = V.identitiesHTML(state.identities);
+    els.identityList.innerHTML = V.identitiesHTML(state.identities, state.hosts);
+    afterListPaint("identity-list");
   }
 
   function renderTunnels() {
     els.tunnelList.innerHTML = V.tunnelsHTML(state.tunnels, state.hosts);
-    renderStatusBar();
+    afterListPaint("tunnel-list");
   }
 
   function renderLogs() {
-    els.logList.innerHTML = V.logsHTML(state.logs, state.logFilter);
+    els.logList.innerHTML = V.logsHTML(state.logs, state.logFilter, { hosts: state.hosts, tunnels: state.tunnels });
+    afterListPaint("log-list");
+  }
+
+  // afterListPaint re-applies what lives in the page, not in the list
+  // markup: tree collapse, selection, filters and the derived detail.
+  function afterListPaint(id) {
+    if (id === "host-list") {
+      els.hostList?.toggleAttribute("data-filtering", !!String(state.query || "").trim());
+      syncGroupTree();
+      syncHostSelection();
+      syncHostLive();
+    } else if (id === "identity-list") {
+      syncIdentityPage();
+    } else if (id === "snippet-list") {
+      syncSnippetPage();
+    } else if (id === "tunnel-list") {
+      syncTunnelPage();
+      renderStatusBar();
+    } else if (id === "log-list") {
+      syncLogPage();
+    } else if (id === "notebook-list") {
+      applyListFilter("notebook");
+    }
+  }
+
+  const listFilters = { identity: "", snippet: "", tunnel: "", notebook: "" };
+  const LIST_ROWS = {
+    identity: "#identity-list [data-identity-select]",
+    snippet: "#snippet-list [data-snippet-select]",
+    tunnel: "#tunnel-list tr[data-id]",
+    notebook: "#notebook-list [data-filter-text]",
+  };
+
+  // applyListFilter hides a page's rows that do not match its filter box
+  // (and, for forwards, the Running / Stopped chip).
+  function applyListFilter(scope) {
+    const q = String(listFilters[scope] || "").trim().toLowerCase();
+    document.querySelectorAll(LIST_ROWS[scope]).forEach((row) => {
+      let show = !q || String(row.getAttribute("data-filter-text") || "").toLowerCase().includes(q);
+      if (scope === "tunnel" && state.tunnelFilter !== "all") show = show && row.getAttribute("data-status") === state.tunnelFilter;
+      row.hidden = !show;
+    });
+  }
+
+  function syncIdentityPage() {
+    const ids = state.identities || [];
+    if (!ids.some((x) => x.id === state.selectedIdentity)) state.selectedIdentity = ids[0]?.id || "";
+    document.querySelectorAll("#identity-list [data-identity-select]").forEach((el) => {
+      el.setAttribute("aria-selected", String(el.getAttribute("data-identity-select") === state.selectedIdentity));
+    });
+    applyListFilter("identity");
+    const detail = document.getElementById("identity-detail");
+    if (detail) {
+      const id = ids.find((x) => x.id === state.selectedIdentity);
+      detail.innerHTML = V.identityDetailHTML(id, state.hosts);
+    }
+  }
+
+  function selectIdentity(id) {
+    state.selectedIdentity = id || "";
+    syncIdentityPage();
+  }
+
+  function syncSnippetPage() {
+    const list = state.snippets || [];
+    if (!list.some((s) => s.id === state.selectedSnippet)) state.selectedSnippet = list[0]?.id || "";
+    document.querySelectorAll("#snippet-list [data-snippet-select]").forEach((el) => {
+      el.setAttribute("aria-selected", String(el.getAttribute("data-snippet-select") === state.selectedSnippet));
+    });
+    applyListFilter("snippet");
+    const form = document.getElementById("snippet-editor");
+    const empty = document.getElementById("snippet-editor-empty");
+    const sn = list.find((s) => s.id === state.selectedSnippet);
+    if (!form) return;
+    form.hidden = !sn;
+    if (empty) empty.hidden = !!sn;
+    if (!sn) return;
+    if (form.dataset.snippetId !== sn.id || !form.dataset.dirty) {
+      form.dataset.snippetId = sn.id;
+      delete form.dataset.dirty;
+      form.elements.id.value = sn.id;
+      form.elements.name.value = sn.name || "";
+      form.elements.command.value = String(sn.command || "").replace(/\n$/, "");
+    }
+    document.getElementById("snippet-editor-run")?.setAttribute("data-run", sn.id);
+    document.getElementById("snippet-editor-delete")?.setAttribute("data-delete-snippet", sn.id);
+    syncSnippetPreview();
+  }
+
+  function selectSnippet(id) {
+    const form = document.getElementById("snippet-editor");
+    if (form) delete form.dataset.dirty;
+    state.selectedSnippet = id || "";
+    syncSnippetPage();
+  }
+
+  // The preview is exactly what Type into pane sends (after Approve): each
+  // line with its Enter.
+  function syncSnippetPreview() {
+    const form = document.getElementById("snippet-editor");
+    const pre = document.getElementById("snippet-editor-preview");
+    const count = document.getElementById("snippet-editor-count");
+    if (!form || !pre) return;
+    const view = V.snippetPreview(form.elements.command.value);
+    pre.innerHTML = view.html;
+    if (count) count.textContent = view.summary;
+  }
+
+  async function saveSnippetEditor(ev) {
+    ev?.preventDefault?.();
+    const form = document.getElementById("snippet-editor");
+    const id = form?.elements.id.value;
+    if (!form || !id) return;
+    const name = form.elements.name.value.trim();
+    if (!name) {
+      toast("Give the snippet a name", true);
+      form.elements.name.focus();
+      return;
+    }
+    let command = form.elements.command.value;
+    if (!command.endsWith("\n")) command += "\n";
+    await api(`/api/snippets/${id}`, { method: "PUT", body: JSON.stringify({ id, name, command }) });
+    delete form.dataset.dirty;
+    await loadAll();
+    toast("Snippet saved");
+  }
+
+  function syncTunnelPage() {
+    const counts = { all: 0, running: 0, stopped: 0 };
+    for (const t of state.tunnels || []) {
+      counts.all += 1;
+      counts[V.tunnelState(t).filter] += 1;
+    }
+    document.querySelectorAll("[data-tunnel-count]").forEach((el) => {
+      el.textContent = String(counts[el.getAttribute("data-tunnel-count")] ?? "");
+    });
+    document.querySelectorAll("[data-tunnel-filter]").forEach((el) => {
+      el.setAttribute("aria-pressed", String(el.getAttribute("data-tunnel-filter") === state.tunnelFilter));
+    });
+    applyListFilter("tunnel");
+  }
+
+  function syncLogPage() {
+    document.querySelectorAll("[data-log-filter]").forEach((el) => {
+      el.setAttribute("aria-pressed", String(el.getAttribute("data-log-filter") === state.logKind));
+    });
+    document.querySelectorAll("#log-list tr[data-log-kind]").forEach((row) => {
+      row.hidden = state.logKind !== "all" && row.getAttribute("data-log-kind") !== state.logKind;
+    });
   }
 
   function isDriving(pane) {
@@ -1118,6 +1374,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function tabTitle(tab) {
+    if (tab.page) return PAGES[tab.page]?.title || tab.page;
     if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
@@ -1131,6 +1388,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   // Tab label without the pane count (the count renders as a badge).
   function tabName(tab) {
+    if (tab.page) return PAGES[tab.page]?.title || tab.page;
     if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
@@ -1150,8 +1408,21 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return DOT_BY_STATUS[status] || { cls: "k-dot--idle", label: "Idle" };
   }
 
+  // chromeTabs is the tab strip in order: sessions, New tabs and tab
+  // pages. ⌘1…8 and ⌘9 index into it (the Vault is no longer a tab).
   function chromeTabs() {
-    return [VAULT, ...state.tabs.keys()];
+    return [...state.tabs.keys()];
+  }
+
+  // A session tab holds panes (terminals or notebooks); New tabs and tab
+  // pages do not.
+  function isSessionTab(tab) {
+    return !!tab && !tab.start && !tab.page && !!tab.layout;
+  }
+
+  function activeSessionTab() {
+    const tab = state.tabs.get(state.activeId);
+    return isSessionTab(tab) ? tab : null;
   }
 
   let tabDrag = null;
@@ -1173,7 +1444,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function moveTabToIndex(fromId, toIndex) {
-    if (!fromId || fromId === VAULT || !state.tabs.has(fromId)) return false;
+    if (!fromId || !state.tabs.has(fromId)) return false;
     const ids = [...state.tabs.keys()];
     const next = reorderTabIds(ids, fromId, toIndex);
     if (next.length !== ids.length || next.every((id, i) => id === ids[i])) return false;
@@ -1184,7 +1455,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function tabStripInsertIndex(clientX) {
-    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")].filter((el) => el.dataset.tab !== VAULT);
+    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")];
     for (let i = 0; i < buttons.length; i++) {
       const r = buttons[i].getBoundingClientRect();
       if (clientX < r.left + r.width / 2) return i;
@@ -1204,16 +1475,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
     src?.classList.add("is-dragging");
     src?.setAttribute("aria-grabbed", "true");
-    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")].filter((el) => el.dataset.tab !== VAULT);
-    const vault = els.tabs.querySelector(".tab.is-vault");
-    if (!buttons.length) {
-      vault?.classList.add("is-drop-after");
-      return;
-    }
-    if (toIndex <= 0) {
-      vault?.classList.add("is-drop-after");
-      return;
-    }
+    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")];
+    if (!buttons.length) return;
     if (toIndex >= buttons.length) {
       buttons[buttons.length - 1]?.classList.add("is-drop-after");
       return;
@@ -1248,14 +1511,15 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function syncTabContextMenu(id) {
-    const vault = id === VAULT;
+    // Tab pages keep their names: no Rename.
+    const fixed = !!state.tabs.get(id)?.page;
     const ids = [...state.tabs.keys()];
-    const idx = vault ? -1 : ids.indexOf(id);
-    const others = vault ? ids.length : ids.filter((tid) => tid !== id).length;
-    const right = vault ? ids.length : idx < 0 ? 0 : ids.length - idx - 1;
-    setTabMenuItem('[data-tab-action="rename"]', { hidden: vault, disabled: vault });
-    setTabMenuItem('[data-tab-menu-sep="rename"]', { hidden: vault });
-    setTabMenuItem('[data-tab-action="close"]', { hidden: vault, disabled: vault });
+    const idx = ids.indexOf(id);
+    const others = ids.filter((tid) => tid !== id).length;
+    const right = idx < 0 ? 0 : ids.length - idx - 1;
+    setTabMenuItem('[data-tab-action="rename"]', { hidden: fixed, disabled: fixed });
+    setTabMenuItem('[data-tab-menu-sep="rename"]', { hidden: fixed });
+    setTabMenuItem('[data-tab-action="close"]', { disabled: !state.tabs.has(id) });
     setTabMenuItem('[data-tab-action="close-others"]', { disabled: others === 0 });
     setTabMenuItem('[data-tab-action="close-right"]', { disabled: right === 0 });
     setTabMenuItem('[data-tab-action="close-all"]', { disabled: ids.length === 0 });
@@ -1289,7 +1553,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function beginTabRename(id) {
-    if (id === VAULT || !state.tabs.has(id) || tabRenaming) return;
+    if (!state.tabs.has(id) || state.tabs.get(id).page || tabRenaming) return;
     const tab = state.tabs.get(id);
     const btn = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(id)}"]`);
     const label = btn?.querySelector(".tab-label");
@@ -1363,7 +1627,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (action === "close-right") {
       const idx = ids.indexOf(id);
       if (idx >= 0) closeTabs(ids.slice(idx + 1));
-      else if (id === VAULT) closeTabs(ids);
       return;
     }
     if (action === "close-all") closeTabs(ids);
@@ -1541,9 +1804,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       const text = document.getElementById("sb-forwards-text");
       if (text) text.textContent = `${running.length} ${running.length === 1 ? "forward" : "forwards"}`;
     }
-    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
-    const tab = vaultOn ? null : state.tabs.get(state.activeId);
-    const pane = tab && !tab.start ? focusedPane() : null;
+    const tab = activeSessionTab();
+    const pane = tab ? focusedPane() : null;
     const paneEl = document.getElementById("sb-pane");
     const syncEl = document.getElementById("sb-sync");
     const term = pane && isTermPane(pane) ? pane.term : null;
@@ -1571,7 +1833,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     renderControl(pane);
     renderStatusBar();
     if (!isNotebookPane(pane) && !termInputOpen(pane)) {
-      releaseSessionRailFocus();
+      releaseSidebarFocus();
       pane.term?.focus();
     }
     syncSessionSurface();
@@ -1710,7 +1972,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function renderControl(pane) {
     if (!els.controlWidget) return;
     if (isNotebookPane(pane)) pane = termTarget(pane);
-    if (!pane || state.activeId === VAULT) {
+    if (!pane || !activeSessionTab()) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
       return;
@@ -1766,27 +2028,99 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     });
   }
 
-  function setVaultSection(name) {
-    state.vaultSection = name;
-    document.querySelectorAll(".vault-nav").forEach((b) => b.classList.toggle("is-active", b.dataset.vault === name));
-    document.querySelectorAll(".vault-page").forEach((p) => p.classList.toggle("is-active", p.dataset.page === name));
-    els.vault?.classList.toggle("is-settings", name === "settings");
-    if (name === "logs") {
-      loadLogs().catch(() => {});
-      if (!state.logTimer) state.logTimer = setInterval(() => loadLogs().catch(() => {}), 3000);
-    } else if (state.logTimer) {
-      clearInterval(state.logTimer);
-      state.logTimer = null;
+  // openPage opens a tab page (Keychain, Port forwarding, Snippets,
+  // Notebooks, Logs, Settings), or selects it when it is already open: one
+  // instance each. The page's markup moves from #pages into the tab.
+  function openPage(name, opts = {}) {
+    if (!PAGES[name]) return null;
+    const id = pageTabId(name);
+    let tab = state.tabs.get(id);
+    if (!tab) {
+      tab = {
+        id,
+        page: name,
+        title: PAGES[name].title,
+        hostId: "",
+        remote: false,
+        sync: false,
+        layout: null,
+        focusedPaneId: "",
+        zoomedPaneId: "",
+        root: document.createElement("div"),
+      };
+      tab.root.className = "term-tab page-tab";
+      const section = document.getElementById(`page-${name}`);
+      if (section) tab.root.appendChild(section);
+      els.terminals.appendChild(tab.root);
+      state.tabs.set(id, tab);
     }
-    if (name === "settings") {
+    if (opts.activate !== false) state.activeId = id;
+    if (opts.render !== false) renderTabs();
+    return tab;
+  }
+
+  // parkPage puts a closing tab page's markup back in #pages, so the next
+  // open finds it with its state.
+  function parkPage(tab) {
+    const section = tab.root.querySelector(`#page-${CSS.escape(tab.page)}`);
+    if (section && els.pages) els.pages.appendChild(section);
+  }
+
+  function stopLogTimer() {
+    if (!state.logTimer) return;
+    clearInterval(state.logTimer);
+    state.logTimer = null;
+  }
+
+  // syncActivePage runs what a tab page needs while it is the selected tab:
+  // Logs polls keel serve, Settings reads the current preferences.
+  function syncActivePage() {
+    const page = state.tabs.get(state.activeId)?.page || "";
+    if (page === "logs") {
+      if (!state.logTimer) {
+        loadLogs().catch(() => {});
+        state.logTimer = setInterval(() => loadLogs().catch(() => {}), 3000);
+      }
+    } else {
+      stopLogTimer();
+    }
+    if (page === state.shownPage) return;
+    state.shownPage = page;
+    if (page === "settings") {
       syncSettingsForm();
       setSettingsSection(state.settingsSection || "appearance");
+    } else if (page === "keychain") syncIdentityPage();
+    else if (page === "snippets") syncSnippetPage();
+    else if (page === "forwards") syncTunnelPage();
+    else if (page === "logs") syncLogPage();
+  }
+
+  // newItem is ⌘N: the page's own New on Port forwarding, Keychain,
+  // Snippets and Notebooks; New host everywhere else.
+  function newItem() {
+    const page = state.tabs.get(state.activeId)?.page || "";
+    if (page === "forwards") {
+      fillTunnelForm(null);
+      openModal(els.tunnelModal);
+    } else if (page === "keychain") {
+      fillIdentityForm(null);
+      openModal(els.identityModal);
+    } else if (page === "snippets") {
+      openNewSnippet();
+    } else if (page === "notebooks") {
+      newNotebook();
+    } else {
+      fillHostForm(null);
+      openModal(els.hostModal);
     }
   }
 
-  function showVault() {
-    state.activeId = VAULT;
-    renderTabs();
+  function openNewSnippet() {
+    els.snippetForm?.reset();
+    if (els.snippetForm?.id) els.snippetForm.id.value = "";
+    const title = document.getElementById("snippet-modal-title");
+    if (title) title.textContent = "New snippet";
+    openModal(els.snippetModal);
   }
 
   function ensureTabStage(tab) {
@@ -1945,34 +2279,39 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return hugeicon(`<path d="M18 6L6.00081 17.9992M17.9992 18L6 6.00085" />`);
   }
 
-  function vaultGlyph() {
-    return `<span class="tab-icon" aria-hidden="true">${hugeicon(`<path d="M13 2H11C6.75736 2 4.63604 2 3.31802 3.31802C2 4.63604 2 6.75736 2 11C2 15.2426 2 17.364 3.31802 18.682C4.63604 20 6.75736 20 11 20H13C17.2426 20 19.364 20 20.682 18.682C22 17.364 22 15.2426 22 11C22 6.75736 22 4.63604 20.682 3.31802C19.364 2 17.2426 2 13 2Z" /><path d="M17 15C18 14.4692 18 13.6148 18 11.9062V10.0938C18 8.38516 18 7.53082 17 7" /><path d="M18 22V20" /><path d="M6 22V20" /><path d="M9.49983 13C10.6158 13 11.5205 12.1046 11.5205 11C11.5205 9.89543 10.6158 9 9.49983 9M9.49983 13C8.38384 13 7.47914 12.1046 7.47914 11C7.47914 9.89543 8.38384 9 9.49983 9M9.49983 13V15M9.49983 9V7M7.74987 12L5.9999 13M12.9998 9L11.2498 10M11.2499 12L12.9999 13M6 9L7.74997 10" />`)}</span>`;
+  function pageGlyph(tab) {
+    return `<span class="tab-icon" aria-hidden="true">${hugeicon(PAGES[tab.page]?.glyph || "")}</span>`;
   }
 
   function renderTabs() {
-    const ids = [...state.tabs.keys()];
-    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
-    if (vaultOn) state.activeId = VAULT;
-    const chrome = chromeTabs();
-    const activeTab = vaultOn ? null : state.tabs.get(state.activeId);
-    const sessionOn = !vaultOn && activeTab && !activeTab.start;
+    // With no tab left (startup with nothing to restore, or the last one
+    // closed) the window shows a New tab: the Vault is no longer a tab to
+    // fall back to.
+    if (!state.tabs.size && state.booted) createStartTab({ render: false });
+    if (!state.tabs.has(state.activeId)) state.activeId = [...state.tabs.keys()].at(-1) || "";
+    const ids = chromeTabs();
+    const activeTab = state.tabs.get(state.activeId) || null;
+    const sessionOn = isSessionTab(activeTab);
+    if (sessionOn) state.lastSessionTabId = activeTab.id;
 
     const keepScroll = els.tabs.scrollLeft;
     if (!tabRenaming) {
-      els.tabs.innerHTML =
-        `<button type="button" class="tab k-tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
-        ids
+      els.tabs.innerHTML = ids
           .map((id, i) => {
             const tab = state.tabs.get(id);
             const st = tabStatus(tab);
-            const chromeIdx = i + 1;
-            const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
+            // ⌘1…8 select the first eight tabs; ⌘9 the last.
+            const num = i < 8 ? String(i + 1) : i === ids.length - 1 ? "9" : "";
             const closeHint = id === state.activeId ? kbdHint("W") : "";
             const notebookOnly = tabPanes(tab).length > 0 && tabPanes(tab).every(isNotebookPane);
             const dot = dotFor(st);
-            const lead = notebookOnly || tab.start ? tabGlyph(tab) : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
+            const lead = tab.page
+              ? pageGlyph(tab)
+              : notebookOnly || tab.start
+                ? tabGlyph(tab)
+                : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
             const count = tabPanes(tab).length;
-            return `<button type="button" class="tab k-tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
+            return `<button type="button" class="tab k-tab ${tab.page ? "is-page" : ""} ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
             ${lead}
             <span class="tab-label">${escapeHtml(tabName(tab))}</span>
@@ -1994,9 +2333,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
     syncTabOverflow();
 
-    els.vault.classList.toggle("is-active", vaultOn);
     els.terminals.hidden = false;
-    els.terminals.classList.toggle("is-active", !vaultOn);
+    els.terminals.classList.toggle("is-active", !!activeTab);
 
     for (const tab of state.tabs.values()) {
       const split = leafCount(tab.layout) > 1;
@@ -2020,7 +2358,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const pane = sessionOn ? focusedPane() : null;
     const tab = activeTab;
     if (els.barStatus) {
-      if (vaultOn) els.barStatus.textContent = "Vault";
+      if (!tab || tab.page) els.barStatus.textContent = "";
       else if (tab?.start) els.barStatus.textContent = tab.connecting ? "Connecting…" : "New tab";
       else if (!pane) els.barStatus.textContent = "No session";
       else if (isNotebookPane(pane)) els.barStatus.textContent = pane.title || "Notebook";
@@ -2028,16 +2366,18 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       else els.barStatus.textContent = `${pane.subtitle} · following`;
     }
     renderControl(pane);
-    paintSessionRail();
+    syncHostLive();
+    syncActivePage();
     renderStatusBar();
     if (tabDrag?.id) {
       const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
       dragging?.classList.add("is-dragging");
       dragging?.setAttribute("aria-grabbed", "true");
     }
-    if (!vaultOn) {
+    if (tab && !tab.page) {
       requestAnimationFrame(() => {
         if (tab?.start) {
+          if (sidebarFocused()) return;
           const input = tab.root.querySelector(".start-search");
           if (input && document.activeElement !== input) input.focus({ preventScroll: true });
           return;
@@ -2147,8 +2487,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (!idOk) renderIdentities();
     if (!tnOk) renderTunnels();
     refreshStartTabs();
-    if (state.vaultSection === "logs") await loadLogs().catch(() => {});
-    paintSessionRail();
+    if (state.tabs.has(pageTabId("logs"))) await loadLogs().catch(() => {});
+    paintSidebar();
   }
 
   function localHost() {
@@ -2240,7 +2580,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     tab.root.innerHTML = `<div class="start-page"><div class="start-inner">
       <p class="eyebrow">Connect</p>
       <h1>New tab</h1>
-      <div class="search"><input type="search" class="start-search" placeholder="Search hosts" autocomplete="off" /></div>
+      <div class="search"><input type="search" class="start-search" placeholder="Search hosts" aria-label="Find a host to open" autocomplete="off" /></div>
       ${recentHtml}${restHtml}${empty}
       <div class="page-actions">
         <button type="button" class="btn btn-ghost" data-start-quick>Quick connect</button>
@@ -2264,7 +2604,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
   }
 
-  function createStartTab() {
+  function createStartTab(opts = {}) {
     const tab = {
       id: uid("tab"),
       hostId: "",
@@ -2285,6 +2625,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     state.tabs.set(tab.id, tab);
     state.activeId = tab.id;
     paintStartPage(tab);
+    if (opts.render === false) return tab;
     renderTabs();
     tab.root.querySelector(".start-search")?.focus({ preventScroll: true });
     return tab;
@@ -2409,7 +2750,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function ptyWritesBlocked() {
-    return !!(sessionRailFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
+    return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
   }
 
   function paletteCatalog() {
@@ -2445,11 +2786,19 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       keys: `${MOD}>`,
       run: () => runShortcut("next-tab"),
     });
-    add({ id: "vault", group: "Vault", title: "Go to Vault", keys: `${MOD}1`, run: () => showVault() });
+    add({ id: "first-tab", group: "Tabs", title: "First tab", keys: `${MOD}1`, run: () => activateTabIndex(1) });
+    add({ id: "last-tab", group: "Tabs", title: "Last tab", keys: `${MOD}9`, run: () => activateTabIndex(9) });
+    add({
+      id: "toggle-sidebar",
+      group: "Vault",
+      title: "Toggle vault sidebar",
+      keys: `${MOD}B`,
+      run: () => toggleSidebar(),
+    });
     add({
       id: "search-hosts",
       group: "Vault",
-      title: "Search hosts in Vault",
+      title: "Search hosts",
       run: () => runShortcut("search"),
     });
     add({
@@ -2457,7 +2806,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       group: "Vault",
       title: "New host",
       keys: `${MOD}N`,
-      run: () => runShortcut("new-host"),
+      run: () => {
+        fillHostForm(null);
+        openModal(els.hostModal);
+      },
     });
     add({
       id: "quick-connect",
@@ -2467,60 +2819,11 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       run: () => runShortcut("quick-connect"),
     });
     add({ id: "join", group: "Vault", title: "Join session", keys: `${MOD}J`, run: () => runShortcut("join") });
-    add({
-      id: "vault-hosts",
-      group: "Vault",
-      title: "Hosts",
-      run: () => {
-        showVault();
-        setVaultSection("hosts");
-      },
-    });
-    add({
-      id: "vault-keychain",
-      group: "Vault",
-      title: "Keychain",
-      run: () => {
-        showVault();
-        setVaultSection("keychain");
-      },
-    });
-    add({
-      id: "vault-forwards",
-      group: "Vault",
-      title: "Port forwarding",
-      run: () => {
-        showVault();
-        setVaultSection("forwards");
-      },
-    });
-    add({
-      id: "vault-snippets",
-      group: "Vault",
-      title: "Snippets",
-      run: () => {
-        showVault();
-        setVaultSection("snippets");
-      },
-    });
-    add({
-      id: "vault-notebooks",
-      group: "Vault",
-      title: "Notebooks",
-      run: () => {
-        showVault();
-        setVaultSection("notebooks");
-      },
-    });
-    add({
-      id: "vault-logs",
-      group: "Vault",
-      title: "Logs",
-      run: () => {
-        showVault();
-        setVaultSection("logs");
-      },
-    });
+    add({ id: "vault-keychain", group: "Vault", title: "Keychain", run: () => openPage("keychain") });
+    add({ id: "vault-forwards", group: "Vault", title: "Port forwarding", run: () => openPage("forwards") });
+    add({ id: "vault-snippets", group: "Vault", title: "Snippets", run: () => openPage("snippets") });
+    add({ id: "vault-notebooks", group: "Vault", title: "Notebooks", run: () => openPage("notebooks") });
+    add({ id: "vault-logs", group: "Vault", title: "Logs", run: () => openPage("logs") });
     add({ id: "settings", group: "Vault", title: "Settings", keys: `${MOD},`, run: () => runShortcut("settings") });
     add({
       id: "split-right",
@@ -2663,7 +2966,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open || sessionRailFocused() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sidebarFocused() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -2698,6 +3001,12 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   async function paletteRunSnippet(id) {
     const sn = state.snippets.find((s) => s.id === id);
     if (!sn) return;
+    // From a tab page (Snippets), type into the session shown last: select
+    // its tab first so the approval names the pane you can see.
+    if (!activeSessionTab() && state.tabs.has(state.lastSessionTabId)) {
+      state.activeId = state.lastSessionTabId;
+      renderTabs();
+    }
     const pane = termTarget(focusedPane());
     if (!pane) {
       toast("Open a session first");
@@ -2735,28 +3044,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       if (state.openModal) closeModal();
       else closeActivePaneOrTab();
     } else if (name === "reopen-tab") reopenLastTab();
-    else if (name === "search") {
-      if (state.openModal) closeModal();
-      if (state.activeId !== VAULT) {
-        state.activeId = VAULT;
-        setVaultSection("hosts");
-        renderTabs();
-      } else {
-        setVaultSection("hosts");
-      }
-      els.search.focus({ preventScroll: true });
-      els.search.select?.();
-    } else if (name === "new-host") {
-      fillHostForm(null);
-      openModal(els.hostModal);
-    } else if (name === "quick-connect") openModal(els.quickModal);
+    else if (name === "search") revealVault();
+    // ⌘N (and the native New Host item, which sends the same name): the
+    // page's own New on a tab page, New host elsewhere.
+    else if (name === "new-host") newItem();
+    else if (name === "quick-connect") openModal(els.quickModal);
     else if (name === "join") openJoin();
-    else if (name === "settings") {
-      state.activeId = VAULT;
-      setVaultSection("settings");
-      setSettingsSection(state.settingsSection || "appearance");
-      renderTabs();
-    } else if (name === "split-right") splitActive("h");
+    else if (name === "settings") openPage("settings");
+    else if (name === "split-right") splitActive("h");
     else if (name === "split-down") splitActive("v");
     else if (name === "split-notebook") splitNotebook("h");
     else if (name === "focus-pane") {
@@ -2766,7 +3061,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     else if (name === "find-term") {
       const pane = focusedPane();
       if (pane?.search) openFind(pane);
-    } else if (name === "toggle-sidebar") toggleSessionRail();
+    } else if (name === "toggle-sidebar") toggleSidebar();
     else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
@@ -3332,7 +3627,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     pane.ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
-      else if (els.ptyInjectModal?.open || sessionRailFocused() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
+      else if (els.ptyInjectModal?.open || sidebarFocused() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
     });
     let live = !opts.skipSnapshot;
 
@@ -3680,9 +3975,11 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function closeActivePaneOrTab() {
-    if (!state.activeId || state.activeId === VAULT) return;
     const tab = state.tabs.get(state.activeId);
     if (!tab) return;
+    // The lone New tab is what an empty window shows; closing it would only
+    // open another.
+    if (tab.start && state.tabs.size === 1) return;
     const panes = tabPanes(tab);
     if (panes.length > 1) {
       const target =
@@ -3692,7 +3989,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       closePane(target.id);
       return;
     }
-    // The last session tab closes too, like its × button; Vault stays.
+    // The last pane closes its tab, like the tab's ×. When no tab is left
+    // the window shows a New tab (renderTabs).
     closeTab(tab.id);
   }
 
@@ -3719,10 +4017,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function closeTab(id, opts = {}) {
-    if (id === VAULT) return;
     const tab = state.tabs.get(id);
     if (!tab) return;
     if (tabRenaming === id) tabRenaming = null;
+    if (tab.page) parkPage(tab);
     const panes = tabPanes(tab);
     if (tab.hostId) state.lastClosedHostId = tab.hostId;
     else if (panes[0]?.hostId) state.lastClosedHostId = panes[0].hostId;
@@ -3738,7 +4036,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     tab.root.remove();
     state.tabs.delete(id);
     const remain = [...state.tabs.keys()];
-    if (state.activeId === id) state.activeId = remain.at(-1) || VAULT;
+    if (state.activeId === id) state.activeId = remain.at(-1) || "";
     if (!opts.silent) {
       renderTabs();
     }
@@ -3858,7 +4156,7 @@ Write a runbook here.
     const i = state.notebooks.findIndex((n) => n.id === rec.id);
     if (i >= 0) state.notebooks[i] = rec;
     else state.notebooks.unshift(rec);
-    paintSessionRail();
+    paintSidebar();
     paintVaultNotebooks();
   }
 
@@ -3933,7 +4231,7 @@ Write a runbook here.
       const tab = state.tabs.get(pane.tabId);
       if (tab) syncPaneChrome(tab, pane);
       persistWorkspace();
-      paintSessionRail();
+      paintSidebar();
       paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not save notebook", true);
@@ -4041,7 +4339,7 @@ Write a runbook here.
       }
       closeModal(els.notebookRenameModal);
       persistWorkspace();
-      paintSessionRail();
+      paintSidebar();
       paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not rename notebook", true);
@@ -4063,7 +4361,7 @@ Write a runbook here.
           paintNotebook(pane);
         }
       }
-      paintSessionRail();
+      paintSidebar();
       paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not pin notebook", true);
@@ -4079,7 +4377,7 @@ Write a runbook here.
       state.notebooks = (state.notebooks || []).filter((n) => n.id !== id);
       const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
       for (const pane of open) closePane(pane.id);
-      paintSessionRail();
+      paintSidebar();
       paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not delete notebook", true);
@@ -4257,7 +4555,7 @@ Write a runbook here.
 
   function toggleTabSync(tabId) {
     const tab = state.tabs.get(tabId || state.activeId);
-    if (!tab || tab.remote || tab.start) return;
+    if (!isSessionTab(tab) || tab.remote) return;
     tab.sync = !tab.sync;
     renderTabs();
   }
@@ -5097,10 +5395,7 @@ Write a runbook here.
   }
 
   function activateTabIndex(n) {
-    const list = chromeTabs();
-    let idx = n - 1;
-    if (n === 9) idx = list.length - 1;
-    const id = list[idx];
+    const id = tabIndexTarget(chromeTabs(), n);
     if (!id) return;
     state.activeId = id;
     renderTabs();
@@ -5159,6 +5454,10 @@ Write a runbook here.
       }
       state.pendingSession = "";
     }
+    // Only now may an empty strip turn into a New tab: earlier, restore
+    // would have left a stray one beside the sessions it brings back.
+    state.booted = true;
+    renderTabs();
   }
 
   function finishTabPointer(ev) {
@@ -5362,8 +5661,7 @@ Write a runbook here.
       if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
       if (ev.target.closest("[data-close], .tab-rename")) return;
       const tab = ev.target.closest(".tab[data-tab]");
-      if (!tab || tab.dataset.tab === VAULT) return;
-      if (!state.tabs.has(tab.dataset.tab)) return;
+      if (!tab || !state.tabs.has(tab.dataset.tab)) return;
       tabDrag = { id: tab.dataset.tab, startX: ev.clientX, startY: ev.clientY, pointerId: ev.pointerId, moved: false };
     });
     on(els.tabs, "dragstart", (ev) => ev.preventDefault());
@@ -5449,16 +5747,23 @@ Write a runbook here.
     );
 
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
-    on(document.getElementById("btn-session-rail"), "click", () => toggleSessionRail());
-    on(document.getElementById("session-rail"), "focusin", () => syncSessionSurface());
-    on(document.getElementById("session-rail"), "focusout", () => {
+    on(document.getElementById("btn-sidebar"), "click", () => toggleSidebar());
+    on(els.sidebar, "focusin", () => syncSessionSurface());
+    on(els.sidebar, "focusout", () => {
       requestAnimationFrame(() => syncSessionSurface());
     });
-    on(document.getElementById("session-rail"), "click", (ev) => {
-      const railBtn = ev.target.closest("[data-rail-tab]");
-      if (railBtn) {
+    on(els.sidebar, "click", (ev) => {
+      const seg = ev.target.closest("[data-sidebar-seg]");
+      if (seg) {
         ev.preventDefault();
-        setRailTab(railBtn.getAttribute("data-rail-tab"));
+        setSidebarSeg(seg.getAttribute("data-sidebar-seg"));
+        return;
+      }
+      const page = ev.target.closest("[data-open-page]");
+      if (page) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openPage(page.getAttribute("data-open-page"));
         return;
       }
       const openNb = ev.target.closest("[data-notebook-open]");
@@ -5480,6 +5785,14 @@ Write a runbook here.
         ev.preventDefault();
         ev.stopPropagation();
         newNotebook();
+        return;
+      }
+      const newTn = ev.target.closest("[data-new-tunnel]");
+      if (newTn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        fillTunnelForm(null);
+        openModal(els.tunnelModal);
         return;
       }
       const runSn = ev.target.closest("[data-snippet-run]");
@@ -5615,20 +5928,48 @@ Write a runbook here.
       }
     });
 
-    on(document.getElementById("vault-rail"), "click", (ev) => {
-      const btn = ev.target.closest("[data-vault]");
-      if (!btn) return;
-      if (state.activeId !== VAULT) {
-        state.activeId = VAULT;
-        renderTabs();
-      }
-      setVaultSection(btn.dataset.vault);
+    // Tab pages: list filters, the Forwards and Logs chips, Keychain and
+    // Snippets selection, and the snippet editor. The pages move between
+    // #pages and their tabs, so these listeners sit on the pages themselves.
+    document.querySelectorAll("[data-list-filter]").forEach((input) => {
+      on(input, "input", () => {
+        const scope = input.getAttribute("data-list-filter");
+        listFilters[scope] = input.value;
+        applyListFilter(scope);
+      });
     });
-    on(document.querySelector("[data-settings-back]"), "click", () => {
-      const search = document.getElementById("settings-search");
-      if (search) search.value = "";
-      filterSettings("");
-      setVaultSection("hosts");
+    on(document.getElementById("page-forwards"), "click", (ev) => {
+      const chip = ev.target.closest("[data-tunnel-filter]");
+      if (!chip) return;
+      state.tunnelFilter = chip.getAttribute("data-tunnel-filter") || "all";
+      syncTunnelPage();
+    });
+    on(document.getElementById("page-logs"), "click", (ev) => {
+      const chip = ev.target.closest("[data-log-filter]");
+      if (!chip) return;
+      state.logKind = chip.getAttribute("data-log-filter") || "all";
+      syncLogPage();
+    });
+    on(document.getElementById("page-keychain"), "click", (ev) => {
+      const item = ev.target.closest("[data-identity-select]");
+      if (item) selectIdentity(item.getAttribute("data-identity-select"));
+    });
+    on(document.getElementById("page-snippets"), "click", (ev) => {
+      const item = ev.target.closest("[data-snippet-select]");
+      if (item) selectSnippet(item.getAttribute("data-snippet-select"));
+    });
+    const snippetEditor = document.getElementById("snippet-editor");
+    on(snippetEditor, "submit", (ev) => saveSnippetEditor(ev).catch((err) => toast(err.message, true)));
+    on(snippetEditor, "input", () => {
+      snippetEditor.dataset.dirty = "1";
+      syncSnippetPreview();
+    });
+    on(snippetEditor, "keydown", (ev) => {
+      const mod = isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;
+      if (!mod || ev.shiftKey || ev.altKey || String(ev.key).toLowerCase() !== "s") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      snippetEditor.requestSubmit();
     });
     on(document.getElementById("page-settings"), "click", (ev) => {
       const btn = ev.target.closest("[data-settings-section]");
@@ -5677,11 +6018,6 @@ Write a runbook here.
 
   function bindLists() {
     document.body.addEventListener("click", async (ev) => {
-      const viewBtn = ev.target.closest("[data-vault-view-btn]");
-      if (viewBtn) {
-        setVaultView(viewBtn.getAttribute("data-vault-view-btn"));
-        return;
-      }
       if (ev.target.closest("#btn-quick")) {
         openModal(els.quickModal);
         return;
@@ -5694,15 +6030,6 @@ Write a runbook here.
       if (groupToggle) {
         ev.preventDefault();
         toggleGroupNode(groupToggle.getAttribute("data-group-toggle") || groupToggle.closest("[data-group-id]")?.getAttribute("data-group-id"));
-        return;
-      }
-      const groupOpen = ev.target.closest("[data-group-open]");
-      if (groupOpen) {
-        ev.preventDefault();
-        state.groupFocus = groupOpen.getAttribute("data-group-open") || "";
-        paintList("host-list", "/ui/hosts?" + datastarQS()).then((ok) => {
-          if (!ok) renderHosts();
-        });
         return;
       }
       const hostTile = ev.target.closest("[data-drag-host]");
@@ -5739,22 +6066,6 @@ Write a runbook here.
       if (groupDelete) {
         ev.preventDefault();
         deleteGroup(groupDelete.getAttribute("data-group-delete")).catch((err) => toast(err.message, true));
-        return;
-      }
-      const groupFilter = ev.target.closest("[data-group-filter]");
-      if (groupFilter && els.search) {
-        const next = groupFilter.getAttribute("data-group-filter") || "";
-        els.search.value = next;
-        state.query = next;
-        els.search.dispatchEvent(new Event("input", { bubbles: true }));
-        return;
-      }
-      const tagFilter = ev.target.closest("[data-tag-filter]");
-      if (tagFilter && els.search) {
-        const next = tagFilter.getAttribute("data-tag-filter") || "";
-        els.search.value = next;
-        state.query = next;
-        els.search.dispatchEvent(new Event("input", { bubbles: true }));
         return;
       }
       const connect = ev.target.closest("[data-connect]");
@@ -5907,7 +6218,7 @@ Write a runbook here.
       document.querySelectorAll(".group-tree-node.is-drop-target").forEach((el) => el.classList.remove("is-drop-target"));
     };
     document.body.addEventListener("dragstart", (ev) => {
-      if (ev.target.closest("[data-group-menu], [data-group-toggle], [data-group-filter], input, textarea, button")) {
+      if (ev.target.closest("[data-group-menu], [data-group-toggle], input, textarea, button")) {
         if (!ev.target.closest("[data-drag-host], [data-drag-group]")) {
           ev.preventDefault();
           return;
@@ -5981,16 +6292,34 @@ Write a runbook here.
       clearDropTargets();
     });
 
+    // One filter box for the sidebar's segment: Hosts asks keel serve for
+    // the tree, Snippets and Forwards filter what is already loaded.
+    let hostFilterSeq = 0;
     on(els.search, "input", () => {
+      const seg = sidebarSeg();
+      if (seg !== "hosts") {
+        state.sidebarQuery[seg] = els.search.value;
+        paintSidebar();
+        return;
+      }
       state.query = els.search.value;
-      paintList("host-list", "/ui/hosts?" + datastarQS());
+      const seq = ++hostFilterSeq;
+      paintList("host-list", "/ui/hosts?" + datastarQS()).then((ok) => {
+        if (!ok && seq === hostFilterSeq) renderHosts();
+      });
     });
     on(els.search, "keydown", (ev) => {
-      if (ev.key !== "Enter") return;
+      if (ev.key === "Escape" && els.search.value) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        els.search.value = "";
+        els.search.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      if (ev.key !== "Enter" || sidebarSeg() !== "hosts") return;
       ev.preventDefault();
       connectFromSearch();
     });
-    on(document.getElementById("btn-host-connect"), "click", () => connectFromSearch());
     on(document.getElementById("log-filter"), "input", (ev) => {
       state.logFilter = ev.target.value;
       paintList("log-list", "/ui/logs?" + datastarQS());
@@ -6095,12 +6424,15 @@ Write a runbook here.
   syncThemeSwitch();
   applyUiPrefs();
   syncSettingsForm();
-  if (els.search) els.search.placeholder = "Find a host or ssh user@hostname...";
-  const searchKbd = document.getElementById("search-kbd");
-  if (searchKbd) searchKbd.textContent = `${MOD}K`;
   document.getElementById("btn-new-tab")?.setAttribute("title", `New tab  ${MOD}T`);
   document.getElementById("btn-new-tab")?.blur();
-  document.getElementById("btn-session-rail")?.setAttribute("title", `Sidebar  ${MOD}B`);
+  document.getElementById("btn-new-host")?.setAttribute("title", `New host  ${MOD}N`);
+  // Page shortcut hints are written as macOS glyphs in the markup.
+  if (!isMac) {
+    document.querySelectorAll(".k-page .k-kbd").forEach((el) => {
+      el.textContent = el.textContent.replace("⌘", MOD);
+    });
+  }
   toggleAuthFields();
   toggleIdentFields();
   toggleTunnelDest();

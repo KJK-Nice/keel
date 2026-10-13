@@ -5,29 +5,32 @@ that keel serve owns.
 
 ## Sub-features
 
-- Open with `Terminal` on the Hosts page, the Local Shell card, or the
-  palette's `New Local Shell`.
+- Open with `Local Shell` in the Vault sidebar's Hosts tree, `More host
+  actions` › `Local terminal`, or the palette's `New Local Shell`.
 - Type into the terminal; output streams back.
 - Pane toolbar: `Sync input`, `Split right`, `Split down`, `Focus view`,
   `Close tab`. Closing the tab kills the PTY.
 - `New tab` (`+`) opens the host picker (`Recent`, `All`, `Quick connect`,
-  `Join session`).
+  `Join session`). The window opens on one when there is no session to
+  restore, and shows one again when the last tab closes.
 
 ## How to get to it (user POV)
 
-Vault › Hosts › `Terminal`. A tab named `Local Shell` opens and focuses the
-terminal. No account.
+Vault sidebar › Hosts › `Local Shell`. The session fills the New tab (or
+opens a tab named `Local Shell`) and focuses the terminal. No account.
 
 ## Driving it with e2e
 
 `tests/terminal.e2e.ts` pins open, run, and close. Locators:
-`screen.getByRole('button', 'Terminal')`,
+`screen.getByRole('complementary', 'Vault').getByRole('button', /^Local
+Shell\b/)` (tap `Hosts` first if another segment is selected),
 `screen.getByRole('textbox', 'Terminal input')` (focused on open; use
 `pressSequentially` then `press('Enter')`), `getByRole('button', 'Close
-tab')`, the tab as `getByRole('button', /^Local Shell\b/)`. The output is
+tab')`, the tab as `getByRole('button', 'Local Shell', { visible: true
+}).first()`. The output is
 WebGL-painted: assert it with `expect.poll` over `keelApi(app.baseUrl,
 '/api/sessions/<id>/scrollback')`, and look at it with
-`app.screenshot()`. Live walk: tap Terminal, `type` into the Terminal input
+`app.screenshot()`. Live walk: tap Local Shell in the sidebar, `type` into the Terminal input
 node, `press Enter`, `screenshot`.
 
 ## Proof
@@ -40,8 +43,8 @@ output.
 ## Charters
 
 ```
-terminal-tabs|web|skeptic|Starting at the Vault (the app opens there), open three Local Shell tabs, split one right and down, close panes and tabs in different orders; check the tab strip, the focused pane, and that each closed pane is gone
-terminal-input|web|fuzzer|Starting at the Vault (the app opens there), open Terminal and run echo with an empty argument, 300 characters, unicode, and a pasted multi-line string; report output that is lost, garbled, or doubled
+terminal-tabs|web|skeptic|Starting at the Vault sidebar (the app opens with it beside a New tab), open three Local Shell tabs, split one right and down, close panes and tabs in different orders; check the tab strip, the focused pane, and that each closed pane is gone
+terminal-input|web|fuzzer|Starting at the Vault sidebar (the app opens with it beside a New tab), open Local Shell and run echo with an empty argument, 300 characters, unicode, and a pasted multi-line string; report output that is lost, garbled, or doubled
 ```
 
 ## Gotchas

@@ -1,15 +1,12 @@
 package ui
 
 import (
-	"keel/components/button"
-	"keel/components/buttongroup"
 	"keel/components/contextmenu"
 	"keel/components/dropdownmenu"
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/components/kbd"
 	selectcomp "keel/components/select"
-	"keel/components/tooltip"
 	"keel/internal/store"
 )
 
@@ -45,55 +42,6 @@ templ hintKbd(key string) {
 	}
 }
 
-templ vaultToolbar() {
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-			{ children... }
-		</div>
-		@viewModeToggle()
-	</div>
-}
-
-templ viewModeToggle() {
-	@buttongroup.ButtonGroup(buttongroup.Props{
-		Class:      "shrink-0",
-		Attributes: templ.Attributes{"aria-label": "View mode"},
-	}) {
-		@tooltip.Tooltip() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-				Size:    button.SizeIcon,
-				Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{
-					"data-vault-view-btn": "card",
-					"aria-label":          "Card view",
-					"aria-pressed":        "true",
-				}),
-			}) {
-				@icon.GridView()
-			}
-			@tooltip.Content() {
-				Card view
-			}
-		}
-		@tooltip.Tooltip() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-				Size:    button.SizeIcon,
-				Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{
-					"data-vault-view-btn": "list",
-					"aria-label":          "List view",
-					"aria-pressed":        "false",
-				}),
-			}) {
-				@icon.ListView()
-			}
-			@tooltip.Content() {
-				List view
-			}
-		}
-	}
-}
-
 templ emptyBox(id, title, desc string) {
 	@empty.Empty(empty.Props{ID: id}) {
 		@empty.Header() {
@@ -109,14 +57,14 @@ templ emptyBox(id, title, desc string) {
 
 templ hostRowMenu(h store.Host) {
 	@dropdownmenu.DropdownMenu() {
-		@button.Button(button.Props{
-			Variant:    button.VariantGhost,
-			Size:       button.SizeIconXs,
-			Class:      "tiny",
-			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions"}),
-		}) {
-			@icon.EllipsisVertical()
-		}
+		<button
+			type="button"
+			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+			aria-label="Actions"
+			{ dropdownmenu.Trigger(ctx)... }
+		>
+			@icon.MoreHorizontal()
+		</button>
 		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-edit": h.ID}}) {
 				Edit
@@ -139,14 +87,14 @@ templ hostRowMenu(h store.Host) {
 
 templ rowMenu(editKey, editID, delKey, delID string) {
 	@dropdownmenu.DropdownMenu() {
-		@button.Button(button.Props{
-			Variant:    button.VariantGhost,
-			Size:       button.SizeIconXs,
-			Class:      "tiny",
-			Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions"}),
-		}) {
-			@icon.EllipsisVertical()
-		}
+		<button
+			type="button"
+			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+			aria-label="Actions"
+			{ dropdownmenu.Trigger(ctx)... }
+		>
+			@icon.MoreHorizontal()
+		</button>
 		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{editKey: editID}}) {
 				Edit

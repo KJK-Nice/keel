@@ -1,6 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tabCycleDelta, tabCycleTarget } from "../lib/keys.js";
+import { tabCycleDelta, tabCycleTarget, tabIndexTarget } from "../lib/keys.js";
+
+test("Cmd+1…8 select tabs by position from the first session tab, Cmd+9 the last", () => {
+  const strip = ["sess-a", "sess-b", "page:keychain"];
+  assert.equal(tabIndexTarget(strip, 1), "sess-a", "Cmd+1 is the first tab; the Vault is no longer tab 1");
+  assert.equal(tabIndexTarget(strip, 3), "page:keychain");
+  assert.equal(tabIndexTarget(strip, 4), "", "no fourth tab");
+  assert.equal(tabIndexTarget(strip, 9), "page:keychain", "Cmd+9 is the last tab");
+  const many = Array.from({ length: 12 }, (_, i) => `t${i + 1}`);
+  assert.equal(tabIndexTarget(many, 8), "t8");
+  assert.equal(tabIndexTarget(many, 9), "t12");
+  assert.equal(tabIndexTarget([], 1), "");
+  assert.equal(tabIndexTarget(strip, 0), "");
+});
 
 test("tabCycleDelta maps Cmd+< / Cmd+> and Cmd+Shift+[ / ] across layouts", () => {
   const cases = [

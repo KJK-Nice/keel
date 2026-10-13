@@ -14,10 +14,11 @@ Map one when a change touches it.
 
 | Feature | Route | Test | Status |
 | --- | --- | --- | --- |
-| Theme screens (dark, light) | Vault pages, terminal, palette | `tests/visual.e2e.ts` | tested (screenshots, no pixel assertions) |
-| [Hosts](hosts.md) | Vault › Hosts (default) | `tests/hosts.e2e.ts`, `tests/smoke.e2e.ts` | tested |
-| [Local terminal](terminal.md) | Vault › Hosts › `Terminal`, then the session tab | `tests/terminal.e2e.ts` | tested |
+| Theme screens (dark, light) | Vault sidebar, tab pages, terminal, palette | `tests/visual.e2e.ts` | tested (screenshots, no pixel assertions) |
+| Vault sidebar and tab pages | Sidebar (⌘B), footer, segments; ⌘1/⌘9; restore on reload | `tests/sidebar.e2e.ts` | tested |
+| [Hosts](hosts.md) | Vault sidebar › Hosts (default) | `tests/hosts.e2e.ts`, `tests/smoke.e2e.ts` | tested |
+| [Local terminal](terminal.md) | Vault sidebar › Hosts › `Local Shell`, then the session tab | `tests/terminal.e2e.ts` | tested |
 | [Command palette](command-palette.md) | ⌘K anywhere | none | untested |
-| [Keychain](keychain.md) | Vault › Keychain | none | untested |
-| [Snippets](snippets.md) | Vault › Snippets, sidebar Snippets | none | untested |
-| [Notebooks](notebooks.md) | Vault › Notebooks, sidebar Notebooks | none | untested |
+| [Keychain](keychain.md) | Vault sidebar footer › Keychain (tab page) | `tests/sidebar.e2e.ts` (opens, ⌘N) | partly tested |
+| [Snippets](snippets.md) | Vault sidebar › Snippets, Snippets tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |
+| [Notebooks](notebooks.md) | Vault sidebar › Snippets › Notebooks, Notebooks tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |

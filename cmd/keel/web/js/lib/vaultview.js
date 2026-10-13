@@ -1,212 +1,138 @@
-// Vault list markup: hosts and group folders, snippets, notebooks,
-// identities, port forwards and logs. Pure functions from data to HTML
-// strings; term.js puts them in the page and wires the data-* hooks.
+// Vault markup for the sidebar host tree and the tab pages (Keychain, Port
+// forwarding, Snippets, Notebooks, Logs). Pure functions from data to HTML
+// strings with the same k-* classes and data-* hooks as the templ
+// fragments (internal/ui/lists.templ); term.js uses them when a fragment
+// cannot be fetched and for the parts painted from the selection.
 // Every value from the vault goes through escapeHtml.
 
 import { escapeHtml } from "./html.js";
-import { ancestry, hostSubtitle } from "./groups.js";
+import { hostSubtitle } from "./groups.js";
 
-const card = (inner, attrs = "") =>
-  `<div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm"${attrs}>
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">${inner}
-          </div>
-        </div>`;
-const iconBtn = (attr, id, title, label) =>
-  `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" ${attr}="${escapeHtml(id)}" title="${escapeHtml(title)}">${label}</button>`;
-const section = (title, body, cls = "tile-grid") =>
-  `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="${cls}">${body}</div></section>`;
+const svg = (paths) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+const GLYPHS = {
+  chevron: '<path d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9"/>',
+  more: '<path d="M11.992 12H12.001"/><path d="M18 12H18.009"/><path d="M6 12H6.009"/>',
+  server:
+    '<path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/>',
+  local:
+    '<path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/>',
+  key: '<path d="M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z"/><path d="M17.5 6.5L16.5 7.5"/>',
+  password:
+    '<path d="M4 16C4 13.1716 4 11.7574 4.87868 10.8787C5.75736 10 7.17157 10 10 10H14C16.8284 10 18.2426 10 19.1213 10.8787C20 11.7574 20 13.1716 20 16C20 18.8284 20 20.2426 19.1213 21.1213C18.2426 22 16.8284 22 14 22H10C7.17157 22 5.75736 22 4.87868 21.1213C4 20.2426 4 18.8284 4 16Z"/><path d="M8 10V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V10"/><path d="M12 15V17"/>',
+  snippet: '<path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/>',
+  notebook: '<path d="M9.99219 11H13.4922M9.99219 7H16.9922"/><path d="M5.99219 6H2.99219M5.99219 12H2.99219M5.99219 18H2.99219"/><path d="M8.99219 21.9388C7.41097 21.8363 6.39738 21.562 5.66376 20.8284C4.49219 19.6569 4.49219 17.7712 4.49219 14V10C4.49219 6.22877 4.49219 4.34315 5.66376 3.17158C6.83533 2 8.72096 2 12.4922 2H12.9922C16.7634 2 18.649 2 19.8206 3.17157C20.9922 4.34315 20.9922 6.22877 20.9922 10V10.5"/>',
+  alert: '<path d="M5.32171 9.6829C7.73539 5.41196 8.94222 3.27648 10.5983 2.72678C11.5093 2.42437 12.4907 2.42437 13.4017 2.72678C15.0578 3.27648 16.2646 5.41196 18.6783 9.6829C21.092 13.9538 22.2988 16.0893 21.9368 17.8293C21.7376 18.7866 21.2469 19.6548 20.535 20.3097C19.241 21.5 16.8274 21.5 12 21.5C7.17265 21.5 4.75897 21.5 3.46496 20.3097C2.75308 19.6548 2.26239 18.7866 2.06322 17.8293C1.70119 16.0893 2.90803 13.9538 5.32171 9.6829Z"/><path d="M11.992 16H12.001"/><path d="M12 13L12 8.99997"/>',
+};
 
 export function glyphSVG(kind) {
-  if (kind === "folder") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7"/></svg>`;
-  }
-  if (kind === "chevron") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M9 6L15 12L9 18"/></svg>`;
-  }
-  if (kind === "local") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
-  }
-  if (kind === "password") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M16 9H19"/><path d="M16 13H19"/><path d="M4.99806 16.6018C5.28942 15.7247 5.83071 14.9651 6.5472 14.4277C7.26369 13.8904 8.12005 13.6018 8.99806 13.6018C9.87606 13.6018 10.7324 13.8904 11.4489 14.4277C12.1654 14.9651 12.7067 15.7247 12.9981 16.6018"/><path d="M8.94922 11.3984C10.0538 11.3984 10.9492 10.503 10.9492 9.39844C10.9492 8.29387 10.0538 7.39844 8.94922 7.39844C7.84465 7.39844 6.94922 8.29387 6.94922 9.39844C6.94922 10.503 7.84465 11.3984 8.94922 11.3984Z"/><path d="M15 4H9C5.70017 4 4.05025 4 3.02513 5.02513C2 6.05025 2 7.70017 2 11V13C2 16.2998 2 17.9497 3.02513 18.9749C4.05025 20 5.70017 20 9 20H15C18.2998 20 19.9497 20 20.9749 18.9749C22 17.9497 22 16.2998 22 13V11C22 7.70017 22 6.05025 20.9749 5.02513C19.9497 4 18.2998 4 15 4Z"/></svg>`;
-  }
-  if (kind === "key") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z"/><path d="M17.5 6.5L16.5 7.5"/></svg>`;
-  }
-  if (kind === "snippet") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/></svg>`;
-  }
-  if (kind === "notebook") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7h8M8 11h5"/><path d="M6 3h9.5A3.5 3.5 0 0 1 19 6.5V21H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"/><path d="M19 21H7"/></svg>`;
-  }
-  if (kind === "log") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M2 7C2 7.94281 2 8.41421 2.29289 8.70711C2.58579 9 3.05719 9 4 9H6V5C6 3.89543 5.10457 3 4 3C2.89543 3 2 3.89543 2 5V7Z"/><path d="M10 8H15M10 11H13"/><path d="M19 16V7C19 5.11438 19 4.17157 18.4142 3.58579C17.8284 3 16.8856 3 15 3H4"/></svg>`;
-  }
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/></svg>`;
+  return svg(GLYPHS[kind] || GLYPHS.server);
 }
 
-export function tileGlyph(color, kind) {
-  if (kind === "folder") {
-    return `<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">${glyphSVG("folder")}</span>`;
-  }
-  const c = color || "#5ee0b5";
-  const inner = kind === "L" || kind === "R" || kind === "D"
-    ? `<span class="text-xs font-semibold">${kind}</span>`
-    : glyphSVG(kind);
-  return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${inner}</span>`;
+// A plain (no menu library) action trigger and its items, for the fallback
+// lists; the templ fragments use the dropdown menu component instead.
+const actionButtons = (items) =>
+  items
+    .map(
+      ([attr, id, label, danger]) =>
+        `<button type="button" class="k-btn k-btn--ghost k-btn--sm${danger ? " k-btn--danger" : ""}" ${attr}="${escapeHtml(id)}">${escapeHtml(label)}</button>`,
+    )
+    .join("");
+
+export function sideEmptyHTML(title, desc) {
+  return `<div class="k-side-empty" data-slot="empty"><p class="k-side-empty-title">${escapeHtml(title)}</p><p class="k-help">${escapeHtml(desc)}</p></div>`;
 }
 
-export function emptyHTML(title, desc) {
-  return `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">${escapeHtml(title)}</div><div data-slot="empty-description" class="text-muted-foreground text-sm">${escapeHtml(desc)}</div></div>`;
+function hostTile(h) {
+  const style = h.color ? ` style="--host:${escapeHtml(h.color)}"` : "";
+  return `<span class="k-tile k-tile--sm"${style}>${glyphSVG(h.authType === "local" ? "local" : "server")}</span>`;
 }
 
-export function tileSection(title, cards) {
-  return `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="tile-grid">${cards}</div></section>`;
-}
-
-export function hostCardHTML(h) {
-  const kind = h.authType === "local" ? "local" : "ssh";
-  const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
-  return `
-      <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${escapeHtml(h.id)}" draggable="true" data-drag-host="${escapeHtml(h.id)}">
-        <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-          ${tileGlyph(h.color, kind)}
-          <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-connect="${escapeHtml(h.id)}">
-            <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(h.name)}</div>
-            <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-              <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind}</span>
-              ${groupBadge}
-              ${hostTagBadges(h)}
-              <span class="truncate">${escapeHtml(hostSubtitle(h))}</span>
-            </p>
-          </div>
-          <div class="flex items-center gap-1">
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit="${escapeHtml(h.id)}" title="Edit">Edit</button>
-            ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-duplicate="${escapeHtml(h.id)}" title="Duplicate">Duplicate</button>`}
-            ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${escapeHtml(h.id)}" title="Remove">✕</button>`}
-          </div>
-        </div>
-      </div>`;
-}
-
-export function groupFolderHTML(n) {
-  const g = n.group;
-  const kids = n.kids.map(groupFolderHTML).join("");
-  return `
-    <div class="group-tree-node" data-group-id="${escapeHtml(g.id)}" data-group-drop="${escapeHtml(g.id)}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
-      <div class="ring-foreground/10 bg-card text-card-foreground group-tree-heading host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" draggable="true" data-drag-group="${escapeHtml(g.id)}">
-        <div data-slot="card-content" class="flex flex-row items-center gap-2 px-3 py-3">
-          <button type="button" class="group-tree-toggle tiny shrink-0 hover:bg-muted inline-flex size-6 items-center justify-center rounded-md" data-group-toggle="${escapeHtml(g.id)}" aria-label="Expand folder" aria-expanded="true">
-            <span class="group-tree-chevron">${glyphSVG("chevron")}</span>
-          </button>
-          <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-group-filter="${escapeHtml(g.name)}" data-group-open="${escapeHtml(g.id)}">
-            <div class="flex flex-row items-center gap-3">
-              ${tileGlyph("", "folder")}
-              <div class="min-w-0 flex-1">
-                <div data-slot="card-title" class="truncate text-sm font-medium"><span data-group-title="${escapeHtml(g.id)}">${escapeHtml(g.name)}</span></div>
-                <p data-slot="card-description" class="text-muted-foreground text-sm">${n.count === 1 ? "1 Host" : `${n.count} Hosts`}</p>
-              </div>
-            </div>
-          </div>
-          <div data-group-menu="${escapeHtml(g.id)}">
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-edit="${escapeHtml(g.id)}" title="Edit">Edit</button>
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-new="${escapeHtml(g.id)}" title="New subgroup">+</button>
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-rename="${escapeHtml(g.id)}" title="Rename">Rename</button>
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-move="${escapeHtml(g.id)}" title="Move">Move</button>
-            <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-delete="${escapeHtml(g.id)}" title="Remove">✕</button>
-          </div>
-        </div>
-      </div>
-      <div class="group-tree-children">${kids}</div>
+export function treeHostHTML(h) {
+  const id = escapeHtml(h.id);
+  const menu = [["data-edit", h.id, "Edit"]];
+  if (h.authType !== "local") menu.push(["data-duplicate", h.id, "Duplicate"], ["data-delete", h.id, "Remove", true]);
+  return `<div class="k-tree-row k-tree-hostrow" data-id="${id}" draggable="true" data-drag-host="${id}">
+      <button type="button" class="k-tree-host" data-connect="${id}" title="${escapeHtml(hostSubtitle(h))}">
+        ${hostTile(h)}
+        <span class="k-tree-name">${escapeHtml(h.name)}</span>
+        <span class="k-tree-live" data-host-live="${id}" hidden></span>
+      </button>
+      <div class="k-tree-menu k-tree-menu--inline">${actionButtons(menu)}</div>
     </div>`;
 }
 
-export function notebookPreview(nb) {
-  for (const cell of nb?.cells || []) {
-    const line = String(cell.body || "")
-      .split("\n")
-      .map((s) => s.trim())
-      .find(Boolean);
-    if (line) return line;
+export function treeGroupHTML(n) {
+  const g = n.group;
+  const id = escapeHtml(g.id);
+  const children = (n.hosts || []).map(treeHostHTML).join("") + (n.kids || []).map(treeGroupHTML).join("");
+  return `<div class="group-tree-node k-tree-group" data-group-id="${id}" data-group-drop="${id}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
+      <div class="group-tree-heading k-tree-row" draggable="true" data-drag-group="${id}">
+        <button type="button" class="k-tree-grp" data-group-toggle="${id}" aria-expanded="true">
+          <span class="k-tree-chev">${glyphSVG("chevron")}</span>
+          <span class="k-tree-grp-name" data-group-title="${id}">${escapeHtml(g.name)}</span>
+          <span class="k-tree-count">${n.count}</span>
+        </button>
+        <div class="k-tree-menu k-tree-menu--inline" data-group-menu="${id}">${actionButtons([
+          ["data-group-edit", g.id, "Edit"],
+          ["data-group-new", g.id, "New subgroup"],
+          ["data-group-rename", g.id, "Rename"],
+          ["data-group-move", g.id, "Move into…"],
+          ["data-group-delete", g.id, "Remove", true],
+        ])}</div>
+      </div>
+      <div class="group-tree-children">${children}</div>
+    </div>`;
+}
+
+// hostsHTML is the sidebar tree: hosts outside any group, then the groups
+// (from nestGroupTree) with their hosts and subgroups.
+export function hostsHTML({ tree, loose }) {
+  if (!tree.length && !loose.length) return sideEmptyHTML("No hosts match", "Add a host or clear the filter.");
+  return loose.map(treeHostHTML).join("") + tree.map(treeGroupHTML).join("");
+}
+
+const itemHTML = ({ attr, id, glyph, name, sub, badge, filter }) =>
+  `<button type="button" class="k-item" ${attr}="${escapeHtml(id)}" data-filter-text="${escapeHtml(filter)}" aria-selected="false">
+      <span class="k-tile">${glyphSVG(glyph)}</span>
+      <span class="k-item-main"><span class="k-item-name">${escapeHtml(name)}</span><span class="k-item-sub">${escapeHtml(sub)}</span></span>
+      ${badge ? `<span class="k-badge">${escapeHtml(badge)}</span>` : "<span></span>"}
+    </button>`;
+
+export function snippetFirstLine(command) {
+  const lines = String(command || "").trim().split("\n");
+  return lines.length > 1 ? `${lines[0].trim()} …` : lines[0].trim();
+}
+
+export function snippetsHTML(snippets) {
+  if (!snippets?.length) {
+    return sideEmptyHTML("No snippets yet", "Save commands you type often. Typing one always goes through Approve before type.");
   }
-  return "Empty notebook";
-}
-
-export function logColor(kind) {
-  const k = String(kind || "").toLowerCase();
-  if (k === "error" || k === "fail" || k === "denied") return "#ff6b7a";
-  if (k === "session") return "#5ee0b5";
-  if (k === "tunnel") return "#6ea8ff";
-  return "#8a8a8a";
-}
-
-export function logParts(iso) {
-  if (!iso) return { date: "", time: "" };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
-  return {
-    date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
-    time: d.toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-  };
-}
-
-export function hostTagBadges(h) {
-  if (!Array.isArray(h.tags) || !h.tags.length) return "";
-  return h.tags
-    .map(
-      (tag) =>
-        `<span data-slot="badge" class="border-border h-5 cursor-pointer rounded-4xl border px-2 text-xs" data-tag-filter="${escapeHtml(tag)}" title="Filter by ${escapeHtml(tag)}">${escapeHtml(tag)}</span>`
+  return snippets
+    .map((s) =>
+      itemHTML({
+        attr: "data-snippet-select",
+        id: s.id,
+        glyph: "snippet",
+        name: s.name,
+        sub: snippetFirstLine(s.command),
+        filter: `${s.name} ${s.command}`,
+      }),
     )
     .join("");
 }
 
-export function statusColor(status) {
-  if (status === "ready") return "#5ee0b5";
-  if (status === "connecting") return "#f5c15d";
-  if (status === "stopped") return "#8a8a8a";
-  return "#ff6b7a";
-}
-
-// groupFocusPathHTML is the "All / Infra / db" breadcrumb above a
-// focused group; empty with no focus.
-export function groupFocusPathHTML(groups, focus) {
-  if (!focus) return "";
-  const parts = [`<button type="button" class="hover:text-foreground" data-group-open="">All</button>`];
-  for (const g of ancestry(groups, focus).reverse()) {
-    parts.push(`<span aria-hidden="true">/</span><button type="button" class="hover:text-foreground" data-group-open="${escapeHtml(g.id)}">${escapeHtml(g.name)}</button>`);
-  }
-  return `<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">${parts.join("")}</nav>`;
-}
-
-// hostsHTML is the Hosts section: breadcrumb, folder tree (from
-// nestGroupTree) and host cards.
-export function hostsHTML({ tree, hosts, groups, focus }) {
-  if (!tree.length && !hosts.length) return emptyHTML("No hosts match", "Add a server or clear the search.");
-  const html = [groupFocusPathHTML(groups, focus)];
-  if (tree.length) html.push(section("Groups", tree.map(groupFolderHTML).join(""), "group-tree"));
-  if (hosts.length) html.push(section("Hosts", hosts.map(hostCardHTML).join("")));
-  return html.join("");
-}
-
-export function snippetsHTML(snippets) {
-  if (!snippets.length) {
-    return emptyHTML("No snippets yet", "Save commands you type all the time. Click one to send it into the focused pane.");
-  }
-  const cards = snippets.map((s) =>
-    card(
-      `
-            ${tileGlyph("#6ea8ff", "snippet")}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-run="${escapeHtml(s.id)}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.name)}</div>
-              <p data-slot="card-description" class="text-muted-foreground snippet-cmd truncate text-sm">${escapeHtml(String(s.command || "").trim())}</p>
-            </div>
-            <div class="flex items-center gap-1">
-              ${iconBtn("data-edit-snippet", s.id, "Edit", "Edit")}
-              ${iconBtn("data-delete-snippet", s.id, "Remove", "✕")}
-            </div>`,
-      ` data-id="${escapeHtml(s.id)}"`,
-    ),
-  );
-  return tileSection("Snippets", cards.join(""));
+// snippetPreview is the exact bytes a snippet types after Approve: each
+// line and its Enter (shown as ↵), with the line and byte count.
+export function snippetPreview(text) {
+  let body = String(text ?? "");
+  if (body && !body.endsWith("\n")) body += "\n";
+  const lines = body ? body.split("\n").slice(0, -1) : [];
+  const html = lines.map((l) => `${escapeHtml(l)}<span class="k-ctl" aria-label="Enter">↵</span>`).join("");
+  const bytes = new TextEncoder().encode(body).length;
+  const summary = `${lines.length} ${lines.length === 1 ? "line" : "lines"} · ${bytes} ${bytes === 1 ? "byte" : "bytes"}. Typing always goes through Approve before type.`;
+  return { html, summary, bytes, lines: lines.length };
 }
 
 // sortedNotebooks puts pinned notebooks first, then the most recently
@@ -220,115 +146,241 @@ export function sortedNotebooks(notebooks) {
   );
 }
 
+export function notebookPreview(nb) {
+  for (const cell of nb?.cells || []) {
+    const line = String(cell.body || "")
+      .split("\n")
+      .map((s) => s.trim())
+      .find(Boolean);
+    if (line) return line;
+  }
+  return "Empty notebook";
+}
+
 export function notebooksHTML(notebooks) {
   if (!notebooks?.length) {
-    return emptyHTML(
+    return sideEmptyHTML(
       "No notebooks yet",
-      "Write markdown runbooks here. Open a notebook without a session. Fenced sh/bash blocks can fill CLI input — nothing is typed until you confirm.",
+      "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.",
     );
   }
-  const cards = sortedNotebooks(notebooks).map((nb) => {
-    const preview = nb.pinned ? `Pinned · ${notebookPreview(nb)}` : notebookPreview(nb);
-    const pin = nb.pinned ? "Unpin" : "Pin";
-    return card(
-      `
-            ${tileGlyph("#e8b849", "notebook")}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-notebook-open="${escapeHtml(nb.id)}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(nb.name || "Notebook")}</div>
-              <p data-slot="card-description" class="text-muted-foreground notebook-preview truncate text-sm">${escapeHtml(preview)}</p>
-            </div>
-            <div class="flex items-center gap-1">
-              ${iconBtn("data-notebook-rename", nb.id, "Rename", "Rename")}
-              ${iconBtn("data-notebook-pin", nb.id, pin, pin)}
-              ${iconBtn("data-delete-notebook", nb.id, "Remove", "✕")}
-            </div>`,
-      ` data-id="${escapeHtml(nb.id)}"`,
-    );
-  });
-  return tileSection("Notebooks", cards.join(""));
+  return sortedNotebooks(notebooks)
+    .map((nb) => {
+      const id = escapeHtml(nb.id);
+      const pin = nb.pinned ? "Unpin" : "Pin";
+      return `<div class="k-rowitem" data-id="${id}" data-filter-text="${escapeHtml(`${nb.name || ""} ${notebookPreview(nb)}`)}">
+          <button type="button" class="k-rowitem-main" data-notebook-open="${id}">
+            <span class="k-tile">${glyphSVG("notebook")}</span>
+            <span class="k-item-main"><span class="k-item-name">${escapeHtml(nb.name || "Notebook")}</span><span class="k-item-sub">${escapeHtml(notebookPreview(nb))}</span></span>
+          </button>
+          ${nb.pinned ? `<span class="k-badge">Pinned</span>` : ""}
+          ${actionButtons([
+            ["data-notebook-rename", nb.id, "Rename"],
+            ["data-notebook-pin", nb.id, pin],
+            ["data-delete-notebook", nb.id, "Remove", true],
+          ])}
+        </div>`;
+    })
+    .join("");
 }
 
-export function identitiesHTML(identities) {
-  if (!identities.length) return emptyHTML("No identities yet", "Add a password or key and attach it to hosts.");
-  const cards = identities.map((id) => {
-    const kind = id.kind === "key" ? "key" : "password";
-    const label = kind === "key" ? "Private key" : "Auth password";
-    const color = kind === "key" ? "#c084fc" : "#6ea8ff";
-    return card(
-      `
-            ${tileGlyph(color, kind)}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-edit-identity="${escapeHtml(id.id)}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(id.name)}</div>
-              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${escapeHtml(label)}</span>
-                ${id.username ? `<span class="truncate">${escapeHtml(id.username)}</span>` : ""}
-              </p>
-            </div>
-            <div class="flex items-center gap-1">
-              ${iconBtn("data-edit-identity", id.id, "Edit", "Edit")}
-              ${iconBtn("data-delete-identity", id.id, "Remove", "✕")}
-            </div>`,
-      ` data-id="${escapeHtml(id.id)}"`,
-    );
-  });
-  return tileSection("Identities", cards.join(""));
+// identityHosts are the saved hosts that authenticate with identity id.
+export function identityHosts(hosts, id) {
+  return (hosts || []).filter((h) => h.authType === "identity" && h.identityId === id);
 }
 
-const TUNNEL_KINDS = {
-  local: { letter: "L", label: "Local" },
-  remote: { letter: "R", label: "Remote" },
-  dynamic: { letter: "D", label: "Dynamic" },
-};
+function identityKind(id) {
+  return id?.kind === "key" ? "key" : "password";
+}
+
+function identitySubtitle(id, hosts) {
+  const n = identityHosts(hosts, id.id).length;
+  return [identityKind(id) === "key" ? "SSH key" : "Password", id.username || "", `${n} ${n === 1 ? "host" : "hosts"}`].filter(Boolean).join(" · ");
+}
+
+export function identitiesHTML(identities, hosts) {
+  if (!identities?.length) return sideEmptyHTML("No identities yet", "Add an SSH key or a password and attach it to hosts.");
+  const out = [];
+  for (const [kind, label] of [
+    ["key", "SSH keys"],
+    ["password", "Passwords"],
+  ]) {
+    const list = identities.filter((id) => identityKind(id) === kind);
+    if (!list.length) continue;
+    out.push(`<div class="k-split-label">${label}</div>`);
+    for (const id of list) {
+      out.push(
+        itemHTML({
+          attr: "data-identity-select",
+          id: id.id,
+          glyph: kind,
+          name: id.name,
+          sub: identitySubtitle(id, hosts),
+          badge: kind === "key" && id.passphrase ? "passphrase" : "",
+          filter: `${id.name} ${id.username || ""}`,
+        }),
+      );
+    }
+  }
+  return out.join("");
+}
+
+function dateLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+// identityDetailHTML is the Keychain page's detail for the selected
+// identity. It never shows a secret: only whether one is stored. An
+// identity hosts still use cannot be deleted from here.
+export function identityDetailHTML(id, hosts) {
+  if (!id) return `<div class="k-detail-empty"><p class="k-help">Select an identity, or add one with New identity.</p></div>`;
+  const kind = identityKind(id);
+  const used = identityHosts(hosts, id.id);
+  const added = dateLabel(id.createdAt);
+  const secretRow =
+    kind === "key"
+      ? `<dt>Private key</dt><dd>${id.privateKey ? "Encrypted in the vault" : "Not stored"}</dd>
+         <dt>Passphrase</dt><dd>${id.passphrase ? "Stored in the vault" : "None"}</dd>`
+      : `<dt>Password</dt><dd>${id.password ? "Encrypted in the vault" : "Not stored"}</dd>`;
+  const usedBy = used.length
+    ? `<div class="k-chiprow">${used.map((h) => `<span class="k-badge k-badge--mono">${escapeHtml(h.name)}</span>`).join("")}</div>`
+    : `<p class="k-help">No host uses it yet. Pick it in a host's Authentication.</p>`;
+  const inUse = used.length > 0;
+  const hostWord = `${used.length} ${used.length === 1 ? "host" : "hosts"}`;
+  return `<div class="k-detail-head">
+      <span class="k-tile k-tile--lg">${glyphSVG(kind)}</span>
+      <div class="k-detail-title"><h2>${escapeHtml(id.name)}</h2><span class="k-item-sub">${kind === "key" ? "SSH key" : "Password"}${added ? ` · added ${escapeHtml(added)}` : ""}</span></div>
+      <button type="button" class="k-btn" data-edit-identity="${escapeHtml(id.id)}">Edit</button>
+    </div>
+    <div class="k-box">
+      <dl class="k-kv">
+        <dt>Username</dt><dd class="k-mono">${escapeHtml(id.username || "—")}</dd>
+        ${secretRow}
+      </dl>
+    </div>
+    <div class="k-field">
+      <span class="k-label">Used by ${hostWord}</span>
+      ${usedBy}
+    </div>
+    <div class="k-detail-foot">
+      <span class="k-spacer"></span>
+      <button type="button" class="k-btn k-btn--danger k-btn--sm" data-delete-identity="${escapeHtml(id.id)}"${inUse ? ` aria-disabled="true" title="Remove it from ${hostWord} first"` : ""}>Delete identity</button>
+    </div>
+    ${inUse ? `<p class="k-help k-detail-note">Remove it from ${hostWord} before you can delete it.</p>` : ""}`;
+}
+
+const TUNNEL_FLAGS = { local: "-L", remote: "-R", dynamic: "-D" };
+
+export function tunnelListen(t) {
+  return t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
+}
+
+export function tunnelDest(t) {
+  return t.kind === "dynamic" ? "SOCKS5" : `${t.destHost}:${t.destPort}`;
+}
+
+export function tunnelRoute(t) {
+  return `${tunnelListen(t)} → ${tunnelDest(t)}`;
+}
+
+// tunnelState is how a forward reads: a dot and a word, never colour alone.
+export function tunnelState(t) {
+  switch (t?.status) {
+    case "ready":
+      return { label: "Running", dot: "k-dot--live", state: "k-state--live", filter: "running", on: true };
+    case "connecting":
+      return { label: "Connecting", dot: "k-dot--connecting", state: "k-state--connecting", filter: "running", on: true };
+    case "error":
+      return { label: t.error ? `Failed · ${t.error}` : "Failed", dot: "k-dot--dead", state: "k-state--dead", filter: "stopped", on: false };
+    default:
+      return { label: "Stopped", dot: "k-dot--idle", state: "", filter: "stopped", on: false };
+  }
+}
+
+export function tunnelEveryInterface(t) {
+  return ["0.0.0.0", "::", "[::]", "*"].includes(String(t?.bindAddr || "").trim());
+}
 
 export function tunnelsHTML(tunnels, hosts) {
-  if (!tunnels.length) return emptyHTML("No forwards yet", "Local (−L), remote (−R), or dynamic SOCKS5 (−D).");
-  const textBtn = (attr, id, label) =>
-    `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" ${attr}="${escapeHtml(id)}">${label}</button>`;
-  const cards = tunnels.map((t) => {
-    const host = (hosts || []).find((h) => h.id === t.hostId);
-    const dest = t.kind === "dynamic" ? "SOCKS5" : `${t.destHost}:${t.destPort}`;
-    const listen = t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
-    const st = t.status || "stopped";
-    const kind = TUNNEL_KINDS[t.kind] || TUNNEL_KINDS.local;
-    return card(
-      `
-              ${tileGlyph(statusColor(st), kind.letter)}
-              <div class="min-w-0 flex-1">
-                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(t.name)}</div>
-                <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-                  <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind.label}</span>
-                  <span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(st)}</span>
-                  <span class="truncate">${escapeHtml(host?.name || t.hostId)} · ${escapeHtml(listen)} → ${escapeHtml(dest)}</span>
-                  ${t.error ? `<span class="text-destructive truncate">${escapeHtml(t.error)}</span>` : ""}
-                </p>
-              </div>
-              <div class="flex items-center gap-1">
-                ${textBtn("data-tunnel-start", t.id, "Start")}
-                ${textBtn("data-tunnel-stop", t.id, "Stop")}
-                ${iconBtn("data-edit-tunnel", t.id, "Edit", "Edit")}
-                ${iconBtn("data-delete-tunnel", t.id, "Remove", "✕")}
-              </div>`,
-      ` data-id="${escapeHtml(t.id)}"`,
-    );
-  });
-  return tileSection("Port forwarding", cards.join(""));
+  if (!tunnels?.length) {
+    return `<tr class="k-table-empty"><td colspan="7">${sideEmptyHTML("No forwards yet", "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host.")}</td></tr>`;
+  }
+  return tunnels
+    .map((t) => {
+      const host = (hosts || []).find((h) => h.id === t.hostId);
+      const st = tunnelState(t);
+      const id = escapeHtml(t.id);
+      const every = tunnelEveryInterface(t) ? ` <span class="k-badge k-badge--signal">${glyphSVG("alert")}Every interface</span>` : "";
+      const retry = t.status === "error" ? ` <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-tunnel-start="${id}">Retry</button>` : "";
+      const toggle = st.on ? `data-tunnel-stop="${id}"` : `data-tunnel-start="${id}"`;
+      return `<tr data-id="${id}" data-status="${st.filter}" data-filter-text="${escapeHtml(`${t.name} ${host?.name || ""} ${tunnelRoute(t)}`)}">
+          <td><span class="k-cell-name">${escapeHtml(t.name)}</span></td>
+          <td><span class="k-badge k-badge--mono">${TUNNEL_FLAGS[t.kind] || "-L"}</span></td>
+          <td><span class="k-flow">${escapeHtml(tunnelListen(t))}<span class="k-flow-arrow" aria-hidden="true">→</span>${escapeHtml(tunnelDest(t))}</span>${every}</td>
+          <td><span class="k-mono k-muted">${escapeHtml(host?.name || t.hostId || "")}</span></td>
+          <td><span class="k-state ${st.state}"><span class="k-dot ${st.dot}" aria-hidden="true"></span>${escapeHtml(st.label)}</span>${retry}</td>
+          <td class="k-cell-end"><button type="button" class="k-switch" role="switch" aria-checked="${st.on}" aria-label="${escapeHtml(t.name)} on" ${toggle}></button></td>
+          <td class="k-cell-end">${actionButtons([
+            ["data-edit-tunnel", t.id, "Edit"],
+            ["data-delete-tunnel", t.id, "Remove", true],
+          ])}</td>
+        </tr>`;
+    })
+    .join("");
+}
+
+export function logParts(iso) {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+  return {
+    date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+  };
+}
+
+// logGroup is the Logs chip a log kind belongs to.
+export function logGroup(kind) {
+  const k = String(kind || "").toLowerCase();
+  if (k === "session") return "sessions";
+  if (k === "tunnel") return "forwards";
+  if (["vault", "host", "group", "identity", "snippet", "notebook"].includes(k)) return "vault";
+  return "other";
+}
+
+function logTarget(e, ctx) {
+  if (e.tunnelId) {
+    const t = (ctx?.tunnels || []).find((x) => x.id === e.tunnelId);
+    if (t) return t.name;
+  }
+  if (e.hostId) {
+    const h = (ctx?.hosts || []).find((x) => x.id === e.hostId);
+    if (h) return h.name;
+  }
+  return "—";
 }
 
 // logsHTML lists log entries whose kind or message contains filter.
-export function logsHTML(logs, filter) {
+export function logsHTML(logs, filter, ctx) {
   const q = String(filter || "").trim().toLowerCase();
   const rows = (logs || []).filter((e) => !q || `${e.kind} ${e.message}`.toLowerCase().includes(q));
-  if (!rows.length) return emptyHTML("No log entries", "Connection and vault events show up here.");
-  const cards = rows.map((e) => {
-    const { date, time } = logParts(e.time);
-    return card(`
-            ${tileGlyph(logColor(e.kind), "log")}
-            <div class="log-when">
-              <div data-slot="card-title" class="text-sm font-medium">${escapeHtml(date)}</div>
-              <p data-slot="card-description" class="text-muted-foreground text-sm">${escapeHtml(time)}</p>
-            </div>
-            <span data-slot="badge" class="kind bg-secondary text-secondary-foreground h-5 shrink-0 rounded-4xl px-2 text-xs">${escapeHtml(e.kind)}</span>
-            <div class="text-muted-foreground min-w-0 flex-1 truncate text-sm">${escapeHtml(e.message)}</div>`);
-  });
-  return section("Logs", cards.join(""), "flex flex-col gap-2");
+  if (!rows.length) {
+    return `<tr class="k-table-empty"><td colspan="4">${sideEmptyHTML("No log entries", "Sessions, forwards and vault changes show up here.")}</td></tr>`;
+  }
+  return rows
+    .map((e) => {
+      const { date, time } = logParts(e.time);
+      const k = String(e.kind || "").toLowerCase();
+      const flare = k === "error" || k === "fail" || k === "denied" ? " k-badge--flare" : "";
+      return `<tr data-log-kind="${logGroup(e.kind)}">
+          <td><span class="k-mono k-muted" title="${escapeHtml(date)}">${escapeHtml(time)}</span></td>
+          <td><span class="k-badge${flare}">${escapeHtml(e.kind)}</span></td>
+          <td><span class="k-mono k-muted">${escapeHtml(logTarget(e, ctx))}</span></td>
+          <td class="k-cell-wide"><span class="k-cell-msg">${escapeHtml(e.message)}</span></td>
+        </tr>`;
+    })
+    .join("");
 }

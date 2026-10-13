@@ -1,0 +1,117 @@
+package ui
+
+import (
+	"keel/components/dropdownmenu"
+	"keel/components/icon"
+)
+
+// VaultSidebar is the left sidebar on every tab (docs/ui-redesign.md §4):
+// a filter, the Hosts / Snippets / Forwards segments, and Keychain, Logs
+// and Settings in the footer. ⌘B or the titlebar button collapses it.
+// term.js paints the Snippets and Forwards panels and keeps the selected
+// segment in keel-ui.
+templ VaultSidebar(p PageProps) {
+	<aside class="k-sidebar" id="vault-sidebar" aria-label="Vault" tabindex="-1">
+		<div class="k-sidebar-head">
+			<div class="k-sidebar-tools">
+				<div class="k-inputgroup k-sidebar-filter">
+					<span class="k-addon" aria-hidden="true">
+						@icon.Search01()
+					</span>
+					<input
+						id="search"
+						class="k-input"
+						type="search"
+						placeholder="Filter hosts"
+						aria-label="Search hosts"
+						autocomplete="off"
+						spellcheck="false"
+						value={ p.Query }
+					/>
+				</div>
+				<button
+					type="button"
+					class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+					id="btn-new-host"
+					aria-label="New host"
+					title="New host"
+					data-kbd="N"
+				>
+					@icon.Add01()
+					@hintKbd("N")
+				</button>
+				@dropdownmenu.DropdownMenu() {
+					<button
+						type="button"
+						class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+						aria-label="More host actions"
+						title="More host actions"
+						{ dropdownmenu.Trigger(ctx)... }
+					>
+						@icon.MoreHorizontal()
+					</button>
+					@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+						@dropdownmenu.Group() {
+							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-quick"}) {
+								@icon.Login01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								Quick connect
+								@dropdownmenu.Shortcut() {
+									⌘⇧O
+								}
+							}
+							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-join"}) {
+								@icon.Link01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								Join session
+								@dropdownmenu.Shortcut() {
+									⌘J
+								}
+							}
+							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-new-group", Attributes: templ.Attributes{"data-group-new": ""}}) {
+								@icon.Folder01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								New group
+							}
+							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-welcome-local"}) {
+								@icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								Local terminal
+							}
+						}
+					}
+				}
+			</div>
+			<div class="k-seg" role="group" aria-label="Vault section">
+				<button type="button" data-sidebar-seg="hosts" aria-pressed="true">Hosts</button>
+				<button type="button" data-sidebar-seg="snippets" aria-pressed="false">Snippets</button>
+				<button type="button" data-sidebar-seg="forwards" aria-pressed="false">Forwards</button>
+			</div>
+		</div>
+		<div class="k-sidebar-body">
+			<div class="k-sidebar-panel" data-sidebar-panel="hosts">
+				@HostList(p)
+			</div>
+			<div class="k-sidebar-panel" data-sidebar-panel="snippets" id="sidebar-snippets" hidden></div>
+			<div class="k-sidebar-panel" data-sidebar-panel="forwards" id="sidebar-forwards" hidden></div>
+		</div>
+		<div class="k-sidebar-foot">
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-open-page="keychain">
+				@icon.Key01()
+				Keychain
+			</button>
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-open-page="logs">
+				@icon.Logs()
+				Logs
+			</button>
+			<span class="k-spacer"></span>
+			<button
+				type="button"
+				class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+				data-open-page="settings"
+				data-kbd=","
+				aria-label="Settings"
+				title="Settings"
+			>
+				@icon.Settings01()
+				@hintKbd(",")
+			</button>
+		</div>
+	</aside>
+}

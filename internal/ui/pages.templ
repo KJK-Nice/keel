@@ -1,0 +1,361 @@
+package ui
+
+import (
+	"keel/components/aspectratio"
+	"keel/components/icon"
+	"keel/components/slider"
+	switchcomp "keel/components/switch"
+)
+
+// Pages holds the tab pages (docs/ui-redesign.md §4): Keychain, Port
+// forwarding, Snippets, Notebooks, Logs and Settings. Each opens as its
+// own tab, one instance each; term.js moves the page into the tab while it
+// is open and back here when the tab closes.
+templ Pages(p PageProps) {
+	<div class="pages" id="pages" hidden>
+		@KeychainPage(p)
+		@ForwardsPage(p)
+		@SnippetsPage(p)
+		@NotebooksPage(p)
+		@LogsPage(p)
+		@SettingsPage()
+	</div>
+}
+
+templ pageHead(title, desc string) {
+	<div class="k-page-head">
+		<div class="k-page-intro">
+			<h1 class="k-page-title">{ title }</h1>
+			<p class="k-page-desc">{ desc }</p>
+		</div>
+		{ children... }
+	</div>
+}
+
+// newItemButton is a page's primary action; ⌘N runs it while the page is
+// the selected tab.
+templ newItemButton(id, label string) {
+	<button type="button" class="k-btn k-btn--primary" id={ id } data-kbd="N">
+		@icon.Add01()
+		{ label }
+		<kbd class="k-kbd" aria-hidden="true">⌘N</kbd>
+	</button>
+}
+
+templ filterInput(label, scope string) {
+	<div class="k-inputgroup k-filter">
+		<span class="k-addon" aria-hidden="true">
+			@icon.Search01()
+		</span>
+		<input
+			class="k-input"
+			type="search"
+			placeholder={ label }
+			aria-label={ label }
+			autocomplete="off"
+			spellcheck="false"
+			data-list-filter={ scope }
+		/>
+	</div>
+}
+
+templ splitHead(title, buttonID, buttonLabel, filterLabel, scope string) {
+	<div class="k-split-head">
+		<div class="k-split-titlerow">
+			<h1 class="k-split-title">{ title }</h1>
+			<button type="button" class="k-btn k-btn--sm" id={ buttonID } data-kbd="N">
+				@icon.Add01()
+				{ buttonLabel }
+			</button>
+		</div>
+		@filterInput(filterLabel, scope)
+	</div>
+}
+
+templ KeychainPage(p PageProps) {
+	<section class="k-page k-page--split" id="page-keychain" data-page="keychain" aria-label="Keychain">
+		<div class="k-split">
+			<div class="k-split-list">
+				@splitHead("Keychain", "btn-new-identity", "New identity", "Filter identities", "identity")
+				@IdentityList(p)
+			</div>
+			<div class="k-split-detail" id="identity-detail"></div>
+		</div>
+	</section>
+}
+
+templ ForwardsPage(p PageProps) {
+	<section class="k-page" id="page-forwards" data-page="forwards" aria-label="Port forwarding">
+		@pageHead("Port forwarding", "Each forward opens its own SSH connection. It keeps running when you close the window.") {
+			@newItemButton("btn-new-tunnel", "New forward")
+		}
+		<div class="k-toolbar">
+			@filterInput("Filter forwards", "tunnel")
+			<div class="k-chips" role="group" aria-label="Show forwards">
+				<button type="button" class="k-chip" data-tunnel-filter="all" aria-pressed="true">All <span data-tunnel-count="all"></span></button>
+				<button type="button" class="k-chip" data-tunnel-filter="running" aria-pressed="false">Running <span data-tunnel-count="running"></span></button>
+				<button type="button" class="k-chip" data-tunnel-filter="stopped" aria-pressed="false">Stopped <span data-tunnel-count="stopped"></span></button>
+			</div>
+		</div>
+		<table class="k-table">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Type</th>
+					<th>Route</th>
+					<th>Through</th>
+					<th>Status</th>
+					<th class="k-cell-end">On</th>
+					<th class="k-cell-end"><span class="k-sr">Actions</span></th>
+				</tr>
+			</thead>
+			@TunnelList(p)
+		</table>
+	</section>
+}
+
+templ SnippetsPage(p PageProps) {
+	<section class="k-page k-page--split" id="page-snippets" data-page="snippets" aria-label="Snippets">
+		<div class="k-split">
+			<div class="k-split-list">
+				@splitHead("Snippets", "btn-new-snippet", "New snippet", "Filter snippets", "snippet")
+				@SnippetList(p)
+			</div>
+			<div class="k-split-detail">
+				<form class="k-editor" id="snippet-editor" hidden>
+					<input type="hidden" name="id"/>
+					<div class="k-editor-head">
+						<input class="k-input k-editor-title" name="name" aria-label="Snippet name" autocomplete="off" required/>
+						<button type="button" class="k-btn" id="snippet-editor-run" data-run="">Type into pane…</button>
+						<button type="submit" class="k-btn k-btn--primary" id="snippet-editor-save">
+							Save
+							<kbd class="k-kbd" aria-hidden="true">⌘S</kbd>
+						</button>
+					</div>
+					<div class="k-field">
+						<label class="k-label" for="snippet-editor-command">Commands</label>
+						<textarea
+							class="k-textarea k-textarea--mono k-editor-body"
+							id="snippet-editor-command"
+							name="command"
+							rows="6"
+							spellcheck="false"
+							autocomplete="off"
+						></textarea>
+						<span class="k-help">One command per line. Each line ends with Enter when typed.</span>
+					</div>
+					<div class="k-field">
+						<span class="k-label">Preview of what gets typed</span>
+						<pre class="k-bytes" id="snippet-editor-preview"></pre>
+						<span class="k-help" id="snippet-editor-count"></span>
+					</div>
+					<div class="k-editor-foot">
+						<span class="k-spacer"></span>
+						<button type="button" class="k-btn k-btn--danger k-btn--sm" id="snippet-editor-delete" data-delete-snippet="">Delete snippet</button>
+					</div>
+				</form>
+				<div class="k-detail-empty" id="snippet-editor-empty">
+					<p class="k-help">Select a snippet to edit it, or add one with New snippet.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ NotebooksPage(p PageProps) {
+	<section class="k-page" id="page-notebooks" data-page="notebooks" aria-label="Notebooks">
+		@pageHead("Notebooks", "Markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.") {
+			@newItemButton("btn-new-notebook", "New notebook")
+		}
+		<div class="k-toolbar">
+			@filterInput("Filter notebooks", "notebook")
+		</div>
+		@NotebookList(p)
+	</section>
+}
+
+templ LogsPage(p PageProps) {
+	<section class="k-page" id="page-logs" data-page="logs" aria-label="Logs">
+		@pageHead("Logs", "What Keel did on this machine, newest first. Secrets are never written here.") {
+			<button type="button" class="k-btn" id="btn-refresh-logs">Refresh</button>
+		}
+		<div class="k-toolbar">
+			<div class="k-inputgroup k-filter">
+				<span class="k-addon" aria-hidden="true">
+					@icon.Search01()
+				</span>
+				<input
+					id="log-filter"
+					class="k-input"
+					type="search"
+					placeholder="Search events"
+					aria-label="Search events"
+					autocomplete="off"
+					spellcheck="false"
+					value={ p.LogFilter }
+				/>
+			</div>
+			<div class="k-chips" role="group" aria-label="Show events">
+				<button type="button" class="k-chip" data-log-filter="all" aria-pressed="true">All</button>
+				<button type="button" class="k-chip" data-log-filter="sessions" aria-pressed="false">Sessions</button>
+				<button type="button" class="k-chip" data-log-filter="forwards" aria-pressed="false">Forwards</button>
+				<button type="button" class="k-chip" data-log-filter="vault" aria-pressed="false">Vault</button>
+			</div>
+		</div>
+		<table class="k-table k-table--log">
+			<thead>
+				<tr>
+					<th>Time</th>
+					<th>Kind</th>
+					<th>Target</th>
+					<th>Event</th>
+				</tr>
+			</thead>
+			@LogList(p)
+		</table>
+	</section>
+}
+
+templ SettingsPage() {
+	<section class="k-page k-page--settings" id="page-settings" data-page="settings" aria-label="Settings">
+		<nav class="k-rail settings-rail" aria-label="Settings sections">
+			<div class="k-rail-label">Settings</div>
+			<div class="k-inputgroup k-rail-search">
+				<span class="k-addon" aria-hidden="true">
+					@icon.Search01()
+				</span>
+				<input
+					id="settings-search"
+					class="k-input"
+					type="search"
+					placeholder="Search settings"
+					aria-label="Search settings"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+			</div>
+			<div class="settings-nav-list" role="tablist" aria-orientation="vertical">
+				@settingsNav("appearance", "Appearance", true)
+				@settingsNav("terminal", "Terminal", false)
+			</div>
+		</nav>
+		<div class="k-settings-main">
+			<form class="k-settings-form" id="settings-form">
+				<div class="settings-panel is-active" data-settings-panel="appearance" role="tabpanel">
+					<h1 class="k-page-title">Appearance</h1>
+					@settingsGroup("Display") {
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Theme</div>
+								<p class="pref-desc">Light, dark, or follow the system.</p>
+							</div>
+							@settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"})
+						</div>
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">UI size</div>
+								<p class="pref-desc">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p>
+							</div>
+							<div class="pref-slider">
+								@slider.Slider(slider.Props{
+									ID:           "set-ui-size",
+									Min:          11,
+									Max:          16,
+									Step:         1,
+									DefaultValue: []float64{12},
+									Class:        "w-36",
+								})
+								<output id="set-ui-size-out">12</output>
+							</div>
+						</div>
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Font smoothing</div>
+								<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI.</p>
+							</div>
+							@settingsSelect("set-smooth", "smoothing", "Font smoothing", "Smoothing", "antialiased", []string{"antialiased", "subpixel", "none"}, []string{"Antialiased", "Subpixel", "None"})
+						</div>
+					}
+				</div>
+				<div class="settings-panel" data-settings-panel="terminal" role="tabpanel" hidden>
+					<h1 class="k-page-title">Terminal</h1>
+					@settingsGroup("Session") {
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Font</div>
+								<p class="pref-desc">Monospace face used in every pane.</p>
+							</div>
+							@settingsSelect("set-font", "font", "Terminal font", "Font", "jetbrains", []string{"jetbrains", "ibmplex", "menlo", "consolas", "system"}, []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono"})
+						</div>
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Text size</div>
+								<p class="pref-desc">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p>
+							</div>
+							<div class="pref-slider" data-kbd="+">
+								@slider.Slider(slider.Props{
+									ID:           "set-size",
+									Min:          10,
+									Max:          22,
+									Step:         1,
+									DefaultValue: []float64{12},
+									Class:        "w-36",
+								})
+								<output id="set-size-out">12</output>
+								@hintKbd("+ − 0")
+							</div>
+						</div>
+						<div class="pref-row pref-row-preview">
+							@aspectratio.AspectRatio(aspectratio.Props{Ratio: "16/5", Class: "pref-preview overflow-hidden w-full"}) {
+								<pre id="term-preview" class="absolute inset-0 m-0 flex items-center px-3">guest@keel:~ $ ssh prod-api</pre>
+							}
+						</div>
+					}
+					@settingsGroup("Input") {
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Copy on select</div>
+								<p class="pref-desc">Copy terminal selection to the clipboard.</p>
+							</div>
+							@switchcomp.Switch(switchcomp.Props{ID: "set-copy"})
+						</div>
+						<div class="pref-row">
+							<div class="pref-copy">
+								<div class="pref-title">Right-click to paste</div>
+								<p class="pref-desc">Paste clipboard into the focused pane.</p>
+							</div>
+							@switchcomp.Switch(switchcomp.Props{ID: "set-paste"})
+						</div>
+					}
+				</div>
+			</form>
+		</div>
+	</section>
+}
+
+templ settingsNav(id, label string, active bool) {
+	<button
+		type="button"
+		class={ "k-rail-item settings-nav", templ.KV("is-active", active) }
+		data-settings-section={ id }
+		role="tab"
+		if active {
+			aria-selected="true"
+		} else {
+			aria-selected="false"
+		}
+	>
+		{ label }
+	</button>
+}
+
+templ settingsGroup(title string) {
+	<section class="settings-group">
+		if title != "" {
+			<h2 class="settings-group-title">{ title }</h2>
+		}
+		<div class="settings-group-body">
+			{ children... }
+		</div>
+	</section>
+}

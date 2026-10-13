@@ -44,3 +44,5 @@ Compared the canvas design system (`project/ds/keel/`) with the repo on 2026-10-
 | `ds/keel/README.md` | `docs/design/README.md` | byte-identical, no drift |
 
 No token name, token value or component rule differs. The boards do use classes and values outside the shipped set: `kw-*` classes from `workspace.css`, and some inline literals (for example `font: 600 28px/32px`, `width: 26px`, `font-size: 10px`). Treat those as layout detail to re-express with tokens or `k-*` classes when implementing, not as new tokens.
+
+Phase 2 (Vault sidebar and tab pages) added two tokens to the repo, `size-sidebar` (252px, the `kw-side` width in `Main`) and `size-list` (360px, the `kw-split` list column), and updated the product words and fixed-chrome lines in `docs/design/README.md`. The canvas copy predates them.

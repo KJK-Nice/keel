@@ -20,6 +20,14 @@ export function tabCycleDelta(ev) {
   return prev ? -1 : 1;
 }
 
+// tabIndexTarget is the tab id Cmd+n selects in the strip list: Cmd+1…8
+// the nth tab (Cmd+1 is the first session tab: the Vault is the sidebar,
+// not a tab), Cmd+9 the last. "" when there is no such tab.
+export function tabIndexTarget(list, n) {
+  if (!list.length || !Number.isInteger(n) || n < 1 || n > 9) return "";
+  return (n === 9 ? list[list.length - 1] : list[n - 1]) || "";
+}
+
 // tabCycleTarget returns the tab id delta steps from activeId in list,
 // wrapping at both ends. An unknown activeId counts from the first tab.
 export function tabCycleTarget(list, activeId, delta) {

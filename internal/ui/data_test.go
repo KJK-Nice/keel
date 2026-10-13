@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/components/badge"
+	"keel/internal/applog"
 	"keel/internal/store"
 	"keel/internal/tunnel"
 )
@@ -116,42 +116,59 @@ func TestNestGroupTreeParentsAndCounts(t *testing.T) {
 	}
 }
 
-func TestTunnelAndLogBadgeVariants(t *testing.T) {
-	if tunnelBadgeVariant(tunnel.StatusReady) != badge.VariantDefault {
-		t.Fatal("ready tunnel should be default badge")
+// Status is a dot class and a word, never colour alone; failures carry
+// their cause.
+func TestTunnelStateAndLogKinds(t *testing.T) {
+	ready := tunnelState(tunnel.Info{Status: tunnel.StatusReady})
+	if ready.Label != "Running" || ready.DotClass != "k-dot--live" || !ready.On || ready.Filter != "running" {
+		t.Fatalf("ready = %+v", ready)
 	}
-	if tunnelBadgeVariant(tunnel.StatusError) != badge.VariantDestructive {
-		t.Fatal("error tunnel should be destructive badge")
+	failed := tunnelState(tunnel.Info{Status: tunnel.StatusError, Error: "refused"})
+	if failed.Label != "Failed · refused" || failed.DotClass != "k-dot--dead" || failed.On || failed.Filter != "stopped" {
+		t.Fatalf("failed = %+v", failed)
 	}
-	if logBadgeVariant("error") != badge.VariantDestructive {
-		t.Fatal("error log should be destructive badge")
+	if st := tunnelState(tunnel.Info{}); st.Label != "Stopped" || st.On {
+		t.Fatalf("stopped = %+v", st)
 	}
-	if logBadgeVariant("info") != badge.VariantSecondary {
-		t.Fatal("info log should be secondary badge")
+	if !tunnelEveryInterface(tunnel.Info{Tunnel: store.Tunnel{BindAddr: "0.0.0.0"}}) ||
+		tunnelEveryInterface(tunnel.Info{Tunnel: store.Tunnel{BindAddr: "127.0.0.1"}}) {
+		t.Fatal("only a wildcard bind is every interface")
+	}
+	if logBadgeClass("error") != "k-badge--flare" || logBadgeClass("info") != "" {
+		t.Fatal("only failures are flare")
+	}
+	if logGroup("session") != "sessions" || logGroup("tunnel") != "forwards" || logGroup("identity") != "vault" || logGroup("info") != "other" {
+		t.Fatal("log chip groups")
+	}
+	p := PageProps{Hosts: []store.Host{{ID: "h1", Name: "db"}}}
+	if logTarget(p, applog.Entry{HostID: "h1"}) != "db" || logTarget(p, applog.Entry{}) != "—" {
+		t.Fatal("log targets")
 	}
 }
 
 func TestVaultTileLabels(t *testing.T) {
-	if identityKindLabel("key") != "Private key" || identityKindLabel("password") != "Auth password" {
+	if identityKindLabel("key") != "SSH key" || identityKindLabel("password") != "Password" {
 		t.Fatal("identity kind labels")
 	}
-	if identityColor("key") != "#c084fc" || identityColor("password") != "#6ea8ff" {
-		t.Fatal("identity colors")
+	hosts := []store.Host{
+		{ID: "a", AuthType: "identity", IdentityID: "k"},
+		{ID: "b", AuthType: "identity", IdentityID: "k"},
+		{ID: "c", AuthType: "password", IdentityID: "k"},
 	}
-	if tunnelKindLetter("local") != "L" || tunnelKindLetter("remote") != "R" || tunnelKindLetter("dynamic") != "D" {
-		t.Fatal("tunnel kind letters")
+	if identityHostCount(hosts, "k") != 2 {
+		t.Fatal("only hosts that authenticate with the identity use it")
 	}
-	if tunnelKindLabel("dynamic") != "Dynamic" || tunnelKindLabel("remote") != "Remote" {
-		t.Fatal("tunnel kind labels")
+	if got := identitySubtitle(hosts, store.Identity{ID: "k", Kind: "key", Username: "ops"}); got != "SSH key · ops · 2 hosts" {
+		t.Fatalf("subtitle = %q", got)
 	}
-	if tunnelColor(tunnel.StatusReady) != "#5ee0b5" || tunnelColor(tunnel.StatusStopped) != "#8a8a8a" {
-		t.Fatal("tunnel status colors")
+	if tunnelFlag("local") != "-L" || tunnelFlag("remote") != "-R" || tunnelFlag("dynamic") != "-D" {
+		t.Fatal("tunnel flags")
 	}
 	if snippetCommand(store.Snippet{Command: " ls -la\n "}) != "ls -la" {
 		t.Fatal("snippet command trim")
 	}
-	if logColor("error") != "#ff6b7a" || logColor("session") != "#5ee0b5" {
-		t.Fatal("log colors")
+	if snippetFirstLine(store.Snippet{Command: "ls\ndf -h\n"}) != "ls …" {
+		t.Fatal("snippet first line")
 	}
 	ts := time.Date(2026, 8, 31, 15, 32, 8, 0, time.UTC)
 	if logDateLabel(ts) == "" || logTimeLabel(ts) == "" {
@@ -159,5 +176,14 @@ func TestVaultTileLabels(t *testing.T) {
 	}
 	if logDateLabel(time.Time{}) != "" || logTimeLabel(time.Time{}) != "" {
 		t.Fatal("zero log time should be empty")
+	}
+}
+
+func TestUngroupedHostsKeepOrphans(t *testing.T) {
+	groups := []store.Group{{ID: "g", Name: "prod"}}
+	hosts := []store.Host{{ID: "a", GroupID: "g"}, {ID: "b"}, {ID: "c", GroupID: "gone"}}
+	got := ungroupedHosts(hosts, groups, "")
+	if len(got) != 2 || got[0].ID != "b" || got[1].ID != "c" {
+		t.Fatalf("a host whose group is gone sits at the root: %+v", got)
 	}
 }
