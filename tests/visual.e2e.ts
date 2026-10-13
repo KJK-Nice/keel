@@ -104,6 +104,8 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
       await screen.getByRole('button', 'Close tab', { visible: true }).tap();
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+      // Earlier tests leave tab pages open (they restore on load): ask for a New tab.
+      await screen.getByRole('button', 'Toggle vault sidebar').press('Meta+t');
       await app.screenshot(`${theme}-newtab`);
 
       await openLocalShell(screen);
