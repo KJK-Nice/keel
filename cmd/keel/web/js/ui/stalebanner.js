@@ -1,11 +1,11 @@
-// A bar across the top of the window when keel serve is from an older (or
+// A banner under the titlebar of the window when keel serve is from an older (or
 // just different) build than the app: the daemon serves the UI, so the
 // window shows the old version until the runtime restarts.
 
 export function showStaleRuntimeBanner({ doc = document, stopRuntime }) {
   if (doc.querySelector(".stale-runtime")) return;
   const bar = doc.createElement("div");
-  bar.className = "stale-runtime";
+  bar.className = "stale-runtime k-pane-banner k-pane-banner--signal";
   bar.setAttribute("role", "alert");
 
   const text = doc.createElement("p");
@@ -15,7 +15,7 @@ export function showStaleRuntimeBanner({ doc = document, stopRuntime }) {
 
   const stop = doc.createElement("button");
   stop.type = "button";
-  stop.className = "btn btn-primary";
+  stop.className = "k-btn k-btn--primary k-btn--sm";
   stop.textContent = "Stop runtime";
   stop.addEventListener("click", async () => {
     stop.disabled = true;
@@ -30,10 +30,13 @@ export function showStaleRuntimeBanner({ doc = document, stopRuntime }) {
 
   const dismiss = doc.createElement("button");
   dismiss.type = "button";
-  dismiss.className = "btn btn-ghost";
+  dismiss.className = "k-btn k-btn--ghost k-btn--sm";
   dismiss.textContent = "Not now";
   dismiss.addEventListener("click", () => bar.remove());
 
   bar.append(text, stop, dismiss);
-  doc.body.appendChild(bar);
+  // In flow under the titlebar, so it pushes the workspace down.
+  const titlebar = doc.querySelector(".workspace-bar");
+  if (titlebar?.parentNode) titlebar.after(bar);
+  else doc.body.appendChild(bar);
 }
