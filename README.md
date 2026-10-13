@@ -24,6 +24,8 @@ make lint              # gofmt, go vet, staticcheck, govulncheck
 make check-generated   # committed *_templ.go and output.css match the pinned tools
 ```
 
+The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. Logic with no DOM or state lives in `cmd/keel/web/js/lib/*.js` and is tested with `node --test` (`make test-js`, also part of `make test`); move code there as it is untangled from `term.js`.
+
 Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
 
 ```bash

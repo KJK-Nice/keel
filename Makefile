@@ -1,4 +1,4 @@
-.PHONY: app build test signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app build test test-js signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -67,8 +67,12 @@ macos-icon:
 signal:
 	go run ./cmd/keel-signal
 
-test: ui
+test: ui test-js
 	$(GO) test $(GO_TAGS) ./...
+
+# Pure frontend modules (cmd/keel/web/js/lib) with node's built-in runner.
+test-js:
+	node --test 'cmd/keel/web/js/test/*.test.mjs'
 
 # Fails when the committed templ output or output.css differs from what the
 # pinned tools generate.

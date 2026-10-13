@@ -386,7 +386,7 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/vendor/notebook/editor.js\"></script><script src=\"/js/term.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/vendor/notebook/editor.js\"></script><script type=\"module\" src=\"/js/term.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
