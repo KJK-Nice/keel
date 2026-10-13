@@ -14,7 +14,7 @@ make build && ./bin/keel
 make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
-`make build` runs `templ generate` and the Tailwind CLI (`assets/css/globals.css` → `cmd/keel/web/css/output.css`), then compiles the Go app. Both tools are pinned: templ comes from `go.mod` (`go tool templ`), and the Makefile downloads the Tailwind standalone binary at `TAILWIND_VERSION` into `bin/` on first use. Use your own with `make TAILWIND=tailwindcss …`, but a different version rewrites `output.css`.
+`make build` writes `tokens.css` from `docs/design/tokens.json` (the only source of colors, type, radii and sizes), runs `templ generate` and the Tailwind CLI (`assets/css/globals.css` → `cmd/keel/web/css/output.css`), then compiles the Go app. Fonts ship as local woff2 in `cmd/keel/web/fonts/`. Both tools are pinned: templ comes from `go.mod` (`go tool templ`), and the Makefile downloads the Tailwind standalone binary at `TAILWIND_VERSION` into `bin/` on first use. Use your own with `make TAILWIND=tailwindcss …`, but a different version rewrites `output.css`.
 
 Checks (the same ones CI runs on every PR):
 

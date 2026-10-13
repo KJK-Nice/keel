@@ -337,8 +337,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  // The user's choice (system, light, dark) is data-theme-choice; data-theme
+  // is always the resolved dark or light, the only two themes CSS knows.
+  function themeChoice() {
+    return document.documentElement.dataset.themeChoice || "system";
+  }
+
   function resolvedTheme() {
-    const choice = document.documentElement.dataset.theme || "system";
+    const choice = themeChoice();
     if (choice === "light" || choice === "dark") return choice;
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
@@ -404,19 +410,16 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function syncThemeSwitch() {
-    const choice = document.documentElement.dataset.theme || "system";
-    setSelectValue("set-theme", choice);
+    setSelectValue("set-theme", themeChoice());
   }
 
   function applyThemeClass() {
     if (typeof window.__keelApplyTheme === "function") {
-      window.__keelApplyTheme(document.documentElement.dataset.theme || "system");
+      window.__keelApplyTheme(themeChoice());
       return;
     }
-    const choice = document.documentElement.dataset.theme || "system";
-    const dark =
-      choice === "dark" ||
-      (choice === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+    const dark = resolvedTheme() === "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
     document.documentElement.classList.toggle("dark", dark);
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
     document.body?.classList.remove("dark");
@@ -424,7 +427,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function setTheme(choice) {
     if (choice !== "light" && choice !== "dark" && choice !== "system") choice = "system";
-    document.documentElement.dataset.theme = choice;
+    document.documentElement.dataset.themeChoice = choice;
     localStorage.setItem("keel-theme", choice);
     applyThemeClass();
     syncThemeSwitch();
@@ -5160,7 +5163,7 @@ Write a runbook here.
       new ResizeObserver(syncTabOverflow).observe(els.tabs);
     }
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-      if ((document.documentElement.dataset.theme || "system") === "system") {
+      if (themeChoice() === "system") {
         applyThemeClass();
         applyTerminalPrefs();
       }

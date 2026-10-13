@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -2246,7 +2247,7 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("keel.css titlebar tabs must be no-drag so WKWebView delivers right-click")
 	}
 	if !strings.Contains(string(cssBody), `[data-tui-contextmenu-item]:not(:disabled)`) ||
-		!strings.Contains(string(cssBody), "color-mix(in srgb, var(--text) 12%, transparent)") {
+		!strings.Contains(string(cssBody), "color-mix(in srgb, var(--ink) 12%, transparent)") {
 		t.Fatal("context menu items must highlight on hover")
 	}
 	if !strings.Contains(string(cssBody), "min-height: 42px") {
@@ -2311,12 +2312,12 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(cssBody), ".snippet-bar") || strings.Contains(string(body), "active-snippets") {
 		t.Fatal("session snippet footer must be removed")
 	}
-	if !strings.Contains(string(cssBody), "--keel-sidebar") {
-		t.Fatal("keel.css missing prefixed chrome sidebar token")
+	if !strings.Contains(string(cssBody), "var(--chrome)") {
+		t.Fatal("keel.css missing chrome token")
 	}
 	if !strings.Contains(string(cssBody), ".session-rail") ||
 		!strings.Contains(string(cssBody), `html[data-session-rail="open"] .session-rail`) ||
-		!strings.Contains(string(cssBody), "border-left: 1px solid var(--keel-border)") {
+		!strings.Contains(string(cssBody), "border-left: 1px solid var(--line)") {
 		t.Fatal("keel.css must layout a right session rail with vault sidebar tokens")
 	}
 	res2, err := http.Get(srv.URL + "/api/identities")
@@ -2644,11 +2645,10 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), "function renderHerd") {
 		t.Fatal("term.js should not render a Hosts Live list")
 	}
-	if strings.Contains(string(cssBody), "--radius: 6px") {
-		t.Fatal("keel.css must not override nova --radius with 6px")
-	}
-	if !strings.Contains(string(cssBody), "--radius: 0.625rem") {
-		t.Fatal("keel.css must keep nova --radius on shadcn tokens")
+	// shadcn's --radius maps to the radius-md token in globals.css; keel.css
+	// keeps no second radius scale.
+	if strings.Contains(string(cssBody), "--radius:") {
+		t.Fatal("keel.css must not override shadcn --radius")
 	}
 	if !strings.Contains(string(cssBody), `button:not([data-slot])`) {
 		t.Fatal("button reset must skip every shadcn data-slot, including select-trigger")
@@ -2833,7 +2833,7 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	defer cssRes.Body.Close()
 	cssBody, _ := io.ReadAll(cssRes.Body)
 	css := string(cssBody)
-	if !strings.Contains(css, ".cmd-palette") || !strings.Contains(css, "--keel-panel") || !strings.Contains(css, "--keel-sidebar") {
+	if !strings.Contains(css, ".cmd-palette") || !strings.Contains(css, "var(--surface)") || !strings.Contains(css, "var(--chrome)") {
 		t.Fatal("keel.css missing command palette chrome tokens")
 	}
 
@@ -3287,4 +3287,73 @@ func readShortcutsJS(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// Phase 0 of docs/ui-redesign.md: colors come only from the Keel tokens
+// (tokens.css, generated from docs/design/tokens.json), keel.css keeps no
+// palette of its own, and fonts ship locally.
+func TestStylesUseKeelTokensOnly(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
+		return newFakeBridge(), nil
+	})
+	srv := httptest.NewServer(New(st, rt, os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web")), nil).Handler())
+	t.Cleanup(srv.Close)
+	get := func(path string) string {
+		t.Helper()
+		res, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s: %d", path, res.StatusCode)
+		}
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	page := get("/")
+	for _, href := range []string{"/fonts/fonts.css", "/css/tokens.css", "/css/output.css", "/css/keel.css"} {
+		if !strings.Contains(page, `href="`+href+`"`) {
+			t.Errorf("page does not link %s", href)
+		}
+	}
+	if strings.Contains(page, "app.css") {
+		t.Error("page still links app.css")
+	}
+
+	tokens := get("/css/tokens.css")
+	for _, want := range []string{":root,[data-theme=dark]{", "[data-theme=light]{", "--brass:", "--font-sans:"} {
+		if !strings.Contains(tokens, want) {
+			t.Errorf("tokens.css missing %q", want)
+		}
+	}
+
+	keel := get("/css/keel.css")
+	if regexp.MustCompile(`--keel-|var\(--(bg|panel|text|muted|elevated|danger|warn|success|backdrop|border-strong|primary-fg|radius-control)\)`).MatchString(keel) {
+		t.Error("keel.css still uses the old --keel-* palette or its aliases")
+	}
+	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(`).FindString(keel); m != "" {
+		t.Errorf("keel.css declares a color literal %q; use a token", m)
+	}
+
+	fonts := get("/fonts/fonts.css")
+	for _, family := range []string{"IBM Plex Sans", "IBM Plex Sans Condensed", "JetBrains Mono"} {
+		if !strings.Contains(fonts, "font-family: '"+family+"'") {
+			t.Errorf("fonts.css missing %s", family)
+		}
+	}
+	for _, css := range []string{page, keel, fonts, get("/css/output.css")} {
+		if strings.Contains(css, "fonts.googleapis") || strings.Contains(css, "fonts.gstatic") {
+			t.Error("UI loads fonts from the network")
+		}
+	}
+	if get("/fonts/ibm-plex-sans-latin-400-normal.woff2") == "" {
+		t.Error("empty woff2")
+	}
 }

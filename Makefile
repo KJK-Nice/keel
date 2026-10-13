@@ -36,6 +36,7 @@ $(TAILWIND_BIN):
 	mv $@.tmp $@
 
 ui: $(if $(filter $(TAILWIND_BIN),$(TAILWIND)),$(TAILWIND_BIN))
+	go run ./internal/design/tokensgen docs/design/tokens.json docs/design/tokens.css cmd/keel/web/css/tokens.css
 	$(TEMPL) generate
 	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
 

@@ -14,6 +14,7 @@ Map one when a change touches it.
 
 | Feature | Route | Test | Status |
 | --- | --- | --- | --- |
+| Theme screens (dark, light) | Vault pages, terminal, palette | `tests/visual.e2e.ts` | tested (screenshots, no pixel assertions) |
 | [Hosts](hosts.md) | Vault › Hosts (default) | `tests/hosts.e2e.ts`, `tests/smoke.e2e.ts` | tested |
 | [Local terminal](terminal.md) | Vault › Hosts › `Terminal`, then the session tab | `tests/terminal.e2e.ts` | tested |
 | [Command palette](command-palette.md) | ⌘K anywhere | none | untested |

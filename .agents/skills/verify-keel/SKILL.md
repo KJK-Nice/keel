@@ -104,6 +104,13 @@ terminal tests save `host-added` and `terminal-output`). The next run clears
 `.e2e/results/`, Doctor included, so a proof that must outlive it runs with
 `--output .e2e/proof/<name>`.
 
+Visual-only changes (tokens, CSS, fonts): `tests/visual.e2e.ts` saves
+`<theme>-hosts`, `-new-host`, `-snippets`, `-settings`, `-terminal`, and
+`-palette` in dark and light. Run it on the base build with `--output
+.e2e/proof/<name>-before`, then `make build` with the change and run it with
+`--output .e2e/proof/<name>-after`; compare the pairs by name. It sets the
+theme through `localStorage['keel-theme']`, as the Settings select does.
+
 A proof drives the page the way a user does: the Vault section button, the
 labelled field, the Save button, the card's menu, and captures the action
 and the state after it, not only the final screen. Check side effects in
