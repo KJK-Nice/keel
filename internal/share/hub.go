@@ -76,8 +76,12 @@ const (
 // denied. A var so tests can shorten it.
 var admitTimeout = 2 * time.Minute
 
-// ErrNotShared is returned by Admit for a session with no live share.
-var ErrNotShared = errors.New("session is not shared")
+// Admit errors.
+var (
+	ErrNotShared     = errors.New("session is not shared")
+	ErrNotResponding = errors.New("share is not responding")
+	ErrNoRequest     = errors.New("no such join request (it may have expired)")
+)
 
 // DefaultSignal is the compile-time signaling URL. Finder-launched Keel.app
 // has no shell env, so bake it in:
@@ -237,7 +241,7 @@ func (h *Hub) Admit(sessionID, peerID string, allow bool) error {
 	case <-s.ctx.Done():
 		return ErrNotShared
 	case <-time.After(5 * time.Second):
-		return errors.New("share is not responding")
+		return ErrNotResponding
 	}
 	select {
 	case err := <-req.done:
@@ -383,7 +387,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 		case req := <-live.admit:
 			p := resolve(req.peerID, map[bool]string{true: "allowed", false: "denied"}[req.allow])
 			if p == nil {
-				req.done <- errors.New("no such join request (it may have expired)")
+				req.done <- ErrNoRequest
 				continue
 			}
 			req.done <- nil
@@ -395,6 +399,8 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 			pc, err := h.acceptPeer(live, sess, p.name, func(out sigMsg) { signal(peerID, out) })
 			if err != nil {
 				log.Printf("share peer: %v", err)
+				signal(peerID, sigMsg{Kind: "denied"})
+				sess.Announce(runtime.Event{Kind: "join-failed", Peer: peerID, Message: p.name + " could not be connected: " + err.Error()})
 				continue
 			}
 			peers[peerID] = pc
@@ -439,6 +445,12 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 					log.Printf("share peer %s: %v", msg.PeerID, err)
 					p.close()
 					delete(peers, msg.PeerID)
+					signal(msg.PeerID, sigMsg{Kind: "denied"})
+					why := err.Error()
+					if errors.Is(err, errBadMAC) {
+						why = "failed verification (wrong link, or the signal server tampered with the connection)"
+					}
+					sess.Announce(runtime.Event{Kind: "join-failed", Peer: msg.PeerID, Message: p.name + " was not connected: " + why})
 				}
 			}
 		}
@@ -448,6 +460,12 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 type peerConn struct {
 	pc     *webrtc.PeerConnection
 	cancel context.CancelFunc
+	name   string
+	// Candidates that arrive before the answer (the joiner starts gathering
+	// as soon as it sets its local description) wait here: pion rejects a
+	// candidate with no remote description.
+	answered bool
+	early    []webrtc.ICECandidateInit
 }
 
 func (p *peerConn) close() {
@@ -466,10 +484,20 @@ var errBadMAC = errors.New("answer failed verification against the share link")
 func (p *peerConn) onSignal(msg sigMsg, secret string) error {
 	switch msg.Kind {
 	case "answer":
+		if p.answered {
+			return nil
+		}
 		if !checkSDPMAC(secret, roleJoin, msg.SDP, msg.Mac) {
 			return errBadMAC
 		}
-		return p.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: msg.SDP})
+		if err := p.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: msg.SDP}); err != nil {
+			return err
+		}
+		p.answered = true
+		for _, c := range p.early {
+			_ = p.pc.AddICECandidate(c)
+		}
+		p.early = nil
 	case "ice":
 		var mid *string
 		if msg.SDPMid != "" {
@@ -481,11 +509,14 @@ func (p *peerConn) onSignal(msg sigMsg, secret string) error {
 			v := uint16(*msg.SDPLine)
 			line = &v
 		}
-		_ = p.pc.AddICECandidate(webrtc.ICECandidateInit{
-			Candidate:     msg.Candidate,
-			SDPMid:        mid,
-			SDPMLineIndex: line,
-		})
+		c := webrtc.ICECandidateInit{Candidate: msg.Candidate, SDPMid: mid, SDPMLineIndex: line}
+		if !p.answered {
+			if len(p.early) < 64 {
+				p.early = append(p.early, c)
+			}
+			return nil
+		}
+		_ = p.pc.AddICECandidate(c)
 	}
 	return nil
 }
@@ -498,8 +529,14 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &peerConn{pc: pc, cancel: cancel}
+	p := &peerConn{pc: pc, cancel: cancel, name: name}
 
+	// pion starts gathering in SetLocalDescription, so a candidate can be
+	// ready before the offer is sent; hold candidates until it is, or the
+	// joiner gets them with no remote description and drops them.
+	var iceMu sync.Mutex
+	offered := false
+	var held []sigMsg
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
@@ -512,6 +549,12 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 		if init.SDPMLineIndex != nil {
 			v := int(*init.SDPMLineIndex)
 			msg.SDPLine = &v
+		}
+		iceMu.Lock()
+		defer iceMu.Unlock()
+		if !offered {
+			held = append(held, msg)
+			return
 		}
 		send(msg)
 	})
@@ -537,7 +580,14 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 		p.close()
 		return nil, err
 	}
+	iceMu.Lock()
 	send(sigMsg{Kind: "offer", SDP: offer.SDP, Mac: sdpMAC(live.secret, roleHost, offer.SDP)})
+	offered = true
+	for _, m := range held {
+		send(m)
+	}
+	held = nil
+	iceMu.Unlock()
 	return p, nil
 }
 

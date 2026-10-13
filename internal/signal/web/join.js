@@ -1,4 +1,4 @@
-import { answerOffer } from "/sharemac.js";
+import { answerOffer, createIceQueue } from "/sharemac.js";
 
 // Loaded as a module, so top-level return isn't allowed: everything runs in main().
 main();
@@ -152,7 +152,10 @@ function main() {
     dc.send(new TextEncoder().encode(data));
   });
 
+  const ice = createIceQueue(pc);
+  let failed = false;
   function fail(text) {
+    failed = true;
     setStatus(text);
     term.writeln(`\r\n\x1b[38;2;248;113;113m${text}\x1b[0m`);
     pc.close();
@@ -186,27 +189,19 @@ function main() {
     }
     if (msg.kind === "offer" && msg.sdp) {
       try {
-        sendSignal(await answerOffer(pc, key, msg));
+        sendSignal(await answerOffer(pc, key, msg, ice));
       } catch (err) {
         fail(err.message);
         return;
       }
     }
     if (msg.kind === "ice" && msg.candidate) {
-      try {
-        await pc.addIceCandidate({
-          candidate: msg.candidate,
-          sdpMid: msg.sdpMid,
-          sdpMLineIndex: msg.sdpMLineIndex,
-        });
-      } catch {
-        /* ignore */
-      }
+      await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
     }
   }
   ws.onerror = () => setStatus("Signaling failed");
   ws.onclose = () => {
-    if (pc.connectionState !== "connected") setStatus("Signaling closed");
+    if (!failed && pc.connectionState !== "connected") setStatus("Signaling closed");
   };
 
   window.addEventListener("resize", () => {

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { answerOffer, checkSdpMac, hmacSha256Hex, sdpFingerprints, sdpMac, sha256 } from "../lib/sharemac.js";
+import { answerOffer, checkSdpMac, createIceQueue, hmacSha256Hex, sdpFingerprints, sdpMac, sha256 } from "../lib/sharemac.js";
 
 const hex = (b) => Buffer.from(b).toString("hex");
 
@@ -88,4 +88,17 @@ test("answerOffer refuses an offer without a matching MAC and never touches the 
     await assert.rejects(answerOffer(pc, secret, offer), /could not be verified/);
     assert.equal(pc.calls.length, 0);
   }
+});
+
+test("createIceQueue holds candidates until answerOffer applies the offer", async () => {
+  const secret = "00112233445566778899aabbccddeeff";
+  const pc = fakePeer("v=0\r\na=fingerprint:sha-256 11:22\r\n");
+  pc.addIceCandidate = async (c) => pc.calls.push(["ice", c]);
+  const ice = createIceQueue(pc);
+  await ice.add({ candidate: "early" });
+  assert.equal(pc.calls.length, 0);
+  await answerOffer(pc, secret, { sdp: sampleSDP, mac: sdpMac(secret, "host", sampleSDP) }, ice);
+  assert.deepEqual(pc.calls.map((c) => c[0]), ["remote", "ice", "local"]);
+  await ice.add({ candidate: "late" });
+  assert.deepEqual(pc.calls.at(-1), ["ice", { candidate: "late" }]);
 });

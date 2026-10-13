@@ -114,6 +114,21 @@ type joiner struct {
 	msgs   chan sigMsg
 	opened chan struct{}
 	got    chan string
+
+	// Candidates from the host can arrive before the offer is applied.
+	iceMu  sync.Mutex
+	remote bool
+	early  []webrtc.ICECandidateInit
+}
+
+func (j *joiner) addICE(c webrtc.ICECandidateInit) {
+	j.iceMu.Lock()
+	defer j.iceMu.Unlock()
+	if !j.remote {
+		j.early = append(j.early, c)
+		return
+	}
+	_ = j.pc.AddICECandidate(c)
 }
 
 func (r *shareRig) join(link string) *joiner {
@@ -187,7 +202,7 @@ func (r *shareRig) join(link string) *joiner {
 					m := msg.SDPMid
 					mid = &m
 				}
-				_ = j.pc.AddICECandidate(webrtc.ICECandidateInit{Candidate: msg.Candidate, SDPMid: mid})
+				j.addICE(webrtc.ICECandidateInit{Candidate: msg.Candidate, SDPMid: mid})
 				continue
 			}
 			j.msgs <- msg
@@ -229,6 +244,13 @@ func (j *joiner) answer(offer sigMsg, mac func(sdp string) string) {
 	if err := j.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: offer.SDP}); err != nil {
 		j.t.Fatal(err)
 	}
+	j.iceMu.Lock()
+	j.remote = true
+	for _, c := range j.early {
+		_ = j.pc.AddICECandidate(c)
+	}
+	j.early = nil
+	j.iceMu.Unlock()
 	ans, err := j.pc.CreateAnswer(nil)
 	if err != nil {
 		j.t.Fatal(err)
@@ -341,10 +363,14 @@ func TestShareRejectsUnverifiedAnswer(t *testing.T) {
 	}
 	wrong := "ffeeddccbbaa99887766554433221100"
 	j.answer(j.next("offer"), func(sdp string) string { return sdpMAC(wrong, roleJoin, sdp) })
+	j.next("denied")
+	if ev := r.event("join-failed"); !strings.Contains(ev.Message, "failed verification") {
+		t.Fatalf("join-failed %+v", ev)
+	}
 	select {
 	case <-j.opened:
 		t.Fatal("datachannel opened for an answer that failed verification")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 }
 

@@ -126,14 +126,44 @@ export function checkSdpMac(secret, role, sdp, mac) {
   return diff === 0;
 }
 
+// createIceQueue holds the host's ICE candidates until the offer has been
+// applied (addIceCandidate fails before there is a remote description);
+// answerOffer flushes it.
+export function createIceQueue(pc) {
+  let ready = false;
+  const early = [];
+  const add = async (c) => {
+    try {
+      await pc.addIceCandidate(c);
+    } catch {
+      /* a bad candidate is not fatal */
+    }
+  };
+  return {
+    async add(c) {
+      if (!ready) {
+        if (early.length < 64) early.push(c);
+        return;
+      }
+      await add(c);
+    },
+    async flush() {
+      ready = true;
+      for (const c of early.splice(0)) await add(c);
+    },
+  };
+}
+
 // answerOffer is the joiner's half of the exchange: it refuses an offer
 // whose MAC doesn't match the link secret (a signal server in the middle),
 // then answers and returns the signal message to send back, MAC included.
-export async function answerOffer(pc, secret, offer) {
+// Pass the createIceQueue the joiner feeds candidates into.
+export async function answerOffer(pc, secret, offer, ice) {
   if (!checkSdpMac(secret, "host", offer?.sdp, offer?.mac)) {
     throw new Error("host could not be verified: the link is wrong or the signal server tampered with the connection");
   }
   await pc.setRemoteDescription({ type: "offer", sdp: offer.sdp });
+  await ice?.flush();
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
   const sdp = pc.localDescription?.sdp || answer.sdp;

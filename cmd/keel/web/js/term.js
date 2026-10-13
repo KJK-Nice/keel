@@ -1,6 +1,6 @@
 import { escapeHtml } from "./lib/html.js";
 import { parseJoinLink } from "./lib/joinlink.js";
-import { answerOffer } from "./lib/sharemac.js";
+import { answerOffer, createIceQueue } from "./lib/sharemac.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
 import { tabCycleTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
@@ -3964,6 +3964,10 @@ import { pinScroll } from "./lib/scrollpin.js";
           joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId });
           return;
         }
+        if (msg.type === "join-failed") {
+          toast(msg.message || "A viewer could not be connected", true);
+          return;
+        }
         if (msg.type === "status") {
           recordFailStatus(pane, msg);
           if (msg.status === "ready") pane.status = "is-ready";
@@ -5546,7 +5550,12 @@ Write a runbook here.
 
   function joinRemote({ origin, room, key }) {
     const runtimeId = `join:${origin}:${room}`;
-    const existing = findPaneByRuntime(runtimeId);
+    let existing = findPaneByRuntime(runtimeId);
+    if (existing?.status === "is-error") {
+      // Denied, failed verification or lost: pasting the link again retries.
+      closeTab(existing.tabId);
+      existing = null;
+    }
     if (existing) {
       state.activeId = existing.tabId;
       renderTabs();
@@ -5687,6 +5696,7 @@ Write a runbook here.
       };
     };
 
+    const ice = createIceQueue(pc);
     const failJoin = (message) => {
       pane.status = "is-error";
       pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${message}\x1b[0m`);
@@ -5723,21 +5733,13 @@ Write a runbook here.
       }
       if (msg.kind === "offer" && msg.sdp) {
         try {
-          sendSignal(await answerOffer(pc, key, msg));
+          sendSignal(await answerOffer(pc, key, msg, ice));
         } catch (err) {
           failJoin(err.message);
         }
       }
       if (msg.kind === "ice" && msg.candidate) {
-        try {
-          await pc.addIceCandidate({
-            candidate: msg.candidate,
-            sdpMid: msg.sdpMid,
-            sdpMLineIndex: msg.sdpMLineIndex,
-          });
-        } catch {
-          /* ignore */
-        }
+        await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
       }
     };
     sigWs.addEventListener("error", () => toast("Signaling failed", true));

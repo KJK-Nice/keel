@@ -331,7 +331,14 @@ func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.share.Admit(r.PathValue("id"), req.PeerID, req.Allow); err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		status := http.StatusConflict // the request expired or was already answered
+		switch {
+		case errors.Is(err, share.ErrNotShared):
+			status = http.StatusNotFound
+		case errors.Is(err, share.ErrNotResponding):
+			status = http.StatusServiceUnavailable
+		}
+		writeError(w, status, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -892,7 +899,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			if ev.Kind == "join-request" || ev.Kind == "join-resolved" {
+			if ev.Kind == "join-request" || ev.Kind == "join-resolved" || ev.Kind == "join-failed" {
 				// From the share hub (Session.Announce): someone asked to
 				// watch, or that request was answered. No session state.
 				_ = ws.writeJSON(map[string]any{"type": ev.Kind, "id": info.ID, "peerId": ev.Peer, "message": ev.Message})

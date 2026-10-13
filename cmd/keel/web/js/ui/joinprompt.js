@@ -45,7 +45,7 @@ export function createJoinPrompts({ doc = document, answer, onError }) {
 
     const note = doc.createElement("p");
     note.className = "join-prompt-note";
-    note.textContent = "They'll see output from when you started sharing. Only allow people you sent the link to.";
+    note.textContent = "The name is whatever they typed. Allow only if you're expecting them; they'll see output from when you started sharing.";
 
     const actions = doc.createElement("div");
     actions.className = "join-prompt-actions";
