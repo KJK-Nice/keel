@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -248,5 +249,69 @@ func TestDynamicTunnelMustBindLoopback(t *testing.T) {
 		DestHost: "127.0.0.1", DestPort: 80,
 	}); err != nil {
 		t.Errorf("local forward on 0.0.0.0 (an explicit LAN share) rejected: %v", err)
+	}
+}
+
+// Stop on a tunnel whose run already ended (here: the listen failed) must
+// clear it; there is no running loop left to do so.
+func TestStopClearsErroredTunnel(t *testing.T) {
+	st, tn := tunnelFixture(t, "remote", "127.0.0.1")
+	d := newFakeDialer()
+	d.listenErr = errors.New("remote port forwarding disabled")
+	rt := New(st, func(store.Host) (Dialer, error) { return d, nil })
+	if _, err := rt.Start(tn.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, rt, tn.ID, StatusError)
+	if err := rt.Stop(tn.ID); err != nil {
+		t.Fatal(err)
+	}
+	if info, _ := rt.Get(tn.ID); info.Status != StatusStopped {
+		t.Fatalf("after Stop: %s %q, want stopped", info.Status, info.Error)
+	}
+}
+
+// slowPinger misses one reply in a row, then answers.
+type slowPinger struct {
+	*fakeDialer
+	calls atomic.Int32
+}
+
+func (p *slowPinger) Ping() error {
+	if p.calls.Add(1)%2 == 1 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
+// One slow reply on a busy link must not drop a healthy connection.
+func TestKeepaliveToleratesOccasionalMiss(t *testing.T) {
+	p := &slowPinger{fakeDialer: newFakeDialer()}
+	ctx, cancel := context.WithTimeout(t.Context(), 400*time.Millisecond)
+	defer cancel()
+	keepalive(ctx, p, 5*time.Millisecond, 10*time.Millisecond)
+	if p.closed.Load() != 0 {
+		t.Fatal("keepalive closed a connection that only missed single replies")
+	}
+	if p.calls.Load() < 4 {
+		t.Fatalf("only %d pings sent", p.calls.Load())
+	}
+}
+
+func TestBracketedBindAddrIsStoredBare(t *testing.T) {
+	st := testStore(t)
+	host, err := st.UpsertHost(store.Host{
+		Name: "box", Address: "10.0.0.9", Port: 22, Username: "u",
+		AuthType: "password", Password: "x", Color: "#6ea8ff",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tn, err := st.UpsertTunnel(store.Tunnel{Name: "s", HostID: host.ID, Kind: "dynamic", BindAddr: "[::1]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tn.BindAddr != "::1" {
+		t.Fatalf("BindAddr %q, want ::1 (brackets would be doubled by JoinHostPort)", tn.BindAddr)
 	}
 }

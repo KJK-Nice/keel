@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -38,7 +39,8 @@ func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 	if s.locked {
 		return Tunnel{}, ErrLocked
 	}
-	tn.BindAddr = strings.TrimSpace(tn.BindAddr)
+	// Brackets would end up doubled by net.JoinHostPort ("[[::1]]:port").
+	tn.BindAddr = strings.Trim(strings.TrimSpace(tn.BindAddr), "[]")
 	if tn.BindAddr == "" {
 		tn.BindAddr = "127.0.0.1"
 	}
@@ -105,8 +107,8 @@ func validateTunnel(tn Tunnel) error {
 	case "dynamic":
 		// The SOCKS5 proxy has no authentication: bound beyond loopback
 		// it would be an open proxy into the remote network.
-		if !isLoopbackAddr(tn.BindAddr) {
-			return fmt.Errorf("a dynamic (SOCKS) tunnel must bind to 127.0.0.1, ::1 or localhost: it has no authentication")
+		if !IsLoopbackAddr(tn.BindAddr) {
+			return ErrOpenSOCKS
 		}
 	default:
 		return fmt.Errorf("kind must be local, remote, or dynamic")
@@ -117,7 +119,12 @@ func validateTunnel(tn Tunnel) error {
 	return nil
 }
 
-func isLoopbackAddr(host string) bool {
+// ErrOpenSOCKS rejects a SOCKS tunnel bound beyond loopback: the proxy has
+// no authentication, so it would be open to the network.
+var ErrOpenSOCKS = errors.New("a dynamic (SOCKS) tunnel must bind to 127.0.0.1, ::1 or localhost: it has no authentication")
+
+// IsLoopbackAddr reports whether a bind address is loopback-only.
+func IsLoopbackAddr(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}

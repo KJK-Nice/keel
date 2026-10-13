@@ -131,6 +131,10 @@ func (r *Runtime) Start(id string) (Info, error) {
 	if host.AuthType == "local" {
 		return Info{}, fmt.Errorf("port forwarding needs an SSH host")
 	}
+	if tn.Kind == "dynamic" && !store.IsLoopbackAddr(tn.BindAddr) {
+		// Tunnels saved before UpsertTunnel checked this.
+		return Info{}, store.ErrOpenSOCKS
+	}
 
 	r.mu.Lock()
 	if lv, ok := r.live[id]; ok && (lv.status == StatusReady || lv.status == StatusConnecting) {
@@ -179,10 +183,8 @@ func (r *Runtime) infoLocked(tn store.Tunnel) Info {
 
 func (r *Runtime) Stop(id string) error {
 	r.mu.Lock()
-	lv, ok := r.live[id]
-	if ok {
-		lv.stopped = true
-		lv.cancel()
+	if lv, ok := r.live[id]; ok {
+		r.stopLocked(id, lv)
 	}
 	r.mu.Unlock()
 	return nil
@@ -190,11 +192,21 @@ func (r *Runtime) Stop(id string) error {
 
 func (r *Runtime) StopAll() {
 	r.mu.Lock()
-	for _, lv := range r.live {
-		lv.stopped = true
-		lv.cancel()
+	for id, lv := range r.live {
+		r.stopLocked(id, lv)
 	}
 	r.mu.Unlock()
+}
+
+// stopLocked stops a run. An entry whose run already ended (status error:
+// failed listen, lost connection) has nothing left to finish it, so it is
+// removed here; otherwise Stop would leave the tunnel showing the error.
+func (r *Runtime) stopLocked(id string, lv *live) {
+	lv.stopped = true
+	lv.cancel()
+	if lv.status == StatusError {
+		delete(r.live, id)
+	}
 }
 
 // The state helpers below only touch r.live[id] while it still is lv: a
@@ -334,6 +346,8 @@ var (
 	keepaliveTimeout  = 15 * time.Second
 )
 
+const keepaliveMaxMissed = 3
+
 // pinger is implemented by dialers that can probe their connection.
 type pinger interface {
 	Ping() error
@@ -344,8 +358,9 @@ func (d sshDialer) Ping() error {
 	return err
 }
 
-// keepalive pings the connection every interval. A ping that fails or gets
-// no reply within timeout closes the dialer, which ends the run through
+// keepalive pings the connection every interval. A ping that fails, or
+// keepaliveMaxMissed pings in a row with no reply within timeout, close the
+// dialer, which ends the run through
 // Wait (or through the listener and Dial errors for dialers without it).
 func keepalive(ctx context.Context, d Dialer, interval, timeout time.Duration) {
 	p, ok := d.(pinger)
@@ -354,6 +369,7 @@ func keepalive(ctx context.Context, d Dialer, interval, timeout time.Duration) {
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	missed := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -367,9 +383,18 @@ func keepalive(ctx context.Context, d Dialer, interval, timeout time.Duration) {
 			return
 		case err := <-res:
 			if err == nil {
+				missed = 0
 				continue
 			}
+			// The request failed outright: the connection is gone.
 		case <-time.After(timeout):
+			// No reply yet: a busy or slow link may still be fine. Give up
+			// after keepaliveMaxMissed in a row, like ssh's
+			// ServerAliveCountMax.
+			missed++
+			if missed < keepaliveMaxMissed {
+				continue
+			}
 		}
 		_ = d.Close()
 		return
