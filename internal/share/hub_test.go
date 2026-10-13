@@ -113,6 +113,14 @@ func TestShareDataChannel(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// pion calls OnICECandidate on its own goroutine while this one writes
+	// the answer; gorilla allows one writer at a time.
+	var writeMu sync.Mutex
+	writeJSON := func(v any) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return conn.WriteJSON(v)
+	}
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
@@ -122,7 +130,7 @@ func TestShareDataChannel(t *testing.T) {
 		if init.SDPMid != nil {
 			msg["sdpMid"] = *init.SDPMid
 		}
-		_ = conn.WriteJSON(msg)
+		_ = writeJSON(msg)
 	})
 
 	_ = conn.SetReadDeadline(time.Now().Add(8 * time.Second))
@@ -145,7 +153,7 @@ func TestShareDataChannel(t *testing.T) {
 			if err := pc.SetLocalDescription(ans); err != nil {
 				t.Fatal(err)
 			}
-			if err := conn.WriteJSON(sigMsg{Type: "signal", Kind: "answer", SDP: ans.SDP}); err != nil {
+			if err := writeJSON(sigMsg{Type: "signal", Kind: "answer", SDP: ans.SDP}); err != nil {
 				t.Fatal(err)
 			}
 			break

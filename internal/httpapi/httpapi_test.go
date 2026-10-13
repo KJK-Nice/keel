@@ -314,13 +314,15 @@ func TestSessionControlAndFanout(t *testing.T) {
 
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	defer alice.Close()
-	bob := dialSession(t, srv.URL, info.ID, "bob", "web")
-	defer bob.Close()
-
+	// The server subscribes after the WebSocket upgrade, so wait until alice
+	// is attached before dialing bob; otherwise bob can attach first and
+	// become the driver.
 	readyA := waitJSON(t, alice, "ready")
 	if readyA["you"].(map[string]any)["role"] != "driver" {
 		t.Fatalf("alice you = %#v", readyA["you"])
 	}
+	bob := dialSession(t, srv.URL, info.ID, "bob", "web")
+	defer bob.Close()
 	readyB := waitJSON(t, bob, "ready")
 	if readyB["you"].(map[string]any)["role"] != "follower" {
 		t.Fatalf("bob you = %#v", readyB["you"])
