@@ -1,0 +1,51 @@
+// Chrome keyboard shortcuts for term.js. Pure functions: no DOM, no state.
+import { tabCycleDelta } from "./keys.js";
+
+// isAppMod reports the app modifier alone: Cmd on macOS, Ctrl elsewhere.
+export function isAppMod(ev, mac) {
+  return mac ? !!ev.metaKey && !ev.ctrlKey : !!ev.ctrlKey && !ev.metaKey;
+}
+
+// classifyShortcut maps a keydown to the chrome action it triggers, or
+// null when the key should go on to the terminal or the page.
+//
+// ctx.mac       — macOS (Cmd is the app modifier)
+// ctx.modalOpen — a dialog is open: only tab, zoom and palette keys work
+// ctx.findOpen  — () => boolean, whether terminal find is open (for Cmd+G)
+//
+// Actions: { name } for runShortcut, { name, repeat } for prev-tab /
+// next-tab (hold-to-repeat cycles), { name: "find-next" | "find-prev" },
+// and { name: "tab-index", index } for Cmd+1…9.
+export function classifyShortcut(ev, ctx) {
+  if (!isAppMod(ev, ctx.mac) || ev.altKey) return null;
+  const raw = ev.key || "";
+  const key = raw.length === 1 ? raw.toLowerCase() : raw;
+  // Holding Cmd+T / Cmd+W must not open or close a tab per repeat.
+  if (ev.repeat && (key === "t" || key === "w")) return null;
+  // Cmd+W closes a pane or tab; Cmd+Shift+W is left for Close Window.
+  if (key === "w" && !ev.shiftKey) return { name: "close-tab" };
+  if (key === "t" && ev.shiftKey) return { name: "reopen-tab" };
+  if (key === "t") return ctx.modalOpen ? null : { name: "new-tab" };
+  if (key === "d" && ev.shiftKey) return { name: "split-right" };
+  if (key === "e" && ev.shiftKey) return { name: "split-down" };
+  if ((key === "enter" || ev.key === "Enter") && ev.shiftKey) return { name: "focus-pane" };
+  if (key === "=" || key === "+" || ev.code === "Equal" || ev.code === "NumpadAdd") return { name: "zoom-in" };
+  if (key === "-" || key === "_" || ev.code === "Minus" || ev.code === "NumpadSubtract") return { name: "zoom-out" };
+  if ((key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") && !ev.shiftKey) return { name: "zoom-reset" };
+  if (key === "k" && !ev.shiftKey) return { name: "palette" };
+  if (key === "p" && ev.shiftKey) return { name: "palette" };
+  if (ctx.modalOpen) return null;
+  if (key === "f" && !ev.shiftKey) return { name: "find-term" };
+  if (key === "b" && !ev.shiftKey) return { name: "toggle-sidebar" };
+  if (key === "g" && ctx.findOpen?.()) return { name: ev.shiftKey ? "find-prev" : "find-next" };
+  if (key === "n" && !ev.shiftKey) return { name: "new-host" };
+  if (key === "o" && ev.shiftKey) return { name: "quick-connect" };
+  if (key === "j" && !ev.shiftKey) return { name: "join" };
+  // Tab cycling runs before Cmd+, so Cmd+< (Shift+Comma on US layouts)
+  // is never read as Settings.
+  const delta = tabCycleDelta(ev);
+  if (delta) return { name: delta < 0 ? "prev-tab" : "next-tab", repeat: !!ev.repeat };
+  if (key === "," && !ev.shiftKey) return { name: "settings" };
+  if (!ev.shiftKey && /^[1-9]$/.test(ev.key)) return { name: "tab-index", index: Number(ev.key) };
+  return null;
+}
