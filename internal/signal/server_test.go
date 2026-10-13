@@ -159,8 +159,17 @@ func TestJoinPage(t *testing.T) {
 		!strings.Contains(string(joinBody), "openJoinLink") {
 		t.Fatal("join.js must wire unicode graphemes, web links, and progress")
 	}
-	if !strings.Contains(string(joinBody), `from "/sharemac.js"`) {
-		t.Fatal("join.js must verify the host with /sharemac.js")
+	if !strings.Contains(string(joinBody), `from "/joinpeer.js"`) {
+		t.Fatal("join.js must connect through /joinpeer.js (which verifies the host)")
+	}
+	peerJS, err := http.Get(srv.URL + "/joinpeer.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	peerBody, _ := io.ReadAll(peerJS.Body)
+	peerJS.Body.Close()
+	if peerJS.StatusCode != http.StatusOK || !strings.Contains(string(peerBody), `from "./sharemac.js"`) {
+		t.Fatalf("/joinpeer.js = %d, must import ./sharemac.js", peerJS.StatusCode)
 	}
 	page, err := http.Get(srv.URL + "/join")
 	if err != nil {
