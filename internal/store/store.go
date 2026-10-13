@@ -2,6 +2,7 @@ package store
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -235,6 +236,12 @@ type Store struct {
 	locked    bool
 	needSetup bool
 	recipient age.Recipient
+	// vaultSum and vaultRecipient describe what keel.vault last held, so a
+	// save that changes no secret skips re-encrypting it. In passphrase mode
+	// that encryption is a full scrypt run under s.mu, which stalled every
+	// request for most of a second on each save.
+	vaultSum       [32]byte
+	vaultRecipient age.Recipient
 }
 
 func New(path string) (*Store, error) {
@@ -868,22 +875,89 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	blob, err := encryptVault(s.secrets, s.recipient)
+	sum, err := secretsSum(s.secrets)
 	if err != nil {
 		return err
 	}
-	if err := writePrivate(s.vaultPath, blob); err != nil {
-		return err
+	// Rewrite when the secrets or recipient changed, or when keel.vault is
+	// gone: every save used to recreate it, and a missing vault at the next
+	// start is read as "no secrets".
+	if sum != s.vaultSum || s.recipient != s.vaultRecipient || !fileExists(s.vaultPath) {
+		blob, err := encryptVault(s.secrets, s.recipient)
+		if err != nil {
+			return err
+		}
+		if err := writePrivate(s.vaultPath, blob); err != nil {
+			return err
+		}
+		s.vaultSum, s.vaultRecipient = sum, s.recipient
 	}
 	return writePrivate(s.path, b)
 }
 
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func secretsSum(secrets map[string]hostSecret) ([32]byte, error) {
+	// encoding/json sorts map keys, so equal maps hash equally.
+	b, err := json.Marshal(secrets)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sha256.Sum256(b), nil
+}
+
+// writePrivate replaces path with b (mode 0600) so that a crash or power
+// loss leaves either the old file or the new one, never a truncated one:
+// a unique temp file in the same directory is written and fsynced, renamed
+// over path, and the directory is fsynced so the rename itself is durable.
 func writePrivate(path string, b []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmp)
+		}
+	}()
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	ok = true
+	syncDir(dir)
+	return nil
+}
+
+// syncDir flushes a directory entry change (a rename) to disk. Windows
+// cannot open directories for this; NTFS journals the rename itself.
+func syncDir(dir string) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	_ = d.Sync()
+	_ = d.Close()
 }
 
 func newID() string {

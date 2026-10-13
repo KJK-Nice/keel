@@ -26,14 +26,15 @@ func TestRoomRelay(t *testing.T) {
 		t.Fatalf("rooms %d", res.StatusCode)
 	}
 	var body struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		HostKey string `json:"hostKey"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.ID == "" {
 		t.Fatalf("room id: %v %#v", err, body)
 	}
 
 	ws := "ws" + strings.TrimPrefix(srv.URL, "http")
-	host, _, err := websocket.DefaultDialer.Dial(ws+"/ws?role=host&room="+body.ID, nil)
+	host, _, err := websocket.DefaultDialer.Dial(ws+"/ws?role=host&room="+body.ID+"&key="+body.HostKey, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestRoomCapAndExpiry(t *testing.T) {
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 
-	mustRoom := func() string {
+	mustRoom := func() (string, string) {
 		t.Helper()
 		res, err := http.Post(srv.URL+"/rooms", "application/json", nil)
 		if err != nil {
@@ -174,12 +175,13 @@ func TestRoomCapAndExpiry(t *testing.T) {
 			t.Fatalf("rooms %d", res.StatusCode)
 		}
 		var body struct {
-			ID string `json:"id"`
+			ID      string `json:"id"`
+			HostKey string `json:"hostKey"`
 		}
 		if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.ID == "" {
 			t.Fatalf("room id: %v %#v", err, body)
 		}
-		return body.ID
+		return body.ID, body.HostKey
 	}
 	mustRoom()
 	mustRoom()
@@ -193,9 +195,9 @@ func TestRoomCapAndExpiry(t *testing.T) {
 	}
 
 	time.Sleep(250 * time.Millisecond)
-	id := mustRoom()
+	id, key := mustRoom()
 	ws := "ws" + strings.TrimPrefix(srv.URL, "http")
-	conn, _, err := websocket.DefaultDialer.Dial(ws+"/ws?role=host&room="+id, nil)
+	conn, _, err := websocket.DefaultDialer.Dial(ws+"/ws?role=host&room="+id+"&key="+key, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,12 +213,13 @@ func TestSignalRejectsCrossSiteOrigin(t *testing.T) {
 	}
 	defer res.Body.Close()
 	var body struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		HostKey string `json:"hostKey"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?role=host&room=" + body.ID
+	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?role=host&room=" + body.ID + "&key=" + body.HostKey
 	hdr := http.Header{}
 	hdr.Set("Origin", "https://evil.example")
 	conn, resp, err := websocket.DefaultDialer.Dial(ws, hdr)
