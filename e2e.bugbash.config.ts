@@ -6,6 +6,7 @@ import base from './e2e.config.ts';
 import { keelToken } from './tests/keel.ts';
 
 const shared: E2EConfig = base;
+// The engine does not expose its browser, so keep it by target name (see e2e.config.ts).
 
 const context =
   'Keel is a local SSH workspace in a browser tab. Tab 1 is the Vault (Hosts, Keychain, Port forwarding, Snippets, Notebooks, Logs, Settings); other tabs are terminal sessions. ' +
@@ -24,6 +25,7 @@ export default {
   targets: shared.targets.map((t) => ({
     ...t,
     engine: web({
+      browser: t.name === 'webkit' ? 'webkit' : undefined,
       headers: { 'X-Keel-Token': keelToken() },
       initScripts: [`document.cookie = 'keel_auth_' + (location.port || '80') + '=${keelToken()}; path=/; SameSite=Strict';`],
     }),

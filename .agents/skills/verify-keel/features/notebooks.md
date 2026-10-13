@@ -35,9 +35,12 @@ notebooks-edit|web|skeptic|Starting at the Vault (the app opens there), create a
 ## Gotchas
 
 - Known app bug, found while writing this map:
-  `cmd/keel/web/vendor/notebook/editor.js` does not parse in V8 (`node
-  --check` and Chromium both fail with `SyntaxError: Unexpected token ')'`,
-  line 34). Every page load logs it, and the rich editor never loads; the
-  `Markdown document` field is the fallback. Until it is fixed, a notebook
-  check in Chromium covers the fallback, not the editor; check the desktop
-  WebKit window by hand.
+  `cmd/keel/web/vendor/notebook/editor.js` does not parse. Checked per
+  engine (a smoke trace's App log, Playwright builds): WebKit logs
+  `SyntaxError: Unexpected token ')' at /vendor/notebook/editor.js:34:0`;
+  Chromium logs `SyntaxError: Unexpected token ')'`; `node --check` fails on
+  line 34 too. So it fails in both engines, on every page load, and the rich
+  editor never loads; the `Markdown document` field is the fallback. Until
+  it is fixed, a notebook check covers the fallback, not the editor. The
+  system WKWebView in the native window is not covered; a Playwright WebKit
+  parse failure makes it very likely, but check it by hand.

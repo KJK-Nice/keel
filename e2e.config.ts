@@ -8,27 +8,31 @@ import { keelData, keelToken } from './tests/keel.ts';
 // the user's Keel on 127.0.0.1:47241, their keel.json, or their vault.
 // KEEL_VAULT_PASSPHRASE keeps the scratch vault off the OS keychain: without
 // it keel serve would read or create the user's "keel"/"vault" keyring item.
+const app = {
+  url: 'http://127.0.0.1:0',
+  readyUrl: 'http://127.0.0.1:{port}/api/health',
+  command: {
+    executable: './bin/keel',
+    args: ['serve'],
+    env: {
+      KEEL_ADDR: '127.0.0.1:{port}',
+      KEEL_DATA: keelData,
+      KEEL_NAME: 'e2e',
+      KEEL_VAULT_PASSPHRASE: process.env.KEEL_E2E_VAULT_PASSPHRASE ?? 'keel-e2e-scratch-vault',
+      SHELL: '/bin/sh',
+    },
+    log: '.e2e/logs/keel-serve.log',
+  },
+};
+
 export default {
   tests: 'tests/**/*.e2e.ts',
-  targets: [{
-    engine: web(),
-    app: {
-      url: 'http://127.0.0.1:0',
-      readyUrl: 'http://127.0.0.1:{port}/api/health',
-      command: {
-        executable: './bin/keel',
-        args: ['serve'],
-        env: {
-          KEEL_ADDR: '127.0.0.1:{port}',
-          KEEL_DATA: keelData,
-          KEEL_NAME: 'e2e',
-          KEEL_VAULT_PASSPHRASE: process.env.KEEL_E2E_VAULT_PASSPHRASE ?? 'keel-e2e-scratch-vault',
-          SHELL: '/bin/sh',
-        },
-        log: '.e2e/logs/keel-serve.log',
-      },
-    },
-  }],
+  // webkit is primary (the macOS app is a WKWebView); chromium stands in for
+  // Windows WebView2. Both share one app, so each run starts one keel serve.
+  targets: [
+    { name: 'webkit', engine: web({ browser: 'webkit' }), app },
+    { name: 'chromium', engine: web(), app },
+  ],
   // Only agent.* steps and `e2e explore` need this; set AI_GATEWAY_API_KEY.
   agents: {
     default: {

@@ -1,19 +1,22 @@
 ---
 name: verify-keel
-description: Launch, check, drive, prove, and bug bash Keel's UI (the Vault, terminal tabs, command palette) with e2e, against an isolated `keel serve` in Chromium. Use before claiming a Keel UI or httpapi change works, when asked to verify or screenshot a Keel screen, or to bug bash Keel.
+description: Launch, check, drive, prove, and bug bash Keel's UI (the Vault, terminal tabs, command palette) with e2e, against an isolated `keel serve` in WebKit (primary) or Chromium. Use before claiming a Keel UI or httpapi change works, when asked to verify or screenshot a Keel screen, or to bug bash Keel.
 ---
 
 # Verify Keel
 
 Read `.agents/skills/e2e/SKILL.md` first. This skill only says what is true
-of Keel. The config is `e2e.config.ts` (one target, `web`; tests
-`tests/**/*.e2e.ts`); shared helpers are in `tests/keel.ts`; the bug bash
+of Keel. The config is `e2e.config.ts` (two targets sharing one app:
+`webkit`, the primary, because the macOS app is a WKWebView, and `chromium`,
+a stand-in for Windows WebView2; tests `tests/**/*.e2e.ts`). Use `--target
+webkit` for proofs and screenshots, and run both targets before claiming a
+change works; shared helpers are in `tests/keel.ts`; the bug bash
 uses `e2e.bugbash.config.ts`.
 
 What is driven: the desktop app is a Wails webview pointed at `keel serve`'s
 loopback HTTP server, and the same page loads in a browser. e2e drives that
-page in headless Chromium against a `keel serve` it starts itself. The
-native window (WebKit, the macOS menu, ⌘-shortcuts Wails owns, the dock) is
+page in headless Playwright WebKit or Chromium against a `keel serve` it starts itself. The
+native window (the system WKWebView, which differs from Playwright's WebKit build; the macOS menu, ⌘-shortcuts Wails owns, the dock) is
 not covered; say so when a change lives there.
 
 ## Launch
@@ -51,8 +54,8 @@ page ("open this window from the Keel app").
 
 ```bash
 make build                          # only if bin/keel is older than your change
-npx e2e list                        # loads the config, starts nothing; exit 0, three test-target pairs
-npx e2e run tests/smoke.e2e.ts      # starts keel serve, opens the Vault, pins New host + Search hosts; exit 0
+npx e2e list                        # loads the config, starts nothing; exit 0, each test listed for webkit and chromium
+npx e2e run tests/smoke.e2e.ts --target webkit  # starts keel serve, opens the Vault, pins New host + Search hosts; exit 0
 ```
 
 `list` failing is the config or `npm install`. `run` failing with
@@ -60,7 +63,7 @@ npx e2e run tests/smoke.e2e.ts      # starts keel serve, opens the Vault, pins N
 `.e2e/logs/keel-serve.log` (a held lock means another run, or a keel serve
 you started, uses the same `KEEL_DATA`). `LOCATOR_NOT_FOUND` on `New host` is
 a 401 page (token) or a stale binary. Run Doctor first whenever anything
-looks off. Every page load logs one `SyntaxError: Unexpected token ')'` (see
+looks off. Every page load logs one `SyntaxError: Unexpected token ')'` in both engines (see
 Gotchas); that alone is not a Doctor failure.
 
 ## Drive
@@ -106,7 +109,7 @@ terminal tests save `host-added` and `terminal-output`). The next run clears
 
 Visual-only changes (tokens, CSS, fonts): `tests/visual.e2e.ts` saves
 `<theme>-hosts`, `-new-host`, `-snippets`, `-settings`, `-terminal`, and
-`-palette` in dark and light. Run it on the base build with `--output
+`-palette` in dark and light. Run it with `--target webkit` on the base build with `--output
 .e2e/proof/<name>-before`, then `make build` with the change and run it with
 `--output .e2e/proof/<name>-after`; compare the pairs by name. It sets the
 theme through `localStorage['keel-theme']`, as the Settings select does.
@@ -125,7 +128,7 @@ is not the user path.
 ## Bug bash
 
 `e2e.bugbash.config.ts` spreads `e2e.config.ts`, adds
-`tests/bugbash/**` to the glob, and replaces the engine with `web({ headers:
+`tests/bugbash/**` to the glob, and replaces the engine (keeping each target's browser) with `web({ browser, headers:
 { 'X-Keel-Token': keelToken() }, initScripts: [<sets the keel_auth_<port>
 cookie to the token>] })`: explore and MCP open the bare app URL, which is
 a 401 without auth, and WebSockets (`/ws/session`, `/ws/herd`) carry no
@@ -173,3 +176,5 @@ that is the proof, and all of it is gitignored.
 
 `tests/keel.ts`: `keelData`, `keelToken()`, `openKeel(app)`,
 `keelApi(baseUrl, path)`, `keelJson()`. No scripts; the e2e CLI is the helper.
+
+PR before/after screenshots: see `.agents/skills/pr-screenshots/SKILL.md`.
