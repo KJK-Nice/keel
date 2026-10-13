@@ -54,7 +54,7 @@ func TestRoomRelay(t *testing.T) {
 		t.Fatalf("host first = %#v", peer)
 	}
 	peerID, _ := peer["peerId"].(string)
-	if err := host.WriteJSON(map[string]any{"type": "signal", "peerId": peerID, "kind": "offer", "sdp": "v=0"}); err != nil {
+	if err := host.WriteJSON(map[string]any{"type": "signal", "peerId": peerID, "kind": "offer", "sdp": "v=0", "mac": "abc"}); err != nil {
 		t.Fatal(err)
 	}
 	_ = join.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -62,8 +62,18 @@ func TestRoomRelay(t *testing.T) {
 	if err := join.ReadJSON(&toJoin); err != nil {
 		t.Fatal(err)
 	}
-	if toJoin["kind"] != "offer" || toJoin["sdp"] != "v=0" {
-		t.Fatalf("join got %#v", toJoin)
+	if toJoin["kind"] != "offer" || toJoin["sdp"] != "v=0" || toJoin["mac"] != "abc" {
+		t.Fatalf("join got %#v (the relay must keep mac)", toJoin)
+	}
+	if err := join.WriteJSON(map[string]any{"type": "signal", "kind": "answer", "sdp": "v=1", "mac": "def"}); err != nil {
+		t.Fatal(err)
+	}
+	var toHost map[string]any
+	if err := host.ReadJSON(&toHost); err != nil {
+		t.Fatal(err)
+	}
+	if toHost["kind"] != "answer" || toHost["mac"] != "def" || toHost["peerId"] != peerID {
+		t.Fatalf("host got %#v (the relay must keep mac)", toHost)
 	}
 }
 
@@ -148,6 +158,28 @@ func TestJoinPage(t *testing.T) {
 		!strings.Contains(string(joinBody), "ProgressAddon") ||
 		!strings.Contains(string(joinBody), "openJoinLink") {
 		t.Fatal("join.js must wire unicode graphemes, web links, and progress")
+	}
+	if !strings.Contains(string(joinBody), `from "/sharemac.js"`) {
+		t.Fatal("join.js must verify the host with /sharemac.js")
+	}
+	page, err := http.Get(srv.URL + "/join")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageBody, _ := io.ReadAll(page.Body)
+	page.Body.Close()
+	if !strings.Contains(string(pageBody), `<script type="module" src="/join.js">`) {
+		t.Fatal("join.html must load join.js as a module (it imports sharemac.js)")
+	}
+	mac, err := http.Get(srv.URL + "/sharemac.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	macBody, _ := io.ReadAll(mac.Body)
+	mac.Body.Close()
+	if mac.StatusCode != http.StatusOK || !strings.HasPrefix(mac.Header.Get("Content-Type"), "text/javascript") ||
+		!strings.Contains(string(macBody), "export async function answerOffer") {
+		t.Fatalf("/sharemac.js = %d %q", mac.StatusCode, mac.Header.Get("Content-Type"))
 	}
 	fsMark := bytes.Index(jsBody, []byte(`e.FS="`))
 	usMark := bytes.Index(jsBody, []byte(`e.US=`))

@@ -1,5 +1,7 @@
 import { escapeHtml } from "./lib/html.js";
 import { parseJoinLink } from "./lib/joinlink.js";
+import { answerOffer, createIceQueue } from "./lib/sharemac.js";
+import { createJoinPrompts } from "./ui/joinprompt.js";
 import { tabCycleTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
@@ -3954,6 +3956,18 @@ import { pinScroll } from "./lib/scrollpin.js";
           if (typeof done === "function") done(msg.nonce || "");
           return;
         }
+        if (msg.type === "join-request") {
+          joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title });
+          return;
+        }
+        if (msg.type === "join-resolved") {
+          joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId });
+          return;
+        }
+        if (msg.type === "join-failed") {
+          toast(msg.message || "A viewer could not be connected", true);
+          return;
+        }
         if (msg.type === "status") {
           recordFailStatus(pane, msg);
           if (msg.status === "ready") pane.status = "is-ready";
@@ -4321,6 +4335,7 @@ import { pinScroll } from "./lib/scrollpin.js";
     if (!opts.skipPanes) {
       for (const p of panes) {
         killRuntimeIfOwned(p, { fromHerd: opts.fromHerd, remote: tab.remote });
+        if (p.runtimeId) joinPrompts.forget(p.runtimeId);
         disposePane(p);
       }
     }
@@ -5484,6 +5499,15 @@ Write a runbook here.
     }
   }
 
+  const joinPrompts = createJoinPrompts({
+    answer: (sessionId, peerId, allow) =>
+      api(`/api/share/${encodeURIComponent(sessionId)}/admit`, {
+        method: "POST",
+        body: JSON.stringify({ peerId, allow }),
+      }),
+    onError: (err) => toast(err.message, true),
+  });
+
   async function shareActive() {
     const pane = focusedPane();
     if (!pane || pane.remote) return;
@@ -5499,7 +5523,7 @@ Write a runbook here.
         return;
       }
       const copied = await copyText(url);
-      toast(copied ? `Copied ${url}` : url);
+      toast(copied ? "Join link copied — you'll be asked before anyone joins" : url);
       if (!copied) window.prompt("Join link", url);
     } catch (err) {
       toast(err.message, true);
@@ -5511,6 +5535,7 @@ Write a runbook here.
     if (!pane || pane.remote) return;
     try {
       await api(`/api/share/${encodeURIComponent(pane.runtimeId)}`, { method: "DELETE" });
+      joinPrompts.forget(pane.runtimeId);
       toast("Sharing stopped — the join link no longer works");
     } catch (err) {
       toast(err.message, true);
@@ -5523,9 +5548,14 @@ Write a runbook here.
     queueMicrotask(() => els.joinForm.url.focus({ preventScroll: true }));
   }
 
-  function joinRemote({ origin, room }) {
+  function joinRemote({ origin, room, key }) {
     const runtimeId = `join:${origin}:${room}`;
-    const existing = findPaneByRuntime(runtimeId);
+    let existing = findPaneByRuntime(runtimeId);
+    if (existing?.status === "is-error") {
+      // Denied, failed verification or lost: pasting the link again retries.
+      closeTab(existing.tabId);
+      existing = null;
+    }
     if (existing) {
       state.activeId = existing.tabId;
       renderTabs();
@@ -5666,7 +5696,22 @@ Write a runbook here.
       };
     };
 
-    sigWs.addEventListener("message", async (ev) => {
+    const ice = createIceQueue(pc);
+    const failJoin = (message) => {
+      pane.status = "is-error";
+      pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${message}\x1b[0m`);
+      toast(message, true);
+      pc.close();
+      sigWs.close();
+      renderTabs();
+    };
+    // Handle signaling messages one at a time: ICE candidates must not race
+    // ahead of the offer they belong to.
+    let signalChain = Promise.resolve();
+    sigWs.addEventListener("message", (ev) => {
+      signalChain = signalChain.then(() => onSignal(ev)).catch(() => {});
+    });
+    const onSignal = async (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.type === "error") {
         toast(msg.name || "signaling error", true);
@@ -5678,24 +5723,25 @@ Write a runbook here.
         return;
       }
       if (msg.type !== "signal") return;
-      if (msg.kind === "offer" && msg.sdp) {
-        await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        sendSignal({ kind: "answer", sdp: answer.sdp });
+      if (msg.kind === "pending") {
+        pane.term.writeln("\x1b[38;2;139;149;168mWaiting for the host to let you in…\x1b[0m");
+        return;
       }
-      if (msg.kind === "ice" && msg.candidate) {
+      if (msg.kind === "denied") {
+        failJoin("The host declined your request to join.");
+        return;
+      }
+      if (msg.kind === "offer" && msg.sdp) {
         try {
-          await pc.addIceCandidate({
-            candidate: msg.candidate,
-            sdpMid: msg.sdpMid,
-            sdpMLineIndex: msg.sdpMLineIndex,
-          });
-        } catch {
-          /* ignore */
+          sendSignal(await answerOffer(pc, key, msg, ice));
+        } catch (err) {
+          failJoin(err.message);
         }
       }
-    });
+      if (msg.kind === "ice" && msg.candidate) {
+        await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
+      }
+    };
     sigWs.addEventListener("error", () => toast("Signaling failed", true));
     sigWs.addEventListener("close", () => {
       if (pc.connectionState !== "connected" && pane.status !== "is-error") {
@@ -5710,7 +5756,7 @@ Write a runbook here.
   async function submitJoin(ev) {
     ev.preventDefault();
     try {
-      const parsed = parseJoinLink(els.joinForm.url.value, state.signalURL);
+      const parsed = parseJoinLink(els.joinForm.url.value);
       closeModal(els.joinModal);
       joinRemote(parsed);
     } catch (err) {

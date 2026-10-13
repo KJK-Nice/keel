@@ -78,6 +78,8 @@ type Event struct {
 	Info     Info
 	FromID   uint64
 	TargetID uint64
+	// Peer identifies a share joiner in "join-request" and "join-resolved".
+	Peer string
 }
 
 type HerdEvent struct {
@@ -351,6 +353,45 @@ func (s *Session) roleLocked(id uint64) Role {
 }
 
 func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
+	return s.subscribe(join, 0, false)
+}
+
+// SubscribeSince is Subscribe with a snapshot of only the output written
+// after mark (see Mark): a share viewer sees nothing from before sharing
+// began.
+func (s *Session) SubscribeSince(join Join, mark uint64) (Client, <-chan Event, []byte) {
+	return s.subscribe(join, mark, true)
+}
+
+// Mark returns the current output position for SubscribeSince.
+func (s *Session) Mark() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Mark()
+}
+
+// Announce sends ev to the clients attached in Keel itself, not to share
+// viewers: it is for the host's own UI (e.g. "bob wants to watch").
+func (s *Session) Announce(ev Event) {
+	s.mu.Lock()
+	var slow []uint64
+	for id, c := range s.clients {
+		if isRemoteJoin(c.Client.Kind) {
+			continue
+		}
+		select {
+		case c.ch <- ev:
+		default:
+			slow = append(slow, id)
+		}
+	}
+	s.mu.Unlock()
+	for _, id := range slow {
+		s.dropClient(id, true)
+	}
+}
+
+func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan Event, []byte) {
 	s.mu.Lock()
 	s.next++
 	id := s.next
@@ -377,6 +418,9 @@ func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
 	cl.Role = s.roleLocked(id)
 	s.clients[id] = &clientConn{Client: cl, ch: ch, focused: inject.SurfaceTerm}
 	snap := s.buf.Bytes()
+	if since {
+		snap = s.buf.BytesSince(mark)
+	}
 	s.mu.Unlock()
 	s.emitPresence("joined")
 	return cl, ch, snap

@@ -23,12 +23,15 @@ func (s *Server) joinPage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-func (s *Server) joinJS(w http.ResponseWriter, r *http.Request) {
-	b, err := fs.ReadFile(webFS, "web/join.js")
-	if err != nil {
-		http.Error(w, "join script missing", http.StatusInternalServerError)
-		return
+// script serves one of the join page's ES modules from web/.
+func (s *Server) script(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b, err := fs.ReadFile(webFS, "web/"+name)
+		if err != nil {
+			http.Error(w, "script missing", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = w.Write(b)
 	}
-	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	_, _ = w.Write(b)
 }

@@ -2,22 +2,24 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseJoinLink } from "../lib/joinlink.js";
 
-test("parseJoinLink reads a full link", () => {
-  assert.deepEqual(parseJoinLink(" https://sig.example/join?room=abc123 "), {
+const KEY = "00112233445566778899aabbccddeeff";
+
+test("parseJoinLink reads a full link with its key", () => {
+  assert.deepEqual(parseJoinLink(` https://sig.example/join?room=abc123#k=${KEY} `), {
     origin: "https://sig.example",
     room: "abc123",
+    key: KEY,
   });
 });
 
-test("parseJoinLink accepts a bare room id with a fallback origin", () => {
-  assert.deepEqual(parseJoinLink("0123456789abcdef", "https://sig.example/"), {
-    origin: "https://sig.example",
-    room: "0123456789abcdef",
-  });
+test("parseJoinLink refuses links without a valid key", () => {
+  assert.throws(() => parseJoinLink("https://sig.example/join?room=abc123"), /no key/);
+  assert.throws(() => parseJoinLink("https://sig.example/join?room=abc123#k=short"), /no key/);
+  assert.throws(() => parseJoinLink(`https://sig.example/join?room=abc123#k=${KEY.toUpperCase()}`), /no key/);
 });
 
-test("parseJoinLink rejects empty input, links without a room, and bare ids without an origin", () => {
+test("parseJoinLink rejects empty input, links without a room, and bare ids", () => {
   assert.throws(() => parseJoinLink(""), /paste a Share link/);
-  assert.throws(() => parseJoinLink("https://sig.example/join"), /link has no room/);
+  assert.throws(() => parseJoinLink(`https://sig.example/join#k=${KEY}`), /link has no room/);
   assert.throws(() => parseJoinLink("0123456789abcdef"), /paste the full Share link/);
 });

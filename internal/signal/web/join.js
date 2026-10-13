@@ -1,6 +1,13 @@
-(() => {
+import { answerOffer, createIceQueue } from "/sharemac.js";
+
+// Loaded as a module, so top-level return isn't allowed: everything runs in main().
+main();
+
+function main() {
   const params = new URLSearchParams(location.search);
   const room = params.get("room") || "";
+  // The #k secret is never sent to this server; it verifies the host's peer.
+  const key = new URLSearchParams(location.hash.replace(/^#/, "")).get("k") || "";
   const name = params.get("name") || localStorage.getItem("keel-join-name") || "guest";
   const statusEl = document.getElementById("status");
   const TerminalCtor = window.Terminal;
@@ -79,6 +86,10 @@
     setStatus("Missing room id");
     return;
   }
+  if (!/^[0-9a-f]{32}$/.test(key)) {
+    setStatus("This link has no key (#k=…): ask the host for a new Share link");
+    return;
+  }
 
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws?role=join&room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}`);
@@ -141,7 +152,22 @@
     dc.send(new TextEncoder().encode(data));
   });
 
-  ws.onmessage = async (ev) => {
+  const ice = createIceQueue(pc);
+  let failed = false;
+  function fail(text) {
+    failed = true;
+    setStatus(text);
+    term.writeln(`\r\n\x1b[38;2;248;113;113m${text}\x1b[0m`);
+    pc.close();
+    ws.close();
+  }
+
+  // One message at a time, so ICE candidates can't race ahead of the offer.
+  let chain = Promise.resolve();
+  ws.onmessage = (ev) => {
+    chain = chain.then(() => onSignal(ev)).catch(() => {});
+  };
+  async function onSignal(ev) {
     const msg = JSON.parse(ev.data);
     if (msg.type === "error") {
       setStatus(msg.name || "error");
@@ -153,31 +179,33 @@
       return;
     }
     if (msg.type !== "signal") return;
-    if (msg.kind === "offer" && msg.sdp) {
-      await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendSignal({ kind: "answer", sdp: answer.sdp });
+    if (msg.kind === "pending") {
+      setStatus("Waiting for the host to let you in…");
+      return;
     }
-    if (msg.kind === "ice" && msg.candidate) {
+    if (msg.kind === "denied") {
+      fail("The host declined your request to join.");
+      return;
+    }
+    if (msg.kind === "offer" && msg.sdp) {
       try {
-        await pc.addIceCandidate({
-          candidate: msg.candidate,
-          sdpMid: msg.sdpMid,
-          sdpMLineIndex: msg.sdpMLineIndex,
-        });
-      } catch {
-        /* ignore */
+        sendSignal(await answerOffer(pc, key, msg, ice));
+      } catch (err) {
+        fail(err.message);
+        return;
       }
     }
-  };
+    if (msg.kind === "ice" && msg.candidate) {
+      await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
+    }
+  }
   ws.onerror = () => setStatus("Signaling failed");
   ws.onclose = () => {
-    if (pc.connectionState !== "connected") setStatus("Signaling closed");
+    if (!failed && pc.connectionState !== "connected") setStatus("Signaling closed");
   };
 
   window.addEventListener("resize", () => {
     if (!driving || !dc || dc.readyState !== "open") return;
     dc.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
   });
-})();
+}
