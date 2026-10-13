@@ -19,7 +19,10 @@ var seqToken = regexp.MustCompile(`<(\d{5})>`)
 // once: their snapshot followed by the events they receive has to read as
 // one unbroken, non-repeating sequence.
 func TestAttachDuringOutputSeesEachChunkOnce(t *testing.T) {
-	_, sess, fb := spawnReady(t)
+	rt, sess, fb := spawnReady(t)
+	// Ends the session and its bridge so the writer can't block forever
+	// if a viewer fails early.
+	t.Cleanup(rt.KillAll)
 
 	const total = 3000
 	const viewers = 64
@@ -84,6 +87,9 @@ func TestAttachDuringOutputSeesEachChunkOnce(t *testing.T) {
 			t.Fatalf("%s saw no output: %q", r.name, tail(r.text))
 		}
 		prev, _ := strconv.Atoi(matches[0][1])
+		if prev != 0 {
+			t.Fatalf("%s: stream starts at %05d, want 00000 (output lost before the snapshot)", r.name, prev)
+		}
 		for _, m := range matches[1:] {
 			n, _ := strconv.Atoi(m[1])
 			if n != prev+1 {
@@ -113,6 +119,7 @@ func TestHerdSpawnPrecedesUpdates(t *testing.T) {
 	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return newFakeBridge(), nil
 	})
+	t.Cleanup(rt.KillAll)
 	hid, ch, _ := rt.SubscribeHerd()
 	defer rt.UnsubscribeHerd(hid)
 
