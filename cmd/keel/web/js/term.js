@@ -44,7 +44,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   const ProgressAddonCtor = window.ProgressAddon?.ProgressAddon || window.ProgressAddon;
   const params = new URLSearchParams(location.search);
   const VAULT = "vault";
-  const SASH_PX = 6;
+  const SASH_PX = 1; // 1px line gutter between panes; keel.css .split-sash widens the hit area
+  // Pane bar tool buttons: ghost icon buttons from the k-* set. icon-btn and the
+  // data-pane-* attributes stay as JS hooks.
+  const PANE_BTN = "k-btn k-btn--ghost k-btn--sm k-btn--icon icon-btn";
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes("Mac");
   const MOD = isMac ? "⌘" : "Ctrl+";
   const FONT_STACKS = {
@@ -83,41 +86,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     prefs: loadPrefs(),
     ui: loadUiPrefs(),
     hostKeyRetry: null,
-  };
-
-  const TERM_THEMES = {
-    dark: {
-      background: "#0a0a0a",
-      foreground: "#e4e4e4",
-      cursor: "#82a7ff",
-      cursorAccent: "#0a0a0a",
-      selectionBackground: "#2a3344",
-      black: "#1a1a1a",
-      red: "#f87171",
-      green: "#4ade80",
-      yellow: "#e8b849",
-      blue: "#82a7ff",
-      magenta: "#c084fc",
-      cyan: "#67e8f9",
-      white: "#ececec",
-      brightBlack: "#737373",
-    },
-    light: {
-      background: "#fbfbfa",
-      foreground: "#1a1a1a",
-      cursor: "#3b6cff",
-      cursorAccent: "#fbfbfa",
-      selectionBackground: "#dbe4ff",
-      black: "#1a1a1a",
-      red: "#dc2626",
-      green: "#15803d",
-      yellow: "#b45309",
-      blue: "#3b6cff",
-      magenta: "#7c3aed",
-      cyan: "#0e7490",
-      white: "#f5f5f4",
-      brightBlack: "#737373",
-    },
   };
 
   function loadPrefs() {
@@ -353,10 +321,78 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return document.documentElement.dataset.native === "1";
   }
 
+  // The terminal palette is the Keel token set (docs/design/tokens.json):
+  // --term-bg, --term-fg, --term-cursor, --term-selection and --ansi-0..15,
+  // read from the page at apply time so light/dark and any token edit reach
+  // xterm without a second copy of the colours here.
+  const ANSI_NAMES = [
+    "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+    "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
+  ];
+  // Native windows let the OS vibrancy show through a solo pane, matching
+  // the 66% tint keel.css gives the chrome behind it.
+  const NATIVE_TERM_ALPHA = 0.66;
+  let termThemeCache = { key: "", theme: null };
+
+  // Resolve any CSS colour (var(), hex, color-mix) to #rrggbb[aa] by letting
+  // the browser compute it on a probe element; xterm takes hex or rgb().
+  function resolveCssColor(probe, value) {
+    probe.style.color = "";
+    probe.style.color = value;
+    const m = getComputedStyle(probe).color.match(/rgba?\(([^)]+)\)/);
+    if (!m) return "";
+    const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    const hex = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    let out = `#${hex(parts[0])}${hex(parts[1])}${hex(parts[2])}`;
+    if (parts.length > 3 && parts[3] < 1) out += hex(parts[3] * 255);
+    return out;
+  }
+
+  function tokenColor(name) {
+    const probe = document.createElement("span");
+    probe.hidden = true;
+    document.body.appendChild(probe);
+    try {
+      return resolveCssColor(probe, `var(${name})`).slice(0, 7);
+    } finally {
+      probe.remove();
+    }
+  }
+
+  function readTermTheme() {
+    const probe = document.createElement("span");
+    probe.hidden = true;
+    document.body.appendChild(probe);
+    try {
+      const get = (name) => resolveCssColor(probe, `var(${name})`);
+      const theme = {
+        background: get("--term-bg"),
+        foreground: get("--term-fg"),
+        cursor: get("--term-cursor"),
+        cursorAccent: get("--term-bg"),
+        selectionBackground: get("--term-selection"),
+      };
+      ANSI_NAMES.forEach((name, i) => {
+        theme[name] = get(`--ansi-${i}`);
+      });
+      return theme;
+    } finally {
+      probe.remove();
+    }
+  }
+
+  function tokenTermTheme() {
+    const key = `${document.documentElement.dataset.theme || ""}`;
+    if (!termThemeCache.theme || termThemeCache.key !== key) {
+      termThemeCache = { key, theme: readTermTheme() };
+    }
+    return { ...termThemeCache.theme };
+  }
+
   function xtermTheme() {
-    const theme = { ...TERM_THEMES[resolvedTheme()] };
+    const theme = tokenTermTheme();
     if (isNativeWindow()) {
-      theme.background = resolvedTheme() === "light" ? "#fbfbfaa8" : "#0a0a0aa8";
+      theme.background = `${theme.background.slice(0, 7)}${Math.round(NATIVE_TERM_ALPHA * 255).toString(16).padStart(2, "0")}`;
     }
     return theme;
   }
@@ -414,6 +450,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function applyThemeClass() {
+    termThemeCache = { key: "", theme: null };
     if (typeof window.__keelApplyTheme === "function") {
       window.__keelApplyTheme(themeChoice());
       return;
@@ -1006,6 +1043,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function renderTunnels() {
     els.tunnelList.innerHTML = V.tunnelsHTML(state.tunnels, state.hosts);
+    renderStatusBar();
   }
 
   function renderLogs() {
@@ -1089,6 +1127,27 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const follow = first && !isDriving(first) && first.you ? " · follow" : "";
     const extra = n > 1 ? ` · ${n}` : "";
     return `${name}${extra}${follow}`;
+  }
+
+  // Tab label without the pane count (the count renders as a badge).
+  function tabName(tab) {
+    if (tab.customTitle) return tab.customTitle;
+    if (tab.start) return tab.title || "New Tab";
+    const panes = tabPanes(tab);
+    const first = panes.find(isTermPane) || panes[0];
+    const name = first?.title || tab.title || "Session";
+    const follow = first && !isDriving(first) && first.you ? " · follow" : "";
+    return `${name}${follow}`;
+  }
+
+  // State dot (docs/design: live, connecting, dead, idle) for a pane status.
+  const DOT_BY_STATUS = {
+    "is-ready": { cls: "k-dot--live", label: "Connected" },
+    "is-connecting": { cls: "k-dot--connecting", label: "Connecting" },
+    "is-error": { cls: "k-dot--dead", label: "Disconnected" },
+  };
+  function dotFor(status) {
+    return DOT_BY_STATUS[status] || { cls: "k-dot--idle", label: "Idle" };
   }
 
   function chromeTabs() {
@@ -1342,6 +1401,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       person: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
       gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M4.2 6.2l1.4 1.4M18.4 16.4l1.4 1.4M3 12h2M19 12h2M4.2 17.8l1.4-1.4M18.4 7.6l1.4-1.4"/>',
       frown: '<circle cx="12" cy="12" r="9"/><path d="M8 15s1.5-2 4-2 4 2 4 2"/><path d="M9 9h.01M15 9h.01"/>',
+      steering: '<path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"/><path d="M18.9181 10.4125C17.9491 10.8367 16.4851 11.218 15.1595 10.7168C13.2638 10 12.2893 10 12 10C11.7107 10 10.7362 10 8.84049 10.7168C7.51492 11.218 6.05092 10.8367 5.08186 10.4125M19 13.2548C16.8546 13.6631 13.6079 14.878 13.5238 19M10.4762 19C10.3921 14.878 7.14544 13.6631 5 13.2548"/>',
+      eye: '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
     };
     return hugeicon(icons[name] || "");
   }
@@ -1422,6 +1483,15 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     pane.wrap.classList.toggle("is-zoomed", zoomed);
     const title = pane.wrap.querySelector(".pane-title");
     if (title) title.textContent = pane.title || "session";
+    const addr = pane.wrap.querySelector(".pane-addr");
+    if (addr && isTermPane(pane)) addr.textContent = pane.subtitle || "";
+    const dotEl = pane.wrap.querySelector(".pane-dot");
+    if (dotEl && isTermPane(pane)) {
+      const dot = dotFor(pane.status);
+      dotEl.className = `k-dot pane-dot ${dot.cls}`;
+      dotEl.title = dot.label;
+    }
+    syncPaneRole(tab, pane);
     syncPaneFail(pane);
     const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
     if (syncBtn) {
@@ -1444,6 +1514,49 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (closeBtn) closeBtn.title = leafCount(tab.layout) > 1 ? "Close pane" : "Close tab";
   }
 
+  // Role chip on the pane bar, only when the session is shared or joined.
+  function syncPaneRole(tab, pane) {
+    const chip = pane.wrap.querySelector(".pane-role");
+    if (!chip) return;
+    const shared = isTermPane(pane) && (pane.remote || tab.remote || (pane.attached?.length || 0) > 1) && pane.you;
+    chip.hidden = !shared;
+    if (!shared) return;
+    const driving = isDriving(pane);
+    chip.className = `k-role pane-role ${driving ? "k-role--driver" : "k-role--follower"}`;
+    chip.innerHTML = `${paneGlyph(driving ? "steering" : "eye")}${driving ? "Driving" : "Following"}`;
+  }
+
+  // Status bar (templ statusBar): runtime and sessions, running forwards,
+  // the focused pane's name and size, encoding, input sync.
+  function renderStatusBar() {
+    const bar = document.getElementById("status-bar");
+    if (!bar) return;
+    const sessions = [...state.panes.values()].filter((p) => isTermPane(p) && p.runtimeId).length;
+    const runtime = document.getElementById("sb-runtime-text");
+    if (runtime) runtime.textContent = `keel serve · ${sessions} ${sessions === 1 ? "session" : "sessions"}`;
+    const running = (state.tunnels || []).filter((t) => t.status === "ready");
+    const fwd = document.getElementById("sb-forwards");
+    if (fwd) {
+      fwd.hidden = running.length === 0;
+      const text = document.getElementById("sb-forwards-text");
+      if (text) text.textContent = `${running.length} ${running.length === 1 ? "forward" : "forwards"}`;
+    }
+    const vaultOn = state.activeId === VAULT || !state.tabs.has(state.activeId);
+    const tab = vaultOn ? null : state.tabs.get(state.activeId);
+    const pane = tab && !tab.start ? focusedPane() : null;
+    const paneEl = document.getElementById("sb-pane");
+    const syncEl = document.getElementById("sb-sync");
+    const term = pane && isTermPane(pane) ? pane.term : null;
+    if (paneEl) {
+      paneEl.hidden = !term;
+      if (term) paneEl.textContent = `${pane.title || "session"} · ${term.cols}×${term.rows} · UTF-8`;
+    }
+    if (syncEl) {
+      syncEl.hidden = !term || !!tab?.remote;
+      if (term) syncEl.textContent = tab.sync ? "Sync on" : "Sync off";
+    }
+  }
+
   function markFocusedPane(pane) {
     const tab = state.tabs.get(pane.tabId);
     if (!tab) return;
@@ -1456,6 +1569,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       else els.barStatus.textContent = `${statusPane.subtitle} · following`;
     }
     renderControl(pane);
+    renderStatusBar();
     if (!isNotebookPane(pane) && !termInputOpen(pane)) {
       releaseSessionRailFocus();
       pane.term?.focus();
@@ -1557,7 +1671,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const tab = state.tabs.get(pane.tabId);
     const split = tab && leafCount(tab.layout) > 1 && !tab.zoomedPaneId;
     const theme = { ...xtermTheme() };
-    if (split) theme.background = resolvedTheme() === "light" ? "#fbfbfa" : "#0a0a0a";
+    if (split) theme.background = tokenTermTheme().background;
     pane.term.options.theme = theme;
   }
 
@@ -1846,7 +1960,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const keepScroll = els.tabs.scrollLeft;
     if (!tabRenaming) {
       els.tabs.innerHTML =
-        `<button type="button" class="tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
+        `<button type="button" class="tab k-tab is-vault ${vaultOn ? "is-active" : ""}" data-tab="${VAULT}">${kbdHint("1")}${vaultGlyph()}Vault</button>` +
         ids
           .map((id, i) => {
             const tab = state.tabs.get(id);
@@ -1854,11 +1968,16 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
             const chromeIdx = i + 1;
             const num = chromeIdx < 8 ? String(chromeIdx + 1) : chromeIdx === chrome.length - 1 ? "9" : "";
             const closeHint = id === state.activeId ? kbdHint("W") : "";
-            return `<button type="button" class="tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
+            const notebookOnly = tabPanes(tab).length > 0 && tabPanes(tab).every(isNotebookPane);
+            const dot = dotFor(st);
+            const lead = notebookOnly || tab.start ? tabGlyph(tab) : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
+            const count = tabPanes(tab).length;
+            return `<button type="button" class="tab k-tab ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
             ${num ? kbdHint(num) : ""}
-            ${tabGlyph(tab)}
-            <span class="tab-label">${escapeHtml(tabTitle(tab))}</span>
-            <span class="close" data-close="${id}" title="Close  ${MOD}W">${closeGlyph()}${closeHint}</span>
+            ${lead}
+            <span class="tab-label">${escapeHtml(tabName(tab))}</span>
+            ${count > 1 ? `<span class="k-badge k-badge--mono tab-count" title="${count} panes">${count}</span>` : ""}
+            <span class="close k-tab-close" data-close="${id}" title="Close  ${MOD}W">${closeGlyph()}${closeHint}</span>
           </button>`;
           })
           .join("");
@@ -1910,6 +2029,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
     renderControl(pane);
     paintSessionRail();
+    renderStatusBar();
     if (tabDrag?.id) {
       const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
       dragging?.classList.add("is-dragging");
@@ -2711,6 +2831,9 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         sendSessionBytes(pane, bytes);
       }
     });
+    term.onResize(() => {
+      if (focusedPane() === pane) renderStatusBar();
+    });
     term.onSelectionChange(() => {
       if (!state.prefs.copyOnSelect) return;
       const sel = term.getSelection();
@@ -2805,12 +2928,12 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function searchDecorations() {
-    const light = resolvedTheme() === "light";
+    // xterm takes opaque #rrggbb here, so no alpha tokens.
     return {
-      matchBackground: light ? "#c5d4ff" : "#3d4f73",
-      matchOverviewRuler: light ? "#3b6cff" : "#82a7ff",
-      activeMatchBackground: light ? "#3b6cff" : "#82a7ff",
-      activeMatchColorOverviewRuler: light ? "#171717" : "#f4f4f4",
+      matchBackground: tokenColor("--hover"),
+      matchOverviewRuler: tokenColor("--brass-ink"),
+      activeMatchBackground: tokenColor("--brass"),
+      activeMatchColorOverviewRuler: tokenColor("--ink"),
     };
   }
 
@@ -2992,13 +3115,17 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     wrap.dataset.paneId = paneId;
     const bar = document.createElement("div");
     bar.className = "pane-bar";
-    bar.innerHTML = `<span class="pane-title" title="Drag to rearrange">${escapeHtml(info.title || "session")}</span>
+    const startDot = dotFor(info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "");
+    bar.innerHTML = `<span class="k-dot pane-dot ${startDot.cls}" title="${startDot.label}" aria-hidden="true"></span>
+      <span class="pane-title" title="Drag to rearrange">${escapeHtml(info.title || "session")}</span>
+      <span class="pane-addr">${escapeHtml(info.subtitle || "")}</span>
+      <span class="k-role pane-role" hidden></span>
       <div class="pane-actions">
-        <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
-        <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
-        <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
-        <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
-        <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
+        <button type="button" class="${PANE_BTN} pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
     const progressEl = document.createElement("div");
     progressEl.className = "pane-progress";
@@ -3026,28 +3153,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const failEl = document.createElement("div");
     failEl.className = "pane-fail";
     failEl.hidden = true;
-    failEl.innerHTML = `<div class="pane-fail-card">
-      <div class="pane-fail-head">
-        <span class="pane-fail-dot" data-fail-dot></span>
-        <div class="pane-fail-meta">
-          <b data-fail-title>session</b>
-          <small data-fail-sub></small>
-        </div>
-        <button type="button" class="tiny pane-fail-copy" data-pane-copy-log="${paneId}">Copy logs</button>
+    failEl.innerHTML = `<div class="k-pane-banner k-pane-banner--flare pane-fail-banner" data-fail-banner role="status">
+        <span><b data-fail-kicker>Connection failed</b> <code class="k-mono" data-fail-sub></code></span>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-pane-copy-log="${paneId}">Copy logs</button>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-pane-close="${paneId}">Close</button>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-pane-edit-host="${paneId}">Edit host</button>
+        <button type="button" class="k-btn k-btn--primary k-btn--sm pane-fail-start" data-pane-reconnect="${paneId}">Reconnect</button>
       </div>
-      <div class="pane-fail-link" data-fail-link>
-        <span class="pane-fail-node">${paneGlyph("unplug")}</span>
-        <span class="pane-fail-wire"></span>
-        <span class="pane-fail-node">${paneGlyph("prompt")}</span>
-      </div>
-      <p class="pane-fail-kicker" data-fail-kicker>Connection failed with connection log:</p>
-      <div class="pane-fail-log" data-fail-log></div>
-      <div class="pane-fail-actions">
-        <button type="button" class="btn" data-pane-close="${paneId}">Close</button>
-        <button type="button" class="btn" data-pane-edit-host="${paneId}">Edit host</button>
-        <button type="button" class="btn pane-fail-start" data-pane-reconnect="${paneId}">Start over</button>
-      </div>
-    </div>`;
+      <div class="pane-fail-log" data-fail-log></div>`;
     const inputEl = document.createElement("div");
     inputEl.className = "term-input";
     inputEl.hidden = true;
@@ -3259,7 +3372,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         pane.status = "is-error";
         pane.failKind = "fail";
         pushFailLog(pane, "fail", msg.message || "Connection failed");
-        pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+        pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
         renderTabs();
         if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
           toast(msg.message, true);
@@ -3309,13 +3422,13 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       pane.status = "is-error";
       pane.failKind = "ended";
       pushFailLog(pane, "fail", "Runtime stopped — this session ended.");
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mRuntime stopped — this session ended.\x1b[0m");
+      pane.term.writeln("\r\n\x1b[90mRuntime stopped — this session ended.\x1b[0m");
       renderTabs();
       return;
     }
     pane.failKind = pane.wasReady ? "lost" : "fail";
     pushFailLog(pane, "fail", pane.wasReady ? "Connection lost" : "Connection failed");
-    pane.term.writeln("\r\n\x1b[38;2;139;149;168mConnection lost — click Start over to attach.\x1b[0m");
+    pane.term.writeln("\r\n\x1b[90mConnection lost — click Reconnect to attach.\x1b[0m");
     renderTabs();
   }
 
@@ -3366,10 +3479,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function failHeadline(pane) {
-    if (pane.status === "is-connecting") return "Connecting with connection log:";
-    if (pane.failKind === "ended") return "Session ended with connection log:";
-    if (pane.wasReady || pane.failKind === "lost") return "Connection lost with connection log:";
-    return "Connection failed with connection log:";
+    if (pane.status === "is-connecting") return "Connecting";
+    if (pane.failKind === "ended") return "Session ended";
+    if (pane.wasReady || pane.failKind === "lost") return "Connection lost";
+    return "Connection failed";
   }
 
   function failNoise(message) {
@@ -3444,20 +3557,17 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       if (pane.status === "is-ready") reflowPane(pane);
       return;
     }
-    const title = el.querySelector("[data-fail-title]");
     const sub = el.querySelector("[data-fail-sub]");
     const kicker = el.querySelector("[data-fail-kicker]");
     const log = el.querySelector("[data-fail-log]");
-    const dot = el.querySelector("[data-fail-dot]");
+    const banner = el.querySelector("[data-fail-banner]");
     const edit = el.querySelector("[data-pane-edit-host]");
     const start = el.querySelector("[data-pane-reconnect]");
-    if (title) title.textContent = pane.title || host?.name || "session";
     if (sub) sub.textContent = failEndpoint(pane);
     if (kicker) kicker.textContent = failHeadline(pane);
-    if (dot) {
-      const color = pane.color || host?.color || "#6ea8ff";
-      dot.style.setProperty("--dot", color);
-      dot.style.background = color;
+    if (banner) {
+      banner.classList.toggle("k-pane-banner--flare", !connecting);
+      banner.classList.toggle("k-pane-banner--signal", connecting);
     }
     if (edit) edit.hidden = !pane.hostId || !!pane.remote;
     if (start) start.hidden = connecting;
@@ -3681,13 +3791,15 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     wrap.dataset.paneKind = "notebook";
     const bar = document.createElement("div");
     bar.className = "pane-bar";
-    bar.innerHTML = `<span class="pane-title" title="Drag to rearrange">${escapeHtml(title || "Notebook")}</span>
+    bar.innerHTML = `<span class="k-dot pane-dot k-dot--idle" aria-hidden="true"></span>
+      <span class="pane-title" title="Drag to rearrange">${escapeHtml(title || "Notebook")}</span>
+      <span class="pane-addr">Notebook</span>
       <div class="pane-actions">
-        <button type="button" class="icon-btn pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input" hidden>${paneGlyph("sync")}</button>
-        <button type="button" class="icon-btn" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
-        <button type="button" class="icon-btn" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
-        <button type="button" class="icon-btn" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
-        <button type="button" class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
+        <button type="button" class="${PANE_BTN} pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input" hidden>${paneGlyph("sync")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
+        <button type="button" class="${PANE_BTN}" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
     const body = document.createElement("div");
     body.className = "term-body notebook-pane";
@@ -4889,7 +5001,7 @@ Write a runbook here.
 
     const fail = (message, writeLine = true) => {
       pane.status = "is-error";
-      if (writeLine) pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${message}\x1b[0m`);
+      if (writeLine) pane.term.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
       toast(message, true);
       renderTabs();
     };
@@ -4899,7 +5011,7 @@ Write a runbook here.
       key,
       name: state.name || "guest",
       on: {
-        waiting: () => pane.term.writeln("\x1b[38;2;139;149;168mWaiting for the host to let you in…\x1b[0m"),
+        waiting: () => pane.term.writeln("\x1b[90mWaiting for the host to let you in…\x1b[0m"),
         failed: (message) => fail(message),
         hostLeft: () => toast("Host left"),
         signalingError: (message) => toast(message, true),
@@ -4925,14 +5037,14 @@ Write a runbook here.
     };
     dc.onclose = () => {
       if (pane.status !== "is-error") pane.status = "";
-      pane.term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
+      pane.term.writeln("\r\n\x1b[90mHost detached.\x1b[0m");
       renderTabs();
     };
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
       error: (msg) => {
         pane.status = "is-error";
-        pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+        pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
         renderTabs();
         toast(msg.message, true);
       },

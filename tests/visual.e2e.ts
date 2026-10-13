@@ -49,5 +49,36 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await screen.getByRole('button', 'Close tab').tap();
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });
+
+    // A split session: one focused pane bar (surface + keel line) next to an
+    // unfocused one (chrome, muted), under the selected tab's keel line.
+    test(`split panes (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await openKeel(app);
+      await screen.getByRole('button', 'Terminal').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+      await screen.getByRole('button', 'Split right', { visible: true }).tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toHaveCount(2);
+      await app.screenshot(`${theme}-split`);
+      await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+    });
+
+    // An ended session: the pane bar keeps its dead dot and a flare banner
+    // with Reconnect sits under it.
+    test(`ended session banner (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await openKeel(app);
+      await screen.getByRole('button', 'Terminal').tap();
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      await input.pressSequentially('exit');
+      await input.press('Enter');
+      await expect(screen.getByRole('button', /Reconnect|Start over/, { visible: true })).toBeVisible();
+      await app.screenshot(`${theme}-ended`);
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      await expect(screen.getByRole('button', /Reconnect|Start over/, { visible: true })).toBeHidden();
+    });
   }
 });

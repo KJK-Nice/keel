@@ -2250,8 +2250,9 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "color-mix(in srgb, var(--ink) 12%, transparent)") {
 		t.Fatal("context menu items must highlight on hover")
 	}
-	if !strings.Contains(string(cssBody), "min-height: 42px") {
-		t.Fatal("keel.css missing 42px titlebar overlay")
+	// The titlebar is the size-titlebar token (38px), not a 42px literal.
+	if !strings.Contains(string(cssBody), "height: var(--size-titlebar)") || strings.Contains(string(cssBody), "min-height: 42px") {
+		t.Fatal("keel.css titlebar overlay must use the size-titlebar token")
 	}
 	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
 		t.Fatal("keel.css missing fullscreen tab shift")
@@ -2268,9 +2269,12 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(twBody), "--text-sm:1rem") {
 		t.Fatal("output.css --text-sm must be 1rem so shadcn controls match --ui-size")
 	}
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab`) ||
-		!strings.Contains(string(cssBody), "min-height: 32px") {
-		t.Fatal("keel.css missing taller titlebar tabs")
+	// Tabs are the size-tab token (28px) in every chrome, with the keel line
+	// (2px brass) under the selected one.
+	if !strings.Contains(string(cssBody), "height: var(--size-tab)") ||
+		!strings.Contains(string(cssBody), ".tab.is-active::after") ||
+		!strings.Contains(string(cssBody), "background: var(--brass)") {
+		t.Fatal("keel.css missing token-sized tabs or the keel line under the selected tab")
 	}
 	if !strings.Contains(string(cssBody), ".tab-new:focus") || !strings.Contains(string(cssBody), "html.is-window-dragging") {
 		t.Fatal("new-tab must not show a focus ring; window drag must keep the default cursor")
@@ -2305,9 +2309,12 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "width: 6px !important") {
 		t.Fatal("xterm overlay scrollbar should be thin, not the 14px overview ruler default")
 	}
-	if !strings.Contains(string(cssBody), ".term-tab:not(.is-split) .term-wrap") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split") {
-		t.Fatal("single-pane tabs must fill the stage; split tabs keep tile chrome")
+	// Single and split tabs share one pane look: no tile borders or radii,
+	// 1px line gutters, and the keel line under the focused pane bar.
+	if !strings.Contains(string(cssBody), ".term-tab.is-split { padding: 0;") ||
+		!strings.Contains(string(cssBody), ".term-wrap.is-focused .pane-bar::after") ||
+		!strings.Contains(string(cssBody), ".split-sash {\n  flex: 0 0 1px;") {
+		t.Fatal("split tabs must fill the stage with 1px gutters and mark the focused pane bar with the keel line")
 	}
 	if strings.Contains(string(cssBody), ".snippet-bar") || strings.Contains(string(body), "active-snippets") {
 		t.Fatal("session snippet footer must be removed")
@@ -2367,15 +2374,18 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), `viewBox="0 0 16 16"`) ||
 		!strings.Contains(string(termBody), `M18 6L6.00081 17.9992`) ||
 		!strings.Contains(string(termBody), `M7.5 7.5L8.72654 8.55719`) ||
-		!strings.Contains(string(termBody), `class="icon-btn pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}`) {
+		!strings.Contains(string(termBody), `class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}`) {
 		t.Fatal("session tab and pane close glyphs must use Hugeicons computer-terminal-01 and cancel-01")
 	}
 	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
 	}
-	if !strings.Contains(string(termBody), "allowTransparency") || !strings.Contains(string(termBody), "#0a0a0aa8") ||
-		!strings.Contains(string(termBody), "#fbfbfaa8") {
-		t.Fatal("term.js must glass the native terminal background per theme")
+	// The xterm palette is read from the --term-* and --ansi-* tokens; the
+	// native window glasses the background with an alpha on --term-bg.
+	if !strings.Contains(string(termBody), "allowTransparency") || !strings.Contains(string(termBody), "NATIVE_TERM_ALPHA") ||
+		!strings.Contains(string(termBody), `get("--term-bg")`) || !strings.Contains(string(termBody), "`--ansi-${i}`") ||
+		strings.Contains(string(termBody), "#0a0a0a") || strings.Contains(string(termBody), "#fbfbfa") {
+		t.Fatal("term.js must build the xterm theme from the Keel tokens and glass the native background per theme")
 	}
 	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
 		t.Fatal("term.js must connect from host search and filter by group cards")
@@ -2631,11 +2641,11 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("reconnectPane must reset the local xterm and replay Subscribe snapshot bytes")
 	}
 	if !strings.Contains(string(termBody), "pane-fail") ||
-		!strings.Contains(string(termBody), "Start over") ||
+		!strings.Contains(string(termBody), "Reconnect") ||
 		!strings.Contains(string(termBody), "Copy logs") ||
 		!strings.Contains(string(termBody), "data-pane-edit-host") ||
 		!strings.Contains(string(termBody), "function syncPaneFail") {
-		t.Fatal("term.js must show a connection transition page with Start over")
+		t.Fatal("term.js must show a connection banner with Reconnect")
 	}
 	if !strings.Contains(string(cssBody), ".pane-fail") ||
 		!strings.Contains(string(cssBody), ".pane-fail-start") ||
