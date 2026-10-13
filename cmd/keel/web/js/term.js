@@ -24,6 +24,8 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { tabCycleTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
+import { runtimeIsStale } from "./lib/runtimecheck.js";
+import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -5001,6 +5003,14 @@ Write a runbook here.
     try {
       const health = await api("/api/health");
       state.signalURL = health.signalURL || "";
+      if (runtimeIsStale(new URLSearchParams(location.search).get("app_build"), health.build)) {
+        showStaleRuntimeBanner({
+          stopRuntime: () => {
+            state.runtimeStopping = true;
+            return api("/api/runtime/stop", { method: "POST" });
+          },
+        });
+      }
       if (health.locked) {
         showGate(!!health.needsSetup);
         return;
