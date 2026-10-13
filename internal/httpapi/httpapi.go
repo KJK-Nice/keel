@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
 	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
 	mux.HandleFunc("POST /api/share", s.shareSession)
+	mux.HandleFunc("DELETE /api/share/{id}", s.stopShare)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
@@ -311,6 +312,15 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 	// WKWebView clipboard dies after await fetch (user gesture gone).
 	pasteboardWrite(join)
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
+}
+
+// stopShare ends sharing for a session: viewers are disconnected and the
+// join link stops working. Stopping a session that isn't shared is a no-op.
+func (s *Server) stopShare(w http.ResponseWriter, r *http.Request) {
+	if s.share != nil {
+		s.share.Stop(r.PathValue("id"))
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func pasteboardWrite(s string) {

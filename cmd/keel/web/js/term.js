@@ -3078,6 +3078,8 @@ import { tabCycleDelta, tabCycleTarget } from "./lib/keys.js";
     add({ id: "font-up", group: "Terminal", title: "Larger text", keys: `${MOD}+`, run: () => runShortcut("zoom-in") });
     add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: `${MOD}-`, run: () => runShortcut("zoom-out") });
     add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: `${MOD}0`, run: () => runShortcut("zoom-reset") });
+    add({ id: "share", group: "Terminal", title: "Share session (copy join link)", run: () => shareActive() });
+    add({ id: "stop-share", group: "Terminal", title: "Stop sharing this session", run: () => stopShareActive() });
     add({
       id: "stop-runtime",
       group: "Terminal",
@@ -5579,6 +5581,17 @@ Write a runbook here.
       const copied = await copyText(url);
       toast(copied ? `Copied ${url}` : url);
       if (!copied) window.prompt("Join link", url);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function stopShareActive() {
+    const pane = focusedPane();
+    if (!pane || pane.remote) return;
+    try {
+      await api(`/api/share/${encodeURIComponent(pane.runtimeId)}`, { method: "DELETE" });
+      toast("Sharing stopped — the join link no longer works");
     } catch (err) {
       toast(err.message, true);
     }

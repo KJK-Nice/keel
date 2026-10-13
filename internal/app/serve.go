@@ -32,6 +32,11 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
+	release, err := lockDataDirWait(dataDir, 3*time.Second)
+	if err != nil {
+		return err
+	}
+	defer release()
 	st, err := store.New(filepath.Join(dataDir, "keel.json"))
 	if err != nil {
 		return fmt.Errorf("store: %w", err)
@@ -87,6 +92,21 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	_ = httpSrv.Close()
 	removeOwnPid(dataDir)
 	return nil
+}
+
+// lockDataDirWait retries lockDataDir for up to wait. A daemon that was
+// just stopped answers "down" on its port a moment before it exits and
+// drops the lock, so `keel serve stop && keel serve` (or the desktop app
+// restarting serve) would otherwise fail on the lock.
+func lockDataDirWait(dataDir string, wait time.Duration) (func(), error) {
+	deadline := time.Now().Add(wait)
+	for {
+		release, err := lockDataDir(dataDir)
+		if err == nil || time.Now().After(deadline) {
+			return release, err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func EnsureServe(addr, dataDir string) error {
