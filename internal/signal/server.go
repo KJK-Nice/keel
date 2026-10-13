@@ -118,6 +118,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /join", http.HandlerFunc(s.joinPage))
 	mux.Handle("GET /join.js", http.HandlerFunc(s.script("join.js")))
 	mux.Handle("GET /sharemac.js", http.HandlerFunc(s.script("sharemac.js")))
+	mux.Handle("GET /joinpeer.js", http.HandlerFunc(s.script("joinpeer.js")))
 	web, err := fsSub()
 	if err == nil {
 		mux.Handle("GET /vendor/", http.FileServer(http.FS(web)))

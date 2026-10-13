@@ -24,7 +24,12 @@ make lint              # gofmt, go vet, staticcheck, govulncheck
 make check-generated   # committed *_templ.go and output.css match the pinned tools
 ```
 
-The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. Logic with no DOM or state lives in `cmd/keel/web/js/lib/*.js` and is tested with `node --test` (`make test-js`, also part of `make test`); move code there as it is untangled from `term.js`.
+The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. It holds app state and wiring; the rest lives beside it and is tested with `node --test` (`make test-js`, also part of `make test`):
+
+- `lib/` has no DOM or state: split layouts and their geometry (`layout.js`), vault groups and list markup (`groups.js`, `vaultview.js`), the command palette's filtering (`palette.js`), the session socket protocol (`session.js`), shortcuts, join links, and the share joiner (`joinpeer.js`, `sharemac.js`).
+- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`).
+
+`internal/signal/web/` serves copies of `joinpeer.js` and `sharemac.js` to the browser join page; a test fails if they drift from `lib/`.
 
 Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
 

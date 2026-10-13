@@ -1,6 +1,25 @@
 import { escapeHtml } from "./lib/html.js";
+import * as G from "./lib/groups.js";
+import * as V from "./lib/vaultview.js";
+import { createPaletteList } from "./ui/palette.js";
+import {
+  computeRects,
+  dragSizes,
+  insertBeside,
+  layoutNotebookIds,
+  layoutRuntimeIds,
+  leafCount,
+  pruneLayout,
+  remapLayout,
+  removeLeaf,
+  replaceLeaf,
+  serializeLayout as serializeLayoutWith,
+  swapLeaves,
+  walkLeaves,
+} from "./lib/layout.js";
 import { parseJoinLink } from "./lib/joinlink.js";
-import { answerOffer, createIceQueue } from "./lib/sharemac.js";
+import { openJoinPeer } from "./lib/joinpeer.js";
+import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSocketURL, statusClass } from "./lib/session.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
 import { tabCycleTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
@@ -234,7 +253,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     applyRailTab();
     const notes = document.getElementById("rail-notebooks") || document.querySelector(".session-rail-notes");
     if (notes) {
-      const list = sortedNotebooks();
+      const list = V.sortedNotebooks(state.notebooks);
       const rows = list
         .map((nb) => {
           const pinLabel = nb.pinned ? "Unpin" : "Pin";
@@ -705,27 +724,19 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (state.name) localStorage.setItem("keel-name", state.name);
   }
 
-  function hostSearchHay(h) {
-    const tags = Array.isArray(h.tags) ? h.tags.join(" ") : "";
-    return `${h.name} ${h.group} ${groupPathHay(h.groupId)} ${h.address} ${h.username} ${tags}`.toLowerCase();
-  }
+  // Group and host helpers over the current vault (lib/groups.js).
+  const hostSearchHay = (h) => G.hostSearchHay(state.groups, h);
+  const groupById = (id) => G.groupById(state.groups, id);
+  const groupDescendantDepth = (id) => G.groupDescendantDepth(state.groups, id);
+  const groupDepth = (id) => G.groupDepth(state.groups, id);
+  const isGroupUnder = (id, ancestorId) => G.isGroupUnder(state.groups, id, ancestorId);
+  const nestGroupTreeJS = (query, parentId) => G.nestGroupTree(state.groups, state.hosts, query, parentId);
+  const hostsInCurrentAndSubgroups = (focus, query) => G.hostsInSubtree(state.groups, state.hosts, focus, query);
+  const groupOptionEntries = (excludeId) => G.groupOptionEntries(state.groups, excludeId);
+  const { parseHostTags, hostSubtitle } = G;
 
   const MAX_GROUP_DEPTH = 8;
   const GROUP_COLLAPSED_KEY = "keel-group-collapsed";
-
-  function groupPathHay(groupId) {
-    const names = [];
-    let id = groupId;
-    const seen = new Set();
-    while (id && !seen.has(id)) {
-      seen.add(id);
-      const g = (state.groups || []).find((x) => x.id === id);
-      if (!g) break;
-      names.push(g.name || "");
-      id = g.parentId;
-    }
-    return names.join(" ");
-  }
 
   function loadCollapsedGroups() {
     try {
@@ -758,133 +769,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     else ids.add(id);
     saveCollapsedGroups([...ids]);
     syncGroupTree();
-  }
-
-  function groupById(id) {
-    return (state.groups || []).find((g) => g.id === id) || null;
-  }
-
-  function groupDescendantDepth(id) {
-    let max = 0;
-    for (const g of state.groups || []) {
-      if (g.parentId !== id) continue;
-      max = Math.max(max, 1 + groupDescendantDepth(g.id));
-    }
-    return max;
-  }
-
-  function groupDepth(id) {
-    let depth = 0;
-    let cur = id;
-    const seen = new Set();
-    while (cur && !seen.has(cur)) {
-      seen.add(cur);
-      depth += 1;
-      cur = groupById(cur)?.parentId;
-    }
-    return depth;
-  }
-
-  function isGroupUnder(id, ancestorId) {
-    let cur = id;
-    const seen = new Set();
-    while (cur && !seen.has(cur)) {
-      if (cur === ancestorId) return true;
-      seen.add(cur);
-      cur = groupById(cur)?.parentId;
-    }
-    return false;
-  }
-
-  function nestGroupTreeJS(query, parentId) {
-    const q = String(query || "").trim().toLowerCase();
-    const root = String(parentId || "");
-    const byParent = new Map();
-    for (const g of state.groups || []) {
-      const parent = g.parentId || "";
-      if (!byParent.has(parent)) byParent.set(parent, []);
-      byParent.get(parent).push(g);
-    }
-    const hostsBy = new Map();
-    for (const h of state.hosts || []) {
-      if (q && !hostSearchHay(h).includes(q)) continue;
-      if (!h.groupId) continue;
-      if (!hostsBy.has(h.groupId)) hostsBy.set(h.groupId, []);
-      hostsBy.get(h.groupId).push(h);
-    }
-    function build(pid, depth) {
-      const kids = [...(byParent.get(pid) || [])].sort((a, b) =>
-        String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" })
-      );
-      const out = [];
-      for (const g of kids) {
-        const nested = build(g.id, depth + 1);
-        const hosts = hostsBy.get(g.id) || [];
-        let count = hosts.length;
-        for (const k of nested) count += k.count;
-        if (q && count === 0 && !String(g.name || "").toLowerCase().includes(q)) continue;
-        out.push({ group: g, hosts, kids: nested, count, depth });
-      }
-      return out;
-    }
-    return build(root, 1);
-  }
-
-  function subtreeGroupIds(root) {
-    if (!root) return null;
-    const ids = new Set([root]);
-    const walk = (id) => {
-      for (const g of state.groups || []) {
-        if (g.parentId === id && !ids.has(g.id)) {
-          ids.add(g.id);
-          walk(g.id);
-        }
-      }
-    };
-    walk(root);
-    return ids;
-  }
-
-  function hostsInCurrentAndSubgroups(focus, query) {
-    const q = String(query || "").trim().toLowerCase();
-    const allow = subtreeGroupIds(focus);
-    return (state.hosts || []).filter((h) => {
-      if (allow && !allow.has(h.groupId || "")) return false;
-      if (q && !hostSearchHay(h).includes(q)) return false;
-      return true;
-    });
-  }
-
-  function groupOptionEntries(excludeId) {
-    const skip = new Set();
-    if (excludeId) {
-      skip.add(excludeId);
-      const walk = (id) => {
-        for (const g of state.groups || []) {
-          if (g.parentId === id && !skip.has(g.id)) {
-            skip.add(g.id);
-            walk(g.id);
-          }
-        }
-      };
-      walk(excludeId);
-    }
-    return (state.groups || [])
-      .filter((g) => !skip.has(g.id))
-      .map((g) => ({ value: g.id, label: groupOptionLabel(g) }))
-      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
-  }
-
-  function groupOptionLabel(g) {
-    const parts = [];
-    let cur = g;
-    const seen = new Set();
-    while (cur && !seen.has(cur.id)) {
-      seen.add(cur.id);
-      parts.unshift(cur.name || "");
-      cur = groupById(cur.parentId);
-    }
-    return parts.join(" / ");
   }
 
   function fillParentGroupSelect(triggerId, selected, excludeId, emptyLabel) {
@@ -920,49 +804,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     });
   }
 
-  function parseHostTags(value) {
-    return String(value || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-
-  function hostTagBadges(h) {
-    if (!Array.isArray(h.tags) || !h.tags.length) return "";
-    return h.tags
-      .map(
-        (tag) =>
-          `<span data-slot="badge" class="border-border h-5 cursor-pointer rounded-4xl border px-2 text-xs" data-tag-filter="${escapeHtml(tag)}" title="Filter by ${escapeHtml(tag)}">${escapeHtml(tag)}</span>`
-      )
-      .join("");
-  }
-
-  function groupHosts(hosts) {
-    const q = state.query.trim().toLowerCase();
-    const filtered = hosts.filter((h) => !q || hostSearchHay(h).includes(q));
-    const groups = new Map();
-    for (const h of filtered) {
-      const key = h.group || "Ungrouped";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(h);
-    }
-    return groups;
-  }
-
-  function hostSubtitle(h) {
-    if (h.authType === "local") return h.subtitle || "this machine";
-    const port = h.port && h.port !== 22 ? `:${h.port}` : "";
-    const ident = h.identityId ? " · identity" : "";
-    return `${h.username}@${h.address}${port}${ident}`;
-  }
-
-  function statusColor(status) {
-    if (status === "ready") return "#5ee0b5";
-    if (status === "connecting") return "#f5c15d";
-    if (status === "stopped") return "#8a8a8a";
-    return "#ff6b7a";
-  }
-
   const WORKSPACE_KEY = "keel-workspace";
   let restoringWorkspace = false;
   let workspaceReady = false;
@@ -971,95 +812,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return state.panes.get(paneId)?.runtimeId || "";
   }
 
-  function serializeLayout(node) {
-    if (!node) return null;
-    if (node.type === "leaf") {
-      const pane = state.panes.get(node.paneId);
-      if (isNotebookPane(pane) && pane.notebookId) {
-        return { type: "leaf", kind: "notebook", notebookId: pane.notebookId };
-      }
-      const runtimeId = pane?.runtimeId || paneRuntimeId(node.paneId);
-      return runtimeId ? { type: "leaf", runtimeId } : null;
+  // savedLeaf is how a pane is stored in the saved workspace layout.
+  function savedLeaf(paneId) {
+    const pane = state.panes.get(paneId);
+    if (isNotebookPane(pane) && pane.notebookId) {
+      return { type: "leaf", kind: "notebook", notebookId: pane.notebookId };
     }
-    const a = serializeLayout(node.a);
-    const b = serializeLayout(node.b);
-    if (!a) return b;
-    if (!b) return a;
-    const sizes = Array.isArray(node.sizes) && node.sizes.length === 2
-      ? [Number(node.sizes[0]) || 50, Number(node.sizes[1]) || 50]
-      : [50, 50];
-    return { type: "split", dir: node.dir === "v" ? "v" : "h", sizes, a, b };
-  }
-
-  function layoutRuntimeIds(node, out = []) {
-    if (!node) return out;
-    if (node.type === "leaf") {
-      if (node.runtimeId && !out.includes(node.runtimeId)) out.push(node.runtimeId);
-      return out;
-    }
-    layoutRuntimeIds(node.a, out);
-    layoutRuntimeIds(node.b, out);
-    return out;
-  }
-
-  function layoutNotebookIds(node, out = []) {
-    if (!node) return out;
-    if (node.type === "leaf") {
-      if (node.kind === "notebook" && node.notebookId && !out.includes(node.notebookId)) out.push(node.notebookId);
-      return out;
-    }
-    layoutNotebookIds(node.a, out);
-    layoutNotebookIds(node.b, out);
-    return out;
-  }
-
-  function pruneLayout(node, live, notebooks) {
-    if (!node) return null;
-    if (node.type === "leaf") {
-      if (node.kind === "notebook") return notebooks?.has(node.notebookId) ? node : null;
-      return live.has(node.runtimeId) ? node : null;
-    }
-    const a = pruneLayout(node.a, live, notebooks);
-    const b = pruneLayout(node.b, live, notebooks);
-    if (!a) return b;
-    if (!b) return a;
-    return {
-      type: "split",
-      dir: node.dir === "v" ? "v" : "h",
-      sizes: Array.isArray(node.sizes) && node.sizes.length === 2 ? node.sizes : [50, 50],
-      a,
-      b,
-    };
-  }
-
-  function walkSavedLeaves(node, fn) {
-    if (!node) return;
-    if (node.type === "leaf") {
-      fn(node);
-      return;
-    }
-    walkSavedLeaves(node.a, fn);
-    walkSavedLeaves(node.b, fn);
-  }
-
-  function remapLayout(node, runtimeToPane, notebookToPane) {
-    if (!node) return null;
-    if (node.type === "leaf") {
-      const paneId =
-        node.kind === "notebook" ? notebookToPane?.get(node.notebookId) : runtimeToPane.get(node.runtimeId);
-      return paneId ? { type: "leaf", paneId } : null;
-    }
-    const a = remapLayout(node.a, runtimeToPane, notebookToPane);
-    const b = remapLayout(node.b, runtimeToPane, notebookToPane);
-    if (!a) return b;
-    if (!b) return a;
-    return {
-      type: "split",
-      dir: node.dir === "v" ? "v" : "h",
-      sizes: Array.isArray(node.sizes) && node.sizes.length === 2 ? [...node.sizes] : [50, 50],
-      a,
-      b,
-    };
+    const runtimeId = pane?.runtimeId || paneRuntimeId(paneId);
+    return runtimeId ? { type: "leaf", runtimeId } : null;
   }
 
   function persistWorkspace() {
@@ -1067,7 +827,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const tabs = [];
     for (const tab of state.tabs.values()) {
       if (tab.start || tab.remote || !tab.layout) continue;
-      const layout = serializeLayout(tab.layout);
+      const layout = serializeLayoutWith(tab.layout, savedLeaf);
       if (!layout) continue;
       const focused = state.panes.get(tab.focusedPaneId);
       const zoomed = state.panes.get(tab.zoomedPaneId);
@@ -1143,7 +903,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       notebookToPane.set(rec.id, created.pane.id);
     }
     if (!tab) return;
-    walkSavedLeaves(layout, (leaf) => {
+    walkLeaves(layout, (leaf) => {
       if (leaf.kind !== "notebook" || !leaf.notebookId || notebookToPane.has(leaf.notebookId)) return;
       const rec = notebookById(leaf.notebookId);
       if (!rec) return;
@@ -1213,226 +973,23 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
   }
 
-  function glyphSVG(kind) {
-    if (kind === "folder") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7H16.75C18.8567 7 19.91 7 20.6667 7.50559C20.9943 7.72447 21.2755 8.00572 21.4944 8.33329C22 9.08996 22 10.1433 22 12.25C22 15.7612 22 17.5167 21.1573 18.7779C20.7926 19.3238 20.3238 19.7926 19.7779 20.1573C18.5167 21 16.7612 21 13.25 21H12C7.28595 21 4.92893 21 3.46447 19.5355C2 18.0711 2 15.714 2 11V7.94427C2 6.1278 2 5.21956 2.38032 4.53806C2.65142 4.05227 3.05227 3.65142 3.53806 3.38032C4.21956 3 5.1278 3 6.94427 3C8.10802 3 8.6899 3 9.19926 3.19101C10.3622 3.62712 10.8418 4.68358 11.3666 5.73313L12 7"/></svg>`;
-    }
-    if (kind === "chevron") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M9 6L15 12L9 18"/></svg>`;
-    }
-    if (kind === "local") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"/><path d="M11.5 12.5H15.5"/><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"/></svg>`;
-    }
-    if (kind === "password") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M16 9H19"/><path d="M16 13H19"/><path d="M4.99806 16.6018C5.28942 15.7247 5.83071 14.9651 6.5472 14.4277C7.26369 13.8904 8.12005 13.6018 8.99806 13.6018C9.87606 13.6018 10.7324 13.8904 11.4489 14.4277C12.1654 14.9651 12.7067 15.7247 12.9981 16.6018"/><path d="M8.94922 11.3984C10.0538 11.3984 10.9492 10.503 10.9492 9.39844C10.9492 8.29387 10.0538 7.39844 8.94922 7.39844C7.84465 7.39844 6.94922 8.29387 6.94922 9.39844C6.94922 10.503 7.84465 11.3984 8.94922 11.3984Z"/><path d="M15 4H9C5.70017 4 4.05025 4 3.02513 5.02513C2 6.05025 2 7.70017 2 11V13C2 16.2998 2 17.9497 3.02513 18.9749C4.05025 20 5.70017 20 9 20H15C18.2998 20 19.9497 20 20.9749 18.9749C22 17.9497 22 16.2998 22 13V11C22 7.70017 22 6.05025 20.9749 5.02513C19.9497 4 18.2998 4 15 4Z"/></svg>`;
-    }
-    if (kind === "key") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z"/><path d="M17.5 6.5L16.5 7.5"/></svg>`;
-    }
-    if (kind === "snippet") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/></svg>`;
-    }
-    if (kind === "notebook") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M8 7h8M8 11h5"/><path d="M6 3h9.5A3.5 3.5 0 0 1 19 6.5V21H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"/><path d="M19 21H7"/></svg>`;
-    }
-    if (kind === "log") {
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M2 7C2 7.94281 2 8.41421 2.29289 8.70711C2.58579 9 3.05719 9 4 9H6V5C6 3.89543 5.10457 3 4 3C2.89543 3 2 3.89543 2 5V7Z"/><path d="M10 8H15M10 11H13"/><path d="M19 16V7C19 5.11438 19 4.17157 18.4142 3.58579C17.8284 3 16.8856 3 15 3H4"/></svg>`;
-    }
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M19 4H5C4.06812 4 3.60218 4 3.23463 4.15224C2.74458 4.35523 2.35523 4.74458 2.15224 5.23463C2 5.60218 2 6.06812 2 7C2 7.93188 2 8.39782 2.15224 8.76537C2.35523 9.25542 2.74458 9.64477 3.23463 9.84776C3.60218 10 4.06812 10 5 10H19C19.9319 10 20.3978 10 20.7654 9.84776C21.2554 9.64477 21.6448 9.25542 21.8478 8.76537C22 8.39782 22 7.93188 22 7C22 6.06812 22 5.60218 21.8478 5.23463C21.6448 4.74458 21.2554 4.35523 20.7654 4.15224C20.3978 4 19.9319 4 19 4Z"/><path d="M19 14H5C4.06812 14 3.60218 14 3.23463 14.1522C2.74458 14.3552 2.35523 14.7446 2.15224 15.2346C2 15.6022 2 16.0681 2 17C2 17.9319 2 18.3978 2.15224 18.7654C2.35523 19.2554 2.74458 19.6448 3.23463 19.8478C3.60218 20 4.06812 20 5 20H19C19.9319 20 20.3978 20 20.7654 19.8478C21.2554 19.6448 21.6448 19.2554 21.8478 18.7654C22 18.3978 22 17.9319 22 17C22 16.0681 22 15.6022 21.8478 15.2346C21.6448 14.7446 21.2554 14.3552 20.7654 14.1522C20.3978 14 19.9319 14 19 14Z"/></svg>`;
-  }
-
-  function tileGlyph(color, kind) {
-    if (kind === "folder") {
-      return `<span class="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">${glyphSVG("folder")}</span>`;
-    }
-    const c = color || "#5ee0b5";
-    const inner = kind === "L" || kind === "R" || kind === "D"
-      ? `<span class="text-xs font-semibold">${kind}</span>`
-      : glyphSVG(kind);
-    return `<span class="flex size-9 shrink-0 items-center justify-center rounded-lg" style="--host-color:${c};background:color-mix(in srgb, var(--host-color) 22%, transparent);color:var(--host-color)">${inner}</span>`;
-  }
-
-  function emptyHTML(title, desc) {
-    return `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">${escapeHtml(title)}</div><div data-slot="empty-description" class="text-muted-foreground text-sm">${escapeHtml(desc)}</div></div>`;
-  }
-
-  function tileSection(title, cards) {
-    return `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">${escapeHtml(title)}</h2><div class="tile-grid">${cards}</div></section>`;
-  }
-
-  function hostCardHTML(h) {
-    const kind = h.authType === "local" ? "local" : "ssh";
-    const groupBadge = h.group && h.group !== "Hosts" ? `<span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(h.group)}</span>` : "";
-    return `
-        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${h.id}" draggable="true" data-drag-host="${h.id}">
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-            ${tileGlyph(h.color, kind)}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-connect="${h.id}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(h.name)}</div>
-              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kind}</span>
-                ${groupBadge}
-                ${hostTagBadges(h)}
-                <span class="truncate">${escapeHtml(hostSubtitle(h))}</span>
-              </p>
-            </div>
-            <div class="flex items-center gap-1">
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit="${h.id}" title="Edit">Edit</button>
-              ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-duplicate="${h.id}" title="Duplicate">Duplicate</button>`}
-              ${h.authType === "local" ? "" : `<button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete="${h.id}" title="Remove">✕</button>`}
-            </div>
-          </div>
-        </div>`;
-  }
-
-  function groupFolderHTML(n) {
-    const g = n.group;
-    const kids = n.kids.map(groupFolderHTML).join("");
-    return `
-      <div class="group-tree-node" data-group-id="${escapeHtml(g.id)}" data-group-drop="${escapeHtml(g.id)}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
-        <div class="ring-foreground/10 bg-card text-card-foreground group-tree-heading host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" draggable="true" data-drag-group="${escapeHtml(g.id)}">
-          <div data-slot="card-content" class="flex flex-row items-center gap-2 px-3 py-3">
-            <button type="button" class="group-tree-toggle tiny shrink-0 hover:bg-muted inline-flex size-6 items-center justify-center rounded-md" data-group-toggle="${escapeHtml(g.id)}" aria-label="Expand folder" aria-expanded="true">
-              <span class="group-tree-chevron">${glyphSVG("chevron")}</span>
-            </button>
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-group-filter="${escapeHtml(g.name)}" data-group-open="${escapeHtml(g.id)}">
-              <div class="flex flex-row items-center gap-3">
-                ${tileGlyph("", "folder")}
-                <div class="min-w-0 flex-1">
-                  <div data-slot="card-title" class="truncate text-sm font-medium"><span data-group-title="${escapeHtml(g.id)}">${escapeHtml(g.name)}</span></div>
-                  <p data-slot="card-description" class="text-muted-foreground text-sm">${n.count === 1 ? "1 Host" : `${n.count} Hosts`}</p>
-                </div>
-              </div>
-            </div>
-            <div data-group-menu="${escapeHtml(g.id)}">
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-edit="${escapeHtml(g.id)}" title="Edit">Edit</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-new="${escapeHtml(g.id)}" title="New subgroup">+</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-rename="${escapeHtml(g.id)}" title="Rename">Rename</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-move="${escapeHtml(g.id)}" title="Move">Move</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-group-delete="${escapeHtml(g.id)}" title="Remove">✕</button>
-            </div>
-          </div>
-        </div>
-        <div class="group-tree-children">${kids}</div>
-      </div>`;
-  }
-
-  function groupFocusPathHTML() {
-    if (!state.groupFocus) return "";
-    const crumbs = [];
-    let cur = groupById(state.groupFocus);
-    const seen = new Set();
-    while (cur && !seen.has(cur.id)) {
-      seen.add(cur.id);
-      crumbs.unshift(cur);
-      cur = groupById(cur.parentId);
-    }
-    const parts = [`<button type="button" class="hover:text-foreground" data-group-open="">All</button>`];
-    for (const g of crumbs) {
-      parts.push(`<span aria-hidden="true">/</span><button type="button" class="hover:text-foreground" data-group-open="${escapeHtml(g.id)}">${escapeHtml(g.name)}</button>`);
-    }
-    return `<nav class="group-focus-path text-muted-foreground flex flex-wrap items-center gap-1 text-xs" aria-label="Group">${parts.join("")}</nav>`;
-  }
-
   function renderHosts() {
-    const tree = nestGroupTreeJS(state.query, state.groupFocus);
-    const visible = hostsInCurrentAndSubgroups(state.groupFocus, state.query);
-    if (!tree.length && !visible.length) {
-      els.hostList.innerHTML = `<div data-slot="empty" class="gap-4 rounded-xl border-dashed p-6 flex w-full flex-col items-center justify-center text-center"><div data-slot="empty-title" class="text-sm font-medium tracking-tight">No hosts match</div><div data-slot="empty-description" class="text-muted-foreground text-sm">Add a server or clear the search.</div></div>`;
-      return;
-    }
-    const html = [groupFocusPathHTML()];
-    if (tree.length) {
-      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Groups</h2><div class="group-tree">`);
-      html.push(tree.map(groupFolderHTML).join(""));
-      html.push(`</div></section>`);
-    }
-    if (visible.length) {
-      html.push(`<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Hosts</h2><div class="tile-grid">`);
-      html.push(visible.map(hostCardHTML).join(""));
-      html.push(`</div></section>`);
-    }
-    els.hostList.innerHTML = html.join("");
+    els.hostList.innerHTML = V.hostsHTML({
+      tree: nestGroupTreeJS(state.query, state.groupFocus),
+      hosts: hostsInCurrentAndSubgroups(state.groupFocus, state.query),
+      groups: state.groups,
+      focus: state.groupFocus,
+    });
     syncGroupTree();
     syncHostSelection();
   }
 
   function renderSnippets() {
-    if (!state.snippets.length) {
-      els.snippetList.innerHTML = emptyHTML("No snippets yet", "Save commands you type all the time. Click one to send it into the focused pane.");
-    } else {
-      const cards = state.snippets
-        .map(
-          (s) => `
-        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${s.id}">
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-            ${tileGlyph("#6ea8ff", "snippet")}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-run="${s.id}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(s.name)}</div>
-              <p data-slot="card-description" class="text-muted-foreground snippet-cmd truncate text-sm">${escapeHtml(s.command.trim())}</p>
-            </div>
-            <div class="flex items-center gap-1">
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-snippet="${s.id}" title="Edit">Edit</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-snippet="${s.id}" title="Remove">✕</button>
-            </div>
-          </div>
-        </div>`
-        )
-        .join("");
-      els.snippetList.innerHTML = tileSection("Snippets", cards);
-    }
-  }
-
-  function notebookPreview(nb) {
-    for (const cell of nb?.cells || []) {
-      const line = String(cell.body || "")
-        .split("\n")
-        .map((s) => s.trim())
-        .find(Boolean);
-      if (line) return line;
-    }
-    return "Empty notebook";
-  }
-
-  function sortedNotebooks() {
-    return [...(state.notebooks || [])].sort(
-      (a, b) =>
-        Number(!!b.pinned) - Number(!!a.pinned) ||
-        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")) ||
-        String(a.name || "").localeCompare(String(b.name || ""))
-    );
+    els.snippetList.innerHTML = V.snippetsHTML(state.snippets);
   }
 
   function renderNotebooks() {
-    if (!els.notebookList) return;
-    if (!state.notebooks.length) {
-      els.notebookList.innerHTML = emptyHTML(
-        "No notebooks yet",
-        "Write markdown runbooks here. Open a notebook without a session. Fenced sh/bash blocks can fill CLI input — nothing is typed until you confirm."
-      );
-      return;
-    }
-    const cards = sortedNotebooks()
-      .map((nb) => {
-        const preview = nb.pinned ? `Pinned · ${notebookPreview(nb)}` : notebookPreview(nb);
-        return `
-        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${nb.id}">
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-            ${tileGlyph("#e8b849", "notebook")}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-notebook-open="${nb.id}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(nb.name || "Notebook")}</div>
-              <p data-slot="card-description" class="text-muted-foreground notebook-preview truncate text-sm">${escapeHtml(preview)}</p>
-            </div>
-            <div class="flex items-center gap-1">
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-notebook-rename="${nb.id}" title="Rename">Rename</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-notebook-pin="${nb.id}" title="${nb.pinned ? "Unpin" : "Pin"}">${nb.pinned ? "Unpin" : "Pin"}</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-notebook="${nb.id}" title="Remove">✕</button>
-            </div>
-          </div>
-        </div>`;
-      })
-      .join("");
-    els.notebookList.innerHTML = tileSection("Notebooks", cards);
+    if (els.notebookList) els.notebookList.innerHTML = V.notebooksHTML(state.notebooks);
   }
 
   async function paintVaultNotebooks() {
@@ -1441,121 +998,15 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function renderIdentities() {
-    if (!state.identities.length) {
-      els.identityList.innerHTML = emptyHTML("No identities yet", "Add a password or key and attach it to hosts.");
-      return;
-    }
-    const cards = state.identities
-      .map((id) => {
-        const kind = id.kind === "key" ? "key" : "password";
-        const label = kind === "key" ? "Private key" : "Auth password";
-        const color = kind === "key" ? "#c084fc" : "#6ea8ff";
-        return `
-        <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${id.id}">
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-            ${tileGlyph(color, kind)}
-            <div class="min-w-0 flex-1 cursor-pointer" role="button" tabindex="0" data-edit-identity="${id.id}">
-              <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(id.name)}</div>
-              <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-                <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${escapeHtml(label)}</span>
-                ${id.username ? `<span class="truncate">${escapeHtml(id.username)}</span>` : ""}
-              </p>
-            </div>
-            <div class="flex items-center gap-1">
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-identity="${id.id}" title="Edit">Edit</button>
-              <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-identity="${id.id}" title="Remove">✕</button>
-            </div>
-          </div>
-        </div>`;
-      })
-      .join("");
-    els.identityList.innerHTML = tileSection("Identities", cards);
+    els.identityList.innerHTML = V.identitiesHTML(state.identities);
   }
 
   function renderTunnels() {
-    if (!state.tunnels.length) {
-      els.tunnelList.innerHTML = emptyHTML("No forwards yet", "Local (−L), remote (−R), or dynamic SOCKS5 (−D).");
-      return;
-    }
-    const cards = state.tunnels
-      .map((t) => {
-        const host = state.hosts.find((h) => h.id === t.hostId);
-        const dest = t.kind === "dynamic" ? "SOCKS5" : `${t.destHost}:${t.destPort}`;
-        const listen = t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
-        const st = t.status || "stopped";
-        const letter = t.kind === "remote" ? "R" : t.kind === "dynamic" ? "D" : "L";
-        const kindLabel = t.kind === "remote" ? "Remote" : t.kind === "dynamic" ? "Dynamic" : "Local";
-        return `
-          <div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm" data-id="${t.id}">
-            <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-              ${tileGlyph(statusColor(st), letter)}
-              <div class="min-w-0 flex-1">
-                <div data-slot="card-title" class="truncate text-sm font-medium">${escapeHtml(t.name)}</div>
-                <p data-slot="card-description" class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
-                  <span data-slot="badge" class="border-border h-5 rounded-4xl border px-2 text-xs">${kindLabel}</span>
-                  <span data-slot="badge" class="bg-secondary text-secondary-foreground h-5 rounded-4xl px-2 text-xs">${escapeHtml(st)}</span>
-                  <span class="truncate">${escapeHtml(host?.name || t.hostId)} · ${escapeHtml(listen)} → ${escapeHtml(dest)}</span>
-                  ${t.error ? `<span class="text-destructive truncate">${escapeHtml(t.error)}</span>` : ""}
-                </p>
-              </div>
-              <div class="flex items-center gap-1">
-                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-tunnel-start="${t.id}">Start</button>
-                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex h-6 items-center rounded-md px-2 text-xs" data-tunnel-stop="${t.id}">Stop</button>
-                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-edit-tunnel="${t.id}" title="Edit">Edit</button>
-                <button type="button" class="hover:bg-muted hover:text-foreground inline-flex size-6 items-center justify-center rounded-md text-xs" data-delete-tunnel="${t.id}" title="Remove">✕</button>
-              </div>
-            </div>
-          </div>`;
-      })
-      .join("");
-    els.tunnelList.innerHTML = tileSection("Port forwarding", cards);
-  }
-
-  function logColor(kind) {
-    const k = String(kind || "").toLowerCase();
-    if (k === "error" || k === "fail" || k === "denied") return "#ff6b7a";
-    if (k === "session") return "#5ee0b5";
-    if (k === "tunnel") return "#6ea8ff";
-    return "#8a8a8a";
-  }
-
-  function logParts(iso) {
-    if (!iso) return { date: "", time: "" };
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return { date: "", time: "" };
-    return {
-      date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
-      time: d.toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    };
+    els.tunnelList.innerHTML = V.tunnelsHTML(state.tunnels, state.hosts);
   }
 
   function renderLogs() {
-    const q = state.logFilter.trim().toLowerCase();
-    const rows = state.logs.filter((e) => {
-      if (!q) return true;
-      return `${e.kind} ${e.message}`.toLowerCase().includes(q);
-    });
-    if (!rows.length) {
-      els.logList.innerHTML = emptyHTML("No log entries", "Connection and vault events show up here.");
-      return;
-    }
-    const cards = rows
-      .map((e) => {
-        const { date, time } = logParts(e.time);
-        return `<div class="ring-foreground/10 bg-card text-card-foreground host-tile overflow-hidden rounded-xl py-0 text-sm ring-1 hover:bg-muted/50" data-slot="card" data-size="sm">
-          <div data-slot="card-content" class="flex flex-row items-center gap-3 px-3 py-3">
-            ${tileGlyph(logColor(e.kind), "log")}
-            <div class="log-when">
-              <div data-slot="card-title" class="text-sm font-medium">${escapeHtml(date)}</div>
-              <p data-slot="card-description" class="text-muted-foreground text-sm">${escapeHtml(time)}</p>
-            </div>
-            <span data-slot="badge" class="kind bg-secondary text-secondary-foreground h-5 shrink-0 rounded-4xl px-2 text-xs">${escapeHtml(e.kind)}</span>
-            <div class="text-muted-foreground min-w-0 flex-1 truncate text-sm">${escapeHtml(e.message)}</div>
-          </div>
-        </div>`;
-      })
-      .join("");
-    els.logList.innerHTML = `<section class="flex flex-col gap-2"><h2 class="text-muted-foreground text-xs font-medium tracking-wider uppercase">Logs</h2><div class="flex flex-col gap-2">${cards}</div></section>`;
+    els.logList.innerHTML = V.logsHTML(state.logs, state.logFilter);
   }
 
   function isDriving(pane) {
@@ -1593,8 +1044,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function tabPanes(tab) {
     const out = [];
-    walkLeaves(tab.layout, (id) => {
-      const p = state.panes.get(id);
+    walkLeaves(tab.layout, ({ paneId }) => {
+      const p = state.panes.get(paneId);
       if (p) out.push(p);
     });
     return out;
@@ -1606,65 +1057,9 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return tabPanes(tab);
   }
 
-  function walkLeaves(node, fn) {
-    if (!node) return;
-    if (node.type === "leaf") {
-      fn(node.paneId);
-      return;
-    }
-    walkLeaves(node.a, fn);
-    walkLeaves(node.b, fn);
-  }
-
-  function leafCount(node) {
-    if (!node) return 0;
-    if (node.type === "leaf") return 1;
-    return leafCount(node.a) + leafCount(node.b);
-  }
-
-  function replaceLeaf(node, paneId, next) {
-    if (!node) return node;
-    if (node.type === "leaf") return node.paneId === paneId ? next : node;
-    return { ...node, a: replaceLeaf(node.a, paneId, next), b: replaceLeaf(node.b, paneId, next) };
-  }
-
-  function removeLeaf(node, paneId) {
-    if (!node) return null;
-    if (node.type === "leaf") return node.paneId === paneId ? null : node;
-    const a = removeLeaf(node.a, paneId);
-    const b = removeLeaf(node.b, paneId);
-    if (!a) return b;
-    if (!b) return a;
-    return { ...node, a, b };
-  }
-
-  function swapLeaves(node, aId, bId) {
-    if (!node || aId === bId) return node;
-    if (node.type === "leaf") {
-      if (node.paneId === aId) return { ...node, paneId: bId };
-      if (node.paneId === bId) return { ...node, paneId: aId };
-      return node;
-    }
-    return { ...node, a: swapLeaves(node.a, aId, bId), b: swapLeaves(node.b, aId, bId) };
-  }
-
-  function insertBeside(layout, targetId, incoming, edge) {
-    if (!layout || !incoming || !edge || edge === "center") return layout;
-    const dir = edge === "left" || edge === "right" ? "h" : "v";
-    const incomingFirst = edge === "left" || edge === "top";
-    const targetLeaf = { type: "leaf", paneId: targetId };
-    return replaceLeaf(layout, targetId, {
-      type: "split",
-      dir,
-      sizes: [50, 50],
-      a: incomingFirst ? incoming : targetLeaf,
-      b: incomingFirst ? targetLeaf : incoming,
-    });
-  }
-
   function rehomeLayout(node, tabId) {
-    walkLeaves(node, (id) => {
-      const p = state.panes.get(id);
+    walkLeaves(node, ({ paneId }) => {
+      const p = state.panes.get(paneId);
       if (p) p.tabId = tabId;
     });
   }
@@ -2295,31 +1690,11 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     }
   }
 
-  function splitRect(tab, target) {
+  // splitBox is the area a split node covers in its tab's stage.
+  function splitBox(tab, node) {
     const w = tab.stage?.clientWidth || 0;
     const h = tab.stage?.clientHeight || 0;
-    let found = null;
-    const walk = (node, x, y, rw, rh) => {
-      if (!node || found) return;
-      if (node === target) {
-        found = { x, y, w: rw, h: rh };
-        return;
-      }
-      if (node.type === "leaf") return;
-      const total = node.sizes[0] + node.sizes[1] || 1;
-      const aFrac = node.sizes[0] / total;
-      if (node.dir === "h") {
-        const aW = Math.max(0, Math.floor((rw - SASH_PX) * aFrac));
-        walk(node.a, x, y, aW, rh);
-        walk(node.b, x + aW + SASH_PX, y, Math.max(0, rw - SASH_PX - aW), rh);
-      } else {
-        const aH = Math.max(0, Math.floor((rh - SASH_PX) * aFrac));
-        walk(node.a, x, y, rw, aH);
-        walk(node.b, x, y + aH + SASH_PX, rw, Math.max(0, rh - SASH_PX - aH));
-      }
-    };
-    if (tab.layout) walk(tab.layout, 0, 0, w, h);
-    return found;
+    return computeRects(tab.layout, w, h, SASH_PX).splits.get(node)?.box || null;
   }
 
   function placePane(tab, paneId, x, y, w, h) {
@@ -2334,28 +1709,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     pane.wrap.style.height = `${Math.max(0, h)}px`;
   }
 
-  function layoutSplit(tab, node, x, y, w, h, shown) {
-    if (!node) return;
-    if (node.type === "leaf") {
-      placePane(tab, node.paneId, x, y, w, h);
-      shown.add(node.paneId);
-      return;
-    }
-    const total = node.sizes[0] + node.sizes[1] || 1;
-    const aFrac = node.sizes[0] / total;
-    if (node.dir === "h") {
-      const aW = Math.max(0, Math.floor((w - SASH_PX) * aFrac));
-      const bW = Math.max(0, w - SASH_PX - aW);
-      layoutSplit(tab, node.a, x, y, aW, h, shown);
-      layoutSplit(tab, node.b, x + aW + SASH_PX, y, bW, h, shown);
-    } else {
-      const aH = Math.max(0, Math.floor((h - SASH_PX) * aFrac));
-      const bH = Math.max(0, h - SASH_PX - aH);
-      layoutSplit(tab, node.a, x, y, w, aH, shown);
-      layoutSplit(tab, node.b, x, y + aH + SASH_PX, w, bH, shown);
-    }
-  }
-
   function layoutTabPanes(tab) {
     if (!tab?.stage) return;
     const w = tab.stage.clientWidth || tab.root.clientWidth;
@@ -2366,7 +1719,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       placePane(tab, tab.zoomedPaneId, 0, 0, w, h);
       shown.add(tab.zoomedPaneId);
     } else if (tab.layout) {
-      layoutSplit(tab, tab.layout, 0, 0, w, h, shown);
+      for (const [paneId, r] of computeRects(tab.layout, w, h, SASH_PX).panes) {
+        placePane(tab, paneId, r.x, r.y, r.w, r.h);
+        shown.add(paneId);
+      }
     }
     for (const pane of tabPanes(tab)) {
       if (shown.has(pane.id) || !pane.wrap) continue;
@@ -2379,25 +1735,15 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function syncSashElements(tab) {
-    if (!tab?.sashes) return;
+    if (!tab?.sashes || !tab.stage) return;
+    const { splits } = computeRects(tab.layout, tab.stage.clientWidth || 0, tab.stage.clientHeight || 0, SASH_PX);
     for (const { el, node } of tab.sashes) {
-      const box = splitRect(tab, node);
-      if (!box) continue;
-      const total = node.sizes[0] + node.sizes[1] || 1;
-      const aFrac = node.sizes[0] / total;
-      if (node.dir === "h") {
-        const aW = Math.max(0, Math.floor((box.w - SASH_PX) * aFrac));
-        el.style.left = `${box.x + aW}px`;
-        el.style.top = `${box.y}px`;
-        el.style.width = `${SASH_PX}px`;
-        el.style.height = `${box.h}px`;
-      } else {
-        const aH = Math.max(0, Math.floor((box.h - SASH_PX) * aFrac));
-        el.style.left = `${box.x}px`;
-        el.style.top = `${box.y + aH}px`;
-        el.style.width = `${box.w}px`;
-        el.style.height = `${SASH_PX}px`;
-      }
+      const r = splits.get(node)?.sash;
+      if (!r) continue;
+      el.style.left = `${r.x}px`;
+      el.style.top = `${r.y}px`;
+      el.style.width = `${r.w}px`;
+      el.style.height = `${r.h}px`;
     }
   }
 
@@ -2406,16 +1752,13 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       ev.preventDefault();
       el.setPointerCapture(ev.pointerId);
       const move = (e) => {
-        const box = splitRect(tab, node);
+        const box = splitBox(tab, node);
         if (!box) return;
         const stage = tab.stage.getBoundingClientRect();
-        const total = node.dir === "h" ? box.w : box.h;
-        if (total < 8) return;
         const origin = node.dir === "h" ? stage.left + box.x : stage.top + box.y;
-        const pos = node.dir === "h" ? e.clientX : e.clientY;
-        let pct = ((pos - origin) / total) * 100;
-        pct = Math.min(80, Math.max(20, pct));
-        node.sizes = [pct, 100 - pct];
+        const sizes = dragSizes(node.dir, box, origin, node.dir === "h" ? e.clientX : e.clientY);
+        if (!sizes) return;
+        node.sizes = sizes;
         layoutTabPanes(tab);
         syncSashElements(tab);
         for (const p of visiblePanes(tab)) refreshPaneRender(p);
@@ -2543,8 +1886,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         else if (tab.layout) paintLayout(tab);
         tab.dirty = false;
       }
-      walkLeaves(tab.layout, (pid) => {
-        const p = state.panes.get(pid);
+      walkLeaves(tab.layout, ({ paneId }) => {
+        const p = state.panes.get(paneId);
         if (p) {
           syncPaneChrome(tab, p);
           syncNativeSplitTheme(p);
@@ -2927,8 +2270,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   let kbdTimer = 0;
   let lastShortcutAt = 0;
   let lastShortcutName = "";
-  let paletteCursor = 0;
-  let paletteVisible = [];
   let ptyInjectWaiter = null;
   let ptyChromeHoldUntil = 0;
 
@@ -2946,10 +2287,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function ptyWritesBlocked() {
     return !!(sessionRailFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
-  }
-
-  function paletteQuery() {
-    return (els.cmdPaletteInput?.value || "").trim().toLowerCase();
   }
 
   function paletteCatalog() {
@@ -3166,51 +2503,13 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return items;
   }
 
-  function paletteMatches(item, q) {
-    if (!q) return true;
-    const hay = `${item.title} ${item.hint || ""} ${item.group} ${item.keys || ""}`.toLowerCase();
-    return q.split(/\s+/).filter(Boolean).every((part) => hay.includes(part));
-  }
-
-  function paintCommandPalette() {
-    const list = els.cmdPaletteList;
-    if (!list) return;
-    const q = paletteQuery();
-    paletteVisible = paletteCatalog().filter((item) => paletteMatches(item, q));
-    if (paletteCursor >= paletteVisible.length) paletteCursor = Math.max(0, paletteVisible.length - 1);
-    if (!paletteVisible.length) {
-      list.innerHTML = `<p class="cmd-palette-empty">No matching commands</p>`;
-      els.cmdPaletteInput?.removeAttribute("aria-activedescendant");
-      return;
-    }
-    const parts = [];
-    let lastGroup = "";
-    paletteVisible.forEach((item, i) => {
-      if (item.group !== lastGroup) {
-        lastGroup = item.group;
-        parts.push(`<div class="cmd-palette-group">${escapeHtml(item.group)}</div>`);
-      }
-      const selected = i === paletteCursor;
-      const active = selected ? " is-active" : "";
-      const hint = item.hint ? `<span class="cmd-palette-item-hint">${escapeHtml(item.hint)}</span>` : "";
-      const keys = item.keys ? `<kbd class="cmd-palette-item-keys">${escapeHtml(item.keys)}</kbd>` : "";
-      parts.push(
-        `<button type="button" class="cmd-palette-item${active}" role="option" data-palette-index="${i}" id="cmd-palette-opt-${i}" aria-selected="${selected ? "true" : "false"}">
-          <span class="cmd-palette-item-text"><span class="cmd-palette-item-title">${escapeHtml(item.title)}</span>${hint}</span>
-          ${keys}
-        </button>`
-      );
-    });
-    list.innerHTML = parts.join("");
-    if (els.cmdPaletteInput) {
-      if (paletteVisible.length) {
-        els.cmdPaletteInput.setAttribute("aria-activedescendant", `cmd-palette-opt-${paletteCursor}`);
-      } else {
-        els.cmdPaletteInput.removeAttribute("aria-activedescendant");
-      }
-    }
-    list.querySelector(".cmd-palette-item.is-active")?.scrollIntoView({ block: "nearest" });
-  }
+  const paletteList = createPaletteList({
+    form: els.cmdPaletteForm,
+    input: els.cmdPaletteInput,
+    list: els.cmdPaletteList,
+    catalog: () => paletteCatalog(),
+    run: (item) => runPaletteItem(item),
+  });
 
   function isCommandPaletteOpen() {
     return !!(els.cmdPalette && els.cmdPalette.open);
@@ -3225,9 +2524,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function openCommandPalette() {
     if (!els.cmdPalette) return;
     if (state.openModal && state.openModal !== els.cmdPalette) closeModal();
-    if (els.cmdPaletteInput) els.cmdPaletteInput.value = "";
-    paletteCursor = 0;
-    paintCommandPalette();
+    paletteList.reset();
     focusedPane()?.term?.blur?.();
     openModal(els.cmdPalette);
     setSessionSurface("palette");
@@ -3303,12 +2600,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     } catch (err) {
       toast(err?.message || String(err), true);
     }
-  }
-
-  function movePaletteCursor(delta) {
-    if (!paletteVisible.length) return;
-    paletteCursor = (paletteCursor + delta + paletteVisible.length) % paletteVisible.length;
-    paintCommandPalette();
   }
 
   function runShortcut(name, repeat) {
@@ -3913,15 +3204,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       }
     }
 
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    const q = new URLSearchParams({
-      id: pane.runtimeId,
-      cols: String(pane.term?.cols || 80),
-      rows: String(pane.term?.rows || 24),
-      name: state.name || "guest",
-      kind: "web",
-    });
-    const ws = new WebSocket(`${proto}://${location.host}/ws/session?${q}`);
+    const ws = new WebSocket(
+      sessionSocketURL(location, {
+        runtimeId: pane.runtimeId,
+        cols: pane.term?.cols,
+        rows: pane.term?.rows,
+        name: state.name,
+      }),
+    );
     ws.binaryType = "arraybuffer";
     pane.ws = ws;
     ws.addEventListener("open", () => {
@@ -3931,11 +3221,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     let live = !opts.skipSnapshot;
 
     const applyPresence = (msg) => {
-      if (msg.you) pane.you = msg.you;
-      if (msg.attached) pane.attached = msg.attached;
-      if (msg.driverId != null) pane.driverId = msg.driverId;
-      if (msg.ownerId != null) pane.ownerId = msg.ownerId;
-      if (msg.title) pane.title = msg.title;
+      Object.assign(pane, presenceFields(msg));
       pane.banner.hidden = isDriving(pane);
       const herd = state.herd.find((h) => h.id === pane.runtimeId);
       if (herd) {
@@ -3948,56 +3234,42 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       renderTabs();
     };
 
+    const handlers = {
+      injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
+      joinRequest: (msg) =>
+        joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title }),
+      joinResolved: (msg) => joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId }),
+      joinFailed: (msg) => toast(msg.message || "A viewer could not be connected", true),
+      status: (msg) => {
+        recordFailStatus(pane, msg);
+        pane.status = statusClass(msg.status, pane.status);
+        applyPresence(msg);
+      },
+      presence: (msg) => {
+        recordFailStatus(pane, msg);
+        pane.status = statusClass(msg.status, "is-ready");
+        applyPresence(msg);
+        if (msg.type === "ready") live = true;
+        if (msg.type === "control" && msg.message) toast(msg.message);
+      },
+      error: (msg) => {
+        pane.status = "is-error";
+        pane.failKind = "fail";
+        pushFailLog(pane, "fail", msg.message || "Connection failed");
+        pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+        renderTabs();
+        if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
+          toast(msg.message, true);
+        }
+      },
+    };
     ws.addEventListener("message", (ev) => {
       if (pane.wsGen !== gen) return;
       if (typeof ev.data === "string") {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "inject-challenge") {
-          const done = pane.injectTicketWaiter;
-          pane.injectTicketWaiter = null;
-          if (typeof done === "function") done(msg.nonce || "");
-          return;
-        }
-        if (msg.type === "join-request") {
-          joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title });
-          return;
-        }
-        if (msg.type === "join-resolved") {
-          joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId });
-          return;
-        }
-        if (msg.type === "join-failed") {
-          toast(msg.message || "A viewer could not be connected", true);
-          return;
-        }
-        if (msg.type === "status") {
-          recordFailStatus(pane, msg);
-          if (msg.status === "ready") pane.status = "is-ready";
-          else if (msg.status === "connecting") pane.status = "is-connecting";
-          else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
-          applyPresence(msg);
-        } else if (msg.type === "ready" || msg.type === "presence" || msg.type === "control") {
-          recordFailStatus(pane, msg);
-          if (msg.status === "connecting") pane.status = "is-connecting";
-          else if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
-          else pane.status = "is-ready";
-          applyPresence(msg);
-          if (msg.type === "ready") live = true;
-          if (msg.type === "control" && msg.message) toast(msg.message);
-        } else if (msg.type === "error") {
-          pane.status = "is-error";
-          pane.failKind = "fail";
-          pushFailLog(pane, "fail", msg.message || "Connection failed");
-          pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
-          renderTabs();
-          if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
-            toast(msg.message, true);
-          }
-        }
+        dispatchSessionMessage(parseSessionMessage(ev.data), handlers);
         return;
       }
-      if (!live) return;
-      writePaneBytes(pane, ev.data);
+      if (live) writePaneBytes(pane, ev.data);
     });
     ws.addEventListener("close", () => {
       if (pane.wsGen !== gen || pane.closing || !state.panes.has(pane.id)) return;
@@ -4218,6 +3490,14 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     openModal(els.hostModal);
   }
 
+  // settleInjectTicket hands the server's nonce to whoever is waiting for
+  // it (requestInjectTicket).
+  function settleInjectTicket(pane, nonce) {
+    const done = pane.injectTicketWaiter;
+    pane.injectTicketWaiter = null;
+    if (typeof done === "function") done(nonce);
+  }
+
   function sendSessionJSON(pane, obj) {
     const raw = JSON.stringify(obj);
     if (pane?.remote) {
@@ -4266,9 +3546,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     pane.fitObs = null;
     dropWebgl(pane);
     pane.ws?.close();
-    pane.sigWs?.close();
     try {
-      pane.pc?.close();
+      pane.joinPeer?.close();
     } catch {
       /* ignore */
     }
@@ -4978,10 +4257,6 @@ Write a runbook here.
     if (!isNotebookPane(focusedPane())) pane.term?.focus?.();
   }
 
-  function sendSnippet(id) {
-    return paletteRunSnippet(id);
-  }
-
   function fillIdentitySelect(selected) {
     fillSelectItems(
       "host-identity",
@@ -5590,8 +4865,7 @@ Write a runbook here.
       findEl: shell.findEl,
       inputEl: shell.inputEl,
       ws: null,
-      sigWs: null,
-      pc: null,
+      joinPeer: null,
       dc: null,
       remote: true,
       you: null,
@@ -5605,154 +4879,74 @@ Write a runbook here.
     tab.hostId = "";
 
     const applyPresence = (msg) => {
-      if (msg.you) pane.you = msg.you;
-      if (msg.attached) pane.attached = msg.attached;
-      if (msg.driverId != null) pane.driverId = msg.driverId;
-      if (msg.ownerId != null) pane.ownerId = msg.ownerId;
-      if (msg.title) pane.title = msg.title;
+      Object.assign(pane, presenceFields(msg));
       pane.banner.hidden = isDriving(pane);
       renderTabs();
     };
 
-    const proto = origin.startsWith("https:") ? "wss" : "ws";
-    const host = origin.replace(/^https?:\/\//, "");
-    const q = new URLSearchParams({
-      role: "join",
-      room,
-      name: state.name || "guest",
-    });
-    const sigWs = new WebSocket(`${proto}://${host}/ws?${q}`);
-    pane.sigWs = sigWs;
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-    pane.pc = pc;
-
-    const sendSignal = (msg) => {
-      if (sigWs.readyState === WebSocket.OPEN) {
-        sigWs.send(JSON.stringify({ type: "signal", ...msg }));
-      }
-    };
-
-    pc.onicecandidate = (ev) => {
-      if (!ev.candidate) return;
-      sendSignal({
-        kind: "ice",
-        candidate: ev.candidate.candidate,
-        sdpMid: ev.candidate.sdpMid,
-        sdpMLineIndex: ev.candidate.sdpMLineIndex,
-      });
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        pane.status = "is-error";
-        toast("Follow connection lost", true);
-        renderTabs();
-      }
-    };
-    pc.ondatachannel = (ev) => {
-      const dc = ev.channel;
-      dc.binaryType = "arraybuffer";
-      pane.dc = dc;
-      dc.onopen = () => {
-        pane.status = "is-ready";
-        sendResize(pane);
-        renderTabs();
-      };
-      dc.onclose = () => {
-        if (pane.status !== "is-error") pane.status = "";
-        pane.term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
-        renderTabs();
-      };
-      dc.onmessage = (ev2) => {
-        if (typeof ev2.data === "string") {
-          let msg;
-          try {
-            msg = JSON.parse(ev2.data);
-          } catch {
-            return;
-          }
-          if (msg.type === "inject-challenge") {
-            const done = pane.injectTicketWaiter;
-            pane.injectTicketWaiter = null;
-            if (typeof done === "function") done(msg.nonce || "");
-            return;
-          }
-          if (msg.type === "error") {
-            pane.status = "is-error";
-            pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
-            renderTabs();
-            toast(msg.message, true);
-            return;
-          }
-          if (msg.type === "ready" || msg.type === "presence" || msg.type === "control" || msg.type === "status") {
-            if (msg.status === "ready") pane.status = "is-ready";
-            if (msg.status === "connecting") pane.status = "is-connecting";
-            if (msg.status === "error" || msg.status === "exited") pane.status = "is-error";
-            applyPresence(msg);
-            if (msg.type === "control" && msg.message) toast(msg.message);
-          }
-          return;
-        }
-        writePaneBytes(pane, ev2.data);
-      };
-    };
-
-    const ice = createIceQueue(pc);
-    const failJoin = (message) => {
+    const fail = (message, writeLine = true) => {
       pane.status = "is-error";
-      pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${message}\x1b[0m`);
+      if (writeLine) pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${message}\x1b[0m`);
       toast(message, true);
-      pc.close();
-      sigWs.close();
       renderTabs();
     };
-    // Handle signaling messages one at a time: ICE candidates must not race
-    // ahead of the offer they belong to.
-    let signalChain = Promise.resolve();
-    sigWs.addEventListener("message", (ev) => {
-      signalChain = signalChain.then(() => onSignal(ev)).catch(() => {});
+    const peer = openJoinPeer({
+      origin,
+      room,
+      key,
+      name: state.name || "guest",
+      on: {
+        waiting: () => pane.term.writeln("\x1b[38;2;139;149;168mWaiting for the host to let you in…\x1b[0m"),
+        failed: (message) => fail(message),
+        hostLeft: () => toast("Host left"),
+        signalingError: (message) => toast(message, true),
+        signalingClosed: () => {
+          if (pane.status !== "is-error") fail("Signaling closed", false);
+        },
+        connectionLost: () => fail("Follow connection lost", false),
+        channel: (dc) => attachFollowChannel(pane, dc, applyPresence),
+      },
     });
-    const onSignal = async (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "error") {
-        toast(msg.name || "signaling error", true);
-        return;
-      }
-      if (msg.type === "leave") {
-        toast("Host left");
-        pc.close();
-        return;
-      }
-      if (msg.type !== "signal") return;
-      if (msg.kind === "pending") {
-        pane.term.writeln("\x1b[38;2;139;149;168mWaiting for the host to let you in…\x1b[0m");
-        return;
-      }
-      if (msg.kind === "denied") {
-        failJoin("The host declined your request to join.");
-        return;
-      }
-      if (msg.kind === "offer" && msg.sdp) {
-        try {
-          sendSignal(await answerOffer(pc, key, msg, ice));
-        } catch (err) {
-          failJoin(err.message);
-        }
-      }
-      if (msg.kind === "ice" && msg.candidate) {
-        await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
-      }
-    };
-    sigWs.addEventListener("error", () => toast("Signaling failed", true));
-    sigWs.addEventListener("close", () => {
-      if (pc.connectionState !== "connected" && pane.status !== "is-error") {
-        pane.status = "is-error";
-        toast("Signaling closed", true);
-        renderTabs();
-      }
-    });
+    pane.joinPeer = peer;
     renderTabs();
+  }
+
+  // attachFollowChannel wires a joined share's data channel to its pane:
+  // PTY bytes in, presence and control messages to the pane chrome.
+  function attachFollowChannel(pane, dc, applyPresence) {
+    pane.dc = dc;
+    dc.onopen = () => {
+      pane.status = "is-ready";
+      sendResize(pane);
+      renderTabs();
+    };
+    dc.onclose = () => {
+      if (pane.status !== "is-error") pane.status = "";
+      pane.term.writeln("\r\n\x1b[38;2;139;149;168mHost detached.\x1b[0m");
+      renderTabs();
+    };
+    const handlers = {
+      injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
+      error: (msg) => {
+        pane.status = "is-error";
+        pane.term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+        renderTabs();
+        toast(msg.message, true);
+      },
+      status: (msg) => {
+        pane.status = statusClass(msg.status, pane.status);
+        applyPresence(msg);
+      },
+      presence: (msg) => {
+        pane.status = statusClass(msg.status, pane.status);
+        applyPresence(msg);
+        if (msg.type === "control" && msg.message) toast(msg.message);
+      },
+    };
+    dc.onmessage = (ev) => {
+      if (typeof ev.data === "string") dispatchSessionMessage(parseSessionMessage(ev.data), handlers);
+      else writePaneBytes(pane, ev.data);
+    };
   }
 
   async function submitJoin(ev) {
@@ -6748,32 +5942,6 @@ Write a runbook here.
       els.modalScrim?.classList.remove("is-open");
       fitVisiblePanes();
       syncSessionSurface();
-    });
-    on(els.cmdPaletteForm, "submit", (ev) => {
-      ev.preventDefault();
-      runPaletteItem(paletteVisible[paletteCursor]);
-    });
-    on(els.cmdPaletteInput, "input", () => {
-      paletteCursor = 0;
-      paintCommandPalette();
-    });
-    on(els.cmdPaletteInput, "keydown", (ev) => {
-      if (ev.key === "ArrowDown") {
-        ev.preventDefault();
-        movePaletteCursor(1);
-      } else if (ev.key === "ArrowUp") {
-        ev.preventDefault();
-        movePaletteCursor(-1);
-      }
-    });
-    on(els.cmdPaletteList, "pointerdown", (ev) => {
-      const btn = ev.target.closest?.("[data-palette-index]");
-      if (!btn) return;
-      ev.preventDefault();
-      const i = Number(btn.dataset.paletteIndex);
-      if (!Number.isFinite(i)) return;
-      paletteCursor = i;
-      runPaletteItem(paletteVisible[i]);
     });
     on(els.ptyInjectForm, "submit", (ev) => {
       ev.preventDefault();

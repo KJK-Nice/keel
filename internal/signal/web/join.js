@@ -1,4 +1,4 @@
-import { answerOffer, createIceQueue } from "/sharemac.js";
+import { openJoinPeer } from "/joinpeer.js";
 
 // Loaded as a module, so top-level return isn't allowed: everything runs in main().
 main();
@@ -91,118 +91,60 @@ function main() {
     return;
   }
 
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws?role=join&room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}`);
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   let dc = null;
   let driving = false;
 
-  function sendSignal(msg) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "signal", ...msg }));
-  }
-
-  pc.onicecandidate = (ev) => {
-    if (ev.candidate) {
-      sendSignal({
-        kind: "ice",
-        candidate: ev.candidate.candidate,
-        sdpMid: ev.candidate.sdpMid,
-        sdpMLineIndex: ev.candidate.sdpMLineIndex,
-      });
-    }
-  };
-
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-      setStatus("Connection lost");
-    }
-  };
-
-  pc.ondatachannel = (ev) => {
-    dc = ev.channel;
-    dc.binaryType = "arraybuffer";
+  function attachChannel(channel) {
+    dc = channel;
     dc.onopen = () => setStatus("Following — wait for the host to pass control", true);
     dc.onclose = () => setStatus("Detached");
     dc.onmessage = (ev) => {
-      if (typeof ev.data === "string") {
-        let msg;
-        try {
-          msg = JSON.parse(ev.data);
-        } catch {
-          return;
-        }
-        if (msg.type === "error") {
-          term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
-          return;
-        }
-        if (msg.you) driving = msg.you.role === "driver";
-        term.options.disableStdin = !driving;
-        if (msg.title) {
-          setStatus(driving ? `${msg.title} · driving` : `${msg.title} · following`, !driving);
-        }
-        if (msg.type === "control" && msg.message) setStatus(msg.message, !driving);
+      if (typeof ev.data !== "string") {
+        term.write(new Uint8Array(ev.data));
         return;
       }
-      term.write(new Uint8Array(ev.data));
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (msg.type === "error") {
+        term.writeln(`\r\n\x1b[38;2;248;113;113m${msg.message}\x1b[0m`);
+        return;
+      }
+      if (msg.you) driving = msg.you.role === "driver";
+      term.options.disableStdin = !driving;
+      if (msg.title) {
+        setStatus(driving ? `${msg.title} · driving` : `${msg.title} · following`, !driving);
+      }
+      if (msg.type === "control" && msg.message) setStatus(msg.message, !driving);
     };
-  };
+  }
 
   term.onData((data) => {
     if (!driving || !dc || dc.readyState !== "open") return;
     dc.send(new TextEncoder().encode(data));
   });
 
-  const ice = createIceQueue(pc);
-  let failed = false;
-  function fail(text) {
-    failed = true;
-    setStatus(text);
-    term.writeln(`\r\n\x1b[38;2;248;113;113m${text}\x1b[0m`);
-    pc.close();
-    ws.close();
-  }
-
-  // One message at a time, so ICE candidates can't race ahead of the offer.
-  let chain = Promise.resolve();
-  ws.onmessage = (ev) => {
-    chain = chain.then(() => onSignal(ev)).catch(() => {});
-  };
-  async function onSignal(ev) {
-    const msg = JSON.parse(ev.data);
-    if (msg.type === "error") {
-      setStatus(msg.name || "error");
-      return;
-    }
-    if (msg.type === "leave") {
-      setStatus("Host left");
-      pc.close();
-      return;
-    }
-    if (msg.type !== "signal") return;
-    if (msg.kind === "pending") {
-      setStatus("Waiting for the host to let you in…");
-      return;
-    }
-    if (msg.kind === "denied") {
-      fail("The host declined your request to join.");
-      return;
-    }
-    if (msg.kind === "offer" && msg.sdp) {
-      try {
-        sendSignal(await answerOffer(pc, key, msg, ice));
-      } catch (err) {
-        fail(err.message);
-        return;
-      }
-    }
-    if (msg.kind === "ice" && msg.candidate) {
-      await ice.add({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
-    }
-  }
-  ws.onerror = () => setStatus("Signaling failed");
-  ws.onclose = () => {
-    if (!failed && pc.connectionState !== "connected") setStatus("Signaling closed");
-  };
+  openJoinPeer({
+    origin: location.origin,
+    room,
+    key,
+    name,
+    on: {
+      waiting: () => setStatus("Waiting for the host to let you in…"),
+      failed: (text) => {
+        setStatus(text);
+        term.writeln(`\r\n\x1b[38;2;248;113;113m${text}\x1b[0m`);
+      },
+      hostLeft: () => setStatus("Host left"),
+      signalingError: (text) => setStatus(text),
+      signalingClosed: () => setStatus("Signaling closed"),
+      connectionLost: () => setStatus("Connection lost"),
+      channel: attachChannel,
+    },
+  });
 
   window.addEventListener("resize", () => {
     if (!driving || !dc || dc.readyState !== "open") return;

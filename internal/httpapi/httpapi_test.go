@@ -768,17 +768,6 @@ func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("client must not forge approved:true; #45 nonce is the only Inject grant")
 	}
 
-	send := sliceJSFunc(term, "function sendSnippet")
-	if send == "" {
-		t.Fatal("missing sendSnippet")
-	}
-	if strings.Contains(send, "sendSessionBytes") {
-		t.Fatal("sendSnippet must not silent-Write live websocket binary")
-	}
-	if !strings.Contains(send, "paletteRunSnippet") {
-		t.Fatal("sendSnippet must reuse paletteRunSnippet")
-	}
-
 	run := sliceJSFunc(term, "async function paletteRunSnippet")
 	if run == "" {
 		t.Fatal("missing paletteRunSnippet")
@@ -955,7 +944,7 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	}
 
 	catStart := strings.Index(term, "function paletteCatalog()")
-	catEndRel := strings.Index(term[catStart:], "\n  function paletteMatches")
+	catEndRel := strings.Index(term[catStart:], "\n  const paletteList = createPaletteList(")
 	if catStart < 0 || catEndRel < 0 {
 		t.Fatal("term.js missing palette catalog")
 	}
@@ -1054,8 +1043,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("session sidebar notebook chrome must not mention inject")
 	}
 
-	ser := sliceJSFunc(term, "function serializeLayout")
-	prune := sliceJSFunc(term, "function pruneLayout")
+	ser := sliceJSFunc(term, "function savedLeaf")
+	prune := readWebLib(t, "lib/layout.js")
+	prune = prune[strings.Index(prune, "export function pruneLayout"):]
 	restore := sliceJSFunc(term, "function restoreSavedTab")
 	if !strings.Contains(ser, `kind: "notebook"`) || !strings.Contains(ser, "notebookId") {
 		t.Fatal("workspace layout must persist notebook leaves")
@@ -1914,7 +1904,7 @@ func TestHostListDuplicateAction(t *testing.T) {
 	defer js.Body.Close()
 	jsBody, _ := io.ReadAll(js.Body)
 	term := string(jsBody)
-	if !strings.Contains(term, `data-duplicate="${h.id}"`) || !strings.Contains(term, "/duplicate") {
+	if !strings.Contains(readWebLib(t, "lib/vaultview.js"), `data-duplicate="${escapeHtml(h.id)}"`) || !strings.Contains(term, "/duplicate") {
 		t.Fatal("term.js must duplicate hosts through the vault API")
 	}
 	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sessionRailFocused() || state.openModal || ptyInjectWaiter") {
@@ -2059,8 +2049,8 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	term := string(jsBody)
 	for _, want := range []string{
 		"const MAX_GROUP_DEPTH = 8",
-		"function nestGroupTreeJS",
-		"function hostsInCurrentAndSubgroups",
+		"const nestGroupTreeJS = ",
+		"const hostsInCurrentAndSubgroups = ",
 		"function assignHostsGroup",
 		"data-group-rename",
 		"data-drag-group",
@@ -2389,7 +2379,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "connectFromSearch") || !strings.Contains(string(termBody), "data-group-filter") {
 		t.Fatal("term.js must connect from host search and filter by group cards")
 	}
-	if !strings.Contains(string(termBody), "function parseHostTags") || !strings.Contains(string(termBody), "data-tag-filter") {
+	if !strings.Contains(string(termBody), "parseHostTags(") || !strings.Contains(readWebLib(t, "lib/vaultview.js"), "data-tag-filter") {
 		t.Fatal("term.js must assign host tags and filter the vault list by tag chips")
 	}
 	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
@@ -2459,7 +2449,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(schedFn, "requestAnimationFrame") {
 		t.Fatal("PTY writes must coalesce invalidates per frame")
 	}
-	if !strings.Contains(string(termBody), "writePaneBytes(pane, ev2.data)") {
+	if !strings.Contains(string(termBody), "else writePaneBytes(pane, ev.data)") {
 		t.Fatal("remote PTY bytes must go through writePaneBytes so they invalidate too")
 	}
 	if !strings.Contains(string(cssBody), ".term-stage") ||
@@ -2600,7 +2590,8 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), `WORKSPACE_KEY = "keel-workspace"`) ||
 		!strings.Contains(string(termBody), "function persistWorkspace") ||
 		!strings.Contains(string(termBody), "function restoreSavedTab") ||
-		!strings.Contains(string(termBody), "function pruneLayout") ||
+		!strings.Contains(string(termBody), "pruneLayout(") ||
+		!strings.Contains(readWebLib(t, "lib/layout.js"), "export function pruneLayout") ||
 		!strings.Contains(string(termBody), "workspaceReady") {
 		t.Fatal("term.js must persist split pane layout and restore it onto the same tab")
 	}
@@ -2752,7 +2743,7 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), `#page-logs.is-active`) {
 		t.Fatal("keel.css must flex the vault list pages like hosts")
 	}
-	if !strings.Contains(string(termBody), "tileSection") || !strings.Contains(string(termBody), "Auth password") {
+	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "tileSection") || !strings.Contains(vv, "Auth password") {
 		t.Fatal("term.js fallback lists should render host-style cards")
 	}
 	if !strings.Contains(string(body), `data-vault-view-btn="card"`) || !strings.Contains(string(body), `data-vault-view-btn="list"`) {
@@ -2775,7 +2766,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), ".tile-grid") || !strings.Contains(string(cssBody), "data-vault-view") {
 		t.Fatal("keel.css must layout tile-grid from the vault view mode")
 	}
-	if !strings.Contains(string(termBody), "setVaultView") || !strings.Contains(string(termBody), `class="tile-grid"`) {
+	if !strings.Contains(string(termBody), "setVaultView") || !strings.Contains(readWebLib(t, "lib/vaultview.js"), `class="tile-grid"`) {
 		t.Fatal("term.js must persist vault view mode and render tile-grid fallbacks")
 	}
 	if !strings.Contains(string(termBody), "function toggleSessionRail") ||
@@ -2877,7 +2868,7 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	}
 
 	catStart := strings.Index(js, "function paletteCatalog()")
-	catEndRel := strings.Index(js[catStart:], "\n  function paletteMatches")
+	catEndRel := strings.Index(js[catStart:], "\n  const paletteList = createPaletteList(")
 	if catStart < 0 || catEndRel < 0 {
 		t.Fatal("term.js missing palette catalog")
 	}
@@ -3279,6 +3270,16 @@ console.log("ok");
 
 // readShortcutsJS returns lib/shortcuts.js, where term.js's key -> action
 // table lives (behaviour tests: cmd/keel/web/js/test/shortcuts.test.mjs).
+// readWebLib reads a module under cmd/keel/web/js (e.g. "lib/layout.js").
+func readWebLib(t *testing.T, rel string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 func readShortcutsJS(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
