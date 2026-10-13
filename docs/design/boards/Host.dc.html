@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel edit host</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--stage); font-family: var(--font-sans); color: var(--ink)">
+<dc-import name="Main" theme="{{theme}}" agent="{{no}}" hint-size="1440px,900px"></dc-import>
+
+<div class="k-scrim" style="position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 48px">
+<div class="k-dialog" role="dialog" aria-labelledby="host-title" style="width: 760px">
+<div class="k-dialog-head" style="grid-template-columns: auto 1fr auto; align-items: center; column-gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line)">
+<span class="k-tile" style="--host: var(--ansi-14); width: 36px; height: 36px"><svg class="kw-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-server"></use></svg></span>
+<div style="display: grid; gap: 2px"><h2 class="k-dialog-title" id="host-title">prod-db-01</h2><span class="k-muted" style="font: 400 12px/16px var(--font-mono)">deploy@10.0.4.21:22 · via bastion</span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Close"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg></button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; max-height: 620px; overflow: auto">
+
+<div style="padding: 16px; display: grid; gap: 14px; align-content: start; border-right: 1px solid var(--line)">
+<div class="k-menu-label" style="padding: 0">General</div>
+<div class="k-field"><label class="k-label" for="h-name">Name</label><input id="h-name" class="k-input k-input--mono" value="prod-db-01"></div>
+<div class="k-field"><span class="k-label">Folder</span><button class="k-select" type="button"><span>production</span><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-chev-down"></use></svg></button></div>
+<div class="k-field"><span class="k-label">Color</span>
+<div style="display: flex; gap: 8px" role="radiogroup" aria-label="Host color">
+<button aria-label="Red" aria-checked="false" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-9); cursor: pointer"></button>
+<button aria-label="Green" aria-checked="false" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-10); cursor: pointer"></button>
+<button aria-label="Yellow" aria-checked="false" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-11); cursor: pointer"></button>
+<button aria-label="Blue" aria-checked="false" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-12); cursor: pointer"></button>
+<button aria-label="Magenta" aria-checked="false" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-13); cursor: pointer"></button>
+<button aria-label="Cyan" aria-checked="true" role="radio" style="width: 24px; height: 24px; border-radius: var(--radius-sm); border: 0; background: var(--ansi-14); box-shadow: 0 0 0 2px var(--raised), 0 0 0 4px var(--focus); cursor: pointer"></button>
+</div></div>
+<div class="k-field"><label class="k-label" for="h-tags">Tags</label>
+<div class="k-inputgroup" style="height: auto; min-height: 28px; flex-wrap: wrap; gap: 4px; padding: 3px 6px"><span class="k-badge">patroni</span><span class="k-badge">pg16</span><input id="h-tags" class="k-input" placeholder="Add tag" style="width: 90px; height: 20px; padding: 0"></div></div>
+
+<div class="k-menu-label" style="padding: 6px 0 0">Connection</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px">
+<div class="k-field"><label class="k-label" for="h-host">Host</label><input id="h-host" class="k-input k-input--mono" value="10.0.4.21"></div>
+<div class="k-field"><label class="k-label" for="h-port">Port</label><input id="h-port" class="k-input k-input--mono" value="22"></div>
+</div>
+<div class="k-field"><label class="k-label" for="h-user">User</label><input id="h-user" class="k-input k-input--mono" value="deploy"></div>
+<div class="k-field"><span class="k-label">Jump host</span><button class="k-select" type="button"><span class="k-row" style="gap: 6px"><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span><span class="k-mono" style="font-size: 12px">bastion</span></span><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-chev-down"></use></svg></button><span class="k-help">Reuses bastion's open connection.</span></div>
+</div>
+
+<div style="padding: 16px; display: grid; gap: 14px; align-content: start">
+<div class="k-menu-label" style="padding: 0">Authentication</div>
+<div class="k-field"><span class="k-label">Identity</span><button class="k-select" type="button"><span class="k-row" style="gap: 6px"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-key"></use></svg><span class="k-mono" style="font-size: 12px">deploy-ed25519</span><span class="k-faint" style="font-size: 11px">from Keychain</span></span><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#i-chev-down"></use></svg></button>
+<span class="k-help">Stored encrypted in the vault. Keel never writes it to keel.json.</span></div>
+<div class="k-field"><span class="k-label">Host key</span>
+<div class="k-row" style="gap: 6px"><span class="k-badge k-badge--tide">Trusted</span><span class="k-mono k-muted" style="font-size: 11px">ED25519 SHA256:q3Vt…9fKe</span></div></div>
+
+<div class="k-menu-label" style="padding: 6px 0 0">Session</div>
+<div class="k-field"><label class="k-label" for="h-start">Startup command</label><input id="h-start" class="k-input k-input--mono" placeholder="tmux new -A -s main"></div>
+<div class="k-field k-field--row"><span>Keepalive every 30 s</span><button class="k-switch" role="switch" aria-checked="true" aria-label="Keepalive"></button></div>
+<div class="k-field k-field--row"><span>Reconnect when the connection drops</span><button class="k-switch" role="switch" aria-checked="true" aria-label="Auto reconnect"></button></div>
+
+<div class="k-menu-label" style="padding: 6px 0 0">Agent</div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Agent can read this host's panes</span><span class="k-help">You still choose panes per conversation.</span></div><button class="k-switch" role="switch" aria-checked="true" aria-label="Agent can read panes"></button></div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Treat as production</span><span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge.</span></div><button class="k-switch" role="switch" aria-checked="true" aria-label="Treat as production"></button></div>
+</div>
+</div>
+
+<div class="k-dialog-foot" style="align-items: center">
+<button class="k-btn k-btn--danger k-btn--sm">Delete host</button>
+<span class="k-spacer"></span>
+<span class="k-state k-state--live" style="margin-right: 4px"><span class="k-dot k-dot--live"></span>Connected in 182 ms</span>
+<button class="k-btn">Test connection</button>
+<button class="k-btn k-btn--ghost">Cancel</button>
+<button class="k-btn k-btn--primary">Save<span class="k-kbd">⌘↵</span></button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark', no: false };
+  }
+}
+</script>
+</body>
+</html>

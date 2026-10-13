@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel first run, create vault</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<header class="k-tabs" style="padding-left: 76px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+</header>
+
+<div class="kw-onb">
+<div class="kw-onb-col">
+<div class="kw-steps" aria-label="Setup progress">
+<span class="kw-step" data-state="now"><span class="kw-step-n">1</span>Vault</span><span class="kw-step-sep"></span>
+<span class="kw-step"><span class="kw-step-n">2</span>Hosts</span><span class="kw-step-sep"></span>
+<span class="kw-step"><span class="kw-step-n">3</span>Agent</span>
+</div>
+
+<div style="display: grid; gap: 14px">
+<img src="/_blob/a89ee41697ecb193a4319b37c4453b86" alt="Keel" width="44" height="44" style="display: block; border-radius: 10px">
+<h1>Welcome to Keel</h1>
+<p class="kw-onb-lead">Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this Mac and never leaves it.</p>
+</div>
+
+<div style="display: grid; gap: 10px" role="radiogroup" aria-label="How to unlock the vault">
+<button class="kw-choice-card" role="radio" aria-checked="true"><span class="k-radio" aria-checked="true"></span><span class="kw-choice-title">Unlock with macOS Keychain<span class="k-badge k-badge--brass">Recommended</span></span><span class="kw-choice-desc">The vault key lives in your login keychain. Keel opens without asking, and locks when you log out.</span></button>
+<button class="kw-choice-card" role="radio" aria-checked="false"><span class="k-radio" aria-checked="false"></span><span class="kw-choice-title">Use a passphrase</span><span class="kw-choice-desc">You type it each time Keel starts. Pick this on shared machines or when there is no keychain.</span></button>
+</div>
+
+<div class="kw-box" style="background: var(--surface)">
+<dl class="kw-kv" style="grid-template-columns: 110px minmax(0, 1fr)">
+<dt>Vault file</dt><dd class="kw-mono">~/Library/Application Support/keel/keel.vault</dd>
+<dt>Encryption</dt><dd>age, with the wrapping key in your keychain</dd>
+<dt>Holds</dt><dd>Host passwords, private keys, key passphrases, snippets</dd>
+</dl>
+</div>
+
+<div class="kw-onb-foot">
+<button class="k-btn k-btn--ghost">I already have a keel.vault…</button>
+<span class="grow"></span>
+<button class="k-btn k-btn--primary k-btn--lg">Create vault<span class="k-kbd">↵</span></button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

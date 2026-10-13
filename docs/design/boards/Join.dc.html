@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel joined session</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px; position: relative">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="j-eye" viewBox="0 0 24 24"><path d="M21.5 11C21.8 11.5 22 11.7 22 12C22 12.3 21.8 12.5 21.5 13C20.2 14.9 16.7 19 12 19C7.3 19 3.8 14.9 2.5 13C2.2 12.5 2 12.3 2 12C2 11.7 2.2 11.5 2.5 11C3.8 9.1 7.3 5 12 5C16.7 5 20.2 9.1 21.5 11Z"></path><path d="M15 12C15 10.3 13.7 9 12 9C10.3 9 9 10.3 9 12C9 13.7 10.3 15 12 15C13.7 15 15 13.7 15 12Z"></path></symbol>
+<symbol id="j-steering" viewBox="0 0 24 24"><path d="M22 12C22 17.5 17.5 22 12 22C6.5 22 2 17.5 2 12C2 6.5 6.5 2 12 2C17.5 2 22 6.5 22 12Z"></path><path d="M18.9 10.4C17.9 10.8 16.5 11.2 15.2 10.7C13.3 10 12.3 10 12 10C11.7 10 10.7 10 8.8 10.7C7.5 11.2 6.1 10.8 5.1 10.4M19 13.3C16.9 13.7 13.6 14.9 13.5 19M10.5 19C10.4 14.9 7.1 13.7 5 13.3"></path></symbol>
+<symbol id="j-x" viewBox="0 0 24 24"><path d="M18 6L6 18M18 18L6 6"></path></symbol>
+<symbol id="j-link" viewBox="0 0 24 24"><path d="M15 17H17C19.8 17 22 14.8 22 12C22 9.2 19.8 7 17 7H15M9 17H7C4.2 17 2 14.8 2 12C2 9.2 4.2 7 7 7H9"></path><path d="M8.5 12H15.5"></path></symbol>
+<symbol id="j-lock" viewBox="0 0 24 24"><path d="M12 14V17"></path><path d="M16.5 9V6.5C16.5 4 14.5 2 12 2C9.5 2 7.5 4 7.5 6.5V9"></path><path d="M4.3 18.8C4.5 20.5 5.9 21.8 7.6 21.9C9 22 10.4 22 12 22C13.6 22 15 22 16.4 21.9C18.1 21.8 19.5 20.5 19.7 18.8C19.9 17.8 20 16.6 20 15.5C20 14.4 19.9 13.2 19.7 12.2C19.5 10.5 18.1 9.2 16.4 9.1C15 9 13.6 9 12 9C10.4 9 9 9 7.6 9.1C5.9 9.2 4.5 10.5 4.3 12.2C4.1 13.2 4 14.4 4 15.5C4 16.6 4.1 17.8 4.3 18.8Z"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; gap: 2px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+<div class="k-tab"><span class="k-dot k-dot--idle"></span><span class="k-tab-label">~ local</span></div>
+<div class="k-tab" aria-selected="true"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--haze)"><use href="#j-link"></use></svg><span class="k-tab-label">prod-db-01 · joined</span><span class="k-tab-close"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#j-x"></use></svg></span></div>
+</header>
+
+<div class="kw-guest-banner" role="status">
+<svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#j-eye"></use></svg>
+<span>Following <b>Khajornkiat</b>'s session on <b class="k-mono" style="font-size: 12px">prod-db-01</b> · read-only · 38 ms</span>
+<button class="k-btn k-btn--sm"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#j-steering"></use></svg>Ask for control</button>
+<button class="k-btn k-btn--sm k-btn--ghost" style="margin-left: 0">Leave</button>
+</div>
+
+<div style="flex: 1; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1px; background: var(--line); min-height: 0">
+<section class="k-pane" aria-label="prod-db-01, owner is driving">
+<div class="k-panebar">
+<span class="k-dot k-dot--live"></span><span class="k-panebar-host" style="color: var(--ink)">prod-db-01</span><span class="k-panebar-addr">deploy@10.0.4.21</span>
+<span class="k-role k-role--owner"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#j-steering"></use></svg>Khajornkiat is driving</span>
+<div class="k-panebar-tools"><span class="k-role k-role--follower"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#j-eye"></use></svg>You follow</span></div>
+</div>
+<pre class="k-term"><span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ sudo -u postgres psql -xc "select client_addr, state, sent_lsn, replay_lsn, replay_lag from pg_stat_replication;"
+-[ RECORD 1 ]-+----------------
+client_addr   | 10.0.4.22
+state         | <span class="a3">catchup</span>
+sent_lsn      | 3A/9F2C1180
+replay_lsn    | 3A/9D004A28
+replay_lag    | <span class="a3">00:04:12.81</span>
+
+<span class="a2">deploy@prod-db-01</span>:<span class="a4">~</span>$ <span class="k-cursor"> </span></pre>
+</section>
+<section class="k-pane" aria-label="prod-db-02">
+<div class="k-panebar">
+<span class="k-dot k-dot--live"></span><span class="k-panebar-host">prod-db-02</span><span class="k-panebar-addr">deploy@10.0.4.22</span>
+<div class="k-panebar-tools"><span class="k-role k-role--follower"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#j-eye"></use></svg>You follow</span></div>
+</div>
+<pre class="k-term" style="font-size: 11.5px"><span class="a8">$</span> tail -f /var/log/postgresql/postgresql-16-main.log
+<span class="a8">09:13:46</span> <span class="a1">FATAL</span>:  could not receive data from WAL stream
+<span class="a8">09:13:51</span> LOG:  started streaming WAL from primary at 3A/9D000000
+<span class="a8">09:14:21</span> <span class="a1">FATAL</span>:  could not receive data from WAL stream
+<span class="a8">09:14:26</span> LOG:  started streaming WAL from primary at 3A/9D000000</pre>
+</section>
+</div>
+
+<div class="k-toast" role="status" style="position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); width: auto; grid-template-columns: auto auto auto">
+<svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" style="color: var(--haze)"><use href="#j-lock"></use></svg>
+<div class="k-toast-title" style="white-space: nowrap">Typing is off while you follow</div>
+<button class="k-btn k-btn--sm" style="margin-left: 8px">Ask for control</button>
+</div>
+
+<footer class="kw-status">
+<span><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>WebRTC · peer-to-peer</span>
+<div style="flex: 1"></div>
+<span>You see only this tab · no hosts, keys or agent</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

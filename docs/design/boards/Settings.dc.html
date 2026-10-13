@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel settings, agent</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="kw-root" style="width: 1440px; height: 900px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="g-panel-left" viewBox="0 0 24 24"><path d="M13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3Z"></path><path d="M9 3V21"></path></symbol>
+<symbol id="g-x" viewBox="0 0 24 24"><path d="M18 6L6 18M18 18L6 6"></path></symbol>
+<symbol id="g-add" viewBox="0 0 24 24"><path d="M12 5V19"></path><path d="M19 12H5"></path></symbol>
+<symbol id="g-ai" viewBox="0 0 24 24"><path d="M13.427 8.08396C12.8007 5.84272 12.3226 4 11.0004 4C9.67824 4 9.19964 5.84274 8.5731 8.08399C8.31853 8.99465 8.19125 9.44998 7.82042 9.82077C7.4496 10.1916 6.99434 10.3188 6.08381 10.5732C3.84273 11.1995 2 11.6775 2 13C2 14.3225 3.84273 14.8005 6.08381 15.4268C6.99434 15.6812 7.4496 15.8084 7.82042 16.1792C8.19125 16.55 8.31853 17.0054 8.5731 17.916C9.19964 20.1573 9.67824 22 11.0004 22C12.3226 22 12.8007 20.1573 13.427 17.916C13.6815 17.0054 13.8087 16.5501 14.1795 16.1793C14.5504 15.8085 15.0056 15.6812 15.9162 15.4268C18.1573 14.8005 20 14.3225 20 13C20 11.6775 18.1573 11.1995 15.9162 10.5732C15.0056 10.3188 14.5504 10.1915 14.1795 9.8207C13.8087 9.44986 13.6815 8.99456 13.427 8.08396Z"></path><path d="M19.5 2.9V6.1M17.9 4.5H21.1"></path></symbol>
+<symbol id="g-lock" viewBox="0 0 24 24"><path d="M12 14V17"></path><path d="M16.5 9V6.5C16.5 4 14.5 2 12 2C9.5 2 7.5 4 7.5 6.5V9"></path><path d="M4.3 18.8C4.5 20.5 5.9 21.8 7.6 21.9C9 22 10.4 22 12 22C13.6 22 15 22 16.4 21.9C18.1 21.8 19.5 20.5 19.7 18.8C19.9 17.8 20 16.6 20 15.5C20 14.4 19.9 13.2 19.7 12.2C19.5 10.5 18.1 9.2 16.4 9.1C15 9 13.6 9 12 9C10.4 9 9 9 7.6 9.1C5.9 9.2 4.5 10.5 4.3 12.2C4.1 13.2 4 14.4 4 15.5C4 16.6 4.1 17.8 4.3 18.8Z"></path></symbol>
+<symbol id="g-chev-down" viewBox="0 0 24 24"><path d="M18 9C18 9 13.5811 15 12 15C10.4188 15 6 9 6 9"></path></symbol>
+<symbol id="g-tick" viewBox="0 0 24 24"><path d="M5 14L8.5 17.5L19 6.5"></path></symbol>
+<symbol id="g-settings" viewBox="0 0 24 24"><path d="M15.5 12C15.5 13.933 13.933 15.5 12 15.5C10.067 15.5 8.5 13.933 8.5 12C8.5 10.067 10.067 8.5 12 8.5C13.933 8.5 15.5 10.067 15.5 12Z"></path><path d="M21.3 7.1L20.8 6.3C20.5 5.6 20.3 5.3 19.9 5.2C19.6 5.1 19.3 5.2 18.6 5.4L17.3 5.7C16.9 5.8 16.4 5.7 16 5.5L15.6 5.3C15.3 5.1 15 4.8 14.8 4.4L14.5 3.4C14.3 2.7 14.2 2.4 13.9 2.2C13.7 2 13.3 2 12.6 2H11.5C10.8 2 10.5 2 10.2 2.2C9.9 2.4 9.8 2.7 9.6 3.4L9.3 4.4C9.1 4.8 8.8 5.1 8.5 5.3L8.2 5.5C7.7 5.7 7.3 5.8 6.8 5.7L5.6 5.4C4.9 5.2 4.5 5.1 4.2 5.2C3.9 5.3 3.7 5.6 3.3 6.3L2.8 7.1C2.5 7.7 2.3 8.1 2.3 8.4C2.4 8.7 2.6 9 3.1 9.5L4.1 10.6C4.3 11 4.5 11.5 4.5 12C4.5 12.5 4.3 13.1 4.1 13.4L3.1 14.5C2.6 15.1 2.4 15.3 2.3 15.6C2.3 16 2.5 16.3 2.8 16.9L3.3 17.7C3.7 18.4 3.9 18.7 4.2 18.8C4.5 19 4.9 18.9 5.6 18.7L6.8 18.3C7.3 18.2 7.7 18.3 8.2 18.5L8.5 18.7C8.8 18.9 9.1 19.2 9.3 19.6L9.6 20.6C9.8 21.3 9.9 21.6 10.2 21.8C10.5 22 10.8 22 11.5 22H12.6C13.3 22 13.7 22 13.9 21.8C14.2 21.6 14.3 21.3 14.5 20.6L14.8 19.6C15 19.2 15.3 18.9 15.6 18.7L16 18.5C16.4 18.3 16.9 18.2 17.3 18.3L18.6 18.7C19.3 18.9 19.6 19 19.9 18.8C20.3 18.7 20.5 18.4 20.8 17.7L21.3 16.9C21.7 16.3 21.8 16 21.8 15.6C21.8 15.3 21.5 15.1 21.1 14.5L20 13.4C19.8 13.1 19.6 12.5 19.6 12C19.6 11.5 19.8 11 20 10.6L21.1 9.5C21.5 9 21.8 8.7 21.8 8.4C21.8 8.1 21.7 7.7 21.3 7.1Z"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; gap: 2px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Show vault sidebar" aria-pressed="false" style="margin-right: 6px"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#g-panel-left"></use></svg></button>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">prod-db-01</span></div>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">bastion</span></div>
+<div class="k-tab"><span class="k-dot k-dot--connecting"></span><span class="k-tab-label">nats-03</span></div>
+<div class="k-tab" aria-selected="true" style="font-family: var(--font-sans)"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#g-settings"></use></svg><span class="k-tab-label">Settings</span><span class="k-tab-close"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#g-x"></use></svg></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-tab-new" aria-label="New tab"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#g-add"></use></svg></button>
+</header>
+
+<div style="flex: 1; display: flex; min-height: 0">
+<nav class="k-rail" aria-label="Settings sections" style="width: 232px; padding-top: 12px">
+<div class="k-rail-label" style="padding-top: 4px">Settings</div>
+<a class="k-rail-item" href="#appearance" style="text-decoration: none">Appearance</a>
+<a class="k-rail-item" href="#terminal" style="text-decoration: none">Terminal</a>
+<a class="k-rail-item" href="#keyboard" style="text-decoration: none">Keyboard</a>
+<a class="k-rail-item" href="#agent" aria-current="page" style="text-decoration: none"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#g-ai"></use></svg>Agent</a>
+<a class="k-rail-item" href="#sharing" style="text-decoration: none">Sharing</a>
+<a class="k-rail-item" href="#vault" style="text-decoration: none">Vault &amp; security</a>
+<a class="k-rail-item" href="#runtime" style="text-decoration: none">Runtime</a>
+<div style="flex: 1"></div>
+<a class="k-rail-item" href="#about" style="text-decoration: none">About Keel<span class="k-rail-count">0.9.0</span></a>
+</nav>
+
+<main style="flex: 1; min-width: 0; overflow: auto; background: var(--surface)">
+<div style="max-width: 720px; padding: 32px 40px 48px; display: grid; gap: 28px">
+
+<div style="display: grid; gap: 6px">
+<h1 style="margin: 0; font: 600 28px/32px var(--font-display); letter-spacing: -0.01em">Agent</h1>
+<p class="k-muted" style="margin: 0; max-width: 60ch">The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.</p>
+</div>
+
+<section style="display: grid; gap: 12px">
+<div class="k-menu-label" style="padding: 0">Provider</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-md)">
+<div style="display: grid; gap: 2px; flex: 1"><span style="font-weight: 500">Not connected</span><span class="k-help">Keel sends your message and the scrollback of the panes you pick. Nothing else.</span></div>
+<button class="k-btn k-btn--primary">Connect…</button>
+</div>
+</section>
+
+<section style="display: grid; gap: 14px">
+<div class="k-menu-label" style="padding: 0">Suggestions in panes</div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Suggest a command when I type plain language</span><span class="k-help">Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.</span></div><button class="k-switch" role="switch" aria-checked="true" aria-label="Suggest commands"></button></div>
+<div style="display: grid; gap: 8px; padding-left: 2px" role="radiogroup" aria-label="How to notice plain language">
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="true"></span>Notice it automatically</label>
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="false"></span>Only lines that start with <span class="k-mono">#</span></label>
+<span class="k-help" style="padding-left: 23px">With #, pressing ↵ by mistake is harmless: the shell treats the line as a comment.</span>
+</div>
+</section>
+
+<section style="display: grid; gap: 14px">
+<div class="k-menu-label" style="padding: 0">Agent panel</div>
+<div class="k-field"><span class="k-label">Panes the agent reads in a new conversation</span>
+<div style="display: grid; gap: 8px" role="radiogroup" aria-label="Default panes">
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="false"></span>Focused pane only</label>
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="true"></span>Panes I pick each time</label>
+<label class="k-choice"><span class="k-radio" role="radio" aria-checked="false"></span>Every pane in the tab</label>
+</div></div>
+<div class="k-field" style="max-width: 440px">
+<div class="k-row" style="justify-content: space-between"><span class="k-label">Scrollback sent per pane</span><span class="k-mono k-muted" style="font-size: 12px">200 lines</span></div>
+<div class="k-row" style="flex-wrap: nowrap; gap: 10px"><span class="k-mono k-faint" style="font-size: 11px">50</span><div class="k-slider"><div class="k-slider-track"><div class="k-slider-fill" style="width: 16%"></div><div class="k-slider-thumb" style="left: 16%"></div></div></div><span class="k-mono k-faint" style="font-size: 11px">1000</span></div>
+</div>
+</section>
+
+<section style="display: grid; gap: 14px">
+<div class="k-menu-label" style="padding: 0">Safety</div>
+<div class="k-field k-field--row"><span>Ask before typing anything into a pane</span><span class="k-badge k-badge--outline"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#g-lock"></use></svg>Always on</span></div>
+<div class="k-field k-field--row"><span>Never send vault contents, keys or passwords</span><span class="k-badge k-badge--outline"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#g-lock"></use></svg>Always on</span></div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Destructive commands need ⇧⇥</span><span class="k-help">Plain ⇥ never inserts a command that deletes, drops or restarts.</span></div><button class="k-switch" role="switch" aria-checked="true" aria-label="Destructive commands need Shift Tab"></button></div>
+<div class="k-field"><span class="k-label">Redact before sending</span>
+<div style="display: grid; gap: 8px">
+<label class="k-choice"><span class="k-check" role="checkbox" aria-checked="true"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#g-tick"></use></svg></span>Values that look like secrets (tokens, <span class="k-mono">*_KEY</span>, <span class="k-mono">*_PASSWORD</span>)</label>
+<label class="k-choice"><span class="k-check" role="checkbox" aria-checked="false"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#g-tick"></use></svg></span>IP addresses</label>
+<label class="k-choice"><span class="k-check" role="checkbox" aria-checked="false"><svg class="kw-ico" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#g-tick"></use></svg></span>Hostnames</label>
+</div></div>
+</section>
+
+<section style="display: grid; gap: 14px">
+<div class="k-menu-label" style="padding: 0">History</div>
+<div class="k-field k-field--row"><span>Keep conversations</span><button class="k-select" type="button" style="width: 160px"><span>For 7 days</span><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><use href="#g-chev-down"></use></svg></button></div>
+<div><button class="k-btn k-btn--danger k-btn--sm">Delete all conversations</button></div>
+</section>
+
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>
