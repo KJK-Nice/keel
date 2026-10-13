@@ -10,7 +10,8 @@ func TestOfChangesWithTheUI(t *testing.T) {
 	a := fstest.MapFS{"js/term.js": {Data: []byte("v1")}, "index.html": {Data: []byte("x")}}
 	b := fstest.MapFS{"js/term.js": {Data: []byte("v2")}, "index.html": {Data: []byte("x")}}
 	renamed := fstest.MapFS{"js/other.js": {Data: []byte("v1")}, "index.html": {Data: []byte("x")}}
-	if Of(a) != Of(a) {
+	same := fstest.MapFS{"index.html": {Data: []byte("x")}, "js/term.js": {Data: []byte("v1")}}
+	if Of(a) != Of(same) {
 		t.Fatal("same UI, different ids")
 	}
 	if Of(a) == Of(b) {
