@@ -1,11 +1,12 @@
 #!/bin/sh
 # check-generated.sh: run after `make ui`. Fails when the committed templ
-# output or output.css differs from what the pinned tools just generated.
+# output, tokens.css (from docs/design/tokens.json) or output.css differs
+# from what the pinned tools just generated.
 # output.css is minified to one line, so its diff is shown one CSS rule
 # per line to stay readable.
 set -u
 css=cmd/keel/web/css/output.css
-changed=$(git diff --name-only -- '*_templ.go' "$css")
+changed=$(git diff --name-only -- '*_templ.go' "$css" docs/design/tokens.css cmd/keel/web/css/tokens.css)
 [ -z "$changed" ] && exit 0
 
 echo "generated files are stale: run make ui and commit the result" >&2
