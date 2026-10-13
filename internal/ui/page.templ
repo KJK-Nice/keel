@@ -2,20 +2,13 @@ package ui
 
 import (
 	"keel/components"
-	"keel/components/aspectratio"
 	"keel/components/button"
-	"keel/components/buttongroup"
 	"keel/components/card"
-	"keel/components/dropdownmenu"
-	"keel/components/empty"
 	"keel/components/field"
 	"keel/components/icon"
 	"keel/components/input"
-	"keel/components/inputgroup"
 	"keel/components/kbd"
 	"keel/components/label"
-	"keel/components/slider"
-	switchcomp "keel/components/switch"
 	"keel/components/toast"
 	"keel/components/tooltip"
 )
@@ -27,7 +20,7 @@ templ Page(p PageProps) {
 		class="dark style-nova"
 		data-theme="dark"
 		data-theme-choice="system"
-		data-vault-view="card"
+		data-sidebar="open"
 		data-signals={ p.SignalsJSON() }
 		if p.Native {
 			data-native="1"
@@ -51,19 +44,17 @@ templ Page(p PageProps) {
 					}
 					window.__keelApplyTheme = applyTheme;
 					applyTheme(localStorage.getItem("keel-theme") || "system");
-					var uiSize = 12, smooth = "antialiased", vaultView = "card", sessionRail = "closed";
+					var uiSize = 12, smooth = "antialiased", sidebar = "open";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
 						if (n >= 11 && n <= 16) uiSize = n;
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
-						if (ui.view === "list") vaultView = "list";
-						if (ui.sidebar === true) sessionRail = "open";
+						if (ui.vaultSidebar === false) sidebar = "closed";
 					} catch (e) {}
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
-					document.documentElement.dataset.vaultView = vaultView;
-					document.documentElement.dataset.sessionRail = sessionRail;
+					document.documentElement.dataset.sidebar = sidebar;
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
@@ -91,6 +82,28 @@ templ Page(p PageProps) {
 			<div class="app h-full">
 				<main class="main">
 					<header class="workspace-bar">
+						@tooltip.Tooltip() {
+							<button
+								type="button"
+								class="k-btn k-btn--ghost k-btn--sm k-btn--icon sidebar-toggle"
+								id="btn-sidebar"
+								data-kbd="B"
+								aria-label="Toggle vault sidebar"
+								aria-pressed="true"
+								aria-expanded="true"
+								aria-controls="vault-sidebar"
+								{ tooltip.Trigger(ctx)... }
+							>
+								@icon.PanelLeft()
+								@hintKbd("B")
+							</button>
+							@tooltip.Content() {
+								Vault sidebar
+								@kbd.Kbd() {
+									⌘B
+								}
+							}
+						}
 						<div class="tab-strip">
 							@tabContextMenu()
 							@tooltip.Tooltip() {
@@ -116,7 +129,7 @@ templ Page(p PageProps) {
 							}
 						</div>
 						<div class="bar-meta" id="bar-meta">
-							<span id="bar-status">Vault</span>
+							<span id="bar-status"></span>
 							<div class="control-widget" id="control-widget" hidden></div>
 							@tooltip.Tooltip() {
 								@button.Button(button.Props{
@@ -132,38 +145,14 @@ templ Page(p PageProps) {
 									Copy internet join link
 								}
 							}
-							@tooltip.Tooltip() {
-								@button.Button(button.Props{
-									ID:         "btn-session-rail",
-									Variant:    button.VariantGhost,
-									Size:       button.SizeIconSm,
-									Class:      "tiny",
-									Attributes: mergeAttrs(tooltip.Trigger(ctx), templ.Attributes{
-										"data-kbd":       "B",
-										"aria-label":     "Toggle sidebar",
-										"aria-pressed":   "false",
-										"aria-expanded":  "false",
-										"aria-controls":  "session-rail",
-									}),
-								}) {
-									@icon.PanelRight()
-									@hintKbd("B")
-								}
-								@tooltip.Content() {
-									Sidebar
-									@kbd.Kbd() {
-										⌘B
-									}
-								}
-							}
 						</div>
 					</header>
 					<div class="workspace">
+						@VaultSidebar(p)
 						<section class="stage" id="stage">
-							@Vault(p)
 							<div class="terminals" id="terminals"></div>
+							@Pages(p)
 						</section>
-						@SessionRail()
 					</div>
 					@statusBar()
 				</main>
@@ -182,459 +171,6 @@ templ Page(p PageProps) {
 			<script type="module" src="/js/term.js"></script>
 		</body>
 	</html>
-}
-
-templ SessionRail() {
-	<aside class="session-rail" id="session-rail" aria-label="Sidebar" tabindex="-1">
-		<div class="rail-icon-tabs" role="tablist" aria-label="Sidebar">
-			<button type="button" class="rail-icon-tab" data-rail-tab="notebooks" role="tab" aria-selected="true" aria-pressed="true" title="Notebooks" aria-label="Notebooks">
-				@icon.NotebookPen()
-			</button>
-			<button type="button" class="rail-icon-tab" data-rail-tab="snippets" role="tab" aria-selected="false" aria-pressed="false" title="Snippets" aria-label="Snippets">
-				@icon.CodeXml()
-			</button>
-		</div>
-		<div class="rail-panels">
-			<section class="rail-panel session-rail-notes" id="rail-notebooks" data-rail-panel="notebooks" role="tabpanel">
-				<span class="eyebrow">Notebooks</span>
-				@empty.Empty() {
-					@empty.Header() {
-						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
-							@icon.NotebookPen()
-						}
-						@empty.Title() {
-							No notebooks yet
-						}
-						@empty.Description() {
-							Open a notebook from the vault.
-						}
-					}
-				}
-			</section>
-			<section class="rail-panel" id="rail-snippets" data-rail-panel="snippets" role="tabpanel" hidden>
-				<span class="eyebrow">Snippets</span>
-				@empty.Empty() {
-					@empty.Header() {
-						@empty.Media(empty.MediaProps{Variant: empty.MediaVariantIcon}) {
-							@icon.CodeXml()
-						}
-						@empty.Title() {
-							No snippets yet
-						}
-						@empty.Description() {
-							Save commands in the vault. Run still asks before anything is typed.
-						}
-					}
-				}
-			</section>
-		</div>
-	</aside>
-}
-
-templ Vault(p PageProps) {
-	<div class="vault is-active" id="vault">
-		<nav class="vault-rail" id="vault-rail" role="tablist">
-			@vaultNav("hosts", "Hosts", true) {
-				@icon.Monitor(icon.Props{Class: "vault-nav-icon"})
-			}
-			@vaultNav("keychain", "Keychain", false) {
-				@icon.KeyRound(icon.Props{Class: "vault-nav-icon"})
-			}
-			@vaultNav("forwards", "Port forwarding", false) {
-				@icon.ArrowLeftRight(icon.Props{Class: "vault-nav-icon"})
-			}
-			@vaultNav("snippets", "Snippets", false) {
-				@icon.CodeXml(icon.Props{Class: "vault-nav-icon"})
-			}
-			@vaultNav("notebooks", "Notebooks", false) {
-				@icon.NotepadText(icon.Props{Class: "vault-nav-icon"})
-			}
-			@vaultNav("logs", "Logs", false) {
-				@icon.ScrollText(icon.Props{Class: "vault-nav-icon"})
-			}
-			@tooltip.Tooltip() {
-				<button
-					type="button"
-					class="vault-nav"
-					data-vault="settings"
-					data-kbd=","
-					{ tooltip.Trigger(ctx)... }
-				>
-					@icon.Settings(icon.Props{Class: "vault-nav-icon"})
-					Settings
-					@hintKbd(",")
-				</button>
-				@tooltip.Content() {
-					Settings
-					@kbd.Kbd() {
-						⌘,
-					}
-				}
-			}
-		</nav>
-		<div class="vault-body">
-			@HostsPage(p)
-			@KeychainPage(p)
-			@ForwardsPage(p)
-			@SnippetsPage(p)
-			@NotebooksPage(p)
-			@LogsPage(p)
-			@SettingsPage()
-		</div>
-	</div>
-}
-
-templ vaultNav(id, label string, active bool) {
-	<button
-		type="button"
-		class={ "vault-nav", templ.KV("is-active", active) }
-		data-vault={ id }
-	>
-		{ children... }
-		{ label }
-	</button>
-}
-
-templ HostsPage(p PageProps) {
-	<section
-		class="vault-page is-active flex flex-col gap-5"
-		id="page-hosts"
-		data-page="hosts"
-	>
-		@inputgroup.InputGroup(inputgroup.Props{
-			Class: "h-10",
-		}) {
-			@inputgroup.Input(inputgroup.InputProps{
-				ID:          "search",
-				Type:        "search",
-				Class:       "h-10",
-				Placeholder: "Find a host or ssh user@hostname...",
-				Attributes: templ.Attributes{
-					"aria-label":                     "Search hosts",
-					"autocomplete":                   "off",
-					"data-bind":                      "query",
-					"data-on:input__debounce.200ms": "@get('/ui/hosts')",
-				},
-			})
-			@inputgroup.Addon() {
-				@icon.Search01()
-			}
-			@inputgroup.Addon(inputgroup.AddonProps{Align: inputgroup.AlignInlineEnd, Class: "py-0"}) {
-				@kbd.Kbd(kbd.Props{ID: "search-kbd"}) {
-					⌘K
-				}
-				@button.Button(button.Props{
-					ID:      "btn-host-connect",
-					Variant: button.VariantDefault,
-				}) {
-					Connect
-				}
-			}
-		}
-		@vaultToolbar() {
-			@buttongroup.ButtonGroup() {
-				@button.Button(button.Props{
-					ID:         "btn-new-host",
-					Attributes: templ.Attributes{"data-kbd": "N"},
-				}) {
-					@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-					New host
-					@hintKbd("N")
-				}
-				@dropdownmenu.DropdownMenu() {
-					@button.Button(button.Props{
-						Variant:    button.VariantDefault,
-						Size:       button.SizeIcon,
-						Attributes: mergeAttrs(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "More host actions"}),
-					}) {
-						@icon.ChevronDown()
-					}
-					@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
-						@dropdownmenu.Group() {
-							@dropdownmenu.Item(dropdownmenu.ItemProps{
-								ID:         "btn-quick",
-								Attributes: templ.Attributes{"data-kbd": "⇧O"},
-							}) {
-								@icon.Login01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-								Quick connect
-								@dropdownmenu.Shortcut() {
-									⌘⇧O
-								}
-							}
-							@dropdownmenu.Item(dropdownmenu.ItemProps{
-								ID:         "btn-join",
-								Attributes: templ.Attributes{"data-kbd": "J"},
-							}) {
-								@icon.Link01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-								Join session
-								@dropdownmenu.Shortcut() {
-									⌘J
-								}
-							}
-							@dropdownmenu.Item(dropdownmenu.ItemProps{
-								ID:         "btn-new-group",
-								Attributes: templ.Attributes{"data-group-new": ""},
-							}) {
-								@icon.Folder01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-								New group
-							}
-						}
-					}
-				}
-			}
-			@button.Button(button.Props{
-				ID:      "btn-welcome-local",
-				Variant: button.VariantOutline,
-			}) {
-				@icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-				Terminal
-			}
-		}
-		@HostList(p)
-	</section>
-}
-
-templ KeychainPage(p PageProps) {
-	<section class="vault-page flex flex-col gap-5" id="page-keychain" data-page="keychain">
-		@vaultToolbar() {
-			@button.Button(button.Props{
-				ID: "btn-new-identity",
-			}) {
-				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-				New identity
-			}
-		}
-		@IdentityList(p)
-	</section>
-}
-
-templ ForwardsPage(p PageProps) {
-	<section class="vault-page flex flex-col gap-5" id="page-forwards" data-page="forwards">
-		@vaultToolbar() {
-			@button.Button(button.Props{
-				ID: "btn-new-tunnel",
-			}) {
-				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-				New forward
-			}
-		}
-		@TunnelList(p)
-	</section>
-}
-
-templ SnippetsPage(p PageProps) {
-	<section class="vault-page flex flex-col gap-5" id="page-snippets" data-page="snippets">
-		@vaultToolbar() {
-			@button.Button(button.Props{
-				ID: "btn-new-snippet",
-			}) {
-				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-				New snippet
-			}
-		}
-		@SnippetList(p)
-	</section>
-}
-
-templ NotebooksPage(p PageProps) {
-	<section class="vault-page flex flex-col gap-5" id="page-notebooks" data-page="notebooks">
-		@vaultToolbar() {
-			@button.Button(button.Props{
-				ID: "btn-new-notebook",
-			}) {
-				@icon.Add01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
-				New notebook
-			}
-		}
-		@NotebookList(p)
-	</section>
-}
-
-templ LogsPage(p PageProps) {
-	<section class="vault-page flex flex-col gap-5" id="page-logs" data-page="logs">
-		@inputgroup.InputGroup(inputgroup.Props{
-			Class: "h-10",
-		}) {
-			@inputgroup.Input(inputgroup.InputProps{
-				ID:          "log-filter",
-				Type:        "search",
-				Class:       "h-10",
-				Placeholder: "Filter logs",
-				Attributes: templ.Attributes{
-					"aria-label":                     "Filter logs",
-					"autocomplete":                   "off",
-					"data-bind":                      "logFilter",
-					"data-on:input__debounce.200ms": "@get('/ui/logs')",
-				},
-			})
-			@inputgroup.Addon() {
-				@icon.Search01()
-			}
-			@inputgroup.Addon(inputgroup.AddonProps{Align: inputgroup.AlignInlineEnd, Class: "py-0"}) {
-				@button.Button(button.Props{
-					ID:      "btn-refresh-logs",
-					Variant: button.VariantDefault,
-					Attributes: templ.Attributes{
-						"data-on:click": "@get('/ui/logs')",
-					},
-				}) {
-					Refresh
-				}
-			}
-		}
-		@LogList(p)
-	</section>
-}
-
-templ SettingsPage() {
-	<section class="vault-page settings-shell" id="page-settings" data-page="settings">
-		<aside class="settings-rail" aria-label="Settings">
-			<button type="button" class="settings-back" data-settings-back>
-				@icon.ArrowLeft01(icon.Props{Class: "settings-back-icon"})
-				Back
-			</button>
-			@inputgroup.InputGroup(inputgroup.Props{Class: "settings-search h-9"}) {
-				@inputgroup.Addon() {
-					@icon.Search01(icon.Props{Class: "size-4 opacity-60"})
-				}
-				@inputgroup.Input(inputgroup.InputProps{
-					ID:          "settings-search",
-					Type:        "search",
-					Class:       "h-9",
-					Placeholder: "Search settings",
-					Attributes: templ.Attributes{
-						"autocomplete": "off",
-						"spellcheck":   "false",
-						"aria-label":   "Search settings",
-					},
-				})
-			}
-			<nav class="settings-nav-list" role="tablist">
-				@settingsNav("appearance", "Appearance", true)
-				@settingsNav("terminal", "Terminal", false)
-			</nav>
-		</aside>
-		<div class="settings-main">
-			<form class="settings-form" id="settings-form">
-				<div class="settings-main-inner">
-					<div class="settings-panel is-active" data-settings-panel="appearance" role="tabpanel">
-						<h1>Appearance</h1>
-						@settingsGroup("Display") {
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Theme</div>
-									<p class="pref-desc">Light, dark, or follow the system.</p>
-								</div>
-								@settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"})
-							</div>
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">UI size</div>
-									<p class="pref-desc">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p>
-								</div>
-								<div class="pref-slider">
-									@slider.Slider(slider.Props{
-										ID:           "set-ui-size",
-										Min:          11,
-										Max:          16,
-										Step:         1,
-										DefaultValue: []float64{12},
-										Class:        "w-36",
-									})
-									<output id="set-ui-size-out">12</output>
-								</div>
-							</div>
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Font smoothing</div>
-									<p class="pref-desc">How chrome text is drawn. Antialiased is thinner on dark UI.</p>
-								</div>
-								@settingsSelect("set-smooth", "smoothing", "Font smoothing", "Smoothing", "antialiased", []string{"antialiased", "subpixel", "none"}, []string{"Antialiased", "Subpixel", "None"})
-							</div>
-						}
-					</div>
-					<div class="settings-panel" data-settings-panel="terminal" role="tabpanel" hidden>
-						<h1>Terminal</h1>
-						@settingsGroup("Session") {
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Font</div>
-									<p class="pref-desc">Monospace face used in every pane.</p>
-								</div>
-								@settingsSelect("set-font", "font", "Terminal font", "Font", "jetbrains", []string{"jetbrains", "ibmplex", "menlo", "consolas", "system"}, []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono"})
-							</div>
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Text size</div>
-									<p class="pref-desc">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p>
-								</div>
-								<div class="pref-slider" data-kbd="+">
-									@slider.Slider(slider.Props{
-										ID:           "set-size",
-										Min:          10,
-										Max:          22,
-										Step:         1,
-										DefaultValue: []float64{12},
-										Class:        "w-36",
-									})
-									<output id="set-size-out">12</output>
-									@hintKbd("+ − 0")
-								</div>
-							</div>
-							<div class="pref-row pref-row-preview">
-								@aspectratio.AspectRatio(aspectratio.Props{Ratio: "16/5", Class: "pref-preview overflow-hidden w-full"}) {
-									<pre id="term-preview" class="absolute inset-0 m-0 flex items-center px-3">guest@keel:~ $ ssh prod-api</pre>
-								}
-							</div>
-						}
-						@settingsGroup("Input") {
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Copy on select</div>
-									<p class="pref-desc">Copy terminal selection to the clipboard.</p>
-								</div>
-								@switchcomp.Switch(switchcomp.Props{ID: "set-copy"})
-							</div>
-							<div class="pref-row">
-								<div class="pref-copy">
-									<div class="pref-title">Right-click to paste</div>
-									<p class="pref-desc">Paste clipboard into the focused pane.</p>
-								</div>
-								@switchcomp.Switch(switchcomp.Props{ID: "set-paste"})
-							</div>
-						}
-					</div>
-				</div>
-			</form>
-		</div>
-	</section>
-}
-
-templ settingsNav(id, label string, active bool) {
-	<button
-		type="button"
-		class={ "settings-nav", templ.KV("is-active", active) }
-		data-settings-section={ id }
-		role="tab"
-		if active {
-			aria-selected="true"
-		} else {
-			aria-selected="false"
-		}
-	>
-		{ label }
-	</button>
-}
-
-templ settingsGroup(title string) {
-	<section class="settings-group">
-		if title != "" {
-			<h2 class="settings-group-title">{ title }</h2>
-		}
-		<div class="settings-group-body">
-			{ children... }
-		</div>
-	</section>
 }
 
 templ Gate(p PageProps) {

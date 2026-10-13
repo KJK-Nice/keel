@@ -4,12 +4,13 @@ import { keelApi, keelJson, openKeel } from './keel.ts';
 
 type Host = { id: string; name: string; address: string; username: string; authType: string };
 
-test('a host is added, found, and removed from the Vault', { tags: ['hosts'] }, async ({ app, screen }) => {
+test('a host is added, found, and removed from the Vault sidebar', { tags: ['hosts'] }, async ({ app, screen }) => {
   const name = `e2e-host-${Date.now().toString(36)}`;
   const password = `pw-${Date.now().toString(36)}-scratch`;
   await openKeel(app);
+  const vault = screen.getByRole('complementary', 'Vault');
 
-  await screen.getByRole('button', 'New host').tap();
+  await vault.getByRole('button', 'New host').tap();
   // The host modal is a <dialog> without an accessible name; its title is text.
   const dialog = screen.getByRole('dialog').filter({ hasText: 'New host' });
   await expect(dialog).toBeVisible();
@@ -20,8 +21,9 @@ test('a host is added, found, and removed from the Vault', { tags: ['hosts'] }, 
   await dialog.getByRole('button', 'Save host').tap();
   await expect(dialog).toBeHidden();
 
-  const card = screen.getByRole('button', new RegExp(`^${name}\\b`));
-  await expect(card).toBeVisible();
+  // The tree row's name is the label (plus a live count once connected).
+  const row = vault.getByRole('button', new RegExp(`^${name}\\b`));
+  await expect(row).toBeVisible();
   await app.screenshot('host-added');
 
   // Side effect: keel serve stored the host, and the password went to the
@@ -31,19 +33,19 @@ test('a host is added, found, and removed from the Vault', { tags: ['hosts'] }, 
   expect(keelJson()).toContain(name);
   expect(keelJson()).not.toContain(password);
 
-  await screen.getByRole('searchbox', 'Search hosts').fill(name);
-  await expect(card).toBeVisible();
-  await expect(screen.getByRole('button', /^Local Shell\b/)).toBeHidden();
+  await vault.getByRole('searchbox', 'Search hosts').fill(name);
+  await expect(row).toBeVisible();
+  await expect(vault.getByRole('button', /^Local Shell\b/)).toBeHidden();
 
-  // Every card's menu button is named just "Actions", so remove the host
-  // while the search leaves its card the only one on screen.
-  await screen.getByRole('button', 'Actions', { visible: true }).tap();
+  // Every row's menu button is named just "Actions", so remove the host
+  // while the filter leaves its row the only one in the tree.
+  await vault.getByRole('button', 'Actions', { visible: true }).tap();
   await screen.getByRole('menuitem', 'Remove').tap();
   await expect(screen.getByRole('alertdialog')).toContainText(`Remove ${name}?`);
   await screen.getByRole('button', 'Remove').tap();
-  await expect(card).toBeHidden();
-  await screen.getByRole('searchbox', 'Search hosts').fill('');
-  await expect(screen.getByRole('button', /^Local Shell\b/)).toBeVisible();
+  await expect(row).toBeHidden();
+  await vault.getByRole('searchbox', 'Search hosts').fill('');
+  await expect(vault.getByRole('button', /^Local Shell\b/)).toBeVisible();
 
   const after = await keelApi<Host[]>(app.baseUrl, '/api/hosts');
   expect(after.some((h) => h.name === name)).toBe(false);

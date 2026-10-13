@@ -9,7 +9,7 @@ const shared: E2EConfig = base;
 // The engine does not expose its browser, so keep it by target name (see e2e.config.ts).
 
 const context =
-  'Keel is a local SSH workspace in a browser tab. Tab 1 is the Vault (Hosts, Keychain, Port forwarding, Snippets, Notebooks, Logs, Settings); other tabs are terminal sessions. ' +
+  'Keel is a local SSH workspace in a browser tab. The Vault is a left sidebar on every tab (Hosts, Snippets, Forwards segments; Keychain, Logs, Settings in its footer); Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings open as their own tab pages; other tabs are terminal sessions or a New tab. ' +
   'This local app has no reachable SSH server: connecting to any host except Local Shell is expected to fail or ask to trust a key. No signal server is configured, so Share and Join links do not work. ' +
   'Never type commands that delete files, change system settings, or reach the network in a terminal; harmless commands such as echo, pwd and ls are fine. ' +
   'Not bugs: the terminal is painted with WebGL, so its text is only in screenshots, not in the accessibility tree; ⌘-shortcuts the native desktop window owns may do nothing in this browser tab; a fresh Vault holds only the Local Shell host and the default snippets.';

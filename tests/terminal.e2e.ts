@@ -8,8 +8,11 @@ test('a local shell tab runs a command and closing it kills the PTY', { tags: ['
   await openKeel(app);
   const before = await keelApi<Session[]>(app.baseUrl, '/api/sessions');
 
-  await screen.getByRole('button', 'Terminal').tap();
-  await expect(screen.getByRole('button', /^Local Shell\b/)).toBeVisible();
+  // Connecting from the Vault sidebar fills the New tab the window opened with.
+  const vault = screen.getByRole('complementary', 'Vault');
+  await vault.getByRole('button', 'Hosts').tap();
+  await vault.getByRole('button', /^Local Shell\b/).tap();
+  await expect(screen.getByRole('button', 'Local Shell', { visible: true }).first()).toBeVisible();
   const input = screen.getByRole('textbox', 'Terminal input');
   await expect(input).toBeFocused();
   // The typed line shows `$((6*7))`; only the shell's output has 42.

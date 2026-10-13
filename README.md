@@ -56,15 +56,15 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 | `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join. Runtime env overrides the compile-time default. |
 | `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable |
 
-⌘W closes the focused pane first (killing that PTY). When the tab is down to one pane, ⌘W closes the tab, the last session tab included; Vault stays. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs.
+⌘W closes the focused pane first (killing that PTY). When the tab is down to one pane, ⌘W closes the tab, the last session tab included; with no tab left the window shows a New tab. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs (with the tab pages you had open).
 
 ## Vault
 
-Tab 1 is the **Vault** (pinned). It holds Hosts, Keychain, Port forwarding, Snippets, Logs, and Settings.
+The **Vault** is the sidebar on the left of every tab (**⌘B** or the titlebar button folds it). Its filter and segments show **Hosts** (the host tree by group: click a host to connect, the row's menu edits, duplicates or removes it), **Snippets** (click one to type it after you approve; notebooks below) and **Forwards** (on/off per forward). Its footer opens **Keychain**, **Logs** and **Settings**. Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings each open as their own tab page, one of each; opening one again selects its tab.
 
 Secrets (SSH password, private key, key passphrase) are encrypted with [age](https://age-encryption.org). The wrapping key is stored in the OS keychain when possible (macOS Keychain, Windows Credential Manager, libsecret). If that fails, Keel asks for a passphrase on first launch.
 
-**Keychain** in the Vault is a list of reusable SSH identities (password or private key) you attach to hosts. That is separate from the OS keychain that wraps `keel.vault`.
+**Keychain** is a list of reusable SSH identities (password or private key) you attach to hosts. That is separate from the OS keychain that wraps `keel.vault`.
 
 Existing plaintext `keel.json` files are migrated on unlock: secrets move into `keel.vault` and are stripped from the JSON.
 
@@ -83,26 +83,27 @@ After upgrading from a build without the token, an older `keel serve` may still 
 On macOS the tab strip lives in the window titlebar, beside the traffic lights. Drag empty chrome to move the window. Windows and Linux keep a separate OS titlebar.
 
 - **Hold ⌘** (Ctrl on Windows/Linux) to overlay keys on tabs and buttons.
-- **⌘T** new tab (recent hosts to pick). **⌘W** closes the focused pane first; with one pane left it closes the session tab (Vault stays pinned). **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
-- **⌘/Ctrl+1…8** switch tabs (1 = Vault). **⌘/Ctrl+9** is the last tab.
-- **⌘<** / **⌘>** previous or next tab. The strip wraps and includes Vault. **⌘⇧[** / **⌘⇧]** do the same.
-- Drag session tabs to reorder. Vault stays first; numbered shortcuts follow the current order.
-- **⌘K** / **⌘⇧P** opens the command palette (connect a host, focus a pane or tab, split, settings, and other chrome actions). Host search on Vault still works; the palette includes **Search hosts in Vault**. **⌘N** new host. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
-- Palette actions that would type into a live session (**Type snippet**) always show **approve-before-type**: the bytes are previewed and nothing is written until you click **Type**. Vault snippet list clicks are unchanged.
+- **⌘T** new tab (recent hosts to pick). **⌘W** closes the focused pane first; with one pane left it closes the tab (a tab page closes too). The window always keeps a tab: with none left it shows a New tab. **⌘⇧T** reopens the last closed tab as a **new** session to the same host.
+- **⌘/Ctrl+1…8** switch tabs by position (**⌘1** is the first tab: the Vault is a sidebar, not a tab). **⌘/Ctrl+9** is the last tab.
+- **⌘B** (Ctrl+B on Windows/Linux) shows or hides the Vault sidebar.
+- **⌘<** / **⌘>** previous or next tab. The strip wraps. **⌘⇧[** / **⌘⇧]** do the same.
+- Drag tabs to reorder; numbered shortcuts follow the current order.
+- **⌘K** / **⌘⇧P** opens the command palette (connect a host, focus a pane or tab, split, settings, and other chrome actions). The sidebar filter still searches hosts (Enter connects the first match, or opens Quick connect for `user@host`); the palette includes **Search hosts**. **⌘N** new host, or the page's own New on Port forwarding, Keychain, Snippets and Notebooks. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
+- Palette actions that would type into a live session (**Type snippet**) always show **approve-before-type**: the bytes are previewed and nothing is written until you click **Type**. Snippet clicks in the sidebar and **Type into pane…** on the Snippets page ask the same way.
 - Open a host: new session tab. Close tab = kill that PTY. Close the window = detach (sessions stay in `keel serve`; reopen Keel to attach). SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane brings it back.
 - **Split →** / **⌘⇧D** and **Split ↓** / **⌘⇧E** spawn another PTY to the same host.
 - **⌘+** / **⌘-** bigger or smaller terminal text (10–22px). **⌘0** resets to 12.
 - **⌘⇧W** closes the window (UI quits; sessions stay in `keel serve`). File → **Stop Keel runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
-- **Sync** broadcasts keystrokes (and Vault snippet paste) to every driving pane in that tab.
+- **Sync** broadcasts keystrokes (and approved snippet typing) to every driving pane in that tab.
 - Settings: font, text size, copy-on-select, right-click paste (stored in `localStorage`).
 
 ## Port forwarding
 
-Saved under Vault → Port forwarding. Local (`-L`), remote (`-R`), and dynamic SOCKS5 (`-D`). Each forward opens its own SSH connection (it does not share a shell session). Default bind is `127.0.0.1`. Binding `0.0.0.0` exposes the port on every interface.
+Saved on the Port forwarding page (Vault sidebar → Forwards → Manage forwards). Local (`-L`), remote (`-R`), and dynamic SOCKS5 (`-D`). Each forward opens its own SSH connection (it does not share a shell session). Default bind is `127.0.0.1`. Binding `0.0.0.0` exposes the port on every interface.
 
 ## Logs
 
-Vault → Logs is an append-only event log (`keel.log` under `KEEL_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.
+Logs (Vault sidebar footer) is an append-only event log (`keel.log` under `KEEL_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.
 
 ## Share a session (no LAN)
 
@@ -160,7 +161,7 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 
 ## The herd
 
-- **Spawn** a session from Vault → Hosts
+- **Spawn** a session from the Vault sidebar's Hosts
 - The first client to attach is the **owner** and **driver**. Later joiners (including WebRTC) **follow**
 - **Pass control** from the tab widget
 - **Close tab** kills that PTY. **Close window** detaches; reopen Keel to attach

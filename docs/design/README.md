@@ -15,7 +15,7 @@ Keel is a local SSH workspace: a native window of tabs and split panes over PTYs
 - **Verbs name the result:** "Connect", "Type 58 bytes", "Stop 4 sessions", "Delete host". Never "OK", "Yes", "Submit".
 - **Numbers, not hedges:** "4 sessions are still running", not "some sessions".
 - **Errors** say what happened, then the fix: "bastion rejected key deploy-ed25519." with an "Edit host" action.
-- **Product words:** Vault (pinned tab 1), host, session, pane, split, sync, snippet, port forward, runtime (`keel serve`). Herd roles: owner, driver, follower; in UI: "Driving", "Following", "Pass control".
+- **Product words:** Vault (the left sidebar), host, session, pane, split, sync, snippet, port forward, runtime (`keel serve`). Herd roles: owner, driver, follower; in UI: "Driving", "Following", "Pass control".
 - **Shortcuts** use macOS glyphs on macOS (⌘ ⇧ ⌥ ↵) and words elsewhere (Ctrl, Shift, Enter).
 
 ## Color
@@ -52,7 +52,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 ## Space, size and shape
 
 - Spacing steps: `space-0.5` 2 · `space-1` 4 · `space-1.5` 6 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-6` 24 · `space-8` 32. Lay out with `gap`, not margins.
-- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208.
+- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208 (settings sections), `size-sidebar` 252 (Vault sidebar), `size-list` 360 (list column of a list and detail page).
 - Radii are small and tight: `radius-xs` 3 (kbd, badge, menu item), `radius-sm` 5 (buttons, inputs, tabs), `radius-md` 8 (menus, toasts), `radius-lg` 12 (dialogs, palette), `radius-full` for dots, chips and the switch.
 
 ## Depth, borders, motion
@@ -65,7 +65,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 - Hugeicons core-free 4.3.0, stroke style, 1.5 stroke width, `currentColor`, the same set Keel ships in `components/icon`. Sizes 14 (pane bar, small buttons), 15–16 (menus, rail, rows), 22 (empty states).
 - Icons default to `ink-muted`; they take `brass-ink` only when their item is active or highlighted.
-- Product-specific choices: steering wheel = driving, eye = following, crown = owner, square-lock = Vault tab, two-column / two-row layout = split right / down, exchange = sync input.
+- Product-specific choices: steering wheel = driving, eye = following, crown = owner, panel-left = Vault sidebar toggle, two-column / two-row layout = split right / down, exchange = sync input.
 - No emoji anywhere in the UI.
 
 ## Logo

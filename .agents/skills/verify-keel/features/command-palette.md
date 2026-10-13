@@ -1,6 +1,6 @@
 # Command palette
 
-⌘K opens a filterable list of commands and hosts: tabs, Vault navigation,
+⌘K opens a filterable list of commands and hosts: tabs, Vault sidebar and tab pages,
 new host, quick connect, join.
 
 ## Sub-features
@@ -8,7 +8,7 @@ new host, quick connect, join.
 - Open with ⌘K (Meta+k) from any focused control.
 - Filter by typing in the combobox; Enter runs the selected option.
 - Sections: Tabs (New tab, New Local Shell, Close pane or tab, Reopen last
-  tab, Previous/Next tab), Vault (Go to Vault, Search hosts in Vault, New
+  tab, Previous/Next tab), Vault (Toggle vault sidebar ⌘B, Search hosts, New
   host, Quick connect, Join session), and more below.
 
 ## How to get to it (user POV)
@@ -34,7 +34,7 @@ the palette closes.
 ## Charters
 
 ```
-palette-run|web|default|Starting at the Vault (the app opens there), press Meta+K and run each Tabs and Vault option once; report options that do nothing, do something else, or leave the palette open
+palette-run|web|default|Starting at the Vault sidebar (the app opens with it beside a New tab), press Meta+K and run each Tabs and Vault option once; report options that do nothing, do something else, or leave the palette open
 ```
 
 ## Gotchas

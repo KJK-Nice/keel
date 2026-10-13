@@ -47,8 +47,22 @@ test("tab cycling wins over Cmd+, on layouts where < is Shift+Comma", () => {
 });
 
 test("Cmd+1…9 activate tabs by position", () => {
+  assert.deepEqual(classifyShortcut(cmd("1"), mac), { name: "tab-index", index: 1 });
   assert.deepEqual(classifyShortcut(cmd("3"), mac), { name: "tab-index", index: 3 });
+  assert.deepEqual(classifyShortcut(cmd("9"), mac), { name: "tab-index", index: 9 });
   assert.equal(name(cmd("3", { shiftKey: true })), null);
+});
+
+test("Cmd+B toggles the vault sidebar; Ctrl+B stays with the terminal on macOS", () => {
+  assert.equal(name(cmd("b")), "toggle-sidebar");
+  assert.equal(name(cmd("B", { shiftKey: true })), null);
+  assert.equal(name({ ...cmd("b"), metaKey: false, ctrlKey: true }), null, "readline/tmux Ctrl-B reaches the PTY");
+  assert.equal(name(cmd("b"), { ...mac, modalOpen: true }), null, "not while a dialog is open");
+});
+
+test("Cmd+N is one action; term.js picks New host or the tab page's New", () => {
+  assert.equal(name(cmd("n")), "new-host");
+  assert.equal(name(cmd("N", { shiftKey: true })), null);
 });
 
 test("with a dialog open only tab, zoom and palette keys work", () => {

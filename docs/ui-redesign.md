@@ -179,7 +179,7 @@ One phase per branch and PR.
 
 ## 11. Open questions
 
-1. Shortcut for the sidebar toggle (⌘B?) and confirm ⌘I is free.
+1. Shortcut for the sidebar toggle: ⌘B (phase 2; it was the right session rail's toggle, which the Vault sidebar replaced). Still to confirm: ⌘I is free.
 2. Agent provider(s) to support first.
 3. Jev vs a local model for detection: latency and offline requirements.
 4. Should "Treat as production" default on for hosts in a folder named `production`?
