@@ -15,11 +15,11 @@ func TestResizeWhileConnectingReachesPTY(t *testing.T) {
 	st := testStore(t)
 	host := firstHost(t, st)
 	fb := newFakeBridge()
+	entered := make(chan [2]int, 1)
 	release := make(chan struct{})
-	opened := make(chan [2]int, 1)
 	rt := New(st, func(_ store.Host, cols, rows int) (session.Bridge, error) {
-		<-release
-		opened <- [2]int{cols, rows}
+		entered <- [2]int{cols, rows} // connecting at this size…
+		<-release                     // …and still connecting
 		return fb, nil
 	})
 	t.Cleanup(rt.KillAll)
@@ -31,14 +31,14 @@ func TestResizeWhileConnectingReachesPTY(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got := <-entered; got != [2]int{80, 24} {
+		t.Fatalf("connecting at %v, want the spawn size 80x24", got)
+	}
 	driver, _, _ := sess.Subscribe(Join{Name: "alice", Kind: "web"})
 	if err := sess.Resize(driver.ID, 140, 40); err != nil {
 		t.Fatal(err)
 	}
 	close(release)
-	if got := <-opened; got != [2]int{80, 24} {
-		t.Fatalf("opened at %v, want the spawn size 80x24 (the resize came after)", got)
-	}
 	waitReady(t, sess)
 	deadline := time.Now().Add(2 * time.Second)
 	for {
