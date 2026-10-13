@@ -97,3 +97,18 @@ test("plain letters and unknown chords are not shortcuts", () => {
   assert.equal(name(cmd("q")), null);
   assert.equal(name(cmd("Escape")), null);
 });
+
+test("Alt+1…6 open recent hosts only on the New tab page", () => {
+  const start = { ...mac, startPage: true };
+  const alt = (n, extra = {}) => ({ key: "¡", code: `Digit${n}`, metaKey: false, ctrlKey: false, shiftKey: false, altKey: true, repeat: false, ...extra });
+  for (let n = 1; n <= 6; n++) assert.deepEqual(classifyShortcut(alt(n), start), { name: "recent-host", index: n });
+  // Not 7-9, not 0, and not off the New tab page: Alt keys belong to the shell there.
+  for (const n of [0, 7, 8, 9]) assert.equal(classifyShortcut(alt(n), start), null);
+  assert.equal(classifyShortcut(alt(1), mac), null);
+  // Other modifiers keep their own meaning.
+  assert.equal(classifyShortcut(alt(1, { metaKey: true }), start), null);
+  assert.equal(classifyShortcut(alt(1, { shiftKey: true }), start), null);
+  assert.equal(classifyShortcut(alt(1, { ctrlKey: true }), start), null);
+  // Windows and Linux use the same Alt key.
+  assert.deepEqual(classifyShortcut(alt(2, { key: "2" }), { mac: false, modalOpen: false, startPage: true }), { name: "recent-host", index: 2 });
+});

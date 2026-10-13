@@ -10,9 +10,9 @@ that keel serve owns.
 - Type into the terminal; output streams back.
 - Pane toolbar: `Sync input`, `Split right`, `Split down`, `Focus view`,
   `Close tab`. Closing the tab kills the PTY.
-- `New tab` (`+`) opens the host picker (`Recent`, `All`, `Quick connect`,
-  `Join session`). The window opens on one when there is no session to
-  restore, and shows one again when the last tab closes.
+- `New tab` (`+`, ⌘T) opens the [New tab page](newtab.md). The window opens
+  on one when there is no session to restore, and shows one again when the
+  last tab closes.
 
 ## How to get to it (user POV)
 

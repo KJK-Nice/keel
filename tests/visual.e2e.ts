@@ -94,6 +94,29 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });
 
+    // The New tab page with a recent host and a closed tab, and the palette
+    // grouped by Open now / Hosts / Actions / Snippets. No assertions on the
+    // new copy: the same test runs on the base build.
+    test(`new tab and palette groups (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await openKeel(app);
+      await openLocalShell(screen);
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+      await app.screenshot(`${theme}-newtab`);
+
+      await openLocalShell(screen);
+      const term = screen.getByRole('textbox', 'Terminal input');
+      await expect(term).toBeFocused();
+      await term.press('Meta+k');
+      await screen.getByRole('combobox', 'Run a command or connect a host…').fill('local');
+      await app.screenshot(`${theme}-palette-groups`);
+      await screen.getByRole('combobox', 'Run a command or connect a host…').press('Escape');
+      await screen.getByRole('button', 'Close tab').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+    });
+
     // A split session: one focused pane bar (surface + keel line) next to an
     // unfocused one (chrome, muted), under the selected tab's keel line.
     test(`split panes (${theme})`, async ({ app, screen, browser }) => {

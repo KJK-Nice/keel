@@ -66,14 +66,14 @@ test('Cmd+1 selects the first tab, Cmd+9 the last, Cmd+B folds the sidebar', { t
   await openKeel(app);
   const vault = screen.getByRole('complementary', 'Vault');
   const toggle = screen.getByRole('button', 'Toggle vault sidebar');
-  await expect(screen.getByRole('heading', 'New tab')).toBeVisible();
+  await expect(screen.getByRole('heading', 'Where to?')).toBeVisible();
 
   await vault.getByRole('button', 'Keychain').tap();
   await expect(screen.getByRole('region', 'Keychain')).toBeVisible();
 
   // The window opened on a New tab, so it is tab 1; Keychain is the last.
   await toggle.press('Meta+1');
-  await expect(screen.getByRole('heading', 'New tab')).toBeVisible();
+  await expect(screen.getByRole('heading', 'Where to?')).toBeVisible();
   await expect(screen.getByRole('region', 'Keychain')).toBeHidden();
   await toggle.press('Meta+9');
   await expect(screen.getByRole('region', 'Keychain')).toBeVisible();

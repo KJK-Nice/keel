@@ -31,20 +31,31 @@ templ Dialogs(p PageProps) {
 }
 
 templ commandPalette() {
-	<dialog class="cmd-palette" id="cmd-palette" aria-label="Command palette">
+	<dialog class="cmd-palette k-palette" id="cmd-palette" aria-label="Command palette">
 		<form id="cmd-palette-form">
-			<input
-				id="cmd-palette-input"
-				type="search"
-				placeholder="Run a command or connect a host…"
-				autocomplete="off"
-				role="combobox"
-				aria-expanded="true"
-				aria-controls="cmd-palette-list"
-				aria-autocomplete="list"
-			/>
-			<div class="cmd-palette-list" id="cmd-palette-list" role="listbox"></div>
-			<p class="cmd-palette-foot">Type to filter · Enter to run · Esc to close</p>
+			<div class="k-palette-search">
+				<span class="k-i" aria-hidden="true">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 17.5L22 22M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"></path></svg>
+				</span>
+				<input
+					id="cmd-palette-input"
+					class="k-palette-input"
+					type="search"
+					placeholder="Run a command or connect a host…"
+					autocomplete="off"
+					role="combobox"
+					aria-expanded="true"
+					aria-controls="cmd-palette-list"
+					aria-autocomplete="list"
+				/>
+				<span class="k-kbd">esc</span>
+			</div>
+			<div class="k-palette-list cmd-palette-list" id="cmd-palette-list" role="listbox"></div>
+			<p class="k-palette-foot">
+				<span><span class="k-kbd">↑</span><span class="k-kbd">↓</span>move</span>
+				<span><span class="k-kbd">↵</span>open</span>
+				<span><span class="k-kbd">⌥↵</span>open in split</span>
+			</p>
 		</form>
 	</dialog>
 }
@@ -118,6 +129,7 @@ templ hostDialog() {
 				}
 			}
 			<input type="hidden" name="id"/>
+			<div class="k-start-notes" id="host-import-note" role="status" hidden></div>
 			@labeledInput("host-name", "Label", "name", "prod-api", true)
 			@labeledSelect("host-parent-group", "Parent Group", "groupId", "No group", "", false, []string{""}, []string{"No group"})
 			@labeledInput("host-tags", "Tags", "tags", "prod, gpu", false)
@@ -280,6 +292,7 @@ templ quickDialog() {
 					Paste user@host or user@host:2222. Saved under Quick connect.
 				}
 			}
+			<div class="k-start-notes" id="quick-note" role="status" hidden></div>
 			@labeledInput("quick-target", "Target", "target", "ubuntu@192.168.1.20:22", true)
 			@labeledPassword("quick-password", "Password", "password", "", true)
 			<div class="modal-actions">

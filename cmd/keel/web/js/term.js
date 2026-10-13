@@ -2,6 +2,21 @@ import { escapeHtml } from "./lib/html.js";
 import * as G from "./lib/groups.js";
 import * as V from "./lib/vaultview.js";
 import { createPaletteList } from "./ui/palette.js";
+import { parseConnect } from "./lib/sshparse.js";
+import {
+  actionsHTML,
+  cardsHTML,
+  closedHTML,
+  hostPrefill,
+  liveClosed,
+  normalizeClosed,
+  notesHTML,
+  offerErrorHTML,
+  offerHTML,
+  pushClosed,
+  recentCards,
+  targetText,
+} from "./lib/newtab.js";
 import {
   computeRects,
   dragSizes,
@@ -101,7 +116,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     herdWs: null,
     openModal: null,
     signalURL: "",
-    lastClosedHostId: null,
+    closedTabs: loadClosedTabs(),
     runtimeStopping: false,
     prefs: loadPrefs(),
     ui: loadUiPrefs(),
@@ -259,6 +274,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     syncSessionSurface();
   }
 
+  const SIDE_ICON_TERMINAL = V.glyphSVG("local");
   const SIDE_ICONS = {
     snippet: hugeicon('<path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/>'),
     notebook: hugeicon(PAGES.notebooks.glyph),
@@ -2345,6 +2361,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         if (tab.start) paintStartPage(tab);
         else if (tab.layout) paintLayout(tab);
         tab.dirty = false;
+      } else if (tab.start && tab.id === state.activeId && !tab.connecting) {
+        paintStartPage(tab);
       }
       walkLeaves(tab.layout, ({ paneId }) => {
         const p = state.panes.get(paneId);
@@ -2513,80 +2531,136 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     localStorage.setItem(RECENT_KEY, JSON.stringify(ids));
   }
 
+  // Recently closed tabs and panes: host id, title, kind and time, nothing
+  // else. Kept in localStorage like the recent hosts, so the New tab page and
+  // ⌘⇧T still know them after a reload.
+  const CLOSED_KEY = "keel-closed-tabs";
+
+  function loadClosedTabs() {
+    try {
+      return normalizeClosed(JSON.parse(localStorage.getItem(CLOSED_KEY) || "[]"));
+    } catch {
+      return [];
+    }
+  }
+
+  function recordClosed(hostId, title, kind) {
+    if (!hostId) return;
+    state.closedTabs = pushClosed(state.closedTabs, { hostId, title, kind, at: Date.now() });
+    try {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify(state.closedTabs));
+    } catch {
+      /* private mode: the list lives for this window only */
+    }
+  }
+
+  function closedList() {
+    return liveClosed(state.closedTabs, state.hosts.map((h) => h.id));
+  }
+
+  // reopenClosed opens entry i of the recently closed list as a new session
+  // (a fresh PTY: the old one is gone) and takes it off the list.
+  function reopenClosed(i = 0, opts = {}) {
+    const entry = closedList()[i];
+    const host = entry && state.hosts.find((h) => h.id === entry.hostId);
+    if (!host) {
+      toast("Nothing to reopen");
+      return;
+    }
+    state.closedTabs = state.closedTabs.filter((e) => e !== entry && !(e.hostId === entry.hostId && e.kind === entry.kind && e.at === entry.at));
+    try {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify(state.closedTabs));
+    } catch {
+      /* ignore */
+    }
+    openSession(host, opts).catch((err) => toast(err.message, true));
+  }
+
   function hostMatches(h, q) {
     const needle = (q || "").trim().toLowerCase();
     if (!needle) return true;
     return hostSearchHay(h).includes(needle);
   }
 
-  function startHostList(tab) {
-    const q = tab.query || "";
-    const byId = new Map(state.hosts.map((h) => [h.id, h]));
-    const recent = [];
-    for (const id of loadRecentIds()) {
-      const h = byId.get(id);
-      if (h && hostMatches(h, q)) recent.push(h);
-    }
-    const local = localHost();
-    if (local && hostMatches(local, q) && !recent.some((h) => h.id === local.id)) recent.unshift(local);
-    const seen = new Set(recent.map((h) => h.id));
-    const rest = state.hosts.filter((h) => !seen.has(h.id) && hostMatches(h, q));
-    return { recent, rest };
+  // The New tab page (docs/ui-redesign.md §5.3): one input, the recent host
+  // cards, the start actions and the recently closed rows. Typing filters
+  // the saved hosts; a pasted ssh command, ssh:// URL or user@host:port is
+  // parsed (lib/sshparse.js) and offered, never run.
+  const ALT = isMac ? "⌥" : "Alt+";
+
+  function liveCount(hostId) {
+    let n = 0;
+    for (const p of state.panes.values()) if (isTermPane(p) && p.hostId === hostId && !p.closing) n++;
+    return n;
   }
 
-  function visibleStartHosts(tab) {
-    const { recent, rest } = startHostList(tab);
-    return [...recent, ...rest];
+  function startCards(tab) {
+    return recentCards(state.hosts, loadRecentIds(), tab.query || "", hostMatches, localHost());
   }
 
-  function startHostButton(h, tab) {
-    const picked = tab.pick === h.id;
-    const connecting = tab.connecting === h.id;
-    return `<button type="button" class="host ${picked ? "is-open" : ""}" data-start-connect="${h.id}">
-      <span class="dot" style="--dot:${h.color};background:${h.color}"></span>
-      <span class="meta">
-        <b>${escapeHtml(h.name)}</b>
-        <small>${connecting ? "Connecting…" : escapeHtml(hostSubtitle(h))}</small>
-      </span>
-    </button>`;
+  function startOfferHTML(tab) {
+    const parsed = parseConnect(tab.query || "");
+    if (!parsed) return "";
+    if (parsed.ok) return offerHTML(parsed);
+    // A half-typed user@host is not an error yet; Enter makes it one.
+    if (parsed.source === "target" && !tab.showError) return "";
+    return offerErrorHTML(parsed.error);
   }
 
   function paintStartPage(tab) {
     const prev = tab.root.querySelector(".start-search");
     const keepFocus = document.activeElement === prev;
     const caret = typeof prev?.selectionStart === "number" ? prev.selectionStart : null;
-    const hosts = visibleStartHosts(tab);
-    if (!hosts.some((h) => h.id === tab.pick)) tab.pick = hosts[0]?.id || "";
-    const { recent, rest } = startHostList(tab);
-    const recentHtml = recent.length
-      ? `<h2 class="group-label">Recent</h2><div class="host-list">${recent.map((h) => startHostButton(h, tab)).join("")}</div>`
+    const cards = startCards(tab);
+    tab.cards = cards.map((h) => h.id);
+    if (!tab.cards.includes(tab.pick)) tab.pick = tab.cards[0] || "";
+    const offer = startOfferHTML(tab);
+    const q = (tab.query || "").trim();
+    const cardsHtml = cards.length
+      ? `<div class="k-start-cards">${cardsHTML(cards, (h) => ({
+          sub: hostSubtitle(h),
+          live: liveCount(h.id),
+          alt: ALT,
+          picked: h.id === tab.pick,
+          connecting: tab.connecting === h.id,
+        }))}</div>`
+      : q && !offer
+        ? `<p class="k-start-empty">No saved host matches “${escapeHtml(q)}”.</p>`
+        : "";
+    const recentSection = cardsHtml
+      ? `<section class="k-start-section" aria-label="${q ? "Matching hosts" : "Recent hosts"}">
+          <h2 class="k-start-section-head"><span>${q ? "Hosts" : "Recent"}</span><span>${ALT}1–${ALT}6 to open</span></h2>
+          ${cardsHtml}
+        </section>`
+      : q
+        ? cardsHtml
+        : "";
+    const closed = closedList();
+    const closedSection = closed.length
+      ? `<section class="k-start-section" aria-label="Recently closed">
+          <h2 class="k-start-section-head"><span>Recently closed</span><span>reopens as a new session</span></h2>
+          <div class="k-start-closed-list">${closedHTML(closed, (id) => state.hosts.find((h) => h.id === id)?.name || "", Date.now(), MOD)}</div>
+        </section>`
       : "";
-    const restHtml = (() => {
-      if (!rest.length) return "";
-      const groups = new Map();
-      for (const h of rest) {
-        const key = h.group || "Ungrouped";
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(h);
-      }
-      const parts = [`<h2 class="group-label">${recent.length ? "All" : "Hosts"}</h2>`];
-      for (const [group, hosts] of groups) {
-        parts.push(`<div class="group-label">${escapeHtml(group)}</div>`);
-        parts.push(`<div class="host-list">${hosts.map((h) => startHostButton(h, tab)).join("")}</div>`);
-      }
-      return parts.join("");
-    })();
-    const empty = !recent.length && !rest.length ? `<p class="empty">No hosts match.</p>` : "";
-    tab.root.innerHTML = `<div class="start-page"><div class="start-inner">
-      <p class="eyebrow">Connect</p>
-      <h1>New tab</h1>
-      <div class="search"><input type="search" class="start-search" placeholder="Search hosts" aria-label="Find a host to open" autocomplete="off" /></div>
-      ${recentHtml}${restHtml}${empty}
-      <div class="page-actions">
-        <button type="button" class="btn btn-ghost" data-start-quick>Quick connect</button>
-        <button type="button" class="btn btn-ghost" data-start-join>Join session</button>
+    const html = `<div class="start-page"><div class="k-start-col" role="region" aria-label="New tab">
+      <div class="k-start-head">
+        <h1 class="k-start-title">Where to?</h1>
+        <label class="k-start-input"><span class="k-i">${SIDE_ICON_TERMINAL}</span><input class="start-search" type="text" aria-label="Host to connect to" placeholder="saved host, user@host:port, or paste an ssh command" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" /><span class="k-kbd">↵</span></label>
+        <p class="k-help k-start-help">Paste <span class="k-mono">ssh -J bastion deploy@10.0.4.21 -p 2222</span> and Keel reads it, shows what it kept and left out, then offers to save it as a host. Nothing runs.</p>
       </div>
+      ${offer}
+      ${recentSection}
+      <section class="k-start-section" aria-label="Start something else">
+        <h2 class="k-start-section-head"><span>Start</span></h2>
+        <div class="k-start-actions">${actionsHTML(MOD)}</div>
+      </section>
+      ${closedSection}
     </div></div>`;
+    // renderTabs repaints the active New tab; leave the DOM (scroll, caret)
+    // alone when nothing on the page changed.
+    if (tab.paintedHTML === html) return;
+    tab.paintedHTML = html;
+    tab.root.innerHTML = html;
     const input = tab.root.querySelector(".start-search");
     if (input) input.value = tab.query || "";
     if (keepFocus && input) {
@@ -2614,6 +2688,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       sync: false,
       query: "",
       pick: "",
+      cards: [],
+      showError: false,
       connecting: "",
       layout: null,
       focusedPaneId: "",
@@ -2646,9 +2722,66 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function setStartPick(tab, hostId) {
     tab.pick = hostId;
     tab.root.querySelectorAll("[data-start-connect]").forEach((el) => {
-      el.classList.toggle("is-open", el.dataset.startConnect === hostId);
+      el.toggleAttribute("data-highlighted", el.dataset.startConnect === hostId);
     });
     tab.root.querySelector(`[data-start-connect="${CSS.escape(hostId)}"]`)?.scrollIntoView({ block: "nearest" });
+  }
+
+  // ⌥1…⌥6 on the New tab page: open the nth card.
+  function openRecent(n) {
+    const tab = state.tabs.get(state.activeId);
+    if (!tab?.start) return;
+    const host = state.hosts.find((h) => h.id === tab.cards?.[n - 1]);
+    if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+  }
+
+  // A parsed command is offered two ways. Both only fill a dialog: nothing
+  // is connected or saved until the user confirms there.
+  function setDialogNote(id, html) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html;
+    el.hidden = !html;
+  }
+
+  function offerSaveHost(parsed) {
+    fillHostForm(null);
+    const f = hostPrefill(parsed);
+    const form = els.hostForm;
+    form.name.value = f.name;
+    form.address.value = f.address;
+    form.port.value = f.port;
+    form.username.value = f.username;
+    setDialogNote("host-import-note", notesHTML(parsed));
+    openModal(els.hostModal);
+  }
+
+  function offerConnectOnce(parsed) {
+    if (!parsed.user) return;
+    openQuick(targetText(parsed), notesHTML(parsed));
+  }
+
+  function openQuick(target = "", noteHTML = "") {
+    if (els.quickForm?.target) els.quickForm.target.value = target;
+    if (els.quickForm?.password) els.quickForm.password.value = "";
+    setDialogNote("quick-note", noteHTML);
+    openModal(els.quickModal);
+  }
+
+  function submitStartInput(tab) {
+    const parsed = parseConnect(tab.query || "");
+    if (parsed?.ok) {
+      offerSaveHost(parsed);
+      return;
+    }
+    if (parsed) {
+      tab.showError = true;
+      paintStartPage(tab);
+      return;
+    }
+    const host = state.hosts.find((h) => h.id === tab.pick) || state.hosts.find((h) => h.id === tab.cards?.[0]);
+    if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+    else toast("No matching host", true);
   }
 
   function probeSize() {
@@ -2721,10 +2854,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   }
 
   function reopenLastTab() {
-    const id = state.lastClosedHostId;
-    if (!id) return;
-    const host = state.hosts.find((h) => h.id === id);
-    if (host) openSession(host).catch((err) => toast(err.message, true));
+    reopenClosed(0);
   }
 
   function showKbdHints(on) {
@@ -2755,8 +2885,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 
   function paletteCatalog() {
     const items = [];
-    const add = (item) => items.push(item);
-    add({ id: "new-tab", group: "Tabs", title: "New tab", keys: `${MOD}T`, run: () => newTab() });
+    // Commands are the Actions group; the section they used to be filed under
+    // stays as their hint so "vault" or "pane" still finds them.
+    const add = (item) => items.push({ ...item, hint: item.hint || item.group, group: "Actions" });
+    add({ id: "new-tab", group: "Tabs", title: "New tab", icon: "add", keys: `${MOD}T`, run: () => newTab() });
     add({ id: "new-local", group: "Tabs", title: "New Local Shell", run: () => newLocalTab() });
     add({
       id: "close-tab",
@@ -2769,6 +2901,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       id: "reopen-tab",
       group: "Tabs",
       title: "Reopen last tab",
+      icon: "reopen",
       keys: `${MOD}⇧T`,
       run: () => reopenLastTab(),
     });
@@ -2792,6 +2925,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       id: "toggle-sidebar",
       group: "Vault",
       title: "Toggle vault sidebar",
+      icon: "sidebar",
       keys: `${MOD}B`,
       run: () => toggleSidebar(),
     });
@@ -2805,6 +2939,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       id: "new-host",
       group: "Vault",
       title: "New host",
+      icon: "add",
       keys: `${MOD}N`,
       run: () => {
         fillHostForm(null);
@@ -2818,7 +2953,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       keys: `${MOD}⇧O`,
       run: () => runShortcut("quick-connect"),
     });
-    add({ id: "join", group: "Vault", title: "Join session", keys: `${MOD}J`, run: () => runShortcut("join") });
+    add({ id: "join", group: "Vault", title: "Join session", icon: "link", keys: `${MOD}J`, run: () => runShortcut("join") });
     add({ id: "vault-keychain", group: "Vault", title: "Keychain", run: () => openPage("keychain") });
     add({ id: "vault-forwards", group: "Vault", title: "Port forwarding", run: () => openPage("forwards") });
     add({ id: "vault-snippets", group: "Vault", title: "Snippets", run: () => openPage("snippets") });
@@ -2829,6 +2964,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       id: "split-right",
       group: "Panes",
       title: "Split right",
+      icon: "split",
       keys: `${MOD}⇧D`,
       run: () => splitActive("h"),
     });
@@ -2836,6 +2972,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       id: "split-down",
       group: "Panes",
       title: "Split down",
+      icon: "split",
       keys: `${MOD}⇧E`,
       run: () => splitActive("v"),
     });
@@ -2870,44 +3007,76 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       title: "Stop Keel runtime",
       run: () => runShortcut("stop-runtime"),
     });
-    for (const h of state.hosts) {
-      add({
-        id: `host:${h.id}`,
-        group: "Connect",
-        title: `Connect ${h.name}`,
-        hint: hostSubtitle(h),
-        run: () => openSession(h).catch((err) => toast(err.message, true)),
-      });
-    }
-    for (const tab of state.tabs.values()) {
-      add({
-        id: `tab:${tab.id}`,
-        group: "Tabs",
-        title: `Focus tab ${tabTitle(tab)}`,
-        run: () => {
-          state.activeId = tab.id;
-          renderTabs();
-        },
-      });
-    }
-    const active = state.tabs.get(state.activeId);
-    if (active) {
-      for (const p of tabPanes(active)) {
-        add({
-          id: `pane:${p.id}`,
-          group: "Panes",
-          title: `Focus pane ${p.title || "session"}`,
-          hint: p.subtitle || "",
-          run: () => markFocusedPane(p),
-        });
+    // Open now: every tab, and the panes of tabs with more than one. Picking
+    // one focuses it; it never starts a second session.
+    const ids = chromeTabs();
+    ids.forEach((id, i) => {
+      const tab = state.tabs.get(id);
+      const n = i + 1;
+      const keys = i < 8 ? `${MOD}${n}` : i === ids.length - 1 ? `${MOD}9` : "";
+      const focusTab = () => {
+        state.activeId = id;
+        renderTabs();
+      };
+      if (tab.page) {
+        items.push({ id: `tab:${id}`, group: "Open now", title: tabTitle(tab), hint: `tab ${n}`, icon: PALETTE_PAGE_ICONS[tab.page] || "action", keys, run: focusTab });
+        return;
       }
+      if (tab.start) {
+        items.push({ id: `tab:${id}`, group: "Open now", title: "New tab", hint: `tab ${n}`, icon: "add", keys, run: focusTab });
+        return;
+      }
+      const panes = tabPanes(tab);
+      const first = panes.find(isTermPane) || panes[0];
+      const role = first && isTermPane(first) ? (isDriving(first) ? " · driving" : " · following") : "";
+      items.push({
+        id: `tab:${id}`,
+        group: "Open now",
+        title: tabName(tab),
+        hint: `tab ${n}${panes.length > 1 ? ` · ${panes.length} panes` : ""}${role}`,
+        icon: first && isNotebookPane(first) ? "notebook" : "session",
+        state: paletteDot(tabStatus(tab)),
+        keys,
+        run: focusTab,
+      });
+      if (panes.length > 1) {
+        for (const p of panes) {
+          items.push({
+            id: `pane:${p.id}`,
+            group: "Open now",
+            title: p.title || "session",
+            hint: `pane in tab ${n}${p.subtitle ? ` · ${p.subtitle}` : ""}`,
+            icon: isNotebookPane(p) ? "notebook" : "session",
+            state: isTermPane(p) ? paletteDot(p.status) : "idle",
+            run: () => {
+              focusTab();
+              markFocusedPane(p);
+            },
+          });
+        }
+      }
+    });
+    // Hosts open a new session; ⌥↵ opens it in a split of the focused pane.
+    for (const h of state.hosts) {
+      items.push({
+        id: `host:${h.id}`,
+        group: "Hosts",
+        title: `New session on ${h.name}`,
+        hint: hostSubtitle(h),
+        icon: h.authType === "local" ? "session" : "host",
+        tag: h.tags?.[0] || "",
+        run: (opts) => (opts?.split ? openHostInSplit(h) : openSession(h)).catch((err) => toast(err.message, true)),
+      });
     }
+    // Snippets only ever go through paletteRunSnippet: Approve before type.
     for (const sn of state.snippets) {
-      add({
+      items.push({
         id: `snippet:${sn.id}`,
         group: "Snippets",
         title: `Type snippet: ${sn.name}`,
-        hint: "Confirm before sending to the terminal",
+        hint: String(sn.command || "").trim().split("\n")[0],
+        icon: "snippet",
+        badge: "Approve first",
         run: () => paletteRunSnippet(sn.id),
       });
     }
@@ -2929,12 +3098,31 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return items;
   }
 
+  const PALETTE_PAGE_ICONS = { keychain: "key", snippets: "snippet", notebooks: "notebook" };
+
+  // State dot for a tab or pane status class (is-ready ...).
+  function paletteDot(status) {
+    if (status === "is-ready") return "live";
+    if (status === "is-connecting") return "connecting";
+    if (status === "is-error") return "dead";
+    return "idle";
+  }
+
+  // ⌥↵ on a host: open it in a split of the focused pane, or as a new
+  // session when no session tab is showing.
+  async function openHostInSplit(host) {
+    const pane = activeSessionTab() && focusedPane();
+    if (!pane) return openSession(host);
+    rememberRecent(host.id);
+    return splitPane(pane.id, "h", host.id);
+  }
+
   const paletteList = createPaletteList({
     form: els.cmdPaletteForm,
     input: els.cmdPaletteInput,
     list: els.cmdPaletteList,
     catalog: () => paletteCatalog(),
-    run: (item) => runPaletteItem(item),
+    run: (item, opts) => runPaletteItem(item, opts),
   });
 
   function isCommandPaletteOpen() {
@@ -3024,11 +3212,11 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     await sendApprovedInject("\u0015" + command, pane);
   }
 
-  async function runPaletteItem(item) {
+  async function runPaletteItem(item, opts = {}) {
     closeCommandPalette();
     if (!item?.run) return;
     try {
-      await item.run();
+      await item.run(opts);
     } catch (err) {
       toast(err?.message || String(err), true);
     }
@@ -3048,7 +3236,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     // ⌘N (and the native New Host item, which sends the same name): the
     // page's own New on a tab page, New host elsewhere.
     else if (name === "new-host") newItem();
-    else if (name === "quick-connect") openModal(els.quickModal);
+    else if (name === "quick-connect") openQuick();
     else if (name === "join") openJoin();
     else if (name === "settings") openPage("settings");
     else if (name === "split-right") splitActive("h");
@@ -3088,6 +3276,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       mac: isMac,
       modalOpen: !!state.openModal,
       findOpen: () => isFindOpen(focusedPane()),
+      startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
     });
     if (!action) return false;
     ev.preventDefault();
@@ -3095,6 +3284,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
     } else if (action.name === "tab-index") {
       activateTabIndex(action.index);
+    } else if (action.name === "recent-host") {
+      openRecent(action.index);
     } else {
       runShortcut(action.name, action.repeat);
     }
@@ -3999,6 +4190,10 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (!pane) return;
     const tab = state.tabs.get(pane.tabId);
     killRuntimeIfOwned(pane, { fromHerd: opts.fromHerd, remote: opts.remote || tab?.remote });
+    // The last pane of a tab is recorded as the tab (closeTab skips panes here).
+    if (tab && !opts.fromHerd && !opts.remote && !tab.remote && !pane.remote && isTermPane(pane)) {
+      recordClosed(pane.hostId, pane.title, leafCount(tab.layout) > 1 ? "pane" : "tab");
+    }
     disposePane(pane);
     if (!tab) return;
     const next = removeLeaf(tab.layout, paneId);
@@ -4022,8 +4217,12 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (tabRenaming === id) tabRenaming = null;
     if (tab.page) parkPage(tab);
     const panes = tabPanes(tab);
-    if (tab.hostId) state.lastClosedHostId = tab.hostId;
-    else if (panes[0]?.hostId) state.lastClosedHostId = panes[0].hostId;
+    // A tab the user closed can be reopened (⌘⇧T, New tab page). Tabs that
+    // were joined, closed by the herd, or only moved are not recorded.
+    if (!opts.skipPanes && !opts.fromHerd && !tab.remote) {
+      const first = panes.find(isTermPane);
+      recordClosed(tab.hostId || first?.hostId, first?.title || tab.title, "tab");
+    }
     if (!opts.skipPanes) {
       for (const p of panes) {
         killRuntimeIfOwned(p, { fromHerd: opts.fromHerd, remote: tab.remote });
@@ -4051,7 +4250,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     return splitPane(pane.id, dir);
   }
 
-  async function splitPane(paneId, dir) {
+  async function splitPane(paneId, dir, openHostId = "") {
     const pane = state.panes.get(paneId);
     const tab = pane && state.tabs.get(pane.tabId);
     if (!tab || !pane) {
@@ -4062,7 +4261,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       toast("Split needs a local host session");
       return;
     }
-    const hostId = pane.hostId || tab.hostId || localHost()?.id;
+    const hostId = openHostId || pane.hostId || tab.hostId || localHost()?.id;
     if (!hostId) {
       toast("Split needs a local host session");
       return;
@@ -4683,6 +4882,7 @@ Write a runbook here.
     const form = els.hostForm;
     if (!form) return;
     form.reset();
+    setDialogNote("host-import-note", "");
     form.id.value = host?.id || "";
     form.name.value = host?.name || "";
     fillParentGroupSelect("host-parent-group", host?.groupId || "", "", "No group");
@@ -5042,8 +5242,7 @@ Write a runbook here.
     const q = (els.search?.value || "").trim();
     const parsed = parseTarget(q);
     if (parsed) {
-      if (els.quickForm?.target) els.quickForm.target.value = q;
-      openModal(els.quickModal);
+      openQuick(q);
       return;
     }
     const first = document.querySelector("#host-list [data-connect]");
@@ -5868,11 +6067,25 @@ Write a runbook here.
       const connect = ev.target.closest("[data-start-connect]");
       const quick = ev.target.closest("[data-start-quick]");
       const join = ev.target.closest("[data-start-join]");
+      const newHost = ev.target.closest("[data-start-newhost]");
+      const reopen = ev.target.closest("[data-start-reopen]");
+      const offerSave = ev.target.closest("[data-start-offer-save]");
+      const offerOnce = ev.target.closest("[data-start-offer-once]");
       if (connect) {
         const host = state.hosts.find((h) => h.id === connect.dataset.startConnect);
         if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
-      } else if (quick) openModal(els.quickModal);
+      } else if (quick) openQuick();
       else if (join) openJoin();
+      else if (newHost) {
+        fillHostForm(null);
+        openModal(els.hostModal);
+      } else if (reopen) reopenClosed(Number(reopen.dataset.startReopen), { tab });
+      else if (offerSave || offerOnce) {
+        const parsed = parseConnect(tab.query || "");
+        if (!parsed?.ok) return;
+        if (offerSave) offerSaveHost(parsed);
+        else offerConnectOnce(parsed);
+      }
     });
     on(els.terminals, "input", (ev) => {
       const title = ev.target.closest?.("[data-notebook-title]");
@@ -5905,6 +6118,7 @@ Write a runbook here.
       if (!tab?.start) return;
       tab.query = input.value;
       tab.pick = "";
+      tab.showError = false;
       paintStartPage(tab);
     });
     on(els.terminals, "keydown", (ev) => {
@@ -5912,19 +6126,20 @@ Write a runbook here.
       if (!input) return;
       const tab = tabFromRoot(input);
       if (!tab?.start) return;
-      const hosts = visibleStartHosts(tab);
-      if (!hosts.length) return;
-      const idx = Math.max(0, hosts.findIndex((h) => h.id === tab.pick));
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        submitStartInput(tab);
+        return;
+      }
+      const ids = tab.cards || [];
+      if (!ids.length) return;
+      const idx = Math.max(0, ids.indexOf(tab.pick));
       if (ev.key === "ArrowDown") {
         ev.preventDefault();
-        setStartPick(tab, hosts[Math.min(hosts.length - 1, idx + 1)].id);
+        setStartPick(tab, ids[Math.min(ids.length - 1, idx + 1)]);
       } else if (ev.key === "ArrowUp") {
         ev.preventDefault();
-        setStartPick(tab, hosts[Math.max(0, idx - 1)].id);
-      } else if (ev.key === "Enter") {
-        ev.preventDefault();
-        const host = hosts.find((h) => h.id === tab.pick) || hosts[0];
-        if (host) openSession(host, { tab }).catch((err) => toast(err.message, true));
+        setStartPick(tab, ids[Math.max(0, idx - 1)]);
       }
     });
 
@@ -6019,7 +6234,7 @@ Write a runbook here.
   function bindLists() {
     document.body.addEventListener("click", async (ev) => {
       if (ev.target.closest("#btn-quick")) {
-        openModal(els.quickModal);
+        openQuick();
         return;
       }
       if (ev.target.closest("#btn-join")) {
@@ -6332,7 +6547,7 @@ Write a runbook here.
       fillHostForm(null);
       openModal(els.hostModal);
     });
-    on(document.getElementById("btn-quick"), "click", () => openModal(els.quickModal));
+    on(document.getElementById("btn-quick"), "click", () => openQuick());
     on(document.getElementById("btn-new-snippet"), "click", () => {
       els.snippetForm?.reset();
       const title = document.getElementById("snippet-modal-title");

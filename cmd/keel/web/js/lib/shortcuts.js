@@ -12,11 +12,19 @@ export function isAppMod(ev, mac) {
 // ctx.mac       — macOS (Cmd is the app modifier)
 // ctx.modalOpen — a dialog is open: only tab, zoom and palette keys work
 // ctx.findOpen  — () => boolean, whether terminal find is open (for Cmd+G)
+// ctx.startPage — the New tab page is showing and no dialog is open: ⌥1…⌥6
+//                 open its recent hosts (elsewhere ⌥ keys belong to the shell)
 //
 // Actions: { name } for runShortcut, { name, repeat } for prev-tab /
 // next-tab (hold-to-repeat cycles), { name: "find-next" | "find-prev" },
-// and { name: "tab-index", index } for Cmd+1…9.
+// { name: "tab-index", index } for Cmd+1…9, and { name: "recent-host", index }
+// for ⌥1…⌥6 on the New tab page.
 export function classifyShortcut(ev, ctx) {
+  if (ctx.startPage && ev.altKey && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey) {
+    // ev.code, not ev.key: ⌥1 types "¡" on a Mac keyboard.
+    const m = /^Digit([1-6])$/.exec(ev.code || "");
+    if (m) return { name: "recent-host", index: Number(m[1]) };
+  }
   if (!isAppMod(ev, ctx.mac) || ev.altKey) return null;
   const raw = ev.key || "";
   const key = raw.length === 1 ? raw.toLowerCase() : raw;

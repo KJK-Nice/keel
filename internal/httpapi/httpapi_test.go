@@ -2888,8 +2888,8 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	if strings.Contains(catalog, "sendSnippet") || strings.Contains(catalog, "sendSessionBytes") {
 		t.Fatal("palette catalog must not write a PTY; snippet runs must go through paletteRunSnippet")
 	}
-	if !strings.Contains(catalog, "paletteRunSnippet") || !strings.Contains(catalog, "Connect ") {
-		t.Fatal("palette catalog must include host connect and gated snippet actions")
+	if !strings.Contains(catalog, "paletteRunSnippet") || !strings.Contains(catalog, "New session on ") || !strings.Contains(catalog, `group: "Open now"`) {
+		t.Fatal("palette catalog must include open tabs, host sessions and gated snippet actions")
 	}
 
 	fnStart := strings.Index(js, "async function paletteRunSnippet")
