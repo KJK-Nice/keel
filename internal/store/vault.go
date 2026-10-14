@@ -46,6 +46,8 @@ type hostSecret struct {
 	Password   string `json:"password,omitempty"`
 	PrivateKey string `json:"privateKey,omitempty"`
 	Passphrase string `json:"passphrase,omitempty"`
+	// Token is an agent provider API key (agentkeys.go).
+	Token string `json:"token,omitempty"`
 }
 
 type vaultFile struct {

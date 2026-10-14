@@ -180,7 +180,7 @@ One phase per branch and PR.
 ## 11. Open questions
 
 1. Shortcut for the sidebar toggle: ⌘B (phase 2; it was the right session rail's toggle, which the Vault sidebar replaced). Still to confirm: ⌘I is free.
-2. Agent provider(s) to support first.
+2. Agent provider(s) to support first. **Decided (6a):** Google Gemini first, behind a provider interface (`internal/agent/provider`); the key is a vault secret.
 3. Jev vs a local model for detection: latency and offline requirements.
-4. Should "Treat as production" default on for hosts in a folder named `production`?
+4. Should "Treat as production" default on for hosts in a folder named `production`? **Decided (6a):** yes, at the moment a host is created in, or moved into, a group whose own name is `production` (any case; the direct parent only, not an ancestor). Nothing else sets it, loading never does, and the user can turn it off.
 5. Light theme: ship together with dark in phase 0, or after?

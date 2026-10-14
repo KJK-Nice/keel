@@ -137,7 +137,7 @@ func TestTunnelStateAndLogKinds(t *testing.T) {
 	if logBadgeClass("error") != "k-badge--flare" || logBadgeClass("info") != "" {
 		t.Fatal("only failures are flare")
 	}
-	if logGroup("session") != "sessions" || logGroup("tunnel") != "forwards" || logGroup("identity") != "vault" || logGroup("info") != "other" {
+	if logGroup("session") != "sessions" || logGroup("tunnel") != "forwards" || logGroup("identity") != "vault" || logGroup("info") != "other" || logGroup("agent.read") != "agent" || logGroup("agent") != "agent" || logGroup("agentx") != "other" {
 		t.Fatal("log chip groups")
 	}
 	p := PageProps{Hosts: []store.Host{{ID: "h1", Name: "db"}}}

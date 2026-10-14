@@ -264,8 +264,12 @@ func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 		if _, ok := want[h.ID]; !ok {
 			continue
 		}
+		moved := s.data.Hosts[i].Group != groupID
 		s.data.Hosts[i].Group = groupID
 		s.data.Hosts[i].UpdatedAt = now
+		if moved && s.isProductionGroupLocked(groupID) {
+			s.data.Hosts[i].Production = true
+		}
 		found++
 	}
 	if found == 0 {
