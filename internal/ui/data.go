@@ -532,7 +532,13 @@ func snippetFirstLine(s store.Snippet) string {
 
 // logGroup is the Logs filter chip a log kind belongs to.
 func logGroup(kind string) string {
-	switch strings.ToLower(kind) {
+	k := strings.ToLower(kind)
+	if k == "agent" || strings.HasPrefix(k, "agent.") {
+		// agent.read, agent.suggest, agent.insert, agent.type and agent
+		// settings changes. The Agent filter chip comes in phase 6d.
+		return "agent"
+	}
+	switch k {
 	case "session":
 		return "sessions"
 	case "tunnel":

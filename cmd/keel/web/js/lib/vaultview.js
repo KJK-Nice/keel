@@ -347,6 +347,9 @@ export function logGroup(kind) {
   const k = String(kind || "").toLowerCase();
   if (k === "session") return "sessions";
   if (k === "tunnel") return "forwards";
+  // agent.read / agent.suggest / agent.insert / agent.type and agent
+  // settings changes; the Agent filter chip comes in phase 6d.
+  if (k === "agent" || k.startsWith("agent.")) return "agent";
   if (["vault", "host", "group", "identity", "snippet", "notebook"].includes(k)) return "vault";
   return "other";
 }

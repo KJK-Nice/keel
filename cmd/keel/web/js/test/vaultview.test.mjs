@@ -122,4 +122,8 @@ test("logs filter on kind and message, and group kinds for the chips", () => {
   assert.equal(V.logGroup("identity"), "vault");
   assert.equal(V.logGroup("tunnel"), "forwards");
   assert.equal(V.logGroup("info"), "other");
+  assert.equal(V.logGroup("agent.read"), "agent");
+  assert.equal(V.logGroup("agent.type"), "agent");
+  assert.equal(V.logGroup("agent"), "agent");
+  assert.equal(V.logGroup("agentx"), "other");
 });

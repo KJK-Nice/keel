@@ -17,6 +17,13 @@ type Entry struct {
 	HostID    string    `json:"hostId,omitempty"`
 	SessionID string    `json:"sessionId,omitempty"`
 	TunnelID  string    `json:"tunnelId,omitempty"`
+	// Lines, Bytes and Redactions describe agent events (agent.read,
+	// agent.suggest, agent.insert, agent.type): how much was read or
+	// inserted and how many values of each kind were redacted. Content is
+	// never logged.
+	Lines      int            `json:"lines,omitempty"`
+	Bytes      int            `json:"bytes,omitempty"`
+	Redactions map[string]int `json:"redactions,omitempty"`
 }
 
 type Book struct {

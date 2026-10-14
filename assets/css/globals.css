@@ -14,6 +14,9 @@
 @source not "../../.claude";
 @source not "../../.e2e";
 @source not "../../bin";
+/* The agent packages hold no markup; their redaction placeholders like
+   `[secret:1]` would otherwise become arbitrary-property classes. */
+@source not "../../internal/agent";
 
 @custom-variant dark (&:is(.dark *));
 

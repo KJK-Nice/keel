@@ -41,24 +41,42 @@ func (e *HostKeyMismatchError) Error() string {
 }
 
 type Host struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Group           string    `json:"group"`
-	Address         string    `json:"address"`
-	Port            int       `json:"port"`
-	Username        string    `json:"username"`
-	AuthType        string    `json:"authType"` // local | password | key | identity
-	IdentityID      string    `json:"identityId,omitempty"`
-	Password        string    `json:"password,omitempty"`
-	PrivateKey      string    `json:"privateKey,omitempty"`
-	Passphrase      string    `json:"passphrase,omitempty"`
-	Color           string    `json:"color"`
-	KeepAliveSec    int       `json:"keepAliveSec"`
-	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
-	Tags            []string  `json:"tags,omitempty"`
-	GroupID         string    `json:"groupId,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Group           string   `json:"group"`
+	Address         string   `json:"address"`
+	Port            int      `json:"port"`
+	Username        string   `json:"username"`
+	AuthType        string   `json:"authType"` // local | password | key | identity
+	IdentityID      string   `json:"identityId,omitempty"`
+	Password        string   `json:"password,omitempty"`
+	PrivateKey      string   `json:"privateKey,omitempty"`
+	Passphrase      string   `json:"passphrase,omitempty"`
+	Color           string   `json:"color"`
+	KeepAliveSec    int      `json:"keepAliveSec"`
+	NoAutoReconnect bool     `json:"noAutoReconnect,omitempty"`
+	Tags            []string `json:"tags,omitempty"`
+	GroupID         string   `json:"groupId,omitempty"`
+	// AgentReadable and Production are the host's agent switches (Edit
+	// host → Agent). Reads always set both. On a write, nil means "not
+	// sent": an update keeps the saved value, a create takes the default
+	// (readable; production only when created in a group named
+	// "production", see production.go). Older clients never send them.
+	AgentReadable *bool     `json:"agentReadable"`
+	Production    *bool     `json:"production"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+// ReadableByAgent reports whether the agent may read this host's panes.
+// A host that never set it is readable (the default).
+func (h Host) ReadableByAgent() bool {
+	return h.AgentReadable == nil || *h.AgentReadable
+}
+
+// IsProduction reports whether the host is treated as production.
+func (h Host) IsProduction() bool {
+	return h.Production != nil && *h.Production
 }
 
 // Group is a Termius-style parent tree (not a filesystem folder).
@@ -190,20 +208,25 @@ type Notebook struct {
 }
 
 type persistHost struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Group           string    `json:"group"`
-	Address         string    `json:"address"`
-	Port            int       `json:"port"`
-	Username        string    `json:"username"`
-	AuthType        string    `json:"authType"`
-	IdentityID      string    `json:"identityId,omitempty"`
-	Color           string    `json:"color"`
-	KeepAliveSec    int       `json:"keepAliveSec"`
-	NoAutoReconnect bool      `json:"noAutoReconnect,omitempty"`
-	Tags            []string  `json:"tags,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Group           string   `json:"group"`
+	Address         string   `json:"address"`
+	Port            int      `json:"port"`
+	Username        string   `json:"username"`
+	AuthType        string   `json:"authType"`
+	IdentityID      string   `json:"identityId,omitempty"`
+	Color           string   `json:"color"`
+	KeepAliveSec    int      `json:"keepAliveSec"`
+	NoAutoReconnect bool     `json:"noAutoReconnect,omitempty"`
+	Tags            []string `json:"tags,omitempty"`
+	// AgentOff is stored inverted so a host saved before the field existed
+	// (no key) stays readable by the agent. Production has no key until
+	// set, so older hosts load as not production.
+	AgentOff   bool      `json:"agentOff,omitempty"`
+	Production bool      `json:"production,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 type persistIdentity struct {
@@ -229,6 +252,9 @@ type persistData struct {
 	Notebooks  []Notebook        `json:"notebooks,omitempty"`
 	Groups     []Group           `json:"groups,omitempty"`
 	KnownHosts map[string]string `json:"knownHosts"`
+	// Agent holds the agent settings. No secret lives here: provider keys
+	// are vault secrets (agentkeys.go).
+	Agent *AgentSettings `json:"agent,omitempty"`
 }
 
 type Store struct {
@@ -313,6 +339,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Notebooks  []Notebook        `json:"notebooks"`
 		Groups     []Group           `json:"groups"`
 		KnownHosts map[string]string `json:"knownHosts"`
+		Agent      *AgentSettings    `json:"agent"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return loaded{}, fmt.Errorf("parse store: %w", err)
@@ -327,6 +354,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Notebooks:  raw.Notebooks,
 		Groups:     raw.Groups,
 		KnownHosts: raw.KnownHosts,
+		Agent:      raw.Agent,
 	}
 	if out.KnownHosts == nil {
 		out.KnownHosts = map[string]string{}
@@ -337,6 +365,15 @@ func loadPlain(b []byte) (loaded, error) {
 		if err := json.Unmarshal(rawHost, &h); err != nil {
 			return loaded{}, fmt.Errorf("parse host: %w", err)
 		}
+		var flags struct {
+			AgentOff   bool `json:"agentOff"`
+			Production bool `json:"production"`
+		}
+		if err := json.Unmarshal(rawHost, &flags); err != nil {
+			return loaded{}, fmt.Errorf("parse host: %w", err)
+		}
+		h.AgentReadable = boolPtr(!flags.AgentOff)
+		h.Production = boolPtr(flags.Production)
 		if h.Password != "" || h.PrivateKey != "" || h.Passphrase != "" {
 			secrets[h.ID] = hostSecret{
 				Password:   h.Password,
@@ -567,8 +604,10 @@ func (s *Store) viewLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:      append([]string(nil), h.Tags...),
-		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		Tags:          append([]string(nil), h.Tags...),
+		AgentReadable: boolPtr(!h.AgentOff),
+		Production:    boolPtr(h.Production),
+		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	out = s.hydrateGroupLocked(out, h.Group)
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -591,8 +630,10 @@ func (s *Store) fullLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:      append([]string(nil), h.Tags...),
-		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		Tags:          append([]string(nil), h.Tags...),
+		AgentReadable: boolPtr(!h.AgentOff),
+		Production:    boolPtr(h.Production),
+		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	out = s.hydrateGroupLocked(out, h.Group)
 	if sec, ok := s.secrets[h.ID]; ok {
@@ -624,6 +665,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	h.Group = gid
 	h.GroupID = gid
 	if h.ID == "" {
+		s.applyCreateDefaultsLocked(&h)
 		h.ID = newID()
 		h.CreatedAt = now
 		h.UpdatedAt = now
@@ -640,6 +682,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	}
 	for i, existing := range s.data.Hosts {
 		if existing.ID == h.ID {
+			s.applyUpdateDefaultsLocked(&h, existing)
 			h.CreatedAt = existing.CreatedAt
 			h.UpdatedAt = now
 			prev := s.secrets[h.ID]
@@ -655,6 +698,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 			return s.fullLocked(s.data.Hosts[i]), nil
 		}
 	}
+	s.applyCreateDefaultsLocked(&h)
 	h.CreatedAt = now
 	h.UpdatedAt = now
 	s.data.Hosts = append(s.data.Hosts, persistFrom(h))
@@ -725,10 +769,14 @@ func persistFrom(h Host) persistHost {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:      append([]string(nil), h.Tags...),
-		CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		Tags:       append([]string(nil), h.Tags...),
+		AgentOff:   !h.ReadableByAgent(),
+		Production: h.IsProduction(),
+		CreatedAt:  h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }
+
+func boolPtr(v bool) *bool { return &v }
 
 func cleanSecret(v string) string {
 	if v == "__saved__" {

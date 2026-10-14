@@ -111,6 +111,15 @@ Saved on the Port forwarding page (Vault sidebar → Forwards → Manage forward
 
 Logs (Vault sidebar footer) is an append-only event log (`keel.log` under `KEEL_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.
 
+## Agent (in progress)
+
+The agent is being built in phases (`docs/ui-redesign.md` §6, §10). So far there is only the backend core, and nothing in Keel sends anything off the machine yet:
+
+- Each host has **Agent can read** (`agentReadable`, on by default) and **Treat as production** (`production`, off by default; turned on when a host is created in or moved into a group named `production`). Older clients that do not send the fields keep the saved values.
+- Agent settings (provider, model, detection, default scope, scrollback lines 50–1000, IP/hostname redaction, history) are in `keel.json` and at `GET`/`PUT /api/agent/settings`. Secret redaction is always on.
+- Provider keys (Gemini, Jev) are vault secrets, set with `PUT /api/agent/keys/{provider}` and removed with `DELETE`. No response ever returns a key, only `configured: true/false`.
+- Agent reads and inserts are written to `keel.log` as `agent.read`, `agent.suggest`, `agent.insert` and `agent.type`, with line counts and redaction counts, never the text.
+
 ## Share a session (no LAN)
 
 Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling server; PTY bytes go over a WebRTC datachannel.
