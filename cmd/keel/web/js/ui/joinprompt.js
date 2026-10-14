@@ -4,7 +4,10 @@
 //
 // One prompt per (session, peer); the session WebSocket can deliver the
 // same request to several panes or windows, and every copy is removed when
-// the hub reports it resolved.
+// the hub reports it resolved. Shown as a k-toast (haze); the redesign
+// changed only the look, not what Allow and Deny send.
+
+import { glyph } from "../lib/share.js";
 
 export function createJoinPrompts({ doc = document, answer, onError }) {
   const prompts = new Map(); // `${sessionId}\n${peerId}` -> element
@@ -14,10 +17,13 @@ export function createJoinPrompts({ doc = document, answer, onError }) {
 
   function container() {
     if (stack?.isConnected) return stack;
+    // Shared with the control request toasts (ui/actiontoast.js).
+    stack = doc.querySelector?.(".k-toasts.join-prompts") || null;
+    if (stack) return stack;
     stack = doc.createElement("div");
-    stack.className = "join-prompts";
+    stack.className = "k-toasts join-prompts";
     stack.setAttribute("role", "region");
-    stack.setAttribute("aria-label", "Join requests");
+    stack.setAttribute("aria-label", "Share requests");
     doc.body.appendChild(stack);
     return stack;
   }
@@ -34,30 +40,35 @@ export function createJoinPrompts({ doc = document, answer, onError }) {
     const key = keyOf(sessionId, peerId);
     if (prompts.has(key)) return;
     const el = doc.createElement("div");
-    el.className = "join-prompt";
+    el.className = "k-toast k-toast--haze join-prompt";
     el.setAttribute("role", "alertdialog");
 
-    const text = doc.createElement("p");
-    text.className = "join-prompt-text";
+    const icon = doc.createElement("span");
+    icon.className = "k-i";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = glyph("eye");
+
+    const text = doc.createElement("div");
+    text.className = "k-toast-title";
     const who = doc.createElement("b");
     who.textContent = name || "Someone";
     text.append(who, ` wants to watch ${title || "this session"}.`);
 
-    const note = doc.createElement("p");
-    note.className = "join-prompt-note";
+    const note = doc.createElement("div");
+    note.className = "k-toast-desc";
     note.textContent = "The name is whatever they typed. Allow only if you're expecting them; they'll see output from when you started sharing.";
 
     const actions = doc.createElement("div");
-    actions.className = "join-prompt-actions";
-    const deny = doc.createElement("button");
-    deny.type = "button";
-    deny.className = "btn btn-ghost";
-    deny.textContent = "Deny";
+    actions.className = "k-toast-actions";
     const allow = doc.createElement("button");
     allow.type = "button";
-    allow.className = "btn btn-primary";
+    allow.className = "k-btn k-btn--sm";
     allow.textContent = "Allow";
-    actions.append(deny, allow);
+    const deny = doc.createElement("button");
+    deny.type = "button";
+    deny.className = "k-btn k-btn--sm k-btn--ghost";
+    deny.textContent = "Deny";
+    actions.append(allow, deny);
 
     const reply = async (ok) => {
       allow.disabled = true;
@@ -73,7 +84,7 @@ export function createJoinPrompts({ doc = document, answer, onError }) {
     allow.addEventListener("click", () => reply(true));
     deny.addEventListener("click", () => reply(false));
 
-    el.append(text, note, actions);
+    el.append(icon, text, note, actions);
     container().appendChild(el);
     prompts.set(key, el);
   }
