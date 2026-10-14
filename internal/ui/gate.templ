@@ -1,0 +1,178 @@
+package ui
+
+// Gate covers the window while the vault is locked or the first run is
+// open (docs/ui-redesign.md §5.14, §5.15). term.js shows one screen at a
+// time from GET /api/vault and fills in the counts, paths and the import
+// table (lib/onboard.js). The vault semantics are keel serve's: Setup only
+// creates a vault that does not exist, Unlock only opens one.
+templ Gate(p PageProps) {
+	<div class="k-gate" id="gate" data-keychain={ p.KeychainName } hidden?={ !p.Locked }>
+		<div class="k-gate-bar" aria-hidden="true"></div>
+		@unlockScreen(p)
+		@firstRunScreen(p)
+		<footer class="k-status k-gate-status" aria-label="Runtime">
+			<span><span class="k-dot k-dot--live" aria-hidden="true"></span><span id="gate-sessions">keel serve</span></span>
+			<span class="k-status-gap"></span>
+			<span class="k-mono">keel.vault · age encrypted</span>
+		</footer>
+	</div>
+}
+
+templ gateMark(size string) {
+	<img class="k-gate-mark" src={ templ.SafeURL(keelMark) } alt="Keel" width={ size } height={ size }/>
+}
+
+templ gateIcon(name string) {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		switch name {
+			case "lock":
+				<path d="M12 14V17"></path><path d="M16.5 9V6.5C16.5 4 14.5 2 12 2C9.5 2 7.5 4 7.5 6.5V9"></path><path d="M4.3 18.8C4.5 20.5 5.9 21.8 7.6 21.9C9 22 10.4 22 12 22C13.6 22 15 22 16.4 21.9C18.1 21.8 19.5 20.5 19.7 18.8C19.9 17.8 20 16.6 20 15.5C20 14.4 19.9 13.2 19.7 12.2C19.5 10.5 18.1 9.2 16.4 9.1C15 9 13.6 9 12 9C10.4 9 9 9 7.6 9.1C5.9 9.2 4.5 10.5 4.3 12.2C4.1 13.2 4 14.4 4 15.5C4 16.6 4.1 17.8 4.3 18.8Z"></path>
+			case "alert":
+				<path d="M13.9 21H10.1C5.4 21 3.1 21 2.3 19.5C1.4 18 2.6 16 5 12L6.9 8.8C9.2 4.9 10.3 3 12 3C13.7 3 14.8 4.9 17.1 8.8L19 12C21.4 16 22.6 18 21.7 19.5C20.9 21 18.6 21 13.9 21Z"></path><path d="M12 9V13"></path><path d="M12 16.8H12.01" stroke-width="2.2"></path>
+			case "eye":
+				<path d="M21.5 11C21.8 11.5 22 11.7 22 12C22 12.3 21.8 12.5 21.5 13C20.2 14.9 16.7 19 12 19C7.3 19 3.8 14.9 2.5 13C2.2 12.5 2 12.3 2 12C2 11.7 2.2 11.5 2.5 11C3.8 9.1 7.3 5 12 5C16.7 5 20.2 9.1 21.5 11Z"></path><path d="M15 12C15 10.3 13.7 9 12 9C10.3 9 9 10.3 9 12C9 13.7 10.3 15 12 15C13.7 15 15 13.7 15 12Z"></path>
+			case "tick":
+				<path d="M5 14L8.5 17.5L19 6.5" stroke-width="2.4"></path>
+		}
+	</svg>
+}
+
+// unlockScreen is §5.14: the vault exists and keel serve could not open it
+// at start (the keychain did not answer, or the vault uses a passphrase).
+templ unlockScreen(p PageProps) {
+	<section class="k-unlock" id="unlock" aria-labelledby="unlock-title" hidden>
+		<form class="k-unlock-card" id="unlock-form" novalidate>
+			@gateMark("48")
+			<div class="k-gate-head">
+				<h1 class="k-gate-title" id="unlock-title">Unlock your vault</h1>
+				<p class="k-gate-lead" id="unlock-lead">Your hosts and keys are encrypted on this machine.</p>
+			</div>
+			<div class="k-pane-banner k-pane-banner--signal k-gate-banner" id="unlock-banner" hidden>
+				@gateIcon("alert")
+				<span id="unlock-banner-text"></span>
+			</div>
+			<div class="k-field k-gate-wide" id="unlock-field">
+				<label class="k-label" for="unlock-pass">Vault passphrase</label>
+				<div class="k-inputgroup k-inputgroup--lg">
+					<span class="k-addon">
+						@gateIcon("lock")
+					</span>
+					<input class="k-input" id="unlock-pass" name="passphrase" type="password" autocomplete="current-password" spellcheck="false" aria-describedby="unlock-error"/>
+					<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="unlock-show" aria-label="Show passphrase" aria-pressed="false">
+						@gateIcon("eye")
+					</button>
+				</div>
+				<p class="k-error" id="unlock-error" role="alert" hidden></p>
+			</div>
+			<div class="k-choice" id="unlock-retry">
+				<span class="k-check" role="checkbox" aria-checked="true" aria-disabled="true" aria-labelledby="unlock-retry-label" aria-describedby="unlock-retry-help">
+					<span class="k-i">
+						@gateIcon("tick")
+					</span>
+				</span>
+				<span id="unlock-retry-label">Try { p.KeychainName } again next time</span>
+			</div>
+			<p class="k-help k-gate-note" id="unlock-retry-help">Keel always asks { p.KeychainName } first when keel serve starts.</p>
+			<button type="submit" class="k-btn k-btn--primary k-btn--lg k-gate-wide" id="unlock-submit">
+				Unlock
+				<span class="k-kbd" aria-hidden="true">↵</span>
+			</button>
+			<p class="k-help">Forgot it? Keel can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.</p>
+		</form>
+	</section>
+}
+
+// firstRunScreen is §5.15 steps 1 and 2. Step 3 (Agent) comes with the
+// agent in phase 6. Step 2 also opens on its own from the command palette
+// (Import hosts from ~/.ssh/config).
+templ firstRunScreen(p PageProps) {
+	<section class="k-onb" id="onboard" aria-labelledby="onb-title" hidden>
+		<div class="k-onb-col" id="onb-col">
+			<ol class="k-steps" id="onb-steps" aria-label="Setup progress">
+				<li class="k-step" id="onb-step-vault" data-state="now">
+					<span class="k-step-n" aria-hidden="true"><span class="k-step-num">1</span>
+						@gateIcon("tick")
+					</span>
+					Vault
+				</li>
+				<li class="k-step-sep" aria-hidden="true"></li>
+				<li class="k-step" id="onb-step-hosts">
+					<span class="k-step-n" aria-hidden="true"><span class="k-step-num">2</span>
+						@gateIcon("tick")
+					</span>
+					Hosts
+				</li>
+			</ol>
+			<form class="k-onb-panel" id="onb-vault" novalidate>
+				<div class="k-gate-head">
+					@gateMark("44")
+					<h1 class="k-gate-title" id="onb-title">Welcome to Keel</h1>
+					<p class="k-gate-lead">Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.</p>
+				</div>
+				<div class="k-choices" role="radiogroup" aria-label="How to unlock the vault">
+					<button type="button" class="k-choice-card" role="radio" aria-checked="false" id="onb-mode-keychain" data-onb-mode="keychain" aria-describedby="onb-keychain-desc">
+						<span class="k-radio" aria-hidden="true"></span>
+						<span class="k-choice-title">Unlock with { p.KeychainName }<span class="k-badge k-badge--brass">Recommended</span></span>
+						<span class="k-choice-desc" id="onb-keychain-desc">The vault key lives in your login keychain. Keel opens without asking.</span>
+					</button>
+					<button type="button" class="k-choice-card" role="radio" aria-checked="false" id="onb-mode-pass" data-onb-mode="passphrase" aria-describedby="onb-pass-desc">
+						<span class="k-radio" aria-hidden="true"></span>
+						<span class="k-choice-title">Use a passphrase</span>
+						<span class="k-choice-desc" id="onb-pass-desc">You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.</span>
+					</button>
+				</div>
+				<div class="k-onb-fields" id="onb-pass-fields" hidden>
+					<div class="k-field">
+						<label class="k-label" for="onb-pass">Passphrase</label>
+						<input class="k-input" id="onb-pass" type="password" autocomplete="new-password" spellcheck="false"/>
+					</div>
+					<div class="k-field">
+						<label class="k-label" for="onb-pass2">Repeat passphrase</label>
+						<input class="k-input" id="onb-pass2" type="password" autocomplete="new-password" spellcheck="false"/>
+					</div>
+					<p class="k-error" id="onb-pass-error" role="alert" hidden></p>
+					<p class="k-help">Keel can't recover the vault if you lose the passphrase.</p>
+				</div>
+				<div class="k-box">
+					<dl class="k-kv">
+						<dt>Vault file</dt>
+						<dd class="k-mono" id="onb-vault-path">keel.vault</dd>
+						<dt>Encryption</dt>
+						<dd id="onb-vault-enc">age</dd>
+						<dt>Holds</dt>
+						<dd>Host passwords, private keys and key passphrases. Host names, addresses and snippets stay in keel.json.</dd>
+					</dl>
+				</div>
+				<div class="k-box" id="onb-existing" hidden>
+					<p class="k-help">
+						To use a keel.vault you already have: quit Keel, run <span class="k-mono">keel serve stop</span>, put that keel.vault and its keel.json in <span class="k-mono" id="onb-data-dir">the Keel data folder</span>, then open Keel. It opens with the keychain or passphrase that made it. Keel does not change a vault it cannot open.
+					</p>
+				</div>
+				<div class="k-onb-foot">
+					<button type="button" class="k-btn k-btn--ghost" id="onb-existing-btn" aria-expanded="false" aria-controls="onb-existing">I already have a keel.vault…</button>
+					<span class="k-spacer"></span>
+					<button type="submit" class="k-btn k-btn--primary k-btn--lg" id="onb-vault-next">
+						<span id="onb-vault-next-label">Create vault</span>
+						<span class="k-kbd" aria-hidden="true">↵</span>
+					</button>
+				</div>
+			</form>
+			<div class="k-onb-panel" id="onb-hosts" hidden>
+				<div class="k-gate-head">
+					<h1 class="k-gate-title" id="onb-hosts-title" tabindex="-1">Bring your hosts</h1>
+					<p class="k-gate-lead" id="onb-hosts-lead">Reading ~/.ssh/config…</p>
+				</div>
+				<div class="k-imp" id="onb-import"></div>
+				<div class="k-onb-foot">
+					<button type="button" class="k-btn k-btn--ghost" id="onb-back">Back</button>
+					<span class="k-spacer"></span>
+					<button type="button" class="k-btn" id="onb-skip">Skip, add hosts later</button>
+					<button type="button" class="k-btn k-btn--primary k-btn--lg" id="onb-import-btn" disabled>
+						<span id="onb-import-label">Add hosts</span>
+						<span class="k-kbd" aria-hidden="true">↵</span>
+					</button>
+				</div>
+			</div>
+		</div>
+	</section>
+}

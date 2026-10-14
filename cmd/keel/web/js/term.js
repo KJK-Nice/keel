@@ -43,6 +43,7 @@ import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
+import { createGate } from "./ui/gate.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -644,7 +645,6 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
     gate: document.getElementById("gate"),
-    gateForm: document.getElementById("gate-form"),
     cmdPalette: document.getElementById("cmd-palette"),
     cmdPaletteForm: document.getElementById("cmd-palette-form"),
     cmdPaletteInput: document.getElementById("cmd-palette-input"),
@@ -825,6 +825,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     if (!res.ok) {
       const err = new Error(data.error || res.statusText);
       err.code = res.status;
+      err.data = data;
       err.errorKind = data.errorKind;
       err.hostname = data.hostname;
       err.fingerprint = data.fingerprint;
@@ -3014,6 +3015,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       run: () => runShortcut("quick-connect"),
     });
     add({ id: "join", group: "Vault", title: "Join session", icon: "link", keys: `${MOD}J`, run: () => runShortcut("join") });
+    add({ id: "import-ssh-config", group: "Vault", title: "Import hosts from ~/.ssh/config", run: () => gate?.openImport() });
     add({ id: "vault-keychain", group: "Vault", title: "Keychain", run: () => openPage("keychain") });
     add({ id: "vault-forwards", group: "Vault", title: "Port forwarding", run: () => openPage("forwards") });
     add({ id: "vault-snippets", group: "Vault", title: "Snippets", run: () => openPage("snippets") });
@@ -5793,26 +5795,13 @@ Write a runbook here.
     }
   }
 
-  function showGate(needsSetup) {
-    els.gate.hidden = false;
-    const title = document.getElementById("gate-title");
-    const hint = document.getElementById("gate-hint");
-    const submit = document.getElementById("gate-submit");
-    if (needsSetup) {
-      if (title) title.textContent = "Create vault";
-      if (hint) hint.textContent = "Choose a passphrase to encrypt host passwords and keys on this machine.";
-      if (submit) submit.textContent = "Create vault";
-    } else {
-      if (title) title.textContent = "Unlock vault";
-      if (hint) hint.textContent = "Host passwords and keys are encrypted. Enter your vault passphrase.";
-      if (submit) submit.textContent = "Unlock";
-    }
-    if (els.gateForm?.passphrase) {
-      els.gateForm.passphrase.value = "";
-      els.gateForm.passphrase.focus({ preventScroll: true });
-    }
-    if (els.gateForm) els.gateForm.dataset.setup = needsSetup ? "1" : "0";
-  }
+  // The window-wide gate: Unlock, First run, and Import hosts (ui/gate.js).
+  const gate = createGate({
+    api,
+    toast,
+    onUnlocked: () => boot(),
+    onImported: () => loadAll().catch((err) => toast(err.message, true)),
+  });
 
   function activateTabIndex(n) {
     const id = tabIndexTarget(chromeTabs(), n);
@@ -5830,6 +5819,7 @@ Write a runbook here.
 
   async function boot() {
     persistName();
+    let vault = null;
     try {
       const health = await api("/api/health");
       state.signalURL = health.signalURL || "";
@@ -5841,20 +5831,22 @@ Write a runbook here.
           },
         });
       }
+      vault = await api("/api/vault").catch(() => null);
       if (health.locked) {
-        showGate(!!health.needsSetup);
+        gate?.update(vault || { locked: true, needsSetup: !!health.needsSetup, sessions: health.sessions });
         return;
       }
       await loadAll();
     } catch (err) {
       if (err.code === 423) {
-        showGate(false);
+        gate?.update({ locked: true, needsSetup: false });
         return;
       }
       toast(err.message, true);
       return;
     }
-    els.gate.hidden = true;
+    if (gate) gate.update(vault || {});
+    else els.gate.hidden = true;
     connectHerd();
     renderTabs();
     const chromeFocus = document.activeElement;
@@ -6463,15 +6455,6 @@ Write a runbook here.
     on(document.getElementById("set-paste"), "change", (ev) => {
       state.prefs.rightClickPaste = ev.target.checked;
       savePrefs();
-    });
-    on(els.gateForm, "submit", (ev) => {
-      ev.preventDefault();
-      const passphrase = els.gateForm.passphrase?.value;
-      const setup = els.gateForm.dataset.setup === "1";
-      const path = setup ? "/api/vault/setup" : "/api/vault/unlock";
-      api(path, { method: "POST", body: JSON.stringify({ passphrase }) })
-        .then(() => boot())
-        .catch((err) => toast(err.message, true));
     });
   }
 

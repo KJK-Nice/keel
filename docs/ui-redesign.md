@@ -121,7 +121,7 @@ Board names refer to the canvas.
 
 ### 5.15 First run (`Onboard1–3`)
 1. Create vault: Keychain (recommended) or passphrase; shows vault path and contents; "I already have a keel.vault…".
-2. Bring your hosts: parse `~/.ssh/config`, table with checkboxes, wildcards expand, ProxyCommand hosts flagged; optional copy of referenced private keys into the vault (originals untouched).
+2. Bring your hosts: parse `~/.ssh/config` (read-only), table with checkboxes, wildcard patterns listed apart (not importable), ProxyCommand / ProxyJump hosts flagged and importable without the proxy, already-saved hosts unchecked; optional copy of referenced private keys into the vault, one switch per key, off by default (originals untouched).
 3. Agent: three promises, provider picker, suggestions toggle, Set up later / Open Keel.
 
 ## 6. Agent invariants (must hold in code, not only in UI)

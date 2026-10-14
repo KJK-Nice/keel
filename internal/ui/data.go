@@ -29,20 +29,23 @@ func mergeAttrs(parts ...templ.Attributes) templ.Attributes {
 type PageProps struct {
 	Locked     bool
 	NeedsSetup bool
-	Titlebar   bool
-	Native     bool
-	Name       string
-	SignalURL  string
-	Query      string
-	LogFilter  string
-	Hosts      []store.Host
-	Identities []store.Identity
-	Tunnels    []tunnel.Info
-	Snippets   []store.Snippet
-	Notebooks  []store.Notebook
-	Groups     []store.Group
-	GroupFocus string
-	Logs       []applog.Entry
+	// KeychainName is what this OS calls the keychain that can hold the
+	// vault key ("macOS Keychain" on a Mac).
+	KeychainName string
+	Titlebar     bool
+	Native       bool
+	Name         string
+	SignalURL    string
+	Query        string
+	LogFilter    string
+	Hosts        []store.Host
+	Identities   []store.Identity
+	Tunnels      []tunnel.Info
+	Snippets     []store.Snippet
+	Notebooks    []store.Notebook
+	Groups       []store.Group
+	GroupFocus   string
+	Logs         []applog.Entry
 }
 
 func (p PageProps) SignalsJSON() string {
@@ -569,3 +572,20 @@ func logTarget(p PageProps, e applog.Entry) string {
 	}
 	return "—"
 }
+
+// KeychainName is the name the unlock and first-run screens use for the OS
+// keychain that go-keyring talks to on goos.
+func KeychainName(goos string) string {
+	switch goos {
+	case "darwin":
+		return "macOS Keychain"
+	case "windows":
+		return "Windows Credential Manager"
+	default:
+		return "the system keyring"
+	}
+}
+
+// keelMark is the in-app mark (the favicon), used as supplied on the
+// unlock and first-run screens.
+const keelMark = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7.2' fill='%23ffffff'/><path fill='%23141414' transform='translate(4,5.5) scale(0.24)' d='m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z'/></svg>"

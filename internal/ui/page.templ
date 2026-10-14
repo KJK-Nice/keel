@@ -2,13 +2,8 @@ package ui
 
 import (
 	"keel/components"
-	"keel/components/button"
-	"keel/components/card"
-	"keel/components/field"
 	"keel/components/icon"
-	"keel/components/input"
 	"keel/components/kbd"
-	"keel/components/label"
 	"keel/components/toast"
 	"keel/components/tooltip"
 )
@@ -172,56 +167,6 @@ templ Page(p PageProps) {
 			<script type="module" src="/js/term.js"></script>
 		</body>
 	</html>
-}
-
-templ Gate(p PageProps) {
-	<div class="gate" id="gate" hidden?={ !p.Locked }>
-		@card.Card(card.Props{Class: "gate-card w-[min(22rem,100%)]"}) {
-			<form id="gate-form">
-				@card.Header() {
-					<p class="eyebrow">Vault</p>
-					if p.NeedsSetup {
-						@card.Title(card.TitleProps{ID: "gate-title"}) {
-							Create vault
-						}
-						@card.Description(card.DescriptionProps{ID: "gate-hint"}) {
-							Choose a passphrase to encrypt host passwords and keys on this machine.
-						}
-					} else {
-						@card.Title(card.TitleProps{ID: "gate-title"}) {
-							Unlock vault
-						}
-						@card.Description(card.DescriptionProps{ID: "gate-hint"}) {
-							Host passwords and keys are encrypted. Enter your vault passphrase.
-						}
-					}
-				}
-				@card.Content() {
-					@field.Field() {
-						@label.Label(label.Props{For: "gate-pass"}) {
-							Passphrase
-						}
-						@input.Input(input.Props{
-							ID:         "gate-pass",
-							Name:       "passphrase",
-							Type:       "password",
-							Required:   true,
-							Attributes: templ.Attributes{"autocomplete": "current-password"},
-						})
-					}
-				}
-				@card.Footer() {
-					@button.Button(button.Props{ID: "gate-submit", Type: button.TypeSubmit}) {
-						if p.NeedsSetup {
-							Create vault
-						} else {
-							Unlock
-						}
-					}
-				}
-			</form>
-		}
-	</div>
 }
 
 // statusBar is the 24px strip at the bottom of the window. term.js fills it

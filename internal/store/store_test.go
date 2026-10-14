@@ -275,6 +275,8 @@ func TestMigratePlaintextSecrets(t *testing.T) {
 func TestLockedUntilSetup(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	// Never touch the real "keel"/"vault" keychain item from a test.
+	t.Setenv("KEEL_KEYRING", "off")
 	st, err := New(filepath.Join(t.TempDir(), "keel.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -590,6 +592,8 @@ func TestSetupRefusesExistingVault(t *testing.T) {
 	// Reopen without the passphrase: the existing scrypt vault is locked but
 	// does not need setup. Setup must not overwrite it.
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	// Never touch the real "keel"/"vault" keychain item from a test.
+	t.Setenv("KEEL_KEYRING", "off")
 	reopened, err := New(st.path)
 	if err != nil {
 		t.Fatal(err)

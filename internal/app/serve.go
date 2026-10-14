@@ -57,7 +57,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).Handler(),
+		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)
