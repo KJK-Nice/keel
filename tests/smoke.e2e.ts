@@ -12,5 +12,5 @@ test('the window opens with the Vault sidebar on Hosts', { tags: ['smoke'] }, as
   await expect(vault.getByRole('button', 'New host')).toBeVisible();
   await expect(vault.getByRole('searchbox', 'Search hosts')).toBeVisible();
   await expect(vault.getByRole('button', 'Hosts')).toHaveAttribute('aria-pressed', 'true');
-  await expect(screen.getByRole('heading', 'New tab')).toBeVisible();
+  await expect(screen.getByRole('heading', 'Where to?')).toBeVisible();
 });

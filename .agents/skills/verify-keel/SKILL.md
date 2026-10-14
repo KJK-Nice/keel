@@ -10,7 +10,7 @@ of Keel. The config is `e2e.config.ts` (two targets sharing one app:
 `webkit`, the primary, because the macOS app is a WKWebView, and `chromium`,
 a stand-in for Windows WebView2; tests `tests/**/*.e2e.ts`). Use `--target
 webkit` for proofs and screenshots, and run both targets before claiming a
-change works; shared helpers are in `tests/keel.ts`; the bug bash
+change works, one `--target` per invocation (both would share one data dir); shared helpers are in `tests/keel.ts`; the bug bash
 uses `e2e.bugbash.config.ts`.
 
 What is driven: the desktop app is a Wails webview pointed at `keel serve`'s
@@ -113,8 +113,8 @@ terminal tests save `host-added` and `terminal-output`). The next run clears
 `--output .e2e/proof/<name>`.
 
 Visual-only changes (tokens, CSS, fonts): `tests/visual.e2e.ts` saves
-`<theme>-hosts`, `-new-host`, `-snippets`, `-settings`, `-terminal`, and
-`-palette` in dark and light. Run it with `--target webkit` on the base build with `--output
+`<theme>-hosts`, `-new-host`, `-snippets`, `-settings`, `-terminal`,
+`-palette`, `-newtab`, `-palette-groups`, and more in dark and light. Run it with `--target webkit` on the base build with `--output
 .e2e/proof/<name>-before`, then `make build` with the change and run it with
 `--output .e2e/proof/<name>-after`; compare the pairs by name. It sets the
 theme through `localStorage['keel-theme']`, as the Settings select does.

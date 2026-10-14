@@ -7,7 +7,7 @@ description: Put before/after UI screenshots in a GitHub pull request body. Use 
 
 `gh` cannot upload images to a PR (the `user-attachments` upload is web-only), so images live on an orphan branch, `pr-assets`, and the PR body links them. Never merge `pr-assets`.
 
-Needs `.agents/skills/verify-keel/SKILL.md` (read it first) and `tests/visual.e2e.ts`, which saves `<theme>-hosts|new-host|snippets|settings|terminal|palette` in dark and light. Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
+Needs `.agents/skills/verify-keel/SKILL.md` (read it first) and `tests/visual.e2e.ts`, which saves `<theme>-hosts|new-host|snippets|settings|terminal|palette|newtab|palette-groups|…` in dark and light. Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
 
 ## 1. Before (base ref, in a worktree)
 
