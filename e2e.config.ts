@@ -27,6 +27,10 @@ const app = {
       KEEL_KEYRING: 'off',
       KEEL_SSH_DIR: sshDir,
       SHELL: '/bin/sh',
+      // Test only: the agent panel answers from an in-process fake
+      // (internal/agent/provider/providertest.Scripted) that sends nothing
+      // anywhere, so no test ever needs or uses a real Gemini key.
+      KEEL_AGENT_PROVIDER: 'fake',
     },
     log: '.e2e/logs/keel-serve.log',
   },

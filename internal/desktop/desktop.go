@@ -86,6 +86,7 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	view := m.AddSubmenu("View")
 	view.Add("Find in Terminal").SetAccelerator("CmdOrCtrl+f").OnClick(w.menuAction("find-term"))
 	view.Add("Toggle Vault Sidebar").SetAccelerator("CmdOrCtrl+b").OnClick(w.menuAction("toggle-sidebar"))
+	view.Add("Toggle Agent Panel").SetAccelerator(agentPanelAccel(stdruntime.GOOS)).OnClick(w.menuAction("toggle-agent"))
 	view.AddSeparator()
 	view.Add("Focus Pane").SetAccelerator("CmdOrCtrl+Shift+enter").OnClick(w.menuAction("focus-pane"))
 	view.AddSeparator()
@@ -97,6 +98,17 @@ func (w *nativeWindow) appMenu() *application.Menu {
 		m.AddRole(application.WindowMenu)
 	}
 	return m
+}
+
+// agentPanelAccel is the agent panel's chord: ⌘I on macOS. Elsewhere the
+// app modifier is Ctrl, and Ctrl+I is Tab in a terminal (readline
+// completion), so the panel takes Ctrl+Shift+I and Ctrl+I stays with the
+// shell. lib/shortcuts.js maps the same chords (shortcuts_test.go).
+func agentPanelAccel(goos string) string {
+	if goos == "darwin" {
+		return "CmdOrCtrl+i"
+	}
+	return "Ctrl+Shift+i"
 }
 
 func (w *nativeWindow) menuAction(name string) func(*application.Context) {

@@ -202,6 +202,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 	for _, c := range []struct{ method, path string }{
 		{"GET", "/api/agent/settings"}, {"PUT", "/api/agent/settings"}, {"GET", "/api/agent/providers"},
 		{"PUT", "/api/agent/keys/gemini"}, {"DELETE", "/api/agent/keys/gemini"},
+		{"POST", "/api/agent/ask"}, {"PUT", "/api/agent/conversations/conv-0001/proposals/p_1"}, {"DELETE", "/api/agent/conversations/conv-0001"},
 	} {
 		req, _ := http.NewRequest(c.method, f.srv.URL+c.path, strings.NewReader(`{"key":"abc"}`))
 		resp, err := http.DefaultClient.Do(req)
@@ -233,6 +234,15 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusLocked {
 		t.Fatalf("locked vault → %d, want 423", resp.StatusCode)
+	}
+	// The ask route too: nothing is read or sent while the vault is locked.
+	resp, err = http.Post(srv.URL+"/api/agent/ask", "application/json", strings.NewReader(`{"conversationId":"conv-0001","question":"hi"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusLocked {
+		t.Fatalf("ask with a locked vault → %d, want 423", resp.StatusCode)
 	}
 }
 

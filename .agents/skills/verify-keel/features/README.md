@@ -24,3 +24,4 @@ Map one when a change touches it.
 | [Keychain](keychain.md) | Vault sidebar footer › Keychain (tab page) | `tests/sidebar.e2e.ts` (opens, ⌘N) | partly tested |
 | [Snippets](snippets.md) | Vault sidebar › Snippets, Snippets tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |
 | [Notebooks](notebooks.md) | Vault sidebar › Snippets › Notebooks, Notebooks tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |
+| [Agent panel](agent.md) | ⌘I or titlebar `Agent` (right panel) | `tests/agent.e2e.ts` (fake provider, `KEEL_AGENT_PROVIDER=fake`) | tested |

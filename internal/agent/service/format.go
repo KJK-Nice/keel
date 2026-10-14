@@ -1,0 +1,165 @@
+package service
+
+import (
+	"encoding/json"
+	"regexp"
+	"strings"
+
+	"keel/internal/agent"
+	"keel/internal/agent/redact"
+)
+
+// ProposalFence is the info string of the fenced block in which the model
+// returns a command proposal. One block holds one JSON object:
+//
+//	```keel-proposal
+//	{"pane": 1, "command": "df -h /var", "why": "Shows free space", "risk": "readonly"}
+//	```
+//
+// pane is the 1-based number of a pane excerpt in the same message;
+// command is one shell command line without a trailing newline; why is a
+// short reason; risk is the model's own rating, which can only make Keel's
+// rating stricter (agent.Stricter). Anything else in the reply is the
+// answer text. Keel never runs a proposal: the user types it.
+const ProposalFence = "keel-proposal"
+
+const (
+	maxProposals       = 3
+	maxCommandBytes    = 2048
+	maxCommandLines    = 20
+	maxWhyBytes        = 300
+	maxAnswerBytes     = 32 * 1024
+	maxQuestionBytes   = 8 * 1024
+	maxPanesPerAsk     = 8
+	maxOutputTokens    = 2048
+	maxHistoryMessages = 20
+	maxHistoryBytes    = 128 * 1024
+)
+
+// systemPrompt is a constant so it can be a redact.Static value.
+const systemPrompt = "You are the agent inside Keel, a local SSH workspace. The user asks about their terminal sessions.\n" +
+	"A message may include excerpts of the panes the user chose to share: the last lines of each pane's scrollback, " +
+	"each framed as \"--- pane N · host H · last L lines ---\" and \"--- end pane N ---\".\n" +
+	"Before you receive anything, values that look secret (and, if the user asked, IP addresses and hostnames) are replaced " +
+	"with placeholders such as [secret:1], [ip:2] or [host:1]. The numbering restarts in every message. " +
+	"Never ask for the real values and never guess them.\n" +
+	"You cannot run anything, and nothing you write reaches a terminal by itself. When a command would help, propose it: " +
+	"the user reviews the exact bytes and types it themselves. Prefer read-only commands that gather facts before commands " +
+	"that change state, and say when a command deletes data or restarts a service.\n" +
+	"Propose at most 3 commands, each in its own fenced block in exactly this form:\n" +
+	"```" + ProposalFence + "\n" +
+	"{\"pane\": 1, \"command\": \"df -h /var\", \"why\": \"Shows free space on /var\", \"risk\": \"readonly\"}\n" +
+	"```\n" +
+	"\"pane\" is the number of the pane the command is for. \"command\" is one shell command line: no prompt, no trailing newline. " +
+	"\"risk\" is \"readonly\", \"changes\" or \"destructive\". Keep the text outside the blocks short and specific, " +
+	"use backticks for commands, paths and values, and say plainly when the excerpts do not hold enough to answer."
+
+var systemSafe = redact.Static(systemPrompt)
+
+var fenceRe = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(ProposalFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
+
+// rawProposal is one parsed block, before Keel checks and rates it.
+type rawProposal struct {
+	Pane    int    `json:"pane"`
+	Command string `json:"command"`
+	Why     string `json:"why"`
+	Risk    string `json:"risk"`
+}
+
+// parseResponse splits a model reply into the answer text and up to
+// maxProposals proposals. A block that is not valid JSON, or whose command
+// is empty, too long, or has control characters, is dropped.
+func parseResponse(text string) (string, []rawProposal) {
+	var out []rawProposal
+	answer := fenceRe.ReplaceAllStringFunc(text, func(block string) string {
+		m := fenceRe.FindStringSubmatch(block)
+		if len(m) < 2 || len(out) >= maxProposals {
+			return ""
+		}
+		var p rawProposal
+		if err := json.Unmarshal([]byte(strings.TrimSpace(m[1])), &p); err != nil {
+			return ""
+		}
+		cmd, ok := cleanCommand(p.Command)
+		if !ok {
+			return ""
+		}
+		p.Command = cmd
+		p.Why = truncate(strings.TrimSpace(p.Why), maxWhyBytes)
+		out = append(out, p)
+		return ""
+	})
+	answer = strings.TrimSpace(collapseBlankLines(answer))
+	return truncate(answer, maxAnswerBytes), out
+}
+
+// cleanCommand trims a proposed command and refuses one that is empty,
+// too long or holds control characters other than tab and newline.
+func cleanCommand(s string) (string, bool) {
+	s = strings.TrimRight(strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n")), "\n")
+	if s == "" || len(s) > maxCommandBytes || strings.Count(s, "\n")+1 > maxCommandLines {
+		return "", false
+	}
+	for _, c := range s {
+		if c == '\t' || c == '\n' {
+			continue
+		}
+		if c < 0x20 || c == 0x7f || (c >= 0x80 && c < 0xa0) {
+			return "", false
+		}
+	}
+	return s, true
+}
+
+// typedBytes is exactly what Type into pane sends: Ctrl-U to clear the
+// prompt line (as snippets do, and as the approve dialog says), the
+// command, and a newline. The panel shows all of it, the control
+// characters as glyphs.
+func typedBytes(command string) string {
+	return "\x15" + command + "\n"
+}
+
+func modelRisk(s string) agent.Risk {
+	switch agent.Risk(strings.ToLower(strings.TrimSpace(s))) {
+	case agent.RiskReadOnly:
+		return agent.RiskReadOnly
+	case agent.RiskDestructive:
+		return agent.RiskDestructive
+	}
+	return agent.RiskChanges
+}
+
+// rate is Keel's code rule, made stricter (never looser) by the model's
+// own rating when it gave one.
+func rate(command, model string) agent.Risk {
+	r := agent.Classify(command)
+	if model != "" {
+		r = agent.Stricter(r, modelRisk(model))
+	}
+	return r
+}
+
+var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
+
+func hasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	s = s[:max]
+	for len(s) > 0 && s[len(s)-1]&0xC0 == 0x80 {
+		s = s[:len(s)-1]
+	}
+	if len(s) > 0 && s[len(s)-1] >= 0xC0 {
+		s = s[:len(s)-1]
+	}
+	return s + "…"
+}
+
+func collapseBlankLines(s string) string {
+	for strings.Contains(s, "\n\n\n") {
+		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
+	}
+	return s
+}

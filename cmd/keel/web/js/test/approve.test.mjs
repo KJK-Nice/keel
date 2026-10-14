@@ -46,6 +46,20 @@ test("only sendApprovedInject sends an inject message, and only with a server no
   assert.ok(!src.includes("approved: true"), "the client must never claim approval itself");
 });
 
+// §6.1: the agent never writes to a PTY. Its proposals reach a pane only
+// through the user's Type: the approve dialog, then sendApprovedInject with
+// the agent marker, to that one pane (never Sync input's other panes).
+test("agent proposals are typed only through approve-before-type, to one pane", () => {
+  const typers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && /agent: \{/.test(body) && calls("sendApprovedInject", body).length);
+  assert.deepEqual(typers.map(([name]) => name), ["typeAgentProposal"]);
+  const body = fns.get("typeAgentProposal");
+  assert.ok(body.indexOf("await approveBeforeType(proposal.bytes") < calls("sendApprovedInject", body)[0]);
+  assert.match(body, /if \(!isDriving\(pane\)\) return/);
+  assert.match(fns.get("sendApprovedInject"), /opts\.agent \? \[pane\]/);
+  const panel = readFileSync(join(dir, "..", "ui", "agentpanel.js"), "utf8");
+  for (const bad of ["sendSession", "inject", "/ws/", ".send("]) assert.ok(!panel.includes(bad), `agentpanel.js must not use ${bad}`);
+});
+
 test("raw session bytes are sent only from the keyboard handler, which the chrome can block", () => {
   const holders = [...fns].filter(([name, body]) => name !== "sendSessionBytes" && calls("sendSessionBytes", body).length);
   assert.deepEqual(holders.map(([name]) => name), ["wirePaneTerminal"]);

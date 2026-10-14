@@ -92,6 +92,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 - **⌘T** new tab: the **New tab page** (also what an empty window shows). Its one input takes a saved host (filters the cards), `user@host:port`, an `ssh://` URL or a pasted `ssh …` command; below it are the six most recent hosts (**⌥1**–**⌥6** open them), Quick connect, Join session, New host, and Recently closed. A pasted command is parsed, never run: Keel shows what it kept and which options it left out (`-o ProxyCommand`, `LocalCommand`, `StrictHostKeyChecking=no`, `-L/-R/-D`, `-W`, a trailing remote command, `-J` jump hosts, which are not supported yet; `-i` becomes a note and the key file is not read), then offers a prefilled **New host** or **Connect once**. **⌘W** closes the focused pane first; with one pane left it closes the tab (a tab page closes too). The window always keeps a tab: with none left it shows a New tab. **⌘⇧T** reopens the last closed tab or pane as a **new** session to the same host (the list is kept in the browser's storage as host id, title and time).
 - **⌘/Ctrl+1…8** switch tabs by position (**⌘1** is the first tab: the Vault is a sidebar, not a tab). **⌘/Ctrl+9** is the last tab.
 - **⌘B** (Ctrl+B on Windows/Linux) shows or hides the Vault sidebar.
+- **⌘I** (Ctrl+Shift+I on Windows/Linux, where Ctrl+I is Tab in the terminal) shows or hides the agent panel.
 - **⌘<** / **⌘>** previous or next tab. The strip wraps. **⌘⇧[** / **⌘⇧]** do the same.
 - Drag tabs to reorder; numbered shortcuts follow the current order.
 - **⌘K** / **⌘⇧P** opens the command palette in four groups: **Open now** (every tab, and the panes of split tabs; picking one focuses it, it never starts a second session), **Hosts** (new session on a host), **Actions** (tabs, panes, vault pages, settings) and **Snippets**. **↵** opens, **⌥↵** opens a host in a split of the focused pane, **esc** closes. The sidebar filter still searches hosts (Enter connects the first match, or opens Quick connect for `user@host`); the palette includes **Search hosts**. **⌘N** new host, or the page's own New on Port forwarding, Keychain, Snippets and Notebooks. **⌘⇧O** quick connect. **⌘J** join. **⌘,** settings.
@@ -113,7 +114,11 @@ Logs (Vault sidebar footer) is an append-only event log (`keel.log` under `KEEL_
 
 ## Agent (in progress)
 
-The agent is being built in phases (`docs/ui-redesign.md` §6, §10). So far there is only the backend core, and nothing in Keel sends anything off the machine yet:
+The agent is being built in phases (`docs/ui-redesign.md` §6, §10). Phase 6b adds the **agent panel** (right side, **⌘I** on macOS, **Ctrl+Shift+I** on Windows/Linux, the titlebar **Agent** button, or View › Toggle Agent Panel). You ask about the panes in its scope (the chip "Reads N of M panes"); keel serve reads their last lines, redacts them, and sends that and your question to Google Gemini, only when you press send. The answer can carry command proposals: Keel shows the exact bytes and a Read-only / Changes state / Destructive badge, and nothing is typed until you press **Type into pane** and approve the bytes (destructive commands, and state changes on a production host, need **⇧** as well). The key goes in the panel's Connect Gemini field and is kept in the vault. Conversations are kept in memory only, until New conversation or `keel serve stop`.
+
+`KEEL_AGENT_PROVIDER=fake` is for end-to-end tests only: the agent then answers from an in-process fake and nothing is sent anywhere.
+
+The backend core:
 
 - Each host has **Agent can read** (`agentReadable`, on by default) and **Treat as production** (`production`, off by default; turned on when a host is created in or moved into a group named `production`). Older clients that do not send the fields keep the saved values.
 - Agent settings (provider, model, detection, default scope, scrollback lines 50–1000, IP/hostname redaction, history) are in `keel.json` and at `GET`/`PUT /api/agent/settings`. Secret redaction is always on.

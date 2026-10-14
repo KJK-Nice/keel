@@ -60,6 +60,17 @@ test("Cmd+B toggles the vault sidebar; Ctrl+B stays with the terminal on macOS",
   assert.equal(name(cmd("b"), { ...mac, modalOpen: true }), null, "not while a dialog is open");
 });
 
+test("agent panel: Cmd+I on macOS, Ctrl+Shift+I elsewhere; Ctrl+I (Tab) stays with the terminal", () => {
+  const other = { mac: false, modalOpen: false, findOpen: () => false };
+  const ctrl = (key, extra = {}) => ({ ...cmd(key, extra), metaKey: false, ctrlKey: true });
+  assert.equal(name(cmd("i")), "toggle-agent");
+  assert.equal(name(cmd("I", { shiftKey: true })), null);
+  assert.equal(name(ctrl("i")), null, "macOS: Ctrl-I is Tab for readline");
+  assert.equal(name(ctrl("i"), other), null, "Windows/Linux: Ctrl+I is Tab for readline, never the panel");
+  assert.equal(name(ctrl("I", { shiftKey: true }), other), "toggle-agent");
+  assert.equal(name(cmd("i"), { ...mac, modalOpen: true }), null, "not while a dialog is open");
+});
+
 test("Cmd+N is one action; term.js picks New host or the tab page's New", () => {
   assert.equal(name(cmd("n")), "new-host");
   assert.equal(name(cmd("N", { shiftKey: true })), null);
