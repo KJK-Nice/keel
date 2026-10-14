@@ -25,7 +25,10 @@ Build first, every time Go, `.templ`, JS, or CSS changed: `make build`. The
 web assets are embedded in `bin/keel`, so a stale binary serves a stale UI
 and tests pass against old code. `/api/health` reports the `build` id.
 
-The target's `app.command` runs `./bin/keel serve` with:
+The target's `app.command` runs `scripts/e2e-serve.sh serve`, which starts
+`bin/keel-signal` on a free loopback port (log `.e2e/logs/keel-signal.log`),
+then `./bin/keel serve` with `KEEL_SIGNAL` pointing at it (so Share and Join
+work; see [features/share.md](features/share.md)), and with:
 
 - `KEEL_ADDR=127.0.0.1:{port}`: port `0` in `app.url`, so every run gets a
   free port and never touches the user's Keel on `127.0.0.1:47241`.
@@ -140,8 +143,8 @@ a 401 without auth, and WebSockets (`/ws/session`, `/ws/herd`) carry no
 extra headers, hence the cookie. It declares `default`, `skeptic`, and
 `fuzzer` personas on `gateway('openai/gpt-6-luna-fast')` with 40 steps and
 model calls. Its `context` says what local Keel cannot do: no reachable SSH
-server (any host but Local Shell fails to connect), no signal server (Share
-and Join do not work), no destructive terminal commands, the WebGL terminal
+server (any host but Local Shell fails to connect), a loopback signal server
+only (a window can join its own share), no destructive terminal commands, the WebGL terminal
 is invisible to the tree. Set `AI_GATEWAY_API_KEY` first.
 
 The charters are in [features/](features/), under each feature's `Charters`

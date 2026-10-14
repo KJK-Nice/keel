@@ -8,11 +8,13 @@ import { keelData, keelToken } from './tests/keel.ts';
 // the user's Keel on 127.0.0.1:47241, their keel.json, or their vault.
 // KEEL_VAULT_PASSPHRASE keeps the scratch vault off the OS keychain: without
 // it keel serve would read or create the user's "keel"/"vault" keyring item.
+// scripts/e2e-serve.sh first starts bin/keel-signal on a free loopback port
+// and sets KEEL_SIGNAL, so Share and Join work (tests/share.e2e.ts).
 const app = {
   url: 'http://127.0.0.1:0',
   readyUrl: 'http://127.0.0.1:{port}/api/health',
   command: {
-    executable: './bin/keel',
+    executable: './scripts/e2e-serve.sh',
     args: ['serve'],
     env: {
       KEEL_ADDR: '127.0.0.1:{port}',

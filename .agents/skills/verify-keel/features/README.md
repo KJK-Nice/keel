@@ -6,8 +6,7 @@ and its bug-bash charters. Keel is one page (`/`, after the token
 redirect); "route" below is where in that page the feature lives.
 
 Not mapped yet: Port forwarding, Logs, Settings (Appearance, Terminal),
-groups and folders, Sync input, Quick connect, Share and
-Join (need a signal server), host-key trust (needs an SSH server), the
+groups and folders, Sync input, Quick connect, host-key trust (needs an SSH server), the
 vault unlock gate (needs a locked vault, which this setup avoids on
 purpose), and the redesign screens in `docs/ui-redesign.md` §5 as they land.
 Map one when a change touches it.
@@ -20,6 +19,7 @@ Map one when a change touches it.
 | [Local terminal](terminal.md) | Vault sidebar › Hosts › `Local Shell`, then the session tab | `tests/terminal.e2e.ts` | tested |
 | [Command palette](command-palette.md) | ⌘K anywhere | `tests/palette.e2e.ts` | tested |
 | [New tab page](newtab.md) | ⌘T, `+`, or the empty window | `tests/newtab.e2e.ts` | tested |
+| [Share and Join](share.md) | Titlebar `Share`; New tab › Join session | `tests/share.e2e.ts` | tested (one window joins its own share) |
 | [Keychain](keychain.md) | Vault sidebar footer › Keychain (tab page) | `tests/sidebar.e2e.ts` (opens, ⌘N) | partly tested |
 | [Snippets](snippets.md) | Vault sidebar › Snippets, Snippets tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |
 | [Notebooks](notebooks.md) | Vault sidebar › Snippets › Notebooks, Notebooks tab page | `tests/sidebar.e2e.ts` (opens) | partly tested |

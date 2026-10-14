@@ -26,8 +26,8 @@ make check-generated   # committed *_templ.go and output.css match the pinned to
 
 The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. It holds app state and wiring; the rest lives beside it and is tested with `node --test` (`make test-js`, also part of `make test`):
 
-- `lib/` has no DOM or state: split layouts and their geometry (`layout.js`), vault groups and list markup (`groups.js`, `vaultview.js`), the command palette's filtering (`palette.js`), the session socket protocol (`session.js`), shortcuts, join links, and the share joiner (`joinpeer.js`, `sharemac.js`).
-- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`).
+- `lib/` has no DOM or state: split layouts and their geometry (`layout.js`), vault groups and list markup (`groups.js`, `vaultview.js`), the command palette's filtering (`palette.js`), the session socket protocol (`session.js`), shortcuts, join links, the share joiner (`joinpeer.js`, `sharemac.js`), and the Share popover, people list and follower banner markup (`share.js`).
+- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`, `actiontoast.js`).
 
 `internal/signal/web/` serves copies of `joinpeer.js` and `sharemac.js` to the browser join page; a test fails if they drift from `lib/`.
 
@@ -125,13 +125,15 @@ open bin/Keel.app
 KEEL_SIGNAL=https://your-signal.example ./bin/keel
 ```
 
-3. Open a session, click **Share**, send the copied `/join?room=…#k=…` link.
+3. Open a session, click **Share** in the titlebar. The Share popover shows the `/join?room=…#k=…` link (copied for you; **Copy** copies it again), who is in the session with their role, and **Stop sharing**. The link shares the focused pane's session only. Send the link.
 
 4. On the other machine, open Keel → **Join session** → paste the link. A browser can open the same link if they don't have Keel.
 
-5. On your side, Keel asks **Allow** or **Deny** for each person who opens the link (a request nobody answers is denied after two minutes). Allowed viewers see output from the moment you clicked Share, not what was on screen before; press Ctrl-L or redraw a full-screen program to fill their screen. They follow until you pass control, and never see hosts or keys.
+5. On your side, Keel asks **Allow** or **Deny** for each person who opens the link (a request nobody answers is denied after two minutes). Allowed viewers see output from the moment you clicked Share, not what was on screen before; press Ctrl-L or redraw a full-screen program to fill their screen. They follow until you pass control, and never see hosts or keys. A joined tab shows a link icon and `· joined`, a banner "Following <owner>'s session on <host> · read-only" with **Ask for control** and **Leave**, and no Vault sidebar; typing while following shows "Typing is off while you follow" and sends nothing.
 
-6. To end it, run **Stop sharing this session** from the command palette (⌘K). Viewers are disconnected and the link stops working; closing the session tab does the same.
+6. When a joiner asks for control you get a toast, "<name> asks for control", with **Hand over** and **Keep driving**. To pass control unasked, use **Pass control** in the Share popover; the owner can **Take control** back from the pane banner or the popover.
+
+7. To end it, click **Stop sharing** in the Share popover, or run **Stop sharing this session** from the command palette (⌘K). Viewers are disconnected and the link stops working; closing the session's pane does the same.
 
 The part after `#k=` is a secret that never reaches the signaling server (browsers don't send the `#fragment`). Both ends use it to check each other's WebRTC certificate, so a signaling server that tried to sit in the middle of the connection is refused. Keel's own joiner does this check in its own code; a browser joiner runs `join.js` served by the signaling server, so for the browser the check is only as trustworthy as that server. Anyone with the full link can ask to watch, so share it like a password. The Allow prompt shows whatever name the joiner typed, and a hostile signaling server could swap one link holder for another, so Allow only when you're expecting someone; the prompt keeps strangers without the link out, not impostors who have it. Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
 
@@ -163,7 +165,7 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 
 - **Spawn** a session from the Vault sidebar's Hosts
 - The first client to attach is the **owner** and **driver**. Later joiners (including WebRTC) **follow**
-- **Pass control** from the tab widget
+- **Pass control** from the Share popover (titlebar **Share**, or the **N watching** badge); a request from a follower arrives as a toast with **Hand over**
 - **Close tab** kills that PTY. **Close window** detaches; reopen Keel to attach
 - **Stop Keel runtime** kills leftover sessions and the daemon
 

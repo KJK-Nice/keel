@@ -134,6 +134,63 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });
 
+    // Share and Join (needs scripts/e2e-serve.sh's keel-signal): the Share
+    // popover, the admit prompt, the joined follower view with the typing
+    // notice, and the control request. The locators accept the base build's
+    // controls too (Request control, the old toasts), so the same test makes
+    // the before shots. The link is read from what the page copies.
+    test(`share and join (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await browser.addInitScript(
+        `try { window.__keelCopied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__keelCopied.push(String(t)); return Promise.resolve(); } } }); } catch {}`,
+      );
+      await openKeel(app);
+      await openLocalShell(screen);
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+      await screen.getByRole('button', 'Share').tap();
+      let link = '';
+      await expect.poll(async () => (link = String(await browser.evaluate('window.__keelCopied.at(-1) || ""'))), { timeout: 15_000 }).toMatch(/#k=/);
+      // Let toasts finish sliding in (duration-slow) before each shot.
+      const settle = async () => {
+        const t = Date.now();
+        await expect.poll(() => Date.now() - t, { interval: 100 }).toBeGreaterThan(400);
+      };
+      await settle();
+      await app.screenshot(`${theme}-share`);
+      const pop = screen.getByRole('dialog', 'Share session');
+      if (await pop.isVisible()) await pop.press('Escape');
+
+      await screen.getByRole('button', 'New tab').tap();
+      await screen.getByRole('region', 'New tab').getByRole('button', /Join session/).tap();
+      const dialog = screen.getByRole('dialog').filter({ hasText: 'Join a session' });
+      await dialog.getByLabel('Join link').fill(link);
+      await dialog.getByRole('button', 'Join').tap();
+      const prompt = screen.getByRole('alertdialog').filter({ hasText: 'wants to watch' });
+      await expect(prompt).toBeVisible({ timeout: 15_000 });
+      await settle();
+      await app.screenshot(`${theme}-share-admit`);
+      await prompt.getByRole('button', 'Allow').tap();
+
+      const ask = screen.getByRole('button', /^(Ask for control|Request control)$/, { visible: true }).first();
+      await expect(ask).toBeVisible({ timeout: 30_000 });
+      const term = screen.getByRole('textbox', 'Terminal input', { visible: true });
+      await term.tap();
+      await browser.keyboard.type('ls');
+      await settle();
+      await app.screenshot(`${theme}-share-follower`);
+      await ask.tap();
+      await expect(screen.getByText(/e2e (asks for|requested) control/).first()).toBeVisible({ timeout: 10_000 });
+      await settle();
+      await app.screenshot(`${theme}-share-request`);
+
+      // Closing the joined tab, then the owner's, ends the share.
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      // The owner's tab label comes before the sidebar's host row.
+      await screen.getByText('Local Shell', { exact: true }).first().tap();
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeHidden();
+    });
+
     // An ended session: the pane bar keeps its dead dot and a flare banner
     // with Reconnect sits under it.
     test(`ended session banner (${theme})`, async ({ app, screen, browser }) => {

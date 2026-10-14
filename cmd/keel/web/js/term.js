@@ -36,6 +36,8 @@ import { parseJoinLink } from "./lib/joinlink.js";
 import { openJoinPeer } from "./lib/joinpeer.js";
 import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSocketURL, statusClass } from "./lib/session.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
+import { createActionToasts } from "./ui/actiontoast.js";
+import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
@@ -620,6 +622,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     barStatus: document.getElementById("bar-status"),
     controlWidget: document.getElementById("control-widget"),
     btnShare: document.getElementById("btn-share"),
+    sharePop: document.getElementById("share-pop"),
     search: document.getElementById("search"),
     modalScrim: document.getElementById("modal-scrim"),
     hostModal: document.getElementById("host-modal"),
@@ -1410,6 +1413,8 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const panes = tabPanes(tab);
     const first = panes.find(isTermPane) || panes[0];
     const name = first?.title || tab.title || "Session";
+    // A tab that joined someone else's share (§5.7) says so, whoever drives.
+    if (tab.remote) return `${name} · joined`;
     const follow = first && !isDriving(first) && first.you ? " · follow" : "";
     return `${name}${follow}`;
   }
@@ -1798,11 +1803,65 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     const chip = pane.wrap.querySelector(".pane-role");
     if (!chip) return;
     const shared = isTermPane(pane) && (pane.remote || tab.remote || (pane.attached?.length || 0) > 1) && pane.you;
+    const youFollow = pane.wrap.querySelector(".pane-you-follow");
     chip.hidden = !shared;
+    if (youFollow) youFollow.hidden = !shared || isDriving(pane);
+    syncFollowBanner(tab, pane);
     if (!shared) return;
     const driving = isDriving(pane);
-    chip.className = `k-role pane-role ${driving ? "k-role--driver" : "k-role--follower"}`;
-    chip.innerHTML = `${paneGlyph(driving ? "steering" : "eye")}${driving ? "Driving" : "Following"}`;
+    // Followers see who drives (§5.7: "<name> is driving" and "You follow").
+    const st = Share.followState(pane);
+    chip.className = `k-role pane-role ${driving ? "k-role--driver" : "k-role--owner"}`;
+    chip.innerHTML = driving
+      ? `${paneGlyph("steering")}Driving`
+      : `${paneGlyph("steering")}${escapeHtml(st.driver ? `${st.driver} is driving` : "Nobody is driving")}`;
+  }
+
+  // Per-pane banner for a local follower (another Keel window on the same
+  // session, or the owner after passing control). A joined tab has its own
+  // banner over the whole tab instead (syncJoinBanner). Display only: input
+  // stays gated by isDriving in wirePaneTerminal.
+  function syncFollowBanner(tab, pane) {
+    const banner = pane.banner;
+    if (!banner) return;
+    const show = isTermPane(pane) && !!pane.you && !isDriving(pane) && !pane.remote && !tab.remote;
+    banner.hidden = !show;
+    if (!show) return;
+    const st = Share.followState(pane);
+    const key = `${st.driver}|${isOwner(pane)}`;
+    if (banner.dataset.key === key) return;
+    banner.dataset.key = key;
+    const who = st.driver ? `${escapeHtml(st.driver)} is driving` : "Nobody is driving";
+    banner.innerHTML = `${Share.glyph("eye")}<span>Following · ${who} · read-only</span>${
+      isOwner(pane)
+        ? `<button type="button" class="k-btn k-btn--sm" data-take="1">${Share.glyph("steering")}Take control</button>`
+        : `<button type="button" class="k-btn k-btn--sm" data-request="1">${Share.glyph("steering")}Ask for control</button>`
+    }`;
+  }
+
+  // The haze banner over a joined tab (§5.7): whose session, on which host,
+  // read-only or driving, Ask for control and Leave.
+  function syncJoinBanner(tab) {
+    if (!tab?.remote || !tab.root) return;
+    const pane = tabPanes(tab).find(isTermPane);
+    let el = tab.joinBanner;
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "k-pane-banner k-pane-banner--haze k-join-banner";
+      el.setAttribute("role", "status");
+      tab.joinBanner = el;
+    }
+    if (tab.stage && el.parentNode !== tab.root) tab.root.insertBefore(el, tab.stage);
+    if (!pane?.you) {
+      const html = `${Share.glyph("link")}<span>Joining a shared session · waiting for the host</span><button type="button" class="k-btn k-btn--sm k-btn--ghost" data-join-leave="1">Leave</button>`;
+      if (el.dataset.html !== html) el.innerHTML = el.dataset.html = html;
+      return;
+    }
+    const html = Share.followBannerHTML(Share.followState(pane));
+    if (el.dataset.html !== html) {
+      el.innerHTML = html;
+      el.dataset.html = html;
+    }
   }
 
   // Status bar (templ statusBar): runtime and sessions, running forwards,
@@ -1988,33 +2047,28 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
   function renderControl(pane) {
     if (!els.controlWidget) return;
     if (isNotebookPane(pane)) pane = termTarget(pane);
+    // "Typing is off" belongs to the pane that is focused and following.
+    followToasts.dismissWhere("typing\n", pane && !isDriving(pane) ? `typing\n${pane.id}` : "");
     if (!pane || !activeSessionTab()) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
+      closeSharePop();
       return;
     }
     const attached = pane.attached || [];
     els.btnShare.hidden = !!pane.remote;
-    if (!attached.length && !pane.you) {
-      els.controlWidget.hidden = true;
-      return;
+    if (pane.remote) closeSharePop();
+    else if (sharePop.paneId && sharePop.paneId !== pane.id) closeSharePop();
+    else renderSharePop();
+    // Titlebar badge: how many watch through a share link; opens the
+    // Share popover with the people list and Pass control.
+    const watching = Share.watchingCount(attached);
+    els.controlWidget.hidden = !!pane.remote || watching === 0;
+    if (!els.controlWidget.hidden) {
+      els.controlWidget.innerHTML = `${Share.glyph("eye")}${watching} watching`;
+      els.controlWidget.title = "People in this session";
     }
-    els.controlWidget.hidden = false;
-    const canGrant = isDriving(pane) || isOwner(pane);
-    const people = attached
-      .map((c) => {
-        const driving = c.role === "driver" || c.id === pane.driverId;
-        const grant = canGrant && !driving ? `data-grant="${c.id}"` : "";
-        return `<button type="button" class="chip-person ${driving ? "is-driver" : ""} ${grant ? "is-grantable" : ""}" ${grant} title="${driving ? "Driving" : canGrant ? "Pass control" : ""}">${escapeHtml(c.name)}${driving ? " *" : ""}</button>`;
-      })
-      .join("");
-    let action = "";
-    if (!isDriving(pane) && isOwner(pane)) {
-      action = `<button class="tiny" data-take="1">Take control</button>`;
-    } else if (!isDriving(pane)) {
-      action = `<button class="tiny" data-request="1">Request control</button>`;
-    }
-    els.controlWidget.innerHTML = `<div class="people">${people}</div>${action}`;
+    if (!attached.length && !pane.you) return;
     pane.wrap?.classList.toggle("is-follow", !isDriving(pane));
     if (pane.term) pane.term.options.disableStdin = !isDriving(pane);
   }
@@ -2323,7 +2377,9 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
             const dot = dotFor(st);
             const lead = tab.page
               ? pageGlyph(tab)
-              : notebookOnly || tab.start
+              : tab.remote
+                ? `<span class="tab-icon tab-icon--joined" title="Joined over a share link" aria-hidden="true">${Share.glyph("link")}</span>`
+                : notebookOnly || tab.start
                 ? tabGlyph(tab)
                 : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
             const count = tabPanes(tab).length;
@@ -2371,7 +2427,11 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
           syncNativeSplitTheme(p);
         }
       });
+      syncJoinBanner(tab);
     }
+    // A joined tab shows no Vault sidebar (§5.7): the joiner sees only the
+    // shared terminal. CSS hides the sidebar and its toggle.
+    document.documentElement.toggleAttribute("data-joined", !!activeTab?.remote);
 
     const pane = sessionOn ? focusedPane() : null;
     const tab = activeTab;
@@ -2999,7 +3059,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     add({ id: "font-up", group: "Terminal", title: "Larger text", keys: `${MOD}+`, run: () => runShortcut("zoom-in") });
     add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: `${MOD}-`, run: () => runShortcut("zoom-out") });
     add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: `${MOD}0`, run: () => runShortcut("zoom-reset") });
-    add({ id: "share", group: "Terminal", title: "Share session (copy join link)", run: () => shareActive() });
+    add({ id: "share", group: "Terminal", title: "Share session (join link)", run: () => openSharePop() });
     add({ id: "stop-share", group: "Terminal", title: "Stop sharing this session", run: () => stopShareActive() });
     add({
       id: "stop-runtime",
@@ -3607,6 +3667,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       <span class="pane-addr">${escapeHtml(info.subtitle || "")}</span>
       <span class="k-role pane-role" hidden></span>
       <div class="pane-actions">
+        <span class="k-role k-role--follower pane-you-follow" hidden>${paneGlyph("eye")}You follow</span>
         <button type="button" class="${PANE_BTN} pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input">${paneGlyph("sync")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
@@ -3618,9 +3679,9 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
     progressEl.hidden = true;
     progressEl.innerHTML = `<div class="pane-progress-bar"></div>`;
     const banner = document.createElement("div");
-    banner.className = "follow-banner";
+    banner.className = "k-pane-banner k-pane-banner--haze follow-banner";
+    banner.setAttribute("role", "status");
     banner.hidden = true;
-    banner.textContent = "Following — request control to type";
     const body = document.createElement("div");
     body.className = "term-body";
     const host = document.createElement("div");
@@ -3747,6 +3808,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
       remote: false,
     };
     wirePaneTerminal(pane);
+    wireFollowerNotice(pane);
 
     let tab = opts.tab;
     if (!tab && !opts.splitDir && !opts.freshTab) tab = fillableStartTab();
@@ -3852,7 +3914,7 @@ import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
         pane.status = statusClass(msg.status, "is-ready");
         applyPresence(msg);
         if (msg.type === "ready") live = true;
-        if (msg.type === "control" && msg.message) toast(msg.message);
+        if (msg.type === "control" && msg.message) noteControl(pane, msg);
       },
       error: (msg) => {
         pane.status = "is-error";
@@ -5397,38 +5459,196 @@ Write a runbook here.
     onError: (err) => toast(err.message, true),
   });
 
-  async function shareActive() {
-    const pane = focusedPane();
-    if (!pane || pane.remote) return;
+  // ---- Share popover (docs/ui-redesign.md §5.6) ----------------------------
+  // Opening it shares the focused session, as the Share button always did
+  // (POST /api/share returns the live link when there already is one). The
+  // popover only shows that state and offers the actions that existed
+  // before: copy the link, pass or take control, stop sharing.
+  const sharePop = { paneId: "", runtimeId: "", status: "", url: "", error: "", copied: false, seq: 0, html: "" };
+  const shareLinks = new Map(); // runtimeId -> join link this window was given
+
+  function sharePopOpen() {
+    return !!els.sharePop && !els.sharePop.hidden;
+  }
+
+  function openSharePop() {
+    const pane = termTarget(focusedPane()) || focusedPane();
+    if (!els.sharePop || !pane || pane.remote || !isTermPane(pane) || !pane.runtimeId) return;
+    const known = shareLinks.get(pane.runtimeId) || "";
+    Object.assign(sharePop, { paneId: pane.id, runtimeId: pane.runtimeId, status: known ? "ready" : "pending", url: known, error: "", copied: false, html: "" });
+    els.sharePop.hidden = false;
+    els.btnShare?.setAttribute("aria-expanded", "true");
+    renderSharePop();
+    // Focus moves into the popover (Escape closes it; keys no longer reach
+    // the terminal while it is open).
+    queueMicrotask(() => els.sharePop.focus({ preventScroll: true }));
+    if (!known) startShare(pane);
+  }
+
+  function closeSharePop({ refocus = false } = {}) {
+    if (!els.sharePop || els.sharePop.hidden) return;
+    els.sharePop.hidden = true;
+    els.btnShare?.setAttribute("aria-expanded", "false");
+    sharePop.paneId = "";
+    sharePop.html = "";
+    if (refocus) focusedPane()?.term?.focus();
+  }
+
+  function positionSharePop() {
+    const anchor = els.btnShare && !els.btnShare.hidden ? els.btnShare : els.controlWidget;
+    if (!anchor || !els.sharePop) return;
+    const r = anchor.getBoundingClientRect();
+    els.sharePop.style.top = `${Math.round(r.bottom + 6)}px`;
+    els.sharePop.style.right = `${Math.max(8, Math.round(window.innerWidth - r.right))}px`;
+  }
+
+  function renderSharePop() {
+    if (!sharePopOpen()) return;
+    const pane = state.panes.get(sharePop.paneId);
+    if (!pane) {
+      closeSharePop();
+      return;
+    }
+    const html = Share.sharePopoverHTML({
+      title: pane.title || "session",
+      status: sharePop.status,
+      url: sharePop.url,
+      error: sharePop.error,
+      copied: sharePop.copied,
+      people: Share.sharePeople(pane),
+      canGrant: isDriving(pane) || !!isOwner(pane),
+      canTake: !!isOwner(pane) && !isDriving(pane),
+      canAsk: !isOwner(pane) && !isDriving(pane),
+    });
+    positionSharePop();
+    if (html === sharePop.html) return;
+    const focusKey = document.activeElement?.closest?.("#share-pop") ? document.activeElement.getAttribute("data-grant") || (document.activeElement.id ? `#${document.activeElement.id}` : "") : null;
+    sharePop.html = html;
+    els.sharePop.innerHTML = html;
+    if (focusKey != null) {
+      const again = focusKey.startsWith("#") ? els.sharePop.querySelector(focusKey) : focusKey ? els.sharePop.querySelector(`[data-grant="${CSS.escape(focusKey)}"]`) : null;
+      (again || els.sharePop.querySelector("button"))?.focus({ preventScroll: true });
+    }
+  }
+
+  async function startShare(pane) {
+    const seq = ++sharePop.seq;
+    const current = () => sharePop.seq === seq && sharePop.runtimeId === pane.runtimeId && sharePopOpen();
     try {
-      toast("Sharing…");
       const out = await api("/api/share", {
         method: "POST",
         body: JSON.stringify({ sessionId: pane.runtimeId }),
       });
       const url = out.url || "";
-      if (!url) {
-        toast("Share ready");
-        return;
+      if (url) shareLinks.set(pane.runtimeId, url);
+      if (current()) Object.assign(sharePop, { status: url ? "ready" : "error", url, error: url ? "" : "The share started but returned no link." });
+      renderSharePop();
+      // keel serve also puts the link on the macOS pasteboard; WKWebView
+      // often refuses a clipboard write this long after the click.
+      if (url && (await copyText(url)) && current()) {
+        sharePop.copied = true;
+        renderSharePop();
       }
-      const copied = await copyText(url);
-      toast(copied ? "Join link copied — you'll be asked before anyone joins" : url);
-      if (!copied) window.prompt("Join link", url);
+    } catch (err) {
+      if (current()) {
+        Object.assign(sharePop, { status: "error", error: err.message });
+        renderSharePop();
+      } else {
+        toast(err.message, true);
+      }
+    }
+  }
+
+  function shareActive() {
+    if (sharePopOpen()) {
+      closeSharePop({ refocus: true });
+      return;
+    }
+    openSharePop();
+  }
+
+  async function copyShareLink() {
+    if (!sharePop.url) return;
+    const ok = await copyText(sharePop.url);
+    if (ok) {
+      sharePop.copied = true;
+      renderSharePop();
+    } else {
+      els.sharePop?.querySelector("#share-link")?.select();
+      toast("Copy failed: the link is selected, press ⌘C", true);
+    }
+  }
+
+  async function stopShareActive() {
+    const pane = sharePopOpen() ? state.panes.get(sharePop.paneId) : focusedPane();
+    if (!pane || pane.remote) return;
+    try {
+      await api(`/api/share/${encodeURIComponent(pane.runtimeId)}`, { method: "DELETE" });
+      joinPrompts.forget(pane.runtimeId);
+      shareLinks.delete(pane.runtimeId);
+      controlToasts.dismissWhere(`${pane.runtimeId}\n`);
+      closeSharePop({ refocus: true });
+      toast("Sharing stopped. The join link no longer works.");
     } catch (err) {
       toast(err.message, true);
     }
   }
 
-  async function stopShareActive() {
-    const pane = focusedPane();
-    if (!pane || pane.remote) return;
-    try {
-      await api(`/api/share/${encodeURIComponent(pane.runtimeId)}`, { method: "DELETE" });
-      joinPrompts.forget(pane.runtimeId);
-      toast("Sharing stopped — the join link no longer works");
-    } catch (err) {
-      toast(err.message, true);
+  // ---- Control requests and follower feedback (§5.6, §5.7) -----------------
+  const controlToasts = createActionToasts({ className: "join-prompts", label: "Share requests" });
+  const followToasts = createActionToasts({ className: "k-toasts--center", label: "Following" });
+
+  // noteControl handles a session "control" event. A request (someone asks
+  // for control) becomes a toast for whoever may hand over (the driver or
+  // the owner: the runtime's GrantControl rule); Hand over sends the same
+  // grant-control message as Pass control. Anything else is the old toast.
+  function noteControl(pane, msg) {
+    if (Share.isControlRequest(msg) && msg.fromId !== pane.you?.id && (isDriving(pane) || isOwner(pane))) {
+      const name = Share.clientName(pane.attached, msg.fromId);
+      controlToasts.show({
+        key: `${pane.runtimeId}\n${msg.fromId}`,
+        tone: "haze",
+        role: "alertdialog",
+        icon: Share.glyph("steering"),
+        title: `${name} asks for control`,
+        desc: `Of ${pane.title || "this session"}. You follow until ${isOwner(pane) ? "you take it back" : "it is passed back"}.`,
+        actions: [
+          { label: "Hand over", primary: true, run: () => sendSessionJSON(pane, { type: "grant-control", targetId: msg.fromId }) },
+          { label: "Keep driving" },
+        ],
+      });
+      return;
     }
+    if (!Share.isControlRequest(msg)) controlToasts.dismissWhere(`${pane.runtimeId}\n`);
+    toast(msg.message);
+  }
+
+  // A follower who types gets told why nothing happens. Feedback only: it
+  // listens in the capture phase and never stops the event, so xterm and
+  // wirePaneTerminal (isDriving, ptyWritesBlocked) still decide, as before.
+  function wireFollowerNotice(pane) {
+    pane.wrap?.addEventListener(
+      "keydown",
+      (ev) => {
+        if (!Share.isTypingKey(ev)) return;
+        if (!isTermPane(pane) || !pane.you || isDriving(pane)) return;
+        if (ev.target?.closest?.(".term-find, .term-input, .k-pane-banner, .pane-bar")) return;
+        const owner = isOwner(pane);
+        followToasts.show({
+          key: `typing\n${pane.id}`,
+          tone: "haze",
+          icon: Share.glyph("lock"),
+          title: "Typing is off while you follow",
+          timeout: 4000,
+          actions: [
+            owner
+              ? { label: "Take control", run: () => sendSessionJSON(pane, { type: "take-control" }) }
+              : { label: "Ask for control", run: () => sendSessionJSON(pane, { type: "request-control" }) },
+          ],
+        });
+      },
+      true,
+    );
   }
 
   function openJoin() {
@@ -5486,6 +5706,7 @@ Write a runbook here.
       ownerId: 0,
     };
     wirePaneTerminal(pane);
+    wireFollowerNotice(pane);
     const tab = createTab(pane);
     tab.remote = true;
     tab.hostId = "";
@@ -5552,7 +5773,7 @@ Write a runbook here.
       presence: (msg) => {
         pane.status = statusClass(msg.status, pane.status);
         applyPresence(msg);
-        if (msg.type === "control" && msg.message) toast(msg.message);
+        if (msg.type === "control" && msg.message) noteControl(pane, msg);
       },
     };
     dc.onmessage = (ev) => {
@@ -6194,6 +6415,29 @@ Write a runbook here.
     on(document.getElementById("settings-search"), "input", (ev) => filterSettings(ev.target.value));
     on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
     on(els.btnShare, "click", shareActive);
+    on(els.controlWidget, "click", shareActive);
+    on(els.sharePop, "click", (ev) => {
+      if (ev.target.closest("[data-share-copy]")) copyShareLink();
+      else if (ev.target.closest("[data-share-stop]")) stopShareActive();
+      // data-grant / data-take / data-request are the body handler's, as
+      // they were on the old titlebar people chips.
+    });
+    on(els.sharePop, "keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeSharePop({ refocus: true });
+    });
+    document.addEventListener(
+      "pointerdown",
+      (ev) => {
+        if (!sharePopOpen() || !(ev.target instanceof Element)) return;
+        if (ev.target.closest("#share-pop, #btn-share, #control-widget")) return;
+        closeSharePop();
+      },
+      true,
+    );
+    window.addEventListener("resize", () => positionSharePop());
     on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));
     on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
     on(document.getElementById("set-ui-size"), "slider-change", (ev) => {
@@ -6376,6 +6620,14 @@ Write a runbook here.
       if (grant) sendControl("grant-control", { targetId: Number(grant.dataset.grant) });
       if (ev.target.closest("[data-request]")) sendControl("request-control");
       if (ev.target.closest("[data-take]")) sendControl("take-control");
+      // Leave a joined tab: the same as closing it (the peer connection
+      // closes; nothing is killed on the host).
+      const leave = ev.target.closest("[data-join-leave]");
+      if (leave) {
+        const tabId = leave.closest(".term-tab") && [...state.tabs.values()].find((t) => t.root === leave.closest(".term-tab"))?.id;
+        if (tabId && state.tabs.get(tabId)?.remote) closeTab(tabId);
+        return;
+      }
       const paneClose = ev.target.closest("[data-pane-close]");
       if (paneClose) closePane(paneClose.dataset.paneClose);
       const paneRec = ev.target.closest("[data-pane-reconnect]");
