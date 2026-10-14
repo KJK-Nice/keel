@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -41,6 +42,7 @@ type askFixture struct {
 	logPath string
 	logs    *applog.Book
 	fake    *providertest.Scripted
+	bmu     sync.Mutex
 	bridges map[string]*fakeBridge
 	prodID  string
 	webID   string
@@ -80,7 +82,9 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	}
 	f.rt = runtime.New(st, func(h store.Host, _, _ int) (session.Bridge, error) {
 		b := newFakeBridge()
+		f.bmu.Lock()
 		f.bridges[h.ID] = b
+		f.bmu.Unlock()
 		return b, nil
 	})
 	f.logPath = filepath.Join(dir, "keel.log")
@@ -97,11 +101,30 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	return f
 }
 
+// bridge waits for the session's runLoop (a goroutine started by Spawn) to
+// dial the fake bridge for hostID. POST /api/sessions returns before that
+// happens, so reading the map straight after spawn races.
+func (f *askFixture) bridge(t *testing.T, hostID string) *fakeBridge {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		f.bmu.Lock()
+		b := f.bridges[hostID]
+		f.bmu.Unlock()
+		if b != nil {
+			return b
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("session for host %s never opened its bridge", hostID)
+	return nil
+}
+
 // open spawns a session on host and prints text into it.
 func (f *askFixture) open(t *testing.T, hostID, text string) runtime.Info {
 	t.Helper()
 	info := spawn(t, f.srv.URL, hostID)
-	b := f.bridges[hostID]
+	b := f.bridge(t, hostID)
 	go func() { _, _ = b.outW.Write([]byte(text)) }()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -309,7 +332,7 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 	if de["risk"] != "destructive" {
 		t.Fatalf("delete proposal = %v", de)
 	}
-	bridge := f.bridges[f.webID]
+	bridge := f.bridge(t, f.webID)
 
 	// Follower: the session issues no ticket (the challenge goes
 	// unanswered), and an inject marked as agent output is refused by the

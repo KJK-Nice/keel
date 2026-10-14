@@ -511,7 +511,11 @@ func TestAuthorizeTypeRules(t *testing.T) {
 		{"owner not driving is refused", typeReq(ro, agent.RoleOwner, false), agent.ErrNotDriving},
 		{"changes on production needs shift (§6.5)", typeReq(ch, agent.RoleDriver, false), ErrNeedsShift},
 		{"destructive needs shift anywhere", typeReq(de, agent.RoleDriver, false), ErrNeedsShift},
-		{"other bytes are refused", func() TypeRequest { r := typeReq(ro, agent.RoleDriver, false); r.Bytes = "uptime; rm -rf /\n"; return r }(), ErrChanged},
+		{"other bytes are refused", func() TypeRequest {
+			r := typeReq(ro, agent.RoleDriver, false)
+			r.Bytes = "uptime; rm -rf /\n"
+			return r
+		}(), ErrChanged},
 		{"other pane is refused", func() TypeRequest { r := typeReq(ro, agent.RoleDriver, false); r.SessionID = "s-web"; return r }(), ErrWrongPane},
 		{"unknown proposal", func() TypeRequest { r := typeReq(ro, agent.RoleDriver, false); r.ProposalID = "p_nope"; return r }(), ErrNotFound},
 	}
