@@ -85,9 +85,15 @@ func (s *Store) DeleteGroup(id string) error {
 			s.data.Groups[i].ParentID = parent
 		}
 	}
+	// Hosts move up to the parent. Moving into a production group turns
+	// production on, as any other move does (production.go).
+	toProd := s.isProductionGroupLocked(parent)
 	for i, h := range s.data.Hosts {
 		if h.Group == id {
 			s.data.Hosts[i].Group = parent
+			if toProd {
+				s.data.Hosts[i].Production = true
+			}
 		}
 	}
 	return s.saveLocked()

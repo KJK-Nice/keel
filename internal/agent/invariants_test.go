@@ -301,6 +301,30 @@ func TestGeminiEndpointOnlyInClient(t *testing.T) {
 	}
 }
 
+// The agent reads panes through runtime + Redactor (Auditor.ReadPane),
+// never through the HTTP scrollback route, which keeps a lighter mask. No
+// string literal in the agent tree names that route or any loopback API.
+func TestAgentNeverUsesHTTPScrollback(t *testing.T) {
+	for _, f := range parseModule(t) {
+		if f.test || !inAgentTree(f.pkg) {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			v, _ := strconv.Unquote(lit.Value)
+			for _, bad := range []string{"/scrollback", "/api/sessions", "/api/", "/ws/session", "://127.0.0.1", "://localhost", "://[::1]"} {
+				if strings.Contains(v, bad) {
+					t.Errorf("%s: string %q names a loopback route (%s)", f.rel, v, bad)
+				}
+			}
+			return true
+		})
+	}
+}
+
 // The agent core, redaction and provider interface packages open no
 // network connection; only a client package (provider/gemini) may.
 func TestAgentCoreHasNoNetwork(t *testing.T) {

@@ -264,6 +264,31 @@ func TestProductionAutoOnMove(t *testing.T) {
 	}
 }
 
+func TestDeleteGroupMovingHostsIntoProduction(t *testing.T) {
+	st, _ := agentStore(t)
+	prod, _ := st.UpsertGroup(Group{Name: "Production"})
+	child, _ := st.UpsertGroup(Group{Name: "db", ParentID: prod.ID})
+	other, _ := st.UpsertGroup(Group{Name: "staging"})
+	inner, _ := st.UpsertGroup(Group{Name: "web", ParentID: other.ID})
+	h, _ := st.UpsertHost(Host{Name: "a", Address: "a", Username: "u", AuthType: "password", GroupID: child.ID})
+	h2, _ := st.UpsertHost(Host{Name: "b", Address: "b", Username: "u", AuthType: "password", GroupID: inner.ID})
+	if h.IsProduction() {
+		t.Fatal("production/db host is not production (direct parent only)")
+	}
+	if err := st.DeleteGroup(child.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !hostByID(t, st, h.ID).IsProduction() {
+		t.Fatal("deleting a group moves its hosts into production: auto-on must fire")
+	}
+	if err := st.DeleteGroup(inner.ID); err != nil {
+		t.Fatal(err)
+	}
+	if hostByID(t, st, h2.ID).IsProduction() {
+		t.Fatal("moving up into staging must not turn production on")
+	}
+}
+
 func TestDuplicateKeepsAgentFlags(t *testing.T) {
 	st, _ := agentStore(t)
 	h, _ := st.UpsertHost(Host{Name: "a", Address: "a", Username: "u", AuthType: "password",

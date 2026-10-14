@@ -7,10 +7,14 @@ import "strings"
 // case and surrounding spaces: a host in production/db is not affected by
 // the outer "production" group. The switch turns on at two moments only,
 // when a host is created in that group or moved into it (AssignHostsGroup,
-// or an update that changes its group). Nothing else changes it: loading
-// keel.json, renaming a group, deleting a group (its hosts go to the parent)
-// or saving an unchanged host leave it as it is, and the user can turn it
-// off again while the host stays in the group.
+// an update that changes its group, or DeleteGroup moving its hosts up into
+// a production parent). Nothing else changes it: loading keel.json,
+// renaming a group or saving an unchanged host leave it as it is, and the
+// user can turn it off again while the host stays in the group.
+//
+// An explicit value sent on create wins over the rule, so the Edit host
+// dialog (6d) must prefill the switch on when the chosen group is named
+// production; an untouched dialog then still gets it.
 const ProductionGroupName = "production"
 
 func (s *Store) isProductionGroupLocked(groupID string) bool {
