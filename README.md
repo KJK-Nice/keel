@@ -27,7 +27,7 @@ make check-generated   # committed *_templ.go and output.css match the pinned to
 The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. It holds app state and wiring; the rest lives beside it and is tested with `node --test` (`make test-js`, also part of `make test`):
 
 - `lib/` has no DOM or state: split layouts and their geometry (`layout.js`), vault groups and list markup (`groups.js`, `vaultview.js`), the command palette's filtering (`palette.js`), the session socket protocol (`session.js`), shortcuts, join links, the share joiner (`joinpeer.js`, `sharemac.js`), and the Share popover, people list and follower banner markup (`share.js`).
-- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`, `actiontoast.js`).
+- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`, `actiontoast.js`, and `gate.js`: Unlock, First run and the host import, with their markup in `lib/onboard.js`).
 
 `internal/signal/web/` serves copies of `joinpeer.js` and `sharemac.js` to the browser join page; a test fails if they drift from `lib/`.
 
@@ -54,7 +54,9 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 | `KEEL_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
 | `KEEL_NAME` | `$USER` | Display name |
 | `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join. Runtime env overrides the compile-time default. |
-| `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable |
+| `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable (a scripted setup: no first-run screens) |
+| `KEEL_KEYRING` | (unset) | `off`: never read or write the OS keychain item (`keel`/`vault`), as if the keychain did not answer. For tests and machines without a keychain |
+| `KEEL_SSH_DIR` | `~/.ssh` | Where the host import reads `config` and the keys it names; `~` in that config is the folder above it. Tests point it at a fixture |
 
 ⌘W closes the focused pane first (killing that PTY). When the tab is down to one pane, ⌘W closes the tab, the last session tab included; with no tab left the window shows a New tab. Close the window to detach: `keel serve` keeps remaining sessions, and the next launch restores them as tabs (with the tab pages you had open).
 
@@ -63,6 +65,10 @@ macOS needs Xcode Command Line Tools (`xcode-select --install`). Use **`make bui
 The **Vault** is the sidebar on the left of every tab (**⌘B** or the titlebar button folds it). Its filter and segments show **Hosts** (the host tree by group: click a host to connect, the row's menu edits, duplicates or removes it), **Snippets** (click one to type it after you approve; notebooks below) and **Forwards** (on/off per forward). Its footer opens **Keychain**, **Logs** and **Settings**. Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings each open as their own tab page, one of each; opening one again selects its tab.
 
 Secrets (SSH password, private key, key passphrase) are encrypted with [age](https://age-encryption.org). The wrapping key is stored in the OS keychain when possible (macOS Keychain, Windows Credential Manager, libsecret). If that fails, Keel asks for a passphrase on first launch.
+
+**First run.** A new Keel opens on **Welcome to Keel**: step 1 shows the vault (made in the keychain, or created here with a passphrase when the keychain does not answer; its path and what it holds), step 2, **Bring your hosts**, reads `~/.ssh/config` and lists its hosts with checkboxes. The config is only read, never written; Include (relative to `~/.ssh`, globs, at most 8 deep, loops cut), Host (several names give several rows), HostName, User, Port and IdentityFile are understood. Wildcard names (`*`, `?`, `!`) are listed as patterns, not hosts; Match blocks are skipped with a note; hosts with ProxyCommand or ProxyJump are flagged and can be added without the proxy (jump hosts are not supported yet); hosts already saved (same address, user and port) start unchecked. Each private key the hosts name has its own switch, off by default: a key you turn on is copied into the vault as a Keychain identity (asking for its passphrase if it has one, which is stored in the vault too) and the files in `~/.ssh` are never changed, moved or chmod'ed. The same import is in the command palette as **Import hosts from ~/.ssh/config**.
+
+**Unlock.** When the vault exists but keel serve could not open it at start, the window shows **Unlock your vault**: the passphrase, how many sessions are waiting in `keel serve` (they keep running while the vault is locked), and a reminder that a lost passphrase cannot be recovered. Keel never creates, re-keys or overwrites a vault from that screen.
 
 **Keychain** is a list of reusable SSH identities (password or private key) you attach to hosts. That is separate from the OS keychain that wraps `keel.vault`.
 

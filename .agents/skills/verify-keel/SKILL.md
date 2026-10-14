@@ -36,14 +36,27 @@ work; see [features/share.md](features/share.md)), and with:
   `keel.vault`, `keel.log`, and token. keel serve locks this dir, so two runs
   at once need two dirs.
 - `KEEL_VAULT_PASSPHRASE` (scratch value, `$KEEL_E2E_VAULT_PASSPHRASE`
-  overrides): never drop it. Without it keel serve reads, and on a fresh
-  dir creates, the user's real `keel`/`vault` item in the OS keychain.
+  overrides) opens the scratch vault, and `KEEL_KEYRING=off` keeps keel
+  serve away from the OS keychain: it neither reads nor writes the user's
+  real `keel`/`vault` item. Never drop either.
+- `KEEL_SSH_DIR=.e2e/ssh-home/.ssh`: the host import reads this fixture
+  (copied from `tests/fixtures/ssh-home/.ssh` by `e2e-serve.sh`, with two
+  fresh keys), never the real `~/.ssh`. `~` in it is `.e2e/ssh-home`.
 - `SHELL=/bin/sh`: Local Shell gets a plain `sh-3.2$` prompt, not the
   user's shell config.
 
 The runner waits for `/api/health`, then stops the process after the run.
 Server output goes to `.e2e/logs/keel-serve.log`. Nothing else to start: a
-fresh data dir seeds the Local Shell host and four snippets.
+fresh data dir seeds the Local Shell host and four snippets. With
+`KEEL_VAULT_PASSPHRASE` set there is no first run, so tests open on the
+Vault.
+
+The vault screens (First run, Unlock) need a keel serve without a
+passphrase: `startScratchKeel(name)` in `tests/keel.ts` starts one on a free
+port with `KEEL_KEYRING=off`, the fixture `KEEL_SSH_DIR`, a scratch `HOME`
+and data in `.e2e/first-run-data/<name>`, and stops it by PID
+(`features/onboarding.md`, `features/unlock.md`). Never start one without
+`KEEL_KEYRING=off` and never point `KEEL_SSH_DIR` at a real `~/.ssh`.
 
 Auth: keel serve requires a token on `/`, `/api/`, `/ws/`, `/ui/`. The config
 calls `keelToken()` at load, which writes `keel-serve.token` into the data
@@ -161,7 +174,7 @@ serve, but each also needs its own data dir, so the fan-out sets
 Explorers start on the window with the Vault sidebar (the header and
 cookie above): begin each charter with "Starting at the Vault sidebar (the
 app opens with it beside a New tab),". `.e2e/bugbash/`, `.e2e/bugbash-data/`,
-`.e2e/proof/`, and `.e2e/keel-data/` are in `.gitignore`. A finding is a bug
+`.e2e/proof/`, `.e2e/keel-data/`, `.e2e/ssh-home/` and `.e2e/first-run-data/` are in `.gitignore`. A finding is a bug
 once `tests/bugbash/<slug>.e2e.ts` fails with `ASSERTION_FAILED` on the
 assertion that encodes it; anything else is the explorer's claim.
 
@@ -184,6 +197,6 @@ that is the proof, and all of it is gitignored.
 ## Helpers
 
 `tests/keel.ts`: `keelData`, `keelToken()`, `openKeel(app)`,
-`keelApi(baseUrl, path)`, `keelJson()`. No scripts; the e2e CLI is the helper.
+`keelApi(baseUrl, path)`, `keelJson()`, `sshDir`, `startScratchKeel(name)`. No scripts; the e2e CLI is the helper.
 
 PR before/after screenshots: see `.agents/skills/pr-screenshots/SKILL.md`.

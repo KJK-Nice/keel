@@ -23,3 +23,5 @@ node_modules/
 .e2e/proof/
 .claude/worktrees/
 .claude/settings.local.json
+.e2e/ssh-home/
+.e2e/first-run-data/

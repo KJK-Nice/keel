@@ -16,6 +16,11 @@ const (
 	keyringService = "keel"
 	keyringAccount = "vault"
 	envPassphrase  = "KEEL_VAULT_PASSPHRASE"
+	// envKeyring set to "off" keeps the store away from the OS keychain:
+	// it neither reads nor writes the "keel"/"vault" item, as if the
+	// keychain did not answer. Unset (the default) keeps today's behavior.
+	// Tests use it so a scratch vault never touches the user's keychain.
+	envKeyring = "KEEL_KEYRING"
 
 	vaultScrypt = "scrypt"
 	vaultX25519 = "x25519"
@@ -27,7 +32,15 @@ var (
 	// ErrVaultExists is returned by Setup when a vault already exists. Setup
 	// would otherwise re-key (and, while locked, overwrite) the existing vault.
 	ErrVaultExists = errors.New("vault already exists; unlock it instead")
+
+	errKeyringOff = errors.New("OS keychain is off (KEEL_KEYRING=off)")
 )
+
+// KeyringOff reports whether KEEL_KEYRING=off keeps the store away from
+// the OS keychain.
+func KeyringOff() bool {
+	return os.Getenv(envKeyring) == "off"
+}
 
 type hostSecret struct {
 	Password   string `json:"password,omitempty"`
@@ -101,6 +114,9 @@ func scryptIdentity(pass string) (age.Identity, error) {
 }
 
 func keyringIdentity() (*age.X25519Identity, error) {
+	if KeyringOff() {
+		return nil, errKeyringOff
+	}
 	s, err := keyring.Get(keyringService, keyringAccount)
 	if err != nil {
 		return nil, err
@@ -109,5 +125,8 @@ func keyringIdentity() (*age.X25519Identity, error) {
 }
 
 func saveKeyringIdentity(ident *age.X25519Identity) error {
+	if KeyringOff() {
+		return errKeyringOff
+	}
 	return keyring.Set(keyringService, keyringAccount, ident.String())
 }

@@ -37,3 +37,17 @@ func DataDir() string {
 	}
 	return "data"
 }
+
+// SSHDir is the folder whose config the first-run import reads: ~/.ssh,
+// or KEEL_SSH_DIR (tests point it at a fixture so they never read the real
+// one). ~ in that config stands for the folder above it.
+func SSHDir() string {
+	if v := os.Getenv("KEEL_SSH_DIR"); v != "" {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".ssh")
+}

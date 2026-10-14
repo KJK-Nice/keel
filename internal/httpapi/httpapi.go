@@ -44,6 +44,8 @@ type Server struct {
 	// authToken, when set, is required on privileged routes (auth.go).
 	authToken string
 	build     string
+	// sshDir is ~/.ssh (KEEL_SSH_DIR), read by the first-run host import.
+	sshDir string
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -77,6 +79,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
 	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
 	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
+	mux.HandleFunc("GET /api/vault", s.vaultState)
+	mux.HandleFunc("POST /api/first-run/done", s.finishFirstRun)
+	mux.HandleFunc("GET /api/ssh-config/preview", s.sshConfigPreview)
+	mux.HandleFunc("POST /api/ssh-config/import", s.sshConfigImport)
 	mux.HandleFunc("POST /api/share", s.shareSession)
 	mux.HandleFunc("DELETE /api/share/{id}", s.stopShare)
 	mux.HandleFunc("POST /api/share/{id}/admit", s.admitShare)
@@ -212,7 +218,7 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/ui/vault" {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/api/vault" || r.URL.Path == "/ui/vault" {
 			next.ServeHTTP(w, r)
 			return
 		}

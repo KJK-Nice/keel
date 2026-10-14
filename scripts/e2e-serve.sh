@@ -7,6 +7,17 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# A fixture ~/.ssh for the host import (tests/onboarding.e2e.ts): keel serve
+# reads KEEL_SSH_DIR (e2e.config.ts), never the real ~/.ssh. The keys are
+# made fresh for every run, one without and one with a passphrase.
+ssh_home=.e2e/ssh-home
+rm -rf "$ssh_home"
+mkdir -p "$ssh_home"
+cp -R tests/fixtures/ssh-home/.ssh "$ssh_home/.ssh"
+chmod 700 "$ssh_home/.ssh"
+ssh-keygen -q -t ed25519 -N "" -C e2e-plain -f "$ssh_home/.ssh/id_e2e_plain"
+ssh-keygen -q -t ed25519 -N "e2e-key-pass" -C e2e-locked -f "$ssh_home/.ssh/id_e2e_locked"
+
 port=$(node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
 mkdir -p .e2e/logs
 KEEL_SIGNAL_ADDR="127.0.0.1:$port" ./bin/keel-signal >>.e2e/logs/keel-signal.log 2>&1 &

@@ -1,13 +1,16 @@
 import type { E2EConfig } from 'e2e';
 import { web } from '@e2e-dev/web';
 import { gateway } from 'ai';
-import { keelData, keelToken } from './tests/keel.ts';
+import { keelData, keelToken, sshDir } from './tests/keel.ts';
 
 // The runner starts its own `keel serve` (built by `make build`) on a free
 // loopback port with a scratch data dir under .e2e/, so a run never touches
 // the user's Keel on 127.0.0.1:47241, their keel.json, or their vault.
-// KEEL_VAULT_PASSPHRASE keeps the scratch vault off the OS keychain: without
-// it keel serve would read or create the user's "keel"/"vault" keyring item.
+// KEEL_VAULT_PASSPHRASE opens the scratch vault, and KEEL_KEYRING=off keeps
+// keel serve away from the OS keychain entirely: without them it would read
+// or create the user's "keel"/"vault" keyring item. KEEL_SSH_DIR points the
+// host import at a fixture (.e2e/ssh-home/.ssh, made by e2e-serve.sh), so no
+// test reads the real ~/.ssh.
 // scripts/e2e-serve.sh first starts bin/keel-signal on a free loopback port
 // and sets KEEL_SIGNAL, so Share and Join work (tests/share.e2e.ts).
 const app = {
@@ -21,6 +24,8 @@ const app = {
       KEEL_DATA: keelData,
       KEEL_NAME: 'e2e',
       KEEL_VAULT_PASSPHRASE: process.env.KEEL_E2E_VAULT_PASSPHRASE ?? 'keel-e2e-scratch-vault',
+      KEEL_KEYRING: 'off',
+      KEEL_SSH_DIR: sshDir,
       SHELL: '/bin/sh',
     },
     log: '.e2e/logs/keel-serve.log',

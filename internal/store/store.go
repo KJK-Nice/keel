@@ -216,8 +216,12 @@ type persistIdentity struct {
 }
 
 type persistData struct {
-	Version    int               `json:"version"`
-	Vault      string            `json:"vault,omitempty"`
+	Version int    `json:"version"`
+	Vault   string `json:"vault,omitempty"`
+	// FirstRun is set on a store Keel seeds itself and cleared when the
+	// first-run screens finish (FinishFirstRun). Files written before it
+	// existed lack it, so upgrades never see the first run.
+	FirstRun   bool              `json:"firstRun,omitempty"`
 	Hosts      []persistHost     `json:"hosts"`
 	Identities []persistIdentity `json:"identities"`
 	Tunnels    []Tunnel          `json:"tunnels"`
@@ -235,6 +239,9 @@ type Store struct {
 	secrets   map[string]hostSecret
 	locked    bool
 	needSetup bool
+	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
+	// at start: a scripted setup, so the first-run screens are skipped.
+	fromEnv   bool
 	recipient age.Recipient
 	// vaultSum and vaultRecipient describe what keel.vault last held, so a
 	// save that changes no secret skips re-encrypting it. In passphrase mode
@@ -298,6 +305,7 @@ func loadPlain(b []byte) (loaded, error) {
 	var raw struct {
 		Version    int               `json:"version"`
 		Vault      string            `json:"vault"`
+		FirstRun   bool              `json:"firstRun"`
 		Hosts      []json.RawMessage `json:"hosts"`
 		Identities []persistIdentity `json:"identities"`
 		Tunnels    []Tunnel          `json:"tunnels"`
@@ -312,6 +320,7 @@ func loadPlain(b []byte) (loaded, error) {
 	out := persistData{
 		Version:    raw.Version,
 		Vault:      raw.Vault,
+		FirstRun:   raw.FirstRun,
 		Identities: raw.Identities,
 		Tunnels:    raw.Tunnels,
 		Snippets:   raw.Snippets,
@@ -343,7 +352,8 @@ func loadPlain(b []byte) (loaded, error) {
 func seed() persistData {
 	now := time.Now().UTC()
 	return persistData{
-		Version: 3,
+		Version:  3,
+		FirstRun: true,
 		Hosts: []persistHost{{
 			ID:        newID(),
 			Name:      "Local Shell",
@@ -370,7 +380,11 @@ func (s *Store) bootstrap() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if pass := envPass(); pass != "" {
-		return s.unlockScryptLocked(pass, true)
+		if err := s.unlockScryptLocked(pass, true); err != nil {
+			return err
+		}
+		s.fromEnv = true
+		return nil
 	}
 	if ident, err := keyringIdentity(); err == nil {
 		blob, rerr := os.ReadFile(s.vaultPath)

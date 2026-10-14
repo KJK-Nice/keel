@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	goruntime "runtime"
 
 	"github.com/a-h/templ"
 	"github.com/starfederation/datastar-go/datastar"
@@ -22,11 +23,12 @@ type uiSignals struct {
 func (s *Server) pageProps(r *http.Request) ui.PageProps {
 	q := r.URL.Query()
 	p := ui.PageProps{
-		Locked:     s.store.Locked(),
-		NeedsSetup: s.store.NeedsSetup(),
-		Titlebar:   q.Get("chrome") == "titlebar",
-		Native:     q.Get("native") == "1",
-		Name:       q.Get("name"),
+		Locked:       s.store.Locked(),
+		NeedsSetup:   s.store.NeedsSetup(),
+		KeychainName: ui.KeychainName(goruntime.GOOS),
+		Titlebar:     q.Get("chrome") == "titlebar",
+		Native:       q.Get("native") == "1",
+		Name:         q.Get("name"),
 	}
 	if s.share != nil && s.share.Enabled() {
 		p.SignalURL = s.share.URL()

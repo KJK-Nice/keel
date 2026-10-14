@@ -281,6 +281,8 @@ func TestRuntimeStop(t *testing.T) {
 func TestVaultLockBlocksAPI(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	// Never touch the real "keel"/"vault" keychain item from a test.
+	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_FAST", "1")
 	st, err := store.New(t.TempDir() + "/keel.json")
 	if err != nil {
@@ -2197,8 +2199,14 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-list"`) {
 		t.Fatal("index should not keep a Live/herd list on Hosts")
 	}
-	if !strings.Contains(string(body), `data-slot="card"`) || !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
-		t.Fatal("index missing card or terminal preview aspect ratio")
+	if !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
+		t.Fatal("index missing the terminal preview aspect ratio")
+	}
+	// The vault gate (Unlock, First run) is k-* markup (internal/ui/gate.templ).
+	for _, id := range []string{`id="gate"`, `id="unlock-form"`, `id="onb-vault"`, `id="onb-import"`} {
+		if !strings.Contains(string(body), id) {
+			t.Fatalf("index missing %s", id)
+		}
 	}
 	if !strings.Contains(string(body), `data-slot="kbd"`) || !strings.Contains(string(body), `data-tui-tooltip-trigger`) {
 		t.Fatal("index missing kbd or tooltip")
