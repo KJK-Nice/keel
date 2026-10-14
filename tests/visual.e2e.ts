@@ -113,7 +113,7 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await ask.press('Enter');
       await expect(panel.getByRole('button', /Type into pane/)).toBeVisible();
       await app.screenshot(`${theme}-agent`);
-      await ask.press('Meta+i');
+      await panel.getByRole('button', 'Close agent').tap();
       await expect(panel).toBeHidden();
       await screen.getByRole('button', 'Close tab').tap();
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
