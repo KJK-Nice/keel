@@ -76,10 +76,16 @@ func (e *ProviderError) Error() string { return e.Msg }
 
 // Options tune a Service. Zero values take the defaults.
 type Options struct {
-	Factory      Factory
+	Factory Factory
+	// Judge builds the detector (Jev) for in-pane suggestions. nil uses
+	// RealJudge.
+	Judge        JudgeFactory
 	TestProvider bool
 	Timeout      time.Duration
 	Now          func() time.Time
+	// DetectLogWindow is how long detection reads of one pane are
+	// summarised into one keel.log entry (tests shorten it).
+	DetectLogWindow time.Duration
 }
 
 type Service struct {
@@ -87,12 +93,16 @@ type Service struct {
 	panes   Panes
 	audit   *agent.Auditor
 	factory Factory
+	judge   JudgeFactory
 	test    bool
 	timeout time.Duration
 	now     func() time.Time
 
 	mu    sync.Mutex
 	convs map[string]*conversation
+
+	sug          suggestState
+	detectWindow time.Duration
 }
 
 const (
@@ -112,10 +122,18 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, factory: opts.Factory, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now}
+	s := &Service{st: st, panes: panes, audit: audit, factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
+	if s.judge == nil {
+		s.judge = RealJudge
+	}
+	if s.detectWindow <= 0 {
+		s.detectWindow = detectLogWindow
+	}
+	s.sug.suggestions = map[string]*Suggestion{}
+	s.sug.detectLogs = map[string]*detectLog{}
 	if s.timeout <= 0 {
 		s.timeout = defaultTimeout
 	}
@@ -387,6 +405,43 @@ func (s *Service) providerFor(id string) (provider.Provider, error) {
 		return nil, &ProviderError{Msg: scrub(err.Error(), key)}
 	}
 	return scrubbing{p: p, key: key}, nil
+}
+
+// judgeFor reads the detector key (Jev) from the vault and builds its
+// client for one Detect or one risk check. With no key it returns
+// ErrNoKey, and the caller falls back to #-lines and the code rating. It
+// is the only other place in the agent tree that reads a key
+// (internal/agent/invariants_test.go).
+func (s *Service) judgeFor() (provider.Judge, error) {
+	configured, err := s.st.AgentKeyConfigured(JudgeProvider)
+	if err != nil || !configured {
+		return nil, ErrNoKey
+	}
+	key, err := s.st.AgentKey(JudgeProvider)
+	if err != nil {
+		return nil, ErrNoKey
+	}
+	j, err := s.judge(key)
+	if err != nil {
+		return nil, ErrNoKey
+	}
+	return scrubbingJudge{j: j, key: key}, nil
+}
+
+// scrubbingJudge removes the key from any error a judge returns.
+type scrubbingJudge struct {
+	j   provider.Judge
+	key string
+}
+
+func (sc scrubbingJudge) ID() string { return sc.j.ID() }
+
+func (sc scrubbingJudge) Judge(ctx context.Context, req provider.JudgeRequest) (provider.JudgeResponse, error) {
+	resp, err := sc.j.Judge(ctx, req)
+	if err != nil {
+		return resp, &ProviderError{Msg: scrub(err.Error(), sc.key)}
+	}
+	return resp, nil
 }
 
 // scrubbing removes the key from any error a provider returns, on top of

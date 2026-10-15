@@ -2477,3 +2477,63 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 .k-agent-hint { font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
 .k-agent-composer-foot .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-agent-composer-foot [hidden] { display: none; }
+
+/* ---------- Suggestions in a pane (docs/ui-redesign.md §5.5, phase 6c) ----------
+   The Suggest board's kw-nl, kw-ghost, kw-sug*, kw-inserted and
+   kw-hintline re-expressed with tokens. js/ui/suggest.js draws them in a
+   layer over the terminal: marks over the prompt line's cells (the text
+   stays the terminal's), a hint after it, and the card under it. */
+.k-sug-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.k-sug-layer[data-state="idle"] { display: none; }
+.k-sug-mark { position: absolute; border-radius: var(--radius-xs); }
+.k-sug-mark--notice { background: var(--haze-soft); box-shadow: inset 0 -1px 0 var(--haze); }
+.k-sug-mark--inserted { background: var(--brass-soft); }
+.k-sug-mark--ghost { background: color-mix(in srgb, var(--stage) 55%, transparent); }
+.k-sug-hint {
+  position: absolute; display: inline-flex; align-items: center; gap: var(--space-1\.5);
+  padding: 0 var(--space-1\.5); white-space: nowrap; background: var(--stage);
+  font: 400 0.846rem/1 var(--font-sans); letter-spacing: 0; color: var(--ink-faint);
+}
+.k-sug-hint svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; color: var(--brass-ink); }
+.k-sug-hint .k-kbd, .k-sug-foot .k-kbd { height: 1.231rem; min-width: 1.231rem; font-size: 0.769rem; }
+.k-sug-anchor { position: absolute; width: 100%; }
+.k-sug {
+  pointer-events: auto; margin: var(--space-1\.5) var(--space-3) 0;
+  width: min(43.077rem, calc(100% - 2 * var(--space-3)));
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop); font-family: var(--font-sans); white-space: normal; overflow: hidden;
+}
+.k-sug--danger { border-color: var(--flare); }
+.k-sug-head {
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3) 0;
+  font: 500 0.846rem/1.077rem var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.k-sug-head > svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; color: var(--brass-ink); }
+.k-sug-head .k-badge { letter-spacing: 0; text-transform: none; margin-left: auto; }
+.k-sug-cmd {
+  margin: var(--space-1\.5) var(--space-3) 0; padding: var(--space-2) var(--space-3);
+  background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  font: 400 0.923rem/1.385rem var(--font-mono); color: var(--ink); white-space: pre-wrap; word-break: break-all;
+}
+.k-sug-why, .k-sug-note { padding: var(--space-1\.5) var(--space-3) 0; font: 400 0.923rem/1.231rem var(--font-sans); color: var(--ink-muted); }
+.k-sug-note { color: var(--signal); }
+.k-sug-alt { display: grid; padding: var(--space-1\.5) var(--space-1\.5) 0; }
+.k-sug-opt {
+  display: flex; align-items: center; gap: var(--space-2); height: var(--size-control-sm); padding: 0 var(--space-1\.5);
+  border-radius: var(--radius-xs); font: 400 0.923rem/1 var(--font-mono); color: var(--ink-muted); cursor: pointer;
+}
+.k-sug-opt:hover { background: var(--hover); color: var(--ink); }
+.k-sug-opt .k-kbd { flex: none; height: 1.231rem; min-width: 1.231rem; font-size: 0.769rem; }
+.k-sug-opt-cmd { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.k-sug-foot {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1\.5) var(--space-3);
+  margin-top: var(--space-2); padding: var(--space-1\.5) var(--space-3);
+  border-top: 1px solid var(--line); background: var(--surface);
+  font: 400 0.846rem/1 var(--font-sans); color: var(--ink-faint);
+}
+.k-sug-foot > span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.k-sug-foot .k-sug-rule { margin-left: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .k-sug { animation: k-sug-in var(--duration-base) ease-out; }
+  @keyframes k-sug-in { from { opacity: 0; transform: translateY(calc(-1 * var(--space-1))); } }
+}

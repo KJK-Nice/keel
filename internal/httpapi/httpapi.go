@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -51,6 +52,9 @@ type Server struct {
 	agent        *service.Service
 	agentFactory service.Factory
 	agentTest    bool
+	// agentJudge builds the detector (Jev) for in-pane suggestions.
+	agentJudge        service.JudgeFactory
+	agentDetectWindow time.Duration
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -919,6 +923,11 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	pingDone := make(chan struct{})
 	defer close(pingDone)
 	ws.startPings(pingDone)
+	// In-pane suggestions (agentsuggest.go) run off this loop and stop
+	// with the socket.
+	sugCtx, sugCancel := context.WithCancel(r.Context())
+	defer sugCancel()
+	sug := newSuggestConn(sugCtx, s, ws, sess, cl.ID)
 
 	go func() {
 		defer conn.Close()
@@ -975,6 +984,11 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				// Agent marks an inject as the user's Type into pane on an
 				// agent proposal (agentask.go).
 				Agent *agentTypeMsg `json:"agent"`
+				// Suggestion marks an inject as the user's ⇥ / ⇧⇥ on an
+				// in-pane suggestion (agentsuggest.go).
+				Suggestion *agentInsertMsg `json:"suggestion"`
+				Seq        int             `json:"seq"`
+				Line       string          `json:"line"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
 				continue
@@ -997,7 +1011,30 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
+			case "agent-detect":
+				sug.detect(ctl.Seq, ctl.Line)
+			case "agent-suggest":
+				sug.suggest(ctl.Seq, ctl.Line)
 			case "inject":
+				if ctl.Suggestion != nil {
+					// ⇥ / ⇧⇥ on a suggestion: the agent service checks the
+					// suggestion, the bytes, the ⇧ rule and that this
+					// client drives, and logs agent.insert, before the
+					// ticket writes them (§6.1, §6.5, §6.6, §6.7). The
+					// bytes end without a newline: inserted, not run.
+					id := ctl.Suggestion.SuggestionID
+					if aerr := s.authorizeAgentInsert(sess, cl.ID, ctl.Suggestion, ctl.Command); aerr != nil {
+						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": aerr.Error()})
+						break
+					}
+					if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
+						s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
+						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": "the insert expired; press ⇥ again"})
+						break
+					}
+					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
+					break
+				}
 				if ctl.Agent == nil {
 					err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
 					break

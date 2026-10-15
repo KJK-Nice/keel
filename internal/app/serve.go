@@ -53,9 +53,9 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	// KEEL_AGENT_PROVIDER=fake is for end-to-end tests only: the agent then
 	// answers from an in-process fake and nothing is sent anywhere.
-	agentFactory, agentFake := service.FromEnv(os.Getenv)
+	agentFactory, agentJudge, agentFake := service.FromEnv(os.Getenv)
 	if agentFake {
-		log.Printf("%s=fake: the agent panel answers from a built-in test fake; nothing is sent to a provider", service.TestProviderEnv)
+		log.Printf("%s=fake: the agent panel and in-pane suggestions answer from built-in test fakes; nothing is sent to a provider", service.TestProviderEnv)
 	}
 
 	stop := make(chan struct{})
@@ -64,7 +64,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).Handler(),
+		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)

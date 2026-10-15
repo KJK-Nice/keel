@@ -12,6 +12,9 @@ const (
 	DetectionAuto     = "auto"      // a classifier notices plain language
 	DetectionHashOnly = "hash-only" // only lines starting with #
 
+	SuggestionsOn  = "on"  // plain-language suggestions in panes (§5.5)
+	SuggestionsOff = "off" // no notice, no hint, no detection call
+
 	ScopeFocused = "focused" // the focused pane only
 	ScopePick    = "pick"    // pick panes each conversation
 	ScopeTab     = "tab"     // every pane in the tab
@@ -42,9 +45,13 @@ type AgentRedaction struct {
 
 type AgentSettings struct {
 	// Provider is a provider id (internal/agent/provider), e.g. "gemini".
-	Provider        string         `json:"provider"`
-	Model           string         `json:"model"`
-	Detection       string         `json:"detection"`
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	Detection string `json:"detection"`
+	// Suggestions turns plain-language suggestions in panes (§5.5) "on"
+	// (the default) or "off". A string, not a bool, so an older keel.json
+	// without the field reads as on.
+	Suggestions     string         `json:"suggestions"`
 	DefaultScope    string         `json:"defaultScope"`
 	ScrollbackLines int            `json:"scrollbackLines"`
 	Redact          AgentRedaction `json:"redact"`
@@ -57,6 +64,7 @@ func DefaultAgentSettings() AgentSettings {
 		Provider:        DefaultAgentProvider,
 		Model:           DefaultAgentModel,
 		Detection:       DetectionAuto,
+		Suggestions:     SuggestionsOn,
 		DefaultScope:    ScopeFocused,
 		ScrollbackLines: DefaultScrollbackLines,
 		Redact:          AgentRedaction{Secrets: true},
@@ -92,6 +100,13 @@ func (a AgentSettings) Normalize() (AgentSettings, error) {
 	default:
 		return AgentSettings{}, fmt.Errorf("%w: detection must be auto or hash-only", ErrAgentSettings)
 	}
+	switch a.Suggestions {
+	case "":
+		a.Suggestions = def.Suggestions
+	case SuggestionsOn, SuggestionsOff:
+	default:
+		return AgentSettings{}, fmt.Errorf("%w: suggestions must be on or off", ErrAgentSettings)
+	}
 	switch a.DefaultScope {
 	case "":
 		a.DefaultScope = def.DefaultScope
@@ -115,6 +130,12 @@ func (a AgentSettings) Normalize() (AgentSettings, error) {
 	}
 	a.Redact.Secrets = true
 	return a, nil
+}
+
+// SuggestionsEnabled reports whether suggestions in panes are on (the
+// default).
+func (a AgentSettings) SuggestionsEnabled() bool {
+	return a.Suggestions != SuggestionsOff
 }
 
 // AgentSettings returns the saved settings, or the defaults.

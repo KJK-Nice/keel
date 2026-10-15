@@ -42,6 +42,7 @@ type askFixture struct {
 	logPath string
 	logs    *applog.Book
 	fake    *providertest.Scripted
+	judge   *providertest.ScriptedJudge
 	bmu     sync.Mutex
 	bridges map[string]*fakeBridge
 	prodID  string
@@ -61,7 +62,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &askFixture{st: st, bridges: map[string]*fakeBridge{}, fake: providertest.NewScripted()}
+	f := &askFixture{st: st, bridges: map[string]*fakeBridge{}, fake: providertest.NewScripted(), judge: providertest.NewScriptedJudge()}
 	web, err := st.UpsertHost(store.Host{Name: "web-1", AuthType: "password", Address: "web.example.com", Username: "deploy", Port: 22, Password: askHostPass, AgentReadable: bp(true)})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +97,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		}
 		return f.fake, nil
 	}
-	f.srv = httptest.NewServer(New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).Handler())
+	f.srv = httptest.NewServer(New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).Handler())
 	t.Cleanup(f.srv.Close)
 	return f
 }

@@ -24,6 +24,12 @@ type Entry struct {
 	Lines      int            `json:"lines,omitempty"`
 	Bytes      int            `json:"bytes,omitempty"`
 	Redactions map[string]int `json:"redactions,omitempty"`
+	// Source says where an agent suggestion came from ("generated" by the
+	// model provider; later "history" or "snippet"), or which detector a
+	// prompt-line read went to ("jev"). Count is how many prompt-line
+	// reads one summarised agent.read entry stands for.
+	Source string `json:"source,omitempty"`
+	Count  int    `json:"count,omitempty"`
 }
 
 type Book struct {

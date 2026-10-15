@@ -312,13 +312,16 @@ func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 		t.Fatalf("defaults = %+v", got)
 	}
 	saved, err := st.SetAgentSettings(AgentSettings{
-		Provider: "Gemini", Model: "gemini-3.6-flash", Detection: DetectionHashOnly,
+		Provider: "Gemini", Model: "gemini-3.6-flash", Detection: DetectionHashOnly, Suggestions: SuggestionsOff,
 		DefaultScope: ScopeTab, ScrollbackLines: 5000,
 		Redact:      AgentRedaction{Secrets: false, IPs: true, Hostnames: true},
 		HistoryDays: 9999,
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if saved.SuggestionsEnabled() || !DefaultAgentSettings().SuggestionsEnabled() {
+		t.Fatalf("suggestions = %q", saved.Suggestions)
 	}
 	if saved.Provider != "gemini" || saved.ScrollbackLines != MaxScrollbackLines || !saved.Redact.Secrets || saved.HistoryDays != MaxHistoryDays {
 		t.Fatalf("normalize = %+v", saved)
@@ -335,7 +338,7 @@ func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 		}
 	}
 	for _, bad := range []AgentSettings{
-		{Detection: "sometimes"}, {DefaultScope: "all"}, {Provider: "Bad Provider!"}, {Model: "../x"},
+		{Detection: "sometimes"}, {Suggestions: "maybe"}, {DefaultScope: "all"}, {Provider: "Bad Provider!"}, {Model: "../x"},
 	} {
 		if _, err := st.SetAgentSettings(bad); !errors.Is(err, ErrAgentSettings) {
 			t.Fatalf("%+v accepted (%v)", bad, err)

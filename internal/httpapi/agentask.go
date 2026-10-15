@@ -51,7 +51,7 @@ func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
 		return
 	}
-	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, TestProvider: s.agentTest})
+	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow})
 	if err == nil {
 		s.agent = svc
 	}
