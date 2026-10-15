@@ -8,6 +8,7 @@
 //   state  "live" | "connecting" | "dead" | "idle": a state dot (open tabs)
 //   tag    a neutral label (a host tag)
 //   badge  a brass label next to the shortcut ("Approve first" on snippets)
+//   bare   no group heading above it (the last row, askRow below)
 // `run(opts)` gets { split } = true for ⌥↵ (open in split); rows that have
 // no split form ignore it.
 
@@ -62,6 +63,23 @@ export function orderGroups(items) {
     if (!rank.has(item.group)) rank.set(item.group, next++);
   }
   return items.map((item, i) => [item, i]).sort((a, b) => rank.get(a[0].group) - rank.get(b[0].group) || a[1] - b[1]).map(([item]) => item);
+}
+
+// askRow is the palette's last row (§5.2): it is always there, whatever the
+// query matches, and stands for ⌘↵ (the key works from any row). run opens
+// the agent panel with the query as the unsent message.
+export function askRow(query, keys, run) {
+  const q = String(query || "").trim();
+  return {
+    id: "ask-agent",
+    group: "Agent",
+    title: q ? `Ask the agent about “${q}”` : "Ask the agent",
+    icon: "agent",
+    keys,
+    bare: true,
+    ask: true,
+    run,
+  };
 }
 
 export function filterPalette(items, query) {
@@ -129,10 +147,11 @@ export function paletteHTML(items, cursor, query = "") {
   items.forEach((item, i) => {
     if (item.group !== lastGroup) {
       lastGroup = item.group;
-      parts.push(`<div class="k-menu-label" role="presentation">${escapeHtml(item.group)}</div>`);
+      if (!item.bare) parts.push(`<div class="k-menu-label" role="presentation">${escapeHtml(item.group)}</div>`);
     }
     const selected = i === cursor;
     const icon = `<span class="k-i">${ICONS[item.icon] || ICONS.action}</span>`;
+    const title = item.ask ? escapeHtml(item.title) : highlightHTML(item.title, query);
     const hint = item.hint ? `<span class="k-palette-sub">${escapeHtml(item.hint)}</span>` : "";
     const dot = item.state ? `<span class="k-dot k-dot--${escapeHtml(item.state)}" aria-hidden="true"></span>` : "";
     const tag = item.tag ? `<span class="k-badge">${escapeHtml(item.tag)}</span>` : "";
@@ -140,7 +159,7 @@ export function paletteHTML(items, cursor, query = "") {
     const keys = item.keys ? keyCapsHTML(item.keys) : "";
     const meta = dot || tag || badge || keys ? `<span class="cmd-palette-meta">${dot}${tag}${badge}${keys}</span>` : "";
     parts.push(
-      `<button type="button" class="k-palette-item" role="option" data-palette-index="${i}" id="${optionId(i)}" aria-selected="${selected}"${selected ? " data-highlighted" : ""}>${icon}<span class="cmd-palette-title">${highlightHTML(item.title, query)}</span>${hint}${meta}</button>`,
+      `<button type="button" class="k-palette-item${item.ask ? " k-palette-item--ask" : ""}" role="option" data-palette-index="${i}" id="${optionId(i)}" aria-selected="${selected}"${selected ? " data-highlighted" : ""}>${icon}<span class="cmd-palette-title">${title}</span>${hint}${meta}</button>`,
     );
   });
   return parts.join("");

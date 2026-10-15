@@ -8,6 +8,8 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "keel/components/icon"
+
 // Gate covers the window while the vault is locked or the first run is
 // open (docs/ui-redesign.md §5.14, §5.15). term.js shows one screen at a
 // time from GET /api/vault and fills in the counts, paths and the import
@@ -41,7 +43,7 @@ func Gate(p PageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.KeychainName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 9, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 11, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -105,7 +107,7 @@ func gateMark(size string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.SafeURL(keelMark))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 22, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 24, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -118,7 +120,7 @@ func gateMark(size string) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(size)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 22, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 24, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -131,7 +133,7 @@ func gateMark(size string) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(size)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 22, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 24, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -270,7 +272,7 @@ func unlockScreen(p PageProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.KeychainName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 73, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 75, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -283,7 +285,7 @@ func unlockScreen(p PageProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(p.KeychainName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 75, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 77, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -297,9 +299,11 @@ func unlockScreen(p PageProps) templ.Component {
 	})
 }
 
-// firstRunScreen is §5.15 steps 1 and 2. Step 3 (Agent) comes with the
-// agent in phase 6. Step 2 also opens on its own from the command palette
-// (Import hosts from ~/.ssh/config).
+// firstRunScreen is §5.15: step 1 (vault), step 2 (hosts) and step 3
+// (Agent, optional). Step 2 also opens on its own from the command palette
+// (Import hosts from ~/.ssh/config); step 3 only follows step 2 in the
+// first run. Nothing on step 3 sends anything anywhere: a key is stored in
+// the vault and used only when the user asks the agent or presses ⇥.
 func firstRunScreen(p PageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -337,7 +341,15 @@ func firstRunScreen(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</span> Hosts</li></ol><form class=\"k-onb-panel\" id=\"onb-vault\" novalidate><div class=\"k-gate-head\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</span> Hosts</li><li class=\"k-step-sep\" aria-hidden=\"true\"></li><li class=\"k-step\" id=\"onb-step-agent\"><span class=\"k-step-n\" aria-hidden=\"true\"><span class=\"k-step-num\">3</span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = gateIcon("tick").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</span> Agent</li></ol><form class=\"k-onb-panel\" id=\"onb-vault\" novalidate><div class=\"k-gate-head\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -345,20 +357,94 @@ func firstRunScreen(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<h1 class=\"k-gate-title\" id=\"onb-title\">Welcome to Keel</h1><p class=\"k-gate-lead\">Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.</p></div><div class=\"k-choices\" role=\"radiogroup\" aria-label=\"How to unlock the vault\"><button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"false\" id=\"onb-mode-keychain\" data-onb-mode=\"keychain\" aria-describedby=\"onb-keychain-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Unlock with ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<h1 class=\"k-gate-title\" id=\"onb-title\">Welcome to Keel</h1><p class=\"k-gate-lead\">Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.</p></div><div class=\"k-choices\" role=\"radiogroup\" aria-label=\"How to unlock the vault\"><button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"false\" id=\"onb-mode-keychain\" data-onb-mode=\"keychain\" aria-describedby=\"onb-keychain-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Unlock with ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(p.KeychainName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 115, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/gate.templ`, Line: 126, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<span class=\"k-badge k-badge--brass\">Recommended</span></span> <span class=\"k-choice-desc\" id=\"onb-keychain-desc\">The vault key lives in your login keychain. Keel opens without asking.</span></button> <button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"false\" id=\"onb-mode-pass\" data-onb-mode=\"passphrase\" aria-describedby=\"onb-pass-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Use a passphrase</span> <span class=\"k-choice-desc\" id=\"onb-pass-desc\">You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.</span></button></div><div class=\"k-onb-fields\" id=\"onb-pass-fields\" hidden><div class=\"k-field\"><label class=\"k-label\" for=\"onb-pass\">Passphrase</label> <input class=\"k-input\" id=\"onb-pass\" type=\"password\" autocomplete=\"new-password\" spellcheck=\"false\"></div><div class=\"k-field\"><label class=\"k-label\" for=\"onb-pass2\">Repeat passphrase</label> <input class=\"k-input\" id=\"onb-pass2\" type=\"password\" autocomplete=\"new-password\" spellcheck=\"false\"></div><p class=\"k-error\" id=\"onb-pass-error\" role=\"alert\" hidden></p><p class=\"k-help\">Keel can't recover the vault if you lose the passphrase.</p></div><div class=\"k-box\"><dl class=\"k-kv\"><dt>Vault file</dt><dd class=\"k-mono\" id=\"onb-vault-path\">keel.vault</dd><dt>Encryption</dt><dd id=\"onb-vault-enc\">age</dd><dt>Holds</dt><dd>Host passwords, private keys and key passphrases. Host names, addresses and snippets stay in keel.json.</dd></dl></div><div class=\"k-box\" id=\"onb-existing\" hidden><p class=\"k-help\">To use a keel.vault you already have: quit Keel, run <span class=\"k-mono\">keel serve stop</span>, put that keel.vault and its keel.json in <span class=\"k-mono\" id=\"onb-data-dir\">the Keel data folder</span>, then open Keel. It opens with the keychain or passphrase that made it. Keel does not change a vault it cannot open.</p></div><div class=\"k-onb-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"onb-existing-btn\" aria-expanded=\"false\" aria-controls=\"onb-existing\">I already have a keel.vault…</button> <span class=\"k-spacer\"></span> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--lg\" id=\"onb-vault-next\"><span id=\"onb-vault-next-label\">Create vault</span> <span class=\"k-kbd\" aria-hidden=\"true\">↵</span></button></div></form><div class=\"k-onb-panel\" id=\"onb-hosts\" hidden><div class=\"k-gate-head\"><h1 class=\"k-gate-title\" id=\"onb-hosts-title\" tabindex=\"-1\">Bring your hosts</h1><p class=\"k-gate-lead\" id=\"onb-hosts-lead\">Reading ~/.ssh/config…</p></div><div class=\"k-imp\" id=\"onb-import\"></div><div class=\"k-onb-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"onb-back\">Back</button> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn\" id=\"onb-skip\">Skip, add hosts later</button> <button type=\"button\" class=\"k-btn k-btn--primary k-btn--lg\" id=\"onb-import-btn\" disabled><span id=\"onb-import-label\">Add hosts</span> <span class=\"k-kbd\" aria-hidden=\"true\">↵</span></button></div></div></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<span class=\"k-badge k-badge--brass\">Recommended</span></span> <span class=\"k-choice-desc\" id=\"onb-keychain-desc\">The vault key lives in your login keychain. Keel opens without asking.</span></button> <button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"false\" id=\"onb-mode-pass\" data-onb-mode=\"passphrase\" aria-describedby=\"onb-pass-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Use a passphrase</span> <span class=\"k-choice-desc\" id=\"onb-pass-desc\">You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.</span></button></div><div class=\"k-onb-fields\" id=\"onb-pass-fields\" hidden><div class=\"k-field\"><label class=\"k-label\" for=\"onb-pass\">Passphrase</label> <input class=\"k-input\" id=\"onb-pass\" type=\"password\" autocomplete=\"new-password\" spellcheck=\"false\"></div><div class=\"k-field\"><label class=\"k-label\" for=\"onb-pass2\">Repeat passphrase</label> <input class=\"k-input\" id=\"onb-pass2\" type=\"password\" autocomplete=\"new-password\" spellcheck=\"false\"></div><p class=\"k-error\" id=\"onb-pass-error\" role=\"alert\" hidden></p><p class=\"k-help\">Keel can't recover the vault if you lose the passphrase.</p></div><div class=\"k-box\"><dl class=\"k-kv\"><dt>Vault file</dt><dd class=\"k-mono\" id=\"onb-vault-path\">keel.vault</dd><dt>Encryption</dt><dd id=\"onb-vault-enc\">age</dd><dt>Holds</dt><dd>Host passwords, private keys and key passphrases. Host names, addresses and snippets stay in keel.json.</dd></dl></div><div class=\"k-box\" id=\"onb-existing\" hidden><p class=\"k-help\">To use a keel.vault you already have: quit Keel, run <span class=\"k-mono\">keel serve stop</span>, put that keel.vault and its keel.json in <span class=\"k-mono\" id=\"onb-data-dir\">the Keel data folder</span>, then open Keel. It opens with the keychain or passphrase that made it. Keel does not change a vault it cannot open.</p></div><div class=\"k-onb-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"onb-existing-btn\" aria-expanded=\"false\" aria-controls=\"onb-existing\">I already have a keel.vault…</button> <span class=\"k-spacer\"></span> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--lg\" id=\"onb-vault-next\"><span id=\"onb-vault-next-label\">Create vault</span> <span class=\"k-kbd\" aria-hidden=\"true\">↵</span></button></div></form><div class=\"k-onb-panel\" id=\"onb-hosts\" hidden><div class=\"k-gate-head\"><h1 class=\"k-gate-title\" id=\"onb-hosts-title\" tabindex=\"-1\">Bring your hosts</h1><p class=\"k-gate-lead\" id=\"onb-hosts-lead\">Reading ~/.ssh/config…</p></div><div class=\"k-imp\" id=\"onb-import\"></div><div class=\"k-onb-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"onb-back\">Back</button> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn\" id=\"onb-skip\">Skip, add hosts later</button> <button type=\"button\" class=\"k-btn k-btn--primary k-btn--lg\" id=\"onb-import-btn\" disabled><span id=\"onb-import-label\">Add hosts</span> <span class=\"k-kbd\" aria-hidden=\"true\">↵</span></button></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = agentStep().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// agentStep is Onboard3: three promises, a provider (optional), the
+// suggestions switch, and Set up later / Open Keel. js/ui/gate.js fills the
+// Gemini warning and links from GET /api/agent/providers and saves only on
+// Open Keel: the key to PUT /api/agent/keys/gemini, the switch to PUT
+// /api/agent/settings. Set up later saves nothing.
+func agentStep() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var13 == nil {
+			templ_7745c5c3_Var13 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<form class=\"k-onb-panel\" id=\"onb-agent\" novalidate hidden><div class=\"k-gate-head\"><h1 class=\"k-gate-title\" id=\"onb-agent-title\" tabindex=\"-1\">An agent that suggests, never types</h1><p class=\"k-gate-lead\">Ask it about a session, or type plain language at a prompt and press ⇥. It is optional, and you can set it up later in Settings.</p></div><ul class=\"k-promises\" aria-label=\"What the agent promises\"><li class=\"k-promise\"><span class=\"k-tile k-promise-tile k-promise-tile--haze\" aria-hidden=\"true\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = gateIcon("eye").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</span> <b>Reads only the panes you pick</b> <span>Every pane it can read carries an \"Agent reads\" mark. Hosts can opt out.</span></li><li class=\"k-promise\"><span class=\"k-tile k-promise-tile k-promise-tile--brass\" aria-hidden=\"true\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.Shield01().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</span> <b>Suggests commands; you press Type</b> <span>The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥.</span></li><li class=\"k-promise\"><span class=\"k-tile k-promise-tile k-promise-tile--tide\" aria-hidden=\"true\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = gateIcon("lock").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span> <b>Secrets are redacted, the vault stays closed</b> <span>No passwords, keys or snippets leave it. Secret-looking values in a pane are redacted before sending.</span></li></ul><div class=\"k-box\"><div class=\"k-field\"><span class=\"k-label\" id=\"onb-agent-provider-label\">Provider</span><div class=\"k-choices\" role=\"radiogroup\" aria-labelledby=\"onb-agent-provider-label\"><button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"false\" id=\"onb-agent-gemini\" aria-describedby=\"onb-agent-gemini-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Google Gemini</span> <span class=\"k-choice-desc\" id=\"onb-agent-gemini-desc\">Answers questions and writes suggestions. Needs an API key.</span></button> <button type=\"button\" class=\"k-choice-card\" role=\"radio\" aria-checked=\"true\" id=\"onb-agent-none\" aria-describedby=\"onb-agent-none-desc\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span class=\"k-choice-title\">Not now</span> <span class=\"k-choice-desc\" id=\"onb-agent-none-desc\">Connect a provider later in Settings, Agent.</span></button></div></div><div class=\"k-agent-onb-key\" id=\"onb-agent-key\" hidden><div class=\"k-agent-warning\" role=\"note\" id=\"onb-agent-warning\" hidden>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = gateIcon("alert").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<p id=\"onb-agent-warning-text\"></p></div><div class=\"k-field\"><label class=\"k-label\" for=\"onb-agent-key-input\" id=\"onb-agent-key-label\">Gemini API key</label> <input class=\"k-input k-agent-key\" id=\"onb-agent-key-input\" type=\"password\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" aria-describedby=\"onb-agent-key-error\"></div><p class=\"k-agent-field-error\" id=\"onb-agent-key-error\" role=\"alert\"></p><p class=\"k-help k-agent-links\" id=\"onb-agent-links\"></p></div><div class=\"k-field k-field--row\"><span id=\"onb-agent-suggest-label\">Suggest commands when I type plain language</span> <button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"onb-agent-suggest\" aria-checked=\"true\" aria-labelledby=\"onb-agent-suggest-label\"></button></div><p class=\"k-help\">Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.</p></div><div class=\"k-onb-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"onb-agent-back\">Back</button> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn\" id=\"onb-agent-later\">Set up later</button> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--lg\" id=\"onb-agent-open\">Open Keel <span class=\"k-kbd\" aria-hidden=\"true\">↵</span></button></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

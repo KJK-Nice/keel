@@ -203,6 +203,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 		{"GET", "/api/agent/settings"}, {"PUT", "/api/agent/settings"}, {"GET", "/api/agent/providers"},
 		{"PUT", "/api/agent/keys/gemini"}, {"DELETE", "/api/agent/keys/gemini"},
 		{"POST", "/api/agent/ask"}, {"PUT", "/api/agent/conversations/conv-0001/proposals/p_1"}, {"DELETE", "/api/agent/conversations/conv-0001"},
+		{"DELETE", "/api/agent/conversations"},
 	} {
 		req, _ := http.NewRequest(c.method, f.srv.URL+c.path, strings.NewReader(`{"key":"abc"}`))
 		resp, err := http.DefaultClient.Do(req)

@@ -431,3 +431,51 @@ func TestAgentRoutesHaveNoWritePath(t *testing.T) {
 		t.Error("agentask.go uses the inject package")
 	}
 }
+
+// Settings, Delete all history: DELETE /api/agent/conversations drops every
+// conversation, so the next ask starts from one message, and writes one log
+// entry that holds a count and no content.
+func TestAgentDeleteAllHistory(t *testing.T) {
+	f := newAskFixture(t, true)
+	web := f.open(t, f.webID, "history-marker-text\n")
+	for _, conv := range []string{askConv, "conv-0002-other"} {
+		for i := 0; i < 2; i++ {
+			if code, resp := f.ask(t, map[string]any{"conversationId": conv, "question": "history question " + conv, "panes": []string{web.ID}}); code != http.StatusOK {
+				t.Fatalf("ask → %d %v", code, resp)
+			}
+		}
+	}
+	reqs := f.fake.Requests()
+	if n := len(reqs[len(reqs)-1].Messages); n < 3 {
+		t.Fatalf("setup: conversation holds %d messages, want at least 3", n)
+	}
+	req, _ := http.NewRequest("DELETE", f.srv.URL+"/api/agent/conversations", nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE /api/agent/conversations → %d", res.StatusCode)
+	}
+	if code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "fresh", "panes": []string{web.ID}}); code != http.StatusOK {
+		t.Fatalf("ask after delete → %d %v", code, resp)
+	}
+	reqs = f.fake.Requests()
+	if n := len(reqs[len(reqs)-1].Messages); n != 1 {
+		t.Fatalf("after delete the request carried %d messages, want 1", n)
+	}
+	var note []applog.Entry
+	for _, e := range f.logs.Recent(2000) {
+		if e.Kind == "agent" && strings.HasPrefix(e.Message, "agent history deleted") {
+			note = append(note, e)
+		}
+	}
+	if len(note) != 1 || note[0].Message != "agent history deleted (2 conversations)" {
+		t.Fatalf("log entries = %+v", note)
+	}
+	raw, _ := os.ReadFile(f.logPath)
+	if strings.Contains(string(raw), "history question") || strings.Contains(string(raw), "history-marker-text") {
+		t.Error("keel.log holds conversation content")
+	}
+}

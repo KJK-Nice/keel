@@ -582,3 +582,25 @@ func TestParseResponseLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestResetAllDropsEveryConversation(t *testing.T) {
+	f := newFixture(t, "answer")
+	for _, id := range []string{conv, "conv-other-02"} {
+		if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: id, Question: "q"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := f.svc.ResetAll(); n != 2 {
+		t.Fatalf("ResetAll dropped %d, want 2", n)
+	}
+	if n := f.svc.ResetAll(); n != 0 {
+		t.Fatalf("second ResetAll dropped %d, want 0", n)
+	}
+	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	reqs := f.fake.Requests()
+	if n := len(reqs[len(reqs)-1].Messages); n != 1 {
+		t.Fatalf("after ResetAll the request carried %d messages, want 1", n)
+	}
+}

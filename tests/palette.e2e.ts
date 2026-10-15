@@ -37,15 +37,16 @@ test('the palette lists Open now, Hosts, Actions, then Snippets', { tags: ['pale
   await expect(options.first()).toContainText('tab 1');
   await expect(options.first()).toContainText('driving');
   await expect(options.first()).toContainText(/⌘\s*1/);
-  await expect(options.last()).toContainText('Approve first');
+  await expect(options.filter({ hasText: 'Approve first' }).last()).toBeVisible();
   for (const group of ['Open now', 'Hosts', 'Actions']) {
     await expect(palette(screen).getByText(group, { exact: true })).toBeVisible();
   }
   // Hosts name the action: a new session, not a duplicate of the open one.
   await expect(palette(screen).getByRole('option').filter({ hasText: 'New session on Local Shell' })).toBeVisible();
   await expect(palette(screen).getByRole('option').filter({ hasText: 'New tab' }).first()).toBeVisible();
-  // The agent is a later phase: no row for it.
-  await expect(palette(screen).getByText(/ask the agent/i)).toHaveCount(0);
+  // The last row asks the agent (phase 6d); ⌘↵ stands for it.
+  await expect(options.last()).toContainText('Ask the agent');
+  await expect(options.last()).toContainText(/⌘\s*↵/);
   await expect(palette(screen)).toContainText('open in split');
   await app.screenshot('palette-groups');
 
@@ -84,7 +85,8 @@ test('Alt+Enter opens a host in a split of the focused pane', { tags: ['palette'
 
   await screen.getByRole('textbox', 'Terminal input').press('Meta+k');
   await combo(screen).fill('new session on local');
-  await expect(palette(screen).getByRole('option')).toHaveCount(1);
+  // The match, and the always-present Ask the agent row.
+  await expect(palette(screen).getByRole('option')).toHaveCount(2);
   await combo(screen).press('Alt+Enter');
 
   await expect(palette(screen)).toBeHidden();

@@ -380,6 +380,15 @@ templ logRow(p PageProps, e applog.Entry) {
 		<td><span class="k-mono k-muted" title={ logDateLabel(e.Time) }>{ logTimeLabel(e.Time) }</span></td>
 		<td><span class={ "k-badge", logBadgeClass(e.Kind) }>{ e.Kind }</span></td>
 		<td><span class="k-mono k-muted">{ logTarget(p, e) }</span></td>
-		<td class="k-cell-wide"><span class="k-cell-msg">{ e.Message }</span></td>
+		<td class="k-cell-wide">
+			<span class="k-cell-msg">{ e.Message }</span>
+			if facts := logFacts(e); len(facts) > 0 {
+				<span class="k-log-facts" title={ logFactsTitle(e) }>
+					for _, f := range facts {
+						<span class="k-badge k-badge--outline">{ f }</span>
+					}
+				</span>
+			}
+		</td>
 	</tr>
 }
