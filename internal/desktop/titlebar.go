@@ -186,7 +186,7 @@ func (c *chromeWatcher) halt() {
 func watchChrome(win *application.WebviewWindow) *chromeWatcher {
 	c := newChromeWatcher(
 		func() (chromeProbe, bool) { return probeChrome(win) },
-		func(s chromeState) { evalChromeJS(win, chromeJS(s)) },
+		func(s chromeState) { evalJS(win, chromeJS(s)) },
 	)
 	win.OnWindowEvent(events.Mac.WindowDidEnterFullScreen, func(*application.WindowEvent) {
 		c.sync(false)

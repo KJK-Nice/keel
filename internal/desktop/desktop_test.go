@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	stdruntime "runtime"
 	"strings"
 	"testing"
 
@@ -54,6 +55,52 @@ func TestShortcutJS(t *testing.T) {
 	js := shortcutJS("close-tab")
 	if !strings.Contains(js, `window.__keelShortcut("close-tab")`) {
 		t.Fatalf("js = %s", js)
+	}
+}
+
+// Menu items reach the page through the window's jsExec (evalJS), never
+// through Wails' ExecJS, whose queue never flushes on the loopback page.
+func TestMenuActionSendsShortcutThroughExec(t *testing.T) {
+	var got []string
+	w := &nativeWindow{exec: func(js string) { got = append(got, js) }}
+	w.menuAction("toggle-agent")(nil)
+	w.menuAction("new-tab")(nil)
+	want := []string{shortcutJS("toggle-agent"), shortcutJS("new-tab")}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("exec got %q, want %q", got, want)
+	}
+	got = nil
+	w.menuAction(actionQuit)(nil) // no app yet: nothing to quit, nothing sent
+	if len(got) != 0 {
+		t.Fatalf("Close Window sent script to the page: %q", got)
+	}
+}
+
+func TestMenuActionWithoutWindowIsANoop(t *testing.T) {
+	w := &nativeWindow{}
+	w.menuAction("new-tab")(nil)
+	windowJS(nil)(shortcutJS("new-tab"))
+}
+
+func TestEveryMenuEntryIsInTheMenu(t *testing.T) {
+	m := (&nativeWindow{}).appMenu()
+	for _, e := range menuEntries(stdruntime.GOOS) {
+		item := m.FindByLabel(e.label)
+		if item == nil {
+			t.Errorf("menu missing %q", e.label)
+			continue
+		}
+		if (item.GetAccelerator() != "") != (e.accel != "") {
+			t.Errorf("%q accelerator = %q, want %q", e.label, item.GetAccelerator(), e.accel)
+		}
+	}
+}
+
+// windowDragJS goes in as the window's JS option: Wails runs that itself
+// after every page load (macOS and Linux), outside the ExecJS queue.
+func TestWindowDragJSIsTheWindowJSOption(t *testing.T) {
+	if got := webviewOptions("http://127.0.0.1:47241/").JS; got != windowDragJS() {
+		t.Fatal("webviewOptions JS is not windowDragJS")
 	}
 }
 

@@ -39,7 +39,7 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createActionToasts } from "./ui/actiontoast.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
-import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
+import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
@@ -3369,16 +3369,26 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
   }
 
+  function isGateOpen() {
+    return !!els.gate && !els.gate.hidden;
+  }
+
   function handleShortcut(ev) {
-    if (ev.target?.closest?.(".tab-rename")) return false;
-    if (els.gate && !els.gate.hidden) return false;
-    const action = classifyShortcut(ev, {
-      mac: isMac,
-      modalOpen: !!state.openModal,
-      findOpen: () => isFindOpen(focusedPane()),
-      startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
-    });
-    if (!action) return false;
+    const declined = ev.target?.closest?.(".tab-rename") || isGateOpen();
+    const action = declined
+      ? null
+      : classifyShortcut(ev, {
+          mac: isMac,
+          modalOpen: !!state.openModal,
+          findOpen: () => isFindOpen(focusedPane()),
+          startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
+        });
+    if (!action) {
+      // In the native window a chrome chord declined here must not reach
+      // the menu's accelerator, which would run it anyway (shortcuts.js).
+      if (isNativeWindow() && isChromeChord(ev, isMac)) ev.preventDefault();
+      return false;
+    }
     ev.preventDefault();
     if (action.name === "find-next" || action.name === "find-prev") {
       runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
@@ -3392,7 +3402,15 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     return true;
   }
 
-  window.__keelShortcut = (name) => runShortcut(name);
+  // The native menu (internal/desktop) runs its items through here.
+  window.__keelShortcut = (name) => {
+    const ok = menuShortcutAllowed(name, {
+      gateOpen: isGateOpen(),
+      renaming: !!document.activeElement?.closest?.(".tab-rename"),
+      modalOpen: !!state.openModal,
+    });
+    if (ok) runShortcut(name);
+  };
 
   function termKeyHandler(ev) {
     // A noticed line or a suggestion card in the focused pane takes ⇥, ⇧⇥,

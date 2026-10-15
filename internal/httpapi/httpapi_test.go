@@ -3199,7 +3199,7 @@ func TestCmdAngleCycleTabs(t *testing.T) {
 	}
 	term := string(js)
 	if !strings.Contains(term, `import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";`) ||
-		!strings.Contains(term, `import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";`) {
+		!strings.Contains(term, `import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";`) {
 		t.Fatal("term.js must take tab cycling from lib/keys.js and the shortcut table from lib/shortcuts.js")
 	}
 	keys, err := filepath.Abs(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "keys.js"))
