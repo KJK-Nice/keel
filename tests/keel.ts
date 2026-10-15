@@ -160,3 +160,11 @@ export async function startScratchKeel(name: string): Promise<ScratchKeel> {
     stop,
   };
 }
+
+// sshTest is the two loopback SSH servers scripts/e2e-serve.sh starts for
+// the Edit host tests (bin/keel-sshtest): a jump host and a target behind
+// it, with throwaway passwords. Nothing else listens for SSH in e2e.
+export type SSHTestServer = { host: string; port: number; user: string; password: string; fingerprint: string };
+export function sshTest(): { jump: SSHTestServer; target: SSHTestServer } {
+  return JSON.parse(readFileSync(join(keelData, 'sshtest.json'), 'utf8'));
+}

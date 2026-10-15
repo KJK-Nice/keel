@@ -44,6 +44,12 @@ work; see [features/share.md](features/share.md)), and with:
   fresh keys), never the real `~/.ssh`. `~` in it is `.e2e/ssh-home`.
 - `SHELL=/bin/sh`: Local Shell gets a plain `sh-3.2$` prompt, not the
   user's shell config.
+- `bin/keel-sshtest` (built by `make build`): two throwaway SSH servers on
+  127.0.0.1, a jump host and a target behind it, with an echo shell. Their
+  ports, users, passwords and fingerprints are in `$KEEL_DATA/sshtest.json`;
+  tests read them with `sshTest()` from `tests/keel.ts`
+  (`tests/host-dialog.e2e.ts`). They are the only SSH servers in e2e; any
+  other host fails to connect.
 
 The runner waits for `/api/health`, then stops the process after the run.
 Server output goes to `.e2e/logs/keel-serve.log`. Nothing else to start: a

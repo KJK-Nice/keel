@@ -22,24 +22,36 @@ func (s *Store) HostForConnect(id string) (Host, error) {
 		if h.ID != id {
 			continue
 		}
-		host := s.fullLocked(h)
-		if host.IdentityID == "" {
-			return host, nil
-		}
-		ident, err := s.identityFullLocked(host.IdentityID)
+		host, err := s.withIdentityLocked(s.fullLocked(h))
 		if err != nil {
 			return Host{}, err
 		}
-		host.AuthType = ident.Kind
-		host.Password = ident.Password
-		host.PrivateKey = ident.PrivateKey
-		host.Passphrase = ident.Passphrase
-		if strings.TrimSpace(host.Username) == "" {
-			host.Username = ident.Username
+		if err := s.attachJumpLocked(&host); err != nil {
+			return Host{}, err
 		}
 		return host, nil
 	}
 	return Host{}, ErrNotFound
+}
+
+// withIdentityLocked swaps a Keychain identity's kind and secrets into
+// host, as a connect needs them.
+func (s *Store) withIdentityLocked(host Host) (Host, error) {
+	if host.IdentityID == "" {
+		return host, nil
+	}
+	ident, err := s.identityFullLocked(host.IdentityID)
+	if err != nil {
+		return Host{}, err
+	}
+	host.AuthType = ident.Kind
+	host.Password = ident.Password
+	host.PrivateKey = ident.PrivateKey
+	host.Passphrase = ident.Passphrase
+	if strings.TrimSpace(host.Username) == "" {
+		host.Username = ident.Username
+	}
+	return host, nil
 }
 
 func (s *Store) ListIdentities() ([]Identity, error) {

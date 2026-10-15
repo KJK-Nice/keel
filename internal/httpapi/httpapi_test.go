@@ -1761,7 +1761,13 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	if ident.Password != "__saved__" {
 		t.Fatalf("password %q", ident.Password)
 	}
-	body2 := `{"hostname":"box:22","fingerprint":"SHA256:abc"}`
+	// A key can be trusted only from a connect's refusal (its offer).
+	const boxFP = "SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe"
+	var unk *store.UnknownHostError
+	if err := st.CheckHostKeyType("box:22", "ssh-ed25519", boxFP); !errors.As(err, &unk) {
+		t.Fatal(err)
+	}
+	body2 := `{"token":"` + unk.Token + `","hostname":"box:22","fingerprint":"` + boxFP + `"}`
 	resKH, err := http.Post(srv2.URL+"/api/known-hosts", "application/json", strings.NewReader(body2))
 	if err != nil {
 		t.Fatal(err)
@@ -1771,7 +1777,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 		b, _ := io.ReadAll(resKH.Body)
 		t.Fatalf("known-hosts %d %s", resKH.StatusCode, b)
 	}
-	if err := st.CheckHostKey("box:22", "SHA256:abc"); err != nil {
+	if err := st.CheckHostKey("box:22", boxFP); err != nil {
 		t.Fatal(err)
 	}
 	host := firstHost(t, st)

@@ -1,11 +1,12 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ type sshBridge struct {
 	waitErr error
 }
 
-func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
+func openSSH(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
 	client, err := SSHClient(host, checkKey)
 	if err != nil {
 		return nil, err
@@ -86,42 +87,125 @@ func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprin
 	return br, nil
 }
 
-func SSHClient(host store.Host, checkKey func(hostname, fingerprint string) error) (*ssh.Client, error) {
+// CheckKey is the host key check: the store's CheckHostKeyType, called
+// with the dialed "address:port", the key's type and its SHA256
+// fingerprint.
+type CheckKey func(hostname, keyType, fingerprint string) error
+
+// connectTimeout bounds a whole connect (both hops, TCP and handshake).
+const connectTimeout = 30 * time.Second
+
+// dialTimeout bounds one TCP dial.
+const dialTimeout = 12 * time.Second
+
+// SSHClient connects and authenticates to host, through host.Jump when it
+// is set (see DialContext).
+func SSHClient(host store.Host, checkKey CheckKey) (*ssh.Client, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	defer cancel()
+	return DialContext(ctx, host, checkKey)
+}
+
+// HopError says which hop of a jump host connect failed: Hop is "jump" or
+// "target" and Name is that host's label. Errors from a direct connect are
+// not wrapped.
+type HopError struct {
+	Hop  string
+	Name string
+	Err  error
+}
+
+func (e *HopError) Error() string {
+	if e.Hop == "jump" {
+		return fmt.Sprintf("jump host %s: %v", e.Name, e.Err)
+	}
+	return fmt.Sprintf("%s (through jump host): %v", e.Name, e.Err)
+}
+
+func (e *HopError) Unwrap() error { return e.Err }
+
+// DialContext connects and authenticates to host. With host.Jump set it
+// first connects to the jump host, opens a direct-tcpip channel from there
+// to host's address and runs the SSH handshake over that channel: the
+// same as ssh -J, one hop. Both hops go through checkKey, each under its
+// own "address:port". Closing the returned client also closes the jump
+// connection. ctx cancels the connect; once it returns, ctx no longer
+// matters.
+func DialContext(ctx context.Context, host store.Host, checkKey CheckKey) (*ssh.Client, error) {
+	if host.Jump == nil {
+		return dialHost(ctx, nil, host, checkKey)
+	}
+	jump := *host.Jump
+	if jump.Jump != nil || strings.TrimSpace(jump.JumpHost) != "" {
+		return nil, errors.New("only one jump host hop is supported")
+	}
+	if host.ID != "" && jump.ID == host.ID {
+		return nil, errors.New("a host cannot be its own jump host")
+	}
+	jc, err := dialHost(ctx, nil, jump, checkKey)
+	if err != nil {
+		return nil, &HopError{Hop: "jump", Name: hopName(jump), Err: err}
+	}
+	tc, err := dialHost(ctx, jc, host, checkKey)
+	if err != nil {
+		_ = jc.Close()
+		return nil, &HopError{Hop: "target", Name: hopName(host), Err: err}
+	}
+	go func() {
+		_ = tc.Wait()
+		_ = jc.Close()
+	}()
+	return tc, nil
+}
+
+func hopName(h store.Host) string {
+	if n := strings.TrimSpace(h.Name); n != "" {
+		return n
+	}
+	return store.HostKeyName(h)
+}
+
+// dialHost connects to host directly, or through via (an open SSH client)
+// when via is set.
+func dialHost(ctx context.Context, via *ssh.Client, host store.Host, checkKey CheckKey) (*ssh.Client, error) {
 	auth, err := sshAuth(host)
 	if err != nil {
 		return nil, err
 	}
-	port := host.Port
-	if port == 0 {
-		port = 22
-	}
-	addr := net.JoinHostPort(host.Address, strconv.Itoa(port))
+	addr := store.HostKeyName(host)
 	cfg := &ssh.ClientConfig{
 		User:            host.Username,
 		Auth:            auth,
-		Timeout:         12 * time.Second,
+		Timeout:         dialTimeout,
 		HostKeyCallback: hostKeyCallback(checkKey),
 	}
-	client, err := dialSSH(addr, cfg, host.KeepAlive())
+	var raw net.Conn
+	if via == nil {
+		d := net.Dialer{Timeout: dialTimeout}
+		if keep := host.KeepAlive(); keep > 0 {
+			d.KeepAliveConfig = net.KeepAliveConfig{Enable: true, Idle: keep, Interval: keep, Count: 4}
+		}
+		raw, err = d.DialContext(ctx, "tcp", addr)
+	} else {
+		raw, err = via.DialContext(ctx, "tcp", addr)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
-	return client, nil
-}
-
-func dialSSH(addr string, cfg *ssh.ClientConfig, keep time.Duration) (*ssh.Client, error) {
-	d := net.Dialer{Timeout: cfg.Timeout}
-	if keep > 0 {
-		d.KeepAliveConfig = net.KeepAliveConfig{Enable: true, Idle: keep, Interval: keep, Count: 4}
-	}
-	raw, err := d.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
+	// The handshake has no timeout of its own: close the connection when
+	// ctx ends, so a server that never answers cannot hang the connect.
+	stop := context.AfterFunc(ctx, func() { _ = raw.Close() })
 	c, chans, reqs, err := ssh.NewClientConn(raw, addr, cfg)
+	if !stop() {
+		if c != nil {
+			_ = c.Close()
+		}
+		_ = raw.Close()
+		return nil, fmt.Errorf("ssh dial %s: %w", addr, ctx.Err())
+	}
 	if err != nil {
 		_ = raw.Close()
-		return nil, err
+		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
 	return ssh.NewClient(c, chans, reqs), nil
 }
@@ -184,9 +268,10 @@ func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {
 	}
 }
 
-func hostKeyCallback(check func(hostname, fingerprint string) error) ssh.HostKeyCallback {
+// hostKeyCallback checks the key's type and fingerprint.
+func hostKeyCallback(check CheckKey) ssh.HostKeyCallback {
 	return func(hostname string, _ net.Addr, key ssh.PublicKey) error {
-		return check(hostname, ssh.FingerprintSHA256(key))
+		return check(hostname, key.Type(), ssh.FingerprintSHA256(key))
 	}
 }
 

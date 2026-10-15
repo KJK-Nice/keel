@@ -848,6 +848,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       err.hostname = data.hostname;
       err.fingerprint = data.fingerprint;
       err.expected = data.expected;
+      err.keyType = data.keyType;
+      err.trustToken = data.trustToken;
       throw err;
     }
     return data;
@@ -5174,6 +5176,11 @@ Write a runbook here.
     form.passphrase.value = "";
     setSelectValue("host-auth-type", host?.authType || "password");
     fillIdentitySelect(host?.identityId || "");
+    fillJumpSelect(host);
+    if (form.startupCommand) form.startupCommand.value = host?.startupCommand || "";
+    resetHostTest();
+    renderHostKey(null);
+    if (host?.id && host.authType !== "local") loadHostKey(host.id);
     const color = host?.color || "#5ee0b5";
     const radio = form.querySelector(`input[name="color"][value="${color}"]`);
     if (radio) {
@@ -5196,6 +5203,269 @@ Write a runbook here.
     const saveKbd = document.getElementById("host-save-kbd");
     if (saveKbd) saveKbd.textContent = isMac ? "⌘↵" : "Ctrl+↵";
     toggleAuthFields();
+  }
+
+  // Jump host (§5.8): None, or a saved SSH host that has no jump host of
+  // its own (one hop). A jump host that no longer exists stays listed, so
+  // saving cannot quietly turn a jump connect into a direct one.
+  function fillJumpSelect(host) {
+    const current = host?.jumpHost || "";
+    const entries = [{ value: "", label: "None" }];
+    for (const h of state.hosts || []) {
+      if (!h?.id || h.id === host?.id || h.authType === "local" || h.jumpHost) continue;
+      entries.push({ value: h.id, label: h.name || h.address });
+    }
+    if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label: "Missing host — pick another" });
+    fillSelectItems("host-jump", entries, current, "None");
+  }
+
+  // keyTypeLabel is the short name ssh-keygen -l prints in brackets.
+  function keyTypeLabel(type) {
+    const t = String(type || "");
+    if (t === "ssh-ed25519" || t.startsWith("sk-ssh-ed25519")) return "ED25519";
+    if (t.startsWith("ecdsa-") || t.startsWith("sk-ecdsa-")) return "ECDSA";
+    if (t === "ssh-rsa" || t.startsWith("rsa-")) return "RSA";
+    if (t === "ssh-dss") return "DSA";
+    return t.toUpperCase();
+  }
+
+  // Host key line: the saved key for the host's saved address:port.
+  function renderHostKey(key) {
+    const badge = document.getElementById("host-key-badge");
+    const type = document.getElementById("host-key-type");
+    const fp = document.getElementById("host-key-fp");
+    const forget = document.getElementById("host-key-forget");
+    const help = document.getElementById("host-key-help");
+    if (!badge) return;
+    const known = !!key?.known;
+    badge.textContent = known ? "Trusted" : "Not saved";
+    badge.className = known ? "k-badge k-badge--tide" : "k-badge k-badge--outline";
+    if (type) {
+      type.textContent = known && key.keyType ? keyTypeLabel(key.keyType) : "";
+      type.hidden = !(known && key.keyType);
+    }
+    if (fp) {
+      fp.textContent = known ? key.fingerprint : "";
+      fp.hidden = !known;
+    }
+    if (forget) {
+      forget.hidden = !known;
+      forget.dataset.hostname = known ? key.hostname : "";
+    }
+    if (help) {
+      help.textContent = known
+        ? `Saved for ${key.hostname}. Keel refuses a different key until you replace it.`
+        : "Trusted on first connect; Keel asks again if it changes.";
+    }
+  }
+
+  async function loadHostKey(hostId) {
+    try {
+      const key = await api(`/api/hosts/${encodeURIComponent(hostId)}/host-key`);
+      if (els.hostForm?.id?.value === hostId) renderHostKey(key);
+    } catch {
+      renderHostKey(null);
+    }
+  }
+
+  async function forgetHostKey() {
+    const form = els.hostForm;
+    const id = form?.id?.value;
+    const host = state.hosts.find((h) => h.id === id);
+    const hostname = document.getElementById("host-key-forget")?.dataset.hostname || "";
+    if (!host || !hostname) return;
+    closeModal(els.hostModal);
+    const ok = await askConfirm(
+      `Keel forgets the saved key for ${host.name} (${hostname}). The next connect shows the server's key and asks you to trust it again.`,
+      { title: "Forget host key?", action: "Forget key" }
+    );
+    openModal(els.hostModal);
+    if (!ok) return;
+    try {
+      await api(`/api/hosts/${encodeURIComponent(id)}/host-key`, { method: "DELETE" });
+      renderHostKey(null);
+      toast("Host key forgotten");
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // Test connection (§5.8): a real connect with the dialog's unsaved
+  // values, then close. Typed secrets go only to POST /api/hosts/test.
+  let hostTest = null;
+  // hostTestOffer is the key the last test was refused for, exactly as the
+  // server saw it (its address:port, fingerprint and offer token). Trust
+  // and save sends only this, never the form's address; any edit to the
+  // form drops it (resetHostTest).
+  let hostTestOffer = null;
+  // hostTestBody is the dialog's values the last test sent.
+  let hostTestBody = "";
+
+  // hostFormEdited drops the test result once the dialog's values differ
+  // from what the test used (events that change nothing, like a change
+  // on blur, keep it).
+  function hostFormEdited() {
+    if (!hostTest && !hostTestOffer && document.getElementById("host-test-state")?.hidden) return;
+    if (els.hostForm?.authType && JSON.stringify(hostDraft()) === hostTestBody) return;
+    resetHostTest();
+  }
+
+  function resetHostTest() {
+    hostTest?.abort();
+    hostTest = null;
+    hostTestBody = "";
+    const btn = document.getElementById("host-test");
+    if (btn) btn.textContent = "Test connection";
+    setHostTestState("", "");
+    showHostTestDetail(null);
+  }
+
+  function setHostTestState(kind, text) {
+    const wrap = document.getElementById("host-test-state");
+    const dot = document.getElementById("host-test-dot");
+    const label = document.getElementById("host-test-text");
+    if (!wrap) return;
+    wrap.hidden = !text;
+    wrap.className = kind ? `k-state k-state--${kind}` : "k-state";
+    if (dot) dot.className = kind ? `k-dot k-dot--${kind}` : "k-dot";
+    if (label) label.textContent = text;
+  }
+
+  function showHostTestDetail(res, message) {
+    const box = document.getElementById("host-test-detail");
+    const msg = document.getElementById("host-test-message");
+    const fp = document.getElementById("host-test-fp");
+    const actions = document.getElementById("host-test-actions");
+    const trust = document.getElementById("host-test-trust");
+    if (!box) return;
+    box.hidden = !message;
+    if (msg) msg.textContent = message || "";
+    const keyish = res && (res.kind === "unknown-host" || res.kind === "host-key-mismatch") && res.fingerprint;
+    if (fp) {
+      const type = res?.keyType ? `${keyTypeLabel(res.keyType)} ` : "";
+      fp.textContent = keyish ? `${type}${res.fingerprint}${res.expected ? ` (saved: ${res.expected})` : ""}` : "";
+      fp.hidden = !keyish;
+    }
+    hostTestOffer =
+      keyish && res.trustToken
+        ? { token: res.trustToken, hostname: res.hostname, fingerprint: res.fingerprint, replace: res.kind === "host-key-mismatch" }
+        : null;
+    if (actions) actions.hidden = !hostTestOffer;
+    if (trust) trust.textContent = res?.kind === "host-key-mismatch" ? "Replace saved key" : "Trust and save";
+  }
+
+  function hostDraft() {
+    const form = els.hostForm;
+    const auth = form.authType.value;
+    return {
+      id: form.id.value || "",
+      name: form.name.value.trim(),
+      address: form.address.value.trim(),
+      port: Number(form.port.value || 22),
+      username: form.username.value.trim(),
+      authType: auth,
+      identityId: auth === "identity" ? form.identityId.value : "",
+      password: secretPayload(form.password.value),
+      privateKey: secretPayload(form.privateKey.value),
+      passphrase: secretPayload(form.passphrase.value),
+      jumpHost: auth === "local" ? "" : fieldValue(form, "jumpHost", "host-jump"),
+      keepAliveSec: auth === "local" ? 0 : form.keepAlive?.checked ? Number(form.keepAliveSec.value || 30) : -1,
+    };
+  }
+
+  function hostTestText(res) {
+    const where = res.hop === "jump" ? `Jump host ${res.hopName}: ` : res.hop === "target" ? `Through the jump host: ` : "";
+    switch (res.kind) {
+      case "ok":
+        return { state: "live", short: `Connected in ${res.latencyMs} ms`, detail: "" };
+      case "auth":
+        return { state: "dead", short: "Authentication failed", detail: `${where}the server refused the password or key. ${res.message}` };
+      case "unknown-host":
+        return {
+          state: "connecting",
+          short: "Host key unknown",
+          detail: `${where}${res.hostname} presented a key Keel has not seen. Compare it with the server's own fingerprint before you trust it.`,
+        };
+      case "host-key-mismatch":
+        return {
+          state: "dead",
+          short: "Host key changed",
+          detail: `${where}${res.hostname} presented a different key than the one saved. Only replace it if you know the server was reinstalled.`,
+        };
+      case "timeout":
+        return { state: "dead", short: "Timed out", detail: `${where}no answer within 10 seconds. ${res.message}` };
+      case "dns":
+        return { state: "dead", short: "Host not found", detail: `${where}the name does not resolve. ${res.message}` };
+      case "refused":
+        return { state: "dead", short: "Connection refused", detail: `${where}nothing accepts SSH on that port. ${res.message}` };
+      case "cancelled":
+        return { state: "", short: "Test cancelled", detail: "" };
+      default:
+        return { state: "dead", short: "Could not connect", detail: `${where}${res.message}` };
+    }
+  }
+
+  async function runHostTest() {
+    const btn = document.getElementById("host-test");
+    if (hostTest) {
+      hostTest.abort();
+      return;
+    }
+    const ctrl = new AbortController();
+    hostTest = ctrl;
+    if (btn) btn.textContent = "Cancel test";
+    setHostTestState("connecting", "Testing…");
+    showHostTestDetail(null);
+    const body = JSON.stringify(hostDraft());
+    hostTestBody = body;
+    try {
+      const res = await api("/api/hosts/test", { method: "POST", body, signal: ctrl.signal });
+      // The dialog was refilled or closed meanwhile: drop the result.
+      if (hostTest !== ctrl) return;
+      const out = hostTestText(res);
+      setHostTestState(out.state, out.short);
+      showHostTestDetail(res, out.detail);
+    } catch (err) {
+      if (hostTest !== ctrl) return;
+      if (ctrl.signal.aborted) {
+        setHostTestState("", "Test cancelled");
+      } else {
+        setHostTestState("dead", "Could not test");
+        showHostTestDetail(null, err.message);
+      }
+    } finally {
+      if (hostTest === ctrl) {
+        hostTest = null;
+        if (btn) btn.textContent = "Test connection";
+      }
+    }
+  }
+
+  async function trustFromHostTest() {
+    const offer = hostTestOffer;
+    if (!offer) return;
+    const { token, hostname, fingerprint, replace } = offer;
+    if (replace) {
+      closeModal(els.hostModal);
+      const ok = await askConfirm(`Replace the saved key for ${hostname} with ${fingerprint}? Only do this if you know the server was reinstalled.`, {
+        title: "Replace host key?",
+        action: "Replace key",
+      });
+      openModal(els.hostModal);
+      if (!ok) return;
+    }
+    try {
+      await api("/api/known-hosts", {
+        method: "POST",
+        body: JSON.stringify({ token, hostname, fingerprint, replace }),
+      });
+      toast("Host key saved");
+      const id = els.hostForm?.id?.value;
+      if (id) loadHostKey(id);
+      await runHostTest();
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
   function toggleAuthFields() {
@@ -5262,12 +5532,15 @@ Write a runbook here.
       noAutoReconnect: form.authType.value !== "local" && !form.autoReconnect?.checked,
       agentReadable: switchOn("host-agent-readable"),
       production: switchOn("host-production"),
+      jumpHost: form.authType.value === "local" ? "" : fieldValue(form, "jumpHost", "host-jump"),
+      startupCommand: form.authType.value === "local" ? "" : (form.startupCommand?.value || "").trim(),
     };
     if (form.id.value) {
       await api(`/api/hosts/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
     } else {
       await api("/api/hosts", { method: "POST", body: JSON.stringify(payload) });
     }
+    resetHostTest();
     closeModal(els.hostModal);
     await loadAll();
     toast("Host saved");
@@ -5625,6 +5898,7 @@ Write a runbook here.
     }
     els.hostKeyForm.dataset.hostname = hostname;
     els.hostKeyForm.dataset.fingerprint = fingerprint;
+    els.hostKeyForm.dataset.token = src.trustToken || "";
     openModal(els.hostKeyModal);
     return true;
   }
@@ -5637,7 +5911,7 @@ Write a runbook here.
     try {
       await api("/api/known-hosts", {
         method: "POST",
-        body: JSON.stringify({ hostname, fingerprint, replace: !!retry.replace }),
+        body: JSON.stringify({ token: els.hostKeyForm.dataset.token || "", hostname, fingerprint, replace: !!retry.replace }),
       });
       closeModal(els.hostKeyModal);
       if (retry.sessionId) {
@@ -7157,7 +7431,18 @@ Write a runbook here.
     });
     on(document.getElementById("btn-join"), "click", openJoin);
     on(document.getElementById("join-cancel"), "click", () => closeModal(els.joinModal));
-    on(document.getElementById("host-cancel"), "click", () => closeModal(els.hostModal));
+    on(document.getElementById("host-cancel"), "click", () => {
+      resetHostTest();
+      closeModal(els.hostModal);
+    });
+    on(els.hostModal, "close", () => hostTest?.abort());
+    on(document.getElementById("host-test"), "click", runHostTest);
+    // Any edit makes a test result (and its key offer) stale: drop it, so
+    // Trust and save can never apply to values the test did not use.
+    for (const type of ["input", "change", "select-change"]) on(els.hostForm, type, hostFormEdited);
+    for (const id of ["host-jump", "host-auth-type", "host-identity"]) on(document.getElementById(id), "select-change", hostFormEdited);
+    on(document.getElementById("host-test-trust"), "click", trustFromHostTest);
+    on(document.getElementById("host-key-forget"), "click", forgetHostKey);
     on(document.getElementById("group-cancel"), "click", () => closeModal(els.groupModal));
     on(document.getElementById("quick-cancel"), "click", () => closeModal(els.quickModal));
     on(document.getElementById("snippet-cancel"), "click", () => closeModal(els.snippetModal));

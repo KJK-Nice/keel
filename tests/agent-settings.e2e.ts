@@ -215,10 +215,10 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
       await fill(names.plain);
       await expect(readable).toHaveAttribute('aria-checked', 'true');
       await expect(prod).toHaveAttribute('aria-checked', 'false');
-      // The board's fields without a backend yet are disabled, with a note.
-      await expect(dialog.getByLabel('Jump host')).toBeDisabled();
-      await expect(dialog.getByLabel('Startup command')).toBeDisabled();
-      await expect(dialog.getByRole('button', 'Test connection')).toBeDisabled();
+      // Jump host, Startup command and Test connection are live (the host
+      // dialog test covers them).
+      await expect(dialog.getByLabel('Startup command')).toBeEnabled();
+      await expect(dialog.getByRole('button', 'Test connection')).toBeEnabled();
       await expect(dialog.getByRole('button', 'Delete host')).toBeHidden();
       await app.screenshot('host-agent-defaults');
       // ⌘↵ saves.

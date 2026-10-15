@@ -215,28 +215,42 @@ func (s *Server) listLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
+	// Only a key a connect was just refused for can be trusted: the
+	// request names that refusal's offer (token) and must repeat its exact
+	// address:port and fingerprint. The key type comes from the offer.
 	var req struct {
+		Token       string `json:"token"`
 		Hostname    string `json:"hostname"`
 		Fingerprint string `json:"fingerprint"`
 		Replace     bool   `json:"replace"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
-	if err := s.store.TrustHostKey(req.Hostname, req.Fingerprint, req.Replace); err != nil {
-		if writeHostKeyErr(w, err) {
-			return
-		}
+	if !store.ValidHostKeyName(req.Hostname) {
+		writeError(w, http.StatusBadRequest, "hostname must be address:port")
+		return
+	}
+	if !store.ValidFingerprint(req.Fingerprint) {
+		writeError(w, http.StatusBadRequest, "fingerprint must be an OpenSSH SHA256 fingerprint")
+		return
+	}
+	key, err := s.store.TrustOffered(req.Token, req.Hostname, req.Fingerprint, req.Replace)
+	if err != nil {
 		if errors.Is(err, store.ErrLocked) {
 			writeStoreErr(w, err)
 			return
 		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
-	s.note("host", "trusted host key for "+strings.TrimSpace(req.Hostname), "", "", "")
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	verb := "trusted"
+	if req.Replace {
+		verb = "replaced"
+	}
+	s.note("host", verb+" host key for "+key.Hostname+" ("+key.Fingerprint+")", "", "", "")
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "hostname": key.Hostname, "fingerprint": key.Fingerprint, "keyType": key.KeyType})
 }
 
 func writeHostKeyErr(w http.ResponseWriter, err error) bool {
@@ -247,6 +261,8 @@ func writeHostKeyErr(w http.ResponseWriter, err error) bool {
 			"errorKind":   "unknown-host",
 			"hostname":    unk.Host,
 			"fingerprint": unk.Fingerprint,
+			"keyType":     unk.KeyType,
+			"trustToken":  unk.Token,
 		})
 		return true
 	}
@@ -258,6 +274,8 @@ func writeHostKeyErr(w http.ResponseWriter, err error) bool {
 			"hostname":    mm.Host,
 			"fingerprint": mm.Got,
 			"expected":    mm.Expected,
+			"keyType":     mm.KeyType,
+			"trustToken":  mm.Token,
 		})
 		return true
 	}

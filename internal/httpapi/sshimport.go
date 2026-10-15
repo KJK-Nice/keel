@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"keel/internal/sshconfig"
@@ -48,6 +50,94 @@ type importHost struct {
 	// Saved is true when a host with the same address, user and port is
 	// already in the vault; the UI leaves it unchecked.
 	Saved bool `json:"saved"`
+	// JumpAlias is the config host this host's ProxyJump names; it becomes
+	// the jump host when that host is added too. JumpSaved is the label of
+	// the one saved host that matches the jump's user, address and port,
+	// used when JumpAlias is not added. JumpVia is that user@address:port.
+	// JumpProblem says why the ProxyJump cannot be kept, if it cannot.
+	JumpAlias   string `json:"jumpAlias,omitempty"`
+	JumpSaved   string `json:"jumpSaved,omitempty"`
+	JumpVia     string `json:"jumpVia,omitempty"`
+	JumpProblem string `json:"jumpProblem,omitempty"`
+}
+
+// jumpPlan is where a ProxyJump host's jump comes from on import.
+type jumpPlan struct {
+	alias   string // a config host, used when it is imported too
+	savedID string // a saved host, used otherwise
+	saved   string // its label
+	via     string // user@address:port of the jump
+	problem string // why it cannot be kept
+}
+
+// linked reports whether the plan gives h a jump host when the hosts in
+// importing are added.
+func (p jumpPlan) linked(importing map[string]bool) bool {
+	return p.savedID != "" || (p.alias != "" && importing[p.alias])
+}
+
+// planJump resolves h's ProxyJump to a config alias and/or a saved host.
+// The jump target must not need a proxy itself (one hop only). A saved
+// host is used only when exactly one matches the jump's user, address and
+// port: its credentials go to that jump, so a host for another user on the
+// same address must never be picked. A ProxyJump without a user means the
+// local user, as ssh does.
+func planJump(h sshconfig.Host, byAlias map[string]sshconfig.Host, saved []store.Host, localUser string) jumpPlan {
+	if h.Proxy != "ProxyJump" {
+		return jumpPlan{}
+	}
+	j, ok := sshconfig.ParseJump(h.ProxyJump)
+	if !ok {
+		return jumpPlan{problem: "only a single ProxyJump hop can be kept"}
+	}
+	var out jumpPlan
+	addr, user, port := j.Host, j.User, j.Port
+	for alias, c := range byAlias {
+		if !strings.EqualFold(alias, j.Host) || strings.EqualFold(alias, h.Alias) {
+			continue
+		}
+		if c.Proxy != "" {
+			return jumpPlan{problem: c.Alias + " needs a proxy itself; only one hop is supported"}
+		}
+		out.alias = c.Alias
+		addr = c.HostName
+		if user == "" {
+			user = c.User
+		}
+		if port == 0 {
+			port = c.Port
+		}
+		break
+	}
+	if user == "" {
+		user = localUser
+	}
+	if port == 0 {
+		port = 22
+	}
+	out.via = user + "@" + net.JoinHostPort(addr, strconv.Itoa(port))
+	var matches []store.Host
+	for _, sh := range saved {
+		if sh.AuthType == "local" || strings.TrimSpace(sh.JumpHost) != "" {
+			continue
+		}
+		p := sh.Port
+		if p == 0 {
+			p = 22
+		}
+		if strings.EqualFold(strings.TrimSpace(sh.Address), addr) && p == port && sh.Username == user {
+			matches = append(matches, sh)
+		}
+	}
+	switch {
+	case len(matches) == 1:
+		out.savedID, out.saved = matches[0].ID, matches[0].Name
+	case len(matches) > 1 && out.alias == "":
+		out.problem = "several saved hosts are " + out.via + "; pick the jump host after import"
+	case len(matches) == 0 && out.alias == "":
+		out.problem = "no saved host is " + out.via
+	}
+	return out
 }
 
 type importKey struct {
@@ -85,8 +175,13 @@ func (s *Server) buildPreview() (importPreview, sshconfig.Result, error) {
 		Keys:     []importKey{},
 		Notes:    res.Notes,
 	}
+	byAlias := map[string]sshconfig.Host{}
 	for _, h := range res.Hosts {
-		out.Hosts = append(out.Hosts, importHost{Host: h, Saved: alreadySaved(saved, h)})
+		byAlias[h.Alias] = h
+	}
+	for _, h := range res.Hosts {
+		plan := planJump(h, byAlias, saved, opts.LocalUser)
+		out.Hosts = append(out.Hosts, importHost{Host: h, Saved: alreadySaved(saved, h), JumpAlias: plan.alias, JumpSaved: plan.saved, JumpVia: plan.via, JumpProblem: plan.problem})
 	}
 	for _, path := range res.KeyPaths() {
 		k := importKey{Key: sshconfig.InspectKey(path, sshconfig.DisplayPath(opts, path)), UsedBy: []string{}}
@@ -129,7 +224,11 @@ func (s *Server) sshConfigPreview(w http.ResponseWriter, _ *http.Request) {
 
 type importRequest struct {
 	Hosts []string `json:"hosts"`
-	Keys  []struct {
+	// WithoutJump names ProxyJump hosts the user chose to add without
+	// their jump host, as a direct host. Any other ProxyJump host whose
+	// jump cannot be kept is refused.
+	WithoutJump []string `json:"withoutJump"`
+	Keys        []struct {
 		Path       string `json:"path"`
 		Passphrase string `json:"passphrase"`
 	} `json:"keys"`
@@ -169,6 +268,39 @@ func (s *Server) sshConfigImport(w http.ResponseWriter, r *http.Request) {
 			seen[a] = true
 			hosts = append(hosts, h)
 		}
+	}
+	// A ProxyJump host keeps its jump host, or is added direct only when
+	// the user ticked that. Checked before anything is saved.
+	savedHosts, err := s.store.ListHosts()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	opts, _ := s.sshOptions()
+	importing := map[string]bool{}
+	for _, h := range hosts {
+		importing[h.Alias] = true
+	}
+	direct := map[string]bool{}
+	for _, a := range req.WithoutJump {
+		direct[a] = true
+	}
+	plans := map[string]jumpPlan{}
+	var unlinked []string
+	for _, h := range hosts {
+		plan := planJump(h, byAlias, savedHosts, opts.LocalUser)
+		plans[h.Alias] = plan
+		if h.Proxy == "ProxyJump" && !plan.linked(importing) && !direct[h.Alias] {
+			unlinked = append(unlinked, h.Alias)
+		}
+	}
+	if len(unlinked) > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error":     "Keel cannot keep the jump host of " + strings.Join(unlinked, ", ") + ": add its jump host too, or tick Without the jump to add it as a direct host",
+			"errorKind": "jump",
+			"hosts":     unlinked,
+		})
+		return
 	}
 	// Check every key before anything is saved, so a wrong passphrase
 	// leaves the vault as it was.
@@ -239,31 +371,68 @@ func (s *Server) sshConfigImport(w http.ResponseWriter, r *http.Request) {
 		identityFor[k.key.Path] = saved.ID
 		outIDs = append(outIDs, redactIdentity(saved))
 	}
+	// Hosts that need no jump host first, so a jump host added in this
+	// request has its id when the hosts behind it are saved.
+	newID := map[string]string{}
 	outHosts := []store.Host{}
-	for _, h := range hosts {
-		in := store.Host{
-			Name:     h.Alias,
-			Address:  h.HostName,
-			Port:     h.Port,
-			Username: h.User,
-			AuthType: "password",
-		}
-		for _, p := range h.IdentityFiles {
-			if id, ok := identityFor[p]; ok {
-				in.AuthType = "identity"
-				in.IdentityID = id
-				break
-			}
-		}
-		saved, err := s.store.UpsertHost(in)
-		if err != nil {
-			writeStoreErr(w, err)
-			return
-		}
-		outHosts = append(outHosts, redactHost(saved))
+	type failure struct {
+		Alias string `json:"alias"`
+		Error string `json:"error"`
 	}
-	s.note("vault", fmt.Sprintf("imported %d hosts and %d keys from %s", len(outHosts), len(outIDs), preview.Path), "", "", "")
-	writeJSON(w, http.StatusOK, map[string]any{"hosts": outHosts, "identities": outIDs})
+	failed := []failure{}
+	jumps := 0
+	for pass := 0; pass < 2; pass++ {
+		for _, h := range hosts {
+			plan := plans[h.Alias]
+			behind := plan.linked(importing) && !direct[h.Alias]
+			if behind != (pass == 1) {
+				continue
+			}
+			in := store.Host{
+				Name:     h.Alias,
+				Address:  h.HostName,
+				Port:     h.Port,
+				Username: h.User,
+				AuthType: "password",
+			}
+			for _, p := range h.IdentityFiles {
+				if id, ok := identityFor[p]; ok {
+					in.AuthType = "identity"
+					in.IdentityID = id
+					break
+				}
+			}
+			if behind {
+				in.JumpHost = newID[plan.alias]
+				if in.JumpHost == "" {
+					in.JumpHost = plan.savedID
+				}
+				if in.JumpHost == "" {
+					failed = append(failed, failure{h.Alias, "its jump host " + plan.alias + " was not added"})
+					continue
+				}
+			}
+			saved, err := s.store.UpsertHost(in)
+			if err != nil {
+				if behind && errors.Is(err, store.ErrHostField) {
+					failed = append(failed, failure{h.Alias, err.Error()})
+					continue
+				}
+				writeStoreErr(w, err)
+				return
+			}
+			if behind {
+				jumps++
+			}
+			newID[h.Alias] = saved.ID
+			outHosts = append(outHosts, redactHost(saved))
+		}
+	}
+	for _, f := range failed {
+		s.note("vault", "host import: "+f.Alias+" not added: "+f.Error, "", "", "")
+	}
+	s.note("vault", fmt.Sprintf("imported %d hosts (%d through a jump host) and %d keys from %s", len(outHosts), jumps, len(outIDs), preview.Path), "", "", "")
+	writeJSON(w, http.StatusOK, map[string]any{"hosts": outHosts, "identities": outIDs, "failed": failed})
 }
 
 func uniqueName(base string, taken map[string]bool) string {

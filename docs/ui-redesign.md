@@ -99,6 +99,11 @@ Board names refer to the canvas.
 ### 5.8 Edit host (`Host`)
 - Dialog 760px, two columns. General (name, folder, colour from ANSI 9–14, tags) · Connection (host, port, user, jump host) · Authentication (identity from Keychain, host key fingerprint and trust) · Session (startup command, keepalive, reconnect) · **Agent** (Agent can read this host's panes; Treat as production).
 - Footer: Delete host (left) · Test connection with inline result · Cancel · Save ⌘↵.
+- **Jump host** is a saved host, by id (`jumpHost`), never a free `user@host:port`: the jump's password, key or Keychain identity stay in the vault and its host key is checked under its own `address:port`, like any connect. One hop only: a jump host cannot use one itself, which also rules out cycles and self-reference (`store/jump.go`). A session or forward dials the jump, opens a `direct-tcpip` channel to the target and runs the target's handshake over it; both hops go through the same trust-on-first-use check, and an error names the hop. A deleted jump host makes the connect fail ("jump host not found"), never fall back to a direct connect.
+- **Startup command** (`startupCommand`, one line, no control characters, ≤1024 bytes) is typed into the first shell of a session, with Enter (CR), once. Not on reconnect (a new shell, but the command may change state, and the user who saw the drop is there), not for restored tabs (they attach to running sessions) and never for joiners (they only attach). It is a user setting, not agent output, so §6.1 is unaffected; the agent sees it only as scrollback. `keel.log` gets "startup command sent to <host>", never the command. It is stored in `keel.json` like the address: not a place for secrets.
+- **Host key** shows the saved SHA256 fingerprint (the `ssh-keygen -l` format) and key type for the host's saved `address:port` (`GET /api/hosts/{id}/host-key`). Forget host key asks in the alertdialog, then `DELETE` removes it and logs it; the next connect asks again.
+- **Test connection** (`POST /api/hosts/test`) connects and authenticates with the dialog's unsaved values, through the jump host if one is picked, then closes: no PTY, no command. 10 s, cancellable. Outcomes: ok with latency, auth failed, host key unknown or changed (fingerprint shown, never trusted on its own; Trust and save / Replace saved key is a separate click), timeout, DNS, refused. Typed secrets travel only in that request over the authed loopback API, are used for that connect and are never stored or logged. Vault secrets (a blank password or key, a Keychain identity) are used only while the dialog still targets the saved host: same address:port, username, authentication, identity and jump host. Any change needs the secret typed ("Address changed: type the password to test it"), so a test can never send a saved password to a new address. Any edit to the dialog drops the last result.
+- **Trusting a key** (`POST /api/known-hosts`) takes only a key a connect was just refused for: each refusal records an offer (address:port, fingerprint, key type) under a random token for 2 minutes, and the request must name that token with the same address:port and fingerprint; a changed key also needs `replace`, and the saved key must not have changed since. Session prompts, forwards and Test connection all trust this way.
 
 ### 5.9 Settings · Agent (`Settings`)
 - Provider (connect; key stored in the vault). Suggestions in panes (on/off; Notice automatically / Only lines starting with `#`). Default panes per conversation (focused only / pick each time / every pane in tab). Scrollback lines per pane (50–1000, default 200). Safety (two always-on rows, ⇧⇥ rule, redaction of secrets / IPs / hostnames). History retention and delete all.
@@ -123,7 +128,7 @@ Board names refer to the canvas.
 
 ### 5.15 First run (`Onboard1–3`)
 1. Create vault: Keychain (recommended) or passphrase; shows vault path and contents; "I already have a keel.vault…".
-2. Bring your hosts: parse `~/.ssh/config` (read-only), table with checkboxes, wildcard patterns listed apart (not importable), ProxyCommand / ProxyJump hosts flagged and importable without the proxy, already-saved hosts unchecked; optional copy of referenced private keys into the vault, one switch per key, off by default (originals untouched).
+2. Bring your hosts: parse `~/.ssh/config` (read-only), table with checkboxes, wildcard patterns listed apart (not importable), ProxyCommand hosts flagged and importable without the proxy; a one-hop ProxyJump becomes the host's jump host when its target is imported too, or is the one saved host with the jump's user, address and port (no user in ProxyJump means the local user); otherwise it is flagged and imported as a direct host only when the user ticks "Without the jump", already-saved hosts unchecked; optional copy of referenced private keys into the vault, one switch per key, off by default (originals untouched).
 3. Agent: three promises, provider picker, suggestions toggle, Set up later / Open Keel.
 
 ## 6. Agent invariants (must hold in code, not only in UI)
@@ -169,7 +174,8 @@ Board names refer to the canvas.
 
 ## 9. Data model additions
 
-- Host: `color` (ANSI index 9–14), `tags[]`, `agentReadable` (bool, default true), `production` (bool, default false).
+- Host: `color` (ANSI index 9–14), `tags[]`, `agentReadable` (bool, default true), `production` (bool, default false), `jumpHost` (saved host id, one hop), `startupCommand` (one line).
+- Known hosts: `knownHostTypes` (key type per `address:port`, beside the fingerprints in `knownHosts`).
 - Snippet: `kind` (`readonly` | `changes-state`), `vars` with defaults, `offerOnTags[]`, `agentUsable` (bool, default false; 6c+).
 - Settings: agent provider ref (secret in vault), detection mode, default scope, scrollback lines, redaction toggles, history retention, `historySuggestions` (on|off, default on; 6c+: suggest from the pane's scrollback).
 - Log events: `agent.read`, `agent.suggest`, `agent.insert`, `agent.type`, `share.request`, `share.pass`.
