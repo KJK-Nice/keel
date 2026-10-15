@@ -350,16 +350,16 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 					}
 				case sel.Sel.Name == "Judge" && f.pkg == svc:
 					seen["Judge"]++
-					if fn != "Service.Detect" && fn != "Service.judgeRisks" && fn != "scrubbingJudge.Judge" {
-						t.Errorf("%s: a judge is called in %q; only Service.Detect and Service.judgeRisks may", f.rel, fn)
+					if fn != "Service.Detect" && fn != "Service.judgeRisks" && fn != "historySuggester.Suggest" && fn != "scrubbingJudge.Judge" {
+						t.Errorf("%s: a judge is called in %q; only Service.Detect, Service.judgeRisks and historySuggester.Suggest may", f.rel, fn)
 					}
 				}
 				return true
 			})
 		}
 	}
-	if seen["gemini.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 3 || seen["Judge"] != 3 {
-		t.Errorf("calls found: %v; want gemini.New and jev.New once, Generate 3 times (Ask, modelSuggester, scrubbing) and Judge 3 times (Detect, judgeRisks, scrubbing)", seen)
+	if seen["gemini.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 3 || seen["Judge"] != 4 {
+		t.Errorf("calls found: %v; want gemini.New and jev.New once, Generate 3 times (Ask, modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
 	}
 }
 
@@ -392,9 +392,9 @@ func TestSuggestionsOnlyFromTheSessionSocket(t *testing.T) {
 			ast.Inspect(decl, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.CompositeLit:
-					if id, ok := n.Type.(*ast.Ident); ok && id.Name == "modelSuggester" {
+					if id, ok := n.Type.(*ast.Ident); ok && (id.Name == "modelSuggester" || id.Name == "historySuggester") {
 						if f.pkg != module+"/internal/agent/service" || fn != "Service.Suggest" {
-							t.Errorf("%s: modelSuggester built in %q; only Service.Suggest may", f.rel, fn)
+							t.Errorf("%s: %s built in %q; only Service.Suggest may", f.rel, id.Name, fn)
 						}
 					}
 				case *ast.CallExpr:
@@ -421,6 +421,64 @@ func TestSuggestionsOnlyFromTheSessionSocket(t *testing.T) {
 		if calls[name] != 1 {
 			t.Errorf("agent.%s called %d times outside the service, want 1 (agentsuggest.go)", name, calls[name])
 		}
+	}
+}
+
+// §6.3: snippet bodies are sent only when the user marked the snippet
+// agent-usable. In the agent tree, snippets are listed only in
+// agentSnippets (which keeps the agent-usable ones), and that is called
+// only from historySuggester.gather.
+func TestAgentReadsOnlyAgentUsableSnippets(t *testing.T) {
+	lists, gathers := 0, 0
+	for _, f := range parseModule(t) {
+		if f.test || !inAgentTree(f.pkg) {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, _ := decl.(*ast.FuncDecl)
+			fn := ""
+			if fd != nil {
+				fn = fd.Name.Name
+				if fd.Recv != nil && len(fd.Recv.List) > 0 {
+					typ := fd.Recv.List[0].Type
+					if star, ok := typ.(*ast.StarExpr); ok {
+						typ = star.X
+					}
+					if id, ok := typ.(*ast.Ident); ok {
+						fn = id.Name + "." + fn
+					}
+				}
+			}
+			ast.Inspect(decl, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				name := ""
+				switch fun := call.Fun.(type) {
+				case *ast.SelectorExpr:
+					name = fun.Sel.Name
+				case *ast.Ident:
+					name = fun.Name
+				}
+				switch name {
+				case "ListSnippets", "GetSnippet":
+					lists++
+					if fn != "agentSnippets" {
+						t.Errorf("%s: snippets read in %q; only agentSnippets may", f.rel, fn)
+					}
+				case "agentSnippets":
+					gathers++
+					if fn != "historySuggester.gather" {
+						t.Errorf("%s: agentSnippets called in %q; only historySuggester.gather may", f.rel, fn)
+					}
+				}
+				return true
+			})
+		}
+	}
+	if lists != 1 || gathers != 1 {
+		t.Errorf("ListSnippets calls %d, agentSnippets calls %d; want 1 each", lists, gathers)
 	}
 }
 

@@ -1273,6 +1273,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       form.elements.id.value = sn.id;
       form.elements.name.value = sn.name || "";
       form.elements.command.value = String(sn.command || "").replace(/\n$/, "");
+      document.getElementById("snippet-editor-agent")?.setAttribute("aria-checked", sn.agentUsable ? "true" : "false");
     }
     document.getElementById("snippet-editor-run")?.setAttribute("data-run", sn.id);
     document.getElementById("snippet-editor-delete")?.setAttribute("data-delete-snippet", sn.id);
@@ -1311,7 +1312,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
     let command = form.elements.command.value;
     if (!command.endsWith("\n")) command += "\n";
-    await api(`/api/snippets/${id}`, { method: "PUT", body: JSON.stringify({ id, name, command }) });
+    const agentUsable = document.getElementById("snippet-editor-agent")?.getAttribute("aria-checked") === "true";
+    await api(`/api/snippets/${id}`, { method: "PUT", body: JSON.stringify({ id, name, command, agentUsable }) });
     delete form.dataset.dirty;
     await loadAll();
     toast("Snippet saved");
@@ -5490,6 +5492,8 @@ Write a runbook here.
     if (!command.endsWith("\n")) command += "\n";
     const payload = { name: form.name.value.trim(), command };
     if (form.id.value) {
+      // The modal has no agent switch and sends no agentUsable, so keel
+      // serve keeps what the Snippets page set.
       await api(`/api/snippets/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
     } else {
       await api("/api/snippets", { method: "POST", body: JSON.stringify(payload) });
@@ -6669,6 +6673,13 @@ Write a runbook here.
     on(snippetEditor, "input", () => {
       snippetEditor.dataset.dirty = "1";
       syncSnippetPreview();
+    });
+    // "Let the agent suggest this snippet" (phase 6c+): saved with the
+    // snippet, off by default (§6.3).
+    on(document.getElementById("snippet-editor-agent"), "click", (ev) => {
+      const sw = ev.currentTarget;
+      sw.setAttribute("aria-checked", sw.getAttribute("aria-checked") === "true" ? "false" : "true");
+      snippetEditor.dataset.dirty = "1";
     });
     on(snippetEditor, "keydown", (ev) => {
       const mod = isMac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey;

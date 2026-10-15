@@ -51,24 +51,30 @@ type AgentSettings struct {
 	// Suggestions turns plain-language suggestions in panes (§5.5) "on"
 	// (the default) or "off". A string, not a bool, so an older keel.json
 	// without the field reads as on.
-	Suggestions     string         `json:"suggestions"`
-	DefaultScope    string         `json:"defaultScope"`
-	ScrollbackLines int            `json:"scrollbackLines"`
-	Redact          AgentRedaction `json:"redact"`
-	HistoryDays     int            `json:"historyDays"`
+	Suggestions string `json:"suggestions"`
+	// HistorySuggestions lets in-pane suggestions offer commands seen
+	// after the pane's prompt in its scrollback (phase 6c+): up to about
+	// 40 recent ones are sent to Jev, redacted, on each ⇥. "on" (the
+	// default) or "off"; off still offers agent-usable snippets.
+	HistorySuggestions string         `json:"historySuggestions"`
+	DefaultScope       string         `json:"defaultScope"`
+	ScrollbackLines    int            `json:"scrollbackLines"`
+	Redact             AgentRedaction `json:"redact"`
+	HistoryDays        int            `json:"historyDays"`
 }
 
 // DefaultAgentSettings are the settings before the user changes any.
 func DefaultAgentSettings() AgentSettings {
 	return AgentSettings{
-		Provider:        DefaultAgentProvider,
-		Model:           DefaultAgentModel,
-		Detection:       DetectionAuto,
-		Suggestions:     SuggestionsOn,
-		DefaultScope:    ScopeFocused,
-		ScrollbackLines: DefaultScrollbackLines,
-		Redact:          AgentRedaction{Secrets: true},
-		HistoryDays:     DefaultHistoryDays,
+		Provider:           DefaultAgentProvider,
+		Model:              DefaultAgentModel,
+		Detection:          DetectionAuto,
+		Suggestions:        SuggestionsOn,
+		HistorySuggestions: SuggestionsOn,
+		DefaultScope:       ScopeFocused,
+		ScrollbackLines:    DefaultScrollbackLines,
+		Redact:             AgentRedaction{Secrets: true},
+		HistoryDays:        DefaultHistoryDays,
 	}
 }
 
@@ -107,6 +113,13 @@ func (a AgentSettings) Normalize() (AgentSettings, error) {
 	default:
 		return AgentSettings{}, fmt.Errorf("%w: suggestions must be on or off", ErrAgentSettings)
 	}
+	switch a.HistorySuggestions {
+	case "":
+		a.HistorySuggestions = def.HistorySuggestions
+	case SuggestionsOn, SuggestionsOff:
+	default:
+		return AgentSettings{}, fmt.Errorf("%w: historySuggestions must be on or off", ErrAgentSettings)
+	}
 	switch a.DefaultScope {
 	case "":
 		a.DefaultScope = def.DefaultScope
@@ -136,6 +149,12 @@ func (a AgentSettings) Normalize() (AgentSettings, error) {
 // default).
 func (a AgentSettings) SuggestionsEnabled() bool {
 	return a.Suggestions != SuggestionsOff
+}
+
+// HistorySuggestionsEnabled reports whether in-pane suggestions may offer
+// commands from the pane's scrollback (the default).
+func (a AgentSettings) HistorySuggestionsEnabled() bool {
+	return a.HistorySuggestions != SuggestionsOff
 }
 
 // AgentSettings returns the saved settings, or the defaults.

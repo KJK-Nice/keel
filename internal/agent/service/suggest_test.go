@@ -125,6 +125,11 @@ func (f *sfix) judgeBodies() string {
 				b.WriteString(k + "[]=" + v.String() + "\n")
 			}
 		}
+		for k, m := range r.Maps {
+			for id, v := range m {
+				b.WriteString(k + "." + id + "=" + v.String() + "\n")
+			}
+		}
 		for _, q := range r.Questions {
 			b.WriteString(q.Instructions + "\n")
 		}
@@ -625,7 +630,7 @@ func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); err == nil {
 		t.Fatal("no error")
 	}
-	reads := f.entries(agent.EventRead)
+	reads := f.egress()
 	if len(reads) != 1 || reads[0].Source != "gemini" || !strings.Contains(reads[0].Message, "the words on the prompt line") {
 		t.Fatalf("failed suggest left %+v", reads)
 	}
@@ -634,13 +639,13 @@ func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
 		t.Fatalf("empty → %v", err)
 	}
-	if n := len(f.entries(agent.EventRead)); n != 2 {
+	if n := len(f.egress()); n != 2 {
 		t.Fatalf("reads after an empty answer = %d", n)
 	}
 	// A suggestion: the words to the model, the commands to Jev.
 	g := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly")+block("rm -rf /tmp/x", "Deletes.", "destructive"))
 	g.suggest(t, "s-web", "list tmp")
-	reads = g.entries(agent.EventRead) // newest first
+	reads = g.egress() // newest first
 	if len(reads) != 2 || reads[0].Source != DetectJev || reads[0].Count != 1 || !strings.Contains(reads[0].Message, "to rate their risk") || reads[1].Source != "gemini" {
 		t.Fatalf("reads = %+v", reads)
 	}
@@ -653,7 +658,7 @@ func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	h := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly"))
 	h.judge.Err = errors.New("jev down")
 	h.suggest(t, "s-web", "list tmp")
-	if reads := h.entries(agent.EventRead); len(reads) != 2 || reads[0].Source != DetectJev {
+	if reads := h.egress(); len(reads) != 2 || reads[0].Source != DetectJev {
 		t.Fatalf("reads with Jev down = %+v", reads)
 	}
 }

@@ -149,6 +149,21 @@ templ SnippetsPage(p PageProps) {
 						<pre class="k-bytes" id="snippet-editor-preview"></pre>
 						<span class="k-help" id="snippet-editor-count"></span>
 					</div>
+					<div class="k-field k-field--row">
+						<div class="k-field">
+							<span class="k-label" id="snippet-editor-agent-label">Let the agent suggest this snippet</span>
+							<span class="k-help" id="snippet-editor-agent-help">⇥ can offer it when your words match. One-line commands without { "{{var}}" } fields only. When on, its text is sent, redacted, to TypeSafe Jev.</span>
+						</div>
+						<button
+							type="button"
+							class="k-switch"
+							role="switch"
+							id="snippet-editor-agent"
+							aria-checked="false"
+							aria-labelledby="snippet-editor-agent-label"
+							aria-describedby="snippet-editor-agent-help"
+						></button>
+					</div>
 					<div class="k-editor-foot">
 						<span class="k-spacer"></span>
 						<button type="button" class="k-btn k-btn--danger k-btn--sm" id="snippet-editor-delete" data-delete-snippet="">Delete snippet</button>
@@ -364,6 +379,13 @@ templ agentSettingsPanel() {
 					<p class="pref-desc">Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.</p>
 				</div>
 				@agentSwitch("agent-set-suggest", "Suggest commands")
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Suggest from this pane's scrollback</div>
+					<p class="pref-desc">Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.</p>
+				</div>
+				@agentSwitch("agent-set-history-suggest", "Suggest from this pane's scrollback")
 			</div>
 			<div class="pref-row pref-row-stack">
 				<div class="pref-copy">

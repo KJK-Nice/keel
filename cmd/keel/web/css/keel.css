@@ -1829,6 +1829,7 @@ html[data-native] .k-status {
 .k-help { margin: 0; font: 400 0.923rem/1.333 var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
 .k-label { font: 500 0.923rem/1.333 var(--font-sans); letter-spacing: 0; color: var(--ink); }
 .k-field { display: grid; gap: var(--space-1\.5); min-width: 0; }
+.k-field--row { grid-template-columns: 1fr auto; align-items: center; gap: var(--space-3); }
 
 /* Fields */
 .k-inputgroup {

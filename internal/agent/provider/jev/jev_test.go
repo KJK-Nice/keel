@@ -166,3 +166,32 @@ func TestNewNeedsAKeyAndBadQuestionsAreRefused(t *testing.T) {
 		t.Fatal("one-option choice accepted")
 	}
 }
+
+// Maps go into the state as JSON objects keyed by their ids, so a
+// question can point at `candidates.c1` with nothing to count.
+func TestJudgeSendsMapsAsObjects(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &got)
+		_, _ = io.WriteString(w, `{"model":"jev-1.13.0","answers":{"exists":{"type":"noul","noul":0.9}}}`)
+	}))
+	defer srv.Close()
+	c, err := New(testKey, WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := redact.New(redact.Options{})
+	_, err = c.Judge(context.Background(), provider.JudgeRequest{
+		Fields:    map[string]redact.Safe{"request": r.Text("show containers")},
+		Maps:      map[string]map[string]redact.Safe{"candidates": {"c0": r.Text("docker ps"), "c1": r.Text("df -h")}},
+		Questions: map[string]provider.Question{"exists": {Type: provider.QuestionNoul, Instructions: "Does any command in `candidates` do what `request` asks?"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cands, ok := got["state"].(map[string]any)["candidates"].(map[string]any)
+	if !ok || cands["c0"] != "docker ps" || cands["c1"] != "df -h" || len(cands) != 2 {
+		t.Fatalf("state.candidates = %v", got["state"])
+	}
+}

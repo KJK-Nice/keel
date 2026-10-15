@@ -27,7 +27,7 @@ export const ICON = {
 // models, warning and links; the purpose is Keel's own wording.
 const PURPOSE = {
   gemini: "Answers questions about the panes you pick and writes command suggestions. Keel sends your message and their redacted scrollback, nothing else.",
-  jev: "Plain-language detection: notices when the line you are typing is plain language, so a suggestion can start by itself. Only that line is sent, redacted.",
+  jev: "Plain-language detection: notices when the line you are typing is plain language, so a suggestion can start by itself. That line is sent, redacted, and when you press ⇥ so are recent commands from the pane (unless scrollback suggestions are off) and snippets you marked for the agent.",
 };
 
 export const providerPurpose = (id) => PURPOSE[id] || "";

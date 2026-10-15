@@ -44,6 +44,9 @@ type Store interface {
 	ListHosts() ([]store.Host, error)
 	AgentKeyConfigured(provider string) (bool, error)
 	AgentKey(provider string) (string, error)
+	// ListSnippets is read only for in-pane suggestions, and only the
+	// snippets marked agent-usable are kept (agentSnippets).
+	ListSnippets() ([]store.Snippet, error)
 }
 
 // Panes resolves runtime sessions to panes and reads their scrollback.
@@ -103,6 +106,9 @@ type Service struct {
 
 	sug          suggestState
 	detectWindow time.Duration
+	// beforeReserve, in tests only, runs in AuthorizeInsert between the
+	// checks on the snapshot and the reserve, to land a RiskCheck there.
+	beforeReserve func()
 }
 
 const (

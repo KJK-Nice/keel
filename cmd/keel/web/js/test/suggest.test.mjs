@@ -294,3 +294,17 @@ test("a later, stricter rating changes the badge and the ⇥ hint; never a loose
   await new Promise((r) => setImmediate(r));
   assert.equal(h.inserts.length, 1);
 });
+
+test("the card says where a command came from (phase 6c+)", () => {
+  const card = (source) => S.cardHTML({ id: "s_h", options: [{ command: "echo keel-history-marker", risk: "readonly", source }] }, 0, { mac: true });
+  assert.match(card("history"), /From this pane(&#39;|&#x27;|')s scrollback/);
+  assert.match(card("history"), /data-source="history"/);
+  assert.match(card("snippet"), /From your snippets/);
+  assert.match(card("generated"), /Suggested from your words/);
+  assert.match(card(undefined), /Suggested from your words/);
+  // A history command that deletes is still a destructive card.
+  const rm = S.cardHTML({ id: "s_r", options: [{ command: "rm -rf /tmp/x", risk: "destructive", needsShift: true, source: "history" }] }, 0, { mac: true });
+  assert.match(rm, /k-sug--danger/);
+  assert.match(rm, /From this pane/);
+  assert.match(rm, /insert anyway/);
+});

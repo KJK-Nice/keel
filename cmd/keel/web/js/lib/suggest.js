@@ -143,6 +143,17 @@ export function riskWords(option) {
   return riskBadge(option?.risk).label;
 }
 
+// sourceLabel is the card's head: where the command came from. "history"
+// is a command seen after the pane's prompt in its scrollback (nothing
+// proves it ran, so the label says where it was seen, not that it ran);
+// "snippet" one the user saved and marked for the agent; anything else
+// the model wrote from the words.
+export function sourceLabel(source) {
+  if (source === "history") return "From this pane's scrollback";
+  if (source === "snippet") return "From your snippets";
+  return "Suggested from your words";
+}
+
 // cardHTML is State 2 (Suggest) or State 4 (Destructive): the selected
 // option's command, risk badge and reason, the other options numbered by
 // their place, and the keys. icons: { ai, alert } SVG strings.
@@ -182,7 +193,7 @@ export function cardHTML(sug, selected, opts = {}) {
     : "";
   const label = danger ? "Suggested command that " + riskWords(sel).toLowerCase() : "Suggested command";
   return `<div class="k-sug${danger ? " k-sug--danger" : ""}" role="dialog" aria-label="${escapeHtml(label)}" data-risk="${escapeHtml(sel.risk || "changes")}" data-option="${selected}">
-<div class="k-sug-head">${icons.ai || ""}<span>Suggested from your words</span><span class="k-badge ${badge.cls}">${danger ? icons.alert || "" : ""}${escapeHtml(riskWords(sel))}</span></div>
+<div class="k-sug-head">${icons.ai || ""}<span class="k-sug-source" data-source="${escapeHtml(sel.source || "generated")}">${escapeHtml(sourceLabel(sel.source))}</span><span class="k-badge ${badge.cls}">${danger ? icons.alert || "" : ""}${escapeHtml(riskWords(sel))}</span></div>
 <div class="k-sug-cmd">${escapeHtml(sel.command)}</div>
 ${sel.why ? `<div class="k-sug-why">${escapeHtml(sel.why)}</div>` : ""}${placeholders}${note}
 ${others ? `<div class="k-sug-alt">${others}</div>` : ""}

@@ -163,8 +163,8 @@ func (c *suggestConn) suggest(seq int, line string) {
 			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": true, "suggestion": sug})
 		}
 		upd, took := check.Run(ctx)
-		log.Printf("debug: agent suggest: model=%s thinking=%s model_ms=%d jev_ms=%d jev_asked=%v stricter=%v",
-			took.Model, orDefault(took.Thinking), took.ModelMs, took.JevMs, took.JevAsked, upd.Stricter)
+		log.Printf("debug: agent suggest: source=%s pick_ms=%d model=%s thinking=%s model_ms=%d jev_ms=%d jev_asked=%v stricter=%v",
+			took.Source, took.PickMs, took.Model, orDefault(took.Thinking), took.ModelMs, took.JevMs, took.JevAsked, upd.Stricter)
 		if upd.Stricter && ctx.Err() == nil {
 			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest-risk", "suggestionId": upd.SuggestionID, "options": upd.Options})
 		}

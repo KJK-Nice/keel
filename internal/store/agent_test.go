@@ -320,7 +320,7 @@ func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.SuggestionsEnabled() || !DefaultAgentSettings().SuggestionsEnabled() {
+	if saved.SuggestionsEnabled() || !DefaultAgentSettings().SuggestionsEnabled() || !saved.HistorySuggestionsEnabled() || !DefaultAgentSettings().HistorySuggestionsEnabled() {
 		t.Fatalf("suggestions = %q", saved.Suggestions)
 	}
 	if saved.Provider != "gemini" || saved.ScrollbackLines != MaxScrollbackLines || !saved.Redact.Secrets || saved.HistoryDays != MaxHistoryDays {
@@ -338,7 +338,7 @@ func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 		}
 	}
 	for _, bad := range []AgentSettings{
-		{Detection: "sometimes"}, {Suggestions: "maybe"}, {DefaultScope: "all"}, {Provider: "Bad Provider!"}, {Model: "../x"},
+		{Detection: "sometimes"}, {Suggestions: "maybe"}, {HistorySuggestions: "maybe"}, {DefaultScope: "all"}, {Provider: "Bad Provider!"}, {Model: "../x"},
 	} {
 		if _, err := st.SetAgentSettings(bad); !errors.Is(err, ErrAgentSettings) {
 			t.Fatalf("%+v accepted (%v)", bad, err)

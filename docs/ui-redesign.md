@@ -84,6 +84,7 @@ Board names refer to the canvas.
 2. **Suggest**: ⇥ opens a card under the line: command, Read-only badge, one-line reason, up to 2 alternatives (2, 3 or ↑↓), ⇥ insert · esc keep my words.
 3. **Inserted**: the command replaces the line, highlighted `brass-soft`, **not run**. ↵ runs it; ⌘Z restores the original words.
 4. **Destructive**: red edge + "Deletes files" (or similar) badge. Plain ⇥ never inserts; ⇧⇥ inserts anyway.
+5. **History first (6c+)**: before the model writes a command, keel serve gathers commands already run in the pane (its scrollback, after shell prompt lines) and snippets marked "Let the agent suggest this snippet", and Jev picks one. A confident pick is the card, labelled "From this pane's scrollback" or "From your snippets", with no model call and no alternatives; otherwise the model answers as before. Same rating and ⇥ / ⇧⇥ gates. A scrollback line counts only at the pane's current prompt (§6, limit). Settings · Agent → "Suggest from this pane's scrollback" (`historySuggestions`, default on) turns the scrollback part off; snippets still apply. Never the remote `~/.bash_history`, never keystrokes. Design and thresholds: `internal/agent/service/history.go`, `suggestq.go`.
 
 ### 5.6 Share and pass control (`Share`)
 - Popover from Share: join link + Copy, expiry (59 min or on tab close), mode **Watch only** / **Watch and ask for control**, people list with role and latency, Pass control to …, Stop sharing.
@@ -111,6 +112,7 @@ Board names refer to the canvas.
 
 ### 5.12 Snippets (`Snippets`)
 - List + editor: commands (one per line), `{{var}}` fields with defaults, "Offer on hosts tagged", kind **Read-only / Changes state**, preview of exact bytes. Typing always goes through Approve before type; Changes state on a production host needs ⇧↵.
+- "Let the agent suggest this snippet" (6c+, off by default): a one-line snippet with no `{{var}}` field may be offered as an in-pane suggestion (§5.5). Only then is its text sent, redacted, to Jev (§6.3).
 
 ### 5.13 Logs (`Logs`)
 - Filters: All, Sessions, Forwards, Vault, Sharing, **Agent**. Rows: time, kind, target, event.
@@ -135,6 +137,8 @@ Board names refer to the canvas.
 7. Every read and every insert is written to `keel.log`.
 
 **Limit of these gates.** The ⇧ rule, the no-newline rule for inserts and the driver check are enforced in keel serve, so they hold against model output and against a UI bug that sends the wrong bytes or skips a key. They do not hold against hostile script running inside the app page itself: the pre-existing unlabelled inject path (palette snippets, the notebook's CLI input) accepts any bytes from the driving client with a fresh ticket, and script in the page can ask for a ticket like the page does. Keeping the page free of untrusted script (no remote scripts, escaped HTML) is what protects that path, not the agent gates.
+
+**Limit of "From this pane's scrollback" (6c+).** Scrollback is untrusted output, and nothing proves a shell drew a line or that its command ran. So a candidate counts only when its prompt is exactly the pane's current prompt (the line being edited); with no readable current prompt there are none. Lines abandoned with ^C (or showing ^Z, ^D, ^[), lines touched by cursor moves, backspaces or erases, and commands with invisible format characters are dropped. Still, any program that writes that exact prompt string followed by text can pose as a command: a file printed with cat, a login banner, a REPL, a remote program, or a shell-like prompt that happens to match. The label says only where the line was seen, and the risk rating and the ⇥ / ⇧⇥ gates apply to it as to any suggestion. OSC 133 shell-integration marks are not used yet; they would let Keel tell prompts and commands from output.
 
 ## 7. Plain-language detection
 
@@ -166,8 +170,8 @@ Board names refer to the canvas.
 ## 9. Data model additions
 
 - Host: `color` (ANSI index 9–14), `tags[]`, `agentReadable` (bool, default true), `production` (bool, default false).
-- Snippet: `kind` (`readonly` | `changes-state`), `vars` with defaults, `offerOnTags[]`.
-- Settings: agent provider ref (secret in vault), detection mode, default scope, scrollback lines, redaction toggles, history retention.
+- Snippet: `kind` (`readonly` | `changes-state`), `vars` with defaults, `offerOnTags[]`, `agentUsable` (bool, default false; 6c+).
+- Settings: agent provider ref (secret in vault), detection mode, default scope, scrollback lines, redaction toggles, history retention, `historySuggestions` (on|off, default on; 6c+: suggest from the pane's scrollback).
 - Log events: `agent.read`, `agent.suggest`, `agent.insert`, `agent.type`, `share.request`, `share.pass`.
 
 ## 10. Build plan
