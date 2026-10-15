@@ -125,9 +125,16 @@ export function traceText(step) {
   }
 }
 
-// answerHTML escapes the answer and sets `code` spans in mono.
+// answerHTML escapes the answer first, then sets `code` spans in mono and
+// **bold** in <strong>. Only the tags written here are ever produced, and
+// bold is not applied inside code spans.
 export function answerHTML(text) {
-  return escapeHtml(String(text || "")).replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  const parts = escapeHtml(String(text || "")).split(/(`[^`\n]+`)/);
+  return parts
+    .map((part, i) =>
+      i % 2 ? `<code>${part.slice(1, -1)}</code>` : part.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>"),
+    )
+    .join("");
 }
 
 // typeOffer decides what the proposal card offers for its target pane:

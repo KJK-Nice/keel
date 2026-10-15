@@ -13,6 +13,7 @@ import "keel/components/icon"
 // keel serve checks it with the agent service (§6).
 templ AgentPanel() {
 	<aside class="k-agent" id="agent-panel" aria-label="Agent">
+		<div class="k-agent-sash" id="agent-sash" role="separator" aria-orientation="vertical" aria-label="Resize agent panel" tabindex="0"></div>
 		<div class="k-agent-head">
 			<span class="k-agent-mark" aria-hidden="true">
 				@icon.AiMagic()

@@ -21,7 +21,10 @@ import (
 //     see from the UI that redaction ran before the provider was called;
 //   - it proposes one command for pane 1 when panes were given: a
 //     destructive one when the question says "delete", a state change for
-//     "touch", none for "no command", and a read-only echo otherwise.
+//     "touch", none for "no command", and a read-only echo otherwise;
+//   - when the question says "long", it adds a tall answer with **bold**
+//     text before the proposal and a second proposal after it, so a test
+//     can check that the thread scrolls and the cards keep their height.
 //
 // The proposal block uses the agent service's format (```keel-proposal);
 // internal/agent/service tests check that the two agree.
@@ -64,6 +67,13 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	var b strings.Builder
 	fmt.Fprintf(&b, "Test provider: nothing left this machine. I was given %d pane excerpt%s and %d redacted value%s.",
 		panes, plural(panes), placeholders, plural(placeholders))
+	long := strings.Contains(question, "long")
+	if long {
+		b.WriteString("\n\n**Add your user to the docker group**")
+		for i := 1; i <= 24; i++ {
+			fmt.Fprintf(&b, "\n\nStep %d: this line of the long answer exists so the thread has to scroll.", i)
+		}
+	}
 	if panes > 0 && !strings.Contains(question, "no command") {
 		cmd, why, risk := "echo keel-agent-ok", "Prints a marker to show the command reached the pane.", "readonly"
 		switch {
@@ -74,6 +84,10 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		}
 		b.WriteString(" Run this in pane 1:\n\n```keel-proposal\n")
 		fmt.Fprintf(&b, "{\"pane\": 1, \"command\": %q, \"why\": %q, \"risk\": %q}\n```\n", cmd, why, risk)
+		if long {
+			b.WriteString("\nThen run this in pane 1:\n\n```keel-proposal\n")
+			b.WriteString("{\"pane\": 1, \"command\": \"echo keel-agent-second\", \"why\": \"Prints a second marker.\", \"risk\": \"readonly\"}\n```\n")
+		}
 	}
 	return provider.Response{Text: b.String(), InputTokens: len(last) / 4, OutputTokens: b.Len() / 4}, nil
 }

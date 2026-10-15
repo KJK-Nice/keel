@@ -5911,6 +5911,7 @@ Write a runbook here.
     listPanes: agentPanes,
     typeProposal: typeAgentProposal,
     copyText: async (text) => toast((await copyText(text)) ? "Copied" : "Copy failed", false),
+    onResize: () => requestAnimationFrame(() => fitVisiblePanes()),
     onOpenChange: (open) => {
       state.ui.agentPanel = open;
       saveUiPrefs();

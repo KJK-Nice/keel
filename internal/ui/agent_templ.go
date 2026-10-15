@@ -40,7 +40,7 @@ func AgentPanel() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<aside class=\"k-agent\" id=\"agent-panel\" aria-label=\"Agent\"><div class=\"k-agent-head\"><span class=\"k-agent-mark\" aria-hidden=\"true\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<aside class=\"k-agent\" id=\"agent-panel\" aria-label=\"Agent\"><div class=\"k-agent-sash\" id=\"agent-sash\" role=\"separator\" aria-orientation=\"vertical\" aria-label=\"Resize agent panel\" tabindex=\"0\"></div><div class=\"k-agent-head\"><span class=\"k-agent-mark\" aria-hidden=\"true\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -95,7 +95,7 @@ func AgentPanel() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("@ add a pane · ↵ send")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 52, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 53, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {

@@ -240,6 +240,80 @@ async function shareLink(screen: any): Promise<string> {
   return url;
 }
 
+test('long answer: the thread scrolls, cards keep their height, bold renders, the sash resizes and persists', { tags: ['agent'] }, async ({ app, screen, browser }) => {
+  await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: FAKE_KEY });
+  await openKeel(app);
+  await browser.evaluate('localStorage.removeItem("keel-agent-width")');
+  await openHost(app, screen, /^Local Shell\b/);
+  await openPanel(screen);
+
+  await composer(screen).fill('give me a long answer');
+  await composer(screen).press('Enter');
+  const cards = panel(screen).getByRole('group', 'Proposal');
+  await expect(cards).toHaveCount(2);
+
+  // (c) **bold** is a <strong>, not literal asterisks.
+  await expect(panel(screen)).toContainText('Add your user to the docker group');
+  expect(await browser.evaluate(`[...document.querySelectorAll('#agent-thread .k-agent-msg strong')].map((e) => e.textContent)`)).toEqual(['Add your user to the docker group']);
+  await expect(panel(screen)).not.toContainText('**');
+
+  // (a) the thread overflows and scrolls; the last card is whole.
+  const geo = () =>
+    browser.evaluate(`(() => {
+      const t = document.getElementById('agent-thread');
+      const cs = [...t.querySelectorAll('.k-prop')];
+      const last = cs[cs.length - 1].getBoundingClientRect();
+      const box = t.getBoundingClientRect();
+      return { sh: t.scrollHeight, ch: t.clientHeight, top: t.scrollTop, n: cs.length,
+        cardH: last.height, whole: last.top >= box.top - 1 && last.bottom <= box.bottom + 1,
+        minCardH: Math.min(...cs.map((c) => c.getBoundingClientRect().height)),
+        fullH: Math.min(...cs.map((c) => c.scrollHeight)) };
+    })()`) as Promise<any>;
+  let g = await geo();
+  expect(g.sh).toBeGreaterThan(g.ch);
+  expect(g.n).toBe(2);
+  expect(g.minCardH).toBeGreaterThanOrEqual(g.fullH - 1); // not squashed
+  expect(g.minCardH).toBeGreaterThan(60);
+  expect(g.whole).toBe(true); // auto-scrolled to the newest cards
+  await browser.evaluate('document.getElementById("agent-thread").scrollTop = 0');
+  g = await geo();
+  expect(g.top).toBe(0);
+  expect(g.whole).toBe(false);
+  await browser.evaluate('document.getElementById("agent-thread").scrollTop = 1e6');
+  g = await geo();
+  expect(g.whole).toBe(true);
+  expect(g.minCardH).toBeGreaterThan(60);
+
+  // (b) the sash: keyboard resize, clamped, double-click reset, reload persists.
+  const sash = panel(screen).getByRole('separator', 'Resize agent panel');
+  await expect(sash).toHaveAttribute('aria-orientation', 'vertical');
+  const width = () => browser.evaluate('Math.round(document.getElementById("agent-panel").getBoundingClientRect().width)') as Promise<number>;
+  const min = Number(await sash.getAttribute('aria-valuemin'));
+  expect(min).toBe(380);
+  expect(Number(await sash.getAttribute('aria-valuemax'))).toBeGreaterThan(min);
+  expect(await width()).toBe(min);
+  await sash.focus();
+  await sash.press('ArrowRight'); // narrower than the minimum: clamped
+  expect(await width()).toBe(min);
+  for (let i = 0; i < 4; i++) await sash.press('ArrowLeft');
+  const wide = await width();
+  expect(wide).toBeGreaterThan(min);
+  expect(wide).toBeLessThanOrEqual(Number(await browser.evaluate('window.innerWidth / 2')));
+  await expect(sash).toHaveAttribute('aria-valuenow', String(wide));
+  await app.screenshot('agent-wide-long');
+
+  await openKeel(app);
+  await expect(panel(screen)).toBeVisible();
+  expect(await width()).toBe(wide);
+  await expect(panel(screen).getByRole('separator', 'Resize agent panel')).toHaveAttribute('aria-valuenow', String(wide));
+
+  await panel(screen).getByRole('separator', 'Resize agent panel').dblclick();
+  expect(await width()).toBe(min);
+  await openKeel(app);
+  expect(await width()).toBe(min);
+  await closeTabs(screen);
+});
+
 test('a joined (follower) tab has no agent panel and its pane is never in scope', { tags: ['agent'], timeout: 120_000 }, async ({ app, screen, browser }) => {
   await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: FAKE_KEY });
   await openKeel(app);

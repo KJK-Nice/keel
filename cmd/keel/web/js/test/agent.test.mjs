@@ -66,6 +66,13 @@ test("answers are escaped, with code spans", () => {
   assert.equal(A.answerHTML("run `df -h` <now>"), "run <code>df -h</code> &lt;now&gt;");
 });
 
+test("answers render **bold** safely, never inside code or from raw HTML", () => {
+  assert.equal(A.answerHTML("**Add your user** to `docker`"), "<strong>Add your user</strong> to <code>docker</code>");
+  assert.equal(A.answerHTML("`a **b** c`"), "<code>a **b** c</code>");
+  assert.equal(A.answerHTML("**<img src=x onerror=alert(1)>**"), "<strong>&lt;img src=x onerror=alert(1)&gt;</strong>");
+  assert.equal(A.answerHTML("a ** b"), "a ** b");
+});
+
 test("Type is offered only to the driver of an open local pane (§6.6)", () => {
   const p = { sessionId: "s1", needsShift: false };
   assert.equal(A.typeOffer(p, panes[0]), "type");

@@ -54,6 +54,7 @@ export const AGENT_ICON = ICON.ai;
 //   typeProposal({proposal, conversationId, shift}) → Promise<{ok, message}>
 //   copyText(text)
 //   onOpenChange(open)        layout and keyboard surface follow-up
+//   onResize()                the panel width changed; refit the terminals
 export function createAgentPanel(deps) {
   const doc = deps.doc || document;
   const $ = (id) => doc.getElementById(id);
@@ -596,6 +597,90 @@ export function createAgentPanel(deps) {
       saveEdit(rec);
     }
   });
+
+  // --- width (the sash on the panel's left edge) ---
+  // Min is --size-agent, max 50vw, step --size-agent-step. The width lives in
+  // --agent-width on the panel and in localStorage; null means the default.
+  const WIDTH_KEY = "keel-agent-width";
+  const sash = $("agent-sash");
+  const tokenPx = (name, fallback) => {
+    const n = parseFloat(doc.defaultView?.getComputedStyle(doc.documentElement).getPropertyValue(name));
+    return n > 0 ? n : fallback;
+  };
+  const minW = () => tokenPx("--size-agent", 380);
+  const maxW = () => Math.max(minW(), Math.floor((doc.defaultView?.innerWidth || 1280) * 0.5));
+  let width = null;
+
+  function readWidth() {
+    try {
+      const n = Number(localStorage.getItem(WIDTH_KEY));
+      return n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  }
+  function writeWidth() {
+    try {
+      if (width == null) localStorage.removeItem(WIDTH_KEY);
+      else localStorage.setItem(WIDTH_KEY, String(width));
+    } catch {}
+  }
+  function applyWidth(notify) {
+    const lo = minW();
+    const hi = maxW();
+    if (width != null) width = Math.min(hi, Math.max(lo, Math.round(width)));
+    if (width == null) root.style.removeProperty("--agent-width");
+    else root.style.setProperty("--agent-width", `${width}px`);
+    if (sash) {
+      sash.setAttribute("aria-valuemin", String(lo));
+      sash.setAttribute("aria-valuemax", String(hi));
+      sash.setAttribute("aria-valuenow", String(width ?? lo));
+    }
+    if (notify) deps.onResize?.();
+  }
+  const currentWidth = () => width ?? minW();
+  function setWidth(w, persist) {
+    width = w;
+    applyWidth(true);
+    if (persist) writeWidth();
+  }
+
+  if (sash) {
+    width = readWidth();
+    applyWidth(false);
+    const html = doc.documentElement;
+    sash.addEventListener("pointerdown", (ev) => {
+      if (ev.button > 0) return;
+      ev.preventDefault();
+      sash.setPointerCapture?.(ev.pointerId);
+      sash.classList.add("is-dragging");
+      html.classList.add("is-agent-resizing");
+      const move = (e) => setWidth(root.getBoundingClientRect().right - e.clientX, false);
+      const up = () => {
+        sash.removeEventListener("pointermove", move);
+        sash.removeEventListener("pointerup", up);
+        sash.removeEventListener("pointercancel", up);
+        sash.classList.remove("is-dragging");
+        html.classList.remove("is-agent-resizing");
+        writeWidth();
+      };
+      sash.addEventListener("pointermove", move);
+      sash.addEventListener("pointerup", up);
+      sash.addEventListener("pointercancel", up);
+    });
+    sash.addEventListener("keydown", (ev) => {
+      const step = tokenPx("--size-agent-step", 24) * (ev.shiftKey ? 4 : 1);
+      // The panel is on the right: ArrowLeft widens it.
+      if (ev.key === "ArrowLeft") setWidth(currentWidth() + step, true);
+      else if (ev.key === "ArrowRight") setWidth(currentWidth() - step, true);
+      else if (ev.key === "Home") setWidth(minW(), true);
+      else if (ev.key === "End") setWidth(maxW(), true);
+      else return;
+      ev.preventDefault();
+    });
+    sash.addEventListener("dblclick", () => setWidth(null, true));
+    doc.defaultView?.addEventListener("resize", () => applyWidth(false));
+  }
 
   applyOpen();
   if (state.open) loadSettings();

@@ -2295,7 +2295,7 @@ button.k-switch:disabled { opacity: .45; cursor: default; }
    these classes. One per window, size-agent wide, collapsible. */
 .k-agent {
   display: flex; flex-direction: column; flex: none; min-height: 0; position: relative;
-  width: var(--size-agent); max-width: 50vw;
+  width: var(--agent-width, var(--size-agent)); max-width: 50vw;
   background: var(--surface); border-left: 1px solid var(--line);
 }
 html[data-agent="closed"] .k-agent,
@@ -2355,6 +2355,21 @@ button.k-agent-pick[aria-disabled="true"]:hover { background: transparent; }
   display: flex; flex-direction: column; gap: var(--space-4);
   padding: var(--space-4) var(--space-3);
 }
+/* Nothing in the thread shrinks: a clipped child (.k-prop is overflow:hidden,
+   so its min-height is 0) would otherwise squash instead of making the
+   thread scroll. */
+.k-agent-thread > * { flex: none; }
+/* Resize handle on the panel's left edge: the .split-sash look (a brass line
+   on hover, a wider hit area) laid over the panel border. */
+.k-agent-sash {
+  position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2);
+  z-index: 2; cursor: col-resize; touch-action: none;
+}
+.k-agent-sash::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--space-1); width: 1px; background: transparent; }
+.k-agent-sash:hover::after, .k-agent-sash:focus-visible::after, .k-agent-sash.is-dragging::after { background: var(--brass-ink); }
+.k-agent-sash:focus { outline: none; }
+html.is-agent-resizing { cursor: col-resize; user-select: none; -webkit-user-select: none; }
+html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: none; }
 .k-agent-turn { display: grid; gap: var(--space-1\.5); min-width: 0; }
 .k-agent-who {
   display: flex; align-items: center; gap: var(--space-1\.5);
