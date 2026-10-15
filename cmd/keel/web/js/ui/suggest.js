@@ -118,11 +118,18 @@ export function createPaneSuggest(deps) {
     return el;
   }
 
-  function card(html, rects, m) {
+  // shown is the suggestion id of the card on screen: a redraw of the
+  // same card (another option, a note, a stricter rating from Jev) does
+  // not replay the entry animation.
+  let shown = "";
+
+  function card(html, rects, m, key = "") {
     const wrap = document.createElement("div");
     wrap.className = "k-sug-anchor";
     wrap.innerHTML = html;
     layer.appendChild(wrap);
+    if (key && key === shown) wrap.firstElementChild?.style.setProperty("animation", "none");
+    shown = key;
     const last = rects[rects.length - 1];
     const first = rects[0];
     const below = last.top + m.ch;
@@ -134,6 +141,7 @@ export function createPaneSuggest(deps) {
   function render(v) {
     layer.replaceChildren();
     layer.dataset.state = v.state;
+    if (v.state !== "card" && v.state !== "inserting") shown = "";
     if (v.state === "idle") return;
     const line = v.line;
     const m = metrics();
@@ -154,7 +162,7 @@ export function createPaneSuggest(deps) {
     const len = Math.max(line.input.length, 1);
     const rects = marks(line, line.start, len, "k-sug-mark--ghost", m);
     if (!rects.length) return;
-    if (v.state === "card" || v.state === "inserting") card(S.cardHTML(v.sug, v.selected, { ...opts, note: v.note }), rects, m);
+    if (v.state === "card" || v.state === "inserting") card(S.cardHTML(v.sug, v.selected, { ...opts, note: v.note }), rects, m, v.sug?.id || "");
     else card(S.pendingHTML({ mac: deps.mac, icon: AGENT_ICON, message: v.state === "error" ? v.message : "" }), rects, m);
   }
 

@@ -71,9 +71,50 @@ type content struct {
 	Parts []part `json:"parts"`
 }
 
+// genConfig is GenerationConfig in the generateContent REST API
+// (https://ai.google.dev/api/generate-content#GenerationConfig).
 type genConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	MaxOutputTokens int             `json:"maxOutputTokens,omitempty"`
+	ThinkingConfig  *thinkingConfig `json:"thinkingConfig,omitempty"`
 }
+
+// thinkingConfig is ThinkingConfig: thinkingLevel is the ThinkingLevel
+// enum (MINIMAL, LOW, MEDIUM, HIGH).
+type thinkingConfig struct {
+	ThinkingLevel string `json:"thinkingLevel,omitempty"`
+}
+
+// noMinimal lists the models that reject the MINIMAL thinking level
+// (https://ai.google.dev/gemini-api/docs/thinking): their lowest is LOW.
+// A model not listed here is sent the level as asked.
+var noMinimal = map[string]bool{
+	"gemini-3.8-flash":       true,
+	"gemini-3.1-pro-preview": true,
+	"gemini-3-pro-preview":   true,
+	"gemini-2.5-pro":         true,
+	"gemini-2.5-flash":       true,
+	"gemini-2.5-flash-lite":  true,
+}
+
+// thinkingLevel maps a provider.Thinking* level to the API's enum for
+// model, or "" to leave the model's default.
+func thinkingLevel(model, level string) (string, error) {
+	switch level {
+	case "":
+		return "", nil
+	case provider.ThinkingMinimal:
+		if noMinimal[model] {
+			return "LOW", nil
+		}
+		return "MINIMAL", nil
+	case provider.ThinkingLow, provider.ThinkingMedium, provider.ThinkingHigh:
+		return strings.ToUpper(level), nil
+	}
+	return "", fmt.Errorf("gemini: unknown thinking level %q", level)
+}
+
+// SupportsMinimal reports whether model takes the MINIMAL thinking level.
+func SupportsMinimal(model string) bool { return !noMinimal[model] }
 
 type genRequest struct {
 	SystemInstruction *content   `json:"systemInstruction,omitempty"`
@@ -120,8 +161,15 @@ func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.R
 	if len(body.Contents) == 0 {
 		return provider.Response{}, errors.New("gemini: no messages")
 	}
-	if req.MaxOutputTokens > 0 {
+	level, err := thinkingLevel(model, req.Thinking)
+	if err != nil {
+		return provider.Response{}, err
+	}
+	if req.MaxOutputTokens > 0 || level != "" {
 		body.GenerationConfig = &genConfig{MaxOutputTokens: req.MaxOutputTokens}
+		if level != "" {
+			body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: level}
+		}
 	}
 	b, err := json.Marshal(body)
 	if err != nil {

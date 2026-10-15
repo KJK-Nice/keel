@@ -33,7 +33,20 @@ type Request struct {
 	System          redact.Safe
 	Messages        []Message
 	MaxOutputTokens int
+	// Thinking is how much the model reasons before it answers: one of
+	// the Thinking* levels, or "" for the model's default. Each client
+	// maps it to its own API and to what the model accepts.
+	Thinking string
 }
+
+// Thinking levels, lowest first. Not every model takes every level; the
+// client lowers a level a model does not take to the nearest it does.
+const (
+	ThinkingMinimal = "minimal"
+	ThinkingLow     = "low"
+	ThinkingMedium  = "medium"
+	ThinkingHigh    = "high"
+)
 
 type Response struct {
 	Text         string
@@ -71,6 +84,12 @@ type Descriptor struct {
 	KeyHelpURL   string   `json:"keyHelpUrl,omitempty"`
 	DefaultModel string   `json:"defaultModel,omitempty"`
 	Models       []string `json:"models,omitempty"`
+	// SuggestModel and SuggestThinking are used for in-pane suggestions
+	// (§5.5), where the user waits after ⇥: a small model that thinks
+	// little. The agent panel keeps the model from the settings, with the
+	// model's default thinking. Empty: the settings model, default thinking.
+	SuggestModel    string `json:"suggestModel,omitempty"`
+	SuggestThinking string `json:"suggestThinking,omitempty"`
 	// Warning is shown next to the key field before the user connects.
 	Warning  string `json:"warning,omitempty"`
 	TermsURL string `json:"termsUrl,omitempty"`
@@ -94,9 +113,13 @@ var descriptors = []Descriptor{
 		DefaultModel: "gemini-3.8-flash",
 		// The 2.5 family is closed to keys that never used it, so new
 		// users get a 404 from it.
-		Models:   []string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"},
-		Warning:  GeminiWarning,
-		TermsURL: "https://ai.google.dev/gemini-api/terms",
+		Models: []string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"},
+		// gemini-3.5-flash-lite takes "minimal"; gemini-3.8-flash does not
+		// (low, medium, high only), so the two are never mixed up.
+		SuggestModel:    "gemini-3.5-flash-lite",
+		SuggestThinking: ThinkingMinimal,
+		Warning:         GeminiWarning,
+		TermsURL:        "https://ai.google.dev/gemini-api/terms",
 	},
 	{
 		ID:       "jev",

@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/agent"
+	"keel/internal/applog"
 )
 
 func sendJSON(t *testing.T, conn *websocket.Conn, v map[string]any) {
@@ -134,7 +135,14 @@ func TestSuggestOverSessionSocket(t *testing.T) {
 	if n := len(f.logEntries(agent.EventInsert)); n != 1 {
 		t.Fatalf("a replay was logged: %d inserts", n)
 	}
-	if sugs := f.logEntries(agent.EventSuggest); len(sugs) != 1 || sugs[0].Source != "generated" {
+	// agent.suggest is written once Jev has rated the suggestion.
+	var sugs []applog.Entry
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if sugs = f.logEntries(agent.EventSuggest); len(sugs) > 0 {
+			break
+		}
+	}
+	if len(sugs) != 1 || sugs[0].Source != "generated" || sugs[0].ModelMs < 1 || sugs[0].JevMs < 1 {
 		t.Fatalf("agent.suggest = %+v", sugs)
 	}
 
@@ -270,5 +278,73 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 	}
 	if got := len(f.fake.Requests()) - m; got != 1 {
 		t.Fatalf("a burst of 2 suggests reached the model %d times, want 1", got)
+	}
+}
+
+// Speed: the card is sent as soon as the model answers; a stricter Jev
+// rating follows as agent-suggest-risk, and from then on keel serve
+// refuses plain ⇥ for it.
+func TestSuggestRiskUpdateFollowsTheCard(t *testing.T) {
+	f := newAskFixture(t, true)
+	if err := f.st.SetAgentKey("jev", "jev-test-key-0123"); err != nil {
+		t.Fatal(err)
+	}
+	f.judge.SetSlowDelay(300 * time.Millisecond)
+	web := f.open(t, f.webID, "ready\n")
+	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
+	defer driver.Close()
+	waitJSON(t, driver, "ready")
+	bridge := f.bridge(t, f.webID)
+
+	start := time.Now()
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 1, "line": "run the slow check"})
+	r := waitJSON(t, driver, "agent-suggest")
+	cardAt := time.Since(start)
+	sug := r["suggestion"].(map[string]any)
+	opt := sug["options"].([]any)[0].(map[string]any)
+	if opt["command"] != "echo keel-jev-slow" || opt["risk"] != "readonly" || opt["needsShift"] != false || opt["judged"] != false {
+		t.Fatalf("card = %v", opt)
+	}
+	if cardAt >= 300*time.Millisecond {
+		t.Fatalf("the card waited for Jev: %v", cardAt)
+	}
+	up := waitJSON(t, driver, "agent-suggest-risk")
+	if up["suggestionId"] != sug["id"] {
+		t.Fatalf("update = %v", up)
+	}
+	uo := up["options"].([]any)[0].(map[string]any)
+	if uo["risk"] != "destructive" || uo["needsShift"] != true || uo["judged"] != true {
+		t.Fatalf("update option = %v", uo)
+	}
+	got := readPTY(bridge)
+	if r := insertOverSocket(t, driver, opt["bytes"].(string), sug["id"].(string), 0, false); r["ok"] != false || !strings.Contains(r["message"].(string), "⇧⇥") {
+		t.Fatalf("plain ⇥ after the update → %v", r)
+	}
+	noPTY(t, got, "a plain ⇥ after Jev raised the rating")
+	if r := insertOverSocket(t, driver, opt["bytes"].(string), sug["id"].(string), 0, true); r["ok"] != true {
+		t.Fatalf("⇧⇥ after the update → %v", r)
+	}
+	select {
+	case hit := <-got:
+		if hit != "\x15echo keel-jev-slow" {
+			t.Fatalf("PTY got %q", hit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the shifted insert never reached the PTY")
+	}
+
+	// A suggestion Jev does not tighten gets no update.
+	time.Sleep(suggestMinInterval)
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 2, "line": "show the files here"})
+	waitJSON(t, driver, "agent-suggest")
+	_ = driver.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	for {
+		_, msg, err := driver.ReadMessage()
+		if err != nil {
+			break
+		}
+		if strings.Contains(string(msg), "agent-suggest-risk") {
+			t.Fatalf("unexpected update: %s", msg)
+		}
 	}
 }

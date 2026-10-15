@@ -261,3 +261,36 @@ test("an insert dropped because the line changed writes nothing and closes the c
   assert.deepEqual(seen, ["show the files here"], "insert gets the words to re-check");
   assert.equal(h.m.state, "idle");
 });
+
+test("a later, stricter rating changes the badge and the ⇥ hint; never a looser one", async () => {
+  const h = machine();
+  h.m.onInput("x");
+  h.fire();
+  h.m.onDetect({ seq: 1, plain: true, source: "jev" });
+  h.m.onKey(key("Tab"));
+  const sug = { id: "s_9", options: [{ command: "echo keel-jev-slow", risk: "readonly", needsShift: false, judged: false }] };
+  h.m.onSuggest({ seq: h.sent[1].seq, ok: true, suggestion: sug });
+  assert.match(S.cardHTML(h.m.view().sug, 0, { mac: true }), /Read-only/);
+  // An update for another suggestion is ignored.
+  h.m.onRisk({ suggestionId: "s_other", options: [{ risk: "destructive", needsShift: true, judged: true }] });
+  assert.equal(h.m.view().sug.options[0].risk, "readonly");
+  // Jev: destructive. The card turns red and asks for ⇧⇥.
+  h.m.onRisk({ suggestionId: "s_9", options: [{ risk: "destructive", needsShift: true, judged: true }] });
+  const v = h.m.view();
+  assert.equal(v.state, "card");
+  assert.equal(v.sug.options[0].risk, "destructive");
+  const html = S.cardHTML(v.sug, 0, { mac: true });
+  assert.match(html, /k-sug--danger/);
+  assert.match(html, /insert anyway/);
+  h.m.onKey(key("Tab"));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(h.inserts.length, 0);
+  assert.match(h.m.view().note, /Press ⇧⇥/);
+  // A looser update cannot take ⇧ away.
+  h.m.onRisk({ suggestionId: "s_9", options: [{ risk: "readonly", needsShift: false, judged: true }] });
+  assert.equal(h.m.view().sug.options[0].risk, "destructive");
+  assert.equal(h.m.view().sug.options[0].needsShift, true);
+  h.m.onKey(key("Tab", { shiftKey: true }));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(h.inserts.length, 1);
+});

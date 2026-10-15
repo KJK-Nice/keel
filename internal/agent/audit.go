@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"keel/internal/agent/redact"
 	"keel/internal/applog"
@@ -88,18 +89,48 @@ func (a *Auditor) Suggest(p Pane, rep redact.Report, risk string) {
 // model provider), and in later phases "history" or "snippet". In-pane
 // suggestions (§5.5) always name one.
 func (a *Auditor) SuggestFrom(p Pane, rep redact.Report, risk, source string) {
+	a.SuggestTimed(p, rep, risk, source, Timing{})
+}
+
+// Timing is how long an in-pane suggestion's calls took. Asked is false
+// when Jev was not asked (no key, or every candidate was destructive by
+// the code rule).
+type Timing struct {
+	Model time.Duration
+	Jev   time.Duration
+	Asked bool
+}
+
+// SuggestTimed is SuggestFrom with the time the model and Jev took, so a
+// slow suggestion shows where the time went. It logs no content.
+func (a *Auditor) SuggestTimed(p Pane, rep redact.Report, risk, source string, t Timing) {
 	from := ""
 	if source != "" {
 		from = " · " + source
 	}
-	a.log.Append(applog.Entry{
+	took := ""
+	if t.Model > 0 {
+		took = fmt.Sprintf(" · model %d ms", t.Model.Milliseconds())
+		if t.Asked {
+			took += fmt.Sprintf(" · Jev %d ms", t.Jev.Milliseconds())
+		}
+	}
+	e := applog.Entry{
 		Kind:       EventSuggest,
-		Message:    fmt.Sprintf("agent suggested a command for %s · %s%s · %s", hostLabel(p), riskLabel(risk), from, redactionNote(rep)),
+		Message:    fmt.Sprintf("agent suggested a command for %s · %s%s · %s%s", hostLabel(p), riskLabel(risk), from, redactionNote(rep), took),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
 		Redactions: rep.Strings(),
 		Source:     source,
-	})
+	}
+	// At least 1 ms when made, so a fast call is never read as "not made".
+	if t.Model > 0 {
+		e.ModelMs = max(t.Model.Milliseconds(), 1)
+	}
+	if t.Asked {
+		e.JevMs = max(t.Jev.Milliseconds(), 1)
+	}
+	a.log.Append(e)
 }
 
 // PromptLines logs agent.read for prompt lines of p sent to a detector

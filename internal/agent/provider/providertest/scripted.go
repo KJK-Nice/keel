@@ -29,7 +29,8 @@ import (
 // An in-pane suggestion request (the message starts with SuggestPrefix)
 // gets suggestion blocks instead: a destructive `rm -rf` for words with
 // "delete" or "clean up", a state change for "touch", a command that only
-// Jev's fake rates stricter for "stricter", and otherwise a read-only echo
+// Jev's fake rates stricter for "stricter", one it rates destructive
+// only after a delay for "slow check", and otherwise a read-only echo
 // with two read-only alternatives.
 //
 // The proposal block uses the agent service's format (```keel-proposal);
@@ -112,6 +113,8 @@ func suggestReply(words string) provider.Response {
 		opts = []opt{{"rm -rf /tmp/keel-suggest-e2e", "Deletes the scratch folder and everything in it.", "destructive"}}
 	case strings.Contains(words, "touch"):
 		opts = []opt{{"touch /tmp/keel-suggest-touched", "Creates an empty marker file.", "changes"}}
+	case strings.Contains(words, "slow check"):
+		opts = []opt{{"echo keel-jev-slow", "Prints a marker that the fake judge rates as destructive, late.", "readonly"}}
 	case strings.Contains(words, "stricter"):
 		opts = []opt{{"echo keel-jev-stricter", "Prints a marker that the fake judge rates as a state change.", "readonly"}}
 	default:

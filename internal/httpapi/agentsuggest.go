@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -27,7 +28,14 @@ import (
 //
 // Replies: {"type":"agent-detect","seq":N,"plain":bool,"source":"…"},
 // {"type":"agent-suggest","seq":N,"ok":bool,"suggestion":{…}|"message","reason"},
+// {"type":"agent-suggest-risk","suggestionId":"…","options":[{"risk","needsShift","judged"}…]},
 // {"type":"agent-insert","ok":bool,"suggestionId":"…","message":"…"}.
+//
+// A suggestion is sent as soon as the model answers, rated by the code
+// rule. Jev rates it afterwards; when Jev is stricter, agent-suggest-risk
+// tells the card, and the service already holds the stricter rating for
+// AuthorizeInsert. A ⇥ that lands before Jev answers is decided on the
+// code rating (whose denylist is final for destructive commands).
 
 // WithAgentJudge sets how the agent builds its detector (TypeSafe Jev).
 // keel serve passes service.FromEnv's; tests pass a fake.
@@ -140,17 +148,34 @@ func (c *suggestConn) suggest(seq int, line string) {
 			return
 		}
 		info := c.sess.Info()
-		sug, err := c.srv.agent.Suggest(ctx, service.SuggestRequest{SessionID: info.ID, Role: clientRole(c.sess, c.cl), Line: line})
-		if ctx.Err() != nil {
-			return
-		}
+		sug, check, err := c.srv.agent.Suggest(ctx, service.SuggestRequest{SessionID: info.ID, Role: clientRole(c.sess, c.cl), Line: line})
 		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
 			msg, reason := suggestErr(err)
 			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": msg, "reason": reason})
 			return
 		}
-		_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": true, "suggestion": sug})
+		// The card first; Jev after. Run even when this call was
+		// superseded: it keeps the stricter rating and logs agent.suggest.
+		if ctx.Err() == nil {
+			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": true, "suggestion": sug})
+		}
+		upd, took := check.Run(ctx)
+		log.Printf("debug: agent suggest: model=%s thinking=%s model_ms=%d jev_ms=%d jev_asked=%v stricter=%v",
+			took.Model, orDefault(took.Thinking), took.ModelMs, took.JevMs, took.JevAsked, upd.Stricter)
+		if upd.Stricter && ctx.Err() == nil {
+			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest-risk", "suggestionId": upd.SuggestionID, "options": upd.Options})
+		}
 	}()
+}
+
+func orDefault(s string) string {
+	if s == "" {
+		return "default"
+	}
+	return s
 }
 
 // suggestErr is the card's message and a reason the client can act on.

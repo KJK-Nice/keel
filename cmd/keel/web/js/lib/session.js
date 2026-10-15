@@ -54,6 +54,7 @@ export function parseSessionMessage(text) {
 //   agentType(msg)           keel serve typed (or refused) an agent proposal
 //   agentDetect(msg)         is the prompt line plain language (§5.5)
 //   agentSuggest(msg)        a suggestion for the prompt line, or why not
+//   agentSuggestRisk(msg)    Jev rated a shown suggestion stricter
 //   agentInsert(msg)         keel serve inserted (or refused) a suggestion
 //   error(msg)               the session failed
 // Unknown types are ignored. Returns whether a handler ran.
@@ -84,6 +85,8 @@ export function dispatchSessionMessage(msg, h) {
       return run("agentDetect", msg);
     case "agent-suggest":
       return run("agentSuggest", msg);
+    case "agent-suggest-risk":
+      return run("agentSuggestRisk", msg);
     case "agent-insert":
       return run("agentInsert", msg);
     case "error":

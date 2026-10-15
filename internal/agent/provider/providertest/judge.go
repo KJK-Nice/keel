@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"keel/internal/agent/provider"
 )
@@ -21,13 +22,28 @@ import (
 //     test can see the silent fallback to #-lines.
 //   - A Choice about a command answers "readonly", except "changes" for a
 //     command holding "keel-jev-stricter", so a test can see Jev make a
-//     rating stricter.
+//     rating stricter, and "destructive" after SlowDelay for a command
+//     holding "keel-jev-slow", so a test can see the card arrive first
+//     and its rating tighten later.
 type ScriptedJudge struct {
 	mu       sync.Mutex
 	requests []provider.JudgeRequest
+	slow     time.Duration
 }
 
-func NewScriptedJudge() *ScriptedJudge { return &ScriptedJudge{} }
+// DefaultSlowDelay is how long the fake takes over a "keel-jev-slow"
+// command: well under the service's risk timeout (2 s), long enough for
+// an end-to-end test to see the card before the answer.
+const DefaultSlowDelay = 1200 * time.Millisecond
+
+func NewScriptedJudge() *ScriptedJudge { return &ScriptedJudge{slow: DefaultSlowDelay} }
+
+// SetSlowDelay changes the "keel-jev-slow" delay (Go tests shorten it).
+func (j *ScriptedJudge) SetSlowDelay(d time.Duration) {
+	j.mu.Lock()
+	j.slow = d
+	j.mu.Unlock()
+}
 
 func (j *ScriptedJudge) ID() string { return "fake-judge" }
 
@@ -77,9 +93,21 @@ func (j *ScriptedJudge) Judge(ctx context.Context, req provider.JudgeRequest) (p
 	}
 	out := provider.JudgeResponse{Model: "fake-judge", Nouls: map[string]float64{}, Choices: map[string]provider.ChoiceAnswer{}}
 	cmds := map[int]string{}
+	slow := false
 	for _, list := range req.Lists {
 		for i, v := range list {
 			cmds[i] = v.String()
+			slow = slow || strings.Contains(v.String(), "keel-jev-slow")
+		}
+	}
+	if slow {
+		j.mu.Lock()
+		d := j.slow
+		j.mu.Unlock()
+		select {
+		case <-time.After(d):
+		case <-ctx.Done():
+			return provider.JudgeResponse{}, ctx.Err()
 		}
 	}
 	for id, q := range req.Questions {
@@ -99,8 +127,11 @@ func (j *ScriptedJudge) Judge(ctx context.Context, req provider.JudgeRequest) (p
 				}
 			}
 			pick := "readonly"
-			if strings.Contains(cmds[n], "keel-jev-stricter") {
+			switch {
+			case strings.Contains(cmds[n], "keel-jev-stricter"):
 				pick = "changes"
+			case strings.Contains(cmds[n], "keel-jev-slow"):
+				pick = "destructive"
 			}
 			probs := map[string]float64{}
 			for _, o := range q.Options {
@@ -122,10 +153,13 @@ func (j *ScriptedJudge) Requests() []provider.JudgeRequest {
 
 // FakeJudge is a judge with fixed answers for unit tests.
 type FakeJudge struct {
-	mu       sync.Mutex
-	Nouls    map[string]float64
-	Choices  map[string]provider.ChoiceAnswer
-	Err      error
+	mu      sync.Mutex
+	Nouls   map[string]float64
+	Choices map[string]provider.ChoiceAnswer
+	Err     error
+	// Hold, when set, keeps every answer back until it is closed (or the
+	// request's context ends), so a test can act while Jev is "thinking".
+	Hold     chan struct{}
 	requests []provider.JudgeRequest
 }
 
@@ -134,6 +168,16 @@ func (f *FakeJudge) ID() string { return "fake-judge" }
 func (f *FakeJudge) Judge(ctx context.Context, req provider.JudgeRequest) (provider.JudgeResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return provider.JudgeResponse{}, err
+	}
+	f.mu.Lock()
+	hold := f.Hold
+	f.mu.Unlock()
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return provider.JudgeResponse{}, ctx.Err()
+		}
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()

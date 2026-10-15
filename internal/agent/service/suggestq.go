@@ -42,8 +42,9 @@ const (
 	// detectTimeout bounds one detection call. Past it the line is
 	// treated as not noticed (only #-lines are), with no error shown.
 	detectTimeout = 900 * time.Millisecond
-	// riskTimeout bounds the Jev risk call after a suggestion. Past it the
-	// code rating stands alone.
+	// riskTimeout bounds the Jev risk call after a suggestion. The card is
+	// already shown by then (RiskCheck runs after it); past the timeout
+	// the code rating stands alone.
 	riskTimeout = 2 * time.Second
 	// suggestTimeout bounds the model provider call for a suggestion.
 	suggestTimeout = 30 * time.Second

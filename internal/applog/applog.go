@@ -31,6 +31,11 @@ type Entry struct {
 	// reads are summarised per pane per minute).
 	Source string `json:"source,omitempty"`
 	Count  int    `json:"count,omitempty"`
+	// ModelMs and JevMs are how long an in-pane suggestion's calls took
+	// (agent.suggest): the model provider writing it, and Jev rating its
+	// risk (0 when Jev was not asked). Timings only, never content.
+	ModelMs int64 `json:"modelMs,omitempty"`
+	JevMs   int64 `json:"jevMs,omitempty"`
 }
 
 type Book struct {

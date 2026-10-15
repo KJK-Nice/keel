@@ -10,8 +10,11 @@ package service
 //     failure falls back to #-lines only, silently.
 //   - Suggest: the user pressed ⇥ on a noticed line. The suggesters, in
 //     order, produce candidate commands (6c has one: the model provider,
-//     source "generated"); every candidate is rated by the code rule first
-//     and then, when Jev answers, made stricter (never looser).
+//     source "generated", on the provider's small suggestion model); every
+//     candidate is rated by the code rule and returned at once. The
+//     returned RiskCheck then asks Jev and may make the stored rating
+//     stricter (never looser); keel serve pushes that to the card. An
+//     insert is always checked against the strictest rating known then.
 //   - AuthorizeInsert: the user pressed ⇥ / ⇧⇥ on a suggestion. Checks
 //     the suggestion, the bytes, the ⇧ rule and the driver, and logs
 //     agent.insert. It writes nothing: keel serve writes the approved
@@ -90,6 +93,8 @@ type SuggestOption struct {
 	// Judged: Jev rated this command too (it may only have made the
 	// rating stricter).
 	Judged bool `json:"judged"`
+	// codeRisk is the code rule's rating, before Jev.
+	codeRisk agent.Risk
 }
 
 // Suggestion is kept in memory until it expires, so an insert can be
@@ -144,9 +149,10 @@ type Suggester interface {
 
 // modelSuggester asks the model provider (Gemini) to write the command.
 type modelSuggester struct {
-	p     provider.Provider
-	model string
-	name  string // the provider's name, for keel.log
+	p        provider.Provider
+	model    string
+	thinking string
+	name     string // the provider's name, for keel.log
 }
 
 func (m modelSuggester) Source() string { return SourceGenerated }
@@ -157,6 +163,7 @@ func (m modelSuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candida
 	msg := in.Redactor.Text(SuggestPrefix + in.Words.String())
 	resp, err := m.p.Generate(ctx, provider.Request{
 		Model:           m.model,
+		Thinking:        m.thinking,
 		System:          suggestSafe,
 		Messages:        []provider.Message{{Role: provider.RoleUser, Text: msg}},
 		MaxOutputTokens: maxOutputTokens,
@@ -349,55 +356,74 @@ func (s *Service) Close() {
 	}
 }
 
+// SuggestModel is the model and thinking level suggestions use for a
+// provider: its suggestion model when it names one, else the settings
+// model with the model's default thinking.
+func SuggestModel(desc provider.Descriptor, set store.AgentSettings) (model, thinking string) {
+	if desc.SuggestModel != "" {
+		return desc.SuggestModel, desc.SuggestThinking
+	}
+	return set.Model, ""
+}
+
 // Suggest turns the words on a pane's prompt line into a command and up
 // to two alternatives (State 2, Suggest). It is the user's ⇥.
-func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, error) {
+//
+// It returns as soon as the model answers, with every option rated by the
+// code rule (the denylist, made stricter by the model's own rating), and
+// keeps the suggestion for AuthorizeInsert. The caller shows it, then runs
+// the RiskCheck, which asks Jev and may make the kept rating stricter;
+// RiskCheck.Run also writes the agent.suggest entry, so the caller must
+// run it for every suggestion it gets.
+func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, *RiskCheck, error) {
 	if err := agent.CanInsert(req.Role); err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
 	words, _, ok := cleanLine(req.Line)
 	if !ok {
-		return Suggestion{}, badRequest(fmt.Sprintf("a prompt line is at most %d bytes, with no control characters", maxLineBytes))
+		return Suggestion{}, nil, badRequest(fmt.Sprintf("a prompt line is at most %d bytes, with no control characters", maxLineBytes))
 	}
 	if words == "" {
-		return Suggestion{}, ErrEmptyLine
+		return Suggestion{}, nil, ErrEmptyLine
 	}
 	set, err := s.st.AgentSettings()
 	if err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
 	if !set.SuggestionsEnabled() {
-		return Suggestion{}, ErrSuggestOff
+		return Suggestion{}, nil, ErrSuggestOff
 	}
 	desc, ready, err := s.modelReady(set)
 	if err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
 	if desc.Kind != provider.KindModel {
-		return Suggestion{}, ErrNotProvider
+		return Suggestion{}, nil, ErrNotProvider
 	}
 	if !ready {
-		return Suggestion{}, ErrNoKey
+		return Suggestion{}, nil, ErrNoKey
 	}
 	p, host, hosts, err := s.paneFor(req.SessionID, req.Role)
 	if err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
 	r, err := agent.NewRedactor(s.st, set.Redact, hosts)
 	if err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
 	in := SuggestInput{Words: r.Text(words), Pane: p, Host: host, Settings: set, Redactor: r}
 
 	prov, err := s.providerFor(desc.ID)
 	if err != nil {
-		return Suggestion{}, err
+		return Suggestion{}, nil, err
 	}
-	suggesters := []Suggester{modelSuggester{p: prov, model: set.Model, name: desc.Name}}
+	model, thinking := SuggestModel(desc, set)
+	suggesters := []Suggester{modelSuggester{p: prov, model: model, thinking: thinking, name: desc.Name}}
 
 	cctx, cancel := context.WithTimeout(ctx, suggestTimeout)
 	defer cancel()
 	var cands []Candidate
+	start := s.now()
 	for _, sg := range suggesters {
 		// Logged before the call: a provider that fails, times out or
 		// returns nothing has still been sent the words.
@@ -407,13 +433,13 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 		c, err := sg.Suggest(cctx, in)
 		if err != nil {
 			if errors.Is(cctx.Err(), context.DeadlineExceeded) || ctx.Err() != nil {
-				return Suggestion{}, s.providerErr(ctx, cctx, err)
+				return Suggestion{}, nil, s.providerErr(ctx, cctx, err)
 			}
 			var pe *ProviderError
 			if errors.As(err, &pe) {
-				return Suggestion{}, pe
+				return Suggestion{}, nil, pe
 			}
-			return Suggestion{}, &ProviderError{Msg: err.Error()}
+			return Suggestion{}, nil, &ProviderError{Msg: err.Error()}
 		}
 		c = singleLine(c)
 		if len(c) > 0 {
@@ -426,14 +452,15 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 			break
 		}
 	}
+	modelTook := s.since(start)
 	if len(cands) == 0 {
-		return Suggestion{}, ErrNoSuggestion
+		return Suggestion{}, nil, ErrNoSuggestion
 	}
 	if len(cands) > 1+maxAlternatives {
 		cands = cands[:1+maxAlternatives]
 	}
 
-	opts := s.rateCandidates(ctx, p, cands, r, host.Production)
+	opts := codeRatings(cands, host.Production)
 	sug := Suggestion{
 		ID:           newID("s_"),
 		SessionID:    p.SessionID,
@@ -445,47 +472,164 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 		created:      s.now(),
 	}
 	s.keepSuggestion(&sug)
-	s.audit.SuggestFrom(p, r.Report(), riskLabel(opts[0].Risk), opts[0].Source)
-	return sug, nil
+	check := &RiskCheck{
+		s:         s,
+		sug:       sug,
+		pane:      p,
+		cands:     cands,
+		redactor:  r,
+		sent:      r.Report(),
+		modelTook: modelTook,
+		model:     model,
+		thinking:  thinking,
+	}
+	return sug, check, nil
 }
 
-// rateCandidates rates each candidate: the code rule (agent.Classify, with
-// its denylist) first, made stricter by the suggester's own rating, then
-// by Jev's when it answers. A destructive code rating is final and is not
-// asked about. Jev failing or slow leaves the code rating.
-func (s *Service) rateCandidates(ctx context.Context, p agent.Pane, cands []Candidate, r *redact.Redactor, production bool) []SuggestOption {
+// since is the time since start on the service's clock, at least 1 ns so
+// a call that ran is never read as "not made".
+func (s *Service) since(start time.Time) time.Duration {
+	return max(s.now().Sub(start), time.Nanosecond)
+}
+
+// codeRatings rates each candidate by the code rule (agent.Classify, with
+// its denylist), made stricter by the suggester's own rating. A
+// destructive code rating is final.
+func codeRatings(cands []Candidate, production bool) []SuggestOption {
 	out := make([]SuggestOption, len(cands))
-	var ask []int
 	for i, c := range cands {
+		risk := rate(c.Command, c.ModelRisk)
 		out[i] = SuggestOption{
 			Command:      c.Command,
 			Bytes:        insertBytes(c.Command),
 			Why:          c.Why,
-			Risk:         rate(c.Command, c.ModelRisk),
+			Risk:         risk,
+			NeedsShift:   agent.NeedsShift(risk, production),
 			Placeholders: hasPlaceholder(c.Command),
 			Source:       c.Source,
+			codeRisk:     risk,
 		}
-		if out[i].Risk != agent.RiskDestructive {
-			ask = append(ask, i)
-		}
-	}
-	if len(ask) > 0 {
-		if judged, ok := s.judgeRisks(ctx, p, cands, ask, r); ok {
-			for _, i := range ask {
-				if j, ok := judged[i]; ok {
-					out[i].Risk = agent.Stricter(out[i].Risk, j)
-					out[i].Judged = true
-				}
-			}
-		}
-	}
-	for i := range out {
-		out[i].NeedsShift = agent.NeedsShift(out[i].Risk, production)
 	}
 	return out
 }
 
+// OptionRisk is one option's rating after Jev.
+type OptionRisk struct {
+	Risk       agent.Risk `json:"risk"`
+	NeedsShift bool       `json:"needsShift"`
+	Judged     bool       `json:"judged"`
+}
+
+// RiskUpdate is the result of a RiskCheck: the rating of every option of
+// a suggestion, in order. Stricter is true when Jev made at least one
+// rating stricter than the one shown, so the card must change.
+type RiskUpdate struct {
+	SuggestionID string       `json:"suggestionId"`
+	Options      []OptionRisk `json:"options"`
+	Stricter     bool         `json:"-"`
+}
+
+// SuggestTiming says where a suggestion's time went, for keel serve's
+// own log (never keel.log's content: it holds no words).
+type SuggestTiming struct {
+	Model    string
+	Thinking string
+	ModelMs  int64
+	JevMs    int64
+	JevAsked bool
+}
+
+// RiskCheck is a suggestion's second step: Jev rates the candidates the
+// code rule did not settle, and the kept suggestion takes any stricter
+// rating. Run it once, after the card is shown.
+type RiskCheck struct {
+	s         *Service
+	sug       Suggestion
+	pane      agent.Pane
+	cands     []Candidate
+	redactor  *redact.Redactor
+	sent      redact.Report
+	modelTook time.Duration
+	model     string
+	thinking  string
+
+	once   sync.Once
+	update RiskUpdate
+	timing SuggestTiming
+}
+
+// Run asks Jev (bounded by riskTimeout, and not cut short when ctx ends:
+// the kept rating should be as strict as it can be for a later insert),
+// makes the kept suggestion's ratings stricter where Jev says so, and
+// writes agent.suggest with the timings. Jev failing or slow leaves the
+// code rating. Later calls return the first result.
+func (c *RiskCheck) Run(ctx context.Context) (RiskUpdate, SuggestTiming) {
+	c.once.Do(func() { c.update, c.timing = c.run(ctx) })
+	return c.update, c.timing
+}
+
+func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
+	s := c.s
+	var ask []int
+	for i, o := range c.sug.Options {
+		if o.Risk != agent.RiskDestructive {
+			ask = append(ask, i)
+		}
+	}
+	var judged map[int]agent.Risk
+	var jevTook time.Duration
+	asked := false
+	if len(ask) > 0 {
+		start := s.now()
+		judged, asked = s.judgeRisks(context.WithoutCancel(ctx), c.pane, c.cands, ask, c.redactor)
+		if asked {
+			jevTook = s.since(start)
+		}
+	}
+
+	// Apply to the kept suggestion (a new slice: AuthorizeInsert may hold
+	// the old one), or to the one shown when it is gone.
+	s.sug.mu.Lock()
+	base := c.sug.Options
+	cur := s.sug.suggestions[c.sug.ID]
+	if cur != nil {
+		base = cur.Options
+	}
+	opts := append([]SuggestOption(nil), base...)
+	stricter := false
+	for i, j := range judged {
+		if i >= len(opts) {
+			continue
+		}
+		next := agent.Stricter(opts[i].Risk, j)
+		if next != opts[i].Risk {
+			stricter = true
+		}
+		opts[i].Risk = next
+		opts[i].Judged = true
+		opts[i].NeedsShift = agent.NeedsShift(next, c.sug.Production)
+	}
+	if cur != nil {
+		cur.Options = opts
+	}
+	s.sug.mu.Unlock()
+
+	upd := RiskUpdate{SuggestionID: c.sug.ID, Stricter: stricter, Options: make([]OptionRisk, len(opts))}
+	for i, o := range opts {
+		upd.Options[i] = OptionRisk{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged}
+	}
+	s.audit.SuggestTimed(c.pane, c.sent, riskLabel(opts[0].Risk), opts[0].Source, agent.Timing{Model: c.modelTook, Jev: jevTook, Asked: asked})
+	return upd, SuggestTiming{
+		Model:    c.model,
+		Thinking: c.thinking,
+		ModelMs:  c.modelTook.Milliseconds(),
+		JevMs:    jevTook.Milliseconds(),
+		JevAsked: asked,
+	}
+}
+
 // judgeRisks asks Jev about the candidates at idx, all in one request.
+// The egress is logged before the call.
 func (s *Service) judgeRisks(ctx context.Context, p agent.Pane, cands []Candidate, idx []int, r *redact.Redactor) (map[int]agent.Risk, bool) {
 	judge, err := s.judgeFor()
 	if err != nil {
@@ -507,7 +651,8 @@ func (s *Service) judgeRisks(ctx context.Context, p agent.Pane, cands []Candidat
 	defer cancel()
 	resp, err := judge.Judge(cctx, provider.JudgeRequest{Lists: map[string][]redact.Safe{stateCommands: cmds}, Questions: qs})
 	if err != nil {
-		return nil, false
+		// Asked (and logged) even so: the time spent still counts.
+		return nil, true
 	}
 	out := map[int]agent.Risk{}
 	for k, i := range idx {
@@ -619,6 +764,9 @@ func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
 		return InsertGrant{}, err
 	}
 	if agent.NeedsShift(opt.Risk, snap.Production || current) && !req.Shift {
+		if opt.Judged && !agent.NeedsShift(opt.codeRisk, snap.Production || current) {
+			return InsertGrant{}, ErrNeedsShiftJudged
+		}
 		return InsertGrant{}, ErrNeedsShiftInsert
 	}
 	s.sug.mu.Lock()
@@ -660,3 +808,7 @@ func (s *Service) InsertDone(g InsertGrant, writeErr error) {
 
 // ErrNeedsShiftInsert is ErrNeedsShift worded for ⇥.
 var ErrNeedsShiftInsert = errors.New("agent: this command is destructive, or changes state on a production host; press ⇧⇥ to insert it")
+
+// ErrNeedsShiftJudged is ErrNeedsShiftInsert when Jev's rating, which
+// came after the card was shown, is what made ⇧ necessary.
+var ErrNeedsShiftJudged = errors.New("agent: a second check rated this command riskier than first shown; press ⇧⇥ to insert it")

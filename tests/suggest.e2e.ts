@@ -13,7 +13,16 @@ import { keelApi, keelSend, openKeel } from './keel.ts';
 // screenshots (<theme>-suggest-notice, -card, -inserted, -destructive).
 
 type Session = { id: string };
-type LogEntry = { kind: string; sessionId?: string; bytes?: number; source?: string; count?: number; message?: string };
+type LogEntry = {
+  kind: string;
+  sessionId?: string;
+  bytes?: number;
+  source?: string;
+  count?: number;
+  message?: string;
+  modelMs?: number;
+  jevMs?: number;
+};
 
 const FAKE_GEMINI = 'e2e-not-a-real-gemini-key-0000';
 const FAKE_JEV = 'e2e-not-a-real-jev-key-0000';
@@ -154,6 +163,52 @@ describe('suggestions in a pane', { tags: ['agent', 'suggest'], serial: true }, 
       await closeTabs(screen);
     });
   }
+
+  test('the card comes first; a slower, stricter Jev rating tightens it', async ({ app, screen }) => {
+    await setup(app);
+    await openKeel(app);
+    const session = await openLocalShell(app, screen);
+
+    // The fake Jev rates "echo keel-jev-slow" destructive after 1.2 s.
+    await term(screen).pressSequentially('run the slow check');
+    await expect(screen.getByText('Looks like a request')).toBeVisible();
+    await term(screen).press('Tab');
+
+    // The card is shown on the model's answer, rated by code: Read-only.
+    await expect(card(screen)).toBeVisible();
+    await expect(card(screen)).toContainText('echo keel-jev-slow');
+    await expect(card(screen)).toHaveAttribute('data-risk', 'readonly');
+    await expect(card(screen)).toContainText('Read-only');
+    await app.screenshot('suggest-before-jev');
+
+    // Then Jev: the badge, the red edge and the ⇧⇥ hint follow.
+    await expect(card(screen)).toHaveAttribute('data-risk', 'destructive');
+    await expect(card(screen)).toContainText('Destructive');
+    await expect(card(screen)).toContainText('insert anyway');
+    await app.screenshot('suggest-after-jev');
+
+    // Plain ⇥ no longer inserts; ⇧⇥ does, still not run.
+    await term(screen).press('Tab');
+    await expect(card(screen)).toContainText('Press ⇧⇥ to insert this command.');
+    await pause(300);
+    expect(await scrollback(app, session.id)).not.toContain('keel-jev-slow');
+    await term(screen).press('Shift+Tab');
+    await expect(screen.getByText('Inserted, not run')).toBeVisible();
+    await expect.poll(() => scrollback(app, session.id)).toMatch(/echo keel-jev-slow$/);
+
+    // agent.suggest carries the final rating and both timings, no words.
+    const sug = (await logs(app)).filter((e) => e.kind === 'agent.suggest' && e.sessionId === session.id);
+    expect(sug).toHaveLength(1);
+    expect(sug[0].message).toContain('Destructive');
+    expect(sug[0].modelMs).toBeGreaterThanOrEqual(1);
+    expect(sug[0].jevMs).toBeGreaterThanOrEqual(1000);
+    expect(JSON.stringify(sug)).not.toContain('slow check');
+
+    await term(screen).press('Meta+z');
+    await expect.poll(() => scrollback(app, session.id)).toMatch(/run the slow check$/);
+    await term(screen).press('Control+u');
+    await closeTabs(screen);
+  });
 
   test('Jev offline: only #-lines are noticed, with no error', async ({ app, screen, browser }) => {
     await setup(app);

@@ -48,6 +48,29 @@ export function worthDetecting(input) {
   return s.split(/\s+/).length >= 2;
 }
 
+// applyRisk merges a later, stricter rating (keel serve's
+// agent-suggest-risk, after Jev) into a suggestion: risk, needsShift and
+// judged per option. It returns a new suggestion, or the same one when
+// the update is for another suggestion. It never loosens what is shown:
+// an update can only add ⇧, never take it away (keel serve decides
+// anyway; this keeps the card from promising less than the server asks).
+const RISK_ORDER = { readonly: 0, changes: 1, destructive: 2 };
+export function applyRisk(sug, msg) {
+  if (!sug || !msg || msg.suggestionId !== sug.id || !Array.isArray(msg.options)) return sug;
+  const options = sug.options.map((o, i) => {
+    const u = msg.options[i];
+    if (!u) return o;
+    const stricter = (RISK_ORDER[u.risk] ?? 1) > (RISK_ORDER[o.risk] ?? 1);
+    return {
+      ...o,
+      risk: stricter ? u.risk : o.risk,
+      needsShift: !!(o.needsShift || u.needsShift),
+      judged: !!(o.judged || u.judged),
+    };
+  });
+  return { ...sug, options };
+}
+
 // insertGate decides what a ⇥ / ⇧⇥ press does on a suggestion option:
 // { ok: true } inserts; { ok: false, reason: "shift" } shows "press ⇧⇥".
 // Plain ⇥ never inserts an option that needs ⇧ (destructive, or a state
@@ -285,7 +308,8 @@ export function createSuggestMachine(deps) {
       return set({ state: "idle" });
     }
     if (r?.ok) set({ state: "inserted", words, command: opt.command, at: now(), seen: false });
-    else set({ state: "card", sug, selected, words, note: r?.message || "Not inserted." });
+    // st.sug: a risk update may have come in while the insert was asked.
+    else set({ state: "card", sug: st.sug || sug, selected, words, note: r?.message || "Not inserted." });
   }
 
   return {
@@ -413,6 +437,14 @@ export function createSuggestMachine(deps) {
       }
       if (["off", "no-key", "not-readable", "following"].includes(msg.reason)) offUntil = now() + OFF_BACKOFF_MS;
       set({ state: "error", words: st.words, message: msg.message || "No suggestion came back." });
+    },
+    // onRisk: Jev rated the shown suggestion stricter after the card
+    // appeared. The badge, the edge and the ⇥ / ⇧⇥ hint follow.
+    onRisk(msg) {
+      if ((st.state !== "card" && st.state !== "inserting") || !st.sug) return;
+      const next = applyRisk(st.sug, msg);
+      if (next === st.sug) return;
+      set({ ...st, sug: next });
     },
     reset() {
       if (timer != null) clearTimer(timer);

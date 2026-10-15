@@ -4015,6 +4015,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       agentType: (msg) => settleAgentType(pane, msg),
       agentDetect: (msg) => pane.suggest?.onDetect(msg),
       agentSuggest: (msg) => pane.suggest?.onSuggest(msg),
+      agentSuggestRisk: (msg) => pane.suggest?.onRisk(msg),
       agentInsert: (msg) => settleAgentInsert(pane, msg),
       joinRequest: (msg) =>
         joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title }),

@@ -307,11 +307,24 @@ func TestDetectLoggingIsSummarised(t *testing.T) {
 
 func (f *sfix) suggest(t *testing.T, session string, line string) Suggestion {
 	t.Helper()
-	s, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: session, Role: agent.RoleDriver, Line: line})
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: session, Role: agent.RoleDriver, Line: line})
 	if err != nil {
 		t.Fatalf("suggest %q: %v", line, err)
 	}
-	return s
+	check.Run(context.Background())
+	return f.kept(t, s.ID)
+}
+
+// kept is the suggestion as the service holds it now (after Jev).
+func (f *sfix) kept(t *testing.T, id string) Suggestion {
+	t.Helper()
+	f.svc.sug.mu.Lock()
+	defer f.svc.sug.mu.Unlock()
+	cur := f.svc.sug.suggestions[id]
+	if cur == nil {
+		t.Fatalf("suggestion %s not kept", id)
+	}
+	return *cur
 }
 
 func TestSuggestReturnsACommandAndTwoAlternatives(t *testing.T) {
@@ -431,20 +444,20 @@ func TestSuggestRedactsBeforeEgress(t *testing.T) {
 func TestSuggestGates(t *testing.T) {
 	f := newSuggestFixture(t, block("ls", "Lists.", "readonly"))
 	for _, role := range []agent.Role{agent.RoleFollower, agent.RoleOwner} {
-		if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: role, Line: "list files"}); !errors.Is(err, agent.ErrFollower) && !errors.Is(err, agent.ErrNotDriving) {
+		if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: role, Line: "list files"}); !errors.Is(err, agent.ErrFollower) && !errors.Is(err, agent.ErrNotDriving) {
 			t.Fatalf("%s → %v", role, err)
 		}
 	}
-	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-sec", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, agent.ErrNotReadable) {
+	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-sec", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, agent.ErrNotReadable) {
 		t.Fatalf("unreadable → %v", err)
 	}
 	f.st.settings.Suggestions = store.SuggestionsOff
-	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrSuggestOff) {
+	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrSuggestOff) {
 		t.Fatalf("off → %v", err)
 	}
 	f.st.settings.Suggestions = store.SuggestionsOn
 	f.st.setKey("gemini", "")
-	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrNoKey) {
+	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrNoKey) {
 		t.Fatalf("no key → %v", err)
 	}
 	if len(f.model.Requests()) != 0 || len(f.judge.Requests()) != 0 {
@@ -609,7 +622,7 @@ func TestProductionGateFailsClosed(t *testing.T) {
 func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	f := newSuggestFixture(t, "")
 	f.model.Err = errors.New("gemini: HTTP 503")
-	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); err == nil {
+	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); err == nil {
 		t.Fatal("no error")
 	}
 	reads := f.entries(agent.EventRead)
@@ -618,7 +631,7 @@ func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	}
 	// Empty answer: logged too.
 	f.model.Err = nil
-	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
+	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
 		t.Fatalf("empty → %v", err)
 	}
 	if n := len(f.entries(agent.EventRead)); n != 2 {
@@ -674,7 +687,7 @@ func TestSuggestDropsMultiLineCommands(t *testing.T) {
 		t.Fatalf("options = %+v", s.Options)
 	}
 	g := newSuggestFixture(t, block("cd /tmp\nls", "Two lines.", "readonly"))
-	if _, err := g.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
+	if _, _, err := g.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
 		t.Fatalf("only a multi-line candidate → %v", err)
 	}
 }
@@ -706,5 +719,154 @@ func TestScriptedFakesSpeakTheSuggestionFormat(t *testing.T) {
 	}
 	if r := f.detect(t, "s-web", agent.RoleDriver, "jev-offline please"); r.Plain || r.Source != DetectFallback {
 		t.Fatalf("scripted offline → %+v", r)
+	}
+}
+
+// Speed: the suggestion comes back from the model alone, on the
+// provider's small suggestion model with minimal thinking; Jev runs
+// after, in RiskCheck.Run.
+func TestSuggestReturnsBeforeJev(t *testing.T) {
+	f := newSuggestFixture(t, block("cat /etc/hostname", "Shows the host name.", "readonly"))
+	f.judge.Hold = make(chan struct{})
+	f.judge.Choices = map[string]provider.ChoiceAnswer{"risk_0": {Choice: "readonly", Probabilities: map[string]float64{"readonly": 1}}}
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "what is this host called"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.judge.Requests()); n != 0 {
+		t.Fatalf("Jev asked before the suggestion returned: %d", n)
+	}
+	if s.Options[0].Risk != agent.RiskReadOnly || s.Options[0].Judged {
+		t.Fatalf("option = %+v", s.Options[0])
+	}
+	req := f.model.Requests()[0]
+	if req.Model != "gemini-3.5-flash-lite" || req.Thinking != provider.ThinkingMinimal {
+		t.Fatalf("model %q thinking %q; want the suggestion model", req.Model, req.Thinking)
+	}
+	if f.st.settings.Model == req.Model {
+		t.Fatal("the fixture should keep the panel on another model")
+	}
+	// agent.suggest waits for the timings.
+	if n := len(f.entries(agent.EventSuggest)); n != 0 {
+		t.Fatalf("agent.suggest before Jev: %d", n)
+	}
+	done := make(chan RiskUpdate)
+	go func() {
+		upd, _ := check.Run(context.Background())
+		done <- upd
+	}()
+	close(f.judge.Hold)
+	upd := <-done
+	if upd.Stricter || upd.SuggestionID != s.ID || len(upd.Options) != 1 || !upd.Options[0].Judged {
+		t.Fatalf("update = %+v", upd)
+	}
+	sugs := f.entries(agent.EventSuggest)
+	if len(sugs) != 1 || sugs[0].ModelMs < 1 || sugs[0].JevMs < 1 || !strings.Contains(sugs[0].Message, "Jev ") {
+		t.Fatalf("agent.suggest = %+v", sugs)
+	}
+	if strings.Contains(sugs[0].Message, "hostname") || strings.Contains(sugs[0].Message, "called") {
+		t.Fatalf("agent.suggest holds content: %q", sugs[0].Message)
+	}
+	// Run again: same answer, no second Jev call or entry.
+	if again, _ := check.Run(context.Background()); again.SuggestionID != s.ID || len(f.judge.Requests()) != 1 || len(f.entries(agent.EventSuggest)) != 1 {
+		t.Fatal("Run is not once")
+	}
+}
+
+// A stricter Jev rating raises the server's gate: plain ⇥ is then refused
+// with a reason that says why, and ⇧⇥ inserts.
+func TestStricterJevRaisesTheInsertGate(t *testing.T) {
+	f := newSuggestFixture(t, block("cat /etc/hostname", "Shows the host name.", "readonly"))
+	f.judge.Choices = map[string]provider.ChoiceAnswer{
+		"risk_0": {Choice: "destructive", Probabilities: map[string]float64{"destructive": 0.9, "readonly": 0.1}},
+	}
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "what is this host called"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Options[0].NeedsShift {
+		t.Fatal("the code rating should not need ⇧")
+	}
+	upd, took := check.Run(context.Background())
+	if !upd.Stricter || upd.Options[0].Risk != agent.RiskDestructive || !upd.Options[0].NeedsShift || !upd.Options[0].Judged {
+		t.Fatalf("update = %+v", upd)
+	}
+	if took.Model != "gemini-3.5-flash-lite" || took.Thinking != provider.ThinkingMinimal || !took.JevAsked {
+		t.Fatalf("timing = %+v", took)
+	}
+	ins := InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes}
+	if _, err := f.svc.AuthorizeInsert(ins); !errors.Is(err, ErrNeedsShiftJudged) || !strings.Contains(err.Error(), "⇧⇥") {
+		t.Fatalf("plain ⇥ after Jev → %v", err)
+	}
+	ins.Shift = true
+	if _, err := f.svc.AuthorizeInsert(ins); err != nil {
+		t.Fatalf("⇧⇥ after Jev → %v", err)
+	}
+	if sugs := f.entries(agent.EventSuggest); len(sugs) != 1 || !strings.Contains(sugs[0].Message, "Destructive") {
+		t.Fatalf("agent.suggest should carry the final rating: %+v", sugs)
+	}
+}
+
+// Jev can never loosen: a "read-only" answer for a state change on a
+// production host leaves ⇧ required, and no update is pushed.
+func TestLooserJevIsIgnored(t *testing.T) {
+	f := newSuggestFixture(t, block("touch /tmp/marker", "Creates a marker.", "changes"))
+	f.judge.Choices = map[string]provider.ChoiceAnswer{
+		"risk_0": {Choice: "readonly", Probabilities: map[string]float64{"readonly": 0.99, "changes": 0.01}},
+	}
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-db", Role: agent.RoleDriver, Line: "make a marker file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upd, _ := check.Run(context.Background())
+	if upd.Stricter || upd.Options[0].Risk != agent.RiskChanges || !upd.Options[0].NeedsShift {
+		t.Fatalf("update = %+v", upd)
+	}
+	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-db", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes}); !errors.Is(err, ErrNeedsShiftInsert) {
+		t.Fatalf("plain ⇥ on prod change → %v", err)
+	}
+}
+
+// ⇥ before Jev answers is decided on the code rating (documented in
+// docs/ui-redesign.md §7): the denylist is final for destructive
+// commands, so a destructive one still needs ⇧ then. The late answer
+// still lands on the kept suggestion and in keel.log.
+func TestInsertBeforeJevUsesTheCodeRating(t *testing.T) {
+	f := newSuggestFixture(t, block("cat /etc/hostname", "Shows it.", "readonly")+block("rm -rf /tmp/keel-x", "Deletes.", "readonly"))
+	f.judge.Hold = make(chan struct{})
+	f.judge.Choices = map[string]provider.ChoiceAnswer{
+		"risk_0": {Choice: "changes", Probabilities: map[string]float64{"changes": 0.9}},
+	}
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "what is this host called"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, Option: 1, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[1].Bytes}); !errors.Is(err, ErrNeedsShiftInsert) {
+		t.Fatalf("denylisted before Jev → %v", err)
+	}
+	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes}); err != nil {
+		t.Fatalf("read-only before Jev → %v", err)
+	}
+	close(f.judge.Hold)
+	upd, _ := check.Run(context.Background())
+	if !upd.Stricter || upd.Options[0].Risk != agent.RiskChanges {
+		t.Fatalf("late update = %+v", upd)
+	}
+	if k := f.kept(t, s.ID); k.Options[0].Risk != agent.RiskChanges {
+		t.Fatalf("kept = %+v", k.Options[0])
+	}
+	if n := len(f.entries(agent.EventSuggest)); n != 1 {
+		t.Fatalf("agent.suggest = %d", n)
+	}
+}
+
+// Without a Jev key the entry still has the model's time, and no Jev time.
+func TestSuggestTimingWithoutJev(t *testing.T) {
+	f := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly"))
+	f.st.setKey("jev", "")
+	f.suggest(t, "s-web", "list tmp")
+	sugs := f.entries(agent.EventSuggest)
+	if len(sugs) != 1 || sugs[0].ModelMs < 1 || sugs[0].JevMs != 0 || strings.Contains(sugs[0].Message, "Jev") {
+		t.Fatalf("agent.suggest = %+v", sugs)
 	}
 }

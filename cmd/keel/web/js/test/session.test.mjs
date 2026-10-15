@@ -38,10 +38,10 @@ test("parseSessionMessage rejects junk", () => {
 test("dispatchSessionMessage routes by type", () => {
   const seen = [];
   const h = {};
-  for (const k of ["injectChallenge", "joinRequest", "joinResolved", "joinFailed", "status", "presence", "agentType", "error"]) {
+  for (const k of ["injectChallenge", "joinRequest", "joinResolved", "joinFailed", "status", "presence", "agentType", "agentSuggest", "agentSuggestRisk", "error"]) {
     h[k] = (arg) => seen.push([k, typeof arg === "string" ? arg : arg.type]);
   }
-  for (const type of ["inject-challenge", "join-request", "join-resolved", "join-failed", "status", "ready", "presence", "control", "agent-type", "error"]) {
+  for (const type of ["inject-challenge", "join-request", "join-resolved", "join-failed", "status", "ready", "presence", "control", "agent-type", "agent-suggest", "agent-suggest-risk", "error"]) {
     assert.ok(dispatchSessionMessage({ type, nonce: "n" }, h), type);
   }
   assert.ok(!dispatchSessionMessage({ type: "mystery" }, h));
@@ -57,6 +57,8 @@ test("dispatchSessionMessage routes by type", () => {
     "presence",
     "presence",
     "agentType",
+    "agentSuggest",
+    "agentSuggestRisk",
     "error",
   ]);
   assert.deepEqual(seen[0], ["injectChallenge", "n"]);
