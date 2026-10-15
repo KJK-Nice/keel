@@ -5492,8 +5492,8 @@ Write a runbook here.
     if (!command.endsWith("\n")) command += "\n";
     const payload = { name: form.name.value.trim(), command };
     if (form.id.value) {
-      // The modal has no agent switch: keep what the Snippets page set.
-      payload.agentUsable = !!state.snippets.find((s) => s.id === form.id.value)?.agentUsable;
+      // The modal has no agent switch and sends no agentUsable, so keel
+      // serve keeps what the Snippets page set.
       await api(`/api/snippets/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
     } else {
       await api("/api/snippets", { method: "POST", body: JSON.stringify(payload) });

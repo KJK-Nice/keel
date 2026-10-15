@@ -297,7 +297,7 @@ test("a later, stricter rating changes the badge and the ⇥ hint; never a loose
 
 test("the card says where a command came from (phase 6c+)", () => {
   const card = (source) => S.cardHTML({ id: "s_h", options: [{ command: "echo keel-history-marker", risk: "readonly", source }] }, 0, { mac: true });
-  assert.match(card("history"), /From this pane(&#39;|&#x27;|')s history/);
+  assert.match(card("history"), /From this pane(&#39;|&#x27;|')s scrollback/);
   assert.match(card("history"), /data-source="history"/);
   assert.match(card("snippet"), /From your snippets/);
   assert.match(card("generated"), /Suggested from your words/);

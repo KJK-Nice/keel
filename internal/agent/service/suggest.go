@@ -800,11 +800,12 @@ func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
 	if err != nil {
 		return InsertGrant{}, err
 	}
-	if agent.NeedsShift(opt.Risk, snap.Production || current) && !req.Shift {
-		if opt.Judged && !agent.NeedsShift(opt.codeRisk, snap.Production || current) {
-			return InsertGrant{}, ErrNeedsShiftJudged
-		}
-		return InsertGrant{}, ErrNeedsShiftInsert
+	prod := snap.Production || current
+	if err := shiftRule(opt, prod, req.Shift); err != nil {
+		return InsertGrant{}, err
+	}
+	if s.beforeReserve != nil {
+		s.beforeReserve()
 	}
 	s.sug.mu.Lock()
 	defer s.sug.mu.Unlock()
@@ -815,6 +816,18 @@ func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
 	if cur.used {
 		return InsertGrant{}, ErrUsed
 	}
+	// Again under the lock that reserves it: a RiskCheck may have made
+	// the rating stricter since the snapshot above.
+	if req.Option >= len(cur.Options) {
+		return InsertGrant{}, ErrNotFound
+	}
+	opt = cur.Options[req.Option]
+	if req.Bytes != opt.Bytes {
+		return InsertGrant{}, ErrChanged
+	}
+	if err := shiftRule(opt, prod, req.Shift); err != nil {
+		return InsertGrant{}, err
+	}
 	cur.used = true
 	return InsertGrant{
 		suggestionID: snap.ID,
@@ -822,6 +835,17 @@ func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
 		bytes:        opt.Bytes,
 		source:       opt.Source,
 	}, nil
+}
+
+// shiftRule is the ⇧ rule for one option (§6.5).
+func shiftRule(opt SuggestOption, production, shift bool) error {
+	if !agent.NeedsShift(opt.Risk, production) || shift {
+		return nil
+	}
+	if opt.Judged && !agent.NeedsShift(opt.codeRisk, production) {
+		return ErrNeedsShiftJudged
+	}
+	return ErrNeedsShiftInsert
 }
 
 // InsertDone records the outcome of an authorised insert. A write that

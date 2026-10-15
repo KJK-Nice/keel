@@ -380,6 +380,13 @@ templ agentSettingsPanel() {
 				</div>
 				@agentSwitch("agent-set-suggest", "Suggest commands")
 			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Suggest from this pane's scrollback</div>
+					<p class="pref-desc">Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.</p>
+				</div>
+				@agentSwitch("agent-set-history-suggest", "Suggest from this pane's scrollback")
+			</div>
 			<div class="pref-row pref-row-stack">
 				<div class="pref-copy">
 					<div class="pref-title" id="agent-set-detection-label">How to notice plain language</div>

@@ -14,6 +14,7 @@ type AgentSettings = {
     model: string;
     detection: string;
     suggestions: string;
+    historySuggestions: string;
     defaultScope: string;
     scrollbackLines: number;
     redact: { secrets: boolean; ips: boolean; hostnames: boolean };
@@ -42,6 +43,7 @@ async function resetAgent(app: any) {
     provider: 'gemini',
     detection: 'auto',
     suggestions: 'on',
+    historySuggestions: 'on',
     defaultScope: 'focused',
     scrollbackLines: 200,
     redact: { secrets: true, ips: false, hostnames: false },
@@ -136,6 +138,14 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
       await expect.poll(async () => (await settingsApi(app)).settings.suggestions).toBe('off');
       await suggest.tap();
       await expect.poll(async () => (await settingsApi(app)).settings.suggestions).toBe('on');
+      // Phase 6c+: sending recent scrollback commands to Jev is its own switch, on by default.
+      const scrollbackSuggest = page.getByRole('switch', "Suggest from this pane's scrollback");
+      await expect(scrollbackSuggest).toHaveAttribute('aria-checked', 'true');
+      await expect(page).toContainText('recent commands from the pane are sent to TypeSafe Jev, redacted');
+      await scrollbackSuggest.tap();
+      await expect.poll(async () => (await settingsApi(app)).settings.historySuggestions).toBe('off');
+      await scrollbackSuggest.tap();
+      await expect.poll(async () => (await settingsApi(app)).settings.historySuggestions).toBe('on');
       await page.getByRole('radio', 'Only lines starting with #').tap();
       await expect.poll(async () => (await settingsApi(app)).settings.detection).toBe('hash-only');
       await expect(page.getByRole('radio', /^Notice automatically/)).toHaveAttribute('aria-checked', 'false');

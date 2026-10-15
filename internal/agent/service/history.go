@@ -96,7 +96,7 @@ func (h historySuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candi
 	}
 	qs["pick"] = historyPickQuestion(len(cands))
 	qs["exists"] = historyExistsQuestion
-	what := fmt.Sprintf("the words on the prompt line and %d candidate command%s (%d from this pane's history, %d from snippets)",
+	what := fmt.Sprintf("the words on the prompt line and %d candidate command%s (%d from this pane's scrollback, %d from snippets)",
 		len(cands), plural(len(cands)), nHist, nSnip)
 	h.s.audit.Sent(in.Pane, what, 1+len(cands), in.Redactor.Report(), "TypeSafe Jev", "to pick a command already run", SourceHistory)
 
@@ -115,7 +115,10 @@ func (h historySuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candi
 		return nil, nil
 	}
 	c := cands[i]
-	why := "You ran this in this pane before."
+	// No reason line for a scrollback command: nothing proves it ran
+	// (a line abandoned with ^C, a banner, a REPL's output can look the
+	// same), so the card only says where it was seen.
+	why := ""
 	if c.source == SourceSnippet {
 		why = "Your snippet \"" + strings.TrimSpace(c.name) + "\"."
 		if strings.TrimSpace(c.name) == "" {
@@ -149,9 +152,20 @@ func (h historySuggester) gather(in SuggestInput) []historyCand {
 			add(historyCand{command: cmd, source: SourceSnippet, name: sn.Name})
 		}
 	}
+	// "Suggest from this pane's scrollback" off: snippets only, and the
+	// scrollback is not read.
+	if !in.Settings.HistorySuggestionsEnabled() {
+		return prefilter(h.words, out, maxHistoryCandidates)
+	}
 	ex, err := h.s.audit.ReadPaneScreen(h.s.panes, agent.NewScope(h.hosts), in.Pane, in.Settings.ScrollbackLines, hr)
 	if err == nil {
 		for _, cmd := range historyCommands(ex.Text.String()) {
+			// What Jev sees is exactly what ⇥ inserts: a command that
+			// redaction would change (even alone, out of its context) is
+			// not offered.
+			if hr.Text(cmd).String() != cmd {
+				continue
+			}
 			add(historyCand{command: cmd, source: SourceHistory})
 		}
 	}
@@ -214,7 +228,11 @@ var (
 // still work). Output that copies the exact prompt string can still pass;
 // see docs/ui-redesign.md §6. A prompt that changes from line to line
 // (one showing the working directory, after a cd) only matches lines
-// typed at the same prompt, which is the conservative side.
+// typed at the same prompt, which is the conservative side. A current
+// prompt seen nowhere earlier yields nothing, since every candidate is an
+// earlier line at that prompt. OSC 133 shell-integration marks, which
+// would say which text is a prompt and which a command, are not used:
+// Normalize strips them, and most shells do not send them by default.
 //
 // The parse is conservative otherwise too; a line is skipped when:
 //
@@ -231,7 +249,8 @@ var (
 //
 // A shell redrawing the prompt line (line editing, a cleared line, an
 // inserted suggestion) is handled before this, by reading each line as
-// the terminal shows it once done (agent.FinalLines).
+// it was last written, and blanking every line a cursor move or erase may
+// have changed (agent.CommandLines).
 func historyCommands(text string) []string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	if len(lines) == 0 {
@@ -298,21 +317,49 @@ func commandOnLine(line string) (prompt, cmd string, ok bool) {
 		return "", "", false
 	}
 	cmd = strings.TrimSpace(m[3])
-	if hasPlaceholder(line) || passwordRe.MatchString(line) || !plausibleCommand(cmd) {
+	if hasPlaceholder(line) || passwordRe.MatchString(line) || hasControlNotation(line) || !plausibleCommand(cmd) {
 		return "", "", false
 	}
 	return prompt, cmd, true
 }
 
-// plausibleCommand rejects what is too short, too long, a comment, or
-// obviously cut off: a trailing \, |, && or ||, an open quote or an
-// ellipsis.
+// hasControlNotation reports a control key echoed in caret notation: a
+// line abandoned with ^C (or ^Z, ^D, ^[) was never run as shown.
+func hasControlNotation(line string) bool {
+	for _, n := range []string{"^C", "^Z", "^D", "^["} {
+		if strings.Contains(line, n) {
+			return true
+		}
+	}
+	return false
+}
+
+// invisibleRune reports a character that changes how a command reads
+// without showing: format characters (Unicode Cf: the bidi embeddings,
+// overrides and isolates U+202A–U+202E and U+2066–U+2069, zero-width
+// spaces and joiners, the BOM), and the other zero-width characters.
+func invisibleRune(c rune) bool {
+	switch {
+	case unicode.Is(unicode.Cf, c):
+		return true
+	case c >= 0x202a && c <= 0x202e, c >= 0x2066 && c <= 0x2069:
+		return true
+	case c == 0x200b, c == 0x200c, c == 0x200d, c == 0x2060, c == 0xfeff, c == 0x180e:
+		return true
+	}
+	return false
+}
+
+// plausibleCommand rejects what is too short, too long, a comment, holds
+// a control or invisible format character, or is obviously cut off: a
+// trailing \, |, && or ||, an open quote or an ellipsis. Snippets go
+// through it too.
 func plausibleCommand(cmd string) bool {
 	if len([]rune(cmd)) < 2 || len(cmd) > maxHistoryCommandBytes || strings.HasPrefix(cmd, "#") {
 		return false
 	}
 	for _, c := range cmd {
-		if c < 0x20 || c == 0x7f || (c >= 0x80 && c < 0xa0) {
+		if c < 0x20 || c == 0x7f || (c >= 0x80 && c < 0xa0) || invisibleRune(c) {
 			return false
 		}
 	}

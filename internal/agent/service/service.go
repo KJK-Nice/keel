@@ -106,6 +106,9 @@ type Service struct {
 
 	sug          suggestState
 	detectWindow time.Duration
+	// beforeReserve, in tests only, runs in AuthorizeInsert between the
+	// checks on the snapshot and the reserve, to land a RiskCheck there.
+	beforeReserve func()
 }
 
 const (

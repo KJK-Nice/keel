@@ -591,13 +591,48 @@ func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, snips)
 }
 
+// snippetPayload is a snippet as a client sends it. AgentUsable is a
+// pointer: a client that does not send it (the old edit modal) leaves the
+// flag as it is, so a stale list can never clear it by accident.
+type snippetPayload struct {
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	AgentUsable *bool  `json:"agentUsable"`
+}
+
+// decodeSnippet reads a snippet payload, keeping old's agent flag when the
+// payload does not carry one.
+func decodeSnippet(r *http.Request, old store.Snippet) (store.Snippet, error) {
+	var p snippetPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		return store.Snippet{}, err
+	}
+	sn := store.Snippet{Name: p.Name, Command: p.Command, AgentUsable: old.AgentUsable}
+	if p.AgentUsable != nil {
+		sn.AgentUsable = *p.AgentUsable
+	}
+	return sn, nil
+}
+
+// noteSnippetFlag logs a change of "Let the agent suggest this snippet"
+// as an agent event: the snippet's name, never its command.
+func (s *Server) noteSnippetFlag(name string, before, after bool) {
+	if before == after {
+		return
+	}
+	msg := "snippet \"" + name + "\" may no longer be suggested by the agent"
+	if after {
+		msg = "snippet \"" + name + "\" may be suggested by the agent; its command is sent, redacted, to TypeSafe Jev"
+	}
+	s.note("agent", msg, "", "", "")
+}
+
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
-	var sn store.Snippet
-	if err := json.NewDecoder(r.Body).Decode(&sn); err != nil {
+	sn, err := decodeSnippet(r, store.Snippet{})
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
-	sn.ID = ""
 	if strings.TrimSpace(sn.Name) == "" || strings.TrimSpace(sn.Command) == "" {
 		writeError(w, http.StatusBadRequest, "name and command are required")
 		return
@@ -609,15 +644,28 @@ func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, saved)
 	s.note("snippet", "snippet created: "+saved.Name, "", "", "")
+	s.noteSnippetFlag(saved.Name, false, saved.AgentUsable)
 }
 
 func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
-	var sn store.Snippet
-	if err := json.NewDecoder(r.Body).Decode(&sn); err != nil {
+	id := r.PathValue("id")
+	var old store.Snippet
+	all, err := s.store.ListSnippets()
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	for _, x := range all {
+		if x.ID == id {
+			old = x
+		}
+	}
+	sn, err := decodeSnippet(r, old)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
-	sn.ID = r.PathValue("id")
+	sn.ID = id
 	saved, err := s.store.UpsertSnippet(sn)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -625,6 +673,7 @@ func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, saved)
 	s.note("snippet", "snippet updated: "+saved.Name, "", "", "")
+	s.noteSnippetFlag(saved.Name, old.AgentUsable, saved.AgentUsable)
 }
 
 func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {

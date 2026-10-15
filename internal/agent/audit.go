@@ -2,6 +2,8 @@ package agent
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,25 +59,103 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 }
 
 // ReadPaneScreen is ReadPane for reading the commands typed in a pane
-// (history-first suggestions): each line is what the terminal shows once
-// the line is done, so a shell redrawing the prompt line with a carriage
-// return (a cleared line, an inserted suggestion, line editing) leaves only
-// its final text, not every draft. Logged the same way.
+// (history-first suggestions): the raw output goes through CommandLines
+// first, so a line that was redrawn, moved over or erased is not read as
+// it was first written. Logged the same way.
 func (a *Auditor) ReadPaneScreen(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
 	return a.readPane(src, scope, p, lines, r, true)
 }
 
-// FinalLines keeps, of every line of raw PTY output, the text after its
-// last lone carriage return: what the terminal shows once the line ends.
-func FinalLines(raw string) string {
+var csiRe = regexp.MustCompile(`\x1b\[([0-?]*)[ -/]*([@-~])`)
+
+// CommandLines prepares raw PTY output for reading commands from it. It
+// does not emulate a terminal, so it does not claim to give what the
+// screen showed; it is conservative instead, and blanks (keeps as an
+// empty line, so line positions hold) every line it cannot read plainly:
+//
+//   - of each line it keeps only the text after its last lone carriage
+//     return (a shell redrawing the prompt line: line editing, a cleared
+//     line, an inserted suggestion);
+//   - a line holding a backspace, a cursor move (up, down, left, right, to
+//     a column or a position), a scroll, an insert or delete of characters
+//     or lines, or an erase other than "to the end of the line" is
+//     blanked;
+//   - a cursor-up by n (CSI n A, CSI n F, ESC M) blanks the n lines above
+//     too, since it can rewrite them ("ESC[1A ESC[2K" erases the line
+//     above);
+//   - an erase of the display above the cursor or all of it (CSI 1J, 2J,
+//     3J) or a cursor position (CSI H, f, d) blanks every line before it.
+//
+// The last line, the prompt line being edited, keeps its text (only its
+// prompt is read from it), but its moves still blank the lines above.
+func CommandLines(raw string) string {
 	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	lines := strings.Split(raw, "\n")
+	blank := make([]bool, len(lines))
+	last := len(lines) - 1
 	for i, ln := range lines {
 		if k := strings.LastIndexByte(strings.TrimRight(ln, "\r"), '\r'); k >= 0 {
-			lines[i] = ln[k+1:]
+			ln = ln[k+1:]
+			lines[i] = ln
+		}
+		up, above, touched := motions(ln)
+		if touched && i != last {
+			blank[i] = true
+		}
+		for j := max(i-up, 0); j < i; j++ {
+			blank[j] = true
+		}
+		if above {
+			for j := 0; j < i; j++ {
+				blank[j] = true
+			}
+		}
+	}
+	for i := range lines {
+		if blank[i] {
+			lines[i] = ""
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// motions reads the moves in one line of raw output: how many lines up the
+// cursor goes, whether anything before it may be rewritten, and whether
+// the line itself was edited in place.
+func motions(ln string) (up int, above, touched bool) {
+	if strings.ContainsRune(ln, '\b') {
+		touched = true
+	}
+	if n := strings.Count(ln, "\x1bM"); n > 0 {
+		up += n
+		touched = true
+	}
+	for _, m := range csiRe.FindAllStringSubmatch(ln, -1) {
+		param, final := m[1], m[2]
+		n := 1
+		if v, err := strconv.Atoi(param); err == nil && v > 0 {
+			n = v
+		}
+		switch final {
+		case "A", "F":
+			up += n
+			touched = true
+		case "H", "f", "d":
+			above, touched = true, true
+		case "J":
+			touched = true
+			if param == "1" || param == "2" || param == "3" {
+				above = true
+			}
+		case "K":
+			if param == "1" || param == "2" {
+				touched = true
+			}
+		case "B", "C", "D", "E", "G", "`", "a", "e", "S", "T", "L", "M", "P", "@", "X":
+			touched = true
+		}
+	}
+	return up, above, touched
 }
 
 func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, screen bool) (Excerpt, error) {
@@ -91,7 +171,7 @@ func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	}
 	in := string(raw)
 	if screen {
-		in = FinalLines(in)
+		in = CommandLines(in)
 	}
 	text, n := LastLines(redact.Normalize(in), ClampLines(lines))
 	before := r.Report()

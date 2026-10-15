@@ -70,10 +70,10 @@ describe('history-first suggestions', { tags: ['agent', 'suggest'], serial: true
       await expect(screen.getByText('Looks like a request')).toBeVisible();
       await term(screen).press('Tab');
       await expect(card(screen)).toBeVisible();
-      await expect(card(screen)).toContainText(/From this pane's history/i);
+      await expect(card(screen)).toContainText(/From this pane's scrollback/i);
       await expect(card(screen)).toContainText('echo keel-history-marker');
       await expect(card(screen)).toContainText('Read-only');
-      await expect(card(screen)).toContainText('You ran this in this pane before.');
+      await expect(card(screen)).not.toContainText('You ran this');
       // No model call: the model's answer would be echo keel-suggest-ok.
       await expect(card(screen)).not.toContainText('keel-suggest-ok');
       await app.screenshot(`${theme}-suggest-history`);
@@ -89,7 +89,7 @@ describe('history-first suggestions', { tags: ['agent', 'suggest'], serial: true
       const entries = (await logs(app)).filter((e) => e.sessionId === session.id);
       const sent = entries.filter((e) => e.kind === 'agent.read' && e.source === 'history');
       expect(sent).toHaveLength(1);
-      expect(sent[0].message).toContain("1 candidate command (1 from this pane's history, 0 from snippets)");
+      expect(sent[0].message).toContain("1 candidate command (1 from this pane's scrollback, 0 from snippets)");
       const sug = entries.filter((e) => e.kind === 'agent.suggest');
       expect(sug).toHaveLength(1);
       expect(sug[0].source).toBe('history');
@@ -121,7 +121,7 @@ describe('history-first suggestions', { tags: ['agent', 'suggest'], serial: true
     await term(screen).pressSequentially('history rm');
     await expect(screen.getByText('Looks like a request')).toBeVisible();
     await term(screen).press('Tab');
-    await expect(card(screen)).toContainText(/From this pane's history/i);
+    await expect(card(screen)).toContainText(/From this pane's scrollback/i);
     await expect(card(screen)).toHaveAttribute('data-risk', 'destructive');
     await expect(card(screen)).toContainText('Deletes files');
     await term(screen).press('Tab');

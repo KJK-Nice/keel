@@ -143,11 +143,13 @@ export function riskWords(option) {
   return riskBadge(option?.risk).label;
 }
 
-// sourceLabel is the card's head: where the command came from. History
-// and snippets are commands the user already ran or saved, picked by Jev;
-// anything else the model wrote from the words.
+// sourceLabel is the card's head: where the command came from. "history"
+// is a command seen after the pane's prompt in its scrollback (nothing
+// proves it ran, so the label says where it was seen, not that it ran);
+// "snippet" one the user saved and marked for the agent; anything else
+// the model wrote from the words.
 export function sourceLabel(source) {
-  if (source === "history") return "From this pane's history";
+  if (source === "history") return "From this pane's scrollback";
   if (source === "snippet") return "From your snippets";
   return "Suggested from your words";
 }

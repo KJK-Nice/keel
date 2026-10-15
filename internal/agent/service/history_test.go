@@ -320,7 +320,7 @@ func TestHistoryConfidentSkipsTheModel(t *testing.T) {
 			pickLog = &sent[i]
 		}
 	}
-	if pickLog == nil || pickLog.Count != 2 || !strings.Contains(pickLog.Message, "1 candidate command (1 from this pane's history, 0 from snippets)") {
+	if pickLog == nil || pickLog.Count != 2 || !strings.Contains(pickLog.Message, "1 candidate command (1 from this pane's scrollback, 0 from snippets)") {
 		t.Fatalf("history egress = %+v", sent)
 	}
 	for _, e := range f.log.Recent(100) {
@@ -563,5 +563,123 @@ func TestScriptedJudgeHistoryPick(t *testing.T) {
 		if got := historyConfident(resp, 2); got != c.want {
 			t.Fatalf("%q → %d, want %d (%+v)", c.words, got, c.want, resp)
 		}
+	}
+}
+
+// readScreen runs raw output through ReadPaneScreen and the parser.
+func readScreen(t *testing.T, raw string) []string {
+	t.Helper()
+	f := newSuggestFixture(t, "")
+	f.setPane("s-web", "web", raw)
+	ex, err := f.svc.audit.ReadPaneScreen(f.panes, agent.NewScope(agent.HostsFrom(f.st.hosts)), agent.Pane{SessionID: "s-web", HostID: "web"}, 100, redact.New(redact.Options{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return historyCommands(ex.Text.String())
+}
+
+// A line a cursor move, backspace or erase may have changed is not read:
+// "ESC[1A ESC[2K" erases the line above, so it is gone; a clear drops
+// everything before it.
+func TestHistoryDropsLinesTouchedByCursorMotion(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{"erased line above", "$ df -h\r\n$ rm -rf ~/data\r\n\x1b[1A\x1b[2K$ uptime\r\n$ ", []string{"df -h"}},
+		{"cursor up by 2", "$ df -h\r\n$ echo one\r\n$ echo two\r\n\x1b[2A$ ", []string{"df -h"}},
+		{"reverse index", "$ df -h\r\n$ echo gone\r\n\x1bM$ ", []string{"df -h"}},
+		{"backspace edit", "$ df -h\r\n$ rm -rf x\b\b\b\becho y\r\n$ ", []string{"df -h"}},
+		{"cursor left", "$ df -h\r\n$ echo abc\x1b[3Dxyz\r\n$ ", []string{"df -h"}},
+		{"erase whole line", "$ df -h\r\n$ echo x\x1b[2K\r\n$ ", []string{"df -h"}},
+		{"clear screen", "$ df -h\r\n$ echo a\r\n\x1b[H\x1b[2J$ ls\r\n$ uptime\r\n$ ", []string{"uptime"}},
+		{"erase to end is fine", "$ df -h\r\n\x1b[K$ uptime\r\n$ ", []string{"uptime", "df -h"}},
+		{"words edited on the current line", "$ df -h\r\n$ shwo\b\b\bhow disk", []string{"df -h"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := readScreen(t, c.raw); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// A line abandoned with ^C (or showing ^Z, ^D, ^[) was never run as shown.
+func TestHistoryDropsEchoedControlNotation(t *testing.T) {
+	text := "$ rm -rf ~/data^C\n$ vim notes^Z\n$ cat^D\n$ echo a^[[A\n$ df -h\n$ "
+	if got := historyCommands(text); !reflect.DeepEqual(got, []string{"df -h"}) {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// Invisible format characters (bidi controls, zero-width characters, BOM)
+// make a command read differently from what runs: never a candidate, from
+// the scrollback or a snippet.
+func TestCandidatesRejectInvisibleFormatCharacters(t *testing.T) {
+	for _, c := range []rune{0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff, 0x00ad} {
+		cmd := "echo safe" + string(c) + " && rm -rf x"
+		if plausibleCommand(cmd) {
+			t.Fatalf("U+%04X accepted", c)
+		}
+		if got := historyCommands("$ " + cmd + "\n$ df -h\n$ "); !reflect.DeepEqual(got, []string{"df -h"}) {
+			t.Fatalf("U+%04X in history: %q", c, got)
+		}
+		if _, ok := snippetCandidate(store.Snippet{Command: cmd + "\n", AgentUsable: true}, redact.New(redact.Options{})); ok {
+			t.Fatalf("U+%04X in a snippet accepted", c)
+		}
+	}
+	if !plausibleCommand("echo héllo wörld") {
+		t.Fatal("plain non-ASCII text rejected")
+	}
+}
+
+// "Suggest from this pane's scrollback" off: the scrollback is not read
+// and no scrollback command is sent; snippets still are.
+func TestHistorySuggestionsOffKeepsSnippetsOnly(t *testing.T) {
+	f := newSuggestFixture(t, block("echo from-the-model", "Model.", "readonly"))
+	f.st.settings.HistorySuggestions = store.SuggestionsOff
+	f.setPane("s-web", "web", "$ uptime\n$ show disk space")
+	f.st.snippets = []store.Snippet{{ID: "5", Name: "disk", Command: "df -h\n", AgentUsable: true}}
+	f.confident("c0")
+	s := f.suggest(t, "s-web", "show disk space")
+	if o := s.Options[0]; o.Command != "df -h" || o.Source != SourceSnippet {
+		t.Fatalf("option = %+v", o)
+	}
+	got := map[string]string{}
+	for k, v := range f.historyRequests()[0].Maps[stateCandidates] {
+		got[k] = v.String()
+	}
+	if !reflect.DeepEqual(got, map[string]string{"c0": "df -h"}) {
+		t.Fatalf("candidates = %v", got)
+	}
+	f.panes.mu.Lock()
+	defer f.panes.mu.Unlock()
+	if len(f.panes.reads) != 0 {
+		t.Fatalf("scrollback read with the setting off: %v", f.panes.reads)
+	}
+}
+
+// A stricter rating that lands between AuthorizeInsert's snapshot and its
+// reserve is still enforced: the option is read again under the lock.
+func TestAuthorizeInsertRereadsTheRatingBeforeReserving(t *testing.T) {
+	f := newSuggestFixture(t, block("echo keel-toctou", "Prints.", "readonly"))
+	f.judge.Choices["risk_0"] = provider.ChoiceAnswer{Choice: "destructive", Probabilities: map[string]float64{"destructive": 0.9}}
+	s, check, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "print the marker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Options[0].NeedsShift {
+		t.Fatalf("code rating already needs ⇧: %+v", s.Options[0])
+	}
+	f.svc.beforeReserve = func() { check.Run(context.Background()) }
+	_, err = f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes})
+	if !errors.Is(err, ErrNeedsShiftJudged) {
+		t.Fatalf("plain ⇥ after a late stricter rating → %v", err)
+	}
+	f.svc.beforeReserve = nil
+	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes, Shift: true}); err != nil {
+		t.Fatalf("⇧⇥ → %v", err)
 	}
 }
