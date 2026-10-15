@@ -75,6 +75,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	if err := writePid(dataDir); err != nil {
 		log.Printf("pid file: %v", err)
 	}
+	api.WithRuntimeInfo(ln.Addr().String(), dataDir)
 	base := "http://" + ln.Addr().String()
 	log.Printf("Keel serve on %s — sessions keep running until keel serve stop", base)
 	if hub.Enabled() {

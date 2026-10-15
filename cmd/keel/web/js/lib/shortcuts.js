@@ -61,3 +61,57 @@ export function classifyShortcut(ev, ctx) {
   if (!ev.shiftKey && /^[1-9]$/.test(ev.key)) return { name: "tab-index", index: Number(ev.key) };
   return null;
 }
+
+// The native window's menu items carry the same accelerators (File and
+// View in internal/desktop/desktop.go). On macOS WKWebView offers a ⌘-key
+// to the page first and hands it to the menu only when keydown was not
+// preventDefault-ed. A chord the page runs is therefore not run again by
+// the menu; a chord the page declines (a dialog is open, the gate is up,
+// a tab is being renamed, a held ⌘T) would be run by the menu instead.
+
+// isChromeChord reports a key that classifyShortcut runs in the plain
+// state: no dialog, no repeat. term.js swallows such a key when it
+// declines it, so the native menu does not run it either.
+export function isChromeChord(ev, mac) {
+  const plain = {
+    key: ev.key,
+    code: ev.code,
+    metaKey: ev.metaKey,
+    ctrlKey: ev.ctrlKey,
+    shiftKey: ev.shiftKey,
+    altKey: ev.altKey,
+    repeat: false,
+  };
+  return classifyShortcut(plain, { mac, modalOpen: false, findOpen: () => false }) !== null;
+}
+
+// Actions classifyShortcut still runs while a dialog is open, plus the
+// menu-only items that sit with them (Split Notebook, Stop Keel runtime).
+const DIALOG_ACTIONS = new Set([
+  "close-tab",
+  "reopen-tab",
+  "split-right",
+  "split-down",
+  "split-notebook",
+  "focus-pane",
+  "zoom-in",
+  "zoom-out",
+  "zoom-reset",
+  "palette",
+  "stop-runtime",
+]);
+
+// menuShortcutAllowed says whether a native menu item (window.__keelShortcut)
+// may run now, with the limits the keyboard has:
+//
+// ctx.gateOpen  — Unlock, First run or Import hosts covers the window
+// ctx.renaming  — focus is in a tab's rename field
+// ctx.modalOpen — a dialog is open
+//
+// Stop Keel runtime always runs: it is the way out of a stuck window.
+export function menuShortcutAllowed(name, ctx) {
+  if (name === "stop-runtime") return true;
+  if (ctx.gateOpen || ctx.renaming) return false;
+  if (ctx.modalOpen) return DIALOG_ACTIONS.has(name);
+  return true;
+}

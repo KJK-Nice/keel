@@ -8,7 +8,6 @@ import (
 	stdruntime "runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:shell
@@ -18,9 +17,10 @@ var shellFS embed.FS
 var appIcon []byte
 
 type nativeWindow struct {
-	url string
-	app *application.App
-	win *application.WebviewWindow
+	url  string
+	app  *application.App
+	win  *application.WebviewWindow
+	exec jsExec // runs script in the page; nil until the window exists
 }
 
 func Run(url, _ string) error {
@@ -48,9 +48,10 @@ func Run(url, _ string) error {
 	app.Menu.Set(w.appMenu())
 	win := app.Window.NewWithOptions(webviewOptions(w.url))
 	w.win = win
-	win.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
-		win.ExecJS(windowDragJS())
-	})
+	w.exec = windowJS(win)
+	// windowDragJS is the window's JS option (webviewOptions): Wails runs it
+	// itself after every page load on macOS and Linux, outside the ExecJS
+	// queue. A WindowRuntimeReady hook never fired: the page has no runtime.
 	if stdruntime.GOOS == "darwin" {
 		watchChrome(win)
 	}
@@ -65,37 +66,8 @@ func (w *nativeWindow) appMenu() *application.Menu {
 	if macRoles {
 		m.AddRole(application.AppMenu)
 	}
-	file := m.AddSubmenu("File")
-	file.Add("New Tab").SetAccelerator("CmdOrCtrl+t").OnClick(w.menuAction("new-tab"))
-	file.Add("Close Tab").SetAccelerator("CmdOrCtrl+w").OnClick(w.menuAction("close-tab"))
-	file.Add("Reopen Tab").SetAccelerator("CmdOrCtrl+Shift+t").OnClick(w.menuAction("reopen-tab"))
-	file.AddSeparator()
-	file.Add("New Host").SetAccelerator("CmdOrCtrl+n").OnClick(w.menuAction("new-host"))
-	file.Add("Quick Connect").SetAccelerator("CmdOrCtrl+Shift+o").OnClick(w.menuAction("quick-connect"))
-	file.Add("Join Session").SetAccelerator("CmdOrCtrl+j").OnClick(w.menuAction("join"))
-	file.AddSeparator()
-	file.Add("Find Host").OnClick(w.menuAction("search"))
-	file.AddSeparator()
-	file.Add("Split Right").SetAccelerator("CmdOrCtrl+Shift+d").OnClick(w.menuAction("split-right"))
-	file.Add("Split Down").SetAccelerator("CmdOrCtrl+Shift+e").OnClick(w.menuAction("split-down"))
-	file.Add("Split Notebook").OnClick(w.menuAction("split-notebook"))
-	file.AddSeparator()
-	file.Add("Close Window").SetAccelerator("CmdOrCtrl+Shift+w").OnClick(func(*application.Context) {
-		if w.app != nil {
-			w.app.Quit()
-		}
-	})
-	file.Add("Stop Keel runtime").OnClick(w.menuAction("stop-runtime"))
-	view := m.AddSubmenu("View")
-	view.Add("Find in Terminal").SetAccelerator("CmdOrCtrl+f").OnClick(w.menuAction("find-term"))
-	view.Add("Toggle Vault Sidebar").SetAccelerator("CmdOrCtrl+b").OnClick(w.menuAction("toggle-sidebar"))
-	view.Add("Toggle Agent Panel").SetAccelerator(agentPanelAccel(stdruntime.GOOS)).OnClick(w.menuAction("toggle-agent"))
-	view.AddSeparator()
-	view.Add("Focus Pane").SetAccelerator("CmdOrCtrl+Shift+enter").OnClick(w.menuAction("focus-pane"))
-	view.AddSeparator()
-	view.Add("Zoom In").SetAccelerator("CmdOrCtrl+=").OnClick(w.menuAction("zoom-in"))
-	view.Add("Zoom Out").SetAccelerator("CmdOrCtrl+-").OnClick(w.menuAction("zoom-out"))
-	view.Add("Actual Size").SetAccelerator("CmdOrCtrl+0").OnClick(w.menuAction("zoom-reset"))
+	w.addItems(m.AddSubmenu("File"), fileMenu)
+	w.addItems(m.AddSubmenu("View"), viewMenu(stdruntime.GOOS))
 	m.AddRole(application.EditMenu)
 	if macRoles {
 		m.AddRole(application.WindowMenu)
@@ -114,12 +86,81 @@ func agentPanelAccel(goos string) string {
 	return "Ctrl+Shift+i"
 }
 
+// menuEntry is one item of a Keel submenu; an empty label is a separator.
+// action is a window.__keelShortcut name (runShortcut in term.js), or
+// actionQuit, which Go handles itself.
+type menuEntry struct {
+	label  string
+	accel  string
+	action string
+}
+
+// actionQuit closes the window, and the app quits with its last window.
+const actionQuit = "quit"
+
+var fileMenu = []menuEntry{
+	{"New Tab", "CmdOrCtrl+t", "new-tab"},
+	{"Close Tab", "CmdOrCtrl+w", "close-tab"},
+	{"Reopen Tab", "CmdOrCtrl+Shift+t", "reopen-tab"},
+	{},
+	{"New Host", "CmdOrCtrl+n", "new-host"},
+	{"Quick Connect", "CmdOrCtrl+Shift+o", "quick-connect"},
+	{"Join Session", "CmdOrCtrl+j", "join"},
+	{},
+	{"Find Host", "", "search"}, // no ⌘K: that is the command palette
+	{},
+	{"Split Right", "CmdOrCtrl+Shift+d", "split-right"},
+	{"Split Down", "CmdOrCtrl+Shift+e", "split-down"},
+	{"Split Notebook", "", "split-notebook"},
+	{},
+	{"Close Window", "CmdOrCtrl+Shift+w", actionQuit},
+	{"Stop Keel runtime", "", "stop-runtime"},
+}
+
+func viewMenu(goos string) []menuEntry {
+	return []menuEntry{
+		{"Find in Terminal", "CmdOrCtrl+f", "find-term"},
+		{"Toggle Vault Sidebar", "CmdOrCtrl+b", "toggle-sidebar"},
+		{"Toggle Agent Panel", agentPanelAccel(goos), "toggle-agent"},
+		{},
+		{"Focus Pane", "CmdOrCtrl+Shift+enter", "focus-pane"},
+		{},
+		{"Zoom In", "CmdOrCtrl+=", "zoom-in"},
+		{"Zoom Out", "CmdOrCtrl+-", "zoom-out"},
+		{"Actual Size", "CmdOrCtrl+0", "zoom-reset"},
+	}
+}
+
+func (w *nativeWindow) addItems(menu *application.Menu, entries []menuEntry) {
+	for _, e := range entries {
+		if e.label == "" {
+			menu.AddSeparator()
+			continue
+		}
+		item := menu.Add(e.label).OnClick(w.menuAction(e.action))
+		if e.accel != "" {
+			item.SetAccelerator(e.accel)
+		}
+	}
+}
+
+// menuAction runs one menu item. A ⌘-key reaches the menu only when the
+// page did not take it: WKWebView offers key equivalents to the page
+// first and hands them back to AppKit only if keydown was not
+// preventDefault-ed. A chord the page handles therefore runs once, from
+// the page, and the menu runs it only when clicked or when the page
+// passed the key on.
 func (w *nativeWindow) menuAction(name string) func(*application.Context) {
 	return func(*application.Context) {
-		if w.win == nil {
+		if name == actionQuit {
+			if w.app != nil {
+				w.app.Quit()
+			}
 			return
 		}
-		w.win.ExecJS(shortcutJS(name))
+		if w.exec != nil {
+			w.exec(shortcutJS(name))
+		}
 	}
 }
 

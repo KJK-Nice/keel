@@ -39,13 +39,15 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createActionToasts } from "./ui/actiontoast.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
-import { classifyShortcut, isAppMod } from "./lib/shortcuts.js";
+import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
+import { keysFor } from "./lib/shortcutmap.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
+import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
 (() => {
@@ -117,7 +119,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     tunnelFilter: "all",
     logKind: "all",
     logFilter: "",
-    name: params.get("name") || localStorage.getItem("keel-name") || "",
+    name: localStorage.getItem("keel-name-custom") || params.get("name") || localStorage.getItem("keel-name") || "",
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
     openModal: null,
@@ -131,6 +133,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   // The agent panel (ui/agentpanel.js), created once the chrome exists.
   let agentPanel = null;
   let agentSettings = null;
+  let settingsPages = null;
 
   function loadPrefs() {
     const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClickPaste: true };
@@ -889,7 +892,24 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   }
 
   function persistName() {
-    if (state.name) localStorage.setItem("keel-name", state.name);
+    const given = params.get("name");
+    if (given) localStorage.setItem("keel-name", given);
+  }
+
+  // The default display name: the app's ?name= (KEEL_NAME or the user name),
+  // else the last one it gave. Settings · Sharing can override it; that is
+  // kept in this browser only (keel-name-custom).
+  function defaultName() {
+    return params.get("name") || localStorage.getItem("keel-name") || "guest";
+  }
+
+  function setDisplayName(value) {
+    const v = String(value || "").trim().slice(0, 40);
+    try {
+      if (v) localStorage.setItem("keel-name-custom", v);
+      else localStorage.removeItem("keel-name-custom");
+    } catch {}
+    state.name = v || defaultName();
   }
 
   // Group and host helpers over the current vault (lib/groups.js).
@@ -2105,17 +2125,36 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       panel.hidden = !on;
     });
     if (id === "agent") agentSettings?.load();
+    if (["sharing", "vault", "runtime", "about"].includes(id)) settingsPages?.refresh();
+    if (id === "keyboard") settingsPages?.paintKeyboard();
   }
 
+  // filterSettings searches every section. While a query is typed, each
+  // section with a match is shown (its group titles and matching rows); with
+  // none, the selected section comes back.
   function filterSettings(query) {
     const q = query.trim().toLowerCase();
-    document.querySelectorAll(".settings-panel .pref-row:not(.pref-row-preview)").forEach((row) => {
-      row.hidden = q !== "" && !row.textContent.toLowerCase().includes(q);
+    const rowText = (row) => `${row.textContent} ${[...row.querySelectorAll("[data-search]")].map((e) => e.dataset.search).join(" ")}`.toLowerCase();
+    let any = false;
+    document.querySelectorAll(".settings-panel").forEach((panel) => {
+      let hits = 0;
+      panel.querySelectorAll(".pref-row:not(.pref-row-preview)").forEach((row) => {
+        row.hidden = q !== "" && !rowText(row).includes(q);
+        if (!row.hidden) hits++;
+      });
+      panel.querySelectorAll(".settings-group").forEach((group) => {
+        const rows = group.querySelectorAll(".pref-row:not(.pref-row-preview)");
+        group.hidden = q !== "" && ![...rows].some((row) => !row.hidden);
+      });
+      if (q === "") return;
+      const show = hits > 0;
+      any ||= show;
+      panel.classList.toggle("is-active", show);
+      panel.hidden = !show;
     });
-    document.querySelectorAll(".settings-group").forEach((group) => {
-      const rows = group.querySelectorAll(".pref-row:not(.pref-row-preview)");
-      group.hidden = q !== "" && ![...rows].some((row) => !row.hidden);
-    });
+    const empty = document.getElementById("settings-empty");
+    if (empty) empty.hidden = q === "" || any;
+    if (q === "") setSettingsSection(state.settingsSection || "appearance");
   }
 
   // openPage opens a tab page (Keychain, Port forwarding, Snippets,
@@ -2178,6 +2217,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     state.shownPage = page;
     if (page === "settings") {
       syncSettingsForm();
+      settingsPages?.refresh();
       setSettingsSection(state.settingsSection || "appearance");
     } else if (page === "keychain") syncIdentityPage();
     else if (page === "snippets") syncSnippetPage();
@@ -2972,13 +3012,13 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     // Commands are the Actions group; the section they used to be filed under
     // stays as their hint so "vault" or "pane" still finds them.
     const add = (item) => items.push({ ...item, hint: item.hint || item.group, group: "Actions" });
-    add({ id: "new-tab", group: "Tabs", title: "New tab", icon: "add", keys: `${MOD}T`, run: () => newTab() });
+    add({ id: "new-tab", group: "Tabs", title: "New tab", icon: "add", keys: keysFor("new-tab", isMac), run: () => newTab() });
     add({ id: "new-local", group: "Tabs", title: "New Local Shell", run: () => newLocalTab() });
     add({
       id: "close-tab",
       group: "Tabs",
       title: "Close pane or tab",
-      keys: `${MOD}W`,
+      keys: keysFor("close-tab", isMac),
       run: () => closeActivePaneOrTab(),
     });
     add({
@@ -2986,31 +3026,31 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       group: "Tabs",
       title: "Reopen last tab",
       icon: "reopen",
-      keys: `${MOD}⇧T`,
+      keys: keysFor("reopen-tab", isMac),
       run: () => reopenLastTab(),
     });
     add({
       id: "prev-tab",
       group: "Tabs",
       title: "Previous tab",
-      keys: `${MOD}<`,
+      keys: keysFor("prev-tab", isMac),
       run: () => runShortcut("prev-tab"),
     });
     add({
       id: "next-tab",
       group: "Tabs",
       title: "Next tab",
-      keys: `${MOD}>`,
+      keys: keysFor("next-tab", isMac),
       run: () => runShortcut("next-tab"),
     });
-    add({ id: "first-tab", group: "Tabs", title: "First tab", keys: `${MOD}1`, run: () => activateTabIndex(1) });
-    add({ id: "last-tab", group: "Tabs", title: "Last tab", keys: `${MOD}9`, run: () => activateTabIndex(9) });
+    add({ id: "first-tab", group: "Tabs", title: "First tab", keys: keysFor("first-tab", isMac), run: () => activateTabIndex(1) });
+    add({ id: "last-tab", group: "Tabs", title: "Last tab", keys: keysFor("last-tab", isMac), run: () => activateTabIndex(9) });
     add({
       id: "toggle-sidebar",
       group: "Vault",
       title: "Toggle vault sidebar",
       icon: "sidebar",
-      keys: `${MOD}B`,
+      keys: keysFor("toggle-sidebar", isMac),
       run: () => toggleSidebar(),
     });
     add({
@@ -3018,7 +3058,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       group: "Agent",
       title: "Toggle agent panel",
       icon: "agent",
-      keys: isMac ? "⌘I" : "Ctrl+Shift+I",
+      keys: keysFor("toggle-agent", isMac),
       run: () => toggleAgentPanel(),
     });
     add({
@@ -3032,7 +3072,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       group: "Vault",
       title: "New host",
       icon: "add",
-      keys: `${MOD}N`,
+      keys: keysFor("new-host", isMac),
       run: () => {
         fillHostForm(null);
         openModal(els.hostModal);
@@ -3042,23 +3082,23 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       id: "quick-connect",
       group: "Vault",
       title: "Quick connect",
-      keys: `${MOD}⇧O`,
+      keys: keysFor("quick-connect", isMac),
       run: () => runShortcut("quick-connect"),
     });
-    add({ id: "join", group: "Vault", title: "Join session", icon: "link", keys: `${MOD}J`, run: () => runShortcut("join") });
+    add({ id: "join", group: "Vault", title: "Join session", icon: "link", keys: keysFor("join", isMac), run: () => runShortcut("join") });
     add({ id: "import-ssh-config", group: "Vault", title: "Import hosts from ~/.ssh/config", run: () => gate?.openImport() });
     add({ id: "vault-keychain", group: "Vault", title: "Keychain", run: () => openPage("keychain") });
     add({ id: "vault-forwards", group: "Vault", title: "Port forwarding", run: () => openPage("forwards") });
     add({ id: "vault-snippets", group: "Vault", title: "Snippets", run: () => openPage("snippets") });
     add({ id: "vault-notebooks", group: "Vault", title: "Notebooks", run: () => openPage("notebooks") });
     add({ id: "vault-logs", group: "Vault", title: "Logs", run: () => openPage("logs") });
-    add({ id: "settings", group: "Vault", title: "Settings", keys: `${MOD},`, run: () => runShortcut("settings") });
+    add({ id: "settings", group: "Vault", title: "Settings", keys: keysFor("settings", isMac), run: () => runShortcut("settings") });
     add({
       id: "split-right",
       group: "Panes",
       title: "Split right",
       icon: "split",
-      keys: `${MOD}⇧D`,
+      keys: keysFor("split-right", isMac),
       run: () => splitActive("h"),
     });
     add({
@@ -3066,7 +3106,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       group: "Panes",
       title: "Split down",
       icon: "split",
-      keys: `${MOD}⇧E`,
+      keys: keysFor("split-down", isMac),
       run: () => splitActive("v"),
     });
     add({
@@ -3079,19 +3119,19 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       id: "focus-pane-zoom",
       group: "Panes",
       title: "Focus view (zoom pane)",
-      keys: `${MOD}⇧↵`,
+      keys: keysFor("focus-pane-zoom", isMac),
       run: () => runShortcut("focus-pane"),
     });
-    add({ id: "find-term", group: "Panes", title: "Find in terminal", keys: `${MOD}F`, run: () => runShortcut("find-term") });
+    add({ id: "find-term", group: "Panes", title: "Find in terminal", keys: keysFor("find-term", isMac), run: () => runShortcut("find-term") });
     add({
       id: "sync-panes",
       group: "Panes",
       title: "Toggle sync input",
       run: () => toggleTabSync(state.activeId),
     });
-    add({ id: "font-up", group: "Terminal", title: "Larger text", keys: `${MOD}+`, run: () => runShortcut("zoom-in") });
-    add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: `${MOD}-`, run: () => runShortcut("zoom-out") });
-    add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: `${MOD}0`, run: () => runShortcut("zoom-reset") });
+    add({ id: "font-up", group: "Terminal", title: "Larger text", keys: keysFor("font-up", isMac), run: () => runShortcut("zoom-in") });
+    add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: keysFor("font-down", isMac), run: () => runShortcut("zoom-out") });
+    add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: keysFor("font-reset", isMac), run: () => runShortcut("zoom-reset") });
     add({ id: "share", group: "Terminal", title: "Share session (join link)", run: () => openSharePop() });
     add({ id: "stop-share", group: "Terminal", title: "Stop sharing this session", run: () => stopShareActive() });
     add({
@@ -3218,11 +3258,11 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     run: (item, opts) => runPaletteItem(item, opts),
     // ⌘↵ / the last row (§5.2, §8): open the agent panel with the query as
     // the message. It is never sent from here; the user presses ↵ in the panel.
-    ask: { keys: `${MOD}↵`, run: (query) => askAgentFromPalette(query) },
+    ask: { keys: keysFor("ask-agent", isMac), run: (query) => askAgentFromPalette(query) },
   });
   {
     const askKbd = document.getElementById("cmd-palette-ask-kbd");
-    if (askKbd) askKbd.textContent = `${MOD}↵`;
+    if (askKbd) askKbd.textContent = keysFor("ask-agent", isMac);
   }
 
   function isCommandPaletteOpen() {
@@ -3370,16 +3410,26 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
   }
 
+  function isGateOpen() {
+    return !!els.gate && !els.gate.hidden;
+  }
+
   function handleShortcut(ev) {
-    if (ev.target?.closest?.(".tab-rename")) return false;
-    if (els.gate && !els.gate.hidden) return false;
-    const action = classifyShortcut(ev, {
-      mac: isMac,
-      modalOpen: !!state.openModal,
-      findOpen: () => isFindOpen(focusedPane()),
-      startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
-    });
-    if (!action) return false;
+    const declined = ev.target?.closest?.(".tab-rename") || isGateOpen();
+    const action = declined
+      ? null
+      : classifyShortcut(ev, {
+          mac: isMac,
+          modalOpen: !!state.openModal,
+          findOpen: () => isFindOpen(focusedPane()),
+          startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
+        });
+    if (!action) {
+      // In the native window a chrome chord declined here must not reach
+      // the menu's accelerator, which would run it anyway (shortcuts.js).
+      if (isNativeWindow() && isChromeChord(ev, isMac)) ev.preventDefault();
+      return false;
+    }
     ev.preventDefault();
     if (action.name === "find-next" || action.name === "find-prev") {
       runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
@@ -3393,7 +3443,15 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     return true;
   }
 
-  window.__keelShortcut = (name) => runShortcut(name);
+  // The native menu (internal/desktop) runs its items through here.
+  window.__keelShortcut = (name) => {
+    const ok = menuShortcutAllowed(name, {
+      gateOpen: isGateOpen(),
+      renaming: !!document.activeElement?.closest?.(".tab-rename"),
+      modalOpen: !!state.openModal,
+    });
+    if (ok) runShortcut(name);
+  };
 
   function termKeyHandler(ev) {
     // A noticed line or a suggestion card in the focused pane takes ⇥, ⇧⇥,
@@ -6313,6 +6371,16 @@ Write a runbook here.
     toast,
     confirm: askConfirm,
     widgets: { setSelectValue, setSliderValue, fillSelectItems },
+  });
+
+  settingsPages = createSettingsPages({
+    api,
+    toast,
+    confirm: askConfirm,
+    isMac,
+    getName: () => ({ custom: localStorage.getItem("keel-name-custom") || "", fallback: defaultName() }),
+    setName: setDisplayName,
+    stopRuntime: () => runShortcut("stop-runtime"),
   });
 
   function askAgentFromPalette(query) {

@@ -43,6 +43,10 @@ type Server struct {
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
 	onStop  func()
+	// started, addr and dataDir describe this keel serve for GET /api/runtime.
+	started time.Time
+	addr    string
+	dataDir string
 	// authToken, when set, is required on privileged routes (auth.go).
 	authToken string
 	build     string
@@ -58,7 +62,15 @@ type Server struct {
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
-	return &Server{store: st, rt: rt, web: web, share: sh}
+	return &Server{store: st, rt: rt, web: web, share: sh, started: time.Now()}
+}
+
+// WithRuntimeInfo sets the listen address and data directory that GET
+// /api/runtime reports (Settings · Runtime).
+func (s *Server) WithRuntimeInfo(addr, dataDir string) *Server {
+	s.addr = addr
+	s.dataDir = dataDir
+	return s
 }
 
 func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
@@ -91,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	s.initAgent()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("GET /api/runtime", s.runtimeInfo)
 	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
 	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
 	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
@@ -279,6 +292,27 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}
 	if proof, ok := s.healthProof(r); ok {
 		out["proof"] = proof
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// runtimeInfo describes this keel serve for Settings · Runtime. Behind the
+// auth token like the rest of /api/ (unlike /api/health). It holds no
+// secret: paths, counts and times only.
+func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
+	out := map[string]any{
+		"build":     s.build,
+		"pid":       os.Getpid(),
+		"addr":      s.addr,
+		"dataDir":   s.dataDir,
+		"sessions":  s.rt.Count(),
+		"startedAt": s.started.UTC().Format(time.RFC3339),
+		"uptimeSec": int64(time.Since(s.started).Seconds()),
+		"canStop":   s.onStop != nil,
+		"signalURL": "",
+	}
+	if s.share != nil && s.share.Enabled() {
+		out["signalURL"] = s.share.URL()
 	}
 	writeJSON(w, http.StatusOK, out)
 }
