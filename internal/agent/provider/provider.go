@@ -186,11 +186,16 @@ type Question struct {
 }
 
 // JudgeRequest is one request: every question about one state. Untrusted
-// terminal text lives in its own named field (Fields or Lists), apart from
-// the questions.
+// terminal text lives in its own named field (Fields, Lists or Maps), apart
+// from the questions.
 type JudgeRequest struct {
-	Fields    map[string]redact.Safe
-	Lists     map[string][]redact.Safe
+	Fields map[string]redact.Safe
+	Lists  map[string][]redact.Safe
+	// Maps are objects keyed by opaque ids (`candidates.c3`). A question
+	// that points at one item of many should use a map, not a list: Jev
+	// counts long arrays wrong (`commands[17]` read as the 18th item was
+	// seen on jev-1.13.0), and a named key leaves nothing to count.
+	Maps      map[string]map[string]redact.Safe
 	Questions map[string]Question
 }
 

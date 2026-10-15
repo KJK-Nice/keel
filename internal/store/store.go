@@ -185,10 +185,15 @@ type Tunnel struct {
 }
 
 type Snippet struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Command   string    `json:"command"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Command string `json:"command"`
+	// AgentUsable lets the agent offer this snippet as an in-pane
+	// suggestion (phase 6c+), which sends its command, redacted, to Jev.
+	// Off by default: snippet bodies are never sent unless the user
+	// turns this on (docs/ui-redesign.md §6.3).
+	AgentUsable bool      `json:"agentUsable"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 // NotebookCell is source markdown or a command. Outputs live in the terminal

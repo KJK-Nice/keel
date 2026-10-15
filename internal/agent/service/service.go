@@ -44,6 +44,9 @@ type Store interface {
 	ListHosts() ([]store.Host, error)
 	AgentKeyConfigured(provider string) (bool, error)
 	AgentKey(provider string) (string, error)
+	// ListSnippets is read only for in-pane suggestions, and only the
+	// snippets marked agent-usable are kept (agentSnippets).
+	ListSnippets() ([]store.Snippet, error)
 }
 
 // Panes resolves runtime sessions to panes and reads their scrollback.

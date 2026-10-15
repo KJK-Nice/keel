@@ -53,6 +53,32 @@ type Excerpt struct {
 // line count and redaction counts. A pane out of scope is refused before
 // anything is read.
 func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
+	return a.readPane(src, scope, p, lines, r, false)
+}
+
+// ReadPaneScreen is ReadPane for reading the commands typed in a pane
+// (history-first suggestions): each line is what the terminal shows once
+// the line is done, so a shell redrawing the prompt line with a carriage
+// return (a cleared line, an inserted suggestion, line editing) leaves only
+// its final text, not every draft. Logged the same way.
+func (a *Auditor) ReadPaneScreen(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
+	return a.readPane(src, scope, p, lines, r, true)
+}
+
+// FinalLines keeps, of every line of raw PTY output, the text after its
+// last lone carriage return: what the terminal shows once the line ends.
+func FinalLines(raw string) string {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	lines := strings.Split(raw, "\n")
+	for i, ln := range lines {
+		if k := strings.LastIndexByte(strings.TrimRight(ln, "\r"), '\r'); k >= 0 {
+			lines[i] = ln[k+1:]
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, screen bool) (Excerpt, error) {
 	if !scope.Allows(p) {
 		return Excerpt{}, ErrNotReadable
 	}
@@ -63,7 +89,11 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	if err != nil {
 		return Excerpt{}, err
 	}
-	text, n := LastLines(redact.Normalize(string(raw)), ClampLines(lines))
+	in := string(raw)
+	if screen {
+		in = FinalLines(in)
+	}
+	text, n := LastLines(redact.Normalize(in), ClampLines(lines))
 	before := r.Report()
 	safe := r.Text(text).Tail(maxExcerptBytes)
 	rep := diff(before, r.Report())
@@ -86,17 +116,21 @@ func (a *Auditor) Suggest(p Pane, rep redact.Report, risk string) {
 }
 
 // SuggestFrom is Suggest with the suggestion's source: "generated" (the
-// model provider), and in later phases "history" or "snippet". In-pane
-// suggestions (§5.5) always name one.
+// model provider), "history" (a command from the pane's scrollback) or
+// "snippet" (a snippet marked agent-usable). In-pane suggestions (§5.5)
+// always name one.
 func (a *Auditor) SuggestFrom(p Pane, rep redact.Report, risk, source string) {
 	a.SuggestTimed(p, rep, risk, source, Timing{})
 }
 
 // Timing is how long an in-pane suggestion's calls took. Asked is false
 // when Jev was not asked (no key, or every candidate was destructive by
-// the code rule).
+// the code rule). Pick is the history pick (Jev choosing among commands
+// already run); Model is 0 when that pick was confident and the model was
+// not called.
 type Timing struct {
 	Model time.Duration
+	Pick  time.Duration
 	Jev   time.Duration
 	Asked bool
 }
@@ -109,11 +143,14 @@ func (a *Auditor) SuggestTimed(p Pane, rep redact.Report, risk, source string, t
 		from = " · " + source
 	}
 	took := ""
+	if t.Pick > 0 {
+		took += fmt.Sprintf(" · history pick %d ms", t.Pick.Milliseconds())
+	}
 	if t.Model > 0 {
-		took = fmt.Sprintf(" · model %d ms", t.Model.Milliseconds())
-		if t.Asked {
-			took += fmt.Sprintf(" · Jev %d ms", t.Jev.Milliseconds())
-		}
+		took += fmt.Sprintf(" · model %d ms", t.Model.Milliseconds())
+	}
+	if (t.Model > 0 || t.Pick > 0) && t.Asked {
+		took += fmt.Sprintf(" · Jev %d ms", t.Jev.Milliseconds())
 	}
 	e := applog.Entry{
 		Kind:       EventSuggest,

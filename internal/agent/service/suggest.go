@@ -9,8 +9,8 @@ package service
 //     egress); otherwise, with Detection "auto", one Jev Noul. Any Jev
 //     failure falls back to #-lines only, silently.
 //   - Suggest: the user pressed ⇥ on a noticed line. The suggesters, in
-//     order, produce candidate commands (6c has one: the model provider,
-//     source "generated", on the provider's small suggestion model); every
+//     order, produce candidate commands (history first when Jev has a key,
+//     history.go; then the model provider, source "generated"); every
 //     candidate is rated by the code rule and returned at once. The
 //     returned RiskCheck then asks Jev and may make the stored rating
 //     stricter (never looser); keel serve pushes that to the card. An
@@ -113,7 +113,7 @@ type Suggestion struct {
 
 // SuggestInput is what a suggester gets: the redacted words, and the pane
 // and host they are for. A suggester may read more of the pane only
-// through the Auditor (later phases: commands from the scrollback).
+// through the Auditor (the history suggester reads its scrollback).
 type SuggestInput struct {
 	Words    redact.Safe
 	Pane     agent.Pane
@@ -418,28 +418,38 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 		return Suggestion{}, nil, err
 	}
 	model, thinking := SuggestModel(desc, set)
-	suggesters := []Suggester{modelSuggester{p: prov, model: model, thinking: thinking, name: desc.Name}}
+	// History first, when Jev has a key: a command the user already ran
+	// or curated, if Jev is sure it does what the words ask. Without a
+	// key, or when Jev fails or is unsure, the model writes one.
+	var suggesters []Suggester
+	if judge, err := s.judgeFor(); err == nil {
+		suggesters = append(suggesters, historySuggester{s: s, judge: judge, hosts: hosts, words: words})
+	}
+	suggesters = append(suggesters, modelSuggester{p: prov, model: model, thinking: thinking, name: desc.Name})
 
-	cctx, cancel := context.WithTimeout(ctx, suggestTimeout)
-	defer cancel()
 	var cands []Candidate
-	start := s.now()
+	var modelTook, pickTook time.Duration
 	for _, sg := range suggesters {
 		// Logged before the call: a provider that fails, times out or
 		// returns nothing has still been sent the words.
 		if to := sg.SendsTo(); to != "" {
 			s.audit.Sent(p, "the words on the prompt line", 1, r.Report(), to, "to suggest a command", desc.ID)
 		}
-		c, err := sg.Suggest(cctx, in)
-		if err != nil {
-			if errors.Is(cctx.Err(), context.DeadlineExceeded) || ctx.Err() != nil {
-				return Suggestion{}, nil, s.providerErr(ctx, cctx, err)
+		start := s.now()
+		var c []Candidate
+		if sg.Source() == SourceGenerated {
+			var err error
+			c, modelTook, err = s.runModel(ctx, sg, in, start)
+			if err != nil {
+				return Suggestion{}, nil, err
 			}
-			var pe *ProviderError
-			if errors.As(err, &pe) {
-				return Suggestion{}, nil, pe
+		} else {
+			// Never an error: anything but a confident pick falls through.
+			c, _ = sg.Suggest(ctx, in)
+			pickTook += s.since(start)
+			if err := ctx.Err(); err != nil {
+				return Suggestion{}, nil, err
 			}
-			return Suggestion{}, nil, &ProviderError{Msg: err.Error()}
 		}
 		c = singleLine(c)
 		if len(c) > 0 {
@@ -452,7 +462,6 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 			break
 		}
 	}
-	modelTook := s.since(start)
 	if len(cands) == 0 {
 		return Suggestion{}, nil, ErrNoSuggestion
 	}
@@ -480,10 +489,30 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 		redactor:  r,
 		sent:      r.Report(),
 		modelTook: modelTook,
+		pickTook:  pickTook,
 		model:     model,
 		thinking:  thinking,
 	}
 	return sug, check, nil
+}
+
+// runModel runs the model suggester with its own budget (suggestTimeout),
+// whatever the history step took, and turns its errors into the card's.
+func (s *Service) runModel(ctx context.Context, sg Suggester, in SuggestInput, start time.Time) ([]Candidate, time.Duration, error) {
+	cctx, cancel := context.WithTimeout(ctx, suggestTimeout)
+	defer cancel()
+	c, err := sg.Suggest(cctx, in)
+	if err != nil {
+		if errors.Is(cctx.Err(), context.DeadlineExceeded) || ctx.Err() != nil {
+			return nil, 0, s.providerErr(ctx, cctx, err)
+		}
+		var pe *ProviderError
+		if errors.As(err, &pe) {
+			return nil, 0, pe
+		}
+		return nil, 0, &ProviderError{Msg: err.Error()}
+	}
+	return c, s.since(start), nil
 }
 
 // since is the time since start on the service's clock, at least 1 ns so
@@ -534,6 +563,11 @@ type RiskUpdate struct {
 type SuggestTiming struct {
 	Model    string
 	Thinking string
+	// Source is the suggestion's source. PickMs is how long the history
+	// pick took (0 when Jev has no key); ModelMs is 0 when history was
+	// confident and the model was not called.
+	Source   string
+	PickMs   int64
 	ModelMs  int64
 	JevMs    int64
 	JevAsked bool
@@ -550,6 +584,7 @@ type RiskCheck struct {
 	redactor  *redact.Redactor
 	sent      redact.Report
 	modelTook time.Duration
+	pickTook  time.Duration
 	model     string
 	thinking  string
 
@@ -618,10 +653,12 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 	for i, o := range opts {
 		upd.Options[i] = OptionRisk{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged}
 	}
-	s.audit.SuggestTimed(c.pane, c.sent, riskLabel(opts[0].Risk), opts[0].Source, agent.Timing{Model: c.modelTook, Jev: jevTook, Asked: asked})
+	s.audit.SuggestTimed(c.pane, c.sent, riskLabel(opts[0].Risk), opts[0].Source, agent.Timing{Model: c.modelTook, Pick: c.pickTook, Jev: jevTook, Asked: asked})
 	return upd, SuggestTiming{
 		Model:    c.model,
 		Thinking: c.thinking,
+		Source:   opts[0].Source,
+		PickMs:   c.pickTook.Milliseconds(),
 		ModelMs:  c.modelTook.Milliseconds(),
 		JevMs:    jevTook.Milliseconds(),
 		JevAsked: asked,

@@ -21,12 +21,14 @@ import (
 // --- fakes ---
 
 type fakeStore struct {
-	mu       sync.Mutex
-	settings store.AgentSettings
-	hosts    []store.Host
-	secrets  []string
-	key      string
-	keyReads int
+	mu        sync.Mutex
+	settings  store.AgentSettings
+	hosts     []store.Host
+	secrets   []string
+	key       string
+	keyReads  int
+	snippets  []store.Snippet
+	snipReads int
 }
 
 func (f *fakeStore) KnownSecretValues() ([]string, error) { return f.secrets, nil }
@@ -37,6 +39,12 @@ func (f *fakeStore) ListHosts() ([]store.Host, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]store.Host(nil), f.hosts...), nil
+}
+func (f *fakeStore) ListSnippets() ([]store.Snippet, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.snipReads++
+	return append([]store.Snippet(nil), f.snippets...), nil
 }
 func (f *fakeStore) AgentKeyConfigured(string) (bool, error) { return f.key != "", nil }
 func (f *fakeStore) AgentKey(string) (string, error) {

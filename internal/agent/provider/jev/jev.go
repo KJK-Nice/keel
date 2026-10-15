@@ -125,6 +125,13 @@ func (c *Client) Judge(ctx context.Context, req provider.JudgeRequest) (provider
 		}
 		body.State[k] = out
 	}
+	for k, m := range req.Maps {
+		out := make(map[string]string, len(m))
+		for id, v := range m {
+			out[id] = v.String()
+		}
+		body.State[k] = out
+	}
 	for id, q := range req.Questions {
 		switch q.Type {
 		case provider.QuestionNoul:

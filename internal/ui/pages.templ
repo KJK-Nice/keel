@@ -149,6 +149,21 @@ templ SnippetsPage(p PageProps) {
 						<pre class="k-bytes" id="snippet-editor-preview"></pre>
 						<span class="k-help" id="snippet-editor-count"></span>
 					</div>
+					<div class="k-field k-field--row">
+						<div class="k-field">
+							<span class="k-label" id="snippet-editor-agent-label">Let the agent suggest this snippet</span>
+							<span class="k-help" id="snippet-editor-agent-help">⇥ can offer it when your words match. One-line commands without { "{{var}}" } fields only. When on, its text is sent, redacted, to TypeSafe Jev.</span>
+						</div>
+						<button
+							type="button"
+							class="k-switch"
+							role="switch"
+							id="snippet-editor-agent"
+							aria-checked="false"
+							aria-labelledby="snippet-editor-agent-label"
+							aria-describedby="snippet-editor-agent-help"
+						></button>
+					</div>
 					<div class="k-editor-foot">
 						<span class="k-spacer"></span>
 						<button type="button" class="k-btn k-btn--danger k-btn--sm" id="snippet-editor-delete" data-delete-snippet="">Delete snippet</button>

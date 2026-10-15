@@ -3,11 +3,13 @@ package providertest
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"keel/internal/agent/provider"
+	"keel/internal/agent/redact"
 )
 
 // ScriptedJudge is the test detector `keel serve` uses with
@@ -25,6 +27,11 @@ import (
 //     rating stricter, and "destructive" after SlowDelay for a command
 //     holding "keel-jev-slow", so a test can see the card arrive first
 //     and its rating tighten later.
+//   - A history pick (a `candidates` map in the state) picks the candidate
+//     that holds "keel-" and the request's words joined by "-" (the words
+//     "history marker" pick `echo keel-history-marker`), sure of it (0.95
+//     everywhere); for words with "unsure" it picks the first candidate
+//     at 0.40, below every bar; otherwise none_of_the_above.
 type ScriptedJudge struct {
 	mu       sync.Mutex
 	requests []provider.JudgeRequest
@@ -92,6 +99,9 @@ func (j *ScriptedJudge) Judge(ctx context.Context, req provider.JudgeRequest) (p
 		return provider.JudgeResponse{}, errOffline
 	}
 	out := provider.JudgeResponse{Model: "fake-judge", Nouls: map[string]float64{}, Choices: map[string]provider.ChoiceAnswer{}}
+	if cands, ok := req.Maps["candidates"]; ok {
+		return historyPick(req, line, cands, out), nil
+	}
 	cmds := map[int]string{}
 	slow := false
 	for _, list := range req.Lists {
@@ -142,6 +152,57 @@ func (j *ScriptedJudge) Judge(ctx context.Context, req provider.JudgeRequest) (p
 		}
 	}
 	return out, nil
+}
+
+// historyPick answers a history request (see ScriptedJudge).
+func historyPick(req provider.JudgeRequest, words string, cands map[string]redact.Safe, out provider.JudgeResponse) provider.JudgeResponse {
+	words = strings.ToLower(strings.TrimSpace(strings.TrimLeft(words, "#")))
+	want := "keel-" + strings.Join(strings.Fields(words), "-")
+	pick, p := "", 0.0
+	keys := make([]string, 0, len(cands))
+	for k := range cands {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(a, b int) bool {
+		return len(keys[a]) < len(keys[b]) || (len(keys[a]) == len(keys[b]) && keys[a] < keys[b])
+	})
+	for _, k := range keys {
+		if strings.Contains(cands[k].String(), want) {
+			pick, p = k, 0.95
+			break
+		}
+	}
+	if pick == "" && strings.Contains(words, "unsure") && len(keys) > 0 {
+		pick, p = keys[0], 0.40
+	}
+	for id, q := range req.Questions {
+		switch {
+		case q.Type == provider.QuestionChoice:
+			probs := map[string]float64{}
+			for _, o := range q.Options {
+				probs[o.Key] = 0
+			}
+			choice := "none_of_the_above"
+			if pick != "" {
+				choice = pick
+			}
+			probs[choice] = 1
+			if pick != "" {
+				probs[choice] = p
+				probs["none_of_the_above"] = 1 - p
+			}
+			out.Choices[id] = provider.ChoiceAnswer{Choice: choice, Probabilities: probs}
+		case id == "exists":
+			out.Nouls[id] = max(p, 0.05)
+		case strings.HasPrefix(id, "fit_"):
+			v := 0.05
+			if strings.TrimPrefix(id, "fit_") == pick {
+				v = p
+			}
+			out.Nouls[id] = v
+		}
+	}
+	return out
 }
 
 // Requests returns the last requests Judge received, oldest first.
