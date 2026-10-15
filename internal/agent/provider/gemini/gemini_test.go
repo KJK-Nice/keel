@@ -36,7 +36,7 @@ func TestGenerateSendsOnlyRequestAndKeyInHeader(t *testing.T) {
 	}
 	r := redact.New(redact.Options{})
 	resp, err := c.Generate(context.Background(), provider.Request{
-		Model:  "gemini-2.5-flash",
+		Model:  "gemini-3.8-flash",
 		System: redact.Static("You suggest shell commands."),
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Text: r.Text("disk usage? password=hunter22")},
@@ -49,7 +49,7 @@ func TestGenerateSendsOnlyRequestAndKeyInHeader(t *testing.T) {
 	if resp.Text != "df -h /" || resp.InputTokens != 12 || resp.OutputTokens != 3 {
 		t.Fatalf("resp = %+v", resp)
 	}
-	if path != "/models/gemini-2.5-flash:generateContent" || header != key || query != "" {
+	if path != "/models/gemini-3.8-flash:generateContent" || header != key || query != "" {
 		t.Fatalf("path=%q header=%q query=%q", path, header, query)
 	}
 	if got.SystemInstruction == nil || got.SystemInstruction.Parts[0].Text != "You suggest shell commands." {
