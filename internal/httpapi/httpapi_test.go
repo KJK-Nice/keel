@@ -2159,7 +2159,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
 		t.Fatal("index missing UI size or font smoothing settings")
 	}
-	if !strings.Contains(string(body), `<dialog class="modal" id="host-modal"`) || !strings.Contains(string(body), `id="modal-scrim"`) {
+	if !strings.Contains(string(body), `<dialog class="modal modal--host" id="host-modal"`) || !strings.Contains(string(body), `id="modal-scrim"`) {
 		t.Fatal("index missing native host dialog or modal scrim")
 	}
 	if strings.Contains(string(body), `<template data-tui-dialog-portal`) && !strings.Contains(string(body), `data-slot="alert-dialog-content"`) {
