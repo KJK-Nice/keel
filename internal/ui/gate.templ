@@ -1,5 +1,7 @@
 package ui
 
+import "keel/components/icon"
+
 // Gate covers the window while the vault is locked or the first run is
 // open (docs/ui-redesign.md §5.14, §5.15). term.js shows one screen at a
 // time from GET /api/vault and fills in the counts, paths and the import
@@ -82,9 +84,11 @@ templ unlockScreen(p PageProps) {
 	</section>
 }
 
-// firstRunScreen is §5.15 steps 1 and 2. Step 3 (Agent) comes with the
-// agent in phase 6. Step 2 also opens on its own from the command palette
-// (Import hosts from ~/.ssh/config).
+// firstRunScreen is §5.15: step 1 (vault), step 2 (hosts) and step 3
+// (Agent, optional). Step 2 also opens on its own from the command palette
+// (Import hosts from ~/.ssh/config); step 3 only follows step 2 in the
+// first run. Nothing on step 3 sends anything anywhere: a key is stored in
+// the vault and used only when the user asks the agent or presses ⇥.
 templ firstRunScreen(p PageProps) {
 	<section class="k-onb" id="onboard" aria-labelledby="onb-title" hidden>
 		<div class="k-onb-col" id="onb-col">
@@ -101,6 +105,13 @@ templ firstRunScreen(p PageProps) {
 						@gateIcon("tick")
 					</span>
 					Hosts
+				</li>
+				<li class="k-step-sep" aria-hidden="true"></li>
+				<li class="k-step" id="onb-step-agent">
+					<span class="k-step-n" aria-hidden="true"><span class="k-step-num">3</span>
+						@gateIcon("tick")
+					</span>
+					Agent
 				</li>
 			</ol>
 			<form class="k-onb-panel" id="onb-vault" novalidate>
@@ -173,6 +184,87 @@ templ firstRunScreen(p PageProps) {
 					</button>
 				</div>
 			</div>
+			@agentStep()
 		</div>
 	</section>
+}
+
+// agentStep is Onboard3: three promises, a provider (optional), the
+// suggestions switch, and Set up later / Open Keel. js/ui/gate.js fills the
+// Gemini warning and links from GET /api/agent/providers and saves only on
+// Open Keel: the key to PUT /api/agent/keys/gemini, the switch to PUT
+// /api/agent/settings. Set up later saves nothing.
+templ agentStep() {
+	<form class="k-onb-panel" id="onb-agent" novalidate hidden>
+		<div class="k-gate-head">
+			<h1 class="k-gate-title" id="onb-agent-title" tabindex="-1">An agent that suggests, never types</h1>
+			<p class="k-gate-lead">Ask it about a session, or type plain language at a prompt and press ⇥. It is optional, and you can set it up later in Settings.</p>
+		</div>
+		<ul class="k-promises" aria-label="What the agent promises">
+			<li class="k-promise">
+				<span class="k-tile k-promise-tile k-promise-tile--haze" aria-hidden="true">
+					@gateIcon("eye")
+				</span>
+				<b>Reads only the panes you pick</b>
+				<span>Every pane it can read carries an "Agent reads" mark. Hosts can opt out.</span>
+			</li>
+			<li class="k-promise">
+				<span class="k-tile k-promise-tile k-promise-tile--brass" aria-hidden="true">
+					@icon.Shield01()
+				</span>
+				<b>Suggests commands; you press Type</b>
+				<span>The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥.</span>
+			</li>
+			<li class="k-promise">
+				<span class="k-tile k-promise-tile k-promise-tile--tide" aria-hidden="true">
+					@gateIcon("lock")
+				</span>
+				<b>Secrets are redacted, the vault stays closed</b>
+				<span>No passwords, keys or snippets leave it. Secret-looking values in a pane are redacted before sending.</span>
+			</li>
+		</ul>
+		<div class="k-box">
+			<div class="k-field">
+				<span class="k-label" id="onb-agent-provider-label">Provider</span>
+				<div class="k-choices" role="radiogroup" aria-labelledby="onb-agent-provider-label">
+					<button type="button" class="k-choice-card" role="radio" aria-checked="false" id="onb-agent-gemini" aria-describedby="onb-agent-gemini-desc">
+						<span class="k-radio" aria-hidden="true"></span>
+						<span class="k-choice-title">Google Gemini</span>
+						<span class="k-choice-desc" id="onb-agent-gemini-desc">Answers questions and writes suggestions. Needs an API key.</span>
+					</button>
+					<button type="button" class="k-choice-card" role="radio" aria-checked="true" id="onb-agent-none" aria-describedby="onb-agent-none-desc">
+						<span class="k-radio" aria-hidden="true"></span>
+						<span class="k-choice-title">Not now</span>
+						<span class="k-choice-desc" id="onb-agent-none-desc">Connect a provider later in Settings, Agent.</span>
+					</button>
+				</div>
+			</div>
+			<div class="k-agent-onb-key" id="onb-agent-key" hidden>
+				<div class="k-agent-warning" role="note" id="onb-agent-warning" hidden>
+					@gateIcon("alert")
+					<p id="onb-agent-warning-text"></p>
+				</div>
+				<div class="k-field">
+					<label class="k-label" for="onb-agent-key-input" id="onb-agent-key-label">Gemini API key</label>
+					<input class="k-input k-agent-key" id="onb-agent-key-input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="onb-agent-key-error"/>
+				</div>
+				<p class="k-agent-field-error" id="onb-agent-key-error" role="alert"></p>
+				<p class="k-help k-agent-links" id="onb-agent-links"></p>
+			</div>
+			<div class="k-field k-field--row">
+				<span id="onb-agent-suggest-label">Suggest commands when I type plain language</span>
+				<button type="button" class="k-switch" role="switch" id="onb-agent-suggest" aria-checked="true" aria-labelledby="onb-agent-suggest-label"></button>
+			</div>
+			<p class="k-help">Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.</p>
+		</div>
+		<div class="k-onb-foot">
+			<button type="button" class="k-btn k-btn--ghost" id="onb-agent-back">Back</button>
+			<span class="k-spacer"></span>
+			<button type="button" class="k-btn" id="onb-agent-later">Set up later</button>
+			<button type="submit" class="k-btn k-btn--primary k-btn--lg" id="onb-agent-open">
+				Open Keel
+				<span class="k-kbd" aria-hidden="true">↵</span>
+			</button>
+		</div>
+	</form>
 }

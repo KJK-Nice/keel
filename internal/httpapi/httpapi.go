@@ -133,6 +133,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
 	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}", s.agentReset)
+	mux.HandleFunc("DELETE /api/agent/conversations", s.agentResetAll)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)

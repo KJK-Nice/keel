@@ -584,6 +584,19 @@ func (s *Service) Reset(convID string) {
 	delete(s.convs, convID)
 }
 
+// ResetAll forgets every conversation (Settings, Delete all history). The
+// service keeps conversations in memory only, so this is all there is to
+// delete. It returns how many were dropped. A conversation with an ask in
+// flight is dropped too: the ask finishes into a conversation nobody can
+// reach any more.
+func (s *Service) ResetAll() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := len(s.convs)
+	s.convs = map[string]*conversation{}
+	return n
+}
+
 // hostProduction reports a host's current production flag. It fails
 // closed: a host that can no longer be found (deleted, or no host id)
 // counts as production, so the ⇧ rule is never relaxed by a lookup miss.

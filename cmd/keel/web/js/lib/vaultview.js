@@ -348,7 +348,7 @@ export function logGroup(kind) {
   if (k === "session") return "sessions";
   if (k === "tunnel") return "forwards";
   // agent.read / agent.suggest / agent.insert / agent.type and agent
-  // settings changes; the Agent filter chip comes in phase 6d.
+  // settings changes (the Agent chip on the Logs page).
   if (k === "agent" || k.startsWith("agent.")) return "agent";
   if (["vault", "host", "group", "identity", "snippet", "notebook"].includes(k)) return "vault";
   return "other";
@@ -364,6 +364,31 @@ function logTarget(e, ctx) {
     if (h) return h.name;
   }
   return "—";
+}
+
+// logFacts is the list of short labels an agent entry carries: lines, bytes,
+// prompt lines sent, redactions, source, model and Jev timings (the same as
+// internal/ui logFacts, which renders the server-side rows).
+export function logFacts(e) {
+  const out = [];
+  const n = (v) => Number(v) || 0;
+  if (n(e.count) > 1) out.push(`${n(e.count)} sent`);
+  else if (n(e.lines) > 0) out.push(`${n(e.lines)} ${n(e.lines) === 1 ? "line" : "lines"}`);
+  if (n(e.bytes) > 0) out.push(`${n(e.bytes)} ${n(e.bytes) === 1 ? "byte" : "bytes"}`);
+  const red = Object.values(e.redactions || {}).reduce((a, b) => a + n(b), 0);
+  if (red > 0) out.push(`${red} redacted`);
+  if (e.source) out.push(`via ${e.source}`);
+  if (n(e.modelMs) > 0) out.push(`model ${n(e.modelMs)} ms`);
+  if (n(e.jevMs) > 0) out.push(`Jev ${n(e.jevMs)} ms`);
+  return out;
+}
+
+function logFactsHTML(e) {
+  const facts = logFacts(e);
+  if (!facts.length) return "";
+  const kinds = Object.keys(e.redactions || {}).sort();
+  const title = kinds.length ? ` title="${escapeHtml("Redacted: " + kinds.map((k) => `${k} ${e.redactions[k]}`).join(", "))}"` : "";
+  return `<span class="k-log-facts"${title}>${facts.map((f) => `<span class="k-badge k-badge--outline">${escapeHtml(f)}</span>`).join("")}</span>`;
 }
 
 // logsHTML lists log entries whose kind or message contains filter.
@@ -382,7 +407,7 @@ export function logsHTML(logs, filter, ctx) {
           <td><span class="k-mono k-muted" title="${escapeHtml(date)}">${escapeHtml(time)}</span></td>
           <td><span class="k-badge${flare}">${escapeHtml(e.kind)}</span></td>
           <td><span class="k-mono k-muted">${escapeHtml(logTarget(e, ctx))}</span></td>
-          <td class="k-cell-wide"><span class="k-cell-msg">${escapeHtml(e.message)}</span></td>
+          <td class="k-cell-wide"><span class="k-cell-msg">${escapeHtml(e.message)}</span>${logFactsHTML(e)}</td>
         </tr>`;
     })
     .join("");

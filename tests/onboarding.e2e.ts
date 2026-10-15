@@ -111,7 +111,13 @@ test('first run: passphrase vault, host import with one key copied, then Unlock 
     await pass.fill('e2e-key-pass');
     await hosts.getByRole('button', 'Add 4 hosts').tap();
 
+    // Step 3 follows the import (agent-onboarding.e2e.ts covers it); Set up
+    // later ends the first run without saving anything.
     await expect(hosts).toBeHidden();
+    const agentStep = screen.getByRole('region', 'An agent that suggests, never types');
+    await expect(agentStep).toBeVisible();
+    await agentStep.getByRole('button', 'Set up later').tap();
+    await expect(agentStep).toBeHidden();
     const vault = screen.getByRole('complementary', 'Vault');
     await expect(vault.getByRole('button', /^e2e-db\b/)).toBeVisible();
     await app.screenshot('dark-first-run-done');

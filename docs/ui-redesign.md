@@ -162,8 +162,10 @@ Board names refer to the canvas.
 | ⌥1–⌥6 | Open recent host on New tab page | new |
 | ⇥ / ⇧⇥ | Suggest/insert · insert destructive | new, only while a suggestion is shown or a line is noticed |
 | ⌘Z | Restore words after an insert | new, only right after insert; Ctrl+Shift+Z on Windows/Linux, where Ctrl+Z suspends the foreground job (6c) |
-| ⌘↵ | Ask agent (palette) · Save (dialogs) | new |
+| ⌘↵ | Ask agent (palette): opens the agent panel with the query as an unsent message | new (6d); Ctrl+↵ off macOS. Save in dialogs is not bound yet (↵ in the form saves) |
 | ⌘N, ⌘⇧O, ⌘J, ⌘,, ⌘W, ⌘⇧T, ⌘⇧D, ⌘⇧E, ⌘± / ⌘0 | as today | ⌘N is "new item" on Forwards/Keychain/Snippets pages |
+
+**⌘↵ conflict check (6d).** Every `Enter` handler was read: `term.js` (the pane's quick-input confirm, bound on that input only and stopped there; the host-tree search ↵; the new-tab input), `ui/palette.js` (before 6d it swallowed ⌘↵ and Ctrl+↵ so they did not fall through to ↵; now they ask the agent), `ui/agentpanel.js` (↵ sends; ⌘↵ confirms a proposal being edited, scoped to that card), `ui/gate.js` (↵ in the import passphrase) and the native menu (`internal/desktop`: only ⌘⇧↵, Focus Pane, which `lib/shortcuts.js` matches with Shift). None of them listens for ⌘↵ at a level the palette's input could reach, so there is no conflict. ⌘↵ asks the agent only while the palette input has focus; the row is also reachable with ↑↓ and ↵. xterm never sees it because the palette is a modal over the terminal. The panel does not send: it opens with the text in the composer and the user presses ↵. Dialog Save is not bound to ⌘↵ yet (no handler exists); the Save ⌘↵ in the Edit host board is still to do.
 
 ## 9. Data model additions
 

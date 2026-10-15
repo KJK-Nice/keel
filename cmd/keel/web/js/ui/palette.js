@@ -2,15 +2,18 @@
 // keeps the selection, and runs the chosen item. Opening and closing the
 // dialog stays with the caller (it also moves PTY focus).
 
-import { clampCursor, filterPalette, moveCursor, optionId, paletteHTML } from "../lib/palette.js";
+import { askRow, clampCursor, filterPalette, moveCursor, optionId, paletteHTML } from "../lib/palette.js";
 
-export function createPaletteList({ form, input, list, catalog, run }) {
+// ask, when given, is { keys, run(query) }: the last row, and ⌘↵ (Ctrl+↵ off
+// macOS) from anywhere in the list, which runs it with the query as typed.
+export function createPaletteList({ form, input, list, catalog, run, ask }) {
   let visible = [];
   let cursor = 0;
 
   function paint() {
     if (!list) return;
     visible = filterPalette(catalog(), input?.value || "");
+    if (ask) visible = [...visible, askRow(input?.value, ask.keys, () => ask.run(String(input?.value || "").trim()))];
     cursor = clampCursor(cursor, visible.length);
     list.innerHTML = paletteHTML(visible, cursor, input?.value || "");
     if (visible.length) input?.setAttribute("aria-activedescendant", optionId(cursor));
@@ -47,10 +50,12 @@ export function createPaletteList({ form, input, list, catalog, run }) {
   });
   input?.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && (ev.altKey || ev.metaKey || ev.ctrlKey)) {
-      // ⌥↵ opens in a split. ⌘↵ and Ctrl+↵ are not bound here; they must
-      // not fall through to the plain ↵.
+      // ⌥↵ opens in a split. ⌘↵ (Ctrl+↵ off macOS) asks the agent with the
+      // query, whatever row is selected. No other modifier combination may
+      // fall through to the plain ↵.
       ev.preventDefault();
       if (ev.altKey && !ev.metaKey && !ev.ctrlKey) choose(cursor, { split: true });
+      else if (ask && (ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey) choose(visible.length - 1);
       return;
     }
     if (ev.key === "ArrowDown") {

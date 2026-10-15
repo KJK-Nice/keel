@@ -1,15 +1,19 @@
 // The window-wide gate (internal/ui/gate.templ): Unlock (§5.14) when the
 // vault exists and keel serve could not open it, and First run (§5.15):
 // step 1 creates the vault (or shows the one the keychain already made),
-// step 2 imports hosts from ~/.ssh/config. Step 2 also opens on its own
-// from the command palette.
+// step 2 imports hosts from ~/.ssh/config, step 3 (optional) sets up the
+// agent. Step 2 also opens on its own from the command palette.
 //
 // The gate only calls keel serve's routes: /api/vault (state),
 // /api/vault/setup (creates a vault that does not exist yet; refused
 // otherwise), /api/vault/unlock, /api/ssh-config/preview and /import, and
-// /api/first-run/done. It never decides who may unlock or what is copied.
+// /api/first-run/done. Step 3 adds GET /api/agent/providers (text for the
+// key field), PUT /api/agent/keys/gemini and PUT /api/agent/settings, and only
+// when the user presses Open Keel; nothing is sent to a provider. The gate
+// never decides who may unlock or what is copied.
 
 import * as O from "../lib/onboard.js";
+import { keyError, safeURL } from "../lib/agentsettings.js";
 
 export function createGate({ doc = document, api, toast, onUnlocked, onImported }) {
   const $ = (id) => doc.getElementById(id);
@@ -34,6 +38,7 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
     steps: $("onb-steps"),
     stepVault: $("onb-step-vault"),
     stepHosts: $("onb-step-hosts"),
+    stepAgent: $("onb-step-agent"),
     vaultForm: $("onb-vault"),
     modeKeychain: $("onb-mode-keychain"),
     modePass: $("onb-mode-pass"),
@@ -58,6 +63,21 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
     skip: $("onb-skip"),
     importBtn: $("onb-import-btn"),
     importLabel: $("onb-import-label"),
+    agent: $("onb-agent"),
+    agentTitle: $("onb-agent-title"),
+    agentGemini: $("onb-agent-gemini"),
+    agentNone: $("onb-agent-none"),
+    agentKey: $("onb-agent-key"),
+    agentWarning: $("onb-agent-warning"),
+    agentWarningText: $("onb-agent-warning-text"),
+    agentKeyLabel: $("onb-agent-key-label"),
+    agentKeyInput: $("onb-agent-key-input"),
+    agentKeyError: $("onb-agent-key-error"),
+    agentLinks: $("onb-agent-links"),
+    agentSuggest: $("onb-agent-suggest"),
+    agentBack: $("onb-agent-back"),
+    agentLater: $("onb-agent-later"),
+    agentOpen: $("onb-agent-open"),
   };
   // The keychain's name as the server's OS calls it ("macOS Keychain").
   const keychain = root.dataset.keychain || "the keychain";
@@ -160,14 +180,17 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
 
   function setStep(step) {
     const hostsStep = step === "hosts";
-    show(el.vaultForm, !hostsStep);
+    const agentStep = step === "agent";
+    show(el.vaultForm, step === "vault");
     show(el.hosts, hostsStep);
+    show(el.agent, agentStep);
     if (el.col) el.col.dataset.step = step;
-    el.onboard?.setAttribute("aria-labelledby", hostsStep ? "onb-hosts-title" : "onb-title");
-    if (el.stepVault) el.stepVault.dataset.state = hostsStep ? "done" : "now";
-    if (el.stepHosts) el.stepHosts.dataset.state = hostsStep ? "now" : "";
-    const now = hostsStep ? el.stepHosts : el.stepVault;
-    for (const li of [el.stepVault, el.stepHosts]) {
+    el.onboard?.setAttribute("aria-labelledby", agentStep ? "onb-agent-title" : hostsStep ? "onb-hosts-title" : "onb-title");
+    if (el.stepVault) el.stepVault.dataset.state = step === "vault" ? "now" : "done";
+    if (el.stepHosts) el.stepHosts.dataset.state = hostsStep ? "now" : agentStep ? "done" : "";
+    if (el.stepAgent) el.stepAgent.dataset.state = agentStep ? "now" : "";
+    const now = agentStep ? el.stepAgent : hostsStep ? el.stepHosts : el.stepVault;
+    for (const li of [el.stepVault, el.stepHosts, el.stepAgent]) {
       if (li === now) li?.setAttribute("aria-current", "step");
       else li?.removeAttribute("aria-current");
     }
@@ -370,7 +393,7 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
     try {
       const res = await api("/api/ssh-config/import", { method: "POST", body: JSON.stringify(body) });
       toast(O.importedText(res));
-      await finish();
+      afterHosts();
       onImported?.();
     } catch (err) {
       const path = err.data?.key;
@@ -395,6 +418,13 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
     }
   }
 
+  // afterHosts leaves step 2: to the Agent step in the first run, and
+  // back to the app when the palette opened the import on its own.
+  function afterHosts() {
+    if (flow === "first-run") showAgentStep();
+    else hide();
+  }
+
   async function finish() {
     if (flow === "first-run") {
       try {
@@ -404,6 +434,99 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
       }
     }
     hide();
+  }
+
+  // --- First run, step 3: the agent (optional) ---
+
+  let agentChoice = "none"; // "none" | "gemini"
+  let agentDescriptor = null;
+
+  function agentError(msg) {
+    setText(el.agentKeyError, msg || "");
+    if (msg) el.agentKeyInput?.setAttribute("aria-invalid", "true");
+    else el.agentKeyInput?.removeAttribute("aria-invalid");
+  }
+
+  function pickAgent(choice) {
+    agentChoice = choice;
+    radio(el.agentGemini, choice === "gemini", false);
+    radio(el.agentNone, choice === "none", false);
+    show(el.agentKey, choice === "gemini");
+    agentError("");
+    if (choice === "gemini") el.agentKeyInput?.focus({ preventScroll: true });
+  }
+
+  function paintAgentDescriptor() {
+    const d = agentDescriptor;
+    if (!d) return;
+    setText(el.agentKeyLabel, d.keyLabel || "Gemini API key");
+    el.agentKeyInput?.setAttribute("aria-label", d.keyLabel || "Gemini API key");
+    setText(el.agentWarningText, d.warning || "");
+    show(el.agentWarning, !!d.warning);
+    if (el.agentLinks) {
+      el.agentLinks.textContent = "";
+      const add = (href, text) => {
+        const url = safeURL(href);
+        if (!url) return;
+        if (el.agentLinks.childNodes.length) el.agentLinks.append(" · ");
+        const a = doc.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = text;
+        el.agentLinks.append(a);
+      };
+      add(d.keyHelpUrl, "Get a key");
+      add(d.termsUrl, "Gemini API terms");
+    }
+  }
+
+  async function showAgentStep() {
+    open("onboard");
+    show(el.steps, true);
+    setStep("agent");
+    agentChoice = "none";
+    pickAgent("none");
+    if (el.agentKeyInput) el.agentKeyInput.value = "";
+    el.agentSuggest?.setAttribute("aria-checked", "true");
+    el.agentTitle?.focus({ preventScroll: true });
+    if (!agentDescriptor) {
+      try {
+        const list = await api("/api/agent/providers");
+        agentDescriptor = (list || []).find((d) => d.id === "gemini") || null;
+      } catch {}
+    }
+    paintAgentDescriptor();
+  }
+
+  // openKeel saves what was chosen and ends the first run. A key that is
+  // typed is stored in the vault (not checked against the provider, so
+  // nothing is sent); the switch is saved either way. A failed save keeps
+  // the step open with the reason.
+  async function openKeel(ev) {
+    ev?.preventDefault();
+    if (busy) return;
+    const key = (el.agentKeyInput?.value || "").trim();
+    if (agentChoice === "gemini" && !key) {
+      agentError("Paste your key, or choose Not now.");
+      el.agentKeyInput?.focus();
+      return;
+    }
+    busy = true;
+    try {
+      if (agentChoice === "gemini") {
+        await api("/api/agent/keys/gemini", { method: "PUT", body: JSON.stringify({ key }) });
+        if (el.agentKeyInput) el.agentKeyInput.value = "";
+      }
+      const on = el.agentSuggest?.getAttribute("aria-checked") === "true";
+      await api("/api/agent/settings", { method: "PUT", body: JSON.stringify({ suggestions: on ? "on" : "off" }) });
+    } catch (err) {
+      agentError(keyError(err));
+      busy = false;
+      return;
+    }
+    busy = false;
+    await finish();
   }
 
   // --- wiring ---
@@ -438,7 +561,16 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
     }
   });
   el.importBtn?.addEventListener("click", runImport);
-  el.skip?.addEventListener("click", () => finish());
+  el.skip?.addEventListener("click", () => afterHosts());
+  el.agent?.addEventListener("submit", openKeel);
+  el.agentGemini?.addEventListener("click", () => pickAgent("gemini"));
+  el.agentNone?.addEventListener("click", () => pickAgent("none"));
+  el.agentSuggest?.addEventListener("click", () => {
+    el.agentSuggest.setAttribute("aria-checked", el.agentSuggest.getAttribute("aria-checked") === "true" ? "false" : "true");
+  });
+  el.agentKeyInput?.addEventListener("input", () => agentError(""));
+  el.agentBack?.addEventListener("click", () => showHostsStep());
+  el.agentLater?.addEventListener("click", () => finish());
   el.back?.addEventListener("click", () => showVaultStep());
   root.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && flow === "import") {
@@ -459,7 +591,7 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
         return;
       }
       if (state?.firstRun) {
-        if (flow === "first-run" && !el.hosts.hidden) return;
+        if (flow === "first-run" && (!el.hosts.hidden || !el.agent.hidden)) return;
         flow = "first-run";
         if (created) showHostsStep();
         else showVaultStep();
