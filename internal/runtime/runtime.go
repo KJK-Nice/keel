@@ -68,6 +68,7 @@ type Info struct {
 	HostKeyHost        string    `json:"hostKeyHost,omitempty"`
 	HostKeyFingerprint string    `json:"hostKeyFingerprint,omitempty"`
 	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
+	HostKeyType        string    `json:"hostKeyType,omitempty"`
 }
 
 type Event struct {
@@ -108,6 +109,27 @@ type Runtime struct {
 	herd     map[uint64]chan HerdEvent
 	herdNext uint64
 	backoff  time.Duration
+	notifyMu sync.Mutex
+	notify   func(kind, msg, hostID, sessionID string)
+}
+
+// SetNotify sets where the runtime logs session events (keel.log).
+func (r *Runtime) SetNotify(fn func(kind, msg, hostID, sessionID string)) {
+	r.notifyMu.Lock()
+	r.notify = fn
+	r.notifyMu.Unlock()
+}
+
+func (r *Runtime) note(kind, msg, hostID, sessionID string) {
+	if r == nil {
+		return
+	}
+	r.notifyMu.Lock()
+	fn := r.notify
+	r.notifyMu.Unlock()
+	if fn != nil {
+		fn(kind, msg, hostID, sessionID)
+	}
 }
 
 func New(st *store.Store, opener Opener) *Runtime {
@@ -316,6 +338,9 @@ type Session struct {
 	everReady      bool
 	forceReconnect bool
 	injectTickets  *inject.Issuer
+	// startupSent is set once the host's startup command was typed, so a
+	// reconnect never types it again.
+	startupSent bool
 }
 
 func (s *Session) Info() Info {
@@ -797,6 +822,7 @@ func (s *Session) runLoop() {
 		s.info.HostKeyHost = ""
 		s.info.HostKeyFingerprint = ""
 		s.info.HostKeyExpected = ""
+		s.info.HostKeyType = ""
 		s.mu.Unlock()
 		if old != nil {
 			_ = old.Close()
@@ -812,6 +838,7 @@ func (s *Session) runLoop() {
 		if s.rt != nil {
 			s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
 		}
+		s.sendStartupCommand(br, host)
 
 		buf := make([]byte, 32*1024)
 		dropped := false
@@ -866,10 +893,38 @@ func (s *Session) runLoop() {
 	}
 }
 
+// sendStartupCommand types the host's startup command into a session's
+// first shell, as the user would: the line, then Enter (CR, what a
+// terminal sends for Return). It runs once per session. A reconnect opens a
+// new shell but does not type it again: the command may change state
+// (cd is harmless, a deploy is not), and the user who saw the session drop
+// is there to type it. Restored tabs attach to running sessions and spawn
+// none, and followers only attach, so neither reaches here. The log line
+// names the host only: the command may hold something the user would not
+// want in keel.log. This is a user setting, not agent output (§6.1).
+func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
+	cmd := host.StartupCommand
+	if cmd == "" || host.AuthType == "local" || store.ValidateStartupCommand(cmd) != nil {
+		return
+	}
+	s.mu.Lock()
+	if s.startupSent || s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.startupSent = true
+	s.mu.Unlock()
+	if _, err := br.Write([]byte(cmd + "\r")); err != nil {
+		s.rt.note("session", "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
+		return
+	}
+	s.rt.note("session", "startup command sent to "+host.Name, host.ID, s.id)
+}
+
 func shouldRetryConnect(err error) bool {
 	var unk *store.UnknownHostError
 	var mm *store.HostKeyMismatchError
-	if errors.As(err, &unk) || errors.As(err, &mm) {
+	if errors.As(err, &unk) || errors.As(err, &mm) || errors.Is(err, store.ErrHostField) {
 		return false
 	}
 	msg := err.Error()
@@ -973,6 +1028,7 @@ func (s *Session) setConnectError(err error) {
 	s.info.HostKeyHost = ""
 	s.info.HostKeyFingerprint = ""
 	s.info.HostKeyExpected = ""
+	s.info.HostKeyType = ""
 	var unk *store.UnknownHostError
 	var mm *store.HostKeyMismatchError
 	switch {
@@ -980,11 +1036,13 @@ func (s *Session) setConnectError(err error) {
 		s.info.ErrorKind = "unknown-host"
 		s.info.HostKeyHost = unk.Host
 		s.info.HostKeyFingerprint = unk.Fingerprint
+		s.info.HostKeyType = unk.KeyType
 	case errors.As(err, &mm):
 		s.info.ErrorKind = "host-key-mismatch"
 		s.info.HostKeyHost = mm.Host
 		s.info.HostKeyFingerprint = mm.Got
 		s.info.HostKeyExpected = mm.Expected
+		s.info.HostKeyType = mm.KeyType
 	}
 	s.mu.Unlock()
 	if s.rt != nil {

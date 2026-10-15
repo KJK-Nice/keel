@@ -125,10 +125,11 @@ templ confirmDialog() {
 // Left: General, Connection. Right: Authentication, Session, Agent. The
 // footer has Delete host (Edit only), Test connection, Cancel and Save.
 //
-// Fields keel serve has no support for yet are shown disabled with a note
-// and carry no name, so they are never saved: Jump host, Startup command,
-// the host key line and Test connection. Everything else maps onto
-// store.Host.
+// Every field maps onto store.Host. Jump host lists the saved SSH hosts
+// (one hop; store/jump.go). The host key line reads and forgets the saved
+// key (GET/DELETE /api/hosts/{id}/host-key). Test connection connects
+// with the dialog's unsaved values (POST /api/hosts/test) and never trusts
+// a key on its own: Trust and save is a separate click.
 templ hostDialog() {
 	<dialog class="modal modal--host" id="host-modal">
 		<form id="host-form">
@@ -165,9 +166,8 @@ templ hostDialog() {
 					</div>
 					@labeledInput("host-username", "Username", "username", "ubuntu", false)
 					<div class="k-field" data-ssh-only>
-						<label class="k-label" for="host-jump">Jump host</label>
-						<input class="k-input" id="host-jump" placeholder="None" disabled/>
-						<span class="k-help">Coming soon. A jump host in ~/.ssh/config is skipped on import for now.</span>
+						@labeledSelect("host-jump", "Jump host", "jumpHost", "None", "", false, []string{""}, []string{"None"})
+						<span class="k-help" id="host-jump-help">Connects to this saved host first, with its own key or password from the vault. One hop.</span>
 					</div>
 				</div>
 				<div class="k-host-col">
@@ -183,15 +183,21 @@ templ hostDialog() {
 						@labeledTextarea("host-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
 						@labeledPassword("host-passphrase", "Key passphrase", "passphrase", "Optional", false)
 					</div>
-					<div class="k-field" data-ssh-only>
-						<span class="k-label">Host key</span>
-						<span class="k-help">Trusted on first connect; Keel asks again if it changes. The fingerprint is not listed here yet.</span>
+					<div class="k-field" data-ssh-only role="group" aria-labelledby="host-key-label">
+						<span class="k-label" id="host-key-label">Host key</span>
+						<div class="k-row" id="host-key-line">
+							<span class="k-badge" id="host-key-badge">Not saved</span>
+							<span class="k-badge k-badge--mono k-badge--outline" id="host-key-type" hidden></span>
+							<button type="button" class="k-btn k-btn--ghost k-btn--sm" id="host-key-forget" hidden>Forget host key</button>
+						</div>
+						<p class="hostkey-fp" id="host-key-fp" hidden></p>
+						<span class="k-help" id="host-key-help">Trusted on first connect; Keel asks again if it changes.</span>
 					</div>
 					<div class="k-menu-label" data-ssh-only>Session</div>
 					<div class="k-field" data-ssh-only>
 						<label class="k-label" for="host-startup">Startup command</label>
-						<input class="k-input" id="host-startup" placeholder="tmux new -A -s main" disabled/>
-						<span class="k-help">Coming soon.</span>
+						<input class="k-input k-input--mono" id="host-startup" name="startupCommand" placeholder="tmux new -A -s main" maxlength="1024" autocomplete="off" spellcheck="false"/>
+						<span class="k-help">Typed once with Enter when a session opens. Not typed again on reconnect, nor for people who join. Do not put secrets here.</span>
 					</div>
 					<div class="grid-2" data-ssh-only>
 						@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center"}) {
@@ -225,11 +231,18 @@ templ hostDialog() {
 					</div>
 				</div>
 			</div>
+			<div class="k-start-notes k-host-test" id="host-test-detail" role="status" hidden>
+				<p class="k-start-note" id="host-test-message"></p>
+				<p class="hostkey-fp" id="host-test-fp" hidden></p>
+				<div class="k-start-offer-actions" id="host-test-actions" hidden>
+					<button type="button" class="k-btn k-btn--sm" id="host-test-trust">Trust and save</button>
+				</div>
+			</div>
 			<div class="k-host-foot">
 				<button type="button" class="k-btn k-btn--danger k-btn--sm" id="host-delete" hidden>Delete host</button>
 				<span class="k-spacer"></span>
-				<span class="k-help" id="host-test-note">Test connection: coming soon</span>
-				<button type="button" class="k-btn" id="host-test" disabled>Test connection</button>
+				<span class="k-state" id="host-test-state" aria-live="polite" hidden><span class="k-dot" id="host-test-dot"></span><span id="host-test-text"></span></span>
+				<button type="button" class="k-btn" id="host-test" data-ssh-only>Test connection</button>
 				@button.Button(button.Props{ID: "host-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}

@@ -23,6 +23,9 @@ var ErrNotFound = errors.New("not found")
 type UnknownHostError struct {
 	Host        string
 	Fingerprint string
+	// KeyType is the presented key's type (ssh-ed25519, …), filled in by
+	// the SSH dialer, which sees the key; the store only sees fingerprints.
+	KeyType string
 }
 
 func (e *UnknownHostError) Error() string {
@@ -34,6 +37,8 @@ type HostKeyMismatchError struct {
 	Host     string
 	Expected string
 	Got      string
+	// KeyType is the type of the presented (Got) key, set by the dialer.
+	KeyType string
 }
 
 func (e *HostKeyMismatchError) Error() string {
@@ -57,6 +62,16 @@ type Host struct {
 	NoAutoReconnect bool     `json:"noAutoReconnect,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
 	GroupID         string   `json:"groupId,omitempty"`
+	// JumpHost is the ID of a saved host to connect through (ProxyJump,
+	// one hop). Its address, auth and host key come from that saved host,
+	// so the jump's credentials stay in the vault (jump.go).
+	JumpHost string `json:"jumpHost,omitempty"`
+	// StartupCommand is one line typed into a new shell once, after the
+	// first connect of a session (runtime). It is config, not a secret.
+	StartupCommand string `json:"startupCommand,omitempty"`
+	// Jump is the resolved jump host, set only by HostForConnect and
+	// ResolveDraft; it is never stored or sent.
+	Jump *Host `json:"-"`
 	// AgentReadable and Production are the host's agent switches (Edit
 	// host → Agent). Reads always set both. On a write, nil means "not
 	// sent": an update keeps the saved value, a create takes the default
@@ -225,6 +240,8 @@ type persistHost struct {
 	KeepAliveSec    int      `json:"keepAliveSec"`
 	NoAutoReconnect bool     `json:"noAutoReconnect,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
+	JumpHost        string   `json:"jumpHost,omitempty"`
+	StartupCommand  string   `json:"startupCommand,omitempty"`
 	// AgentOff is stored inverted so a host saved before the field existed
 	// (no key) stays readable by the agent. Production has no key until
 	// set, so older hosts load as not production.
@@ -257,6 +274,10 @@ type persistData struct {
 	Notebooks  []Notebook        `json:"notebooks,omitempty"`
 	Groups     []Group           `json:"groups,omitempty"`
 	KnownHosts map[string]string `json:"knownHosts"`
+	// KnownHostTypes is the key type (ssh-ed25519, …) of each KnownHosts
+	// entry, by the same hostname. Entries trusted before it existed have
+	// none (hostkeys.go).
+	KnownHostTypes map[string]string `json:"knownHostTypes,omitempty"`
 	// Agent holds the agent settings. No secret lives here: provider keys
 	// are vault secrets (agentkeys.go).
 	Agent *AgentSettings `json:"agent,omitempty"`
@@ -344,6 +365,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Notebooks  []Notebook        `json:"notebooks"`
 		Groups     []Group           `json:"groups"`
 		KnownHosts map[string]string `json:"knownHosts"`
+		KeyTypes   map[string]string `json:"knownHostTypes"`
 		Agent      *AgentSettings    `json:"agent"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -360,6 +382,8 @@ func loadPlain(b []byte) (loaded, error) {
 		Groups:     raw.Groups,
 		KnownHosts: raw.KnownHosts,
 		Agent:      raw.Agent,
+
+		KnownHostTypes: raw.KeyTypes,
 	}
 	if out.KnownHosts == nil {
 		out.KnownHosts = map[string]string{}
@@ -609,7 +633,8 @@ func (s *Store) viewLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:          append([]string(nil), h.Tags...),
+		Tags:     append([]string(nil), h.Tags...),
+		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
 		AgentReadable: boolPtr(!h.AgentOff),
 		Production:    boolPtr(h.Production),
 		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
@@ -635,7 +660,8 @@ func (s *Store) fullLocked(h persistHost) Host {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:          append([]string(nil), h.Tags...),
+		Tags:     append([]string(nil), h.Tags...),
+		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
 		AgentReadable: boolPtr(!h.AgentOff),
 		Production:    boolPtr(h.Production),
 		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
@@ -669,6 +695,9 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	}
 	h.Group = gid
 	h.GroupID = gid
+	if err := s.checkHostFieldsLocked(h); err != nil {
+		return Host{}, err
+	}
 	if h.ID == "" {
 		s.applyCreateDefaultsLocked(&h)
 		h.ID = newID()
@@ -774,7 +803,8 @@ func persistFrom(h Host) persistHost {
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
 		IdentityID: h.IdentityID, Color: h.Color,
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:       append([]string(nil), h.Tags...),
+		Tags:     append([]string(nil), h.Tags...),
+		JumpHost: strings.TrimSpace(h.JumpHost), StartupCommand: h.StartupCommand,
 		AgentOff:   !h.ReadableByAgent(),
 		Production: h.IsProduction(),
 		CreatedAt:  h.CreatedAt, UpdatedAt: h.UpdatedAt,
@@ -910,6 +940,12 @@ func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 }
 
 func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {
+	return s.TrustHostKeyType(hostname, fingerprint, "", replace)
+}
+
+// TrustHostKeyType is TrustHostKey that also records the key's type. An
+// empty keyType keeps a type already saved for the same fingerprint.
+func (s *Store) TrustHostKeyType(hostname, fingerprint, keyType string, replace bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked {
@@ -926,7 +962,21 @@ func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {
 	if prev, ok := s.data.KnownHosts[hostname]; ok && prev != fingerprint && !replace {
 		return &HostKeyMismatchError{Host: hostname, Expected: prev, Got: fingerprint}
 	}
+	prevType := s.data.KnownHostTypes[hostname]
+	same := s.data.KnownHosts[hostname] == fingerprint
 	s.data.KnownHosts[hostname] = fingerprint
+	keyType = strings.TrimSpace(keyType)
+	if keyType == "" && same {
+		keyType = prevType
+	}
+	if keyType != "" {
+		if s.data.KnownHostTypes == nil {
+			s.data.KnownHostTypes = map[string]string{}
+		}
+		s.data.KnownHostTypes[hostname] = keyType
+	} else {
+		delete(s.data.KnownHostTypes, hostname)
+	}
 	return s.saveLocked()
 }
 

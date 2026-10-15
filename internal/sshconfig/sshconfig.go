@@ -6,8 +6,10 @@
 // opened, and Include is bounded in depth, count and cycles.
 //
 // Supported: Host, HostName, User, Port, IdentityFile, Include, plus
-// ProxyCommand and ProxyJump, which are only reported (Keel has no jump
-// hosts yet). Match blocks are skipped with a note. Everything else is
+// ProxyCommand, which is only reported, and ProxyJump, which the import
+// maps to a Keel jump host when it is one hop to a host that is imported
+// too or already saved (ParseJump; internal/httpapi/sshimport.go). Match
+// blocks are skipped with a note. Everything else is
 // ignored, as ssh would apply it and Keel has no use for it.
 package sshconfig
 
@@ -61,9 +63,9 @@ type Host struct {
 	Port     int    `json:"port"`
 	// IdentityFiles are absolute paths, in config order.
 	IdentityFiles []string `json:"identityFiles,omitempty"`
-	// Proxy is "ProxyJump" or "ProxyCommand" when the host needs one. Keel
-	// imports the host without it. ProxyJump keeps its target for display;
-	// a ProxyCommand's command is never returned.
+	// Proxy is "ProxyJump" or "ProxyCommand" when the host needs one. A
+	// ProxyCommand is never used and its command is never returned.
+	// ProxyJump keeps its target; the import uses it when it can.
 	Proxy     string   `json:"proxy,omitempty"`
 	ProxyJump string   `json:"proxyJump,omitempty"`
 	Source    string   `json:"source"`
@@ -434,8 +436,11 @@ func (p *parser) resolve() {
 		h.HostName = hostName
 		h.User = user
 		h.Proxy = proxy
-		if proxy != "" {
-			h.Notes = append(h.Notes, proxy+" is not supported yet; the host is added without it")
+		switch proxy {
+		case "ProxyCommand":
+			h.Notes = append(h.Notes, "ProxyCommand is not supported; the host is added without it")
+		case "ProxyJump":
+			h.Notes = append(h.Notes, "ProxyJump "+h.ProxyJump+" is kept as the jump host when that host is added too or already saved (one hop only); otherwise the host is added without it")
 		}
 		p.res.Hosts = append(p.res.Hosts, h)
 	}
@@ -619,4 +624,69 @@ func canonical(key string) string {
 		return "ProxyJump"
 	}
 	return key
+}
+
+// Jump is one ProxyJump hop: [user@]host[:port]. Port 0 and User "" mean
+// not given.
+type Jump struct {
+	User string
+	Host string
+	Port int
+}
+
+// ParseJump reads a ProxyJump value. It fails for more than one hop
+// ("a,b"), an ssh:// URI and anything it cannot read.
+func ParseJump(spec string) (Jump, bool) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" || strings.ContainsAny(spec, ", \t") || strings.Contains(spec, "://") {
+		return Jump{}, false
+	}
+	var j Jump
+	if i := strings.LastIndex(spec, "@"); i >= 0 {
+		j.User = spec[:i]
+		spec = spec[i+1:]
+		if j.User == "" {
+			return Jump{}, false
+		}
+	}
+	host := spec
+	if strings.HasPrefix(spec, "[") {
+		end := strings.Index(spec, "]")
+		if end < 0 {
+			return Jump{}, false
+		}
+		host = spec[1:end]
+		rest := spec[end+1:]
+		if rest != "" {
+			port, ok := jumpPort(strings.TrimPrefix(rest, ":"), strings.HasPrefix(rest, ":"))
+			if !ok {
+				return Jump{}, false
+			}
+			j.Port = port
+		}
+	} else if strings.Count(spec, ":") == 1 {
+		i := strings.Index(spec, ":")
+		host = spec[:i]
+		port, ok := jumpPort(spec[i+1:], true)
+		if !ok {
+			return Jump{}, false
+		}
+		j.Port = port
+	}
+	if host == "" {
+		return Jump{}, false
+	}
+	j.Host = host
+	return j, true
+}
+
+func jumpPort(s string, ok bool) (int, bool) {
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > 65535 {
+		return 0, false
+	}
+	return n, true
 }

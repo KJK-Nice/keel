@@ -68,6 +68,11 @@ func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
 
 func (s *Server) WithLogs(l *applog.Book) *Server {
 	s.logs = l
+	if s.rt != nil {
+		s.rt.SetNotify(func(kind, msg, hostID, sessionID string) {
+			s.note(kind, msg, hostID, sessionID, "")
+		})
+	}
 	return s
 }
 
@@ -101,6 +106,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
 	mux.HandleFunc("POST /api/hosts/move", s.moveHosts)
+	mux.HandleFunc("POST /api/hosts/test", s.testHost)
+	mux.HandleFunc("GET /api/hosts/{id}/host-key", s.getHostKey)
+	mux.HandleFunc("DELETE /api/hosts/{id}/host-key", s.forgetHostKey)
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
 	mux.HandleFunc("GET /api/groups", s.listGroups)
 	mux.HandleFunc("POST /api/groups", s.upsertGroup)
@@ -763,6 +771,10 @@ func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "host not found")
 			return
 		}
+		if errors.Is(err, store.ErrHostField) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1006,6 +1018,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					errMsg["hostname"] = ev.Info.HostKeyHost
 					errMsg["fingerprint"] = ev.Info.HostKeyFingerprint
 					errMsg["expected"] = ev.Info.HostKeyExpected
+					errMsg["keyType"] = ev.Info.HostKeyType
 					errMsg["hostId"] = ev.Info.HostID
 					errMsg["sessionId"] = ev.Info.ID
 				}
@@ -1149,6 +1162,7 @@ func sessionPayload(kind, message string, info runtime.Info, you runtime.Client,
 		out["hostname"] = info.HostKeyHost
 		out["fingerprint"] = info.HostKeyFingerprint
 		out["expected"] = info.HostKeyExpected
+		out["keyType"] = info.HostKeyType
 	}
 	if fromID != 0 {
 		out["fromId"] = fromID
@@ -1225,7 +1239,7 @@ func writeStoreErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
-	if errors.Is(err, store.ErrGroupCycle) || errors.Is(err, store.ErrGroupDepth) {
+	if errors.Is(err, store.ErrGroupCycle) || errors.Is(err, store.ErrGroupDepth) || errors.Is(err, store.ErrHostField) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

@@ -70,8 +70,16 @@ export function summaryText(preview, sel) {
 
 function viaCell(h) {
   if (!h.proxy) return '<span class="k-faint">—</span>';
+  // A one-hop ProxyJump to a host that is saved, or added in this import,
+  // becomes the host's jump host.
+  if (h.proxy === "ProxyJump" && h.jumpSaved) {
+    return `<span class="k-badge k-badge--tide" title="${escapeHtml(`Connects through ${h.jumpSaved}, already saved`)}">Via ${escapeHtml(h.jumpSaved)}</span>`;
+  }
+  if (h.proxy === "ProxyJump" && h.jumpAlias) {
+    return `<span class="k-badge k-badge--haze" title="${escapeHtml(`Connects through ${h.jumpAlias} when you add it too; otherwise added without it`)}">Via ${escapeHtml(h.jumpAlias)} if added</span>`;
+  }
   const what = h.proxy === "ProxyJump" && h.proxyJump ? `ProxyJump ${h.proxyJump}` : h.proxy;
-  return `<span class="k-badge k-badge--signal" title="${escapeHtml(what)} is not supported yet; the host is added without it">${icon("alert", 1.8)}${escapeHtml(what)}, not used</span>`;
+  return `<span class="k-badge k-badge--signal" title="${escapeHtml(what)} is not supported here; the host is added without it">${icon("alert", 1.8)}${escapeHtml(what)}, not used</span>`;
 }
 
 function keyCell(h) {

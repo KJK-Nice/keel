@@ -218,13 +218,14 @@ func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Hostname    string `json:"hostname"`
 		Fingerprint string `json:"fingerprint"`
+		KeyType     string `json:"keyType"`
 		Replace     bool   `json:"replace"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
-	if err := s.store.TrustHostKey(req.Hostname, req.Fingerprint, req.Replace); err != nil {
+	if err := s.store.TrustHostKeyType(req.Hostname, req.Fingerprint, req.KeyType, req.Replace); err != nil {
 		if writeHostKeyErr(w, err) {
 			return
 		}
@@ -247,6 +248,7 @@ func writeHostKeyErr(w http.ResponseWriter, err error) bool {
 			"errorKind":   "unknown-host",
 			"hostname":    unk.Host,
 			"fingerprint": unk.Fingerprint,
+			"keyType":     unk.KeyType,
 		})
 		return true
 	}
@@ -258,6 +260,7 @@ func writeHostKeyErr(w http.ResponseWriter, err error) bool {
 			"hostname":    mm.Host,
 			"fingerprint": mm.Got,
 			"expected":    mm.Expected,
+			"keyType":     mm.KeyType,
 		})
 		return true
 	}

@@ -108,3 +108,17 @@ test("values are escaped", () => {
   const html = importHTML(evil, defaultSelection(evil));
   assert.doesNotMatch(html, /<img/);
 });
+
+test("a ProxyJump Keel can keep shows its jump host instead of the flag", () => {
+  const p = {
+    ...preview,
+    hosts: [
+      { alias: "db2", hostName: "10.0.0.6", user: "d", port: 22, proxy: "ProxyJump", proxyJump: "gate", jumpSaved: "gate", source: "x" },
+      { alias: "db3", hostName: "10.0.0.7", user: "d", port: 22, proxy: "ProxyJump", proxyJump: "bastion", jumpAlias: "bastion", source: "x" },
+    ],
+  };
+  const html = importHTML(p, defaultSelection(p));
+  assert.match(html, /Via gate</);
+  assert.match(html, /Via bastion if added</);
+  assert.doesNotMatch(html, /not used/);
+});

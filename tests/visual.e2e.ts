@@ -33,6 +33,29 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await app.screenshot(`${theme}-new-host`);
       await screen.getByRole('button', 'Cancel', { visible: true }).tap();
 
+      // Edit host on a saved host with a trusted key (set up through the
+      // API: the dialog is what is pictured).
+      const editName = `visual-edit-${theme}`;
+      const edited = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/hosts', {
+        name: editName, address: '192.0.2.21', port: 22, username: 'deploy', authType: 'password', password: 'scratch-not-real', color: '#5ee0b5',
+      });
+      await keelSend(app.baseUrl, 'POST', '/api/known-hosts', {
+        hostname: '192.0.2.21:22', fingerprint: 'SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe', keyType: 'ssh-ed25519', replace: true,
+      });
+      try {
+        await openKeel(app);
+        await vault.getByRole('searchbox', 'Search hosts').fill(editName);
+        await expect(vault.getByRole('button', new RegExp(`^${editName}\\b`))).toBeVisible();
+        await vault.getByRole('button', 'Actions', { visible: true }).tap();
+        await screen.getByRole('menuitem', 'Edit').tap();
+        await expect(screen.getByRole('dialog').filter({ hasText: 'Edit host' })).toBeVisible();
+        await app.screenshot(`${theme}-edit-host`);
+        await screen.getByRole('button', 'Cancel', { visible: true }).tap();
+        await vault.getByRole('searchbox', 'Search hosts').fill('');
+      } finally {
+        await keelSend(app.baseUrl, 'DELETE', `/api/hosts/${edited.id}`);
+      }
+
       await vault.getByRole('button', 'Snippets').tap();
       await expect(vault.getByRole('button', 'Manage snippets')).toBeVisible();
       await app.screenshot(`${theme}-sidebar-snippets`);
