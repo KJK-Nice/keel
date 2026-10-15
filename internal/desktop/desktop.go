@@ -51,6 +51,9 @@ func Run(url, _ string) error {
 	win.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		win.ExecJS(windowDragJS())
 	})
+	if stdruntime.GOOS == "darwin" {
+		watchChrome(win)
+	}
 	return app.Run()
 }
 

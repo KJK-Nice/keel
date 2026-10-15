@@ -2232,8 +2232,10 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "colorScheme") {
 		t.Fatal("index missing color-scheme sync for native vibrancy")
 	}
-	if !strings.Contains(string(body), `data-fullscreen`) || !strings.Contains(string(body), "syncFullscreen") {
-		t.Fatal("index missing fullscreen titlebar shift")
+	// Full screen comes from the native window (desktop chromeJS), not a
+	// window-size guess that also fires for a screen-sized window.
+	if strings.Contains(string(body), "syncFullscreen") || strings.Contains(string(body), "screen.width") {
+		t.Fatal("index must not guess full screen from the window size")
 	}
 	css, err := http.Get(srv.URL + "/css/keel.css")
 	if err != nil {
@@ -2262,8 +2264,20 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), "height: var(--size-titlebar)") || strings.Contains(string(cssBody), "min-height: 42px") {
 		t.Fatal("keel.css titlebar overlay must use the size-titlebar token")
 	}
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
-		t.Fatal("keel.css missing fullscreen tab shift")
+	// Full screen: tabs go to the left edge (the traffic lights leave the
+	// window) and the page moves below the menu bar + titlebar overlay
+	// while macOS shows it, by the measured --titlebar-overlay.
+	if !strings.Contains(string(cssBody), "html[data-chrome=\"titlebar\"][data-fullscreen] .workspace-bar {\n  padding-left: var(--space-2);") {
+		t.Fatal("keel.css missing fullscreen tab shift to the left edge")
+	}
+	if !strings.Contains(string(cssBody), "html[data-chrome=\"titlebar\"][data-fullscreen][data-titlebar-revealed] .app {\n  top: var(--titlebar-overlay, 0);") {
+		t.Fatal("keel.css must move the page below the revealed full-screen titlebar")
+	}
+	if !strings.Contains(string(cssBody), "transition: top var(--duration-base) ease-out;") {
+		t.Fatal("keel.css overlay move must animate with the duration token")
+	}
+	if strings.Contains(string(cssBody), "padding-left: 8px") {
+		t.Fatal("keel.css fullscreen inset must use the space token")
 	}
 	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
 		t.Fatal("keel.css missing UI size token or font smoothing")

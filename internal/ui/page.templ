@@ -56,13 +56,9 @@ templ Page(p PageProps) {
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
+						// data-fullscreen, data-titlebar-revealed and --titlebar-overlay
+						// come from the native window (internal/desktop/titlebar.go).
 						document.documentElement.dataset.chrome = "titlebar";
-						function syncFullscreen() {
-							var fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;
-							document.documentElement.toggleAttribute("data-fullscreen", fs);
-						}
-						syncFullscreen();
-						window.addEventListener("resize", syncFullscreen);
 					}
 				})();
 			</script>
