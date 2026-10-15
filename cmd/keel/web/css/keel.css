@@ -2632,3 +2632,14 @@ button.k-palette-item--ask .k-i { color: var(--brass-ink); }
   .k-host-cols { grid-template-columns: minmax(0, 1fr); }
   .k-host-col + .k-host-col { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* Settings sections beyond Agent: Keyboard, Sharing, Vault & security,
+   Runtime, About. Tokens only. */
+.k-rail-spacer { flex: 1; }
+.k-rail-item .k-rail-count { margin-left: auto; font: 400 0.846rem/1 var(--font-mono); color: var(--ink-faint); }
+.k-settings-groups { display: grid; gap: var(--space-6); }
+.k-pref-input { flex: 0 1 var(--size-rail); min-width: 0; }
+.k-pref-value { max-width: 60%; text-align: right; font-size: 0.923rem; color: var(--ink); overflow-wrap: break-word; }
+.k-wrap { overflow-wrap: anywhere; }
+.k-settings-empty { margin: 0; padding: var(--space-4) 0; }
+.pref-row .k-keys { flex: none; }

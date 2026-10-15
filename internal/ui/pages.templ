@@ -253,8 +253,17 @@ templ SettingsPage() {
 			<div class="settings-nav-list" role="tablist" aria-orientation="vertical">
 				@settingsNav("appearance", "Appearance", true)
 				@settingsNav("terminal", "Terminal", false)
+				@settingsNav("keyboard", "Keyboard", false)
 				@settingsNav("agent", "Agent", false)
+				@settingsNav("sharing", "Sharing", false)
+				@settingsNav("vault", "Vault & security", false)
+				@settingsNav("runtime", "Runtime", false)
 			</div>
+			<div class="k-rail-spacer"></div>
+			<button type="button" class="k-rail-item settings-nav" data-settings-section="about" role="tab" aria-selected="false" id="settings-nav-about">
+				About Keel
+				<span class="k-rail-count" id="settings-about-count"></span>
+			</button>
 		</nav>
 		<div class="k-settings-main">
 			<form class="k-settings-form" id="settings-form">
@@ -345,7 +354,13 @@ templ SettingsPage() {
 						</div>
 					}
 				</div>
+				@keyboardSettingsPanel()
 				@agentSettingsPanel()
+				@sharingSettingsPanel()
+				@vaultSettingsPanel()
+				@runtimeSettingsPanel()
+				@aboutSettingsPanel()
+				<p class="k-help k-settings-empty" id="settings-empty" role="status" hidden>No settings match.</p>
 			</form>
 		</div>
 	</section>
