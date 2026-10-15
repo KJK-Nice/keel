@@ -152,9 +152,21 @@ func macWindowChrome() application.MacWindow {
 
 // overlayTitleBar hides the native "Keel" title so the tab strip can sit
 // in that space, next to the traffic lights. HiddenInset drops the lights
-// into a taller titlebar so they stay centered beside 42px tabs.
+// into a taller titlebar so they stay centered beside the tabs.
+//
+// ShowToolbarWhenFullscreen keeps that titlebar in the window in native
+// full screen. Without it Wails returns NSApplicationPresentationAutoHideToolbar,
+// so AppKit detaches the titlebar and toolbar and, when the pointer reaches
+// the top edge, slides them down with the menu bar as an overlay: the menu
+// bar covers the tab strip and the traffic lights land on the pane bar
+// below it. With the toolbar kept in the window, the traffic lights stay
+// where they are out of full screen (beside the tabs, in the 84px inset
+// keel.css reserves) and revealing the menu bar moves the window down
+// instead of drawing over it.
 func overlayTitleBar() application.MacTitleBar {
-	return application.MacTitleBarHiddenInset
+	tb := application.MacTitleBarHiddenInset
+	tb.ShowToolbarWhenFullscreen = true
+	return tb
 }
 
 func desktopURL(raw string, titlebarTabs bool) string {

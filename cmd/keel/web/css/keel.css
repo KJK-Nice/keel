@@ -341,12 +341,12 @@ html[data-chrome="titlebar"] #tab-ctx-trigger {
 html[data-chrome="titlebar"] .workspace-bar {
   min-height: var(--size-titlebar);
   height: var(--size-titlebar);
-  /* Left inset clears the native traffic lights. */
+  /* Left inset clears the native traffic lights. Kept in full screen too:
+     the window keeps its titlebar there (ShowToolbarWhenFullscreen in
+     internal/desktop), so the lights reappear in this same spot when the
+     menu bar is revealed. */
   padding: 0 var(--space-2) 0 84px;
   user-select: none;
-}
-html[data-chrome="titlebar"][data-fullscreen] .workspace-bar {
-  padding-left: 8px;
 }
 html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textarea, .control-widget) {
   --wails-draggable: none;

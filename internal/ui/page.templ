@@ -55,15 +55,7 @@ templ Page(p PageProps) {
 					document.documentElement.dataset.agent = agent;
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
-					if (q.get("chrome") === "titlebar") {
-						document.documentElement.dataset.chrome = "titlebar";
-						function syncFullscreen() {
-							var fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;
-							document.documentElement.toggleAttribute("data-fullscreen", fs);
-						}
-						syncFullscreen();
-						window.addEventListener("resize", syncFullscreen);
-					}
+					if (q.get("chrome") === "titlebar") document.documentElement.dataset.chrome = "titlebar";
 				})();
 			</script>
 			<link rel="stylesheet" href="/vendor/xterm/xterm.css"/>

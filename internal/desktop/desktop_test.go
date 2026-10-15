@@ -92,8 +92,24 @@ func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
 
 func TestMacTitleBarPresetMatchesHiddenInset(t *testing.T) {
 	want := application.MacTitleBarHiddenInset
+	want.ShowToolbarWhenFullscreen = true
 	got := overlayTitleBar()
 	if got != want {
-		t.Fatalf("overlayTitleBar = %+v, want HiddenInset %+v", got, want)
+		t.Fatalf("overlayTitleBar = %+v, want HiddenInset with full-screen toolbar %+v", got, want)
+	}
+}
+
+// In native full screen the titlebar must stay in the window. An
+// auto-hidden toolbar is detached and revealed over the web content, which
+// put the menu bar on the tabs and the traffic lights on the pane bar.
+func TestOverlayTitleBarKeepsTitlebarInWindowInFullscreen(t *testing.T) {
+	if !overlayTitleBar().ShowToolbarWhenFullscreen {
+		t.Fatal("overlayTitleBar must keep the toolbar shown in full screen")
+	}
+	if !macWindowChrome().TitleBar.ShowToolbarWhenFullscreen {
+		t.Fatal("macWindowChrome must use the full-screen-safe titlebar")
+	}
+	if !webviewOptions("http://127.0.0.1:47241/").Mac.TitleBar.ShowToolbarWhenFullscreen {
+		t.Fatal("main window options must use the full-screen-safe titlebar")
 	}
 }

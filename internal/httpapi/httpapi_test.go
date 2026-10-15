@@ -2232,8 +2232,11 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "colorScheme") {
 		t.Fatal("index missing color-scheme sync for native vibrancy")
 	}
-	if !strings.Contains(string(body), `data-fullscreen`) || !strings.Contains(string(body), "syncFullscreen") {
-		t.Fatal("index missing fullscreen titlebar shift")
+	// Full screen keeps the native titlebar in the window (internal/desktop),
+	// so the page must not guess full screen from the window size and drop
+	// the traffic-light inset: the lights reappear there on reveal.
+	if strings.Contains(string(body), `data-fullscreen`) || strings.Contains(string(body), "syncFullscreen") {
+		t.Fatal("index must not toggle data-fullscreen from a window-size heuristic")
 	}
 	css, err := http.Get(srv.URL + "/css/keel.css")
 	if err != nil {
@@ -2262,8 +2265,11 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(cssBody), "height: var(--size-titlebar)") || strings.Contains(string(cssBody), "min-height: 42px") {
 		t.Fatal("keel.css titlebar overlay must use the size-titlebar token")
 	}
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"][data-fullscreen] .workspace-bar`) {
-		t.Fatal("keel.css missing fullscreen tab shift")
+	if strings.Contains(string(cssBody), `[data-fullscreen]`) {
+		t.Fatal("keel.css must keep the traffic-light inset in full screen")
+	}
+	if !strings.Contains(string(cssBody), "padding: 0 var(--space-2) 0 84px") {
+		t.Fatal("keel.css titlebar must reserve the traffic-light inset")
 	}
 	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
 		t.Fatal("keel.css missing UI size token or font smoothing")
