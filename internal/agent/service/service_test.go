@@ -431,11 +431,11 @@ func TestScriptedFakeSpeaksTheProposalFormat(t *testing.T) {
 
 func TestFromEnvOnlyFakeSwitches(t *testing.T) {
 	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
-		if _, test := FromEnv(func(string) string { return v }); test {
+		if _, _, test := FromEnv(func(string) string { return v }); test {
 			t.Errorf("KEEL_AGENT_PROVIDER=%q selected the fake", v)
 		}
 	}
-	fac, test := FromEnv(func(k string) string {
+	fac, judge, test := FromEnv(func(k string) string {
 		if k == TestProviderEnv {
 			return "fake"
 		}
@@ -447,6 +447,10 @@ func TestFromEnvOnlyFakeSwitches(t *testing.T) {
 	p, err := fac("gemini", "any")
 	if err != nil || p.ID() != "fake" {
 		t.Fatalf("fake factory = %v, %v", p, err)
+	}
+	j, err := judge("any")
+	if err != nil || j.ID() != "fake-judge" {
+		t.Fatalf("fake judge = %v, %v", j, err)
 	}
 }
 

@@ -26,7 +26,8 @@ const fns = functions();
 const calls = (name, text = src) => [...text.matchAll(new RegExp(`(?<![\\w.])${name}\\(`, "g"))].map((m) => m.index);
 
 test("every caller of sendApprovedInject awaits approveBeforeType first and aborts on no", () => {
-  const callers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && calls("sendApprovedInject", body).length);
+  // insertSuggestion is the one exception, pinned in its own test below.
+  const callers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && name !== "insertSuggestion" && calls("sendApprovedInject", body).length);
   assert.ok(callers.length >= 2, "expected the palette snippet and the terminal input to inject");
   for (const [name, body] of callers) {
     const send = calls("sendApprovedInject", body)[0];
@@ -55,9 +56,43 @@ test("agent proposals are typed only through approve-before-type, to one pane", 
   const body = fns.get("typeAgentProposal");
   assert.ok(body.indexOf("await approveBeforeType(proposal.bytes") < calls("sendApprovedInject", body)[0]);
   assert.match(body, /if \(!isDriving\(pane\)\) return/);
-  assert.match(fns.get("sendApprovedInject"), /opts\.agent \? \[pane\]/);
+  assert.match(fns.get("sendApprovedInject"), /const single = !!\(opts\.agent \|\| opts\.suggestion\);/);
+  assert.match(fns.get("sendApprovedInject"), /single \? \[pane\]/);
   const panel = readFileSync(join(dir, "..", "ui", "agentpanel.js"), "utf8");
   for (const bad of ["sendSession", "inject", "/ws/", ".send("]) assert.ok(!panel.includes(bad), `agentpanel.js must not use ${bad}`);
+});
+
+// §5.5, §6.1, §6.5: an in-pane suggestion reaches a pane only through the
+// user's ⇥ / ⇧⇥ on its card. The card shows the command in the pane it is
+// for, so ⇥ is the approval and there is no dialog; in exchange the insert
+// goes to that one pane, only for the driver, never with a newline (it is
+// not run), and keel serve checks the suggestion, the bytes and the ⇧ rule
+// (AuthorizeInsert) before the ticket writes.
+test("suggestions are inserted only by the user's ⇥, to one pane, never run", () => {
+  const inserters = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && /suggestion: \{/.test(body) && calls("sendApprovedInject", body).length);
+  assert.deepEqual(inserters.map(([name]) => name), ["insertSuggestion"]);
+  const body = fns.get("insertSuggestion");
+  const send = calls("sendApprovedInject", body)[0];
+  assert.ok(body.indexOf("!canSuggestIn(pane)) return") < send, "insertSuggestion checks the driver first");
+  assert.ok(body.indexOf("/[\\r\\n]/.test(opt.bytes)) return") < send, "insertSuggestion refuses a newline");
+  // Re-checked right before the write: prompt line, alt screen, a blocking dialog.
+  const recheck = body.indexOf("const line = readPromptLine(pane.term);");
+  assert.ok(recheck > 0 && recheck < send, "insertSuggestion re-reads the prompt line before the write");
+  const gate = body.slice(recheck, send);
+  for (const want of ["ptyWritesBlocked()", 'buffer?.active?.type !== "normal"', "line.input !== words", "dropped: true"]) {
+    assert.ok(gate.includes(want), `insertSuggestion must check ${want} before the write`);
+  }
+  assert.match(fns.get("canSuggestIn"), /isDriving\(pane\)/);
+  assert.match(fns.get("canSuggestIn"), /pane\.remote/);
+  // Only the suggestion machine's insert, which runs on ⇥ / ⇧⇥, calls it.
+  assert.deepEqual(calls("insertSuggestion").length, 2, "one definition, one call (wirePaneSuggest)");
+  assert.match(fns.get("wirePaneSuggest"), /insert: \(sug, index, shift, words\) => insertSuggestion\(pane, sug, index, shift, words\)/);
+  const ui = readFileSync(join(dir, "..", "ui", "suggest.js"), "utf8");
+  const lib = readFileSync(join(dir, "..", "lib", "suggest.js"), "utf8");
+  for (const bad of ["sendSession", "inject", "/ws/", "WebSocket"]) {
+    assert.ok(!ui.includes(bad), `ui/suggest.js must not use ${bad}`);
+    assert.ok(!lib.includes(bad), `lib/suggest.js must not use ${bad}`);
+  }
 });
 
 test("raw session bytes are sent only from the keyboard handler, which the chrome can block", () => {

@@ -33,7 +33,20 @@ type Request struct {
 	System          redact.Safe
 	Messages        []Message
 	MaxOutputTokens int
+	// Thinking is how much the model reasons before it answers: one of
+	// the Thinking* levels, or "" for the model's default. Each client
+	// maps it to its own API and to what the model accepts.
+	Thinking string
 }
+
+// Thinking levels, lowest first. Not every model takes every level; the
+// client lowers a level a model does not take to the nearest it does.
+const (
+	ThinkingMinimal = "minimal"
+	ThinkingLow     = "low"
+	ThinkingMedium  = "medium"
+	ThinkingHigh    = "high"
+)
 
 type Response struct {
 	Text         string
@@ -71,6 +84,12 @@ type Descriptor struct {
 	KeyHelpURL   string   `json:"keyHelpUrl,omitempty"`
 	DefaultModel string   `json:"defaultModel,omitempty"`
 	Models       []string `json:"models,omitempty"`
+	// SuggestModel and SuggestThinking are used for in-pane suggestions
+	// (§5.5), where the user waits after ⇥: a small model that thinks
+	// little. The agent panel keeps the model from the settings, with the
+	// model's default thinking. Empty: the settings model, default thinking.
+	SuggestModel    string `json:"suggestModel,omitempty"`
+	SuggestThinking string `json:"suggestThinking,omitempty"`
 	// Warning is shown next to the key field before the user connects.
 	Warning  string `json:"warning,omitempty"`
 	TermsURL string `json:"termsUrl,omitempty"`
@@ -94,9 +113,13 @@ var descriptors = []Descriptor{
 		DefaultModel: "gemini-3.8-flash",
 		// The 2.5 family is closed to keys that never used it, so new
 		// users get a 404 from it.
-		Models:   []string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"},
-		Warning:  GeminiWarning,
-		TermsURL: "https://ai.google.dev/gemini-api/terms",
+		Models: []string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"},
+		// gemini-3.5-flash-lite takes "minimal"; gemini-3.8-flash does not
+		// (low, medium, high only), so the two are never mixed up.
+		SuggestModel:    "gemini-3.5-flash-lite",
+		SuggestThinking: ThinkingMinimal,
+		Warning:         GeminiWarning,
+		TermsURL:        "https://ai.google.dev/gemini-api/terms",
 	},
 	{
 		ID:       "jev",
@@ -124,4 +147,63 @@ func Lookup(id string) (Descriptor, bool) {
 		}
 	}
 	return Descriptor{}, false
+}
+
+// Judge answers typed questions about a state (phase 6c, TypeSafe Jev). It
+// never generates text: each answer is a probability (Noul) or a pick from
+// options the caller wrote (Choice). Like a Provider it takes only
+// redacted text: every state value is Safe, and the questions are
+// constants written in Keel's code.
+type Judge interface {
+	ID() string
+	Judge(ctx context.Context, req JudgeRequest) (JudgeResponse, error)
+}
+
+// QuestionType is the answer shape of a Question.
+type QuestionType string
+
+const (
+	QuestionNoul   QuestionType = "noul"   // yes/no; the answer is P(yes)
+	QuestionChoice QuestionType = "choice" // one of Options
+)
+
+// Option is one answer a Choice may pick.
+type Option struct {
+	Key         string
+	Description string
+}
+
+// Question is one typed question. Instructions point at state fields by
+// path in backticks (`prompt_line`, `commands[0]`), never by pasting the
+// text in.
+type Question struct {
+	Type         QuestionType
+	Instructions string
+	// Noul only: what a yes and a no mean (optional).
+	True, False string
+	// Choice only, in order.
+	Options []Option
+}
+
+// JudgeRequest is one request: every question about one state. Untrusted
+// terminal text lives in its own named field (Fields or Lists), apart from
+// the questions.
+type JudgeRequest struct {
+	Fields    map[string]redact.Safe
+	Lists     map[string][]redact.Safe
+	Questions map[string]Question
+}
+
+// ChoiceAnswer is a Choice's pick and the probability of every option.
+type ChoiceAnswer struct {
+	Choice        string
+	Probabilities map[string]float64
+}
+
+// JudgeResponse holds the answers under the question ids of the request.
+type JudgeResponse struct {
+	Model       string
+	Nouls       map[string]float64
+	Choices     map[string]ChoiceAnswer
+	InputTokens int
 }

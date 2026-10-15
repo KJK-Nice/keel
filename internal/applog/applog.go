@@ -24,6 +24,18 @@ type Entry struct {
 	Lines      int            `json:"lines,omitempty"`
 	Bytes      int            `json:"bytes,omitempty"`
 	Redactions map[string]int `json:"redactions,omitempty"`
+	// Source says where an agent suggestion came from ("generated" by the
+	// model provider; later "history" or "snippet"), or, on agent.read,
+	// which provider the text was sent to ("jev", "gemini"). Count is how
+	// many lines or commands one agent.read entry stands for (detection
+	// reads are summarised per pane per minute).
+	Source string `json:"source,omitempty"`
+	Count  int    `json:"count,omitempty"`
+	// ModelMs and JevMs are how long an in-pane suggestion's calls took
+	// (agent.suggest): the model provider writing it, and Jev rating its
+	// risk (0 when Jev was not asked). Timings only, never content.
+	ModelMs int64 `json:"modelMs,omitempty"`
+	JevMs   int64 `json:"jevMs,omitempty"`
 }
 
 type Book struct {

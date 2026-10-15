@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"keel/internal/agent/redact"
 	"keel/internal/applog"
@@ -81,12 +82,95 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 // what was redacted from the text sent for it; risk is the label shown
 // (Read-only, Changes state, Destructive).
 func (a *Auditor) Suggest(p Pane, rep redact.Report, risk string) {
-	a.log.Append(applog.Entry{
+	a.SuggestFrom(p, rep, risk, "")
+}
+
+// SuggestFrom is Suggest with the suggestion's source: "generated" (the
+// model provider), and in later phases "history" or "snippet". In-pane
+// suggestions (§5.5) always name one.
+func (a *Auditor) SuggestFrom(p Pane, rep redact.Report, risk, source string) {
+	a.SuggestTimed(p, rep, risk, source, Timing{})
+}
+
+// Timing is how long an in-pane suggestion's calls took. Asked is false
+// when Jev was not asked (no key, or every candidate was destructive by
+// the code rule).
+type Timing struct {
+	Model time.Duration
+	Jev   time.Duration
+	Asked bool
+}
+
+// SuggestTimed is SuggestFrom with the time the model and Jev took, so a
+// slow suggestion shows where the time went. It logs no content.
+func (a *Auditor) SuggestTimed(p Pane, rep redact.Report, risk, source string, t Timing) {
+	from := ""
+	if source != "" {
+		from = " · " + source
+	}
+	took := ""
+	if t.Model > 0 {
+		took = fmt.Sprintf(" · model %d ms", t.Model.Milliseconds())
+		if t.Asked {
+			took += fmt.Sprintf(" · Jev %d ms", t.Jev.Milliseconds())
+		}
+	}
+	e := applog.Entry{
 		Kind:       EventSuggest,
-		Message:    fmt.Sprintf("agent suggested a command for %s · %s · %s", hostLabel(p), riskLabel(risk), redactionNote(rep)),
+		Message:    fmt.Sprintf("agent suggested a command for %s · %s%s · %s%s", hostLabel(p), riskLabel(risk), from, redactionNote(rep), took),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
 		Redactions: rep.Strings(),
+		Source:     source,
+	}
+	// At least 1 ms when made, so a fast call is never read as "not made".
+	if t.Model > 0 {
+		e.ModelMs = max(t.Model.Milliseconds(), 1)
+	}
+	if t.Asked {
+		e.JevMs = max(t.Jev.Milliseconds(), 1)
+	}
+	a.log.Append(e)
+}
+
+// PromptLines logs agent.read for prompt lines of p sent to a detector
+// (§7): n lines, rep their redactions together. Detection runs on a typing
+// pause, so the caller summarises: one entry stands for every line sent in
+// a window, and Count says how many.
+func (a *Auditor) PromptLines(p Pane, n int, rep redact.Report, detector string) {
+	if n <= 0 {
+		return
+	}
+	what := "1 prompt line"
+	if n > 1 {
+		what = fmt.Sprintf("%d prompt lines", n)
+	}
+	a.log.Append(applog.Entry{
+		Kind:       EventRead,
+		Message:    fmt.Sprintf("agent sent %s from %s to %s to notice plain language · %s", what, hostLabel(p), detectorName(detector), redactionNote(rep)),
+		HostID:     p.HostID,
+		SessionID:  p.SessionID,
+		Lines:      n,
+		Count:      n,
+		Redactions: rep.Strings(),
+		Source:     detector,
+	})
+}
+
+// Sent logs agent.read for text sent off the machine for an in-pane
+// suggestion (§6.7): what was sent ("the words on the prompt line", "2
+// candidate commands"), n lines of it, its redactions, to whom and why.
+// The caller logs before the call, so a call that fails is logged too.
+func (a *Auditor) Sent(p Pane, what string, n int, rep redact.Report, to, why, source string) {
+	a.log.Append(applog.Entry{
+		Kind:       EventRead,
+		Message:    fmt.Sprintf("agent sent %s from %s to %s %s · %s", what, hostLabel(p), to, why, redactionNote(rep)),
+		HostID:     p.HostID,
+		SessionID:  p.SessionID,
+		Lines:      n,
+		Count:      n,
+		Redactions: rep.Strings(),
+		Source:     source,
 	})
 }
 
@@ -94,16 +178,22 @@ func (a *Auditor) Suggest(p Pane, rep redact.Report, risk string) {
 // and logs agent.insert. It writes nothing: the caller does the write
 // through the user's own approved input path, and only if this returns nil.
 func (a *Auditor) Insert(p Pane, command string) error {
-	return a.authorize(EventInsert, "inserted", p, command)
+	return a.InsertFrom(p, command, "")
+}
+
+// InsertFrom is Insert with the suggestion's source, which the entry
+// records.
+func (a *Auditor) InsertFrom(p Pane, command, source string) error {
+	return a.authorize(EventInsert, "inserted", p, command, source)
 }
 
 // Type authorizes typing command into p (Type into pane ↵) and logs
 // agent.type. Like Insert, it writes nothing itself.
 func (a *Auditor) Type(p Pane, command string) error {
-	return a.authorize(EventType, "typed", p, command)
+	return a.authorize(EventType, "typed", p, command, "")
 }
 
-func (a *Auditor) authorize(kind, verb string, p Pane, command string) error {
+func (a *Auditor) authorize(kind, verb string, p Pane, command, source string) error {
 	if err := CanInsert(p.Role); err != nil {
 		return err
 	}
@@ -118,8 +208,24 @@ func (a *Auditor) authorize(kind, verb string, p Pane, command string) error {
 		SessionID: p.SessionID,
 		Lines:     lines,
 		Bytes:     len(command),
+		Source:    source,
 	})
 	return nil
+}
+
+// Diff returns what one Redactor redacted between two of its reports.
+func Diff(before, after redact.Report) redact.Report { return diff(before, after) }
+
+// Merge adds the counts of two reports.
+func Merge(a, b redact.Report) redact.Report {
+	out := redact.Report{Counts: map[redact.Kind]int{}}
+	for k, v := range a.Counts {
+		out.Counts[k] += v
+	}
+	for k, v := range b.Counts {
+		out.Counts[k] += v
+	}
+	return out
 }
 
 func diff(before, after redact.Report) redact.Report {
@@ -158,4 +264,11 @@ func redactionNote(rep redact.Report) string {
 	default:
 		return fmt.Sprintf("%d redactions", n)
 	}
+}
+
+func detectorName(id string) string {
+	if id == "jev" {
+		return "TypeSafe Jev"
+	}
+	return id
 }

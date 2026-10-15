@@ -45,6 +45,7 @@ const ICON = {
 };
 
 export const AGENT_ICON = ICON.ai;
+export const AGENT_ALERT_ICON = ICON.alert;
 
 // createAgentPanel wires the panel. deps:
 //   api(path, opts)           keel serve JSON API (throws with .code, .data)

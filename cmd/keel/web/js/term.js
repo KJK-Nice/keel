@@ -45,6 +45,7 @@ import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
+import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -3373,19 +3374,105 @@ import { createAgentPanel } from "./ui/agentpanel.js";
   window.__keelShortcut = (name) => runShortcut(name);
 
   function termKeyHandler(ev) {
+    // A noticed line or a suggestion card in the focused pane takes ⇥, ⇧⇥,
+    // esc, 1–3, ↑↓ and ⌘Z first; with neither showing they stay the
+    // shell's (§8).
+    if (focusedPane()?.suggest?.onKey(ev)) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      return false;
+    }
     if (ev.type !== "keydown") return true;
     // Unmodified keys (including hold-to-repeat in vim) must reach xterm.
     if (!hasAppMod(ev) || ev.altKey) return true;
     return !handleShortcut(ev);
   }
 
+  // canSuggestIn: in-pane suggestions (§5.5) only for the client driving a
+  // local terminal pane; never in a joined tab or for a follower (§6.6).
+  function canSuggestIn(pane) {
+    if (!pane || pane.remote || !isTermPane(pane) || !pane.runtimeId || !isDriving(pane)) return false;
+    if (state.tabs.get(pane.tabId)?.remote) return false;
+    return pane.ws?.readyState === WebSocket.OPEN;
+  }
+
+  function wirePaneSuggest(pane) {
+    if (pane.remote || !pane.host?.parentElement) return;
+    pane.suggest = createPaneSuggest({
+      term: pane.term,
+      body: pane.host.parentElement,
+      mac: isMac,
+      canSuggest: () => canSuggestIn(pane) && focusedPane() === pane && !ptyWritesBlocked(),
+      send: (obj) => sendSessionJSON(pane, obj),
+      insert: (sug, index, shift, words) => insertSuggestion(pane, sug, index, shift, words),
+      // ⌘Z: the user's own words back, as their keystrokes (wirePaneTerminal).
+      restore: (bytes) => pane.restoreWords?.(bytes),
+    });
+    const follow = () => pane.suggest?.onRender();
+    pane.term.onRender?.(follow);
+    pane.term.onScroll?.(follow);
+    pane.term.onResize?.(follow);
+    // The native window's Edit › Undo (⌘Z) may reach the page as an undo
+    // of xterm's hidden textarea instead of a keydown.
+    pane.host.addEventListener(
+      "beforeinput",
+      (ev) => {
+        if (ev.inputType === "historyUndo" && pane.suggest?.undo()) ev.preventDefault();
+      },
+      true,
+    );
+  }
+
+  function settleAgentInsert(pane, msg) {
+    const done = pane.agentInsertWaiter;
+    pane.agentInsertWaiter = null;
+    if (typeof done === "function") done({ ok: msg.ok === true, message: msg.message || "" });
+  }
+
+  // insertSuggestion is the user's ⇥ / ⇧⇥ on a suggestion card: Ctrl-U and
+  // the command, no newline, to this one pane only (never Sync input's
+  // other panes). keel serve checks the suggestion, the bytes, the ⇧ rule
+  // and that this client drives, logs agent.insert, then writes (§6.1).
+  // There is no approve dialog: the card shows the command and the target
+  // is the pane under it, and ⇥ is the approval (§5.5). It inserts and
+  // never runs, so bytes with a newline are refused here and in keel serve.
+  async function insertSuggestion(pane, sug, index, shift, words) {
+    const opt = sug?.options?.[index];
+    if (!opt || !canSuggestIn(pane)) return { ok: false, message: "You follow this pane. Suggestions are for the driver." };
+    if (typeof opt.bytes !== "string" || /[\r\n]/.test(opt.bytes)) return { ok: false, message: "This command spans lines; copy it instead." };
+    // Right before the write: still at a shell prompt (not a full-screen
+    // app), still the words the suggestion was for, and no dialog holding
+    // the keyboard. Otherwise drop the card and write nothing.
+    const line = readPromptLine(pane.term);
+    if (ptyWritesBlocked() || pane.term?.buffer?.active?.type !== "normal" || !line || line.input !== words) {
+      return { ok: false, dropped: true };
+    }
+    const result = new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (pane.agentInsertWaiter) {
+          pane.agentInsertWaiter = null;
+          resolve({ ok: false, message: "keel serve did not answer." });
+        }
+      }, 4000);
+      pane.agentInsertWaiter = (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      };
+    });
+    const sent = await sendApprovedInject(opt.bytes, pane, { suggestion: { suggestionId: sug.id, option: index, shift: !!shift } });
+    if (!sent) settleAgentInsert(pane, { ok: false, message: "Not inserted: the session is not connected, or you do not drive it." });
+    return result;
+  }
+
   function wirePaneTerminal(pane) {
     const term = pane.term;
+    wirePaneSuggest(pane);
     term.attachCustomKeyEventHandler(termKeyHandler);
     term.onData((data) => {
       if (ptyWritesBlocked()) return;
       if (!isDriving(pane) || !isTermPane(pane)) return;
       const bytes = new TextEncoder().encode(data);
+      pane.suggest?.onInput(data);
       const tab = state.tabs.get(pane.tabId);
       if (tab?.sync) {
         for (const p of tabPanes(tab)) {
@@ -3395,6 +3482,13 @@ import { createAgentPanel } from "./ui/agentpanel.js";
         sendSessionBytes(pane, bytes);
       }
     });
+    // ⌘Z after an insert (§5.5): the user's own words back, as their
+    // keystrokes, to this pane only (the insert went to this pane only).
+    pane.restoreWords = (text) => {
+      if (ptyWritesBlocked()) return;
+      if (!isDriving(pane) || !isTermPane(pane) || pane.remote) return;
+      sendSessionBytes(pane, new TextEncoder().encode(text));
+    };
     term.onResize(() => {
       if (focusedPane() === pane) renderStatusBar();
     });
@@ -3919,6 +4013,10 @@ import { createAgentPanel } from "./ui/agentpanel.js";
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
       agentType: (msg) => settleAgentType(pane, msg),
+      agentDetect: (msg) => pane.suggest?.onDetect(msg),
+      agentSuggest: (msg) => pane.suggest?.onSuggest(msg),
+      agentSuggestRisk: (msg) => pane.suggest?.onRisk(msg),
+      agentInsert: (msg) => settleAgentInsert(pane, msg),
       joinRequest: (msg) =>
         joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title }),
       joinResolved: (msg) => joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId }),
@@ -4929,7 +5027,9 @@ Write a runbook here.
   // opts.agent marks the bytes as an agent proposal the user approved
   // ({conversationId, proposalId, shift}): they go to that one pane only
   // (never to the panes Sync input would add), and keel serve checks the
-  // proposal with the agent service before writing them.
+  // proposal with the agent service before writing them. opts.suggestion
+  // ({suggestionId, option, shift}) does the same for ⇥ / ⇧⇥ on an in-pane
+  // suggestion (§5.5).
   async function sendApprovedInject(command, targetPane, opts = {}) {
     const pane = termTarget(targetPane || focusedPane());
     if (!pane || !isTermPane(pane)) {
@@ -4937,15 +5037,17 @@ Write a runbook here.
       return false;
     }
     const tab = state.tabs.get(pane.tabId);
-    const targets = opts.agent ? [pane] : tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
+    const single = !!(opts.agent || opts.suggestion);
+    const targets = single ? [pane] : tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
     let sent = false;
     for (const p of targets) {
       const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p) || !isTermPane(p) || (opts.agent && p.remote)) continue;
+      if (!open || !isDriving(p) || !isTermPane(p) || (single && p.remote)) continue;
       const nonce = await requestInjectTicket(p, command);
       if (!nonce) continue;
       const msg = { type: "inject", command, nonce };
       if (opts.agent) msg.agent = opts.agent;
+      if (opts.suggestion) msg.suggestion = opts.suggestion;
       sendSessionJSON(p, msg);
       sent = true;
     }

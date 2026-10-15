@@ -26,6 +26,13 @@ import (
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
 //
+// An in-pane suggestion request (the message starts with SuggestPrefix)
+// gets suggestion blocks instead: a destructive `rm -rf` for words with
+// "delete" or "clean up", a state change for "touch", a command that only
+// Jev's fake rates stricter for "stricter", one it rates destructive
+// only after a delay for "slow check", and otherwise a read-only echo
+// with two read-only alternatives.
+//
 // The proposal block uses the agent service's format (```keel-proposal);
 // internal/agent/service tests check that the two agree.
 type Scripted struct {
@@ -56,6 +63,9 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 			last = req.Messages[i].Text.String()
 			break
 		}
+	}
+	if strings.HasPrefix(last, SuggestPrefix) {
+		return suggestReply(strings.ToLower(strings.TrimPrefix(last, SuggestPrefix))), nil
 	}
 	panes := strings.Count(last, "--- pane ")
 	placeholders := strings.Count(last, "[secret:") + strings.Count(last, "[ip:") + strings.Count(last, "[host:")
@@ -90,6 +100,35 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		}
 	}
 	return provider.Response{Text: b.String(), InputTokens: len(last) / 4, OutputTokens: b.Len() / 4}, nil
+}
+
+// SuggestPrefix must match service.SuggestPrefix (a service test checks).
+const SuggestPrefix = "Words on the prompt line:\n"
+
+func suggestReply(words string) provider.Response {
+	type opt struct{ cmd, why, risk string }
+	var opts []opt
+	switch {
+	case strings.Contains(words, "delete") || strings.Contains(words, "clean up"):
+		opts = []opt{{"rm -rf /tmp/keel-suggest-e2e", "Deletes the scratch folder and everything in it.", "destructive"}}
+	case strings.Contains(words, "touch"):
+		opts = []opt{{"touch /tmp/keel-suggest-touched", "Creates an empty marker file.", "changes"}}
+	case strings.Contains(words, "slow check"):
+		opts = []opt{{"echo keel-jev-slow", "Prints a marker that the fake judge rates as destructive, late.", "readonly"}}
+	case strings.Contains(words, "stricter"):
+		opts = []opt{{"echo keel-jev-stricter", "Prints a marker that the fake judge rates as a state change.", "readonly"}}
+	default:
+		opts = []opt{
+			{"echo keel-suggest-ok", "Prints a marker to show the command reached the prompt line.", "readonly"},
+			{"echo keel-suggest-alt-2", "Prints a second marker.", "readonly"},
+			{"echo keel-suggest-alt-3", "Prints a third marker.", "readonly"},
+		}
+	}
+	var b strings.Builder
+	for _, o := range opts {
+		fmt.Fprintf(&b, "```keel-proposal\n{\"command\": %q, \"why\": %q, \"risk\": %q}\n```\n", o.cmd, o.why, o.risk)
+	}
+	return provider.Response{Text: b.String(), InputTokens: len(words) / 4, OutputTokens: b.Len() / 4}
 }
 
 // Requests returns the last requests Generate received, oldest first.

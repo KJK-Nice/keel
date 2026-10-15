@@ -130,9 +130,11 @@ Board names refer to the canvas.
 2. The agent reads only panes in the conversation's scope, and only hosts with "Agent can read" on.
 3. Vault contents (passwords, keys, passphrases, snippet bodies unless the user adds them) are never sent.
 4. Redaction runs before anything leaves the machine. Secret-looking values are always redacted.
-5. Destructive or state-changing commands cannot be inserted with plain ⇥; on production hosts they need ⇧⇥.
+5. Destructive commands always need ⇧⇥ (or ⇧ + Type). State-changing commands need ⇧⇥ on production hosts; on other hosts plain ⇥ inserts them. A host counts as production if it was when the suggestion was made, is now, or can no longer be found. Read-only commands insert with plain ⇥ everywhere.
 6. A follower cannot type agent output into a pane they follow; the proposal is not offered.
 7. Every read and every insert is written to `keel.log`.
+
+**Limit of these gates.** The ⇧ rule, the no-newline rule for inserts and the driver check are enforced in keel serve, so they hold against model output and against a UI bug that sends the wrong bytes or skips a key. They do not hold against hostile script running inside the app page itself: the pre-existing unlabelled inject path (palette snippets, the notebook's CLI input) accepts any bytes from the driving client with a fresh ticket, and script in the page can ask for a ticket like the page does. Keeping the page free of untrusted script (no remote scripts, escaped HTML) is what protects that path, not the agent gates.
 
 ## 7. Plain-language detection
 
@@ -140,6 +142,9 @@ Board names refer to the canvas.
 - Fallback setting: only lines starting with `#` (safe if ↵ is pressed by mistake, because the shell treats it as a comment).
 - Candidate for the classifier and the command/risk judgment: Jev (TypeSafe). To evaluate: latency budget (< 150 ms for the Notice hint), offline behaviour, cost per keystroke burst (debounce on pause, not per key).
 - Risk label (Read-only / Changes state / Destructive) comes from the same judgment and is shown on every suggestion.
+- **Speed after ⇥.** Suggestions use the provider's own suggestion model (Gemini: `gemini-3.5-flash-lite`, thinking level `minimal`); the agent panel keeps the settings model with its default thinking. The card is shown as soon as the model answers, rated by code (the denylist, made stricter by the model's own rating). Jev rates it afterwards (up to 2 s); when Jev is stricter, keel serve updates the kept suggestion and pushes `agent-suggest-risk`, and the card's badge, edge and ⇥ / ⇧⇥ hint follow. Jev can only make a rating stricter, never looser.
+- **⇥ before Jev answers** is decided by keel serve on the code rating. This is accepted: the denylist is final for destructive commands, so those always need ⇧⇥ either way; what Jev can add in that window is a stricter rating for a command the code rule passed. Once Jev has answered, plain ⇥ is refused for an option it made need ⇧, with a reason that says a second check rated it riskier.
+- `agent.suggest` in `keel.log` records how long the model call and the Jev risk call took (`modelMs`, `jevMs`), never the words; keel serve's own log prints a debug line with the model, thinking level and both times.
 
 ## 8. Keyboard
 
@@ -152,7 +157,7 @@ Board names refer to the canvas.
 | Sidebar toggle | Toggle vault sidebar | new; shortcut to choose (⌘B proposed) |
 | ⌥1–⌥6 | Open recent host on New tab page | new |
 | ⇥ / ⇧⇥ | Suggest/insert · insert destructive | new, only while a suggestion is shown or a line is noticed |
-| ⌘Z | Restore words after an insert | new, only right after insert |
+| ⌘Z | Restore words after an insert | new, only right after insert; Ctrl+Shift+Z on Windows/Linux, where Ctrl+Z suspends the foreground job (6c) |
 | ⌘↵ | Ask agent (palette) · Save (dialogs) | new |
 | ⌘N, ⌘⇧O, ⌘J, ⌘,, ⌘W, ⌘⇧T, ⌘⇧D, ⌘⇧E, ⌘± / ⌘0 | as today | ⌘N is "new item" on Forwards/Keychain/Snippets pages |
 
@@ -181,6 +186,6 @@ One phase per branch and PR.
 
 1. Shortcut for the sidebar toggle: ⌘B (phase 2; it was the right session rail's toggle, which the Vault sidebar replaced). **⌘I (decided, 6b):** free on macOS (no menu, term.js or xterm use; Ctrl-I stays Tab for readline because ⌘ is the app modifier). On Windows/Linux the app modifier is Ctrl and Ctrl+I is Tab in a terminal, so the panel takes **Ctrl+Shift+I** there (menu and keyboard agree, `internal/desktop/shortcuts_test.go`); in a plain Chromium browser tab Ctrl+Shift+I opens DevTools first, so the titlebar button and the palette are the way there.
 2. Agent provider(s) to support first. **Decided (6a):** Google Gemini first, behind a provider interface (`internal/agent/provider`); the key is a vault secret.
-3. Jev vs a local model for detection: latency and offline requirements.
+3. Jev vs a local model for detection: latency and offline requirements. **Decided (6c):** Jev (`internal/agent/provider/jev`, model pinned to `jev-1.13.0`), one Noul per typing pause (350 ms), notice at P ≥ 0.70, a 900 ms timeout. With no Jev key, offline, an error or a timeout, only `#` lines are noticed, silently. Without a model key there is no notice at all. Jev also rates every suggestion (one Choice per command, one request), and may only make the code rating stricter. Questions and thresholds: `internal/agent/service/suggestq.go`. Measured from a home connection: 270–470 ms per call, so the < 150 ms budget holds only near the endpoint.
 4. Should "Treat as production" default on for hosts in a folder named `production`? **Decided (6a):** yes, at the moment a host is created in, or moved into, a group whose own name is `production` (any case; the direct parent only, not an ancestor). Deleting a group whose hosts move up into a `production` parent counts as a move. Nothing else sets it (loading or renaming never does), and the user can turn it off. A value sent on create wins over the rule, so **6d's Edit host dialog must prefill "Treat as production" on when the chosen group is named `production`**, so an untouched dialog still gets it.
 5. Light theme: ship together with dark in phase 0, or after?

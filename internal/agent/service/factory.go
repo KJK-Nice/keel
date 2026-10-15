@@ -3,6 +3,7 @@ package service
 import (
 	"keel/internal/agent/provider"
 	"keel/internal/agent/provider/gemini"
+	"keel/internal/agent/provider/jev"
 	"keel/internal/agent/provider/providertest"
 )
 
@@ -21,19 +22,37 @@ func Real(providerID, key string) (provider.Provider, error) {
 	return nil, provider.ErrUnknown
 }
 
+// JudgeFactory builds the detector for in-pane suggestions from the key
+// read from the vault.
+type JudgeFactory func(key string) (provider.Judge, error)
+
+// JudgeProvider is the provider id of the detector's key in the vault.
+const JudgeProvider = "jev"
+
+// RealJudge builds the TypeSafe Jev client. This package is the only one
+// allowed to import provider/jev (internal/agent/invariants_test.go), and
+// judgeFor is the only caller, so TypeSafe is reached only from a pane's
+// prompt line or a suggestion the user asked for.
+func RealJudge(key string) (provider.Judge, error) {
+	return jev.New(key)
+}
+
 // TestProviderEnv names the environment variable that swaps every provider
 // for the in-process test fake. It exists for end-to-end tests only.
 const TestProviderEnv = "KEEL_AGENT_PROVIDER"
 
-// FromEnv returns the factory keel serve uses, and whether it is the test
-// fake. Only the exact value "fake" changes anything: it selects
-// providertest.Scripted, which builds replies in this process and has no
+// FromEnv returns the factories keel serve uses (model provider and
+// detector), and whether they are the test fakes. Only the exact value
+// "fake" changes anything: it selects providertest.Scripted and
+// providertest.ScriptedJudge, which answer in this process and have no
 // network code, so this switch cannot send pane text anywhere. Any other
 // value (or none) gives the real clients.
-func FromEnv(getenv func(string) string) (Factory, bool) {
+func FromEnv(getenv func(string) string) (Factory, JudgeFactory, bool) {
 	if getenv(TestProviderEnv) == "fake" {
 		fake := providertest.NewScripted()
-		return func(string, string) (provider.Provider, error) { return fake, nil }, true
+		judge := providertest.NewScriptedJudge()
+		return func(string, string) (provider.Provider, error) { return fake, nil },
+			func(string) (provider.Judge, error) { return judge, nil }, true
 	}
-	return Real, false
+	return Real, RealJudge, false
 }
