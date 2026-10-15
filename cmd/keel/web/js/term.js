@@ -849,6 +849,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       err.fingerprint = data.fingerprint;
       err.expected = data.expected;
       err.keyType = data.keyType;
+      err.trustToken = data.trustToken;
       throw err;
     }
     return data;
@@ -5292,10 +5293,27 @@ Write a runbook here.
   // Test connection (§5.8): a real connect with the dialog's unsaved
   // values, then close. Typed secrets go only to POST /api/hosts/test.
   let hostTest = null;
+  // hostTestOffer is the key the last test was refused for, exactly as the
+  // server saw it (its address:port, fingerprint and offer token). Trust
+  // and save sends only this, never the form's address; any edit to the
+  // form drops it (resetHostTest).
+  let hostTestOffer = null;
+  // hostTestBody is the dialog's values the last test sent.
+  let hostTestBody = "";
+
+  // hostFormEdited drops the test result once the dialog's values differ
+  // from what the test used (events that change nothing, like a change
+  // on blur, keep it).
+  function hostFormEdited() {
+    if (!hostTest && !hostTestOffer && document.getElementById("host-test-state")?.hidden) return;
+    if (els.hostForm?.authType && JSON.stringify(hostDraft()) === hostTestBody) return;
+    resetHostTest();
+  }
 
   function resetHostTest() {
     hostTest?.abort();
     hostTest = null;
+    hostTestBody = "";
     const btn = document.getElementById("host-test");
     if (btn) btn.textContent = "Test connection";
     setHostTestState("", "");
@@ -5328,14 +5346,12 @@ Write a runbook here.
       fp.textContent = keyish ? `${type}${res.fingerprint}${res.expected ? ` (saved: ${res.expected})` : ""}` : "";
       fp.hidden = !keyish;
     }
-    if (actions) actions.hidden = !keyish;
-    if (trust) {
-      trust.textContent = res?.kind === "host-key-mismatch" ? "Replace saved key" : "Trust and save";
-      trust.dataset.hostname = keyish ? res.hostname : "";
-      trust.dataset.fingerprint = keyish ? res.fingerprint : "";
-      trust.dataset.keyType = keyish ? res.keyType || "" : "";
-      trust.dataset.replace = res?.kind === "host-key-mismatch" ? "1" : "";
-    }
+    hostTestOffer =
+      keyish && res.trustToken
+        ? { token: res.trustToken, hostname: res.hostname, fingerprint: res.fingerprint, replace: res.kind === "host-key-mismatch" }
+        : null;
+    if (actions) actions.hidden = !hostTestOffer;
+    if (trust) trust.textContent = res?.kind === "host-key-mismatch" ? "Replace saved key" : "Trust and save";
   }
 
   function hostDraft() {
@@ -5400,8 +5416,10 @@ Write a runbook here.
     if (btn) btn.textContent = "Cancel test";
     setHostTestState("connecting", "Testing…");
     showHostTestDetail(null);
+    const body = JSON.stringify(hostDraft());
+    hostTestBody = body;
     try {
-      const res = await api("/api/hosts/test", { method: "POST", body: JSON.stringify(hostDraft()), signal: ctrl.signal });
+      const res = await api("/api/hosts/test", { method: "POST", body, signal: ctrl.signal });
       // The dialog was refilled or closed meanwhile: drop the result.
       if (hostTest !== ctrl) return;
       const out = hostTestText(res);
@@ -5424,11 +5442,9 @@ Write a runbook here.
   }
 
   async function trustFromHostTest() {
-    const trust = document.getElementById("host-test-trust");
-    const hostname = trust?.dataset.hostname;
-    const fingerprint = trust?.dataset.fingerprint;
-    if (!hostname || !fingerprint) return;
-    const replace = trust.dataset.replace === "1";
+    const offer = hostTestOffer;
+    if (!offer) return;
+    const { token, hostname, fingerprint, replace } = offer;
     if (replace) {
       closeModal(els.hostModal);
       const ok = await askConfirm(`Replace the saved key for ${hostname} with ${fingerprint}? Only do this if you know the server was reinstalled.`, {
@@ -5441,7 +5457,7 @@ Write a runbook here.
     try {
       await api("/api/known-hosts", {
         method: "POST",
-        body: JSON.stringify({ hostname, fingerprint, keyType: trust.dataset.keyType || "", replace }),
+        body: JSON.stringify({ token, hostname, fingerprint, replace }),
       });
       toast("Host key saved");
       const id = els.hostForm?.id?.value;
@@ -5882,7 +5898,7 @@ Write a runbook here.
     }
     els.hostKeyForm.dataset.hostname = hostname;
     els.hostKeyForm.dataset.fingerprint = fingerprint;
-    els.hostKeyForm.dataset.keyType = src.keyType || "";
+    els.hostKeyForm.dataset.token = src.trustToken || "";
     openModal(els.hostKeyModal);
     return true;
   }
@@ -5895,7 +5911,7 @@ Write a runbook here.
     try {
       await api("/api/known-hosts", {
         method: "POST",
-        body: JSON.stringify({ hostname, fingerprint, keyType: els.hostKeyForm.dataset.keyType || "", replace: !!retry.replace }),
+        body: JSON.stringify({ token: els.hostKeyForm.dataset.token || "", hostname, fingerprint, replace: !!retry.replace }),
       });
       closeModal(els.hostKeyModal);
       if (retry.sessionId) {
@@ -7421,6 +7437,10 @@ Write a runbook here.
     });
     on(els.hostModal, "close", () => hostTest?.abort());
     on(document.getElementById("host-test"), "click", runHostTest);
+    // Any edit makes a test result (and its key offer) stale: drop it, so
+    // Trust and save can never apply to values the test did not use.
+    for (const type of ["input", "change", "select-change"]) on(els.hostForm, type, hostFormEdited);
+    for (const id of ["host-jump", "host-auth-type", "host-identity"]) on(document.getElementById(id), "select-change", hostFormEdited);
     on(document.getElementById("host-test-trust"), "click", trustFromHostTest);
     on(document.getElementById("host-key-forget"), "click", forgetHostKey);
     on(document.getElementById("group-cancel"), "click", () => closeModal(els.groupModal));

@@ -63,7 +63,7 @@ type waiter interface {
 
 func DefaultFactory(st *store.Store) Factory {
 	return func(host store.Host) (Dialer, error) {
-		client, err := session.SSHClient(host, st.CheckHostKey)
+		client, err := session.SSHClient(host, st.CheckHostKeyType)
 		if err != nil {
 			return nil, err
 		}

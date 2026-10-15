@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelSend, openKeel } from './keel.ts';
+import { keelSend, openKeel, sshTest } from './keel.ts';
 
 // Named screenshots of the main screens in both themes, for before/after
 // comparisons of visual-only changes (`--output .e2e/proof/<name>`). They
@@ -33,14 +33,12 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await app.screenshot(`${theme}-new-host`);
       await screen.getByRole('button', 'Cancel', { visible: true }).tap();
 
-      // Edit host on a saved host with a trusted key (set up through the
-      // API: the dialog is what is pictured).
+      // Edit host on a saved host, after Test connection and Trust and
+      // save against the loopback SSH server (bin/keel-sshtest).
+      const { target } = sshTest();
       const editName = `visual-edit-${theme}`;
       const edited = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/hosts', {
-        name: editName, address: '192.0.2.21', port: 22, username: 'deploy', authType: 'password', password: 'scratch-not-real', color: '#5ee0b5',
-      });
-      await keelSend(app.baseUrl, 'POST', '/api/known-hosts', {
-        hostname: '192.0.2.21:22', fingerprint: 'SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe', keyType: 'ssh-ed25519', replace: true,
+        name: editName, address: target.host, port: target.port, username: target.user, authType: 'password', password: target.password, color: '#5ee0b5',
       });
       try {
         await openKeel(app);
@@ -48,7 +46,17 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
         await expect(vault.getByRole('button', new RegExp(`^${editName}\\b`))).toBeVisible();
         await vault.getByRole('button', 'Actions', { visible: true }).tap();
         await screen.getByRole('menuitem', 'Edit').tap();
-        await expect(screen.getByRole('dialog').filter({ hasText: 'Edit host' })).toBeVisible();
+        const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
+        await expect(editing).toBeVisible();
+        await editing.getByRole('button', 'Test connection').tap();
+        const trusted = editing.getByRole('group', 'Host key');
+        // The dark run trusts the key; the light run finds it trusted.
+        await expect(editing.getByText(/^(Connected in \d+ ms|Host key unknown)$/)).toBeVisible();
+        if (await editing.getByRole('button', 'Trust and save').isVisible()) {
+          await editing.getByRole('button', 'Trust and save').tap();
+        }
+        await expect(editing.getByText(/^Connected in \d+ ms$/)).toBeVisible();
+        await expect(trusted).toContainText('Trusted');
         await app.screenshot(`${theme}-edit-host`);
         await screen.getByRole('button', 'Cancel', { visible: true }).tap();
         await vault.getByRole('searchbox', 'Search hosts').fill('');

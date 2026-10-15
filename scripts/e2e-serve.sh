@@ -35,13 +35,34 @@ until node -e 'fetch(process.argv[1]).then((r)=>process.exit(r.ok?0:1),()=>proce
 	sleep 0.1
 done
 
+# Two throwaway SSH servers on loopback (a jump host and a target) for the
+# Edit host tests (tests/host-dialog.e2e.ts). They write their ports,
+# users, passwords and fingerprints to sshtest.json in the data dir.
+sshtest_json="${KEEL_DATA:-.e2e/keel-data}/sshtest.json"
+mkdir -p "$(dirname "$sshtest_json")"
+rm -f "$sshtest_json"
+./bin/keel-sshtest -out "$sshtest_json" >>.e2e/logs/keel-sshtest.log 2>&1 &
+sshd=$!
+i=0
+until [ -s "$sshtest_json" ]; do
+	i=$((i + 1))
+	if [ "$i" -gt 50 ] || ! kill -0 "$sshd" 2>/dev/null; then
+		echo "keel-sshtest did not start; see .e2e/logs/keel-sshtest.log (run make build)" >&2
+		kill "$sig" "$sshd" 2>/dev/null || true
+		exit 1
+	fi
+	sleep 0.1
+done
+
 KEEL_SIGNAL="http://127.0.0.1:$port" ./bin/keel "$@" &
 srv=$!
 stop() {
 	kill "$srv" 2>/dev/null || true
 	wait "$srv" 2>/dev/null || true
 	kill "$sig" 2>/dev/null || true
+	kill "$sshd" 2>/dev/null || true
 }
 trap 'stop; exit 0' INT TERM
 wait "$srv" || true
 kill "$sig" 2>/dev/null || true
+kill "$sshd" 2>/dev/null || true

@@ -29,7 +29,7 @@ func BridgeExit(br Bridge) ExitKind {
 	return ExitUnknown
 }
 
-func Open(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
+func Open(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
 	if host.AuthType == "local" {
 		return openLocal(cols, rows)
 	}

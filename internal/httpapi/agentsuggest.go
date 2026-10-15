@@ -73,6 +73,9 @@ const (
 	suggestMinInterval = 500 * time.Millisecond
 )
 
+// suggestNow is the rate limits' clock (tests freeze it).
+var suggestNow = time.Now
+
 // suggestConn runs one socket's detect and suggest calls off the read
 // loop, so typing never waits on a provider. A newer call of a kind
 // cancels the older one: only the latest prompt line matters.
@@ -92,7 +95,7 @@ type suggestConn struct {
 func (c *suggestConn) allow(kind string, min time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	now := time.Now()
+	now := suggestNow()
 	if t, ok := c.last[kind]; ok && now.Sub(t) < min {
 		return false
 	}

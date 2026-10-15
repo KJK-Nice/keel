@@ -22,16 +22,16 @@ type keys struct {
 	asked []string
 }
 
-func (k *keys) check(hostname, fp string) error {
+func (k *keys) check(hostname, keyType, fp string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.asked = append(k.asked, hostname)
 	prev, ok := k.known[hostname]
 	if !ok {
-		return &store.UnknownHostError{Host: hostname, Fingerprint: fp}
+		return &store.UnknownHostError{Host: hostname, Fingerprint: fp, KeyType: keyType, Token: "tok"}
 	}
 	if prev != fp {
-		return &store.HostKeyMismatchError{Host: hostname, Expected: prev, Got: fp}
+		return &store.HostKeyMismatchError{Host: hostname, Expected: prev, Got: fp, KeyType: keyType, Token: "tok"}
 	}
 	return nil
 }
@@ -201,7 +201,7 @@ func TestProbeOutcomes(t *testing.T) {
 	t.Run("unknown host is reported, not trusted", func(t *testing.T) {
 		k := trusted()
 		res := session.Probe(ctx, hostFor(target, "t"), k.check)
-		if res.Kind != session.ProbeUnknown || res.Fingerprint != target.Fingerprint() || res.KeyType != "ssh-ed25519" || res.Hostname != target.Addr {
+		if res.Kind != session.ProbeUnknown || res.Fingerprint != target.Fingerprint() || res.KeyType != "ssh-ed25519" || res.Hostname != target.Addr || res.TrustToken != "tok" {
 			t.Fatalf("res = %+v", res)
 		}
 		if len(k.known) != 0 {

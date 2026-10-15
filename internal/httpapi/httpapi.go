@@ -1053,6 +1053,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					errMsg["fingerprint"] = ev.Info.HostKeyFingerprint
 					errMsg["expected"] = ev.Info.HostKeyExpected
 					errMsg["keyType"] = ev.Info.HostKeyType
+					errMsg["trustToken"] = ev.Info.HostKeyToken
 					errMsg["hostId"] = ev.Info.HostID
 					errMsg["sessionId"] = ev.Info.ID
 				}
@@ -1197,6 +1198,7 @@ func sessionPayload(kind, message string, info runtime.Info, you runtime.Client,
 		out["fingerprint"] = info.HostKeyFingerprint
 		out["expected"] = info.HostKeyExpected
 		out["keyType"] = info.HostKeyType
+		out["trustToken"] = info.HostKeyToken
 	}
 	if fromID != 0 {
 		out["fromId"] = fromID

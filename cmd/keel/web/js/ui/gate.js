@@ -315,6 +315,16 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
 
   function onImportClick(ev) {
     if (!preview || !sel) return;
+    const noJump = ev.target.closest("[data-imp-nojump]");
+    if (noJump) {
+      const alias = noJump.getAttribute("data-imp-nojump");
+      if (!sel.noJump) sel.noJump = new Set();
+      const on = !sel.noJump.has(alias);
+      if (on) sel.noJump.add(alias);
+      else sel.noJump.delete(alias);
+      noJump.setAttribute("aria-checked", on ? "true" : "false");
+      return;
+    }
     const hostBox = ev.target.closest("[data-imp-host]");
     if (hostBox) {
       const alias = hostBox.getAttribute("data-imp-host");
@@ -386,13 +396,19 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
       el.imp.querySelector(`[data-imp-pass="${missing}"]`)?.focus();
       return;
     }
+    const noJump = O.missingJump(preview, sel);
+    if (noJump) {
+      toast(`Add ${noJump.alias}'s jump host too, or tick Without the jump to add it as a direct host.`, true);
+      el.imp.querySelector(`[data-imp-nojump="${CSS.escape(noJump.alias)}"]`)?.focus();
+      return;
+    }
     const body = O.importRequest(preview, sel);
     if (!body.hosts.length) return;
     busy = true;
     syncImportButton();
     try {
       const res = await api("/api/ssh-config/import", { method: "POST", body: JSON.stringify(body) });
-      toast(O.importedText(res));
+      toast(O.importedText(res), (res?.failed || []).length > 0);
       afterHosts();
       onImported?.();
     } catch (err) {

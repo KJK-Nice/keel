@@ -23,9 +23,11 @@ var ErrNotFound = errors.New("not found")
 type UnknownHostError struct {
 	Host        string
 	Fingerprint string
-	// KeyType is the presented key's type (ssh-ed25519, …), filled in by
-	// the SSH dialer, which sees the key; the store only sees fingerprints.
+	// KeyType is the presented key's type (ssh-ed25519, …).
 	KeyType string
+	// Token names this offer for TrustOffered (hostkeys.go). Empty when the
+	// check came without a key type (CheckHostKey).
+	Token string
 }
 
 func (e *UnknownHostError) Error() string {
@@ -37,8 +39,10 @@ type HostKeyMismatchError struct {
 	Host     string
 	Expected string
 	Got      string
-	// KeyType is the type of the presented (Got) key, set by the dialer.
+	// KeyType is the type of the presented (Got) key.
 	KeyType string
+	// Token names this offer for TrustOffered (hostkeys.go).
+	Token string
 }
 
 func (e *HostKeyMismatchError) Error() string {
@@ -289,6 +293,7 @@ type Store struct {
 	mu        sync.Mutex
 	data      persistData
 	secrets   map[string]hostSecret
+	offers    map[string]hostKeyOffer
 	locked    bool
 	needSetup bool
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
@@ -921,14 +926,13 @@ func (s *Store) DeleteSnippet(id string) error {
 	return s.saveLocked()
 }
 
+// CheckHostKey checks a fingerprint against the known hosts. It records no
+// trust offer; dialers use CheckHostKeyType.
 func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked {
 		return ErrLocked
-	}
-	if s.data.KnownHosts == nil {
-		s.data.KnownHosts = map[string]string{}
 	}
 	if prev, ok := s.data.KnownHosts[hostname]; ok {
 		if prev != fingerprint {
@@ -937,6 +941,26 @@ func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 		return nil
 	}
 	return &UnknownHostError{Host: hostname, Fingerprint: fingerprint}
+}
+
+// CheckHostKeyType is the SSH dialers' host key check. An unknown or
+// changed key is refused, and the refusal records a short-lived offer
+// (its Token) that is the only way to trust that exact key over the API.
+func (s *Store) CheckHostKeyType(hostname, keyType, fingerprint string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked {
+		return ErrLocked
+	}
+	prev, known := s.data.KnownHosts[hostname]
+	if known && prev == fingerprint {
+		return nil
+	}
+	tok := s.offerLocked(hostKeyOffer{hostname: hostname, fingerprint: fingerprint, keyType: keyType, expected: prev, mismatch: known})
+	if known {
+		return &HostKeyMismatchError{Host: hostname, Expected: prev, Got: fingerprint, KeyType: keyType, Token: tok}
+	}
+	return &UnknownHostError{Host: hostname, Fingerprint: fingerprint, KeyType: keyType, Token: tok}
 }
 
 func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {

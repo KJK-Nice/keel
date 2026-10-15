@@ -10,6 +10,7 @@ import {
   importedText,
   keysHTML,
   leadText,
+  missingJump,
   missingPassphrase,
   notesList,
   summaryText,
@@ -121,4 +122,28 @@ test("a ProxyJump Keel can keep shows its jump host instead of the flag", () => 
   assert.match(html, /Via gate</);
   assert.match(html, /Via bastion if added</);
   assert.doesNotMatch(html, /not used/);
+});
+
+test("a ProxyJump host whose jump is not kept needs Without the jump", () => {
+  const sel = defaultSelection(preview);
+  sel.hosts.add("jumpy");
+  assert.equal(missingJump(preview, sel)?.alias, "jumpy");
+  assert.equal(importRequest(preview, sel).withoutJump, undefined);
+  sel.noJump.add("jumpy");
+  assert.equal(missingJump(preview, sel), null);
+  assert.deepEqual(importRequest(preview, sel).withoutJump, ["jumpy"]);
+  const html = importHTML(preview, sel);
+  assert.match(html, /role="checkbox" aria-checked="true" aria-label="Add jumpy without the jump"/);
+
+  // Its config jump host being added keeps the jump; nothing to waive.
+  const p = { ...preview, hosts: [...preview.hosts, { alias: "db3", hostName: "10.0.0.7", user: "d", port: 22, proxy: "ProxyJump", proxyJump: "web", jumpAlias: "web", jumpVia: "deploy@web.example.net:22", source: "x" }] };
+  const s2 = defaultSelection(p);
+  s2.hosts.add("db3");
+  assert.equal(missingJump(p, s2), null);
+  s2.hosts.delete("web");
+  assert.equal(missingJump(p, s2)?.alias, "db3");
+});
+
+test("importedText names hosts that were not added", () => {
+  assert.equal(importedText({ hosts: [{}], failed: [{ alias: "db", error: "its jump host bastion was not added" }] }), "Added 1 host. Not added: db (its jump host bastion was not added)");
 });

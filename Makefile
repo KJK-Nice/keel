@@ -46,6 +46,7 @@ app: ui
 build: ui
 	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-signal ./cmd/keel-signal
+	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 ifeq ($(UNAME_S),Darwin)
 	$(MAKE) macos-app
 endif

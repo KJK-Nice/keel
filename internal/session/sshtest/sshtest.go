@@ -46,11 +46,23 @@ type Options struct {
 	Password string
 	// NoForward refuses direct-tcpip channels.
 	NoForward bool
+	// Port is the loopback port; 0 picks a free one.
+	Port int
 }
 
 // New starts a server and stops it when the test ends.
 func New(t testing.TB, opts Options) *Server {
 	t.Helper()
+	s, err := Start(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	return s
+}
+
+// Start starts a server on 127.0.0.1; Close stops it.
+func Start(opts Options) (*Server, error) {
 	if opts.User == "" {
 		opts.User = "u"
 	}
@@ -59,11 +71,11 @@ func New(t testing.TB, opts Options) *Server {
 	}
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	signer, err := ssh.NewSignerFromKey(priv)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	s := &Server{User: opts.User, Password: opts.Password, Key: signer.PublicKey()}
 	s.cfg = &ssh.ServerConfig{
@@ -76,9 +88,9 @@ func New(t testing.TB, opts Options) *Server {
 		},
 	}
 	s.cfg.AddHostKey(signer)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(opts.Port)))
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	s.ln = ln
 	s.Addr = ln.Addr().String()
@@ -87,8 +99,7 @@ func New(t testing.TB, opts Options) *Server {
 	s.Port, _ = strconv.Atoi(port)
 	s.wg.Add(1)
 	go s.accept(!opts.NoForward)
-	t.Cleanup(s.Close)
-	return s
+	return s, nil
 }
 
 // Fingerprint is the server key's SHA256 fingerprint.

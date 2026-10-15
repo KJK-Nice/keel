@@ -34,7 +34,7 @@ export function defaultSelection(preview) {
   }
   const keys = new Map();
   for (const k of preview?.keys || []) keys.set(k.path, { on: false, passphrase: "" });
-  return { hosts, keys };
+  return { hosts, keys, noJump: new Set() };
 }
 
 export function hostAddress(h) {
@@ -68,18 +68,33 @@ export function summaryText(preview, sel) {
   return `${selectedCount(preview, sel)} of ${total} selected`;
 }
 
-function viaCell(h) {
+// jumpKept: the host's one-hop ProxyJump becomes its Keel jump host with
+// this selection (a saved jump host, or its config jump host being added).
+export function jumpKept(h, sel) {
+  return h.proxy === "ProxyJump" && (!!h.jumpSaved || (!!h.jumpAlias && sel.hosts.has(h.jumpAlias)));
+}
+
+function viaCell(h, sel) {
   if (!h.proxy) return '<span class="k-faint">—</span>';
+  const via = h.jumpVia ? ` (${h.jumpVia})` : "";
   // A one-hop ProxyJump to a host that is saved, or added in this import,
   // becomes the host's jump host.
   if (h.proxy === "ProxyJump" && h.jumpSaved) {
-    return `<span class="k-badge k-badge--tide" title="${escapeHtml(`Connects through ${h.jumpSaved}, already saved`)}">Via ${escapeHtml(h.jumpSaved)}</span>`;
+    return `<span class="k-badge k-badge--tide" title="${escapeHtml(`Connects through saved host ${h.jumpSaved}${via}`)}">Via ${escapeHtml(h.jumpSaved)}</span>`;
   }
+  let flag;
   if (h.proxy === "ProxyJump" && h.jumpAlias) {
-    return `<span class="k-badge k-badge--haze" title="${escapeHtml(`Connects through ${h.jumpAlias} when you add it too; otherwise added without it`)}">Via ${escapeHtml(h.jumpAlias)} if added</span>`;
+    flag = `<span class="k-badge k-badge--haze" title="${escapeHtml(`Connects through ${h.jumpAlias}${via} when you add it too`)}">Via ${escapeHtml(h.jumpAlias)} if added</span>`;
+  } else {
+    const what = h.proxy === "ProxyJump" && h.proxyJump ? `ProxyJump ${h.proxyJump}` : h.proxy;
+    const why = h.jumpProblem ? `Keel cannot keep it: ${h.jumpProblem}` : "Keel does not support it";
+    flag = `<span class="k-badge k-badge--signal" title="${escapeHtml(`${what}: ${why}`)}">${icon("alert", 1.8)}${escapeHtml(what)}, not used</span>`;
   }
-  const what = h.proxy === "ProxyJump" && h.proxyJump ? `ProxyJump ${h.proxyJump}` : h.proxy;
-  return `<span class="k-badge k-badge--signal" title="${escapeHtml(what)} is not supported here; the host is added without it">${icon("alert", 1.8)}${escapeHtml(what)}, not used</span>`;
+  if (h.proxy !== "ProxyJump") return flag;
+  // Adding a ProxyJump host without its jump host connects to it directly:
+  // only when the user ticks that.
+  const direct = sel?.noJump?.has(h.alias);
+  return `${flag} ${checkbox(!!direct, `Add ${h.alias} without the jump`, `data-imp-nojump="${escapeHtml(h.alias)}"`)}<span class="k-help" aria-hidden="true">Without the jump</span>`;
 }
 
 function keyCell(h) {
@@ -122,7 +137,7 @@ export function hostTableHTML(preview, sel) {
 <td class="k-mono k-muted">${escapeHtml(hostAddress(h))}</td>
 <td class="k-mono k-muted">${escapeHtml(h.user || "")}</td>
 <td>${keyCell(h)}</td>
-<td>${viaCell(h)}</td>
+<td>${viaCell(h, sel)}</td>
 </tr>`;
     })
     .join("");
@@ -213,7 +228,16 @@ export function importRequest(preview, sel) {
     if (!st?.on || !copyable(k)) continue;
     keys.push(k.encrypted ? { path: k.path, passphrase: st.passphrase || "" } : { path: k.path });
   }
-  return { hosts, keys };
+  const withoutJump = (preview?.hosts || [])
+    .filter((h) => sel.hosts.has(h.alias) && h.proxy === "ProxyJump" && sel.noJump?.has(h.alias) && !jumpKept(h, sel))
+    .map((h) => h.alias);
+  return withoutJump.length ? { hosts, keys, withoutJump } : { hosts, keys };
+}
+
+// missingJump is the first chosen ProxyJump host whose jump host is
+// neither kept nor waived with Without the jump, or null.
+export function missingJump(preview, sel) {
+  return (preview?.hosts || []).find((h) => sel.hosts.has(h.alias) && h.proxy === "ProxyJump" && !jumpKept(h, sel) && !sel.noJump?.has(h.alias)) || null;
 }
 
 // missingPassphrase is the index of the first key turned on whose
@@ -229,6 +253,8 @@ export function importedText(res) {
   const h = (res?.hosts || []).length;
   const k = (res?.identities || []).length;
   const hosts = h === 1 ? "1 host" : `${h} hosts`;
-  if (!k) return `Added ${hosts}`;
-  return `Added ${hosts} and ${k === 1 ? "1 key" : `${k} keys`}`;
+  const failed = (res?.failed || []).map((f) => `${f.alias} (${f.error})`);
+  const notAdded = failed.length ? `. Not added: ${failed.join(", ")}` : "";
+  if (!k) return `Added ${hosts}${notAdded}`;
+  return `Added ${hosts} and ${k === 1 ? "1 key" : `${k} keys`}${notAdded}`;
 }

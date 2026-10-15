@@ -245,7 +245,8 @@ func TestSSHConfigImportCopiesOnlyChosenKeysAndLeavesOriginals(t *testing.T) {
 		Identities []store.Identity `json:"identities"`
 	}
 	code = f.post(t, "/api/ssh-config/import", map[string]any{
-		"hosts": []string{"web", "vault-box", "jumpy", "web"},
+		"hosts":       []string{"web", "vault-box", "jumpy", "web"},
+		"withoutJump": []string{"jumpy"},
 		"keys": []map[string]string{
 			{"path": f.plain},
 			{"path": f.locked, "passphrase": "key-pass"},

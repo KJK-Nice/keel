@@ -53,7 +53,7 @@ func (s *Server) testHost(w http.ResponseWriter, r *http.Request) {
 	if host.Name == "" {
 		host.Name = label
 	}
-	res := session.Probe(r.Context(), host, s.store.CheckHostKey)
+	res := session.Probe(r.Context(), host, s.store.CheckHostKeyType)
 	s.note("host", "connection test "+label+": "+res.Kind, h.ID, "", "")
 	writeJSON(w, http.StatusOK, res)
 }

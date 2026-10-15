@@ -69,6 +69,9 @@ type Info struct {
 	HostKeyFingerprint string    `json:"hostKeyFingerprint,omitempty"`
 	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
 	HostKeyType        string    `json:"hostKeyType,omitempty"`
+	// HostKeyToken names the store's trust offer for the refused key.
+	// It is sent only to the session's own clients, not in herd updates.
+	HostKeyToken string `json:"-"`
 }
 
 type Event struct {
@@ -135,7 +138,7 @@ func (r *Runtime) note(kind, msg, hostID, sessionID string) {
 func New(st *store.Store, opener Opener) *Runtime {
 	if opener == nil {
 		opener = func(host store.Host, cols, rows int) (session.Bridge, error) {
-			return session.Open(host, cols, rows, st.CheckHostKey)
+			return session.Open(host, cols, rows, st.CheckHostKeyType)
 		}
 	}
 	return &Runtime{
@@ -762,11 +765,23 @@ func (s *Session) runLoop() {
 		hostID := s.host.ID
 		s.mu.Unlock()
 		if s.rt != nil && s.rt.store != nil {
-			if h, err := s.rt.store.HostForConnect(hostID); err == nil {
+			// Every connect uses the host as saved now. If it cannot be
+			// loaded (deleted, vault locked, its jump host gone), the
+			// connect fails: a stale copy would dial an old address or
+			// jump host with old secrets.
+			h, err := s.rt.store.HostForConnect(hostID)
+			if err != nil {
+				s.setConnectError(err)
+				s.noteLine("Cannot connect: " + err.Error())
+				s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
 				s.mu.Lock()
-				s.host = h
+				s.forceReconnect = false
 				s.mu.Unlock()
+				return
 			}
+			s.mu.Lock()
+			s.host = h
+			s.mu.Unlock()
 		}
 		s.mu.Lock()
 		host := s.host
@@ -823,6 +838,7 @@ func (s *Session) runLoop() {
 		s.info.HostKeyFingerprint = ""
 		s.info.HostKeyExpected = ""
 		s.info.HostKeyType = ""
+		s.info.HostKeyToken = ""
 		s.mu.Unlock()
 		if old != nil {
 			_ = old.Close()
@@ -1029,6 +1045,7 @@ func (s *Session) setConnectError(err error) {
 	s.info.HostKeyFingerprint = ""
 	s.info.HostKeyExpected = ""
 	s.info.HostKeyType = ""
+	s.info.HostKeyToken = ""
 	var unk *store.UnknownHostError
 	var mm *store.HostKeyMismatchError
 	switch {
@@ -1037,12 +1054,14 @@ func (s *Session) setConnectError(err error) {
 		s.info.HostKeyHost = unk.Host
 		s.info.HostKeyFingerprint = unk.Fingerprint
 		s.info.HostKeyType = unk.KeyType
+		s.info.HostKeyToken = unk.Token
 	case errors.As(err, &mm):
 		s.info.ErrorKind = "host-key-mismatch"
 		s.info.HostKeyHost = mm.Host
 		s.info.HostKeyFingerprint = mm.Got
 		s.info.HostKeyExpected = mm.Expected
 		s.info.HostKeyType = mm.KeyType
+		s.info.HostKeyToken = mm.Token
 	}
 	s.mu.Unlock()
 	if s.rt != nil {

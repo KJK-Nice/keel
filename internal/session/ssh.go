@@ -26,7 +26,7 @@ type sshBridge struct {
 	waitErr error
 }
 
-func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprint string) error) (Bridge, error) {
+func openSSH(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
 	client, err := SSHClient(host, checkKey)
 	if err != nil {
 		return nil, err
@@ -87,9 +87,10 @@ func openSSH(host store.Host, cols, rows int, checkKey func(hostname, fingerprin
 	return br, nil
 }
 
-// CheckKey is the host key check: the store's CheckHostKey, called with
-// the dialed "address:port" and the key's SHA256 fingerprint.
-type CheckKey func(hostname, fingerprint string) error
+// CheckKey is the host key check: the store's CheckHostKeyType, called
+// with the dialed "address:port", the key's type and its SHA256
+// fingerprint.
+type CheckKey func(hostname, keyType, fingerprint string) error
 
 // connectTimeout bounds a whole connect (both hops, TCP and handshake).
 const connectTimeout = 30 * time.Second
@@ -99,7 +100,7 @@ const dialTimeout = 12 * time.Second
 
 // SSHClient connects and authenticates to host, through host.Jump when it
 // is set (see DialContext).
-func SSHClient(host store.Host, checkKey func(hostname, fingerprint string) error) (*ssh.Client, error) {
+func SSHClient(host store.Host, checkKey CheckKey) (*ssh.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 	defer cancel()
 	return DialContext(ctx, host, checkKey)
@@ -130,7 +131,7 @@ func (e *HopError) Unwrap() error { return e.Err }
 // own "address:port". Closing the returned client also closes the jump
 // connection. ctx cancels the connect; once it returns, ctx no longer
 // matters.
-func DialContext(ctx context.Context, host store.Host, checkKey func(hostname, fingerprint string) error) (*ssh.Client, error) {
+func DialContext(ctx context.Context, host store.Host, checkKey CheckKey) (*ssh.Client, error) {
 	if host.Jump == nil {
 		return dialHost(ctx, nil, host, checkKey)
 	}
@@ -166,7 +167,7 @@ func hopName(h store.Host) string {
 
 // dialHost connects to host directly, or through via (an open SSH client)
 // when via is set.
-func dialHost(ctx context.Context, via *ssh.Client, host store.Host, checkKey func(hostname, fingerprint string) error) (*ssh.Client, error) {
+func dialHost(ctx context.Context, via *ssh.Client, host store.Host, checkKey CheckKey) (*ssh.Client, error) {
 	auth, err := sshAuth(host)
 	if err != nil {
 		return nil, err
@@ -267,20 +268,10 @@ func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {
 	}
 }
 
-// hostKeyCallback checks the key's fingerprint and adds its type to an
-// unknown or changed key error, so the trust prompt can show and save it.
-func hostKeyCallback(check func(hostname, fingerprint string) error) ssh.HostKeyCallback {
+// hostKeyCallback checks the key's type and fingerprint.
+func hostKeyCallback(check CheckKey) ssh.HostKeyCallback {
 	return func(hostname string, _ net.Addr, key ssh.PublicKey) error {
-		err := check(hostname, ssh.FingerprintSHA256(key))
-		var unk *store.UnknownHostError
-		var mm *store.HostKeyMismatchError
-		switch {
-		case errors.As(err, &unk):
-			unk.KeyType = key.Type()
-		case errors.As(err, &mm):
-			mm.KeyType = key.Type()
-		}
-		return err
+		return check(hostname, key.Type(), ssh.FingerprintSHA256(key))
 	}
 }
 

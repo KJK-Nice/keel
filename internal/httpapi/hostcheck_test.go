@@ -81,8 +81,27 @@ func TestTestConnectionEndpoint(t *testing.T) {
 	}
 
 	// The explicit Trust and save, then ok with latency.
-	if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", map[string]any{"hostname": res.Hostname, "fingerprint": res.Fingerprint, "keyType": res.KeyType}, nil); code != 200 {
+	// Trust needs the probe's offer, for exactly its address and key.
+	for _, bad := range []map[string]any{
+		{"hostname": res.Hostname, "fingerprint": res.Fingerprint},
+		{"token": res.TrustToken, "hostname": "127.0.0.2:22", "fingerprint": res.Fingerprint},
+		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe"},
+		{"token": res.TrustToken, "hostname": "not a host", "fingerprint": res.Fingerprint},
+		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:abc"},
+		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint, "replace": true},
+	} {
+		if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", bad, nil); code == 200 {
+			t.Fatalf("trusted %v", bad)
+		}
+	}
+	if k, _ := st.KnownHost(target.Addr); k.Known {
+		t.Fatal("a bad trust request saved a key")
+	}
+	if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", map[string]any{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint}, nil); code != 200 {
 		t.Fatalf("trust %d", code)
+	}
+	if k, _ := st.KnownHost(target.Addr); k.KeyType != "ssh-ed25519" {
+		t.Fatalf("key = %+v", k)
 	}
 	res = session.ProbeResult{}
 	doJSON(t, "POST", srv.URL+"/api/hosts/test", draftFor(target), &res)
@@ -111,7 +130,7 @@ func TestTestConnectionEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := st.UpsertHost(store.Host{Name: "db", Address: "10.255.255.1", Port: 22, Username: target.User, AuthType: "password", Password: target.Password})
+	saved, err := st.UpsertHost(store.Host{Name: "db", Address: target.Host, Port: target.Port, Username: target.User, AuthType: "password", Password: target.Password, JumpHost: bastion.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,9 +143,30 @@ func TestTestConnectionEndpoint(t *testing.T) {
 	if !res.OK || jump.Forwards() != 1 {
 		t.Fatalf("res = %+v forwards=%d", res, jump.Forwards())
 	}
-	// Nothing was saved by the test.
+
+	// The blocker this guards: edit the saved host's address (or user, or
+	// jump), leave the password blank, press Test. The saved password must
+	// not go to the new address; the dialog says to type it.
+	moved := draftFor(target)
+	moved["id"] = saved.ID
+	moved["password"] = "__saved__"
+	moved["jumpHost"] = ""
+	var e map[string]string
+	if code := doJSON(t, "POST", srv.URL+"/api/hosts/test", moved, &e); code != 400 || !strings.Contains(e["error"], "Jump host changed: type the password") {
+		t.Fatalf("moved: %d %v", code, e)
+	}
+	logins := target.Logins()
+	moved["jumpHost"] = bastion.ID
+	moved["username"] = "someone-else"
+	if code := doJSON(t, "POST", srv.URL+"/api/hosts/test", moved, &e); code != 400 || !strings.Contains(e["error"], "Username changed") {
+		t.Fatalf("moved user: %d %v", code, e)
+	}
+	if target.Logins() != logins || jump.Forwards() != 1 {
+		t.Fatal("a refused draft connected")
+	}
+	// Nothing was saved by the tests.
 	after, _ := st.GetHost(saved.ID)
-	if after.JumpHost != "" || after.Address != "10.255.255.1" {
+	if after.JumpHost != bastion.ID || after.Address != target.Host || after.Password != target.Password {
 		t.Fatalf("test saved the draft: %+v", after)
 	}
 

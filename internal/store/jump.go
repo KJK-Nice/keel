@@ -143,9 +143,15 @@ func (s *Store) attachJumpLocked(host *Host) error {
 }
 
 // ResolveDraft turns unsaved dialog values into a host ready to dial, for
-// Test connection. Secrets left empty (or "__saved__") come from the saved
-// host with draft.ID, when there is one; a Keychain identity and the jump
-// host come from the vault. Nothing is saved.
+// Test connection. Nothing is saved.
+//
+// Vault-held credentials go only to the server they were saved for. A
+// secret left blank (or "__saved__") is filled from the saved host with
+// draft.ID, and a Keychain identity is used, only when the draft still
+// targets that host: same address:port, username, authentication and jump
+// host. Otherwise the secret must be typed, so editing a saved host's
+// address and pressing Test cannot send its password to the new address.
+// The jump host's own secrets always go to the jump's saved address.
 func (s *Store) ResolveDraft(draft Host) (Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -156,24 +162,40 @@ func (s *Store) ResolveDraft(draft Host) (Host, error) {
 	draft.Password = cleanSecret(draft.Password)
 	draft.PrivateKey = cleanSecret(draft.PrivateKey)
 	draft.Passphrase = cleanSecret(draft.Passphrase)
+	if draft.AuthType != "identity" {
+		draft.IdentityID = ""
+	}
+	changed := "This host is not saved"
 	if draft.ID != "" {
-		if _, ok := s.hostLocked(draft.ID); ok {
-			sec := s.secrets[draft.ID]
-			if draft.Password == "" {
-				draft.Password = sec.Password
-			}
-			if draft.PrivateKey == "" {
-				draft.PrivateKey = sec.PrivateKey
-			}
-			if draft.Passphrase == "" {
-				draft.Passphrase = sec.Passphrase
+		if saved, ok := s.hostLocked(draft.ID); ok {
+			changed = draftChange(draft, saved)
+			if changed == "" {
+				sec := s.secrets[draft.ID]
+				if draft.Password == "" && draft.PrivateKey == "" {
+					draft.Password = sec.Password
+					draft.PrivateKey = sec.PrivateKey
+				}
+				if draft.Passphrase == "" && draft.PrivateKey == sec.PrivateKey {
+					draft.Passphrase = sec.Passphrase
+				}
 			}
 		} else {
 			draft.ID = ""
 		}
 	}
-	if draft.AuthType != "identity" {
-		draft.IdentityID = ""
+	if changed != "" {
+		switch draft.AuthType {
+		case "identity":
+			return Host{}, fieldErr("%s: save it first to test with a Keychain identity, or type a password or key", changed)
+		case "key":
+			if draft.PrivateKey == "" {
+				return Host{}, fieldErr("%s: paste the private key to test it", changed)
+			}
+		default:
+			if draft.Password == "" {
+				return Host{}, fieldErr("%s: type the password to test it", changed)
+			}
+		}
 	}
 	if err := s.checkJumpLocked(draft); err != nil {
 		return Host{}, err
@@ -186,4 +208,33 @@ func (s *Store) ResolveDraft(draft Host) (Host, error) {
 		return Host{}, err
 	}
 	return host, nil
+}
+
+// draftChange names the first connection field the draft changed from the
+// saved host ("Address changed"), or "" when it targets the same server
+// the same way.
+func draftChange(d Host, saved persistHost) string {
+	sp := saved.Port
+	if sp == 0 {
+		sp = 22
+	}
+	dp := d.Port
+	if dp == 0 {
+		dp = 22
+	}
+	switch {
+	case !strings.EqualFold(strings.TrimSpace(d.Address), strings.TrimSpace(saved.Address)):
+		return "Address changed"
+	case dp != sp:
+		return "Port changed"
+	case strings.TrimSpace(d.Username) != strings.TrimSpace(saved.Username):
+		return "Username changed"
+	case d.AuthType != saved.AuthType:
+		return "Authentication changed"
+	case strings.TrimSpace(d.JumpHost) != saved.JumpHost:
+		return "Jump host changed"
+	case d.AuthType == "identity" && d.IdentityID != saved.IdentityID:
+		return "Identity changed"
+	}
+	return ""
 }

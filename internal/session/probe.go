@@ -41,13 +41,16 @@ type ProbeResult struct {
 	Fingerprint string `json:"fingerprint,omitempty"`
 	KeyType     string `json:"keyType,omitempty"`
 	Expected    string `json:"expected,omitempty"`
+	// TrustToken names the store's offer for this key: Trust and save
+	// sends it back (store.TrustOffered).
+	TrustToken string `json:"trustToken,omitempty"`
 }
 
 // Probe connects and authenticates to host (through its jump host, if
 // any), then closes the connection. It opens no session or PTY and runs
 // no command. An unknown host key is reported, never trusted: checkKey
 // only reads the store.
-func Probe(ctx context.Context, host store.Host, checkKey func(hostname, fingerprint string) error) ProbeResult {
+func Probe(ctx context.Context, host store.Host, checkKey CheckKey) ProbeResult {
 	ctx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
 	start := time.Now()
@@ -76,10 +79,10 @@ func ClassifyProbe(ctx context.Context, err error) ProbeResult {
 	switch {
 	case errors.As(err, &unk):
 		out.Kind = ProbeUnknown
-		out.Hostname, out.Fingerprint, out.KeyType = unk.Host, unk.Fingerprint, unk.KeyType
+		out.Hostname, out.Fingerprint, out.KeyType, out.TrustToken = unk.Host, unk.Fingerprint, unk.KeyType, unk.Token
 	case errors.As(err, &mm):
 		out.Kind = ProbeMismatch
-		out.Hostname, out.Fingerprint, out.KeyType, out.Expected = mm.Host, mm.Got, mm.KeyType, mm.Expected
+		out.Hostname, out.Fingerprint, out.KeyType, out.Expected, out.TrustToken = mm.Host, mm.Got, mm.KeyType, mm.Expected, mm.Token
 	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
 		out.Kind = ProbeCancelled
 	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):
