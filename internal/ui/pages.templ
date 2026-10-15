@@ -200,6 +200,7 @@ templ LogsPage(p PageProps) {
 				<button type="button" class="k-chip" data-log-filter="sessions" aria-pressed="false">Sessions</button>
 				<button type="button" class="k-chip" data-log-filter="forwards" aria-pressed="false">Forwards</button>
 				<button type="button" class="k-chip" data-log-filter="vault" aria-pressed="false">Vault</button>
+				<button type="button" class="k-chip" data-log-filter="agent" aria-pressed="false">Agent</button>
 			</div>
 		</div>
 		<table class="k-table k-table--log">
@@ -237,6 +238,7 @@ templ SettingsPage() {
 			<div class="settings-nav-list" role="tablist" aria-orientation="vertical">
 				@settingsNav("appearance", "Appearance", true)
 				@settingsNav("terminal", "Terminal", false)
+				@settingsNav("agent", "Agent", false)
 			</div>
 		</nav>
 		<div class="k-settings-main">
@@ -328,9 +330,159 @@ templ SettingsPage() {
 						</div>
 					}
 				</div>
+				@agentSettingsPanel()
 			</form>
 		</div>
 	</section>
+}
+
+// agentSettingsPanel is Settings · Agent (§5.9). The provider cards and the
+// current values are filled by js/ui/agentsettings.js from GET
+// /api/agent/settings; every change is saved as it is made. No control here
+// holds a key: a key goes to PUT /api/agent/keys/{provider} and is emptied
+// from the field once saved.
+templ agentSettingsPanel() {
+	<div class="settings-panel" id="agent-settings" data-settings-panel="agent" role="tabpanel" hidden>
+		<h1 class="k-page-title">Agent</h1>
+		<p class="k-muted k-settings-lead">The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.</p>
+		@settingsGroup("Provider") {
+			<div class="pref-row pref-row-preview">
+				<div class="k-agent-cards" id="agent-set-providers" aria-live="polite"></div>
+			</div>
+			<div class="pref-row" id="agent-set-model-row">
+				<div class="pref-copy">
+					<div class="pref-title">Model</div>
+					<p class="pref-desc">Used by the agent panel. Suggestions in panes use the provider's small, fast model.</p>
+				</div>
+				@settingsSelect("agent-set-model", "agentModel", "Model", "Model", agentDefaultModel(), agentModels(), agentModels())
+			</div>
+		}
+		@settingsGroup("Suggestions in panes") {
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Suggest a command when I type plain language</div>
+					<p class="pref-desc">Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.</p>
+				</div>
+				@agentSwitch("agent-set-suggest", "Suggest commands")
+			</div>
+			<div class="pref-row pref-row-stack">
+				<div class="pref-copy">
+					<div class="pref-title" id="agent-set-detection-label">How to notice plain language</div>
+				</div>
+				<div class="k-radios" id="agent-set-detection" role="radiogroup" aria-labelledby="agent-set-detection-label">
+					@agentRadio("data-agent-detection", "auto", "Notice automatically", "Needs a Jev key")
+					@agentRadio("data-agent-detection", "hash-only", "Only lines starting with #", "")
+				</div>
+				<p class="k-help k-agent-note" id="agent-set-detection-note" hidden></p>
+			</div>
+		}
+		@settingsGroup("Agent panel") {
+			<div class="pref-row pref-row-stack">
+				<div class="pref-copy">
+					<div class="pref-title" id="agent-set-scope-label">Default panes per conversation</div>
+					<p class="pref-desc">Which panes the agent may read when you start a conversation.</p>
+				</div>
+				<div class="k-radios" id="agent-set-scope" role="radiogroup" aria-labelledby="agent-set-scope-label">
+					@agentRadio("data-agent-scope", "focused", "Focused pane only", "")
+					@agentRadio("data-agent-scope", "pick", "Panes I pick each time", "")
+					@agentRadio("data-agent-scope", "tab", "Every pane in the tab", "")
+				</div>
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Scrollback lines per pane</div>
+					<p class="pref-desc">50–1000. How much of each pane the agent reads. Default 200.</p>
+				</div>
+				<div class="pref-slider">
+					@slider.Slider(slider.Props{
+						ID:           "agent-set-lines",
+						Min:          50,
+						Max:          1000,
+						Step:         10,
+						DefaultValue: []float64{200},
+						Class:        "w-36",
+					})
+					<output id="agent-set-lines-out" aria-label="Scrollback lines">200</output>
+				</div>
+			</div>
+		}
+		@settingsGroup("Safety") {
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">The agent never types into a pane</div>
+					<p class="pref-desc">Only you do, with Type, ⇥ or ⇧⇥. Nothing runs until you press ↵.</p>
+				</div>
+				@alwaysOn()
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Secrets are always redacted</div>
+					<p class="pref-desc">Values that look like tokens, keys and passwords are replaced before anything is sent. The vault is never sent.</p>
+				</div>
+				@alwaysOn()
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Risky commands need ⇧⇥</div>
+					<p class="pref-desc">Plain ⇥ never inserts a destructive command. On production hosts a command that changes state needs ⇧⇥ too. Read-only commands insert with ⇥ everywhere.</p>
+				</div>
+				@alwaysOn()
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Redact IP addresses</div>
+					<p class="pref-desc">Replace IPv4 and IPv6 addresses before sending.</p>
+				</div>
+				@agentSwitch("agent-set-ips", "Redact IP addresses")
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Redact hostnames</div>
+					<p class="pref-desc">Replace host names and domains before sending.</p>
+				</div>
+				@agentSwitch("agent-set-hostnames", "Redact hostnames")
+			</div>
+		}
+		@settingsGroup("History") {
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Keep conversations</div>
+					<p class="pref-desc">Conversations live in memory in keel serve and are never written to disk.</p>
+				</div>
+				@settingsSelect("agent-set-history", "agentHistory", "Keep conversations", "Keep", "30", []string{"0", "7", "30", "90", "365"}, []string{"Only while open", "7 days", "30 days", "90 days", "1 year"})
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Delete all history</div>
+					<p class="pref-desc">Forget every conversation now. The Agent log keeps what was read.</p>
+				</div>
+				<button type="button" class="k-btn k-btn--danger k-btn--sm" id="agent-set-delete-history">Delete all history</button>
+			</div>
+		}
+	</div>
+}
+
+templ agentSwitch(id, label string) {
+	<button type="button" class="k-switch" role="switch" id={ id } aria-checked="false" aria-label={ label }></button>
+}
+
+// agentRadio is one choice of a radio group: a button with role radio, so a
+// screen reader reads the group and the arrow keys move through it.
+templ agentRadio(attr, value, label, badge string) {
+	<button type="button" class="k-choice k-choice--btn" role="radio" aria-checked="false" { attr }={ value }>
+		<span class="k-radio" aria-hidden="true"></span>
+		<span>{ label }</span>
+		if badge != "" {
+			<span class="k-badge k-badge--outline">{ badge }</span>
+		}
+	</button>
+}
+
+templ alwaysOn() {
+	<span class="k-badge k-badge--outline">
+		@gateIcon("lock")
+		Always on
+	</span>
 }
 
 templ settingsNav(id, label string, active bool) {

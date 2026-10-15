@@ -127,3 +127,19 @@ test("logs filter on kind and message, and group kinds for the chips", () => {
   assert.equal(V.logGroup("agent"), "agent");
   assert.equal(V.logGroup("agentx"), "other");
 });
+
+test("logs: agent entries show counts, source and timings as facts", () => {
+  assert.deepEqual(V.logFacts({ kind: "session", message: "x" }), []);
+  assert.deepEqual(
+    V.logFacts({ kind: "agent.suggest", lines: 1, bytes: 114, source: "generated", modelMs: 412, jevMs: 230, redactions: { secret: 2, ip: 1 } }),
+    ["1 line", "114 bytes", "3 redacted", "via generated", "model 412 ms", "Jev 230 ms"],
+  );
+  assert.deepEqual(V.logFacts({ kind: "agent.read", lines: 4, count: 4, source: "jev" }), ["4 sent", "via jev"]);
+  const html = V.logsHTML(
+    [{ time: "2026-10-15T09:14:05Z", kind: "agent.suggest", message: "m", source: "<img src=x>", modelMs: 5 }],
+    "",
+    {},
+  );
+  noRawTag(html);
+  assert.ok(html.includes('data-log-kind="agent"') && html.includes("model 5 ms"));
+});

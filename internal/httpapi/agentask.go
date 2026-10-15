@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -100,6 +101,25 @@ func (s *Server) agentReset(w http.ResponseWriter, r *http.Request) {
 		s.agent.Reset(r.PathValue("id"))
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// agentResetAll is Settings, Delete all history: it drops every
+// conversation the agent service keeps in memory and writes one log entry
+// with the count. Nothing else is stored, and what was said is never logged.
+func (s *Server) agentResetAll(w http.ResponseWriter, _ *http.Request) {
+	n := 0
+	if s.agent != nil {
+		n = s.agent.ResetAll()
+	}
+	s.note("agent", fmt.Sprintf("agent history deleted (%d %s)", n, plural(n, "conversation", "conversations")), "", "", "")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 func writeAgentErr(w http.ResponseWriter, err error) {

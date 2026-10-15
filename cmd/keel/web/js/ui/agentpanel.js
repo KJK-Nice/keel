@@ -691,6 +691,19 @@ export function createAgentPanel(deps) {
     isOpen: () => state.open,
     setOpen,
     toggle,
+    // prefill opens the panel with text in the composer. It does not send:
+    // the user presses ↵ (the palette's ⌘↵ row, §5.2).
+    prefill(text) {
+      setOpen(true, { focus: false });
+      if (el.input) {
+        el.input.value = String(text || "");
+        requestAnimationFrame(() => {
+          el.input.focus({ preventScroll: true });
+          const end = el.input.value.length;
+          el.input.setSelectionRange(end, end);
+        });
+      }
+    },
     refresh,
     focused: () => root.contains(doc.activeElement),
     ask,

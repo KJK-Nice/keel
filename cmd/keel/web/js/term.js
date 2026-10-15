@@ -45,6 +45,7 @@ import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
+import { createAgentSettings } from "./ui/agentsettings.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
 (() => {
@@ -129,6 +130,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   };
   // The agent panel (ui/agentpanel.js), created once the chrome exists.
   let agentPanel = null;
+  let agentSettings = null;
 
   function loadPrefs() {
     const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClickPaste: true };
@@ -786,18 +788,27 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function askConfirm(message) {
+  // askConfirm asks in the alertdialog. opts.title and opts.action replace
+  // the heading and the button's label ("Confirm", "Remove") for this ask.
+  function askConfirm(message, opts = {}) {
     const trigger = document.getElementById("confirm-dialog-trigger");
     const ok = document.getElementById("confirm-dialog-ok");
     const desc = document.getElementById("confirm-dialog-desc");
+    const title = document.getElementById("confirm-dialog-title");
     if (!trigger || !ok) return Promise.resolve(window.confirm(message));
     return new Promise((resolve) => {
       if (desc) desc.textContent = message;
+      const okLabel = ok.textContent;
+      const titleLabel = title?.textContent;
+      if (opts.action) ok.textContent = opts.action;
+      if (opts.title && title) title.textContent = opts.title;
       let settled = false;
       const popup = document.getElementById("confirm-dialog");
       const finish = (value) => {
         if (settled) return;
         settled = true;
+        if (opts.action) ok.textContent = okLabel;
+        if (opts.title && title) title.textContent = titleLabel;
         ok.removeEventListener("click", onOk);
         popup?.removeEventListener("dialog-close", onClose);
         resolve(value);
@@ -2090,6 +2101,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       panel.classList.toggle("is-active", on);
       panel.hidden = !on;
     });
+    if (id === "agent") agentSettings?.load();
   }
 
   function filterSettings(query) {
@@ -3201,7 +3213,14 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     list: els.cmdPaletteList,
     catalog: () => paletteCatalog(),
     run: (item, opts) => runPaletteItem(item, opts),
+    // ⌘↵ / the last row (§5.2, §8): open the agent panel with the query as
+    // the message. It is never sent from here; the user presses ↵ in the panel.
+    ask: { keys: `${MOD}↵`, run: (query) => askAgentFromPalette(query) },
   });
+  {
+    const askKbd = document.getElementById("cmd-palette-ask-kbd");
+    if (askKbd) askKbd.textContent = `${MOD}↵`;
+  }
 
   function isCommandPaletteOpen() {
     return !!(els.cmdPalette && els.cmdPalette.open);
@@ -5068,6 +5087,16 @@ Write a runbook here.
     );
   }
 
+  const setSwitch = (id, on) => document.getElementById(id)?.setAttribute("aria-checked", on ? "true" : "false");
+  const switchOn = (id) => document.getElementById(id)?.getAttribute("aria-checked") === "true";
+
+  // isProductionGroup: the group's own name is production, any case (the
+  // direct parent only; docs/ui-redesign.md §11.4 and internal/store/production.go).
+  function isProductionGroup(groupId) {
+    const g = groupId ? groupById(groupId) : null;
+    return !!g && String(g.name || "").trim().toLowerCase() === "production";
+  }
+
   function fillHostForm(host) {
     const form = els.hostForm;
     if (!form) return;
@@ -5095,6 +5124,11 @@ Write a runbook here.
     if (form.keepAlive) setInputChecked(form.keepAlive, keepOn);
     if (form.keepAliveSec) form.keepAliveSec.value = host?.keepAliveSec > 0 ? String(host.keepAliveSec) : "30";
     if (form.autoReconnect) setInputChecked(form.autoReconnect, !host?.noAutoReconnect);
+    // Agent (§5.8). A new host starts readable; production is on when the
+    // host is already in a group named production, as the server's rule
+    // would do (§11.4), and is always sent, so an untouched dialog keeps it.
+    setSwitch("host-agent-readable", !host || host.agentReadable !== false);
+    setSwitch("host-production", host?.id ? host.production === true : host?.production === true || isProductionGroup(host?.groupId));
     const title = document.getElementById("host-modal-title");
     if (title) title.textContent = host?.id ? "Edit host" : "New host";
     toggleAuthFields();
@@ -5162,6 +5196,8 @@ Write a runbook here.
       color: form.color.value,
       keepAliveSec: form.authType.value === "local" ? 0 : form.keepAlive?.checked ? Number(form.keepAliveSec.value || 30) : -1,
       noAutoReconnect: form.authType.value !== "local" && !form.autoReconnect?.checked,
+      agentReadable: switchOn("host-agent-readable"),
+      production: switchOn("host-production"),
     };
     if (form.id.value) {
       await api(`/api/hosts/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
@@ -6004,6 +6040,22 @@ Write a runbook here.
       return;
     }
     agentPanel.toggle();
+  }
+
+  agentSettings = createAgentSettings({
+    api,
+    toast,
+    confirm: askConfirm,
+    widgets: { setSelectValue, setSliderValue, fillSelectItems },
+  });
+
+  function askAgentFromPalette(query) {
+    if (!agentPanel) return;
+    if (state.tabs.get(state.activeId)?.remote) {
+      toast("The agent is off in joined sessions");
+      return;
+    }
+    agentPanel.prefill(query);
   }
 
   agentPanel = createAgentPanel({
@@ -7072,6 +7124,15 @@ Write a runbook here.
       ev.stopPropagation();
     });
     on(document.getElementById("pty-inject-cancel"), "click", () => settlePtyInject(false));
+    on(els.hostForm, "click", (ev) => {
+      const sw = ev.target.closest("button.k-switch");
+      if (sw) setSwitch(sw.id, sw.getAttribute("aria-checked") !== "true");
+    });
+    // Choosing a group named production turns Treat as production on (the
+    // user can turn it off); leaving one never turns it off.
+    on(document.getElementById("host-parent-group"), "select-change", (ev) => {
+      if (isProductionGroup(ev.detail?.value)) setSwitch("host-production", true);
+    });
     on(els.hostForm?.authType, "change", toggleAuthFields);
     on(els.hostForm?.keepAlive, "change", toggleKeepAliveFields);
     on(els.identityForm?.kind, "change", toggleIdentFields);

@@ -55,6 +55,7 @@ templ commandPalette() {
 				<span><span class="k-kbd">↑</span><span class="k-kbd">↓</span>move</span>
 				<span><span class="k-kbd">↵</span>open</span>
 				<span><span class="k-kbd">⌥↵</span>open in split</span>
+				<span class="k-palette-foot-end"><span class="k-kbd" id="cmd-palette-ask-kbd">⌘↵</span>ask agent</span>
 			</p>
 		</form>
 	</dialog>
@@ -177,6 +178,23 @@ templ hostDialog() {
 					Auto reconnect
 				}
 			}
+			<fieldset class="k-host-agent">
+				<legend class="k-menu-label">Agent</legend>
+				<div class="k-field k-field--row">
+					<div class="k-field-copy">
+						<span id="host-agent-readable-label">Agent can read this host's panes</span>
+						<span class="k-help">You still choose panes per conversation.</span>
+					</div>
+					<button type="button" class="k-switch" role="switch" id="host-agent-readable" aria-checked="true" aria-labelledby="host-agent-readable-label"></button>
+				</div>
+				<div class="k-field k-field--row">
+					<div class="k-field-copy">
+						<span id="host-production-label">Treat as production</span>
+						<span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span>
+					</div>
+					<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label"></button>
+				</div>
+			</fieldset>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "host-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel

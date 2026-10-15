@@ -9,6 +9,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"keel/internal/agent/provider"
 	"keel/internal/applog"
 	"keel/internal/store"
 	"keel/internal/tunnel"
@@ -535,7 +536,7 @@ func logGroup(kind string) string {
 	k := strings.ToLower(kind)
 	if k == "agent" || strings.HasPrefix(k, "agent.") {
 		// agent.read, agent.suggest, agent.insert, agent.type and agent
-		// settings changes. The Agent filter chip comes in phase 6d.
+		// settings changes (the Agent chip on the Logs page).
 		return "agent"
 	}
 	switch k {
@@ -548,6 +549,83 @@ func logGroup(kind string) string {
 	default:
 		return "other"
 	}
+}
+
+// agentModels are the models Settings · Agent offers for the first model
+// provider (the descriptor's list); agentDefaultModel is the one selected
+// before the page loads the saved choice.
+func agentModels() []string {
+	for _, d := range provider.Descriptors() {
+		if d.Kind == provider.KindModel && len(d.Models) > 0 {
+			return d.Models
+		}
+	}
+	return []string{store.DefaultAgentModel}
+}
+
+func agentDefaultModel() string { return store.DefaultAgentModel }
+
+// logFacts lists the counts an agent entry carries (lines, bytes, how many
+// prompt lines one entry stands for, redactions, where a suggestion came
+// from, and how long the model and Jev took), as short labels in this
+// order. The message already says it in words; these make it scannable.
+// js/lib/vaultview.js logFacts is the same list for rows built in the
+// browser. Entries from other kinds carry none of these fields.
+func logFacts(e applog.Entry) []string {
+	var out []string
+	if e.Count > 1 {
+		out = append(out, fmt.Sprintf("%d sent", e.Count))
+	} else if e.Lines > 0 {
+		out = append(out, fmt.Sprintf("%d %s", e.Lines, pluralWord(e.Lines, "line", "lines")))
+	}
+	if e.Bytes > 0 {
+		out = append(out, fmt.Sprintf("%d %s", e.Bytes, pluralWord(e.Bytes, "byte", "bytes")))
+	}
+	if n := redactionTotal(e.Redactions); n > 0 {
+		out = append(out, fmt.Sprintf("%d redacted", n))
+	}
+	if e.Source != "" {
+		out = append(out, "via "+e.Source)
+	}
+	if e.ModelMs > 0 {
+		out = append(out, fmt.Sprintf("model %d ms", e.ModelMs))
+	}
+	if e.JevMs > 0 {
+		out = append(out, fmt.Sprintf("Jev %d ms", e.JevMs))
+	}
+	return out
+}
+
+// logFactsTitle spells out the redactions by kind for a tooltip.
+func logFactsTitle(e applog.Entry) string {
+	if redactionTotal(e.Redactions) == 0 {
+		return ""
+	}
+	kinds := make([]string, 0, len(e.Redactions))
+	for k := range e.Redactions {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	parts := make([]string, 0, len(kinds))
+	for _, k := range kinds {
+		parts = append(parts, fmt.Sprintf("%s %d", k, e.Redactions[k]))
+	}
+	return "Redacted: " + strings.Join(parts, ", ")
+}
+
+func redactionTotal(m map[string]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
+}
+
+func pluralWord(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // logBadgeClass marks failures with flare; every other kind stays neutral.

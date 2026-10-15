@@ -187,3 +187,21 @@ func TestUngroupedHostsKeepOrphans(t *testing.T) {
 		t.Fatalf("a host whose group is gone sits at the root: %+v", got)
 	}
 }
+
+func TestLogFacts(t *testing.T) {
+	if got := logFacts(applog.Entry{Kind: "session"}); len(got) != 0 {
+		t.Fatalf("plain entry has facts %v", got)
+	}
+	e := applog.Entry{Kind: "agent.suggest", Lines: 1, Bytes: 114, Source: "generated", ModelMs: 412, JevMs: 230, Redactions: map[string]int{"secret": 2, "ip": 1}}
+	want := []string{"1 line", "114 bytes", "3 redacted", "via generated", "model 412 ms", "Jev 230 ms"}
+	got := logFacts(e)
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("facts = %v, want %v", got, want)
+	}
+	if logFactsTitle(e) != "Redacted: ip 1, secret 2" {
+		t.Fatalf("title = %q", logFactsTitle(e))
+	}
+	if got := logFacts(applog.Entry{Kind: "agent.read", Lines: 4, Count: 4, Source: "jev"}); strings.Join(got, "|") != "4 sent|via jev" {
+		t.Fatalf("summarised read facts = %v", got)
+	}
+}
