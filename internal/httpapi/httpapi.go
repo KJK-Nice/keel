@@ -1022,12 +1022,16 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					// client drives, and logs agent.insert, before the
 					// ticket writes them (§6.1, §6.5, §6.6, §6.7). The
 					// bytes end without a newline: inserted, not run.
+					// agent.insert is logged only once the write happened.
 					id := ctl.Suggestion.SuggestionID
-					if aerr := s.authorizeAgentInsert(sess, cl.ID, ctl.Suggestion, ctl.Command); aerr != nil {
+					grant, aerr := s.authorizeAgentInsert(sess, cl.ID, ctl.Suggestion, ctl.Command)
+					if aerr != nil {
 						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": aerr.Error()})
 						break
 					}
-					if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
+					ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
+					s.agent.InsertDone(grant, ierr)
+					if ierr != nil {
 						s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
 						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": "the insert expired; press ⇥ again"})
 						break

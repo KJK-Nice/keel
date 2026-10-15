@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"keel/internal/agent"
 	"keel/internal/agent/service"
@@ -55,6 +56,15 @@ func clientRole(sess *runtime.Session, clientID uint64) agent.Role {
 	return agent.RoleFollower
 }
 
+// Per-socket rate limits. The client asks at most once per typing pause
+// (350 ms) and once per ⇥, so anything faster is a misbehaving or hostile
+// page: a detect inside the interval is dropped without an answer, a
+// suggest is refused with "busy". Neither reaches a provider.
+const (
+	detectMinInterval  = 200 * time.Millisecond
+	suggestMinInterval = 500 * time.Millisecond
+)
+
 // suggestConn runs one socket's detect and suggest calls off the read
 // loop, so typing never waits on a provider. A newer call of a kind
 // cancels the older one: only the latest prompt line matters.
@@ -67,10 +77,23 @@ type suggestConn struct {
 	mu      sync.Mutex
 	ctx     context.Context
 	cancels map[string]context.CancelFunc
+	last    map[string]time.Time
+}
+
+// allow reports whether a call of kind may run now, and if so records it.
+func (c *suggestConn) allow(kind string, min time.Duration) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now()
+	if t, ok := c.last[kind]; ok && now.Sub(t) < min {
+		return false
+	}
+	c.last[kind] = now
+	return true
 }
 
 func newSuggestConn(ctx context.Context, srv *Server, ws *wsConn, sess *runtime.Session, clientID uint64) *suggestConn {
-	return &suggestConn{srv: srv, ws: ws, sess: sess, cl: clientID, ctx: ctx, cancels: map[string]context.CancelFunc{}}
+	return &suggestConn{srv: srv, ws: ws, sess: sess, cl: clientID, ctx: ctx, cancels: map[string]context.CancelFunc{}, last: map[string]time.Time{}}
 }
 
 func (c *suggestConn) begin(kind string) context.Context {
@@ -85,6 +108,9 @@ func (c *suggestConn) begin(kind string) context.Context {
 }
 
 func (c *suggestConn) detect(seq int, line string) {
+	if !c.allow("detect", detectMinInterval) {
+		return
+	}
 	ctx := c.begin("detect")
 	go func() {
 		out := map[string]any{"type": "agent-detect", "seq": seq, "plain": false, "source": service.DetectOff}
@@ -103,6 +129,10 @@ func (c *suggestConn) detect(seq int, line string) {
 }
 
 func (c *suggestConn) suggest(seq int, line string) {
+	if !c.allow("suggest", suggestMinInterval) {
+		_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": "Too fast. Press ⇥ again.", "reason": "busy"})
+		return
+	}
 	ctx := c.begin("suggest")
 	go func() {
 		if c.srv.agent == nil {
@@ -146,9 +176,9 @@ func suggestErr(err error) (string, string) {
 }
 
 // authorizeAgentInsert runs service.AuthorizeInsert for a client of sess.
-func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, msg *agentInsertMsg, bytes string) error {
+func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, msg *agentInsertMsg, bytes string) (service.InsertGrant, error) {
 	if s.agent == nil {
-		return errors.New("agent unavailable")
+		return service.InsertGrant{}, errors.New("agent unavailable")
 	}
 	return s.agent.AuthorizeInsert(service.InsertRequest{
 		SuggestionID: msg.SuggestionID,
@@ -158,4 +188,12 @@ func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, ms
 		Bytes:        bytes,
 		Shift:        msg.Shift,
 	})
+}
+
+// Close ends the agent's work for keel serve's shutdown: the detection
+// summaries still open are written to keel.log.
+func (s *Server) Close() {
+	if s.agent != nil {
+		s.agent.Close()
+	}
 }

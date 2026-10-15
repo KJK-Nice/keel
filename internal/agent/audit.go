@@ -126,6 +126,23 @@ func (a *Auditor) PromptLines(p Pane, n int, rep redact.Report, detector string)
 	})
 }
 
+// Sent logs agent.read for text sent off the machine for an in-pane
+// suggestion (§6.7): what was sent ("the words on the prompt line", "2
+// candidate commands"), n lines of it, its redactions, to whom and why.
+// The caller logs before the call, so a call that fails is logged too.
+func (a *Auditor) Sent(p Pane, what string, n int, rep redact.Report, to, why, source string) {
+	a.log.Append(applog.Entry{
+		Kind:       EventRead,
+		Message:    fmt.Sprintf("agent sent %s from %s to %s %s · %s", what, hostLabel(p), to, why, redactionNote(rep)),
+		HostID:     p.HostID,
+		SessionID:  p.SessionID,
+		Lines:      n,
+		Count:      n,
+		Redactions: rep.Strings(),
+		Source:     source,
+	})
+}
+
 // Insert authorizes putting command on p's prompt line (⇥ / ⇧⇥, not run)
 // and logs agent.insert. It writes nothing: the caller does the write
 // through the user's own approved input path, and only if this returns nil.

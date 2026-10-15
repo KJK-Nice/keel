@@ -457,54 +457,212 @@ func TestSuggestGates(t *testing.T) {
 
 // §6.1, §6.5, §6.6, §6.7: an insert is authorised only for the driver,
 // with the shown bytes, with ⇧ when the rule needs it, and is logged with
-// its source. AuthorizeInsert writes nothing itself.
+// its source once the write happened. AuthorizeInsert writes nothing.
 func TestAuthorizeInsertRules(t *testing.T) {
 	f := newSuggestFixture(t, block("rm -rf /tmp/keel-x", "Deletes it.", "destructive")+block("ls /tmp", "Lists.", "readonly"))
 	s := f.suggest(t, "s-web", "delete the scratch folder")
 	de, ro := s.Options[0], s.Options[1]
-	req := func(opt int, bytes string, shift bool, role agent.Role, session string) error {
-		return f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, Option: opt, SessionID: session, Role: role, Bytes: bytes, Shift: shift})
+	req := func(sug Suggestion, opt int, bytes string, shift bool, role agent.Role, session string) (InsertGrant, error) {
+		return f.svc.AuthorizeInsert(InsertRequest{SuggestionID: sug.ID, Option: opt, SessionID: session, Role: role, Bytes: bytes, Shift: shift})
 	}
-	if err := req(0, de.Bytes, false, agent.RoleDriver, "s-web"); !errors.Is(err, ErrNeedsShiftInsert) {
+	if _, err := req(s, 0, de.Bytes, false, agent.RoleDriver, "s-web"); !errors.Is(err, ErrNeedsShiftInsert) {
 		t.Fatalf("plain ⇥ on destructive → %v", err)
 	}
-	if err := req(1, ro.Bytes, false, agent.RoleFollower, "s-web"); !errors.Is(err, agent.ErrFollower) {
+	if _, err := req(s, 1, ro.Bytes, false, agent.RoleFollower, "s-web"); !errors.Is(err, agent.ErrFollower) {
 		t.Fatalf("follower → %v", err)
 	}
-	if err := req(1, ro.Bytes+"\n", false, agent.RoleDriver, "s-web"); !errors.Is(err, ErrChanged) {
+	if _, err := req(s, 1, ro.Bytes+"\n", false, agent.RoleDriver, "s-web"); !errors.Is(err, ErrChanged) {
 		t.Fatalf("a newline added (run, not insert) → %v", err)
 	}
-	if err := req(1, ro.Bytes, false, agent.RoleDriver, "s-db"); !errors.Is(err, ErrWrongPane) {
+	if _, err := req(s, 1, ro.Bytes, false, agent.RoleDriver, "s-db"); !errors.Is(err, ErrWrongPane) {
 		t.Fatalf("other pane → %v", err)
 	}
-	if err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: "s_nope", SessionID: "s-web", Role: agent.RoleDriver, Bytes: ro.Bytes}); !errors.Is(err, ErrExpired) {
+	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: "s_nope", SessionID: "s-web", Role: agent.RoleDriver, Bytes: ro.Bytes}); !errors.Is(err, ErrExpired) {
 		t.Fatalf("unknown → %v", err)
 	}
 	if n := len(f.entries(agent.EventInsert)); n != 0 {
 		t.Fatalf("refused inserts logged: %d", n)
 	}
-	if err := req(1, ro.Bytes, false, agent.RoleDriver, "s-web"); err != nil {
+	g, err := req(s, 1, ro.Bytes, false, agent.RoleDriver, "s-web")
+	if err != nil {
 		t.Fatalf("⇥ read-only → %v", err)
 	}
-	if err := req(0, de.Bytes, true, agent.RoleDriver, "s-web"); err != nil {
+	if n := len(f.entries(agent.EventInsert)); n != 0 {
+		t.Fatal("agent.insert logged before the write")
+	}
+	f.svc.InsertDone(g, nil)
+	s2 := f.suggest(t, "s-web", "delete the scratch folder")
+	g, err = req(s2, 0, s2.Options[0].Bytes, true, agent.RoleDriver, "s-web")
+	if err != nil {
 		t.Fatalf("⇧⇥ destructive → %v", err)
 	}
-	ins := f.entries(agent.EventInsert)
+	f.svc.InsertDone(g, nil)
+	ins := f.entries(agent.EventInsert) // newest first
 	if len(ins) != 2 || ins[0].Source != SourceGenerated || ins[0].Bytes != len(de.Bytes) || ins[1].Bytes != len(ro.Bytes) {
 		t.Fatalf("agent.insert = %+v", ins)
 	}
-	// Production flag read at insert time: a state change on a host that
-	// became production needs ⇧ now.
-	f2 := newSuggestFixture(t, block("touch /tmp/marker", "Marker.", "changes"))
-	s2 := f2.suggest(t, "s-web", "make a marker file")
-	f2.st.setProduction("web", true)
-	if err := f2.svc.AuthorizeInsert(InsertRequest{SuggestionID: s2.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s2.Options[0].Bytes}); !errors.Is(err, ErrNeedsShiftInsert) {
+	// Expiry.
+	f.svc.now = func() time.Time { return time.Now().Add(suggestionTTL + time.Minute) }
+	s3 := s2
+	if _, err := req(s3, 0, de.Bytes, true, agent.RoleDriver, "s-web"); !errors.Is(err, ErrExpired) {
+		t.Fatalf("expired → %v", err)
+	}
+}
+
+// Replay: a suggestion is inserted once. Resending the same insert, or
+// another option of it, is refused and not logged again.
+func TestInsertIsNotReplayable(t *testing.T) {
+	f := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly")+block("ls -la /tmp", "Lists more.", "readonly"))
+	s := f.suggest(t, "s-web", "list tmp")
+	r := InsertRequest{SuggestionID: s.ID, Option: 0, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes}
+	g, err := f.svc.AuthorizeInsert(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Reserved while the write is in flight: a second insert is refused.
+	if _, err := f.svc.AuthorizeInsert(r); !errors.Is(err, ErrUsed) {
+		t.Fatalf("concurrent resend → %v", err)
+	}
+	f.svc.InsertDone(g, nil)
+	if _, err := f.svc.AuthorizeInsert(r); !errors.Is(err, ErrUsed) {
+		t.Fatalf("resend → %v", err)
+	}
+	r.Option, r.Bytes = 1, s.Options[1].Bytes
+	if _, err := f.svc.AuthorizeInsert(r); !errors.Is(err, ErrUsed) {
+		t.Fatalf("other option of a used suggestion → %v", err)
+	}
+	if n := len(f.entries(agent.EventInsert)); n != 1 {
+		t.Fatalf("agent.insert entries = %d, want 1", n)
+	}
+}
+
+// Log truth: a write that failed is not logged as an insert, and the
+// suggestion can be inserted again.
+func TestFailedWriteIsNotLoggedAsInserted(t *testing.T) {
+	f := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly"))
+	s := f.suggest(t, "s-web", "list tmp")
+	r := InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes}
+	g, err := f.svc.AuthorizeInsert(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.svc.InsertDone(g, errors.New("inject: missing or spent approve ticket"))
+	if n := len(f.entries(agent.EventInsert)); n != 0 {
+		t.Fatalf("a failed write was logged as inserted (%d)", n)
+	}
+	g, err = f.svc.AuthorizeInsert(r)
+	if err != nil {
+		t.Fatalf("retry after a failed write → %v", err)
+	}
+	f.svc.InsertDone(g, nil)
+	if n := len(f.entries(agent.EventInsert)); n != 1 {
+		t.Fatalf("agent.insert entries = %d, want 1", n)
+	}
+}
+
+// The production gate fails closed: production when suggested OR now,
+// and a host that can no longer be found counts as production.
+func TestProductionGateFailsClosed(t *testing.T) {
+	ins := func(f *sfix, s Suggestion, shift bool) error {
+		_, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: s.SessionID, Role: agent.RoleDriver, Bytes: s.Options[0].Bytes, Shift: shift})
+		return err
+	}
+	// Became production after the suggestion.
+	f := newSuggestFixture(t, block("touch /tmp/marker", "Marker.", "changes"))
+	s := f.suggest(t, "s-web", "make a marker file")
+	f.st.setProduction("web", true)
+	if err := ins(f, s, false); !errors.Is(err, ErrNeedsShiftInsert) {
 		t.Fatalf("changes on now-production host → %v", err)
 	}
-	// Expiry.
-	f2.svc.now = func() time.Time { return time.Now().Add(suggestionTTL + time.Minute) }
-	if err := f2.svc.AuthorizeInsert(InsertRequest{SuggestionID: s2.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s2.Options[0].Bytes, Shift: true}); !errors.Is(err, ErrExpired) {
-		t.Fatalf("expired → %v", err)
+	// Was production when suggested, flag turned off since.
+	f = newSuggestFixture(t, block("touch /tmp/marker", "Marker.", "changes"))
+	s = f.suggest(t, "s-db", "make a marker file")
+	f.st.setProduction("db", false)
+	if err := ins(f, s, false); !errors.Is(err, ErrNeedsShiftInsert) {
+		t.Fatalf("changes on a host that was production → %v", err)
+	}
+	// Host deleted since.
+	f = newSuggestFixture(t, block("touch /tmp/marker", "Marker.", "changes"))
+	s = f.suggest(t, "s-web", "make a marker file")
+	f.st.mu.Lock()
+	f.st.hosts = f.st.hosts[1:]
+	f.st.mu.Unlock()
+	if err := ins(f, s, false); !errors.Is(err, ErrNeedsShiftInsert) {
+		t.Fatalf("changes on a missing host → %v", err)
+	}
+	if err := ins(f, s, true); err != nil {
+		t.Fatalf("⇧⇥ on a missing host → %v", err)
+	}
+	// Read-only stays plain ⇥ even then.
+	f = newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly"))
+	s = f.suggest(t, "s-web", "list tmp")
+	f.st.mu.Lock()
+	f.st.hosts = f.st.hosts[1:]
+	f.st.mu.Unlock()
+	if err := ins(f, s, false); err != nil {
+		t.Fatalf("read-only on a missing host → %v", err)
+	}
+}
+
+// §6.7: everything sent off the machine for a suggestion is logged before
+// the call, including a call that fails, and the Jev rating call too.
+func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
+	f := newSuggestFixture(t, "")
+	f.model.Err = errors.New("gemini: HTTP 503")
+	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); err == nil {
+		t.Fatal("no error")
+	}
+	reads := f.entries(agent.EventRead)
+	if len(reads) != 1 || reads[0].Source != "gemini" || !strings.Contains(reads[0].Message, "the words on the prompt line") {
+		t.Fatalf("failed suggest left %+v", reads)
+	}
+	// Empty answer: logged too.
+	f.model.Err = nil
+	if _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list tmp"}); !errors.Is(err, ErrNoSuggestion) {
+		t.Fatalf("empty → %v", err)
+	}
+	if n := len(f.entries(agent.EventRead)); n != 2 {
+		t.Fatalf("reads after an empty answer = %d", n)
+	}
+	// A suggestion: the words to the model, the commands to Jev.
+	g := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly")+block("rm -rf /tmp/x", "Deletes.", "destructive"))
+	g.suggest(t, "s-web", "list tmp")
+	reads = g.entries(agent.EventRead) // newest first
+	if len(reads) != 2 || reads[0].Source != DetectJev || reads[0].Count != 1 || !strings.Contains(reads[0].Message, "to rate their risk") || reads[1].Source != "gemini" {
+		t.Fatalf("reads = %+v", reads)
+	}
+	for _, e := range g.log.Recent(100) {
+		if strings.Contains(e.Message, "/tmp") {
+			t.Fatalf("keel.log holds a command: %q", e.Message)
+		}
+	}
+	// Jev failing: still logged (the commands were sent).
+	h := newSuggestFixture(t, block("ls /tmp", "Lists.", "readonly"))
+	h.judge.Err = errors.New("jev down")
+	h.suggest(t, "s-web", "list tmp")
+	if reads := h.entries(agent.EventRead); len(reads) != 2 || reads[0].Source != DetectJev {
+		t.Fatalf("reads with Jev down = %+v", reads)
+	}
+}
+
+// Close writes the detection summaries still open (keel serve stopping).
+func TestCloseFlushesDetectionLog(t *testing.T) {
+	f := newSuggestFixture(t, "")
+	f.svc.detectWindow = time.Hour
+	for i := 0; i < 3; i++ {
+		f.detect(t, "s-web", agent.RoleDriver, fmt.Sprintf("show me disk usage %d", i))
+	}
+	if n := len(f.entries(agent.EventRead)); n != 1 {
+		t.Fatalf("before close: %d entries", n)
+	}
+	f.svc.Close()
+	reads := f.entries(agent.EventRead)
+	if len(reads) != 2 || reads[0].Count != 2 {
+		t.Fatalf("after close = %+v", reads)
+	}
+	f.svc.Close() // idempotent
+	if n := len(f.entries(agent.EventRead)); n != 2 {
+		t.Fatalf("second close wrote %d entries", n-2)
 	}
 }
 

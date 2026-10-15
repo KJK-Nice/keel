@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -61,11 +62,13 @@ func TestSuggestOverSessionSocket(t *testing.T) {
 	if r := waitJSON(t, driver, "agent-detect"); r["plain"] != true || r["source"] != "jev" || r["seq"] != float64(1) {
 		t.Fatalf("detect words → %v", r)
 	}
+	time.Sleep(detectMinInterval)
 	sendJSON(t, driver, map[string]any{"type": "agent-detect", "seq": 2, "line": "ls -la /tmp"})
 	if r := waitJSON(t, driver, "agent-detect"); r["plain"] != false {
 		t.Fatalf("detect command → %v", r)
 	}
 	// Jev offline: silent fallback.
+	time.Sleep(detectMinInterval)
 	sendJSON(t, driver, map[string]any{"type": "agent-detect", "seq": 3, "line": "jev-offline words here"})
 	if r := waitJSON(t, driver, "agent-detect"); r["plain"] != false || r["source"] != "fallback" {
 		t.Fatalf("detect offline → %v", r)
@@ -122,11 +125,21 @@ func TestSuggestOverSessionSocket(t *testing.T) {
 	if len(ins) != 1 || ins[0].Source != "generated" || ins[0].SessionID != web.ID {
 		t.Fatalf("agent.insert = %+v", ins)
 	}
+	// Replay: the same insert again is refused before the write.
+	got = readPTY(bridge)
+	if r := insertOverSocket(t, driver, first["bytes"].(string), id, 0, false); r["ok"] != false || !strings.Contains(r["message"].(string), "inserted already") {
+		t.Fatalf("replayed insert → %v", r)
+	}
+	noPTY(t, got, "a replayed insert")
+	if n := len(f.logEntries(agent.EventInsert)); n != 1 {
+		t.Fatalf("a replay was logged: %d inserts", n)
+	}
 	if sugs := f.logEntries(agent.EventSuggest); len(sugs) != 1 || sugs[0].Source != "generated" {
 		t.Fatalf("agent.suggest = %+v", sugs)
 	}
 
 	// Destructive: plain ⇥ refused before the write, ⇧⇥ inserts.
+	time.Sleep(suggestMinInterval)
 	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 7, "line": "clean up old files"})
 	r = waitJSON(t, driver, "agent-suggest")
 	de := r["suggestion"].(map[string]any)
@@ -134,7 +147,7 @@ func TestSuggestOverSessionSocket(t *testing.T) {
 	if deOpt["risk"] != "destructive" || deOpt["needsShift"] != true {
 		t.Fatalf("destructive = %v", deOpt)
 	}
-	got = readPTY(bridge)
+	// (got from the replay check is still waiting for the next write.)
 	if r := insertOverSocket(t, driver, deOpt["bytes"].(string), de["id"].(string), 0, false); r["ok"] != false || !strings.Contains(r["message"].(string), "⇧⇥") {
 		t.Fatalf("unshifted destructive → %v", r)
 	}
@@ -190,4 +203,72 @@ func TestAgentSuggestFileHasNoWritePath(t *testing.T) {
 		}
 		return true
 	})
+}
+
+// Log truth over the socket: an insert whose write fails (a bad approve
+// ticket) is not logged as agent.insert, and the suggestion stays usable.
+func TestFailedInsertWriteIsNotLogged(t *testing.T) {
+	f := newAskFixture(t, true)
+	web := f.open(t, f.webID, "ready\n")
+	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
+	defer driver.Close()
+	waitJSON(t, driver, "ready")
+	bridge := f.bridge(t, f.webID)
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 1, "line": "show the files here"})
+	sug := waitJSON(t, driver, "agent-suggest")["suggestion"].(map[string]any)
+	opt := sug["options"].([]any)[0].(map[string]any)
+	got := readPTY(bridge)
+	sendJSON(t, driver, map[string]any{"type": "inject", "command": opt["bytes"], "nonce": "not-a-ticket", "suggestion": map[string]any{"suggestionId": sug["id"], "option": 0}})
+	if r := waitJSON(t, driver, "agent-insert"); r["ok"] != false {
+		t.Fatalf("bad ticket → %v", r)
+	}
+	noPTY(t, got, "an insert with a bad ticket")
+	if n := len(f.logEntries(agent.EventInsert)); n != 0 {
+		t.Fatalf("a failed write was logged as inserted (%d)", n)
+	}
+	if r := insertOverSocket(t, driver, opt["bytes"].(string), sug["id"].(string), 0, false); r["ok"] != true {
+		t.Fatalf("retry → %v", r)
+	}
+	if n := len(f.logEntries(agent.EventInsert)); n != 1 {
+		t.Fatalf("agent.insert after the retry = %d", n)
+	}
+}
+
+// A page that sends faster than a person types is refused without reaching
+// a provider: detects inside the interval get no answer, a fast second
+// suggest is refused as busy.
+func TestSuggestCallsAreRateLimited(t *testing.T) {
+	f := newAskFixture(t, true)
+	if err := f.st.SetAgentKey("jev", "jev-test-key-0123"); err != nil {
+		t.Fatal(err)
+	}
+	web := f.open(t, f.webID, "ready\n")
+	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
+	defer driver.Close()
+	waitJSON(t, driver, "ready")
+	n := len(f.judge.Requests())
+	for i := 1; i <= 20; i++ {
+		sendJSON(t, driver, map[string]any{"type": "agent-detect", "seq": i, "line": fmt.Sprintf("show the files here %d", i)})
+	}
+	if r := waitJSON(t, driver, "agent-detect"); r["seq"] != float64(1) {
+		t.Fatalf("first detect → %v", r)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if got := len(f.judge.Requests()) - n; got != 1 {
+		t.Fatalf("a burst of 20 detects reached Jev %d times, want 1", got)
+	}
+	m := len(f.fake.Requests())
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 30, "line": "show the files here"})
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 31, "line": "show the files here"})
+	replies := map[float64]map[string]any{}
+	for len(replies) < 2 {
+		r := waitJSON(t, driver, "agent-suggest")
+		replies[r["seq"].(float64)] = r
+	}
+	if replies[31]["reason"] != "busy" || replies[30]["ok"] != true {
+		t.Fatalf("suggest burst → %v", replies)
+	}
+	if got := len(f.fake.Requests()) - m; got != 1 {
+		t.Fatalf("a burst of 2 suggests reached the model %d times, want 1", got)
+	}
 }

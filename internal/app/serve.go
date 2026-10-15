@@ -62,9 +62,10 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	var once sync.Once
 	shutdown := func() { once.Do(func() { close(stop) }) }
 
+	api := httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge).Handler(),
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ln, err := net.Listen("tcp", addr)
@@ -98,6 +99,9 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	tn.StopAll()
 	rt.KillAll()
 	_ = httpSrv.Close()
+	// After the server: no new detection can start, and the open
+	// detection summaries reach keel.log.
+	api.Close()
 	removeOwnPid(dataDir)
 	return nil
 }

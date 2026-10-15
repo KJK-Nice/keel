@@ -242,3 +242,22 @@ test("an insert refused by keel serve keeps the card with the reason", async () 
   assert.equal(h.m.state, "card");
   assert.match(h.m.view().note, /expired/);
 });
+
+test("an insert dropped because the line changed writes nothing and closes the card", async () => {
+  const seen = [];
+  const h = machine({
+    insert: async (sug, i, shift, words) => {
+      seen.push(words);
+      return { ok: false, dropped: true };
+    },
+  });
+  h.m.onInput("x");
+  h.fire();
+  h.m.onDetect({ seq: 1, plain: true, source: "jev" });
+  h.m.onKey(key("Tab"));
+  h.m.onSuggest({ seq: h.sent[1].seq, ok: true, suggestion: { id: "s", options: [{ command: "ls", risk: "readonly" }] } });
+  h.m.onKey(key("Tab"));
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(seen, ["show the files here"], "insert gets the words to re-check");
+  assert.equal(h.m.state, "idle");
+});

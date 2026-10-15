@@ -36,7 +36,7 @@ export function readPromptLine(term) {
 //   term, body (the .term-body element), mac
 //   canSuggest()             the client drives this local pane
 //   send(obj)                JSON on the pane's session socket
-//   insert(sug, i, shift)    → Promise<{ok, message}>
+//   insert(sug, i, shift, words) → Promise<{ok, message, dropped}>
 //   restore(bytes)
 export function createPaneSuggest(deps) {
   const { term, body } = deps;

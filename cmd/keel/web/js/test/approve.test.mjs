@@ -75,11 +75,18 @@ test("suggestions are inserted only by the user's ⇥, to one pane, never run", 
   const send = calls("sendApprovedInject", body)[0];
   assert.ok(body.indexOf("!canSuggestIn(pane)) return") < send, "insertSuggestion checks the driver first");
   assert.ok(body.indexOf("/[\\r\\n]/.test(opt.bytes)) return") < send, "insertSuggestion refuses a newline");
+  // Re-checked right before the write: prompt line, alt screen, a blocking dialog.
+  const recheck = body.indexOf("const line = readPromptLine(pane.term);");
+  assert.ok(recheck > 0 && recheck < send, "insertSuggestion re-reads the prompt line before the write");
+  const gate = body.slice(recheck, send);
+  for (const want of ["ptyWritesBlocked()", 'buffer?.active?.type !== "normal"', "line.input !== words", "dropped: true"]) {
+    assert.ok(gate.includes(want), `insertSuggestion must check ${want} before the write`);
+  }
   assert.match(fns.get("canSuggestIn"), /isDriving\(pane\)/);
   assert.match(fns.get("canSuggestIn"), /pane\.remote/);
   // Only the suggestion machine's insert, which runs on ⇥ / ⇧⇥, calls it.
   assert.deepEqual(calls("insertSuggestion").length, 2, "one definition, one call (wirePaneSuggest)");
-  assert.match(fns.get("wirePaneSuggest"), /insert: \(sug, index, shift\) => insertSuggestion\(pane, sug, index, shift\)/);
+  assert.match(fns.get("wirePaneSuggest"), /insert: \(sug, index, shift, words\) => insertSuggestion\(pane, sug, index, shift, words\)/);
   const ui = readFileSync(join(dir, "..", "ui", "suggest.js"), "utf8");
   const lib = readFileSync(join(dir, "..", "lib", "suggest.js"), "utf8");
   for (const bad of ["sendSession", "inject", "/ws/", "WebSocket"]) {

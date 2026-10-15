@@ -45,7 +45,7 @@ import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
-import { createPaneSuggest } from "./ui/suggest.js";
+import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -3404,7 +3404,7 @@ import { createPaneSuggest } from "./ui/suggest.js";
       mac: isMac,
       canSuggest: () => canSuggestIn(pane) && focusedPane() === pane && !ptyWritesBlocked(),
       send: (obj) => sendSessionJSON(pane, obj),
-      insert: (sug, index, shift) => insertSuggestion(pane, sug, index, shift),
+      insert: (sug, index, shift, words) => insertSuggestion(pane, sug, index, shift, words),
       // ⌘Z: the user's own words back, as their keystrokes (wirePaneTerminal).
       restore: (bytes) => pane.restoreWords?.(bytes),
     });
@@ -3436,10 +3436,17 @@ import { createPaneSuggest } from "./ui/suggest.js";
   // There is no approve dialog: the card shows the command and the target
   // is the pane under it, and ⇥ is the approval (§5.5). It inserts and
   // never runs, so bytes with a newline are refused here and in keel serve.
-  async function insertSuggestion(pane, sug, index, shift) {
+  async function insertSuggestion(pane, sug, index, shift, words) {
     const opt = sug?.options?.[index];
     if (!opt || !canSuggestIn(pane)) return { ok: false, message: "You follow this pane. Suggestions are for the driver." };
     if (typeof opt.bytes !== "string" || /[\r\n]/.test(opt.bytes)) return { ok: false, message: "This command spans lines; copy it instead." };
+    // Right before the write: still at a shell prompt (not a full-screen
+    // app), still the words the suggestion was for, and no dialog holding
+    // the keyboard. Otherwise drop the card and write nothing.
+    const line = readPromptLine(pane.term);
+    if (ptyWritesBlocked() || pane.term?.buffer?.active?.type !== "normal" || !line || line.input !== words) {
+      return { ok: false, dropped: true };
+    }
     const result = new Promise((resolve) => {
       const timer = setTimeout(() => {
         if (pane.agentInsertWaiter) {

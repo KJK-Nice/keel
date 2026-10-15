@@ -130,9 +130,11 @@ Board names refer to the canvas.
 2. The agent reads only panes in the conversation's scope, and only hosts with "Agent can read" on.
 3. Vault contents (passwords, keys, passphrases, snippet bodies unless the user adds them) are never sent.
 4. Redaction runs before anything leaves the machine. Secret-looking values are always redacted.
-5. Destructive or state-changing commands cannot be inserted with plain ⇥; on production hosts they need ⇧⇥.
+5. Destructive commands always need ⇧⇥ (or ⇧ + Type). State-changing commands need ⇧⇥ on production hosts; on other hosts plain ⇥ inserts them. A host counts as production if it was when the suggestion was made, is now, or can no longer be found. Read-only commands insert with plain ⇥ everywhere.
 6. A follower cannot type agent output into a pane they follow; the proposal is not offered.
 7. Every read and every insert is written to `keel.log`.
+
+**Limit of these gates.** The ⇧ rule, the no-newline rule for inserts and the driver check are enforced in keel serve, so they hold against model output and against a UI bug that sends the wrong bytes or skips a key. They do not hold against hostile script running inside the app page itself: the pre-existing unlabelled inject path (palette snippets, the notebook's CLI input) accepts any bytes from the driving client with a fresh ticket, and script in the page can ask for a ticket like the page does. Keeping the page free of untrusted script (no remote scripts, escaped HTML) is what protects that path, not the agent gates.
 
 ## 7. Plain-language detection
 

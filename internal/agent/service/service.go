@@ -564,11 +564,11 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 	if req.Bytes != snap.Bytes {
 		return ErrChanged
 	}
-	production, err := s.hostProduction(snap.HostID)
+	current, err := s.hostProduction(snap.HostID)
 	if err != nil {
 		return err
 	}
-	if agent.NeedsShift(snap.Risk, production) && !req.Shift {
+	if agent.NeedsShift(snap.Risk, snap.Production || current) && !req.Shift {
 		return ErrNeedsShift
 	}
 	return s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes)
@@ -581,17 +581,20 @@ func (s *Service) Reset(convID string) {
 	delete(s.convs, convID)
 }
 
+// hostProduction reports a host's current production flag. It fails
+// closed: a host that can no longer be found (deleted, or no host id)
+// counts as production, so the ⇧ rule is never relaxed by a lookup miss.
 func (s *Service) hostProduction(hostID string) (bool, error) {
 	hosts, err := s.st.ListHosts()
 	if err != nil {
-		return false, err
+		return true, err
 	}
 	for _, h := range agent.HostsFrom(hosts) {
-		if h.ID == hostID {
+		if hostID != "" && h.ID == hostID {
 			return h.Production, nil
 		}
 	}
-	return false, nil
+	return true, nil
 }
 
 func (s *Service) proposalLocked(convID, proposalID string) (*Proposal, error) {

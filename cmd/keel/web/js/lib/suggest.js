@@ -192,8 +192,10 @@ const isModifier = (ev) => ["Shift", "Meta", "Control", "Alt", "CapsLock", "Fn"]
 //                       a shell prompt, or null (no prompt, alt screen)
 //   canSuggest()      → the client drives a local terminal pane (§6.6)
 //   sendDetect(seq, line), sendSuggest(seq, line)   on the session socket
-//   insert(sug, index, shift) → Promise<{ ok, message }>   ⇥ / ⇧⇥: keel serve
-//                       authorises and writes ^U + the command, not run
+//   insert(sug, index, shift, words) → Promise<{ ok, message, dropped }>
+//                       ⇥ / ⇧⇥: keel serve authorises and writes ^U + the
+//                       command, not run; dropped: the line changed, nothing
+//                       was written
 //   restore(bytes)    the user's ⌘Z: their own words back, as keystrokes
 //   render(view)      draw view = { state, line, words, sug, selected, note,
 //                       message, command }
@@ -272,11 +274,16 @@ export function createSuggestMachine(deps) {
     set({ ...st, state: "inserting", note: "" });
     let r;
     try {
-      r = await deps.insert(sug, selected, !!shift);
+      r = await deps.insert(sug, selected, !!shift, words);
     } catch (err) {
       r = { ok: false, message: err?.message || String(err) };
     }
     if (st.state !== "inserting") return;
+    if (r?.dropped) {
+      // The prompt line changed under the card: nothing was written.
+      dismissed = words;
+      return set({ state: "idle" });
+    }
     if (r?.ok) set({ state: "inserted", words, command: opt.command, at: now(), seen: false });
     else set({ state: "card", sug, selected, words, note: r?.message || "Not inserted." });
   }
