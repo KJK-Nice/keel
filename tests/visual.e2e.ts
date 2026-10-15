@@ -231,5 +231,24 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await screen.getByRole('button', 'Close tab', { visible: true }).tap();
       await expect(screen.getByRole('button', /Reconnect|Start over/, { visible: true })).toBeHidden();
     });
+
+    // Phase 6d screens that have no base counterpart (last, so the numbered
+    // shots above keep their names): Settings · Agent with a connected
+    // provider, and the Logs page filtered to Agent. Not run on the base build.
+    test(`agent settings and logs filter (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/settings', { suggestions: 'on', detection: 'auto', defaultScope: 'focused' });
+      await openKeel(app);
+      const vault = screen.getByRole('complementary', 'Vault');
+      await vault.getByRole('button', 'Settings').tap();
+      await screen.getByRole('region', 'Settings').getByRole('tab', 'Agent').tap();
+      await expect(screen.getByRole('region', 'Settings').getByRole('group', 'Google Gemini')).toContainText('Connected');
+      await app.screenshot(`${theme}-settings-agent`);
+      await vault.getByRole('button', 'Logs').tap();
+      await screen.getByRole('group', 'Show events').getByRole('button', 'Agent').tap();
+      await app.screenshot(`${theme}-logs-agent`);
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+    });
   }
 });

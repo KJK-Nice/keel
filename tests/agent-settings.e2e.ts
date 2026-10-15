@@ -205,14 +205,20 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
       await fill(names.plain);
       await expect(readable).toHaveAttribute('aria-checked', 'true');
       await expect(prod).toHaveAttribute('aria-checked', 'false');
+      // The board's fields without a backend yet are disabled, with a note.
+      await expect(dialog.getByLabel('Jump host')).toBeDisabled();
+      await expect(dialog.getByLabel('Startup command')).toBeDisabled();
+      await expect(dialog.getByRole('button', 'Test connection')).toBeDisabled();
+      await expect(dialog.getByRole('button', 'Delete host')).toBeHidden();
       await app.screenshot('host-agent-defaults');
-      await dialog.getByRole('button', 'Save host').tap();
+      // ⌘↵ saves.
+      await dialog.getByLabel('Password').press('Meta+Enter');
       await expect(dialog).toBeHidden();
 
       // Choosing the Production group turns production on; the dialog is
       // saved untouched otherwise.
       await fill(names.prod);
-      await dialog.getByRole('combobox', 'Parent Group').tap();
+      await dialog.getByRole('combobox', 'Folder').tap();
       await screen.getByRole('option', 'Production').tap();
       await expect(prod).toHaveAttribute('aria-checked', 'true');
       await app.screenshot('host-agent-production-prefill');
@@ -221,7 +227,7 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
 
       // The user can turn it off, and the agent off for the host.
       await fill(names.off);
-      await dialog.getByRole('combobox', 'Parent Group').tap();
+      await dialog.getByRole('combobox', 'Folder').tap();
       await screen.getByRole('option', 'Production').tap();
       await expect(prod).toHaveAttribute('aria-checked', 'true');
       await prod.tap();
@@ -231,11 +237,24 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
       await dialog.getByRole('button', 'Save host').tap();
       await expect(dialog).toBeHidden();
 
+      // Edit mode: Delete host is there, asks first, and removes the host.
+      await vault.getByRole('searchbox', 'Search hosts').fill(names.off);
+      await vault.getByRole('button', 'Actions', { visible: true }).tap();
+      await screen.getByRole('menuitem', 'Edit').tap();
+      const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
+      await expect(editing).toBeVisible();
+      await expect(editing.getByRole('switch', "Agent can read this host's panes")).toHaveAttribute('aria-checked', 'false');
+      await app.screenshot('host-edit');
+      await editing.getByRole('button', 'Delete host').tap();
+      await expect(screen.getByRole('alertdialog')).toContainText(`Remove ${names.off}?`);
+      await screen.getByRole('button', 'Remove').tap();
+      await expect.poll(async () => (await keelApi<Host[]>(app.baseUrl, '/api/hosts')).some((h) => h.name === names.off)).toBe(false);
+      await vault.getByRole('searchbox', 'Search hosts').fill('');
+
       const hosts = await keelApi<Host[]>(app.baseUrl, '/api/hosts');
       const by = (n: string) => hosts.find((h) => h.name === n)!;
       expect(by(names.plain)).toMatchObject({ agentReadable: true, production: false });
       expect(by(names.prod)).toMatchObject({ agentReadable: true, production: true, groupId: group.id });
-      expect(by(names.off)).toMatchObject({ agentReadable: false, production: false, groupId: group.id });
     } finally {
       const hosts = await keelApi<Host[]>(app.baseUrl, '/api/hosts');
       for (const h of hosts.filter((h) => Object.values(names).includes(h.name))) await keelSend(app.baseUrl, 'DELETE', `/api/hosts/${h.id}`);

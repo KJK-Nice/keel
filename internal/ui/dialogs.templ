@@ -121,8 +121,16 @@ templ confirmDialog() {
 	}
 }
 
+// hostDialog is New host / Edit host (§5.8, Host board): 760px, two columns.
+// Left: General, Connection. Right: Authentication, Session, Agent. The
+// footer has Delete host (Edit only), Test connection, Cancel and Save.
+//
+// Fields keel serve has no support for yet are shown disabled with a note
+// and carry no name, so they are never saved: Jump host, Startup command,
+// the host key line and Test connection. Everything else maps onto
+// store.Host.
 templ hostDialog() {
-	<dialog class="modal" id="host-modal">
+	<dialog class="modal modal--host" id="host-modal">
 		<form id="host-form">
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "host-modal-title"}) {
@@ -131,77 +139,104 @@ templ hostDialog() {
 			}
 			<input type="hidden" name="id"/>
 			<div class="k-start-notes" id="host-import-note" role="status" hidden></div>
-			@labeledInput("host-name", "Label", "name", "prod-api", true)
-			@labeledSelect("host-parent-group", "Parent Group", "groupId", "No group", "", false, []string{""}, []string{"No group"})
-			@labeledInput("host-tags", "Tags", "tags", "prod, gpu", false)
-			<div class="grid-2">
-				@labeledInput("host-address", "Hostname / IP", "address", "10.0.0.12", false)
-				@labeledNumber("host-port", "Port", "port", "22", "0", "65535")
-			</div>
-			@labeledInput("host-username", "Username", "username", "ubuntu", false)
-			@labeledSelect("host-auth-type", "Authentication", "authType", "Auth", "password", false, []string{"password", "key", "identity", "local"}, []string{"Password", "Private key", "Keychain identity", "Local shell"})
-			<div data-auth="identity">
-				@labeledSelect("host-identity", "Identity", "identityId", "Identity", "", false, []string{""}, []string{"No identities — add in Keychain"})
-			</div>
-			<div data-auth="password">
-				@labeledPassword("host-password", "Password", "password", "Leave blank to keep saved password", false)
-			</div>
-			<div data-auth="key">
-				@labeledTextarea("host-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
-				@labeledPassword("host-passphrase", "Key passphrase", "passphrase", "Optional", false)
-			</div>
-			@field.Set(field.SetProps{Class: "swatches-set"}) {
-				@field.Legend() {
-					Color
-				}
-				@radiogroup.RadioGroup(radiogroup.Props{Name: "color", DefaultValue: "#5ee0b5", Class: "swatches-rg"}) {
-					for _, c := range hostColors {
-						@radiogroup.Item(radiogroup.ItemProps{
-							Value:      c,
-							Attributes: templ.Attributes{"style": "--swatch:" + c, "title": c},
-						})
+			<div class="k-host-cols">
+				<div class="k-host-col">
+					<div class="k-menu-label">General</div>
+					@labeledInput("host-name", "Label", "name", "prod-api", true)
+					@labeledSelect("host-parent-group", "Folder", "groupId", "No group", "", false, []string{""}, []string{"No group"})
+					@field.Set(field.SetProps{Class: "swatches-set"}) {
+						@field.Legend() {
+							Color
+						}
+						@radiogroup.RadioGroup(radiogroup.Props{Name: "color", DefaultValue: "#5ee0b5", Class: "swatches-rg"}) {
+							for _, c := range hostColors {
+								@radiogroup.Item(radiogroup.ItemProps{
+									Value:      c,
+									Attributes: templ.Attributes{"style": "--swatch:" + c, "title": c},
+								})
+							}
+						}
 					}
-				}
-			}
-			<div class="grid-2" data-ssh-only>
-				@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center"}) {
-					@checkbox.Checkbox(checkbox.Props{Name: "keepAlive", ID: "host-keepalive", DefaultChecked: true})
-					@label.Label(label.Props{For: "host-keepalive"}) {
-						Keepalive
+					@labeledInput("host-tags", "Tags", "tags", "prod, gpu", false)
+					<div class="k-menu-label">Connection</div>
+					<div class="grid-2">
+						@labeledInput("host-address", "Hostname / IP", "address", "10.0.0.12", false)
+						@labeledNumber("host-port", "Port", "port", "22", "0", "65535")
+					</div>
+					@labeledInput("host-username", "Username", "username", "ubuntu", false)
+					<div class="k-field" data-ssh-only>
+						<label class="k-label" for="host-jump">Jump host</label>
+						<input class="k-input" id="host-jump" placeholder="None" disabled/>
+						<span class="k-help">Coming soon. A jump host in ~/.ssh/config is skipped on import for now.</span>
+					</div>
+				</div>
+				<div class="k-host-col">
+					<div class="k-menu-label">Authentication</div>
+					@labeledSelect("host-auth-type", "Authentication", "authType", "Auth", "password", false, []string{"password", "key", "identity", "local"}, []string{"Password", "Private key", "Keychain identity", "Local shell"})
+					<div data-auth="identity">
+						@labeledSelect("host-identity", "Identity", "identityId", "Identity", "", false, []string{""}, []string{"No identities — add in Keychain"})
+					</div>
+					<div data-auth="password">
+						@labeledPassword("host-password", "Password", "password", "Leave blank to keep saved password", false)
+					</div>
+					<div data-auth="key">
+						@labeledTextarea("host-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
+						@labeledPassword("host-passphrase", "Key passphrase", "passphrase", "Optional", false)
+					</div>
+					<div class="k-field" data-ssh-only>
+						<span class="k-label">Host key</span>
+						<span class="k-help">Trusted on first connect; Keel asks again if it changes. The fingerprint is not listed here yet.</span>
+					</div>
+					<div class="k-menu-label" data-ssh-only>Session</div>
+					<div class="k-field" data-ssh-only>
+						<label class="k-label" for="host-startup">Startup command</label>
+						<input class="k-input" id="host-startup" placeholder="tmux new -A -s main" disabled/>
+						<span class="k-help">Coming soon.</span>
+					</div>
+					<div class="grid-2" data-ssh-only>
+						@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center"}) {
+							@checkbox.Checkbox(checkbox.Props{Name: "keepAlive", ID: "host-keepalive", DefaultChecked: true})
+							@label.Label(label.Props{For: "host-keepalive"}) {
+								Keepalive
+							}
+						}
+						@labeledNumber("host-keepalive-sec", "Keepalive interval (sec)", "keepAliveSec", "30", "1", "600")
+					</div>
+					@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center", Attributes: templ.Attributes{"data-ssh-only": true}}) {
+						@checkbox.Checkbox(checkbox.Props{Name: "autoReconnect", ID: "host-reconnect", DefaultChecked: true})
+						@label.Label(label.Props{For: "host-reconnect"}) {
+							Auto reconnect
+						}
 					}
-				}
-				@labeledNumber("host-keepalive-sec", "Keepalive interval (sec)", "keepAliveSec", "30", "1", "600")
+					<div class="k-menu-label">Agent</div>
+					<div class="k-field k-field--row">
+						<div class="k-field-copy">
+							<span id="host-agent-readable-label">Agent can read this host's panes</span>
+							<span class="k-help">You still choose panes per conversation.</span>
+						</div>
+						<button type="button" class="k-switch" role="switch" id="host-agent-readable" aria-checked="true" aria-labelledby="host-agent-readable-label"></button>
+					</div>
+					<div class="k-field k-field--row">
+						<div class="k-field-copy">
+							<span id="host-production-label">Treat as production</span>
+							<span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span>
+						</div>
+						<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label"></button>
+					</div>
+				</div>
 			</div>
-			@field.Field(field.Props{Orientation: field.OrientationHorizontal, Class: "items-center", Attributes: templ.Attributes{"data-ssh-only": true}}) {
-				@checkbox.Checkbox(checkbox.Props{Name: "autoReconnect", ID: "host-reconnect", DefaultChecked: true})
-				@label.Label(label.Props{For: "host-reconnect"}) {
-					Auto reconnect
-				}
-			}
-			<fieldset class="k-host-agent">
-				<legend class="k-menu-label">Agent</legend>
-				<div class="k-field k-field--row">
-					<div class="k-field-copy">
-						<span id="host-agent-readable-label">Agent can read this host's panes</span>
-						<span class="k-help">You still choose panes per conversation.</span>
-					</div>
-					<button type="button" class="k-switch" role="switch" id="host-agent-readable" aria-checked="true" aria-labelledby="host-agent-readable-label"></button>
-				</div>
-				<div class="k-field k-field--row">
-					<div class="k-field-copy">
-						<span id="host-production-label">Treat as production</span>
-						<span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span>
-					</div>
-					<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label"></button>
-				</div>
-			</fieldset>
-			<div class="modal-actions">
+			<div class="k-host-foot">
+				<button type="button" class="k-btn k-btn--danger k-btn--sm" id="host-delete" hidden>Delete host</button>
+				<span class="k-spacer"></span>
+				<span class="k-help" id="host-test-note">Test connection: coming soon</span>
+				<button type="button" class="k-btn" id="host-test" disabled>Test connection</button>
 				@button.Button(button.Props{ID: "host-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
+				<button type="submit" class="k-btn k-btn--primary" aria-label="Save host">
 					Save host
-				}
+					<span class="k-kbd" id="host-save-kbd" aria-hidden="true">⌘↵</span>
+				</button>
 			</div>
 		</form>
 	</dialog>

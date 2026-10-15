@@ -2597,3 +2597,19 @@ button.k-choice--btn[aria-disabled="true"] { cursor: default; opacity: .6; }
 button.k-palette-item--ask { border-top: 1px solid var(--line); border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-top: var(--space-1); }
 button.k-palette-item--ask .k-i { color: var(--brass-ink); }
 .k-palette-foot-end { margin-left: auto; }
+
+/* Edit host (Host board): 760px, two columns, footer row. */
+.modal.modal--host { width: min(760px, calc(100vw - 24px)); }
+.modal--host form { gap: 0; padding: 0; }
+.modal--host [data-slot="dialog-header"] { padding: var(--space-4) var(--space-4) var(--space-2); }
+.k-host-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(620px, calc(100dvh - 160px)); overflow: auto; }
+.k-host-col { display: grid; gap: var(--space-3); align-content: start; padding: var(--space-4); min-width: 0; }
+.k-host-col + .k-host-col { border-left: 1px solid var(--line); }
+.k-host-col > .k-menu-label { padding: var(--space-1) 0 0; }
+.k-host-col > .k-menu-label:first-child { padding-top: 0; }
+.k-host-foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
+.modal--host .k-host-foot .k-help { margin-right: var(--space-1); }
+@media (max-width: 640px) {
+  .k-host-cols { grid-template-columns: minmax(0, 1fr); }
+  .k-host-col + .k-host-col { border-left: 0; border-top: 1px solid var(--line); }
+}

@@ -5131,6 +5131,10 @@ Write a runbook here.
     setSwitch("host-production", host?.id ? host.production === true : host?.production === true || isProductionGroup(host?.groupId));
     const title = document.getElementById("host-modal-title");
     if (title) title.textContent = host?.id ? "Edit host" : "New host";
+    const del = document.getElementById("host-delete");
+    if (del) del.hidden = !host?.id || host.authType === "local";
+    const saveKbd = document.getElementById("host-save-kbd");
+    if (saveKbd) saveKbd.textContent = isMac ? "⌘↵" : "Ctrl+↵";
     toggleAuthFields();
   }
 
@@ -7124,6 +7128,29 @@ Write a runbook here.
       ev.stopPropagation();
     });
     on(document.getElementById("pty-inject-cancel"), "click", () => settlePtyInject(false));
+    // ⌘↵ (Ctrl+↵ off macOS) saves the host (§5.8, §8).
+    on(els.hostForm, "keydown", (ev) => {
+      if (ev.key === "Enter" && (isMac ? ev.metaKey : ev.ctrlKey) && !ev.altKey && !ev.shiftKey) {
+        ev.preventDefault();
+        els.hostForm.requestSubmit();
+      }
+    });
+    on(document.getElementById("host-delete"), "click", async () => {
+      const id = els.hostForm?.id?.value;
+      const host = state.hosts.find((h) => h.id === id);
+      if (!host) return;
+      closeModal(els.hostModal);
+      if (!(await askConfirm(`Remove ${host.name}?`))) {
+        openModal(els.hostModal);
+        return;
+      }
+      try {
+        await api(`/api/hosts/${host.id}`, { method: "DELETE" });
+        await loadAll();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
     on(els.hostForm, "click", (ev) => {
       const sw = ev.target.closest("button.k-switch");
       if (sw) setSwitch(sw.id, sw.getAttribute("aria-checked") !== "true");
