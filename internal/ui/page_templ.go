@@ -37,14 +37,14 @@ func Page(p PageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" class=\"dark style-nova\" data-theme=\"dark\" data-theme-choice=\"system\" data-sidebar=\"open\" data-signals=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" class=\"dark style-nova\" data-theme=\"dark\" data-theme-choice=\"system\" data-sidebar=\"open\" data-agent=\"closed\" data-signals=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.SignalsJSON())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 19, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 20, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -60,7 +60,7 @@ func Page(p PageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Keel — SSH workspace</title><script>\n\t\t\t\t(function () {\n\t\t\t\t\tfunction applyTheme(t) {\n\t\t\t\t\t\tif (t !== \"light\" && t !== \"dark\" && t !== \"system\") t = \"system\";\n\t\t\t\t\t\tvar dark = t === \"dark\" || (t === \"system\" && !window.matchMedia(\"(prefers-color-scheme: light)\").matches);\n\t\t\t\t\t\t// CSS sees only the resolved theme; the choice is kept beside it.\n\t\t\t\t\t\tdocument.documentElement.dataset.themeChoice = t;\n\t\t\t\t\t\tdocument.documentElement.dataset.theme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.documentElement.classList.toggle(\"dark\", dark);\n\t\t\t\t\t\tdocument.documentElement.style.colorScheme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.body && document.body.classList.remove(\"dark\");\n\t\t\t\t\t}\n\t\t\t\t\twindow.__keelApplyTheme = applyTheme;\n\t\t\t\t\tapplyTheme(localStorage.getItem(\"keel-theme\") || \"system\");\n\t\t\t\t\tvar uiSize = 12, smooth = \"antialiased\", sidebar = \"open\";\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar ui = JSON.parse(localStorage.getItem(\"keel-ui\") || \"{}\");\n\t\t\t\t\t\tvar n = Math.round(Number(ui.size));\n\t\t\t\t\t\tif (n >= 11 && n <= 16) uiSize = n;\n\t\t\t\t\t\tif (ui.smoothing === \"subpixel\" || ui.smoothing === \"none\") smooth = ui.smoothing;\n\t\t\t\t\t\tif (ui.vaultSidebar === false) sidebar = \"closed\";\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t\tdocument.documentElement.style.setProperty(\"--ui-size\", uiSize + \"px\");\n\t\t\t\t\tdocument.documentElement.dataset.smooth = smooth;\n\t\t\t\t\tdocument.documentElement.dataset.sidebar = sidebar;\n\t\t\t\t\tvar q = new URLSearchParams(location.search);\n\t\t\t\t\tif (q.get(\"native\") === \"1\") document.documentElement.dataset.native = \"1\";\n\t\t\t\t\tif (q.get(\"chrome\") === \"titlebar\") {\n\t\t\t\t\t\tdocument.documentElement.dataset.chrome = \"titlebar\";\n\t\t\t\t\t\tfunction syncFullscreen() {\n\t\t\t\t\t\t\tvar fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;\n\t\t\t\t\t\t\tdocument.documentElement.toggleAttribute(\"data-fullscreen\", fs);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tsyncFullscreen();\n\t\t\t\t\t\twindow.addEventListener(\"resize\", syncFullscreen);\n\t\t\t\t\t}\n\t\t\t\t})();\n\t\t\t</script><link rel=\"stylesheet\" href=\"/vendor/xterm/xterm.css\"><link rel=\"stylesheet\" href=\"/vendor/notebook/prosemirror.css\"><link rel=\"stylesheet\" href=\"/fonts/fonts.css\"><link rel=\"stylesheet\" href=\"/css/tokens.css\"><link rel=\"stylesheet\" href=\"/css/output.css\"><link rel=\"stylesheet\" href=\"/css/keel.css\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7.2' fill='%23ffffff'/><path fill='%23141414' transform='translate(4,5.5) scale(0.24)' d='m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z'/></svg>\"><script type=\"module\" src=\"/js/datastar.js\"></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Keel — SSH workspace</title><script>\n\t\t\t\t(function () {\n\t\t\t\t\tfunction applyTheme(t) {\n\t\t\t\t\t\tif (t !== \"light\" && t !== \"dark\" && t !== \"system\") t = \"system\";\n\t\t\t\t\t\tvar dark = t === \"dark\" || (t === \"system\" && !window.matchMedia(\"(prefers-color-scheme: light)\").matches);\n\t\t\t\t\t\t// CSS sees only the resolved theme; the choice is kept beside it.\n\t\t\t\t\t\tdocument.documentElement.dataset.themeChoice = t;\n\t\t\t\t\t\tdocument.documentElement.dataset.theme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.documentElement.classList.toggle(\"dark\", dark);\n\t\t\t\t\t\tdocument.documentElement.style.colorScheme = dark ? \"dark\" : \"light\";\n\t\t\t\t\t\tdocument.body && document.body.classList.remove(\"dark\");\n\t\t\t\t\t}\n\t\t\t\t\twindow.__keelApplyTheme = applyTheme;\n\t\t\t\t\tapplyTheme(localStorage.getItem(\"keel-theme\") || \"system\");\n\t\t\t\t\tvar uiSize = 12, smooth = \"antialiased\", sidebar = \"open\", agent = \"closed\";\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar ui = JSON.parse(localStorage.getItem(\"keel-ui\") || \"{}\");\n\t\t\t\t\t\tvar n = Math.round(Number(ui.size));\n\t\t\t\t\t\tif (n >= 11 && n <= 16) uiSize = n;\n\t\t\t\t\t\tif (ui.smoothing === \"subpixel\" || ui.smoothing === \"none\") smooth = ui.smoothing;\n\t\t\t\t\t\tif (ui.vaultSidebar === false) sidebar = \"closed\";\n\t\t\t\t\t\tif (ui.agentPanel === true) agent = \"open\";\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t\tdocument.documentElement.style.setProperty(\"--ui-size\", uiSize + \"px\");\n\t\t\t\t\tdocument.documentElement.dataset.smooth = smooth;\n\t\t\t\t\tdocument.documentElement.dataset.sidebar = sidebar;\n\t\t\t\t\tdocument.documentElement.dataset.agent = agent;\n\t\t\t\t\tvar q = new URLSearchParams(location.search);\n\t\t\t\t\tif (q.get(\"native\") === \"1\") document.documentElement.dataset.native = \"1\";\n\t\t\t\t\tif (q.get(\"chrome\") === \"titlebar\") {\n\t\t\t\t\t\tdocument.documentElement.dataset.chrome = \"titlebar\";\n\t\t\t\t\t\tfunction syncFullscreen() {\n\t\t\t\t\t\t\tvar fs = Math.round(window.innerWidth) >= screen.width - 1 && Math.round(window.innerHeight) >= screen.height - 1;\n\t\t\t\t\t\t\tdocument.documentElement.toggleAttribute(\"data-fullscreen\", fs);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tsyncFullscreen();\n\t\t\t\t\t\twindow.addEventListener(\"resize\", syncFullscreen);\n\t\t\t\t\t}\n\t\t\t\t})();\n\t\t\t</script><link rel=\"stylesheet\" href=\"/vendor/xterm/xterm.css\"><link rel=\"stylesheet\" href=\"/vendor/notebook/prosemirror.css\"><link rel=\"stylesheet\" href=\"/fonts/fonts.css\"><link rel=\"stylesheet\" href=\"/css/tokens.css\"><link rel=\"stylesheet\" href=\"/css/output.css\"><link rel=\"stylesheet\" href=\"/css/keel.css\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7.2' fill='%23ffffff'/><path fill='%23141414' transform='translate(4,5.5) scale(0.24)' d='m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z'/></svg>\"><script type=\"module\" src=\"/js/datastar.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -248,7 +248,15 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"bar-meta\" id=\"bar-meta\"><span id=\"bar-status\"></span> <button type=\"button\" class=\"k-badge k-badge--haze k-watching\" id=\"control-widget\" aria-haspopup=\"dialog\" aria-controls=\"share-pop\" hidden></button> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"btn-share\" aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"share-pop\" hidden><span class=\"k-i\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 6.5C21 8.16 19.66 9.5 18 9.5C16.34 9.5 15 8.16 15 6.5C15 4.84 16.34 3.5 18 3.5C19.66 3.5 21 4.84 21 6.5Z\"></path><path d=\"M9 12C9 13.66 7.66 15 6 15C4.34 15 3 13.66 3 12C3 10.34 4.34 9 6 9C7.66 9 9 10.34 9 12Z\"></path><path d=\"M21 17.5C21 19.16 19.66 20.5 18 20.5C16.34 20.5 15 19.16 15 17.5C15 15.84 16.34 14.5 18 14.5C19.66 14.5 21 15.84 21 17.5Z\"></path><path d=\"M8.73 10.75L15.23 7.75M8.73 13.25L15.23 16.25\"></path></svg></span> Share</button></div></header><div class=\"k-share-pop\" id=\"share-pop\" role=\"dialog\" aria-labelledby=\"share-pop-title\" tabindex=\"-1\" hidden></div><div class=\"workspace\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"bar-meta\" id=\"bar-meta\"><span id=\"bar-status\"></span> <button type=\"button\" class=\"k-badge k-badge--haze k-watching\" id=\"control-widget\" aria-haspopup=\"dialog\" aria-controls=\"share-pop\" hidden></button> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"btn-share\" aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"share-pop\" hidden><span class=\"k-i\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 6.5C21 8.16 19.66 9.5 18 9.5C16.34 9.5 15 8.16 15 6.5C15 4.84 16.34 3.5 18 3.5C19.66 3.5 21 4.84 21 6.5Z\"></path><path d=\"M9 12C9 13.66 7.66 15 6 15C4.34 15 3 13.66 3 12C3 10.34 4.34 9 6 9C7.66 9 9 10.34 9 12Z\"></path><path d=\"M21 17.5C21 19.16 19.66 20.5 18 20.5C16.34 20.5 15 19.16 15 17.5C15 15.84 16.34 14.5 18 14.5C19.66 14.5 21 15.84 21 17.5Z\"></path><path d=\"M8.73 10.75L15.23 7.75M8.73 13.25L15.23 16.25\"></path></svg></span> Share</button>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = agentToggle().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div></header><div class=\"k-share-pop\" id=\"share-pop\" role=\"dialog\" aria-labelledby=\"share-pop-title\" tabindex=\"-1\" hidden></div><div class=\"workspace\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -256,7 +264,7 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<section class=\"stage\" id=\"stage\"><div class=\"terminals\" id=\"terminals\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<section class=\"stage\" id=\"stage\"><div class=\"terminals\" id=\"terminals\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -264,7 +272,15 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</section></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AgentPanel().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -272,7 +288,7 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</main></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</main></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -288,7 +304,7 @@ func Page(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/vendor/notebook/editor.js\"></script><script type=\"module\" src=\"/js/term.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<script src=\"/vendor/xterm/xterm.min.js\"></script><script src=\"/vendor/xterm/addon-fit.js\"></script><script src=\"/vendor/xterm/addon-webgl.js\"></script><script src=\"/vendor/xterm/addon-unicode-graphemes.js\"></script><script src=\"/vendor/xterm/addon-web-links.js\"></script><script src=\"/vendor/xterm/addon-search.js\"></script><script src=\"/vendor/xterm/addon-progress.js\"></script><script src=\"/vendor/notebook/editor.js\"></script><script type=\"module\" src=\"/js/term.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -320,7 +336,7 @@ func statusBar() templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<footer class=\"k-status\" id=\"status-bar\" aria-label=\"Status\"><span id=\"sb-runtime\"><span class=\"k-dot k-dot--live\" aria-hidden=\"true\"></span><span id=\"sb-runtime-text\">keel serve</span></span> <span id=\"sb-forwards\" hidden><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 17L4 17\"></path><path d=\"M17 14C17 14 20 16.2 20 17C20 17.8 17 20 17 20\"></path><path d=\"M5 7L20 7\"></path><path d=\"M7 4C7 4 4 6.2 4 7C4 7.8 7 10 7 10\"></path></svg> <span id=\"sb-forwards-text\"></span></span> <span class=\"k-status-gap\"></span> <span id=\"sb-pane\" hidden></span> <span id=\"sb-sync\" hidden>Sync off</span></footer>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<footer class=\"k-status\" id=\"status-bar\" aria-label=\"Status\"><span id=\"sb-runtime\"><span class=\"k-dot k-dot--live\" aria-hidden=\"true\"></span><span id=\"sb-runtime-text\">keel serve</span></span> <span id=\"sb-forwards\" hidden><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 17L4 17\"></path><path d=\"M17 14C17 14 20 16.2 20 17C20 17.8 17 20 17 20\"></path><path d=\"M5 7L20 7\"></path><path d=\"M7 4C7 4 4 6.2 4 7C4 7.8 7 10 7 10\"></path></svg> <span id=\"sb-forwards-text\"></span></span> <span class=\"k-status-gap\"></span> <span id=\"sb-pane\" hidden></span> <span id=\"sb-sync\" hidden>Sync off</span></footer>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

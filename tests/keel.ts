@@ -48,6 +48,19 @@ export async function keelApi<T = unknown>(baseUrl: string | undefined, path: st
   return (await res.json()) as T;
 }
 
+// keelSend changes keel serve's state through its JSON API. Tests use it
+// only to set up or clean up (a test host, the fake agent key), never for
+// the step under test.
+export async function keelSend<T = unknown>(baseUrl: string | undefined, method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(new URL(path, baseUrl), {
+    method,
+    headers: { 'X-Keel-Token': keelToken(), 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${method} ${path}: HTTP ${res.status}`);
+  return (res.status === 204 ? null : await res.json()) as T;
+}
+
 // keelJson is the scratch keel.json as keel serve last wrote it.
 export function keelJson(): string {
   return readFileSync(join(keelData, 'keel.json'), 'utf8');

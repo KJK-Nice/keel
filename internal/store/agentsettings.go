@@ -25,8 +25,11 @@ const (
 	DefaultHistoryDays = 30
 
 	DefaultAgentProvider = "gemini"
-	DefaultAgentModel    = "gemini-2.5-flash"
-	maxModelLen          = 128
+	DefaultAgentModel    = "gemini-3.8-flash"
+	// retiredDefaultModel was the default before Google closed the 2.5
+	// family to new keys; settings saved with it move to the new default.
+	retiredDefaultModel = "gemini-2.5-flash"
+	maxModelLen         = 128
 )
 
 // AgentRedaction is what is redacted before anything leaves the machine.
@@ -128,6 +131,9 @@ func (s *Store) AgentSettings() (AgentSettings, error) {
 	out, err := s.data.Agent.Normalize()
 	if err != nil {
 		return DefaultAgentSettings(), nil
+	}
+	if out.Model == retiredDefaultModel {
+		out.Model = DefaultAgentModel
 	}
 	return out, nil
 }

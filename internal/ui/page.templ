@@ -16,6 +16,7 @@ templ Page(p PageProps) {
 		data-theme="dark"
 		data-theme-choice="system"
 		data-sidebar="open"
+		data-agent="closed"
 		data-signals={ p.SignalsJSON() }
 		if p.Native {
 			data-native="1"
@@ -39,17 +40,19 @@ templ Page(p PageProps) {
 					}
 					window.__keelApplyTheme = applyTheme;
 					applyTheme(localStorage.getItem("keel-theme") || "system");
-					var uiSize = 12, smooth = "antialiased", sidebar = "open";
+					var uiSize = 12, smooth = "antialiased", sidebar = "open", agent = "closed";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
 						if (n >= 11 && n <= 16) uiSize = n;
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
 						if (ui.vaultSidebar === false) sidebar = "closed";
+						if (ui.agentPanel === true) agent = "open";
 					} catch (e) {}
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
 					document.documentElement.dataset.sidebar = sidebar;
+					document.documentElement.dataset.agent = agent;
 					var q = new URLSearchParams(location.search);
 					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
@@ -140,6 +143,7 @@ templ Page(p PageProps) {
 								</span>
 								Share
 							</button>
+							@agentToggle()
 						</div>
 					</header>
 					<div class="k-share-pop" id="share-pop" role="dialog" aria-labelledby="share-pop-title" tabindex="-1" hidden></div>
@@ -149,6 +153,7 @@ templ Page(p PageProps) {
 							<div class="terminals" id="terminals"></div>
 							@Pages(p)
 						</section>
+						@AgentPanel()
 					</div>
 					@statusBar()
 				</main>

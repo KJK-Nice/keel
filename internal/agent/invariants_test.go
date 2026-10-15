@@ -178,12 +178,14 @@ func TestAgentCallsNoWriteMethods(t *testing.T) {
 
 // §6.3: the agent never sees vault contents. In the agent tree, no code
 // reads a secret field or calls a store method that returns secrets. The
-// one exception is KnownSecretValues, called once, in NewRedactor, whose
-// result goes only into redact.Options.Known.
+// exceptions: KnownSecretValues, called once, in NewRedactor, whose result
+// goes only into redact.Options.Known; and AgentKey, called once, in the
+// agent service's providerFor, whose result goes only into the provider
+// client (the x-goog-api-key header), never into a request body.
 func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	secretFields := map[string]bool{"Password": true, "PrivateKey": true, "Passphrase": true, "Token": true}
-	secretCalls := map[string]bool{"GetHost": true, "HostForConnect": true, "GetIdentity": true, "ListIdentities": true, "AgentKey": true, "DuplicateHost": true}
-	known := 0
+	secretCalls := map[string]bool{"GetHost": true, "HostForConnect": true, "GetIdentity": true, "ListIdentities": true, "DuplicateHost": true}
+	known, keys := 0, 0
 	for _, f := range parseModule(t) {
 		if f.test || !inAgentTree(f.pkg) || f.pkg == module+"/internal/agent/provider/gemini" {
 			continue
@@ -205,6 +207,12 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 				if secretCalls[name] {
 					t.Errorf("%s uses %s", f.rel, name)
 				}
+				if name == "AgentKey" {
+					keys++
+					if f.pkg != module+"/internal/agent/service" || fn != "providerFor" {
+						t.Errorf("%s: AgentKey used in %q, only service.providerFor may", f.rel, fn)
+					}
+				}
 				if name == "KnownSecretValues" {
 					known++
 					if fn != "NewRedactor" {
@@ -218,6 +226,9 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	if known != 1 {
 		t.Errorf("KnownSecretValues used %d times in the agent tree, want exactly 1 (NewRedactor)", known)
 	}
+	if keys != 1 {
+		t.Errorf("AgentKey used %d times in the agent tree, want exactly 1 (service.providerFor)", keys)
+	}
 }
 
 // The agent's role names must match the runtime's, which the caller maps.
@@ -228,12 +239,12 @@ func TestRolesMatchRuntime(t *testing.T) {
 }
 
 // geminiImporters is the list of packages allowed to build the real Gemini
-// client. Phase 6a: none. Phase 6b adds the agent service, the only place
-// that may call gemini.New, on a user's Ask.
-var geminiImporters = []string{}
+// client: exactly the agent service (phase 6b), which builds it only for a
+// user's Ask (service.Real, called from providerFor).
+var geminiImporters = []string{module + "/internal/agent/service"}
 
-// Nothing leaves the machine in 6a: no non-test code imports the Gemini
-// client, so no route, timer or UI path can construct or call it.
+// Only the agent service imports the Gemini client, so no other route,
+// timer or UI path can construct or call it.
 func TestNoRuntimePathBuildsTheGeminiClient(t *testing.T) {
 	const gem = module + "/internal/agent/provider/gemini"
 	var got []string
@@ -256,6 +267,70 @@ func TestNoRuntimePathBuildsTheGeminiClient(t *testing.T) {
 		if !allowed[p] {
 			t.Errorf("%s imports the Gemini client; only %v may", p, geminiImporters)
 		}
+	}
+	if len(got) != len(geminiImporters) {
+		t.Errorf("Gemini client importers = %v, want exactly %v", got, geminiImporters)
+	}
+}
+
+// In the agent service, the Gemini client is built only in Real, the test
+// fake only in FromEnv, and a provider is called (Generate) only from Ask
+// and the key-scrubbing wrapper around it. So the one route that calls Ask
+// (POST /api/agent/ask) is the only path to Google.
+func TestOnlyAskCallsAProvider(t *testing.T) {
+	const svc = module + "/internal/agent/service"
+	seen := map[string]int{}
+	for _, f := range parseModule(t) {
+		if f.test {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			fn := ""
+			if ok {
+				fn = fd.Name.Name
+				if fd.Recv != nil && len(fd.Recv.List) > 0 {
+					typ := fd.Recv.List[0].Type
+					if star, ok := typ.(*ast.StarExpr); ok {
+						typ = star.X
+					}
+					if id, ok := typ.(*ast.Ident); ok {
+						fn = id.Name + "." + fn
+					}
+				}
+			}
+			ast.Inspect(decl, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				x, _ := sel.X.(*ast.Ident)
+				switch {
+				case x != nil && x.Name == "gemini" && sel.Sel.Name == "New":
+					seen["gemini.New"]++
+					if f.pkg != svc || fn != "Real" {
+						t.Errorf("%s: gemini.New called in %q; only service.Real may", f.rel, fn)
+					}
+				case x != nil && x.Name == "providertest" && sel.Sel.Name == "NewScripted":
+					if f.pkg != svc || fn != "FromEnv" {
+						t.Errorf("%s: the test provider is built in %q; only service.FromEnv may", f.rel, fn)
+					}
+				case sel.Sel.Name == "Generate" && f.pkg == svc:
+					seen["Generate"]++
+					if fn != "Service.Ask" && fn != "scrubbing.Generate" {
+						t.Errorf("%s: a provider is called in %q; only Service.Ask may", f.rel, fn)
+					}
+				}
+				return true
+			})
+		}
+	}
+	if seen["gemini.New"] != 1 || seen["Generate"] != 2 {
+		t.Errorf("calls found: %v; want gemini.New once and Generate twice (Ask, scrubbing)", seen)
 	}
 }
 

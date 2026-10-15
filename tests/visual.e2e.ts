@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { openKeel } from './keel.ts';
+import { keelSend, openKeel } from './keel.ts';
 
 // Named screenshots of the main screens in both themes, for before/after
 // comparisons of visual-only changes (`--output .e2e/proof/<name>`). They
@@ -90,6 +90,31 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('dialog', 'Command palette')).toBeVisible();
       await app.screenshot(`${theme}-palette`);
       await screen.getByRole('combobox', 'Run a command or connect a host…').press('Escape');
+      await screen.getByRole('button', 'Close tab').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+    });
+
+    // The agent panel (phase 6b) with a trace, an answer and a proposal,
+    // from the test provider (KEEL_AGENT_PROVIDER=fake; no real key).
+    test(`agent panel (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await openKeel(app);
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      await input.pressSequentially('uptime');
+      await input.press('Enter');
+      await input.press('Meta+i');
+      const panel = screen.getByRole('complementary', 'Agent');
+      await expect(panel).toBeVisible();
+      const ask = panel.getByRole('textbox', 'Message the agent');
+      await ask.fill('Is this machine busy?');
+      await ask.press('Enter');
+      await expect(panel.getByRole('button', /Type into pane/)).toBeVisible();
+      await app.screenshot(`${theme}-agent`);
+      await panel.getByRole('button', 'Close agent').tap();
+      await expect(panel).toBeHidden();
       await screen.getByRole('button', 'Close tab').tap();
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });

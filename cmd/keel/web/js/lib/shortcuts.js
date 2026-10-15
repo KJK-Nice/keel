@@ -45,6 +45,10 @@ export function classifyShortcut(ev, ctx) {
   if (ctx.modalOpen) return null;
   if (key === "f" && !ev.shiftKey) return { name: "find-term" };
   if (key === "b" && !ev.shiftKey) return { name: "toggle-sidebar" };
+  // Agent panel: ⌘I on macOS. Elsewhere the app modifier is Ctrl, and
+  // Ctrl+I is Tab in a terminal (readline completion), so it stays with the
+  // shell and the panel takes Ctrl+Shift+I.
+  if (key === "i" && ev.shiftKey === !ctx.mac) return { name: "toggle-agent" };
   if (key === "g" && ctx.findOpen?.()) return { name: ev.shiftKey ? "find-prev" : "find-next" };
   if (key === "n" && !ev.shiftKey) return { name: "new-host" };
   if (key === "o" && ev.shiftKey) return { name: "quick-connect" };

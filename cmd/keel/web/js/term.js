@@ -44,6 +44,7 @@ import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createGate } from "./ui/gate.js";
+import { createAgentPanel } from "./ui/agentpanel.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -125,6 +126,8 @@ import { createGate } from "./ui/gate.js";
     ui: loadUiPrefs(),
     hostKeyRetry: null,
   };
+  // The agent panel (ui/agentpanel.js), created once the chrome exists.
+  let agentPanel = null;
 
   function loadPrefs() {
     const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClickPaste: true };
@@ -153,13 +156,13 @@ import { createGate } from "./ui/gate.js";
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts" };
+    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
       const sidebarSeg = SIDEBAR_SEGS.includes(raw.sidebarSeg) ? raw.sidebarSeg : "hosts";
-      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg };
+      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true };
     } catch {
       return fallback;
     }
@@ -2462,9 +2465,12 @@ import { createGate } from "./ui/gate.js";
           return;
         }
         fitVisiblePanes();
+        // Typing in the agent panel keeps the keyboard there.
+        if (agentPanel?.focused()) return;
         if (!isNotebookPane(pane) && !termInputOpen(pane)) pane?.term?.focus();
       });
     }
+    agentPanel?.refresh();
     persistWorkspace();
   }
 
@@ -2568,6 +2574,7 @@ import { createGate } from "./ui/gate.js";
     refreshStartTabs();
     if (state.tabs.has(pageTabId("logs"))) await loadLogs().catch(() => {});
     paintSidebar();
+    agentPanel?.refresh();
   }
 
   function localHost() {
@@ -2991,6 +2998,14 @@ import { createGate } from "./ui/gate.js";
       run: () => toggleSidebar(),
     });
     add({
+      id: "toggle-agent",
+      group: "Agent",
+      title: "Toggle agent panel",
+      icon: "agent",
+      keys: isMac ? "⌘I" : "Ctrl+Shift+I",
+      run: () => toggleAgentPanel(),
+    });
+    add({
       id: "search-hosts",
       group: "Vault",
       title: "Search hosts",
@@ -3216,7 +3231,7 @@ import { createGate } from "./ui/gate.js";
 
   function syncSessionSurface() {
     if (isCommandPaletteOpen()) setSessionSurface("palette");
-    else if (els.ptyInjectModal?.open || sidebarFocused() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
+    else if (els.ptyInjectModal?.open || sidebarFocused() || agentPanel?.focused() || isNotebookPane(focusedPane()) || termInputOpen()) setSessionSurface("chrome");
     else setSessionSurface("term");
   }
 
@@ -3312,6 +3327,7 @@ import { createGate } from "./ui/gate.js";
       const pane = focusedPane();
       if (pane?.search) openFind(pane);
     } else if (name === "toggle-sidebar") toggleSidebar();
+    else if (name === "toggle-agent") toggleAgentPanel();
     else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
     else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
     else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
@@ -3902,6 +3918,7 @@ import { createGate } from "./ui/gate.js";
 
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
+      agentType: (msg) => settleAgentType(pane, msg),
       joinRequest: (msg) =>
         joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title }),
       joinResolved: (msg) => joinPrompts.resolve({ sessionId: pane.runtimeId, peerId: msg.peerId }),
@@ -4909,28 +4926,35 @@ Write a runbook here.
     });
   }
 
-  async function sendApprovedInject(command, targetPane) {
+  // opts.agent marks the bytes as an agent proposal the user approved
+  // ({conversationId, proposalId, shift}): they go to that one pane only
+  // (never to the panes Sync input would add), and keel serve checks the
+  // proposal with the agent service before writing them.
+  async function sendApprovedInject(command, targetPane, opts = {}) {
     const pane = termTarget(targetPane || focusedPane());
     if (!pane || !isTermPane(pane)) {
       toast("Open a session first");
-      return;
+      return false;
     }
     const tab = state.tabs.get(pane.tabId);
-    const targets = tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
+    const targets = opts.agent ? [pane] : tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
     let sent = false;
     for (const p of targets) {
       const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p) || !isTermPane(p)) continue;
+      if (!open || !isDriving(p) || !isTermPane(p) || (opts.agent && p.remote)) continue;
       const nonce = await requestInjectTicket(p, command);
       if (!nonce) continue;
-      sendSessionJSON(p, { type: "inject", command, nonce });
+      const msg = { type: "inject", command, nonce };
+      if (opts.agent) msg.agent = opts.agent;
+      sendSessionJSON(p, msg);
       sent = true;
     }
     if (!sent) {
       toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
-      return;
+      return false;
     }
     if (!isNotebookPane(focusedPane())) pane.term?.focus?.();
+    return true;
   }
 
   function fillIdentitySelect(selected) {
@@ -5802,6 +5826,102 @@ Write a runbook here.
     onUnlocked: () => boot(),
     onImported: () => loadAll().catch((err) => toast(err.message, true)),
   });
+
+  // ---- Agent panel (docs/ui-redesign.md §5.4) -------------------------------
+  // The panel reads nothing itself: keel serve reads the panes in scope. It
+  // gets this window's panes from agentPanes and types a proposal only
+  // through typeAgentProposal: the approve dialog, then the session socket,
+  // where keel serve checks the proposal again before writing it.
+
+  function agentPanes() {
+    const out = [];
+    const focused = focusedPane();
+    for (const tab of state.tabs.values()) {
+      if (tab.page || tab.start) continue;
+      for (const pane of tabPanes(tab)) {
+        if (!isTermPane(pane) || !pane.runtimeId) continue;
+        const host = state.hosts.find((h) => h.id === pane.hostId) || null;
+        out.push({
+          sessionId: pane.runtimeId,
+          label: host?.name || pane.title || "session",
+          sub: tabName(tab),
+          tabId: tab.id,
+          focused: pane === focused,
+          inActiveTab: tab.id === state.activeId,
+          // The server decides; this only shapes the picker. A host it
+          // does not know is not readable there either.
+          readable: !!host && host.agentReadable !== false,
+          production: host?.production === true,
+          driving: isDriving(pane),
+          remote: !!(pane.remote || tab.remote),
+        });
+      }
+    }
+    return out;
+  }
+
+  function settleAgentType(pane, msg) {
+    const done = pane.agentTypeWaiter;
+    pane.agentTypeWaiter = null;
+    if (typeof done === "function") done({ ok: msg.ok === true, message: msg.message || "" });
+  }
+
+  async function typeAgentProposal({ proposal, conversationId, shift }) {
+    const pane = findPaneByRuntime(proposal.sessionId);
+    if (!pane || !isTermPane(pane) || pane.remote) return { ok: false, message: "That pane is not open in this window." };
+    if (!isDriving(pane)) return { ok: false, message: "You follow this pane. The agent cannot type into it." };
+    const label = `${proposal.host || pane.title || "the pane"} (agent proposal)`;
+    const ok = await approveBeforeType(proposal.bytes, label);
+    if (!ok) return { cancelled: true };
+    holdPtyFromChrome();
+    const result = new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (pane.agentTypeWaiter) {
+          pane.agentTypeWaiter = null;
+          resolve({ ok: false, message: "keel serve did not answer." });
+        }
+      }, 4000);
+      pane.agentTypeWaiter = (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      };
+    });
+    const sent = await sendApprovedInject(proposal.bytes, pane, {
+      agent: { conversationId, proposalId: proposal.id, shift: !!shift },
+    });
+    if (!sent) {
+      settleAgentType(pane, { ok: false, message: "Not typed: the session is not connected, or you do not drive it." });
+    }
+    return result;
+  }
+
+  function toggleAgentPanel() {
+    if (!agentPanel) return;
+    if (state.tabs.get(state.activeId)?.remote) {
+      toast("The agent is off in joined sessions");
+      return;
+    }
+    agentPanel.toggle();
+  }
+
+  agentPanel = createAgentPanel({
+    api,
+    toast,
+    isMac,
+    listPanes: agentPanes,
+    typeProposal: typeAgentProposal,
+    copyText: async (text) => toast((await copyText(text)) ? "Copied" : "Copy failed", false),
+    onResize: () => requestAnimationFrame(() => fitVisiblePanes()),
+    onOpenChange: (open) => {
+      state.ui.agentPanel = open;
+      saveUiPrefs();
+      if (!open) restoreTermKeyboard();
+      syncSessionSurface();
+      requestAnimationFrame(() => fitVisiblePanes());
+    },
+  });
+  document.getElementById("agent-panel")?.addEventListener("focusin", () => syncSessionSurface());
+  document.getElementById("agent-panel")?.addEventListener("focusout", () => setTimeout(syncSessionSurface, 0));
 
   function activateTabIndex(n) {
     const id = tabIndexTarget(chromeTabs(), n);

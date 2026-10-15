@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/components"
+	"keel/internal/agent/service"
 	"keel/internal/applog"
 	"keel/internal/inject"
 	"keel/internal/runtime"
@@ -46,6 +47,10 @@ type Server struct {
 	build     string
 	// sshDir is ~/.ssh (KEEL_SSH_DIR), read by the first-run host import.
 	sshDir string
+	// The agent panel (agentask.go). agent is nil without a log.
+	agent        *service.Service
+	agentFactory service.Factory
+	agentTest    bool
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -74,6 +79,7 @@ func (s *Server) WithStop(fn func()) *Server {
 }
 
 func (s *Server) Handler() http.Handler {
+	s.initAgent()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
@@ -120,6 +126,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/agent/providers", s.listAgentProviders)
 	mux.HandleFunc("PUT /api/agent/keys/{provider}", s.putAgentKey)
 	mux.HandleFunc("DELETE /api/agent/keys/{provider}", s.deleteAgentKey)
+	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
+	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
+	mux.HandleFunc("DELETE /api/agent/conversations/{id}", s.agentReset)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
@@ -963,6 +972,9 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				Cols     int    `json:"cols"`
 				Rows     int    `json:"rows"`
 				TargetID uint64 `json:"targetId"`
+				// Agent marks an inject as the user's Type into pane on an
+				// agent proposal (agentask.go).
+				Agent *agentTypeMsg `json:"agent"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
 				continue
@@ -986,7 +998,24 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
 			case "inject":
-				err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
+				if ctl.Agent == nil {
+					err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
+					break
+				}
+				// An agent proposal: the agent service checks the ⇧ rule,
+				// that this client drives the session and that the bytes
+				// are the proposal's, and logs agent.type, before the
+				// approved ticket writes them (§6.1, §6.5, §6.6, §6.7).
+				if aerr := s.authorizeAgentType(sess, cl.ID, ctl.Agent, ctl.Command); aerr != nil {
+					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": aerr.Error()})
+					break
+				}
+				if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
+					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
+					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
+					break
+				}
+				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
 			}
 			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {
 				_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})

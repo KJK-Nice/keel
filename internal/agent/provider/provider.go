@@ -91,10 +91,12 @@ var descriptors = []Descriptor{
 		Kind:         KindModel,
 		KeyLabel:     "Gemini API key",
 		KeyHelpURL:   "https://aistudio.google.com/apikey",
-		DefaultModel: "gemini-2.5-flash",
-		Models:       []string{"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"},
-		Warning:      GeminiWarning,
-		TermsURL:     "https://ai.google.dev/gemini-api/terms",
+		DefaultModel: "gemini-3.8-flash",
+		// The 2.5 family is closed to keys that never used it, so new
+		// users get a 404 from it.
+		Models:   []string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"},
+		Warning:  GeminiWarning,
+		TermsURL: "https://ai.google.dev/gemini-api/terms",
 	},
 	{
 		ID:       "jev",

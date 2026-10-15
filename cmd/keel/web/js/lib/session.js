@@ -51,6 +51,7 @@ export function parseSessionMessage(text) {
 //   joinRequest / joinResolved / joinFailed (msg)   share admission
 //   status(msg)              status change (also carries presence)
 //   presence(msg)            ready, presence or control
+//   agentType(msg)           keel serve typed (or refused) an agent proposal
 //   error(msg)               the session failed
 // Unknown types are ignored. Returns whether a handler ran.
 export function dispatchSessionMessage(msg, h) {
@@ -74,6 +75,8 @@ export function dispatchSessionMessage(msg, h) {
     case "presence":
     case "control":
       return run("presence", msg);
+    case "agent-type":
+      return run("agentType", msg);
     case "error":
       return run("error", msg);
     default:

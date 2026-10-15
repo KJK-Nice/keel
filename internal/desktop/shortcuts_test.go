@@ -32,7 +32,8 @@ func TestMenuAcceleratorsMatchShortcutTable(t *testing.T) {
 	}
 	type entry struct {
 		Accel string  `json:"accel"`
-		Want  *string `json:"want"` // nil: the menu handles it natively, JS must not
+		Want  *string `json:"want"`           // nil: the menu handles it natively, JS must not
+		Only  string  `json:"only,omitempty"` // "mac" or "other": an OS-specific chord
 	}
 	var entries []entry
 	for _, m := range menuActionRe.FindAllStringSubmatch(string(src), -1) {
@@ -42,6 +43,13 @@ func TestMenuAcceleratorsMatchShortcutTable(t *testing.T) {
 	for _, m := range menuHandlerRe.FindAllStringSubmatch(string(src), -1) {
 		entries = append(entries, entry{Accel: m[1]})
 	}
+	// The agent panel chord differs by OS (agentPanelAccel).
+	agentName := "toggle-agent"
+	entries = append(entries,
+		entry{Accel: agentPanelAccel("darwin"), Want: &agentName, Only: "mac"},
+		entry{Accel: agentPanelAccel("linux"), Want: &agentName, Only: "other"},
+		entry{Accel: "CmdOrCtrl+i", Want: nil, Only: "other"}, // Ctrl+I is Tab: never the panel
+	)
 	if len(entries) < 15 {
 		t.Fatalf("found %d menu accelerators, expected at least 15 — did the menu code change shape?", len(entries))
 	}
@@ -71,8 +79,9 @@ function event(accel, mac) {
   return { key, code: codes[raw] || "", shiftKey: shift, metaKey: mac, ctrlKey: !mac, altKey: false, repeat: false };
 }
 const bad = [];
-for (const { accel, want } of entries) {
+for (const { accel, want, only } of entries) {
   for (const mac of [true, false]) {
+    if ((only === "mac" && !mac) || (only === "other" && mac)) continue;
     const got = classifyShortcut(event(accel, mac), { mac, modalOpen: false, findOpen: () => false });
     const name = got ? got.name : null;
     if (name !== want) bad.push(accel + (mac ? " (mac)" : " (other)") + ": menu runs " + want + ", keyboard runs " + name);

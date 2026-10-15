@@ -312,7 +312,7 @@ func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 		t.Fatalf("defaults = %+v", got)
 	}
 	saved, err := st.SetAgentSettings(AgentSettings{
-		Provider: "Gemini", Model: "gemini-2.5-pro", Detection: DetectionHashOnly,
+		Provider: "Gemini", Model: "gemini-3.6-flash", Detection: DetectionHashOnly,
 		DefaultScope: ScopeTab, ScrollbackLines: 5000,
 		Redact:      AgentRedaction{Secrets: false, IPs: true, Hostnames: true},
 		HistoryDays: 9999,
@@ -451,4 +451,19 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// Google closed gemini-2.5-flash to new keys, so settings saved with the
+// old default read back as the new one.
+func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
+	st, path := agentStore(t)
+	old := DefaultAgentSettings()
+	old.Model = retiredDefaultModel
+	if _, err := st.SetAgentSettings(old); err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopen(t, path).AgentSettings()
+	if err != nil || got.Model != DefaultAgentModel {
+		t.Fatalf("model = %q (%v), want %q", got.Model, err, DefaultAgentModel)
+	}
 }
