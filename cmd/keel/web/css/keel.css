@@ -345,8 +345,26 @@ html[data-chrome="titlebar"] .workspace-bar {
   padding: 0 var(--space-2) 0 84px;
   user-select: none;
 }
+/* Native full screen (desktop.go chromeJS sets data-fullscreen): the
+   traffic lights leave the window, so the tabs move to the left edge. */
 html[data-chrome="titlebar"][data-fullscreen] .workspace-bar {
-  padding-left: 8px;
+  padding-left: var(--space-2);
+}
+/* When the pointer reaches the top in full screen, macOS slides the menu
+   bar and titlebar over the window. desktop.go measures how far it reaches
+   (--titlebar-overlay) and the page moves down below it. Moved, not
+   resized: terminals keep their rows and the shell sees no resize. */
+html[data-chrome="titlebar"] .app {
+  position: relative;
+  top: 0;
+}
+html[data-chrome="titlebar"][data-fullscreen][data-titlebar-revealed] .app {
+  top: var(--titlebar-overlay, 0);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-chrome="titlebar"][data-fullscreen] .app {
+    transition: top var(--duration-base) ease-out;
+  }
 }
 html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textarea, .control-widget) {
   --wails-draggable: none;
