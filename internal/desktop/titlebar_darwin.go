@@ -4,10 +4,8 @@ package desktop
 
 /*
 #cgo CFLAGS: -x objective-c
-#cgo LDFLAGS: -framework AppKit -framework WebKit
+#cgo LDFLAGS: -framework AppKit
 #import <AppKit/AppKit.h>
-#import <WebKit/WebKit.h>
-#include <stdlib.h>
 
 typedef struct {
 	bool fullscreen;
@@ -45,25 +43,6 @@ static keelChromeProbe keelProbeChrome(void *ptr) {
 	return p;
 }
 
-static WKWebView *keelFindWebView(NSView *v) {
-	if ([v isKindOfClass:[WKWebView class]]) return (WKWebView *)v;
-	for (NSView *sub in [v subviews]) {
-		WKWebView *w = keelFindWebView(sub);
-		if (w != nil) return w;
-	}
-	return nil;
-}
-
-// Wails' ExecJS waits for its JS runtime, which the loopback page never
-// loads, so the chrome state goes straight to the WKWebView.
-static void keelEvalJS(void *ptr, char *js) {
-	NSWindow *win = (__bridge NSWindow *)ptr;
-	WKWebView *web = win == nil ? nil : keelFindWebView([win contentView]);
-	if (web != nil) {
-		[web evaluateJavaScript:[NSString stringWithUTF8String:js] completionHandler:nil];
-	}
-	free(js);
-}
 */
 import "C"
 
@@ -88,15 +67,4 @@ func probeChrome(win *application.WebviewWindow) (chromeProbe, bool) {
 		BarBottom:      float64(p.barBottom),
 		TitlebarBottom: float64(p.titlebarBottom),
 	}, true
-}
-
-// evalChromeJS runs js in the window's web view on the main thread.
-func evalChromeJS(win *application.WebviewWindow, js string) {
-	ptr := win.NativeWindow()
-	if ptr == nil {
-		return
-	}
-	application.InvokeAsync(func() {
-		C.keelEvalJS(ptr, C.CString(js))
-	})
 }

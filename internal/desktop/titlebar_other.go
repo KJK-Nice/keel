@@ -9,5 +9,3 @@ import "github.com/wailsapp/wails/v3/pkg/application"
 func probeChrome(*application.WebviewWindow) (chromeProbe, bool) {
 	return chromeProbe{}, false
 }
-
-func evalChromeJS(*application.WebviewWindow, string) {}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyShortcut, isAppMod } from "../lib/shortcuts.js";
+import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "../lib/shortcuts.js";
 
 const mac = { mac: true, modalOpen: false, findOpen: () => false };
 const cmd = (key, extra = {}) => ({ key, code: "", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, ...extra });
@@ -122,4 +122,37 @@ test("Alt+1…6 open recent hosts only on the New tab page", () => {
   assert.equal(classifyShortcut(alt(1, { ctrlKey: true }), start), null);
   // Windows and Linux use the same Alt key.
   assert.deepEqual(classifyShortcut(alt(2, { key: "2" }), { mac: false, modalOpen: false, startPage: true }), { name: "recent-host", index: 2 });
+});
+
+// The native menu carries the same chords. term.js swallows a chrome chord
+// it declines, so the menu does not run it in its place (#36).
+test("isChromeChord: chords the page runs in the plain state", () => {
+  assert.equal(isChromeChord(cmd("t"), true), true);
+  assert.equal(isChromeChord(cmd("t", { repeat: true }), true), true, "a held Cmd+T is still a chord");
+  assert.equal(isChromeChord(cmd("b"), true), true);
+  assert.equal(isChromeChord(cmd("=", { code: "Equal" }), true), true);
+  // Edit-menu keys and Close Window stay with the native menu.
+  for (const k of ["c", "v", "x", "a", "z", "q"]) assert.equal(isChromeChord(cmd(k), true), false, k);
+  assert.equal(isChromeChord(cmd("Z", { shiftKey: true }), true), false);
+  assert.equal(isChromeChord(cmd("W", { shiftKey: true }), true), false);
+  // Off macOS the app modifier is Ctrl.
+  assert.equal(isChromeChord({ ...cmd("t"), metaKey: false, ctrlKey: true }, false), true);
+  assert.equal(isChromeChord(cmd("t"), false), false);
+});
+
+test("menuShortcutAllowed: menu items keep the keyboard's limits", () => {
+  const plain = { gateOpen: false, renaming: false, modalOpen: false };
+  for (const n of ["new-tab", "toggle-agent", "search", "split-notebook"]) assert.equal(menuShortcutAllowed(n, plain), true, n);
+  const modal = { ...plain, modalOpen: true };
+  for (const n of ["new-tab", "toggle-sidebar", "toggle-agent", "find-term", "new-host", "quick-connect", "join", "search"]) {
+    assert.equal(menuShortcutAllowed(n, modal), false, `${n} with a dialog open`);
+  }
+  for (const n of ["close-tab", "reopen-tab", "split-right", "split-down", "focus-pane", "zoom-in", "zoom-out", "zoom-reset"]) {
+    assert.equal(menuShortcutAllowed(n, modal), true, `${n} with a dialog open`);
+  }
+  for (const ctx of [{ ...plain, gateOpen: true }, { ...plain, renaming: true }]) {
+    assert.equal(menuShortcutAllowed("new-tab", ctx), false);
+    assert.equal(menuShortcutAllowed("close-tab", ctx), false);
+    assert.equal(menuShortcutAllowed("stop-runtime", ctx), true, "Stop Keel runtime always runs");
+  }
 });
