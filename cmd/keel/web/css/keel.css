@@ -1154,7 +1154,10 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   height: 100%;
   width: 100%;
   overflow: hidden;
-  padding: 0;
+  /* A small left inset so the prompt does not touch the window edge.
+     FitAddon subtracts the .xterm padding, so cols stay correct. */
+  box-sizing: border-box;
+  padding: 0 0 0 var(--space-2);
   line-height: 1;
   letter-spacing: 0;
   font-variant-ligatures: none;
