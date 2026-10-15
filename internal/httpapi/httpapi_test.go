@@ -3391,3 +3391,41 @@ func TestStylesUseKeelTokensOnly(t *testing.T) {
 		t.Error("empty woff2")
 	}
 }
+
+func TestRuntimeInfo(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := runtime.New(st, nil)
+	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
+	api := New(st, rt, fs.FS(web), nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
+	srv := httptest.NewServer(api.Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/api/runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	var got struct {
+		Build     string `json:"build"`
+		Addr      string `json:"addr"`
+		DataDir   string `json:"dataDir"`
+		Sessions  int    `json:"sessions"`
+		StartedAt string `json:"startedAt"`
+		UptimeSec int64  `json:"uptimeSec"`
+		CanStop   bool   `json:"canStop"`
+		SignalURL string `json:"signalURL"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Build != "abc-123" || got.Addr != "127.0.0.1:9" || got.DataDir != "/data/keel" || !got.CanStop || got.Sessions != 0 || got.UptimeSec < 0 || got.StartedAt == "" || got.SignalURL != "" {
+		t.Fatalf("runtime info = %+v", got)
+	}
+}
