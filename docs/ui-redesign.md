@@ -6,7 +6,7 @@ Status: design approved for build · 2026-10-13
   - `tokens.json`: every token, both themes. `tokens.css`: the same as CSS custom properties.
   - `components.css`: reference `k-*` component styles. `README.md`: usage rules (the brand book).
 - Design system (live, browsable): https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1
-- Screens (canvas, 16 boards): https://claude.ai/artifact/GJaVi8YQSrxoNiDVXoi2sW
+- Screens (canvas, 17 boards): https://claude.ai/artifact/GJaVi8YQSrxoNiDVXoi2sW
 
 ## 1. Why
 
@@ -44,7 +44,7 @@ Non-goals (this round)
 
 | Before | After |
 |---|---|
-| Vault = pinned tab 1 (Hosts, Keychain, Forwards, Snippets, Logs, Settings) | **Vault sidebar** (left, 252px, collapsible, every tab): host tree by folder, segmented Hosts / Snippets / Forwards, footer Keychain · Logs · Settings |
+| Vault = pinned tab 1 (Hosts, Keychain, Forwards, Snippets, Logs, Settings) | **Vault sidebar** (left, 252px, collapsible, every tab): host tree by folder, segmented Hosts / Panes / Snippets / Forwards (Panes only while the active tab has 2+ panes, §5.1), footer Keychain · Logs · Settings |
 | Keychain, Forwards, Snippets, Logs, Settings inside the vault tab | Each opens as **its own tab page** (like Settings) |
 | ⌘1 = Vault | ⌘1 = first session tab |
 | No agent | **Agent panel** (right, 380px, collapsible, one per window) |
@@ -61,6 +61,12 @@ Board names refer to the canvas.
 - Focused pane: bar on `surface` + keel line. Unfocused: bar on `chrome`, muted text.
 - Banners between bar and terminal for exited/failed (`flare`, Reconnect) and reconnecting/host-key changed (`signal`).
 - Status bar: runtime state and session count, running forwards, focused pane size, encoding, Sync state.
+- **Panes in the sidebar** (board `Panes`, post-plan polish). The sidebar segments are Hosts · Panes · Snippets · Forwards. Panes exists only while the active tab has 2+ panes and shows the pane count after its label; when the tab drops to one pane, or a one-pane tab (or a New tab or tab page) is selected, the segment hides and a selected Panes falls back to Hosts.
+  - Clicking into a pane of a split tab (or picking a pane in the palette's Open now group) switches the sidebar to Panes. Only the section shown changes: keyboard focus stays in the terminal. Splitting or closing a pane does not switch it.
+  - Lists **only the active tab's panes**. Top: a layout map that mirrors the tab's split tree (cells sized like the panes, numbered in pane order; the focused cell on `surface` with the 2px brass keel line). Then a "This tab" group header with the count and one 40px row per pane: host-colour tile (as in the host tree), name in mono, a sub line from what the pane already knows (`user@address` from the pane bar, "Notebook" for a notebook, else its connection state), and meta icons: Driving (steering) when the pane is shared and you drive, and the haze agent icon when the agent can read it (the host's "Agent can read" is on). The focused row is `aria-current` (hover background, name weight 500), no coloured side bar. No per-row shortcut.
+  - A row or a map cell focuses that pane by the same path as a click into it, and gives its terminal the keyboard; a zoomed tab leaves focus view first.
+  - The filter's placeholder is "Filter panes" and it narrows rows by name and sub line, never the map.
+  - Live: split, close, rename, connection state and focus changes repaint it. Collapsed sidebar (⌘B): nothing changes. Joined tabs have no sidebar (§5.7).
 
 ### 5.2 Command palette ⌘K / ⌘⇧P (`Palette`)
 - Groups in this order: **Open now** (tabs and panes, to avoid duplicate sessions) → Hosts → Actions → Snippets.
@@ -193,6 +199,7 @@ One phase per branch and PR.
 | 4 · Share + Join | Popover, request toast, follower banner | Behaviour exists; UI only |
 | 5 · Unlock + First run | ssh config import, key copy | New backend for import |
 | 6 · Agent | Provider, scope, redaction, audit log, panel, proposals, then in-pane suggestions | Invariants in §6 are acceptance criteria |
+| Polish · Sidebar Panes | Panes segment and section in the Vault sidebar (§5.1, board `Panes`) | Post-plan polish PR; UI only, no backend data |
 
 ## 11. Open questions
 

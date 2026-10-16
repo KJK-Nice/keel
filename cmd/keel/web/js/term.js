@@ -79,7 +79,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   };
   const PAGE_PREFIX = "page:";
   const pageTabId = (name) => PAGE_PREFIX + name;
-  const SIDEBAR_SEGS = ["hosts", "snippets", "forwards"];
+  const SIDEBAR_SEGS = ["hosts", "panes", "snippets", "forwards"];
   const SASH_PX = 1; // 1px line gutter between panes; keel.css .split-sash widens the hit area
   // Pane bar tool buttons: ghost icon buttons from the k-* set. icon-btn and the
   // data-pane-* attributes stay as JS hooks.
@@ -113,7 +113,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     booted: false,
     settingsSection: "appearance",
     query: "",
-    sidebarQuery: { snippets: "", forwards: "" },
+    sidebarQuery: { panes: "", snippets: "", forwards: "" },
     selectedIdentity: "",
     selectedSnippet: "",
     tunnelFilter: "all",
@@ -238,12 +238,22 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     setSidebar(!sidebarOpen());
   }
 
+  // panesTab is the tab the sidebar's Panes section lists: the active
+  // session tab, only while it has two or more panes. A joined tab has no
+  // sidebar (§5.7).
+  function panesTab() {
+    const tab = activeSessionTab();
+    return tab && !tab.remote && leafCount(tab.layout) > 1 ? tab : null;
+  }
+
   function sidebarSeg() {
-    return SIDEBAR_SEGS.includes(state.ui.sidebarSeg) ? state.ui.sidebarSeg : "hosts";
+    const seg = SIDEBAR_SEGS.includes(state.ui.sidebarSeg) ? state.ui.sidebarSeg : "hosts";
+    return seg === "panes" && !panesTab() ? "hosts" : seg;
   }
 
   const SIDEBAR_FILTER = {
     hosts: { placeholder: "Filter hosts", label: "Search hosts" },
+    panes: { placeholder: "Filter panes", label: "Filter panes" },
     snippets: { placeholder: "Filter snippets", label: "Filter snippets" },
     forwards: { placeholder: "Filter forwards", label: "Filter forwards" },
   };
@@ -258,6 +268,21 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   }
 
   function applySidebarSeg() {
+    // Panes exists only while the active tab has 2+ panes; when that ends
+    // (a pane closed, another tab selected) the sidebar falls back to Hosts.
+    const paneTab = panesTab();
+    if (state.ui.sidebarSeg === "panes" && !paneTab) {
+      state.ui.sidebarSeg = "hosts";
+      saveUiPrefs();
+    }
+    const panesBtn = document.querySelector('[data-sidebar-seg="panes"]');
+    if (panesBtn) {
+      panesBtn.hidden = !paneTab;
+      const n = paneTab ? String(leafCount(paneTab.layout)) : "";
+      const count = panesBtn.querySelector("[data-panes-count]");
+      if (count && count.textContent !== n) count.textContent = n;
+      panesBtn.title = paneTab ? `${n} panes in this tab` : "";
+    }
     const current = sidebarSeg();
     document.querySelectorAll("[data-sidebar-seg]").forEach((btn) => {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-sidebar-seg") === current));
@@ -273,6 +298,104 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       const value = current === "hosts" ? state.query : state.sidebarQuery[current] || "";
       if (input.value !== value) input.value = value;
     }
+    if (current === "panes") paintPanesSection(paneTab);
+  }
+
+  // revealPanes switches the sidebar to Panes when the user focuses a pane
+  // of a split tab (a click into it, a palette pick). It changes only the
+  // section shown; DOM focus stays where the caller put it.
+  function revealPanes(pane) {
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!tab || tab !== panesTab() || state.ui.sidebarSeg === "panes") return;
+    setSidebarSeg("panes");
+  }
+
+  // pickPane focuses a pane from the Panes section (a row or a map cell):
+  // the same path as a click into the pane, which gives its terminal the
+  // keyboard. A zoomed tab leaves focus view first so the pane shows.
+  function pickPane(paneId) {
+    const pane = state.panes.get(paneId);
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!tab) return;
+    if (tab.zoomedPaneId && tab.zoomedPaneId !== paneId) {
+      tab.zoomedPaneId = "";
+      tab.focusedPaneId = paneId;
+      tab.dirty = true;
+      renderTabs();
+    }
+    markFocusedPane(pane);
+    if (isNotebookPane(pane)) releaseSidebarFocus();
+  }
+
+  const PANE_ICONS = {
+    layout: hugeicon(
+      '<path d="M3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28248 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28248 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088Z"/><path d="M2.5 9L21.5 9"/><path d="M8 21.5L8 9"/>'
+    ),
+    agent: hugeicon(
+      '<path d="M13.427 8.08396C12.8007 5.84272 12.3226 4 11.0004 4C9.67824 4 9.19964 5.84274 8.5731 8.08399C8.31853 8.99465 8.19125 9.44998 7.82042 9.82077C7.4496 10.1916 6.99434 10.3188 6.08381 10.5732C3.84273 11.1995 2 11.6775 2 13C2 14.3225 3.84273 14.8005 6.08381 15.4268C6.99434 15.6812 7.4496 15.8084 7.82042 16.1792C8.19125 16.55 8.31853 17.0054 8.5731 17.916C9.19964 20.1573 9.67824 22 11.0004 22C12.3226 22 12.8007 20.1573 13.427 17.916C13.6815 17.0054 13.8087 16.5501 14.1795 16.1793C14.5504 15.8085 15.0056 15.6812 15.9162 15.4268C18.1573 14.8005 20 14.3225 20 13C20 11.6775 18.1573 11.1995 15.9162 10.5732C15.0056 10.3188 14.5504 10.1915 14.1795 9.8207C13.8087 9.44986 13.6815 8.99456 13.427 8.08396Z"/><path d="M19.5 2.9375V4.5M19.5 4.5V6.0625M19.5 4.5H18.25M19.5 4.5H20.75"/>'
+    ),
+  };
+
+  // paneRowInfo is what a Panes row shows, from what the pane already
+  // knows: its title, its address (or "Notebook"), its host's colour, and
+  // whether it is shared with you driving, or readable by the agent.
+  function paneRowInfo(tab, pane) {
+    const host = pane.hostId ? state.hosts.find((h) => h.id === pane.hostId) : null;
+    const notebook = isNotebookPane(pane);
+    const sub = notebook ? "Notebook" : pane.subtitle || dotFor(pane.status).label;
+    const shared = isTermPane(pane) && (pane.remote || tab.remote || (pane.attached?.length || 0) > 1) && !!pane.you;
+    return {
+      id: pane.id,
+      name: pane.title || (notebook ? "Notebook" : "session"),
+      sub,
+      color: host?.color || "",
+      icon: notebook ? SIDE_ICONS.notebook : V.glyphSVG(!host || host.authType === "local" ? "local" : "server"),
+      driving: shared && isDriving(pane),
+      agent: isTermPane(pane) && !!pane.runtimeId && !!host && host.agentReadable !== false,
+    };
+  }
+
+  // paintPanesSection fills the Panes section: a map of the tab's split
+  // tree (cells sized like the panes, the focused one with the keel line)
+  // and one row per pane. Rows and cells focus their pane (pickPane).
+  function paintPanesSection(tab) {
+    const el = document.getElementById("sidebar-panes");
+    if (!el) return;
+    let html = "";
+    if (tab) {
+      const panes = tabPanes(tab);
+      const focusedId = (state.panes.get(tab.focusedPaneId) || panes[0])?.id || "";
+      const rows = panes.map((p) => paneRowInfo(tab, p));
+      const { panes: rects } = computeRects(tab.layout, 1000, 1000, 0);
+      const pct = (v) => `${(v / 10).toFixed(2)}%`;
+      const cells = rows
+        .map((r, i) => {
+          const box = rects.get(r.id);
+          if (!box) return "";
+          const cur = r.id === focusedId ? ' aria-current="true"' : "";
+          return `<div class="k-panemap-slot" style="left:${pct(box.x)};top:${pct(box.y)};width:${pct(box.w)};height:${pct(box.h)}"><button type="button" class="k-panemap-cell" data-pane-pick="${escapeHtml(r.id)}"${cur} aria-label="Focus pane ${i + 1}, ${escapeHtml(r.name)}" title="${escapeHtml(r.name)}"><span class="k-panemap-n">${i + 1}</span><span class="k-panemap-name">${escapeHtml(r.name)}</span></button></div>`;
+        })
+        .join("");
+      const q = state.sidebarQuery.panes;
+      const list = rows
+        .filter((r) => sideMatches(`${r.name} ${r.sub}`, q))
+        .map((r) => {
+          const cur = r.id === focusedId ? ' aria-current="true"' : "";
+          const color = r.color ? ` style="--host:${escapeHtml(r.color)}"` : "";
+          const meta =
+            (r.driving ? `<span class="k-pane-row-driving" role="img" aria-label="You are driving" title="You are driving">${paneGlyph("steering")}</span>` : "") +
+            (r.agent ? `<span class="k-pane-row-agent" role="img" aria-label="The agent can read this pane" title="The agent can read this pane">${PANE_ICONS.agent}</span>` : "");
+          return `<button type="button" class="k-pane-row" data-pane-pick="${escapeHtml(r.id)}"${cur}><span class="k-tile k-tile--sm"${color}>${r.icon}</span><span class="k-pane-row-text"><span class="k-pane-row-name">${escapeHtml(r.name)}</span><span class="k-pane-row-sub">${escapeHtml(r.sub)}</span></span>${meta ? `<span class="k-pane-row-meta">${meta}</span>` : ""}</button>`;
+        })
+        .join("");
+      html = `<div class="k-panemap" role="group" aria-label="Layout of this tab"><div class="k-panemap-grid">${cells}</div></div>
+        <div class="k-side-label k-panes-head">${PANE_ICONS.layout}<span>This tab</span><span class="k-panes-count">${rows.length}</span></div>
+        <div class="k-side-section">${list || `<p class="k-side-note">No panes match.</p>`}</div>`;
+    }
+    // Repaint only on a change, so a hovered or focused row is kept.
+    if (el.dataset.html === html) return;
+    el.dataset.html = html;
+    el.innerHTML = html;
   }
 
   // revealVault opens the sidebar on Hosts and puts the caret in its filter
@@ -1947,6 +2070,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
     renderControl(pane);
     renderStatusBar();
+    applySidebarSeg();
     if (!isNotebookPane(pane) && !termInputOpen(pane)) {
       releaseSidebarFocus();
       pane.term?.focus();
@@ -2506,6 +2630,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
     renderControl(pane);
     syncHostLive();
+    applySidebarSeg();
     syncActivePage();
     renderStatusBar();
     if (tabDrag?.id) {
@@ -3185,6 +3310,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
             run: () => {
               focusTab();
               markFocusedPane(p);
+              revealPanes(p);
             },
           });
         }
@@ -3595,6 +3721,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     pane.wrap.addEventListener("mousedown", (ev) => {
       if (ev.target.closest?.(".pane-bar button, .pane-actions")) return;
       markFocusedPane(pane);
+      revealPanes(pane);
     });
   }
 
@@ -4565,7 +4692,10 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     wrap.addEventListener("mousedown", (ev) => {
       if (ev.target.closest?.(".pane-bar button, .pane-actions")) return;
       const pane = state.panes.get(paneId);
-      if (pane) markFocusedPane(pane);
+      if (pane) {
+        markFocusedPane(pane);
+        revealPanes(pane);
+      }
     });
     wrap.addEventListener("focusin", () => {
       const pane = state.panes.get(paneId);
@@ -6795,6 +6925,12 @@ Write a runbook here.
         setSidebarSeg(seg.getAttribute("data-sidebar-seg"));
         return;
       }
+      const pick = ev.target.closest("[data-pane-pick]");
+      if (pick) {
+        ev.preventDefault();
+        pickPane(pick.getAttribute("data-pane-pick"));
+        return;
+      }
       const page = ev.target.closest("[data-open-page]");
       if (page) {
         ev.preventDefault();
@@ -7374,7 +7510,7 @@ Write a runbook here.
     });
 
     // One filter box for the sidebar's segment: Hosts asks keel serve for
-    // the tree, Snippets and Forwards filter what is already loaded.
+    // the tree; Panes, Snippets and Forwards filter what is already loaded.
     let hostFilterSeq = 0;
     on(els.search, "input", () => {
       const seg = sidebarSeg();

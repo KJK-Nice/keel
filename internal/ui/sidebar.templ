@@ -6,9 +6,10 @@ import (
 )
 
 // VaultSidebar is the left sidebar on every tab (docs/ui-redesign.md §4):
-// a filter, the Hosts / Snippets / Forwards segments, and Keychain, Logs
-// and Settings in the footer. ⌘B or the titlebar button collapses it.
-// term.js paints the Snippets and Forwards panels and keeps the selected
+// a filter, the Hosts / Panes / Snippets / Forwards segments, and Keychain,
+// Logs and Settings in the footer. ⌘B or the titlebar button collapses it.
+// Panes shows only while the active tab has 2+ panes (§5.1). term.js
+// paints the Panes, Snippets and Forwards panels and keeps the selected
 // segment in keel-ui.
 templ VaultSidebar(p PageProps) {
 	<aside class="k-sidebar" id="vault-sidebar" aria-label="Vault" tabindex="-1">
@@ -80,6 +81,7 @@ templ VaultSidebar(p PageProps) {
 			</div>
 			<div class="k-seg" role="group" aria-label="Vault section">
 				<button type="button" data-sidebar-seg="hosts" aria-pressed="true">Hosts</button>
+				<button type="button" data-sidebar-seg="panes" aria-pressed="false" hidden>Panes<span class="k-seg-n" data-panes-count aria-hidden="true"></span></button>
 				<button type="button" data-sidebar-seg="snippets" aria-pressed="false">Snippets</button>
 				<button type="button" data-sidebar-seg="forwards" aria-pressed="false">Forwards</button>
 			</div>
@@ -88,6 +90,7 @@ templ VaultSidebar(p PageProps) {
 			<div class="k-sidebar-panel" data-sidebar-panel="hosts">
 				@HostList(p)
 			</div>
+			<div class="k-sidebar-panel" data-sidebar-panel="panes" id="sidebar-panes" hidden></div>
 			<div class="k-sidebar-panel" data-sidebar-panel="snippets" id="sidebar-snippets" hidden></div>
 			<div class="k-sidebar-panel" data-sidebar-panel="forwards" id="sidebar-forwards" hidden></div>
 		</div>
