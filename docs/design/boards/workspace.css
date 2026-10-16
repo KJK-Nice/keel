@@ -153,3 +153,20 @@ a{color:var(--brass-ink)}a:hover{color:var(--ink)}
 .kw-import .kw-table td{height:38px}
 .kw-import .kw-table th:first-child,.kw-import .kw-table td:first-child{padding-left:14px;width:28px}
 .kw-import .kw-table th:last-child,.kw-import .kw-table td:last-child{padding-right:14px}
+
+/* Panes in the sidebar: a tab with more than one pane lists them; focusing a pane opens this list */
+.kw-seg-n{margin-left:4px;font:400 10px/1 var(--font-mono);color:var(--ink-faint)}
+.kw-map{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);grid-template-rows:repeat(2,minmax(0,1fr));gap:2px;height:76px;margin:2px 4px 4px;padding:2px;background:var(--line);border-radius:var(--radius-sm)}
+.kw-map-cell{position:relative;display:flex;align-items:flex-start;gap:4px;min-width:0;padding:5px 6px;border:0;border-radius:2px;background:var(--stage);color:var(--ink-faint);font:400 10px/12px var(--font-mono);text-align:left;overflow:hidden;white-space:nowrap;cursor:pointer}
+.kw-map-cell span{color:var(--ink-faint)}
+.kw-map-cell:hover{background:var(--hover);color:var(--ink-muted)}
+.kw-map-cell[aria-current="true"]{background:var(--surface);color:var(--ink)}
+.kw-map-cell[aria-current="true"]::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--brass)}
+.kw-pane-row{display:flex;align-items:center;gap:8px;width:100%;height:40px;padding:0 8px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--ink-muted);text-align:left;cursor:pointer}
+.kw-pane-row:hover{background:var(--hover);color:var(--ink)}
+.kw-pane-row[aria-current="true"]{background:var(--hover);color:var(--ink)}
+.kw-pane-row[aria-current="true"] .kw-pane-name{font-weight:500}
+.kw-pane-text{flex:1;min-width:0;display:grid;gap:2px}
+.kw-pane-name{font:400 12px/14px var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kw-pane-sub{font:400 11px/13px var(--font-mono);color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kw-pane-meta{display:inline-flex;align-items:center;gap:6px;flex:none;color:var(--ink-faint)}

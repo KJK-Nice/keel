@@ -53,7 +53,7 @@ export default {
     default: {
       model: gateway('openai/gpt-6-luna-fast'),
       system: 'You are a thorough QA agent. Verify every outcome.',
-      context: 'Keel is a local SSH workspace. The Vault is a left sidebar on every tab (Hosts, Snippets, Forwards segments; Keychain, Logs, Settings in its footer); Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings open as their own tab pages; other tabs are terminal sessions or a New tab. There is no network SSH server in tests: a host connect is expected to fail; "Local Shell" in the sidebar opens a shell on this machine.',
+      context: 'Keel is a local SSH workspace. The Vault is a left sidebar on every tab (Hosts, Panes when the tab is split, Snippets, Forwards segments; Keychain, Logs, Settings in its footer); Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings open as their own tab pages; other tabs are terminal sessions or a New tab. There is no network SSH server in tests: a host connect is expected to fail; "Local Shell" in the sidebar opens a shell on this machine.',
     },
   },
   // The scratch keel serve's auth token, so reports redact it from URLs.

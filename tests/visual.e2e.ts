@@ -125,6 +125,28 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });
 
+    // A split tab after a click into its first pane: the sidebar shows the
+    // Panes section (board Panes). No assertions on it: the same test runs
+    // on the base build.
+    test(`split tab and panes (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await openKeel(app);
+      await openLocalShell(screen);
+      const terms = screen.getByRole('textbox', 'Terminal input');
+      await expect(terms).toBeFocused();
+      await terms.press('Meta+Shift+D');
+      await expect(terms).toHaveCount(2);
+      const box = await terms.nth(0).boundingBox();
+      if (!box) throw new Error('first terminal has no box');
+      await screen.tapAt({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+      await expect(terms.nth(0)).toBeFocused();
+      await app.screenshot(`${theme}-split-panes`);
+      await terms.nth(0).press('Meta+w');
+      await expect(terms).toHaveCount(1);
+      await screen.getByRole('button', 'Close tab').tap();
+      await expect(terms).toHaveCount(0);
+    });
+
     // The agent panel (phase 6b) with a trace, an answer and a proposal,
     // from the test provider (KEEL_AGENT_PROVIDER=fake; no real key).
     test(`agent panel (${theme})`, async ({ app, screen, browser }) => {

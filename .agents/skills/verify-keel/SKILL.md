@@ -106,7 +106,7 @@ that varies; it needs `AI_GATEWAY_API_KEY` (the config's model is
 
 - The Vault is a sidebar: `screen.getByRole('complementary', 'Vault')`;
   scope to it, since the tab strip and the New tab repeat names. Its
-  segments are buttons `Hosts` | `Snippets` | `Forwards`, its footer
+  segments are buttons `Hosts` | `Panes` (only while the tab has 2+ panes) | `Snippets` | `Forwards`, its footer
   `Keychain` | `Logs` | `Settings`. Tab pages are regions:
   `getByRole('region', 'Keychain' | 'Port forwarding' | 'Snippets' |
   'Notebooks' | 'Logs' | 'Settings')`. The sidebar segment and open state

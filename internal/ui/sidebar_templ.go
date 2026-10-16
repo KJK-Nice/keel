@@ -14,9 +14,10 @@ import (
 )
 
 // VaultSidebar is the left sidebar on every tab (docs/ui-redesign.md §4):
-// a filter, the Hosts / Snippets / Forwards segments, and Keychain, Logs
-// and Settings in the footer. ⌘B or the titlebar button collapses it.
-// term.js paints the Snippets and Forwards panels and keeps the selected
+// a filter, the Hosts / Panes / Snippets / Forwards segments, and Keychain,
+// Logs and Settings in the footer. ⌘B or the titlebar button collapses it.
+// Panes shows only while the active tab has 2+ panes (§5.1). term.js
+// paints the Panes, Snippets and Forwards panels and keeps the selected
 // segment in keel-ui.
 func VaultSidebar(p PageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -54,7 +55,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Query)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/sidebar.templ`, Line: 29, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/sidebar.templ`, Line: 30, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -310,7 +311,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"k-seg\" role=\"group\" aria-label=\"Vault section\"><button type=\"button\" data-sidebar-seg=\"hosts\" aria-pressed=\"true\">Hosts</button> <button type=\"button\" data-sidebar-seg=\"snippets\" aria-pressed=\"false\">Snippets</button> <button type=\"button\" data-sidebar-seg=\"forwards\" aria-pressed=\"false\">Forwards</button></div></div><div class=\"k-sidebar-body\"><div class=\"k-sidebar-panel\" data-sidebar-panel=\"hosts\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"k-seg\" role=\"group\" aria-label=\"Vault section\"><button type=\"button\" data-sidebar-seg=\"hosts\" aria-pressed=\"true\">Hosts</button> <button type=\"button\" data-sidebar-seg=\"panes\" aria-pressed=\"false\" hidden>Panes<span class=\"k-seg-n\" data-panes-count aria-hidden=\"true\"></span></button> <button type=\"button\" data-sidebar-seg=\"snippets\" aria-pressed=\"false\">Snippets</button> <button type=\"button\" data-sidebar-seg=\"forwards\" aria-pressed=\"false\">Forwards</button></div></div><div class=\"k-sidebar-body\"><div class=\"k-sidebar-panel\" data-sidebar-panel=\"hosts\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -318,7 +319,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"snippets\" id=\"sidebar-snippets\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"forwards\" id=\"sidebar-forwards\" hidden></div></div><div class=\"k-sidebar-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"keychain\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"panes\" id=\"sidebar-panes\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"snippets\" id=\"sidebar-snippets\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"forwards\" id=\"sidebar-forwards\" hidden></div></div><div class=\"k-sidebar-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"keychain\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

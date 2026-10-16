@@ -6,6 +6,7 @@ Versioned snapshot of the Keel redesign canvas, so phase work uses a fixed desig
 - Artifact version snapshotted: `1791863098-3562`
 - Date: 2026-10-13
 - Design system the canvas was copied from: Keel, https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1 (version `1791859965-affb`)
+- `Panes.dc.html`, `workspace.css` (the `kw-map` / `kw-pane-row` rules at its end) and `canvas.json` were taken from artifact version `1792114738-a1e8` on 2026-10-16; the other boards stay at the snapshot above.
 
 The boards are reference markup, not app code. They reference `./support.js` from the canvas runtime and use `<x-dc>` / `dc-import`, so they will not run standalone. Read them for structure, copy and state; build in templ with the `k-*` classes from `docs/design/components.css`. Tokens come only from `docs/design/tokens.json`. Fonts are loaded from Google Fonts in the boards for preview only; the app ships woff2 locally.
 
@@ -31,6 +32,7 @@ The boards are reference markup, not app code. They reference `./support.js` fro
 | `Onboard1.dc.html` | §5.15 first run, create vault | 5 |
 | `Onboard2.dc.html` | §5.15 first run, bring your hosts | 5 |
 | `Onboard3.dc.html` | §5.15 first run, agent | 5 (agent step wired in 6) |
+| `Panes.dc.html` | §5.1 Panes in the sidebar | post-plan polish |
 
 ## Drift from repo tokens
 
@@ -46,3 +48,5 @@ Compared the canvas design system (`project/ds/keel/`) with the repo on 2026-10-
 No token name, token value or component rule differs. The boards do use classes and values outside the shipped set: `kw-*` classes from `workspace.css`, and some inline literals (for example `font: 600 28px/32px`, `width: 26px`, `font-size: 10px`). Treat those as layout detail to re-express with tokens or `k-*` classes when implementing, not as new tokens.
 
 Phase 6b added `size-agent` (380px, the `kw-agent` width in `Main`). Phase 2 (Vault sidebar and tab pages) added two tokens to the repo, `size-sidebar` (252px, the `kw-side` width in `Main`) and `size-list` (360px, the `kw-split` list column), and updated the product words and fixed-chrome lines in `docs/design/README.md`. The canvas copy predates them.
+
+The Panes board's `kw-seg-n`, `kw-map` / `kw-map-cell` and `kw-pane-row` rules ship in `keel.css` as `k-seg-n`, `k-panemap` / `k-panemap-cell` and `k-pane-row`, with no new token: the 76px map is `size-row + size-control-lg`, the 40px row `size-control-lg + space-2`, and the cell radius is `radius-xs` (3px; the board has 2px). The map places cells from the tab's real split tree instead of the board's fixed grid.

@@ -1937,7 +1937,8 @@ html[data-native] .k-sidebar { background: color-mix(in srgb, var(--chrome) 58%,
 }
 
 .k-seg {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-0\.5);
+  /* One column per shown segment: Panes is there only for a split tab. */
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-0\.5);
   padding: var(--space-0\.5);
   background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
 }
@@ -1949,6 +1950,55 @@ html[data-native] .k-sidebar { background: color-mix(in srgb, var(--chrome) 58%,
 }
 .k-seg > button:hover { color: var(--ink); }
 .k-seg > button[aria-pressed="true"] { background: var(--raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.k-seg > button[hidden] { display: none; }
+.k-seg-n { margin-left: var(--space-1); font: 400 0.769rem/1 var(--font-mono); color: var(--ink-faint); }
+
+/* Panes section (board Panes): the active tab's split as a map, then one
+   row per pane. Focused = aria-current; the map cell carries the keel line. */
+.k-panemap {
+  height: calc(var(--size-row) + var(--size-control-lg));
+  margin: var(--space-0\.5) var(--space-1) var(--space-1);
+  padding: 1px;
+  background: var(--line); border-radius: var(--radius-sm);
+}
+/* Slots are placed in % of the tab's split; 1px padding on each makes the
+   2px line gutters between cells and, with the map's padding, at the edge. */
+.k-panemap-grid { position: relative; height: 100%; }
+.k-panemap-slot { position: absolute; padding: 1px; box-sizing: border-box; }
+button.k-panemap-cell {
+  position: relative; display: flex; align-items: flex-start; gap: var(--space-1);
+  width: 100%; height: 100%; min-width: 0; padding: var(--space-1) var(--space-1\.5);
+  border: 0; border-radius: var(--radius-xs); background: var(--stage);
+  font: 400 0.769rem/1.2 var(--font-mono); letter-spacing: 0; color: var(--ink-faint);
+  text-align: left; overflow: hidden; white-space: nowrap; cursor: pointer;
+}
+button.k-panemap-cell:hover { background: var(--hover); color: var(--ink-muted); }
+button.k-panemap-cell[aria-current="true"] { background: var(--surface); color: var(--ink); }
+button.k-panemap-cell[aria-current="true"]::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: var(--brass); pointer-events: none;
+}
+.k-panemap-n { flex: none; color: var(--ink-faint); }
+.k-panemap-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.k-panes-head { display: flex; align-items: center; gap: var(--space-1\.5); }
+.k-panes-head svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; }
+.k-panes-count { margin-left: auto; letter-spacing: 0; }
+button.k-pane-row {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-width: 0;
+  height: calc(var(--size-control-lg) + var(--space-2)); padding: 0 var(--space-2);
+  border: 0; border-radius: var(--radius-sm); background: transparent;
+  color: var(--ink-muted); text-align: left; cursor: pointer;
+}
+button.k-pane-row:hover, button.k-pane-row:focus-visible { background: var(--hover); color: var(--ink); }
+button.k-pane-row[aria-current="true"] { background: var(--hover); color: var(--ink); }
+.k-pane-row-text { display: grid; gap: var(--space-0\.5); flex: 1; min-width: 0; }
+.k-pane-row-name, .k-pane-row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-pane-row-name { font: 400 0.923rem/1.167 var(--font-mono); letter-spacing: 0; }
+button.k-pane-row[aria-current="true"] .k-pane-row-name { font-weight: 500; }
+.k-pane-row-sub { font: 400 0.846rem/1.182 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-pane-row-meta { display: inline-flex; align-items: center; gap: var(--space-1\.5); flex: none; color: var(--ink-faint); }
+.k-pane-row-meta > span, .k-pane-row-meta svg { display: block; width: 0.923rem; height: 0.923rem; }
+.k-pane-row-agent { color: var(--haze); }
 
 /* Host tree */
 .k-tree { display: flex; flex-direction: column; }
