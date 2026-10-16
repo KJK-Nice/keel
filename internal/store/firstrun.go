@@ -21,8 +21,8 @@ func (s *Store) VaultState() VaultState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := VaultState{
-		Locked:     s.locked,
-		NeedsSetup: s.locked && s.needSetup,
+		Locked:     s.locked.Load(),
+		NeedsSetup: s.locked.Load() && s.needSetup,
 		FirstRun:   s.data.FirstRun && !s.fromEnv,
 		KeyringOff: KeyringOff(),
 		Path:       s.vaultPath,
@@ -42,7 +42,7 @@ func (s *Store) VaultState() VaultState {
 func (s *Store) FinishFirstRun() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	if !s.data.FirstRun {

@@ -8,7 +8,7 @@ import (
 func (s *Store) ListNotebooks() ([]Notebook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	out := make([]Notebook, len(s.data.Notebooks))
@@ -19,7 +19,7 @@ func (s *Store) ListNotebooks() ([]Notebook, error) {
 func (s *Store) GetNotebook(id string) (Notebook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Notebook{}, ErrLocked
 	}
 	for _, nb := range s.data.Notebooks {
@@ -33,7 +33,7 @@ func (s *Store) GetNotebook(id string) (Notebook, error) {
 func (s *Store) UpsertNotebook(nb Notebook) (Notebook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Notebook{}, ErrLocked
 	}
 	now := time.Now().UTC()
@@ -62,7 +62,7 @@ func (s *Store) UpsertNotebook(nb Notebook) (Notebook, error) {
 func (s *Store) DeleteNotebook(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	out := s.data.Notebooks[:0]

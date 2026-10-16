@@ -431,7 +431,7 @@ func TestKnownSecretValuesCoversHostsAndIdentities(t *testing.T) {
 func TestAgentAccessorsLocked(t *testing.T) {
 	st, _ := agentStore(t)
 	st.mu.Lock()
-	st.locked = true
+	st.locked.Store(true)
 	st.mu.Unlock()
 	if _, err := st.AgentSettings(); !errors.Is(err, ErrLocked) {
 		t.Fatal("settings readable while locked")

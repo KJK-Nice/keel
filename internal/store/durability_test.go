@@ -2,10 +2,12 @@ package store
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -164,5 +166,43 @@ func TestSaveRecreatesMissingVault(t *testing.T) {
 	}
 	if got.Password != "keep" {
 		t.Fatalf("password after reopen = %q", got.Password)
+	}
+}
+
+// Saves write with the store lock released; concurrent saves must still
+// leave the newest snapshot on disk, so nothing a caller saved is lost.
+func TestConcurrentSavesKeepEveryChange(t *testing.T) {
+	st := testStore(t)
+	const n = 24
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if _, err := st.UpsertSnippet(Snippet{Name: fmt.Sprintf("s%02d", i), Command: "true\n"}); err != nil {
+				errs <- err
+			}
+			if _, err := st.ListHosts(); err != nil {
+				errs <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	reopened, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopened.ListSnippets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := st.ListSnippets()
+	if len(got) != len(want) || len(got) < n {
+		t.Fatalf("after reopen %d snippets, in memory %d, want >= %d", len(got), len(want), n)
 	}
 }

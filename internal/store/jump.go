@@ -155,7 +155,7 @@ func (s *Store) attachJumpLocked(host *Host) error {
 func (s *Store) ResolveDraft(draft Host) (Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
 	draft.Jump = nil

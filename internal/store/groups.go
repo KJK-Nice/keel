@@ -8,7 +8,7 @@ import (
 func (s *Store) ListGroups() ([]Group, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	if err := s.ensureGroupsLocked(); err != nil {
@@ -22,7 +22,7 @@ func (s *Store) ListGroups() ([]Group, error) {
 func (s *Store) UpsertGroup(g Group) (Group, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Group{}, ErrLocked
 	}
 	now := time.Now().UTC()
@@ -61,7 +61,7 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 func (s *Store) DeleteGroup(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	id = strings.TrimSpace(id)
@@ -242,7 +242,7 @@ func (s *Store) validateNestLocked(id, parentID string) error {
 func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	if err := s.ensureGroupsLocked(); err != nil {
