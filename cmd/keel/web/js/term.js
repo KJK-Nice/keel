@@ -2102,16 +2102,19 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       pane.pending.push(chunk);
       return;
     }
+    // Invalidate once xterm has parsed the chunk; scheduling before the parse
+    // would spend the throttle's first slot on a frame without the new text.
     pane.term.write(chunk, () => schedulePaneInvalidate(pane));
-    schedulePaneInvalidate(pane);
   }
 
   // WKWebView often keeps a stale compositor layer for the WebGL canvas after
   // xterm paints. Dummy term.resize(cols±1) kicks Relayout but reflows the
   // whole grid and blinks on every keystroke. Refresh + a subpixel canvas
   // layer nudge republishes the GPU texture without changing PTY size.
+  // Panes on the DOM renderer (native splits) have no WebGL layer to go
+  // stale, so they skip the full-viewport redraw.
   function invalidatePaneRender(pane) {
-    if (!isNativeWindow() || !pane?.term?.element) return;
+    if (!isNativeWindow() || !pane?.term?.element || !pane.term._keelWebgl) return;
     try {
       const rows = pane.term.rows;
       pane.term.refresh(0, Math.max(0, (rows || 1) - 1));
@@ -2132,13 +2135,27 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
   }
 
+  // The invalidate redraws every row and rebuilds the canvas layer, so under
+  // streaming output it runs at most once per PANE_INVALIDATE_MS: the first
+  // paint after a quiet spell (a key echo) goes out on the next frame, later
+  // ones wait, and a trailing pass always republishes the last frame.
+  const PANE_INVALIDATE_MS = 50;
+
   function schedulePaneInvalidate(pane) {
-    if (!isNativeWindow() || !pane || pane._invalidateQueued) return;
-    pane._invalidateQueued = true;
-    requestAnimationFrame(() => {
-      pane._invalidateQueued = false;
-      if (pane.wrap?.isConnected) invalidatePaneRender(pane);
-    });
+    if (!isNativeWindow() || !pane || !pane.term?._keelWebgl) return;
+    if (pane._invalidateQueued || pane._invalidateTimer) return;
+    const wait = PANE_INVALIDATE_MS - (performance.now() - (pane._invalidateAt || 0));
+    const run = () => {
+      pane._invalidateTimer = 0;
+      pane._invalidateQueued = true;
+      requestAnimationFrame(() => {
+        pane._invalidateQueued = false;
+        pane._invalidateAt = performance.now();
+        if (pane.wrap?.isConnected) invalidatePaneRender(pane);
+      });
+    };
+    if (wait > 0) pane._invalidateTimer = setTimeout(run, wait);
+    else run();
   }
 
   function reflowPane(pane) {
