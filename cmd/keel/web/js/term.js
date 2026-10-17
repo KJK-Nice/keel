@@ -295,6 +295,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     });
     const input = els.search;
     if (input) {
+      // The Datastar host filter only runs for the Hosts segment.
+      input.dataset.seg = current;
       const f = SIDEBAR_FILTER[current];
       input.placeholder = f.placeholder;
       input.setAttribute("aria-label", f.label);
@@ -1349,6 +1351,30 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
   // afterListPaint re-applies what lives in the page, not in the list
   // markup: tree collapse, selection, filters and the derived detail.
+  // Datastar morphs the vault lists in place when the stream pushes them;
+  // re-apply what term.js layers on top (selection, collapsed groups, live
+  // badges, page filters) once per frame after a list changed. Mutations
+  // made by afterListPaint itself are dropped.
+  const STREAMED_LISTS = ["host-list", "identity-list", "tunnel-list", "snippet-list", "notebook-list"];
+  function watchStreamedLists() {
+    if (typeof MutationObserver === "undefined") return;
+    for (const id of STREAMED_LISTS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      let queued = false;
+      const obs = new MutationObserver(() => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          afterListPaint(id);
+          obs.takeRecords();
+        });
+      });
+      obs.observe(el, { childList: true, subtree: true });
+    }
+  }
+
   function afterListPaint(id) {
     if (id === "host-list") {
       els.hostList?.toggleAttribute("data-filtering", !!String(state.query || "").trim());
@@ -2781,19 +2807,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     state.identities = identities;
     state.tunnels = tunnels;
     state.groups = Array.isArray(groups) ? groups : [];
-    const q = datastarQS();
-    const [hostsOk, snOk, nbOk, idOk, tnOk] = await Promise.all([
-      paintList("host-list", "/ui/hosts?" + q),
-      paintList("snippet-list", "/ui/snippets?" + q),
-      paintList("notebook-list", "/ui/notebooks?" + q),
-      paintList("identity-list", "/ui/identities?" + q),
-      paintList("tunnel-list", "/ui/tunnels?" + q),
-    ]);
-    if (!hostsOk) renderHosts();
-    if (!snOk) renderSnippets();
-    if (!nbOk) renderNotebooks();
-    if (!idOk) renderIdentities();
-    if (!tnOk) renderTunnels();
+    // The vault lists themselves arrive over the Datastar stream
+    // (/ui/stream, opened in boot), which pushes them after every change.
     refreshStartTabs();
     if (state.tabs.has(pageTabId("logs"))) await loadLogs().catch(() => {});
     paintSidebar();
@@ -6652,6 +6667,9 @@ Write a runbook here.
         return;
       }
       await loadAll();
+      // Open the Datastar list stream (page.templ uiStream). On a page that
+      // loaded unlocked it is already open; after an unlock this opens it.
+      window.dispatchEvent(new CustomEvent("keel-stream"));
     } catch (err) {
       if (err.code === 423) {
         gate?.update({ locked: true, needsSetup: false });
@@ -7572,8 +7590,6 @@ Write a runbook here.
 
     // One filter box for the sidebar's segment: Hosts asks keel serve for
     // the tree; Panes, Snippets and Forwards filter what is already loaded.
-    // One /ui/hosts request per typing pause, newest result only.
-    const hostFilter = createLatestRequest({ delayMs: 120 });
     on(els.search, "input", () => {
       const seg = sidebarSeg();
       if (seg !== "hosts") {
@@ -7581,12 +7597,9 @@ Write a runbook here.
         paintSidebar();
         return;
       }
+      // Datastar fetches the filtered tree (data-on:input on #search,
+      // sidebar.templ) and the stream keeps that filter.
       state.query = els.search.value;
-      hostFilter
-        .schedule((signal, isStale) => paintList("host-list", "/ui/hosts?" + datastarQS(), { signal, isStale }))
-        .then((ok) => {
-          if (ok === false) renderHosts();
-        });
     });
     on(els.search, "keydown", (ev) => {
       if (ev.key === "Escape" && els.search.value) {
@@ -7763,5 +7776,6 @@ Write a runbook here.
 
   if (!state.name) state.name = "guest";
   pinScroll(document, [document.scrollingElement, document.body, document.querySelector(".app"), document.querySelector(".main")]);
+  watchStreamedLists();
   boot();
 })();

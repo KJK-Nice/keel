@@ -14,13 +14,26 @@ import (
 	"keel/internal/ui"
 )
 
+// uiSignals are the Datastar signals the vault lists read. StreamID names
+// the page's /ui/stream (uistream.go), so a filter request can update the
+// filter that stream renders with.
 type uiSignals struct {
 	Query      string `json:"query"`
 	LogFilter  string `json:"logFilter"`
 	GroupFocus string `json:"groupFocus"`
+	StreamID   string `json:"streamId"`
 }
 
 func (s *Server) pageProps(r *http.Request) ui.PageProps {
+	var sig uiSignals
+	_ = datastar.ReadSignals(r, &sig)
+	return s.listProps(r, sig)
+}
+
+// listProps is pageProps with the signals already read: the stream renders
+// with the filters its page last sent, not with those of the request that
+// opened it.
+func (s *Server) listProps(r *http.Request, sig uiSignals) ui.PageProps {
 	q := r.URL.Query()
 	p := ui.PageProps{
 		Locked:       s.store.Locked(),
@@ -33,8 +46,6 @@ func (s *Server) pageProps(r *http.Request) ui.PageProps {
 	if s.share != nil && s.share.Enabled() {
 		p.SignalURL = s.share.URL()
 	}
-	var sig uiSignals
-	_ = datastar.ReadSignals(r, &sig)
 	p.Query = sig.Query
 	p.LogFilter = sig.LogFilter
 	p.GroupFocus = sig.GroupFocus
@@ -70,8 +81,14 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	writeTempl(w, r, ui.Page(s.pageProps(r)))
 }
 
+// uiHosts answers the sidebar filter (@get from the search box). The query
+// is recorded against the caller's stream, so the next push after a change
+// keeps the filtered tree.
 func (s *Server) uiHosts(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.HostList(s.pageProps(r)))
+	var sig uiSignals
+	_ = datastar.ReadSignals(r, &sig)
+	s.streams.setFilter(sig.StreamID, sig)
+	writeTempl(w, r, ui.HostList(s.listProps(r, sig)))
 }
 
 func (s *Server) uiIdentities(w http.ResponseWriter, r *http.Request) {

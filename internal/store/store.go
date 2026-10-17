@@ -326,6 +326,29 @@ type Store struct {
 	vaultGen      uint64
 	diskSum       [32]byte
 	diskRecipient age.Recipient
+
+	// onChange listeners run after every successful save (OnChange).
+	listenMu sync.Mutex
+	onChange []func()
+}
+
+// OnChange registers fn to run after every successful save: hosts, groups,
+// identities, snippets, notebooks, tunnels, settings. It runs with the
+// store lock held, so fn must not block or call back into the store; the
+// UI stream only signals a channel and re-reads later.
+func (s *Store) OnChange(fn func()) {
+	s.listenMu.Lock()
+	s.onChange = append(s.onChange, fn)
+	s.listenMu.Unlock()
+}
+
+func (s *Store) changed() {
+	s.listenMu.Lock()
+	fns := s.onChange
+	s.listenMu.Unlock()
+	for _, fn := range fns {
+		fn()
+	}
 }
 
 func New(path string) (*Store, error) {
@@ -548,7 +571,13 @@ func (s *Store) Unlock(passphrase string) error {
 	if s.needSetup {
 		return s.setupLocked(passphrase)
 	}
-	return s.unlockScryptLocked(passphrase, false)
+	if err := s.unlockScryptLocked(passphrase, false); err != nil {
+		return err
+	}
+	// Unlocking saves nothing, but every list goes from "Vault locked" to
+	// its contents.
+	s.changed()
+	return nil
 }
 
 func (s *Store) Setup(passphrase string) error {
@@ -1041,6 +1070,9 @@ func (s *Store) saveLocked() error {
 	wroteVault, werr := s.writeSnapshot(job)
 	s.mu.Lock()
 	s.noteVaultLocked(job, wroteVault)
+	if werr == nil {
+		s.changed()
+	}
 	return werr
 }
 
@@ -1054,6 +1086,9 @@ func (s *Store) saveDurableLocked() error {
 	}
 	wroteVault, werr := s.writeSnapshot(job)
 	s.noteVaultLocked(job, wroteVault)
+	if werr == nil {
+		s.changed()
+	}
 	return werr
 }
 

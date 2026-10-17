@@ -91,6 +91,19 @@ type Runtime struct {
 	factory Factory
 	mu      sync.Mutex
 	live    map[string]*live
+	// onChange runs after a tunnel's status changes (OnChange). It may run
+	// with mu held, so it must not block or call back into the runtime.
+	onChange func()
+}
+
+// OnChange sets fn to run whenever a tunnel starts, becomes ready, fails or
+// stops. Set it before the runtime is used.
+func (r *Runtime) OnChange(fn func()) { r.onChange = fn }
+
+func (r *Runtime) changed() {
+	if r.onChange != nil {
+		r.onChange()
+	}
 }
 
 func New(st *store.Store, factory Factory) *Runtime {
@@ -151,6 +164,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 	lv := &live{cancel: cancel, status: StatusConnecting}
 	r.live[id] = lv
 	r.mu.Unlock()
+	r.changed()
 
 	dialer, err := r.factory(host)
 	if err != nil {
@@ -187,6 +201,7 @@ func (r *Runtime) Stop(id string) error {
 		r.stopLocked(id, lv)
 	}
 	r.mu.Unlock()
+	r.changed()
 	return nil
 }
 
@@ -196,6 +211,7 @@ func (r *Runtime) StopAll() {
 		r.stopLocked(id, lv)
 	}
 	r.mu.Unlock()
+	r.changed()
 }
 
 // stopLocked stops a run. An entry whose run already ended (status error:
@@ -220,6 +236,7 @@ func (r *Runtime) fail(id string, lv *live, msg string) {
 		lv.status = StatusError
 		lv.err = msg
 		lv.listenAddr = ""
+		r.changed()
 	}
 }
 
@@ -230,6 +247,7 @@ func (r *Runtime) setReady(id string, lv *live, listen string) {
 		lv.status = StatusReady
 		lv.err = ""
 		lv.listenAddr = listen
+		r.changed()
 	}
 }
 
@@ -242,6 +260,7 @@ func (r *Runtime) finish(id string, lv *live) {
 	if r.live[id] != lv {
 		return
 	}
+	defer r.changed()
 	if lv.stopped {
 		delete(r.live, id)
 		return

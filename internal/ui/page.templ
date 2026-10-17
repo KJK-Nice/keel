@@ -73,6 +73,7 @@ templ Page(p PageProps) {
 			@components.Scripts()
 		</head>
 		<body class="bg-background text-foreground style-nova h-full overflow-hidden">
+			@uiStream()
 			<div class="app h-full">
 				<main class="main">
 					<header class="workspace-bar">
@@ -184,4 +185,18 @@ templ statusBar() {
 		<span id="sb-pane" hidden></span>
 		<span id="sb-sync" hidden>Sync off</span>
 	</footer>
+}
+
+// uiStream opens the page's Datastar stream (GET /ui/stream,
+// internal/httpapi/uistream.go), which patches the vault lists whenever the
+// vault changes. It waits while the vault is locked; term.js dispatches
+// keel-stream after an unlock (and on boot) to open it then. A new @get
+// from the same element replaces the previous request.
+templ uiStream() {
+	<div
+		id="ui-stream"
+		hidden
+		data-init="$locked || @get('/ui/stream', {openWhenHidden: true, retry: 'always', retryMaxCount: 1000000})"
+		data-on:keel-stream__window="@get('/ui/stream', {openWhenHidden: true, retry: 'always', retryMaxCount: 1000000})"
+	></div>
 }

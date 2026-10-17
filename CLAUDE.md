@@ -16,4 +16,5 @@ The UI is being redesigned. For any UI change:
 - Keep one token layer. shadcn-templ variables map onto the Keel tokens; do not add a second set of variables.
 - Fonts ship locally as woff2. `components.css` imports Google Fonts for previews only; the app must not load fonts from the network.
 - UI built as HTML strings in `cmd/keel/web/js/term.js` uses the same `k-*` classes as templ.
+- Vault lists come from the Datastar stream (`internal/httpapi/uistream.go`, docs/ui-redesign.md §12). Do not add new `paintList` / `loadAll` repaints; render the list in templ and let the stream push it.
 - Agent features: the agent never writes to a PTY, never sees vault contents, and every read or insert is logged. Treat §6 as acceptance criteria.
