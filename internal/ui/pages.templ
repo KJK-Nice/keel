@@ -55,6 +55,7 @@ templ filterInput(label, scope string) {
 			autocomplete="off"
 			spellcheck="false"
 			data-list-filter={ scope }
+			data-bind={ "_" + scope + "Filter" }
 		/>
 	</div>
 }
@@ -92,9 +93,9 @@ templ ForwardsPage(p PageProps) {
 		<div class="k-toolbar">
 			@filterInput("Filter forwards", "tunnel")
 			<div class="k-chips" role="group" aria-label="Show forwards">
-				<button type="button" class="k-chip" data-tunnel-filter="all" aria-pressed="true">All <span data-tunnel-count="all"></span></button>
-				<button type="button" class="k-chip" data-tunnel-filter="running" aria-pressed="false">Running <span data-tunnel-count="running"></span></button>
-				<button type="button" class="k-chip" data-tunnel-filter="stopped" aria-pressed="false">Stopped <span data-tunnel-count="stopped"></span></button>
+				<button type="button" class="k-chip" data-on:click="$_tunnelState = 'all'" data-attr:aria-pressed="String($_tunnelState === 'all')">All <span data-tunnel-count="all"></span></button>
+				<button type="button" class="k-chip" data-on:click="$_tunnelState = 'running'" data-attr:aria-pressed="String($_tunnelState === 'running')">Running <span data-tunnel-count="running"></span></button>
+				<button type="button" class="k-chip" data-on:click="$_tunnelState = 'stopped'" data-attr:aria-pressed="String($_tunnelState === 'stopped')">Stopped <span data-tunnel-count="stopped"></span></button>
 			</div>
 		</div>
 		<table class="k-table">
@@ -192,7 +193,7 @@ templ NotebooksPage(p PageProps) {
 templ LogsPage(p PageProps) {
 	<section class="k-page" id="page-logs" data-page="logs" aria-label="Logs">
 		@pageHead("Logs", "What Keel did on this machine, newest first. Secrets are never written here.") {
-			<button type="button" class="k-btn" id="btn-refresh-logs">Refresh</button>
+			<button type="button" class="k-btn" id="btn-refresh-logs" data-on:click="@get('/ui/logs')">Refresh</button>
 		}
 		<div class="k-toolbar">
 			<div class="k-inputgroup k-filter">
@@ -208,14 +209,16 @@ templ LogsPage(p PageProps) {
 					autocomplete="off"
 					spellcheck="false"
 					value={ p.LogFilter }
+					data-bind="logFilter"
+					data-on:input__debounce.120ms="@get('/ui/logs')"
 				/>
 			</div>
 			<div class="k-chips" role="group" aria-label="Show events">
-				<button type="button" class="k-chip" data-log-filter="all" aria-pressed="true">All</button>
-				<button type="button" class="k-chip" data-log-filter="sessions" aria-pressed="false">Sessions</button>
-				<button type="button" class="k-chip" data-log-filter="forwards" aria-pressed="false">Forwards</button>
-				<button type="button" class="k-chip" data-log-filter="vault" aria-pressed="false">Vault</button>
-				<button type="button" class="k-chip" data-log-filter="agent" aria-pressed="false">Agent</button>
+				<button type="button" class="k-chip" data-on:click="$_logKind = 'all'" data-attr:aria-pressed="String($_logKind === 'all')">All</button>
+				<button type="button" class="k-chip" data-on:click="$_logKind = 'sessions'" data-attr:aria-pressed="String($_logKind === 'sessions')">Sessions</button>
+				<button type="button" class="k-chip" data-on:click="$_logKind = 'forwards'" data-attr:aria-pressed="String($_logKind === 'forwards')">Forwards</button>
+				<button type="button" class="k-chip" data-on:click="$_logKind = 'vault'" data-attr:aria-pressed="String($_logKind === 'vault')">Vault</button>
+				<button type="button" class="k-chip" data-on:click="$_logKind = 'agent'" data-attr:aria-pressed="String($_logKind === 'agent')">Agent</button>
 			</div>
 		</div>
 		<table class="k-table k-table--log">

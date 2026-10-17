@@ -44,7 +44,6 @@ import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
-import { createLatestRequest } from "./lib/latest.js";
 import { setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
@@ -119,8 +118,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     sidebarQuery: { panes: "", snippets: "", forwards: "" },
     selectedIdentity: "",
     selectedSnippet: "",
-    tunnelFilter: "all",
-    logKind: "all",
     logFilter: "",
     name: localStorage.getItem("keel-name-custom") || params.get("name") || localStorage.getItem("keel-name") || "",
     pendingSession: params.get("session") || params.get("id") || "",
@@ -1344,10 +1341,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     afterListPaint("tunnel-list");
   }
 
-  function renderLogs() {
-    els.logList.innerHTML = V.logsHTML(state.logs, state.logFilter, { hosts: state.hosts, tunnels: state.tunnels });
-    afterListPaint("log-list");
-  }
 
   // afterListPaint re-applies what lives in the page, not in the list
   // markup: tree collapse, selection, filters and the derived detail.
@@ -1355,7 +1348,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   // re-apply what term.js layers on top (selection, collapsed groups, live
   // badges, page filters) once per frame after a list changed. Mutations
   // made by afterListPaint itself are dropped.
-  const STREAMED_LISTS = ["host-list", "identity-list", "tunnel-list", "snippet-list", "notebook-list"];
+  const STREAMED_LISTS = ["host-list", "identity-list", "tunnel-list", "snippet-list", "notebook-list", "log-list"];
   function watchStreamedLists() {
     if (typeof MutationObserver === "undefined") return;
     for (const id of STREAMED_LISTS) {
@@ -1388,31 +1381,14 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     } else if (id === "tunnel-list") {
       syncTunnelPage();
       renderStatusBar();
-    } else if (id === "log-list") {
-      syncLogPage();
     } else if (id === "notebook-list") {
-      applyListFilter("notebook");
     }
   }
 
-  const listFilters = { identity: "", snippet: "", tunnel: "", notebook: "" };
-  const LIST_ROWS = {
-    identity: "#identity-list [data-identity-select]",
-    snippet: "#snippet-list [data-snippet-select]",
-    tunnel: "#tunnel-list tr[data-id]",
-    notebook: "#notebook-list [data-filter-text]",
-  };
-
-  // applyListFilter hides a page's rows that do not match its filter box
-  // (and, for forwards, the Running / Stopped chip).
-  function applyListFilter(scope) {
-    const q = String(listFilters[scope] || "").trim().toLowerCase();
-    document.querySelectorAll(LIST_ROWS[scope]).forEach((row) => {
-      let show = !q || String(row.getAttribute("data-filter-text") || "").toLowerCase().includes(q);
-      if (scope === "tunnel" && state.tunnelFilter !== "all") show = show && row.getAttribute("data-status") === state.tunnelFilter;
-      row.hidden = !show;
-    });
-  }
+  // The Keychain, Snippets, Forwards and Notebooks filters and the Forwards
+  // and Logs chips are Datastar signals (_identityFilter, _tunnelState, …):
+  // each row hides itself with data-show (lists.templ, docs/ui-redesign.md
+  // §12, D2).
 
   function syncIdentityPage() {
     const ids = state.identities || [];
@@ -1420,7 +1396,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     document.querySelectorAll("#identity-list [data-identity-select]").forEach((el) => {
       el.setAttribute("aria-selected", String(el.getAttribute("data-identity-select") === state.selectedIdentity));
     });
-    applyListFilter("identity");
     const detail = document.getElementById("identity-detail");
     if (detail) {
       const id = ids.find((x) => x.id === state.selectedIdentity);
@@ -1439,7 +1414,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     document.querySelectorAll("#snippet-list [data-snippet-select]").forEach((el) => {
       el.setAttribute("aria-selected", String(el.getAttribute("data-snippet-select") === state.selectedSnippet));
     });
-    applyListFilter("snippet");
     const form = document.getElementById("snippet-editor");
     const empty = document.getElementById("snippet-editor-empty");
     const sn = list.find((s) => s.id === state.selectedSnippet);
@@ -1500,26 +1474,16 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   }
 
   function syncTunnelPage() {
+    // Count the rows the stream rendered: state.tunnels is only refreshed
+    // by loadAll, while the stream also pushes on every status change.
     const counts = { all: 0, running: 0, stopped: 0 };
-    for (const t of state.tunnels || []) {
+    document.querySelectorAll("#tunnel-list tr[data-status]").forEach((row) => {
       counts.all += 1;
-      counts[V.tunnelState(t).filter] += 1;
-    }
+      const st = row.getAttribute("data-status");
+      if (st in counts) counts[st] += 1;
+    });
     document.querySelectorAll("[data-tunnel-count]").forEach((el) => {
-      el.textContent = String(counts[el.getAttribute("data-tunnel-count")] ?? "");
-    });
-    document.querySelectorAll("[data-tunnel-filter]").forEach((el) => {
-      el.setAttribute("aria-pressed", String(el.getAttribute("data-tunnel-filter") === state.tunnelFilter));
-    });
-    applyListFilter("tunnel");
-  }
-
-  function syncLogPage() {
-    document.querySelectorAll("[data-log-filter]").forEach((el) => {
-      el.setAttribute("aria-pressed", String(el.getAttribute("data-log-filter") === state.logKind));
-    });
-    document.querySelectorAll("#log-list tr[data-log-kind]").forEach((row) => {
-      row.hidden = state.logKind !== "all" && row.getAttribute("data-log-kind") !== state.logKind;
+      setText(el, String(counts[el.getAttribute("data-tunnel-count")] ?? ""));
     });
   }
 
@@ -2369,24 +2333,12 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     if (section && els.pages) els.pages.appendChild(section);
   }
 
-  function stopLogTimer() {
-    if (!state.logTimer) return;
-    clearInterval(state.logTimer);
-    state.logTimer = null;
-  }
 
   // syncActivePage runs what a tab page needs while it is the selected tab:
-  // Logs polls keel serve, Settings reads the current preferences.
+  // Settings reads the current preferences. (Logs arrive on the Datastar
+  // stream; there is no poll.)
   function syncActivePage() {
     const page = state.tabs.get(state.activeId)?.page || "";
-    if (page === "logs") {
-      if (!state.logTimer) {
-        loadLogs().catch(() => {});
-        state.logTimer = setInterval(() => loadLogs().catch(() => {}), 3000);
-      }
-    } else {
-      stopLogTimer();
-    }
     if (page === state.shownPage) return;
     state.shownPage = page;
     if (page === "settings") {
@@ -2396,7 +2348,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     } else if (page === "keychain") syncIdentityPage();
     else if (page === "snippets") syncSnippetPage();
     else if (page === "forwards") syncTunnelPage();
-    else if (page === "logs") syncLogPage();
   }
 
   // newItem is ⌘N: the page's own New on Port forwarding, Keychain,
@@ -2785,10 +2736,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     });
   }
 
-  async function loadLogs() {
-    state.logs = await api("/api/logs?limit=200");
-    if (!(await paintList("log-list", "/ui/logs?" + datastarQS()))) renderLogs();
-  }
 
   async function loadAll() {
     const [hosts, snippets, notebooks, herd, identities, tunnels, groups] = await Promise.all([
@@ -2810,7 +2757,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     // The vault lists themselves arrive over the Datastar stream
     // (/ui/stream, opened in boot), which pushes them after every change.
     refreshStartTabs();
-    if (state.tabs.has(pageTabId("logs"))) await loadLogs().catch(() => {});
     paintSidebar();
     agentPanel?.refresh();
   }
@@ -7198,25 +7144,6 @@ Write a runbook here.
     // Tab pages: list filters, the Forwards and Logs chips, Keychain and
     // Snippets selection, and the snippet editor. The pages move between
     // #pages and their tabs, so these listeners sit on the pages themselves.
-    document.querySelectorAll("[data-list-filter]").forEach((input) => {
-      on(input, "input", () => {
-        const scope = input.getAttribute("data-list-filter");
-        listFilters[scope] = input.value;
-        applyListFilter(scope);
-      });
-    });
-    on(document.getElementById("page-forwards"), "click", (ev) => {
-      const chip = ev.target.closest("[data-tunnel-filter]");
-      if (!chip) return;
-      state.tunnelFilter = chip.getAttribute("data-tunnel-filter") || "all";
-      syncTunnelPage();
-    });
-    on(document.getElementById("page-logs"), "click", (ev) => {
-      const chip = ev.target.closest("[data-log-filter]");
-      if (!chip) return;
-      state.logKind = chip.getAttribute("data-log-filter") || "all";
-      syncLogPage();
-    });
     on(document.getElementById("page-keychain"), "click", (ev) => {
       const item = ev.target.closest("[data-identity-select]");
       if (item) selectIdentity(item.getAttribute("data-identity-select"));
@@ -7613,12 +7540,6 @@ Write a runbook here.
       ev.preventDefault();
       connectFromSearch();
     });
-    const logFilter = createLatestRequest({ delayMs: 120 });
-    on(document.getElementById("log-filter"), "input", (ev) => {
-      state.logFilter = ev.target.value;
-      logFilter.schedule((signal, isStale) => paintList("log-list", "/ui/logs?" + datastarQS(), { signal, isStale }));
-    });
-    on(document.getElementById("btn-refresh-logs"), "click", () => loadLogs().catch((err) => toast(err.message, true)));
   }
 
   function bindModals() {

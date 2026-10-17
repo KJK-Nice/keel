@@ -211,7 +211,7 @@ One phase per branch and PR.
 
 ## 12. Datastar for the vault surfaces
 
-Status: D1 in progress · 2026-10-17
+Status: D1 done, D2 in progress · 2026-10-17
 
 Until now Datastar was loaded but unused: no `data-*` attribute read the page signals, and `term.js` fetched and swapped every vault list itself (`paintList`, `loadAll`). The vault surfaces move to Datastar; the session workspace does not.
 
@@ -223,7 +223,7 @@ Until now Datastar was loaded but unused: no `data-*` attribute read the page si
 | Phase | Scope |
 |---|---|
 | D1 · Live lists | The stream; the sidebar host filter via `@get`; `loadAll` no longer repaints lists |
-| D2 · Pages | Keychain / Forwards / Snippets / Notebooks / Logs filters and chips as signals; logs pushed on the stream instead of the 3 s poll |
+| D2 · Pages | Keychain / Forwards / Snippets / Notebooks filters and the Forwards / Logs chips are underscore signals (kept in the page) with `data-show` on each row; the Logs search is `@get('/ui/logs')`; new log entries are pushed on the stream (at most once a second) instead of the 3 s poll |
 | D3 · Forms | Host, identity, snippet, tunnel and group dialogs post with `@post`; the server answers with patches or field errors; no JSON reload after a save |
 | D4 · Cleanup | Remove `paintList`, `datastarQS`, the client-side list renderers in `vaultview.js` and `/ui/vault`; feed the JSON state term.js still needs (palette, new-tab page) from the stream |
 

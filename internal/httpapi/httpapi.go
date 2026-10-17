@@ -89,6 +89,9 @@ func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
 
 func (s *Server) WithLogs(l *applog.Book) *Server {
 	s.logs = l
+	if l != nil {
+		l.OnAppend(s.streams.kickLogs)
+	}
 	if s.rt != nil {
 		s.rt.SetNotify(func(kind, msg, hostID, sessionID string) {
 			s.note(kind, msg, hostID, sessionID, "")

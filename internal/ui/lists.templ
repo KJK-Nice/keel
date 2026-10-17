@@ -182,6 +182,7 @@ templ identityItem(hosts []store.Host, id store.Identity) {
 		class="k-item"
 		data-identity-select={ id.ID }
 		data-filter-text={ id.Name + " " + id.Username }
+		data-show={ filterShow("_identityFilter") }
 		aria-selected="false"
 	>
 		<span class="k-tile">
@@ -222,7 +223,12 @@ templ TunnelList(p PageProps) {
 
 templ tunnelRow(hosts []store.Host, t tunnel.Info) {
 	{{ st := tunnelState(t) }}
-	<tr data-id={ t.ID } data-status={ st.Filter } data-filter-text={ t.Name + " " + hostNameByID(hosts, t.HostID) + " " + tunnelListen(t) + " " + tunnelDest(t) }>
+	<tr
+		data-id={ t.ID }
+		data-status={ st.Filter }
+		data-filter-text={ t.Name + " " + hostNameByID(hosts, t.HostID) + " " + tunnelListen(t) + " " + tunnelDest(t) }
+		data-show={ "(" + filterShow("_tunnelFilter") + ") && ($_tunnelState === 'all' || el.dataset.status === $_tunnelState)" }
+	>
 		<td><span class="k-cell-name">{ t.Name }</span></td>
 		<td><span class="k-badge k-badge--mono">{ tunnelFlag(t.Kind) }</span></td>
 		<td>
@@ -278,6 +284,7 @@ templ SnippetList(p PageProps) {
 					class="k-item"
 					data-snippet-select={ s.ID }
 					data-filter-text={ s.Name + " " + s.Command }
+					data-show={ filterShow("_snippetFilter") }
 					aria-selected="false"
 				>
 					<span class="k-tile">
@@ -301,7 +308,7 @@ templ NotebookList(p PageProps) {
 			@sideEmpty("No notebooks yet", "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.")
 		} else {
 			for _, nb := range vaultNotebooks(p.Notebooks) {
-				<div class="k-rowitem" data-id={ nb.ID } data-filter-text={ nb.Name + " " + notebookPreview(nb) }>
+				<div class="k-rowitem" data-id={ nb.ID } data-filter-text={ nb.Name + " " + notebookPreview(nb) } data-show={ filterShow("_notebookFilter") }>
 					<button type="button" class="k-rowitem-main" data-notebook-open={ nb.ID }>
 						<span class="k-tile">
 							@icon.NotebookPen()
@@ -376,7 +383,7 @@ templ LogList(p PageProps) {
 }
 
 templ logRow(p PageProps, e applog.Entry) {
-	<tr data-log-kind={ logGroup(e.Kind) }>
+	<tr data-log-kind={ logGroup(e.Kind) } data-show="$_logKind === 'all' || el.dataset.logKind === $_logKind">
 		<td><span class="k-mono k-muted" title={ logDateLabel(e.Time) }>{ logTimeLabel(e.Time) }</span></td>
 		<td><span class={ "k-badge", logBadgeClass(e.Kind) }>{ e.Kind }</span></td>
 		<td><span class="k-mono k-muted">{ logTarget(p, e) }</span></td>

@@ -107,8 +107,13 @@ func (s *Server) uiNotebooks(w http.ResponseWriter, r *http.Request) {
 	writeTempl(w, r, ui.NotebookList(s.pageProps(r)))
 }
 
+// uiLogs answers the Logs page search (@get) and its Refresh button; like
+// uiHosts it records the filter against the caller's stream.
 func (s *Server) uiLogs(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.LogList(s.pageProps(r)))
+	var sig uiSignals
+	_ = datastar.ReadSignals(r, &sig)
+	s.streams.setFilter(sig.StreamID, sig)
+	writeTempl(w, r, ui.LogList(s.listProps(r, sig)))
 }
 
 func (s *Server) uiVault(w http.ResponseWriter, r *http.Request) {

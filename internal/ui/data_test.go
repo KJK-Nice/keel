@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -203,5 +204,19 @@ func TestLogFacts(t *testing.T) {
 	}
 	if got := logFacts(applog.Entry{Kind: "agent.read", Lines: 4, Count: 4, Source: "jev"}); strings.Join(got, "|") != "4 sent|via jev" {
 		t.Fatalf("summarised read facts = %v", got)
+	}
+}
+
+// Page-local filters are underscore signals, so Datastar never sends them
+// to the server (docs/ui-redesign.md §12, D2).
+func TestSignalsJSONPageFiltersStayLocal(t *testing.T) {
+	s := PageProps{}.SignalsJSON()
+	for _, want := range []string{`"_identityFilter":""`, `"_snippetFilter":""`, `"_tunnelFilter":""`, `"_notebookFilter":""`, `"_tunnelState":"all"`, `"_logKind":"all"`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %s in %s", want, s)
+		}
+	}
+	if !json.Valid([]byte(s)) {
+		t.Fatalf("signals are not JSON: %s", s)
 	}
 }
