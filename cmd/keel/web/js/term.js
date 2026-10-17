@@ -44,6 +44,7 @@ import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
+import { createLatestRequest } from "./lib/latest.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
 import { keysFor } from "./lib/shortcutmap.js";
@@ -800,11 +801,16 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }).toString();
   }
 
-  async function paintList(id, url) {
+  // paintList swaps a server-rendered list into place. With a signal and
+  // isStale (lib/latest.js) a superseded request paints nothing and resolves
+  // to null, so only the newest filter result reaches the DOM.
+  async function paintList(id, url, { signal, isStale } = {}) {
     try {
-      const res = await fetch(url, { headers: { Accept: "text/html" } });
+      const res = await fetch(url, { headers: { Accept: "text/html" }, signal });
+      if (isStale?.()) return null;
       if (!res.ok) return false;
       const html = await res.text();
+      if (isStale?.()) return null;
       const current = document.getElementById(id);
       if (!current) return false;
       const tpl = document.createElement("template");
@@ -815,7 +821,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       afterListPaint(id);
       return true;
     } catch {
-      return false;
+      return isStale?.() ? null : false;
     }
   }
 
@@ -7520,7 +7526,8 @@ Write a runbook here.
 
     // One filter box for the sidebar's segment: Hosts asks keel serve for
     // the tree; Panes, Snippets and Forwards filter what is already loaded.
-    let hostFilterSeq = 0;
+    // One /ui/hosts request per typing pause, newest result only.
+    const hostFilter = createLatestRequest({ delayMs: 120 });
     on(els.search, "input", () => {
       const seg = sidebarSeg();
       if (seg !== "hosts") {
@@ -7529,10 +7536,11 @@ Write a runbook here.
         return;
       }
       state.query = els.search.value;
-      const seq = ++hostFilterSeq;
-      paintList("host-list", "/ui/hosts?" + datastarQS()).then((ok) => {
-        if (!ok && seq === hostFilterSeq) renderHosts();
-      });
+      hostFilter
+        .schedule((signal, isStale) => paintList("host-list", "/ui/hosts?" + datastarQS(), { signal, isStale }))
+        .then((ok) => {
+          if (ok === false) renderHosts();
+        });
     });
     on(els.search, "keydown", (ev) => {
       if (ev.key === "Escape" && els.search.value) {
@@ -7546,9 +7554,10 @@ Write a runbook here.
       ev.preventDefault();
       connectFromSearch();
     });
+    const logFilter = createLatestRequest({ delayMs: 120 });
     on(document.getElementById("log-filter"), "input", (ev) => {
       state.logFilter = ev.target.value;
-      paintList("log-list", "/ui/logs?" + datastarQS());
+      logFilter.schedule((signal, isStale) => paintList("log-list", "/ui/logs?" + datastarQS(), { signal, isStale }));
     });
     on(document.getElementById("btn-refresh-logs"), "click", () => loadLogs().catch((err) => toast(err.message, true)));
   }
