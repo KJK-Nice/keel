@@ -43,6 +43,7 @@ import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
+import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
 import { keysFor } from "./lib/shortcutmap.js";
@@ -2090,8 +2091,10 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     if (!pane?.pending?.length || !pane.term?.element) return;
     const chunks = pane.pending;
     pane.pending = [];
+    // Invalidate once xterm has parsed the last chunk, as writePaneBytes does.
+    const last = chunks.pop();
     for (const chunk of chunks) pane.term.write(chunk);
-    schedulePaneInvalidate(pane);
+    pane.term.write(last, () => schedulePaneInvalidate(pane));
   }
 
   function writePaneBytes(pane, data) {
@@ -2102,8 +2105,9 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       pane.pending.push(chunk);
       return;
     }
+    // Invalidate once xterm has parsed the chunk; scheduling before the parse
+    // would spend the throttle's first slot on a frame without the new text.
     pane.term.write(chunk, () => schedulePaneInvalidate(pane));
-    schedulePaneInvalidate(pane);
   }
 
   // WKWebView often keeps a stale compositor layer for the WebGL canvas after
@@ -2132,11 +2136,16 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
   }
 
+  // The invalidate redraws every row and rebuilds the canvas layer, so the
+  // write path runs it at most once per PANE_INVALIDATE_MS (framethrottle.js).
+  // Panes on the DOM renderer (native splits) have no WebGL layer to go stale
+  // and skip it here; layout changes still refresh them (refreshPaneRender).
+  const PANE_INVALIDATE_MS = 50;
+
   function schedulePaneInvalidate(pane) {
-    if (!isNativeWindow() || !pane || pane._invalidateQueued) return;
-    pane._invalidateQueued = true;
-    requestAnimationFrame(() => {
-      pane._invalidateQueued = false;
+    if (!isNativeWindow() || !pane || !pane.term?._keelWebgl) return;
+    if (!pane._invalidate) pane._invalidate = createFrameThrottle({ intervalMs: PANE_INVALIDATE_MS });
+    pane._invalidate.schedule(() => {
       if (pane.wrap?.isConnected) invalidatePaneRender(pane);
     });
   }
