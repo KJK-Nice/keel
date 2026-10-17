@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -294,7 +295,9 @@ type Store struct {
 	data      persistData
 	secrets   map[string]hostSecret
 	offers    map[string]hostKeyOffer
-	locked    bool
+	// locked is written under mu but read without it by Locked, which every
+	// HTTP request calls (httpapi withVault): it must not wait behind a save.
+	locked    atomic.Bool
 	needSetup bool
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
@@ -306,6 +309,23 @@ type Store struct {
 	// request for most of a second on each save.
 	vaultSum       [32]byte
 	vaultRecipient age.Recipient
+
+	// vaultNoted is the snapshot that vaultSum and vaultRecipient describe
+	// (under mu).
+	vaultNoted uint64
+
+	// writeMu orders the file writes of saves that run with mu released.
+	// saveGen numbers each save's snapshot (under mu); jsonGen and vaultGen
+	// are the newest snapshots on disk (under writeMu), so an older save
+	// that reaches the disk after a newer one does not overwrite it.
+	// diskSum and diskRecipient describe keel.vault as written (under
+	// writeMu).
+	writeMu       sync.Mutex
+	saveGen       uint64
+	jsonGen       uint64
+	vaultGen      uint64
+	diskSum       [32]byte
+	diskRecipient age.Recipient
 }
 
 func New(path string) (*Store, error) {
@@ -339,14 +359,14 @@ func New(path string) (*Store, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.locked && len(pending) > 0 {
+	if !s.locked.Load() && len(pending) > 0 {
 		for id, sec := range pending {
 			s.secrets[id] = sec
 		}
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}
-	} else if s.locked && len(pending) > 0 {
+	} else if s.locked.Load() && len(pending) > 0 {
 		s.secrets = pending
 		s.needSetup = true
 	}
@@ -466,18 +486,18 @@ func (s *Store) bootstrap() error {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
 			s.data.Version = 3
-			s.locked = false
+			s.locked.Store(false)
 			return s.saveLocked()
 		}
 		secrets, err := decryptVault(blob, ident)
 		if err != nil {
-			s.locked = true
+			s.locked.Store(true)
 			return nil
 		}
 		s.secrets = secrets
 		s.recipient = ident.Recipient()
 		s.data.Vault = vaultX25519
-		s.locked = false
+		s.locked.Store(false)
 		return nil
 	}
 	blob, err := os.ReadFile(s.vaultPath)
@@ -493,35 +513,33 @@ func (s *Store) bootstrap() error {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
 			s.data.Version = 3
-			s.locked = false
+			s.locked.Store(false)
 			return s.saveLocked()
 		}
-		s.locked = true
+		s.locked.Store(true)
 		s.needSetup = true
 		return nil
 	}
 	_ = blob
-	s.locked = true
+	s.locked.Store(true)
 	s.needSetup = false
 	return nil
 }
 
 func (s *Store) Locked() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.locked
+	return s.locked.Load()
 }
 
 func (s *Store) NeedsSetup() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.locked && s.needSetup
+	return s.locked.Load() && s.needSetup
 }
 
 func (s *Store) Unlock(passphrase string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.locked {
+	if !s.locked.Load() {
 		return nil
 	}
 	if passphrase == "" {
@@ -539,7 +557,7 @@ func (s *Store) Setup(passphrase string) error {
 	if passphrase == "" {
 		return errors.New("passphrase is required")
 	}
-	if !s.locked || !s.needSetup {
+	if !s.locked.Load() || !s.needSetup {
 		return ErrVaultExists
 	}
 	return s.setupLocked(passphrase)
@@ -553,7 +571,7 @@ func (s *Store) setupLocked(passphrase string) error {
 	s.recipient = rec
 	s.data.Vault = vaultScrypt
 	s.data.Version = 3
-	s.locked = false
+	s.locked.Store(false)
 	s.needSetup = false
 	return s.saveLocked()
 }
@@ -578,7 +596,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		s.recipient = rec
 		s.data.Vault = vaultScrypt
 		s.data.Version = 3
-		s.locked = false
+		s.locked.Store(false)
 		s.needSetup = false
 		return s.saveLocked()
 	}
@@ -587,7 +605,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		if create && s.needSetup {
 			return ErrPassphrase
 		}
-		s.locked = true
+		s.locked.Store(true)
 		return ErrPassphrase
 	}
 	rec, err := scryptRecipient(passphrase)
@@ -597,7 +615,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 	s.secrets = secrets
 	s.recipient = rec
 	s.data.Vault = vaultScrypt
-	s.locked = false
+	s.locked.Store(false)
 	s.needSetup = false
 	return nil
 }
@@ -605,15 +623,18 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 func (s *Store) ListHosts() ([]Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return nil, err
-	}
+	dirty := s.migrateGroupsLocked()
 	out := make([]Host, len(s.data.Hosts))
 	for i, h := range s.data.Hosts {
 		out[i] = s.viewLocked(h)
+	}
+	if dirty {
+		if err := s.saveLocked(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -621,7 +642,7 @@ func (s *Store) ListHosts() ([]Host, error) {
 func (s *Store) GetHost(id string) (Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
 	for _, h := range s.data.Hosts {
@@ -683,7 +704,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 func (s *Store) UpsertHost(h Host) (Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
 	now := time.Now().UTC()
@@ -691,9 +712,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if h.Port == 0 && h.AuthType != "local" {
 		h.Port = 22
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return Host{}, err
-	}
+	s.migrateGroupsLocked()
 	gid, err := s.resolveGroupRefLocked(h.GroupID, h.Group)
 	if err != nil {
 		return Host{}, err
@@ -714,10 +733,11 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 			PrivateKey: cleanSecret(h.PrivateKey),
 			Passphrase: cleanSecret(h.Passphrase),
 		}, hostSecret{})
+		out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
 		if err := s.saveLocked(); err != nil {
 			return Host{}, err
 		}
-		return s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1]), nil
+		return out, nil
 	}
 	for i, existing := range s.data.Hosts {
 		if existing.ID == h.ID {
@@ -731,10 +751,11 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 				PrivateKey: h.PrivateKey,
 				Passphrase: h.Passphrase,
 			}, prev)
+			out := s.fullLocked(s.data.Hosts[i])
 			if err := s.saveLocked(); err != nil {
 				return Host{}, err
 			}
-			return s.fullLocked(s.data.Hosts[i]), nil
+			return out, nil
 		}
 	}
 	s.applyCreateDefaultsLocked(&h)
@@ -746,10 +767,11 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 		PrivateKey: cleanSecret(h.PrivateKey),
 		Passphrase: cleanSecret(h.Passphrase),
 	}, hostSecret{})
+	out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
 	if err := s.saveLocked(); err != nil {
 		return Host{}, err
 	}
-	return s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1]), nil
+	return out, nil
 }
 
 func copyHostName(base string, taken []string) string {
@@ -848,7 +870,7 @@ func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 func (s *Store) DeleteHost(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	hosts := s.data.Hosts[:0]
@@ -871,7 +893,7 @@ func (s *Store) DeleteHost(id string) error {
 func (s *Store) ListSnippets() ([]Snippet, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	out := make([]Snippet, len(s.data.Snippets))
@@ -882,7 +904,7 @@ func (s *Store) ListSnippets() ([]Snippet, error) {
 func (s *Store) UpsertSnippet(sn Snippet) (Snippet, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Snippet{}, ErrLocked
 	}
 	now := time.Now().UTC()
@@ -907,7 +929,7 @@ func (s *Store) UpsertSnippet(sn Snippet) (Snippet, error) {
 func (s *Store) DeleteSnippet(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	out := s.data.Snippets[:0]
@@ -931,7 +953,7 @@ func (s *Store) DeleteSnippet(id string) error {
 func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	if prev, ok := s.data.KnownHosts[hostname]; ok {
@@ -949,7 +971,7 @@ func (s *Store) CheckHostKey(hostname, fingerprint string) error {
 func (s *Store) CheckHostKeyType(hostname, keyType, fingerprint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	prev, known := s.data.KnownHosts[hostname]
@@ -972,7 +994,7 @@ func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {
 func (s *Store) TrustHostKeyType(hostname, fingerprint, keyType string, replace bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	hostname = strings.TrimSpace(hostname)
@@ -1001,39 +1023,122 @@ func (s *Store) TrustHostKeyType(hostname, fingerprint, keyType string, replace 
 	} else {
 		delete(s.data.KnownHostTypes, hostname)
 	}
-	return s.saveLocked()
+	return s.saveDurableLocked()
 }
 
+// saveLocked persists s.data, and keel.vault when the secrets changed. Call
+// it with mu held, as the last step of a mutation. It snapshots under mu,
+// then releases mu for the encryption and the fsynced writes (tens of ms on
+// macOS, about a second of scrypt when a passphrase vault is re-encrypted)
+// so reads and other requests do not wait on the disk, and retakes mu before
+// returning. Do not rely on state read before the call after it returns.
 func (s *Store) saveLocked() error {
-	if s.locked {
-		return ErrLocked
+	job, err := s.snapshotLocked()
+	if err != nil {
+		return err
+	}
+	s.mu.Unlock()
+	wroteVault, werr := s.writeSnapshot(job)
+	s.mu.Lock()
+	s.noteVaultLocked(job, wroteVault)
+	return werr
+}
+
+// saveDurableLocked is saveLocked without releasing mu: no reader sees the
+// change before it is on disk. Use it where acting on an unsaved change is
+// unsafe, such as trusting a host key.
+func (s *Store) saveDurableLocked() error {
+	job, err := s.snapshotLocked()
+	if err != nil {
+		return err
+	}
+	wroteVault, werr := s.writeSnapshot(job)
+	s.noteVaultLocked(job, wroteVault)
+	return werr
+}
+
+type saveSnapshot struct {
+	gen       uint64
+	data      []byte
+	vault     bool
+	sum       [32]byte
+	secrets   map[string]hostSecret
+	recipient age.Recipient
+}
+
+func (s *Store) snapshotLocked() (saveSnapshot, error) {
+	if s.locked.Load() {
+		return saveSnapshot{}, ErrLocked
 	}
 	if s.recipient == nil {
-		return errors.New("vault has no recipient")
+		return saveSnapshot{}, errors.New("vault has no recipient")
 	}
 	s.data.Version = 3
 	b, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
-		return err
+		return saveSnapshot{}, err
 	}
 	sum, err := secretsSum(s.secrets)
 	if err != nil {
-		return err
+		return saveSnapshot{}, err
 	}
-	// Rewrite when the secrets or recipient changed, or when keel.vault is
-	// gone: every save used to recreate it, and a missing vault at the next
-	// start is read as "no secrets".
+	s.saveGen++
+	job := saveSnapshot{gen: s.saveGen, data: b}
+	// Rewrite when the secrets or recipient differ from keel.vault on disk,
+	// or when keel.vault is gone: every save used to recreate it, and a
+	// missing vault at the next start is read as "no secrets". vaultSum only
+	// moves once a write succeeds, so a save that snapshots while an earlier
+	// vault write is in flight, or after one failed, carries the secrets too.
 	if sum != s.vaultSum || s.recipient != s.vaultRecipient || !fileExists(s.vaultPath) {
-		blob, err := encryptVault(s.secrets, s.recipient)
-		if err != nil {
-			return err
+		job.vault = true
+		job.sum = sum
+		job.secrets = make(map[string]hostSecret, len(s.secrets))
+		for k, v := range s.secrets {
+			job.secrets[k] = v
 		}
-		if err := writePrivate(s.vaultPath, blob); err != nil {
-			return err
-		}
-		s.vaultSum, s.vaultRecipient = sum, s.recipient
+		job.recipient = s.recipient
 	}
-	return writePrivate(s.path, b)
+	return job, nil
+}
+
+// noteVaultLocked records that keel.vault now holds job's secrets, unless a
+// newer snapshot was already recorded.
+func (s *Store) noteVaultLocked(job saveSnapshot, wroteVault bool) {
+	if wroteVault && job.gen > s.vaultNoted {
+		s.vaultSum, s.vaultRecipient, s.vaultNoted = job.sum, job.recipient, job.gen
+	}
+}
+
+// writeSnapshot writes job's files unless a newer snapshot already reached
+// the disk, and reports whether keel.vault holds job's secrets. It does not
+// need mu.
+func (s *Store) writeSnapshot(job saveSnapshot) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	wroteVault := false
+	if job.vault && job.gen > s.vaultGen {
+		// An earlier snapshot may have written the same secrets already:
+		// skip the encryption (a second of scrypt for passphrase vaults).
+		if job.sum != s.diskSum || job.recipient != s.diskRecipient || !fileExists(s.vaultPath) {
+			blob, err := encryptVault(job.secrets, job.recipient)
+			if err != nil {
+				return false, err
+			}
+			if err := writePrivate(s.vaultPath, blob); err != nil {
+				return false, err
+			}
+			s.diskSum, s.diskRecipient = job.sum, job.recipient
+		}
+		s.vaultGen = job.gen
+		wroteVault = true
+	}
+	if job.gen > s.jsonGen {
+		if err := writePrivate(s.path, job.data); err != nil {
+			return wroteVault, err
+		}
+		s.jsonGen = job.gen
+	}
+	return wroteVault, nil
 }
 
 func fileExists(path string) bool {

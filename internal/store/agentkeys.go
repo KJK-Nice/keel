@@ -49,7 +49,7 @@ func (s *Store) SetAgentKey(provider, key string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	s.secrets[agentKeySecretID(provider)] = hostSecret{Token: key}
@@ -65,7 +65,7 @@ func (s *Store) ClearAgentKey(provider string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	if _, ok := s.secrets[agentKeySecretID(provider)]; !ok {
@@ -79,7 +79,7 @@ func (s *Store) ClearAgentKey(provider string) error {
 func (s *Store) AgentKeyConfigured(provider string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return false, ErrLocked
 	}
 	sec, ok := s.secrets[agentKeySecretID(strings.TrimSpace(provider))]
@@ -92,7 +92,7 @@ func (s *Store) AgentKeyConfigured(provider string) (bool, error) {
 func (s *Store) AgentKey(provider string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return "", ErrLocked
 	}
 	sec, ok := s.secrets[agentKeySecretID(strings.TrimSpace(provider))]
@@ -110,7 +110,7 @@ func (s *Store) AgentKey(provider string) (string, error) {
 func (s *Store) KnownSecretValues() ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	seen := map[string]struct{}{}

@@ -25,3 +25,4 @@ node_modules/
 .claude/settings.local.json
 .e2e/ssh-home/
 .e2e/first-run-data/
+/perf-results.txt

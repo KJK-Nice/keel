@@ -40,7 +40,7 @@ func HostKeyName(h Host) string {
 func (s *Store) KnownHost(hostname string) (KnownHostKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return KnownHostKey{}, ErrLocked
 	}
 	out := KnownHostKey{Hostname: hostname}
@@ -57,7 +57,7 @@ func (s *Store) KnownHost(hostname string) (KnownHostKey, error) {
 func (s *Store) ForgetHostKey(hostname string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return false, ErrLocked
 	}
 	if _, ok := s.data.KnownHosts[hostname]; !ok {
@@ -130,7 +130,7 @@ func (s *Store) offerLocked(o hostKeyOffer) string {
 func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) (KnownHostKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return KnownHostKey{}, ErrLocked
 	}
 	o, ok := s.offers[token]
@@ -159,7 +159,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 	} else {
 		delete(s.data.KnownHostTypes, hostname)
 	}
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveDurableLocked(); err != nil {
 		return KnownHostKey{}, err
 	}
 	return KnownHostKey{Hostname: hostname, Fingerprint: fingerprint, KeyType: o.keyType, Known: true}, nil

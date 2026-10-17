@@ -15,7 +15,7 @@ func identitySecretID(id string) string {
 func (s *Store) HostForConnect(id string) (Host, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
 	for _, h := range s.data.Hosts {
@@ -57,7 +57,7 @@ func (s *Store) withIdentityLocked(host Host) (Host, error) {
 func (s *Store) ListIdentities() ([]Identity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	out := make([]Identity, len(s.data.Identities))
@@ -70,7 +70,7 @@ func (s *Store) ListIdentities() ([]Identity, error) {
 func (s *Store) GetIdentity(id string) (Identity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Identity{}, ErrLocked
 	}
 	return s.identityFullLocked(id)
@@ -117,7 +117,7 @@ func (s *Store) identityFullLocked(id string) (Identity, error) {
 func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Identity{}, ErrLocked
 	}
 	now := time.Now().UTC()
@@ -132,10 +132,14 @@ func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 			PrivateKey: cleanSecret(in.PrivateKey),
 			Passphrase: cleanSecret(in.Passphrase),
 		}, hostSecret{})
+		out, err := s.identityFullLocked(in.ID)
+		if err != nil {
+			return Identity{}, err
+		}
 		if err := s.saveLocked(); err != nil {
 			return Identity{}, err
 		}
-		return s.identityFullLocked(in.ID)
+		return out, nil
 	}
 	for i, existing := range s.data.Identities {
 		if existing.ID != in.ID {
@@ -150,10 +154,14 @@ func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 			PrivateKey: in.PrivateKey,
 			Passphrase: in.Passphrase,
 		}, prev)
+		out, err := s.identityFullLocked(in.ID)
+		if err != nil {
+			return Identity{}, err
+		}
 		if err := s.saveLocked(); err != nil {
 			return Identity{}, err
 		}
-		return s.identityFullLocked(in.ID)
+		return out, nil
 	}
 	in.CreatedAt = now
 	in.UpdatedAt = now
@@ -163,10 +171,14 @@ func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 		PrivateKey: cleanSecret(in.PrivateKey),
 		Passphrase: cleanSecret(in.Passphrase),
 	}, hostSecret{})
+	out, err := s.identityFullLocked(in.ID)
+	if err != nil {
+		return Identity{}, err
+	}
 	if err := s.saveLocked(); err != nil {
 		return Identity{}, err
 	}
-	return s.identityFullLocked(in.ID)
+	return out, nil
 }
 
 func persistIdentityFrom(in Identity) persistIdentity {
@@ -179,7 +191,7 @@ func persistIdentityFrom(in Identity) persistIdentity {
 func (s *Store) DeleteIdentity(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	out := s.data.Identities[:0]

@@ -161,7 +161,7 @@ func (a AgentSettings) HistorySuggestionsEnabled() bool {
 func (s *Store) AgentSettings() (AgentSettings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return AgentSettings{}, ErrLocked
 	}
 	if s.data.Agent == nil {
@@ -187,7 +187,7 @@ func (s *Store) SetAgentSettings(a AgentSettings) (AgentSettings, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return AgentSettings{}, ErrLocked
 	}
 	s.data.Agent = &a

@@ -11,7 +11,7 @@ import (
 func (s *Store) ListTunnels() ([]Tunnel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return nil, ErrLocked
 	}
 	out := make([]Tunnel, len(s.data.Tunnels))
@@ -22,7 +22,7 @@ func (s *Store) ListTunnels() ([]Tunnel, error) {
 func (s *Store) GetTunnel(id string) (Tunnel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Tunnel{}, ErrLocked
 	}
 	for _, t := range s.data.Tunnels {
@@ -36,7 +36,7 @@ func (s *Store) GetTunnel(id string) (Tunnel, error) {
 func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return Tunnel{}, ErrLocked
 	}
 	// Brackets would end up doubled by net.JoinHostPort ("[[::1]]:port").
@@ -73,7 +73,7 @@ func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 func (s *Store) DeleteTunnel(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.locked {
+	if s.locked.Load() {
 		return ErrLocked
 	}
 	out := s.data.Tunnels[:0]
