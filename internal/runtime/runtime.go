@@ -312,12 +312,6 @@ func (r *Runtime) emitHerd(ev HerdEvent) {
 	}
 }
 
-type clientConn struct {
-	Client  Client
-	ch      chan Event
-	focused inject.Surface
-}
-
 type Session struct {
 	rt             *Runtime
 	id             string
@@ -407,9 +401,7 @@ func (s *Session) Announce(ev Event) {
 		if isRemoteJoin(c.Client.Kind) {
 			continue
 		}
-		select {
-		case c.ch <- ev:
-		default:
+		if !c.offer(ev) {
 			slow = append(slow, id)
 		}
 	}
@@ -428,7 +420,6 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 	if kind != "tui" && kind != "webrtc" {
 		kind = "web"
 	}
-	ch := make(chan Event, 512)
 	cl := Client{
 		ID:         id,
 		Name:       name,
@@ -444,7 +435,9 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 		}
 	}
 	cl.Role = s.roleLocked(id)
-	s.clients[id] = &clientConn{Client: cl, ch: ch, focused: inject.SurfaceTerm}
+	c := newClientConn(cl, inject.SurfaceTerm)
+	s.clients[id] = c
+	ch := c.ch
 	snap := s.buf.Bytes()
 	if since {
 		snap = s.buf.BytesSince(mark)
@@ -466,17 +459,21 @@ func (s *Session) dropClient(id uint64, slow bool) {
 		return
 	}
 	delete(s.clients, id)
-	close(c.ch)
+	c.stop()
 	if s.ownerID == id {
 		s.ownerID = firstLocalClientID(s.clients)
 	}
 	if s.driverID == id {
 		s.driverID = s.ownerID
 	}
+	hostID := s.host.ID
 	s.mu.Unlock()
 	msg := "left"
 	if slow {
 		msg = "dropped (slow consumer)"
+		// The name is chosen by the joining peer: quote it so it cannot
+		// forge log lines.
+		s.rt.note("session", fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
 	}
 	s.emitPresence(msg)
 }
@@ -1079,13 +1076,11 @@ func (s *Session) broadcast(ev Event) {
 }
 
 // fanoutLocked offers ev to every client without blocking and returns the
-// clients whose buffers were full (slow consumers to drop).
+// clients over their queue budget (slow consumers to drop).
 func (s *Session) fanoutLocked(ev Event) []uint64 {
 	var slow []uint64
 	for id, c := range s.clients {
-		select {
-		case c.ch <- ev:
-		default:
+		if !c.offer(ev) {
 			slow = append(slow, id)
 		}
 	}
@@ -1103,7 +1098,7 @@ func (s *Session) close() {
 	br := s.br
 	s.br = nil
 	for id, c := range s.clients {
-		close(c.ch)
+		c.finish()
 		delete(s.clients, id)
 	}
 	s.ownerID = 0

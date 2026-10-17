@@ -64,9 +64,16 @@ type pendingPeer struct {
 const (
 	// maxPeers caps WebRTC viewers per share (each is a PeerConnection).
 	maxPeers = 16
-	// maxBuffered is how far a viewer's data channel may fall behind before
-	// it is dropped; pion queues sends without bound.
-	maxBuffered = 4 << 20
+	// sendHigh and sendLow pace a viewer's data channel, which pion queues
+	// without bound. Past sendHigh the attach loop waits for it to drain to
+	// sendLow, so unread output waits in the runtime's per-client queue,
+	// and the runtime drops the viewer once that passes its byte budget.
+	// The two buffers no longer stack up to twice the budget.
+	sendHigh = 1 << 20
+	sendLow  = 256 << 10
+	// sendStall drops a viewer whose data channel drains nothing for this
+	// long while output is waiting.
+	sendStall = 15 * time.Second
 	// maxPending caps join requests waiting on the host, so a flood of
 	// joiners can't pile prompts onto the host's screen.
 	maxPending = 4
@@ -603,12 +610,36 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 		}
 		info := sess.Info()
 		_ = dc.SendText(mustJSON(sessionPayload("ready", "attached", info, cl, 0, 0)))
+		low := make(chan struct{}, 1)
+		closed := make(chan struct{})
+		dc.SetBufferedAmountLowThreshold(sendLow)
+		dc.OnBufferedAmountLow(func() {
+			select {
+			case low <- struct{}{}:
+			default:
+			}
+		})
+		// drained waits until the data channel is under sendHigh. It reports
+		// false when the channel closed or stalled.
+		drained := func() bool {
+			for dc.BufferedAmount() > sendHigh {
+				t := time.NewTimer(sendStall)
+				select {
+				case <-low:
+					t.Stop()
+				case <-closed:
+					t.Stop()
+					return false
+				case <-t.C:
+					return false
+				}
+			}
+			return true
+		}
 		go func() {
 			for ev := range events {
 				if ev.Kind == "bytes" {
-					if dc.BufferedAmount() > maxBuffered {
-						// A viewer this far behind would grow the send queue
-						// without bound; drop it like a slow websocket client.
+					if !drained() {
 						sess.Unsubscribe(cl.ID)
 						_ = dc.Close()
 						return
@@ -670,7 +701,10 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 				_ = dc.SendText(mustJSON(map[string]any{"type": "error", "message": err.Error()}))
 			}
 		})
-		dc.OnClose(func() { sess.Unsubscribe(cl.ID) })
+		dc.OnClose(func() {
+			close(closed)
+			sess.Unsubscribe(cl.ID)
+		})
 	})
 }
 
