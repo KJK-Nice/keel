@@ -45,6 +45,7 @@ import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createLatestRequest } from "./lib/latest.js";
+import { setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
 import { keysFor } from "./lib/shortcutmap.js";
@@ -453,7 +454,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
           </div>`;
         })
         .join("");
-      snips.innerHTML = `<div class="k-side-section">
+      setHTML(snips, `<div class="k-side-section">
           ${snRows || `<p class="k-side-note">${q ? "No snippets match." : "No snippets yet."}</p>`}
           <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="snippets">Manage snippets</button>
         </div>
@@ -464,7 +465,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
             <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-notebook-new>New notebook</button>
             <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="notebooks">All notebooks</button>
           </div>
-        </div>`;
+        </div>`);
     }
     const fwd = document.getElementById("sidebar-forwards");
     if (fwd) {
@@ -483,13 +484,13 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
           </div>`;
         })
         .join("");
-      fwd.innerHTML = `<div class="k-side-section">
+      setHTML(fwd, `<div class="k-side-section">
           ${rows || `<p class="k-side-note">${q ? "No forwards match." : "No forwards yet."}</p>`}
           <div class="k-side-actions">
             <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-new-tunnel>New forward</button>
             <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="forwards">Manage forwards</button>
           </div>
-        </div>`;
+        </div>`);
     }
     syncHostLive();
   }
@@ -509,11 +510,12 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       const live = byHost.get(el.getAttribute("data-host-live"));
       el.hidden = !live;
       if (!live) {
-        el.textContent = "";
+        setText(el, "");
+        el._keelHTML = null;
         return;
       }
       const dot = dotFor(live.status);
-      el.innerHTML = `<span class="k-dot ${dot.cls}" aria-hidden="true"></span>${live.n}`;
+      setHTML(el, `<span class="k-dot ${dot.cls}" aria-hidden="true"></span>${live.n}`);
       el.title = `${live.n} ${live.n === 1 ? "session" : "sessions"} · ${dot.label}`;
     });
   }
@@ -1662,6 +1664,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
   function paintTabDrop(toIndex) {
     clearTabDropMarks();
+    els.tabs._keelHTML = null; // drop marks change the strip in place
     if (!tabDrag) return;
     const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
     src?.classList.add("is-dragging");
@@ -1757,6 +1760,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     input.value = tabTitle(tab);
     input.setAttribute("aria-label", "Rename tab");
     label.replaceWith(input);
+    els.tabs._keelHTML = null; // the strip no longer matches its markup
     input.focus({ preventScroll: true });
     input.select();
     fitTabRename(input);
@@ -1936,9 +1940,9 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     pane.wrap.classList.toggle("is-sync", !!tab.sync);
     pane.wrap.classList.toggle("is-zoomed", zoomed);
     const title = pane.wrap.querySelector(".pane-title");
-    if (title) title.textContent = pane.title || "session";
+    setText(title, pane.title || "session");
     const addr = pane.wrap.querySelector(".pane-addr");
-    if (addr && isTermPane(pane)) addr.textContent = pane.subtitle || "";
+    if (addr && isTermPane(pane)) setText(addr, pane.subtitle || "");
     const dotEl = pane.wrap.querySelector(".pane-dot");
     if (dotEl && isTermPane(pane)) {
       const dot = dotFor(pane.status);
@@ -2041,13 +2045,13 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     if (!bar) return;
     const sessions = [...state.panes.values()].filter((p) => isTermPane(p) && p.runtimeId).length;
     const runtime = document.getElementById("sb-runtime-text");
-    if (runtime) runtime.textContent = `keel serve · ${sessions} ${sessions === 1 ? "session" : "sessions"}`;
+    setText(runtime, `keel serve · ${sessions} ${sessions === 1 ? "session" : "sessions"}`);
     const running = (state.tunnels || []).filter((t) => t.status === "ready");
     const fwd = document.getElementById("sb-forwards");
     if (fwd) {
       fwd.hidden = running.length === 0;
       const text = document.getElementById("sb-forwards-text");
-      if (text) text.textContent = `${running.length} ${running.length === 1 ? "forward" : "forwards"}`;
+      setText(text, `${running.length} ${running.length === 1 ? "forward" : "forwards"}`);
     }
     const tab = activeSessionTab();
     const pane = tab ? focusedPane() : null;
@@ -2056,11 +2060,11 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     const term = pane && isTermPane(pane) ? pane.term : null;
     if (paneEl) {
       paneEl.hidden = !term;
-      if (term) paneEl.textContent = `${pane.title || "session"} · ${term.cols}×${term.rows} · UTF-8`;
+      if (term) setText(paneEl, `${pane.title || "session"} · ${term.cols}×${term.rows} · UTF-8`);
     }
     if (syncEl) {
       syncEl.hidden = !term || !!tab?.remote;
-      if (term) syncEl.textContent = tab.sync ? "Sync on" : "Sync off";
+      if (term) setText(syncEl, tab.sync ? "Sync on" : "Sync off");
     }
   }
 
@@ -2188,6 +2192,10 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     const split = tab && leafCount(tab.layout) > 1 && !tab.zoomedPaneId;
     const theme = { ...xtermTheme() };
     if (split) theme.background = tokenTermTheme().background;
+    // renderTabs calls this for every pane on every render. A new theme
+    // object, even with the same colors, makes xterm clear and re-upload the
+    // WebGL glyph atlas, so only assign when a color actually changes.
+    if (JSON.stringify(pane.term.options.theme || {}) === JSON.stringify(theme)) return;
     pane.term.options.theme = theme;
   }
 
@@ -2553,7 +2561,23 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     return `<span class="tab-icon" aria-hidden="true">${hugeicon(PAGES[tab.page]?.glyph || "")}</span>`;
   }
 
+  // scheduleRenderTabs coalesces renders that do not need the DOM updated
+  // synchronously (presence and status messages) into one per frame. A
+  // direct renderTabs in between makes the queued one a no-op.
+  let renderTabsQueued = false;
+  let renderTabsDirty = false;
+  function scheduleRenderTabs() {
+    renderTabsDirty = true;
+    if (renderTabsQueued) return;
+    renderTabsQueued = true;
+    requestAnimationFrame(() => {
+      renderTabsQueued = false;
+      if (renderTabsDirty) renderTabs();
+    });
+  }
+
   function renderTabs() {
+    renderTabsDirty = false;
     // With no tab left (startup with nothing to restore, or the last one
     // closed) the window shows a New tab: the Vault is no longer a tab to
     // fall back to.
@@ -2566,7 +2590,9 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
     const keepScroll = els.tabs.scrollLeft;
     if (!tabRenaming) {
-      els.tabs.innerHTML = ids
+      // setHTML: presence and status messages re-render the strip several
+      // times per opened tab, mostly with identical markup.
+      setHTML(els.tabs, ids
           .map((id, i) => {
             const tab = state.tabs.get(id);
             const st = tabStatus(tab);
@@ -2591,7 +2617,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
             <span class="close k-tab-close" data-close="${id}" title="Close  ${MOD}W">${closeGlyph()}${closeHint}</span>
           </button>`;
           })
-          .join("");
+          .join(""));
       els.tabs.scrollLeft = keepScroll;
       const activeBtn = els.tabs.querySelector(".tab.is-active");
       if (activeBtn) {
@@ -3049,7 +3075,22 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     else toast("No matching host", true);
   }
 
+  // probeSize builds a whole xterm to measure the cell grid of a fixed
+  // 800×400 box. The answer depends only on the terminal options (font,
+  // size, line height), so it is measured once per option set instead of on
+  // every spawn and split.
+  let probeCache = { key: "", size: null };
   function probeSize() {
+    const key = JSON.stringify(termOpts());
+    if (probeCache.key === key && probeCache.size) return { ...probeCache.size };
+    const size = measureProbe();
+    // Metrics taken before the web font loads would stick; measure again
+    // until it has.
+    if (!document.fonts || document.fonts.status === "loaded") probeCache = { key, size };
+    return { ...size };
+  }
+
+  function measureProbe() {
     const termProbe = document.createElement("div");
     termProbe.style.cssText = "position:absolute;visibility:hidden;width:800px;height:400px";
     document.body.appendChild(termProbe);
@@ -3089,7 +3130,10 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       }
       throw err;
     }
-    loadAll().catch(() => {});
+    // Opening a session changes no vault data, and the herd socket already
+    // carries the new session: repaint the sidebar from state instead of
+    // reloading every list (12 requests and 5 list repaints per tab).
+    paintSidebar();
   }
 
   function isHoldModKey(ev) {
@@ -4230,7 +4274,9 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
         herd.clients = pane.attached.length;
         if (msg.status) herd.status = msg.status;
       }
-      renderTabs();
+      // A new session sends joined, status and ready in quick succession;
+      // one render per frame covers them all.
+      scheduleRenderTabs();
     };
 
     const handlers = {
@@ -4676,7 +4722,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     try {
       const info = await spawnHost(hostId);
       attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
-      loadAll().catch(() => {});
+      paintSidebar();
     } catch (err) {
       toast(err.message, true);
       ensurePaneTerm(pane);
