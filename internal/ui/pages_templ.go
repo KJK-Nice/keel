@@ -514,7 +514,7 @@ func SnippetsPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div><div class=\"k-split-detail\"><form class=\"k-editor\" id=\"snippet-editor\" hidden><input type=\"hidden\" name=\"id\"><div class=\"k-editor-head\"><input class=\"k-input k-editor-title\" name=\"name\" aria-label=\"Snippet name\" autocomplete=\"off\" required> <button type=\"button\" class=\"k-btn\" id=\"snippet-editor-run\" data-run=\"\">Type into pane…</button> <button type=\"submit\" class=\"k-btn k-btn--primary\" id=\"snippet-editor-save\">Save <kbd class=\"k-kbd\" aria-hidden=\"true\">⌘S</kbd></button></div><div class=\"k-field\"><label class=\"k-label\" for=\"snippet-editor-command\">Commands</label> <textarea class=\"k-textarea k-textarea--mono k-editor-body\" id=\"snippet-editor-command\" name=\"command\" rows=\"6\" spellcheck=\"false\" autocomplete=\"off\"></textarea> <span class=\"k-help\">One command per line. Each line ends with Enter when typed.</span></div><div class=\"k-field\"><span class=\"k-label\">Preview of what gets typed</span><pre class=\"k-bytes\" id=\"snippet-editor-preview\"></pre><span class=\"k-help\" id=\"snippet-editor-count\"></span></div><div class=\"k-field k-field--row\"><div class=\"k-field\"><span class=\"k-label\" id=\"snippet-editor-agent-label\">Let the agent suggest this snippet</span> <span class=\"k-help\" id=\"snippet-editor-agent-help\">⇥ can offer it when your words match. One-line commands without ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div><div class=\"k-split-detail\"><form class=\"k-editor\" id=\"snippet-editor\" hidden data-on:submit__prevent=\"@post('/ui/forms/snippet-editor', {contentType: 'form'})\" data-indicator:_saving><input type=\"hidden\" name=\"id\"><div class=\"k-editor-head\"><input class=\"k-input k-editor-title\" name=\"name\" aria-label=\"Snippet name\" autocomplete=\"off\" required> <button type=\"button\" class=\"k-btn\" id=\"snippet-editor-run\" data-run=\"\">Type into pane…</button> <button type=\"submit\" class=\"k-btn k-btn--primary\" id=\"snippet-editor-save\" data-attr:disabled=\"$_saving\">Save <kbd class=\"k-kbd\" aria-hidden=\"true\">⌘S</kbd></button></div><div class=\"k-field\"><label class=\"k-label\" for=\"snippet-editor-command\">Commands</label> <textarea class=\"k-textarea k-textarea--mono k-editor-body\" id=\"snippet-editor-command\" name=\"command\" rows=\"6\" spellcheck=\"false\" autocomplete=\"off\"></textarea> <span class=\"k-help\">One command per line. Each line ends with Enter when typed.</span></div><div class=\"k-field\"><span class=\"k-label\">Preview of what gets typed</span><pre class=\"k-bytes\" id=\"snippet-editor-preview\"></pre><span class=\"k-help\" id=\"snippet-editor-count\"></span></div><div class=\"k-field k-field--row\"><div class=\"k-field\"><span class=\"k-label\" id=\"snippet-editor-agent-label\">Let the agent suggest this snippet</span> <span class=\"k-help\" id=\"snippet-editor-agent-help\">⇥ can offer it when your words match. One-line commands without ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -527,7 +527,7 @@ func SnippetsPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, " fields only. When on, its text is sent, redacted, to TypeSafe Jev.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"snippet-editor-agent\" aria-checked=\"false\" aria-labelledby=\"snippet-editor-agent-label\" aria-describedby=\"snippet-editor-agent-help\"></button></div><div class=\"k-editor-foot\"><span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"snippet-editor-delete\" data-delete-snippet=\"\">Delete snippet</button></div></form><div class=\"k-detail-empty\" id=\"snippet-editor-empty\"><p class=\"k-help\">Select a snippet to edit it, or add one with New snippet.</p></div></div></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, " fields only. When on, its text is sent, redacted, to TypeSafe Jev.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"snippet-editor-agent\" aria-checked=\"false\" aria-labelledby=\"snippet-editor-agent-label\" aria-describedby=\"snippet-editor-agent-help\" data-switch-field=\"agentUsable\"></button> <input type=\"hidden\" name=\"agentUsable\" value=\"false\"></div><p id=\"snippet-editor-form-error\" class=\"k-error\" role=\"alert\" hidden></p><div class=\"k-editor-foot\"><span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"snippet-editor-delete\" data-delete-snippet=\"\">Delete snippet</button></div></form><div class=\"k-detail-empty\" id=\"snippet-editor-empty\"><p class=\"k-help\">Select a snippet to edit it, or add one with New snippet.</p></div></div></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -668,7 +668,7 @@ func LogsPage(p PageProps) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.LogFilter)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 211, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 214, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -1256,7 +1256,7 @@ func agentSwitch(id, label string) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 506, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 509, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -1269,7 +1269,7 @@ func agentSwitch(id, label string) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 506, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 509, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 		if templ_7745c5c3_Err != nil {
@@ -1313,7 +1313,7 @@ func agentRadio(attr, value, label, badge string) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(attr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 512, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 515, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(` ` + templ_7745c5c3_Var42))
 		if templ_7745c5c3_Err != nil {
@@ -1326,7 +1326,7 @@ func agentRadio(attr, value, label, badge string) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 512, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 515, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 		if templ_7745c5c3_Err != nil {
@@ -1339,7 +1339,7 @@ func agentRadio(attr, value, label, badge string) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 514, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 517, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
@@ -1357,7 +1357,7 @@ func agentRadio(attr, value, label, badge string) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(badge)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 516, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 519, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -1459,7 +1459,7 @@ func settingsNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 532, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 535, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 		if templ_7745c5c3_Err != nil {
@@ -1487,7 +1487,7 @@ func settingsNav(id, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 540, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 543, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -1534,7 +1534,7 @@ func settingsGroup(title string) templ.Component {
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 547, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 550, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {

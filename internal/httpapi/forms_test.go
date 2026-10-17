@@ -107,7 +107,82 @@ func TestUIFormIdentityKeepsSavedSecret(t *testing.T) {
 
 func TestUIFormUnknownKind(t *testing.T) {
 	srv, _, _, _ := testServer(t)
-	if code, _ := postForm(t, srv.URL, "host", url.Values{}); code != http.StatusNotFound {
+	if code, _ := postForm(t, srv.URL, "nope", url.Values{}); code != http.StatusNotFound {
 		t.Fatalf("unknown form status %d", code)
+	}
+}
+
+func TestUIFormHost(t *testing.T) {
+	srv, _, st, _ := testServer(t)
+	_, body := postForm(t, srv.URL, "host", url.Values{
+		"name": {"web"}, "authType": {"password"}, "address": {"10.0.0.5"}, "port": {""},
+		"username": {"ubuntu"}, "password": {"pw"}, "tags": {" prod, gpu ,,"},
+		"keepAlive": {"on"}, "keepAliveSec": {"45"}, "agentReadable": {"false"}, "production": {"true"},
+	})
+	if !strings.Contains(body, "keel-form-saved") || !strings.Contains(body, `form: "host"`) {
+		t.Fatalf("host create failed: %q", body)
+	}
+	var id string
+	hosts, _ := st.ListHosts()
+	for _, h := range hosts {
+		if h.Name != "web" {
+			continue
+		}
+		id = h.ID
+		if h.Port != 22 || h.KeepAliveSec != 45 || !h.NoAutoReconnect || strings.Join(h.Tags, "|") != "prod|gpu" {
+			t.Fatalf("host fields: %+v", h)
+		}
+		if h.AgentReadable == nil || *h.AgentReadable || h.Production == nil || !*h.Production {
+			t.Fatalf("host switches: %+v", h)
+		}
+	}
+	if id == "" {
+		t.Fatalf("host not saved: %+v", hosts)
+	}
+
+	// Edit without touching the password: the saved one stays.
+	_, body = postForm(t, srv.URL, "host", url.Values{
+		"id": {id}, "name": {"web2"}, "authType": {"password"}, "address": {"10.0.0.5"}, "port": {"2222"},
+		"username": {"ubuntu"}, "password": {"__saved__"}, "autoReconnect": {"on"},
+	})
+	if !strings.Contains(body, "keel-form-saved") {
+		t.Fatalf("host update failed: %q", body)
+	}
+	h, err := st.GetHost(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Name != "web2" || h.Port != 2222 || h.Password != "pw" || h.KeepAliveSec != -1 || h.NoAutoReconnect {
+		t.Fatalf("host update: %+v", h)
+	}
+
+	_, body = postForm(t, srv.URL, "host", url.Values{"name": {"x"}, "authType": {"password"}})
+	if !strings.Contains(body, `id="host-form-error"`) || !strings.Contains(body, "address is required") {
+		t.Fatalf("host error not patched: %q", body)
+	}
+}
+
+func TestUIFormSnippetEditorSetsAgentFlag(t *testing.T) {
+	srv, _, st, _ := testServer(t)
+	all, _ := st.ListSnippets()
+	if len(all) == 0 {
+		t.Fatal("no seeded snippet")
+	}
+	sn := all[0]
+	_, body := postForm(t, srv.URL, "snippet-editor", url.Values{
+		"id": {sn.ID}, "name": {"renamed"}, "command": {"uptime"}, "agentUsable": {"true"},
+	})
+	if !strings.Contains(body, `form: "snippet-editor"`) {
+		t.Fatalf("editor save failed: %q", body)
+	}
+	all, _ = st.ListSnippets()
+	for _, x := range all {
+		if x.ID == sn.ID && (x.Name != "renamed" || x.Command != "uptime\n" || !x.AgentUsable) {
+			t.Fatalf("editor save: %+v", x)
+		}
+	}
+	_, body = postForm(t, srv.URL, "snippet-editor", url.Values{"id": {sn.ID}, "name": {" "}, "command": {"x"}})
+	if !strings.Contains(body, `id="snippet-editor-form-error"`) || !strings.Contains(body, "Give the snippet a name") {
+		t.Fatalf("blank name: %q", body)
 	}
 }

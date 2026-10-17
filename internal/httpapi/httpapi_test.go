@@ -2419,9 +2419,10 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("term.js must connect from the sidebar host filter")
 	}
 	// No tag chips in the sidebar tree: the filter matches tags (and group
-	// names) instead.
-	if !strings.Contains(string(termBody), "parseHostTags(") || !strings.Contains(readWebLib(t, "lib/groups.js"), "h.tags.join") {
-		t.Fatal("term.js must assign host tags and the host filter must match them")
+	// names) instead. The host dialog's tags are split server-side
+	// (formTags, TestUIFormHost).
+	if !strings.Contains(readWebLib(t, "lib/groups.js"), "h.tags.join") {
+		t.Fatal("the host filter must match host tags")
 	}
 	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
 		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {

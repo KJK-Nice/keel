@@ -537,7 +537,7 @@ func hostDialog() templ.Component {
 			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<dialog class=\"modal modal--host\" id=\"host-modal\"><form id=\"host-form\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<dialog class=\"modal modal--host\" id=\"host-modal\"><form id=\"host-form\" data-on:submit__prevent=\"@post('/ui/forms/host', {contentType: 'form'})\" data-indicator:_saving>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -840,7 +840,7 @@ func hostDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div class=\"k-menu-label\">Agent</div><div class=\"k-field k-field--row\"><div class=\"k-field-copy\"><span id=\"host-agent-readable-label\">Agent can read this host's panes</span> <span class=\"k-help\">You still choose panes per conversation.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"host-agent-readable\" aria-checked=\"true\" aria-labelledby=\"host-agent-readable-label\"></button></div><div class=\"k-field k-field--row\"><div class=\"k-field-copy\"><span id=\"host-production-label\">Treat as production</span> <span class=\"k-help\">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"host-production\" aria-checked=\"false\" aria-labelledby=\"host-production-label\"></button></div></div></div><div class=\"k-start-notes k-host-test\" id=\"host-test-detail\" role=\"status\" hidden><p class=\"k-start-note\" id=\"host-test-message\"></p><p class=\"hostkey-fp\" id=\"host-test-fp\" hidden></p><div class=\"k-start-offer-actions\" id=\"host-test-actions\" hidden><button type=\"button\" class=\"k-btn k-btn--sm\" id=\"host-test-trust\">Trust and save</button></div></div><div class=\"k-host-foot\"><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"host-delete\" hidden>Delete host</button> <span class=\"k-spacer\"></span> <span class=\"k-state\" id=\"host-test-state\" aria-live=\"polite\" hidden><span class=\"k-dot\" id=\"host-test-dot\"></span><span id=\"host-test-text\"></span></span> <button type=\"button\" class=\"k-btn\" id=\"host-test\" data-ssh-only>Test connection</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div class=\"k-menu-label\">Agent</div><div class=\"k-field k-field--row\"><div class=\"k-field-copy\"><span id=\"host-agent-readable-label\">Agent can read this host's panes</span> <span class=\"k-help\">You still choose panes per conversation.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"host-agent-readable\" aria-checked=\"true\" aria-labelledby=\"host-agent-readable-label\" data-switch-field=\"agentReadable\"></button> <input type=\"hidden\" name=\"agentReadable\" value=\"true\"></div><div class=\"k-field k-field--row\"><div class=\"k-field-copy\"><span id=\"host-production-label\">Treat as production</span> <span class=\"k-help\">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span></div><button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"host-production\" aria-checked=\"false\" aria-labelledby=\"host-production-label\" data-switch-field=\"production\"></button> <input type=\"hidden\" name=\"production\" value=\"false\"></div></div></div><div class=\"k-start-notes k-host-test\" id=\"host-test-detail\" role=\"status\" hidden><p class=\"k-start-note\" id=\"host-test-message\"></p><p class=\"hostkey-fp\" id=\"host-test-fp\" hidden></p><div class=\"k-start-offer-actions\" id=\"host-test-actions\" hidden><button type=\"button\" class=\"k-btn k-btn--sm\" id=\"host-test-trust\">Trust and save</button></div></div><p id=\"host-form-error\" class=\"k-error\" role=\"alert\" hidden></p><div class=\"k-host-foot\"><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"host-delete\" hidden>Delete host</button> <span class=\"k-spacer\"></span> <span class=\"k-state\" id=\"host-test-state\" aria-live=\"polite\" hidden><span class=\"k-dot\" id=\"host-test-dot\"></span><span id=\"host-test-text\"></span></span> <button type=\"button\" class=\"k-btn\" id=\"host-test\" data-ssh-only>Test connection</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -866,7 +866,7 @@ func hostDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<button type=\"submit\" class=\"k-btn k-btn--primary\" aria-label=\"Save host\">Save host <span class=\"k-kbd\" id=\"host-save-kbd\" aria-hidden=\"true\">⌘↵</span></button></div></form></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<button type=\"submit\" class=\"k-btn k-btn--primary\" aria-label=\"Save host\" data-attr:disabled=\"$_saving\">Save host <span class=\"k-kbd\" id=\"host-save-kbd\" aria-hidden=\"true\">⌘↵</span></button></div></form></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2144,7 +2144,7 @@ func labeledInput(id, caption, name, placeholder string, required bool) templ.Co
 				var templ_7745c5c3_Var78 string
 				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 478, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 481, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -2228,7 +2228,7 @@ func labeledNumber(id, caption, name, value, min, max string) templ.Component {
 				var templ_7745c5c3_Var82 string
 				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 493, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 496, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 				if templ_7745c5c3_Err != nil {
@@ -2312,7 +2312,7 @@ func labeledPassword(id, caption, name, placeholder string, required bool) templ
 				var templ_7745c5c3_Var86 string
 				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 508, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 511, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 				if templ_7745c5c3_Err != nil {
@@ -2397,7 +2397,7 @@ func labeledTextarea(id, caption, name, placeholder string, rows int, required b
 				var templ_7745c5c3_Var90 string
 				templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 524, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 527, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 				if templ_7745c5c3_Err != nil {
@@ -2481,7 +2481,7 @@ func labeledSelect(id, caption, name, placeholder, current string, required bool
 				var templ_7745c5c3_Var94 string
 				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 539, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 542, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 				if templ_7745c5c3_Err != nil {

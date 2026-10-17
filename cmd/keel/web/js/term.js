@@ -1052,7 +1052,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   const isGroupUnder = (id, ancestorId) => G.isGroupUnder(state.groups, id, ancestorId);
   const nestGroupTreeJS = (query, parentId) => G.nestGroupTree(state.groups, state.hosts, query, parentId);
   const groupOptionEntries = (excludeId) => G.groupOptionEntries(state.groups, excludeId);
-  const { parseHostTags, hostSubtitle } = G;
+  const { hostSubtitle } = G;
 
   const MAX_GROUP_DEPTH = 8;
   const GROUP_COLLAPSED_KEY = "keel-group-collapsed";
@@ -1427,7 +1427,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       form.elements.id.value = sn.id;
       form.elements.name.value = sn.name || "";
       form.elements.command.value = String(sn.command || "").replace(/\n$/, "");
-      document.getElementById("snippet-editor-agent")?.setAttribute("aria-checked", sn.agentUsable ? "true" : "false");
+      setSwitch("snippet-editor-agent", !!sn.agentUsable);
+      clearFormError(form.parentElement);
     }
     document.getElementById("snippet-editor-run")?.setAttribute("data-run", sn.id);
     document.getElementById("snippet-editor-delete")?.setAttribute("data-delete-snippet", sn.id);
@@ -1451,26 +1452,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     const view = V.snippetPreview(form.elements.command.value);
     pre.innerHTML = view.html;
     if (count) count.textContent = view.summary;
-  }
-
-  async function saveSnippetEditor(ev) {
-    ev?.preventDefault?.();
-    const form = document.getElementById("snippet-editor");
-    const id = form?.elements.id.value;
-    if (!form || !id) return;
-    const name = form.elements.name.value.trim();
-    if (!name) {
-      toast("Give the snippet a name", true);
-      form.elements.name.focus();
-      return;
-    }
-    let command = form.elements.command.value;
-    if (!command.endsWith("\n")) command += "\n";
-    const agentUsable = document.getElementById("snippet-editor-agent")?.getAttribute("aria-checked") === "true";
-    await api(`/api/snippets/${id}`, { method: "PUT", body: JSON.stringify({ id, name, command, agentUsable }) });
-    delete form.dataset.dirty;
-    await loadAll();
-    toast("Snippet saved");
   }
 
   function syncTunnelPage() {
@@ -5301,7 +5282,16 @@ Write a runbook here.
     );
   }
 
-  const setSwitch = (id, on) => document.getElementById(id)?.setAttribute("aria-checked", on ? "true" : "false");
+  // setSwitch flips a k-switch. A switch inside a Datastar-posted form names
+  // its hidden input with data-switch-field, which carries the value.
+  function setSwitch(id, on) {
+    const sw = document.getElementById(id);
+    if (!sw) return;
+    sw.setAttribute("aria-checked", on ? "true" : "false");
+    const field = sw.dataset.switchField;
+    const input = field && sw.closest("form")?.querySelector(`input[type="hidden"][name="${field}"]`);
+    if (input) input.value = on ? "true" : "false";
+  }
   const switchOn = (id) => document.getElementById(id)?.getAttribute("aria-checked") === "true";
 
   // isProductionGroup: the group's own name is production, any case (the
@@ -5663,41 +5653,6 @@ Write a runbook here.
     return value;
   }
 
-  async function saveHost(event) {
-    event.preventDefault();
-    const form = els.hostForm;
-    const payload = {
-      name: form.name.value.trim(),
-      groupId: fieldValue(form, "groupId", "host-parent-group"),
-      group: "",
-      tags: parseHostTags(form.tags?.value),
-      address: form.address.value.trim(),
-      port: Number(form.port.value || 22),
-      username: form.username.value.trim(),
-      authType: form.authType.value,
-      identityId: form.authType.value === "identity" ? form.identityId.value : "",
-      password: secretPayload(form.password.value),
-      privateKey: secretPayload(form.privateKey.value),
-      passphrase: secretPayload(form.passphrase.value),
-      color: form.color.value,
-      keepAliveSec: form.authType.value === "local" ? 0 : form.keepAlive?.checked ? Number(form.keepAliveSec.value || 30) : -1,
-      noAutoReconnect: form.authType.value !== "local" && !form.autoReconnect?.checked,
-      agentReadable: switchOn("host-agent-readable"),
-      production: switchOn("host-production"),
-      jumpHost: form.authType.value === "local" ? "" : fieldValue(form, "jumpHost", "host-jump"),
-      startupCommand: form.authType.value === "local" ? "" : (form.startupCommand?.value || "").trim(),
-    };
-    if (form.id.value) {
-      await api(`/api/hosts/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
-    } else {
-      await api("/api/hosts", { method: "POST", body: JSON.stringify(payload) });
-    }
-    resetHostTest();
-    closeModal(els.hostModal);
-    await loadAll();
-    toast("Host saved");
-  }
-
   function openGroupForm(group, parentId) {
     const form = els.groupForm;
     if (!form) return;
@@ -5896,13 +5851,15 @@ Write a runbook here.
   }
 
 
-  const FORM_MODALS = { group: "groupModal", identity: "identityModal", tunnel: "tunnelModal", snippet: "snippetModal" };
+  const FORM_MODALS = { host: "hostModal", group: "groupModal", identity: "identityModal", tunnel: "tunnelModal", snippet: "snippetModal" };
 
   // afterFormSaved closes a dialog whose Datastar post went through. The
   // lists update over the stream; loadAll refreshes the JSON state the rest
   // of term.js still reads (palette, new-tab page, host form selects).
   function afterFormSaved({ form, message }) {
     const modal = els[FORM_MODALS[form]];
+    if (form === "host") resetHostTest();
+    if (form === "snippet-editor") delete document.getElementById("snippet-editor")?.dataset.dirty;
     if (modal) closeModal(modal);
     if (message) toast(message);
     loadAll().catch(() => {});
@@ -7084,7 +7041,8 @@ Write a runbook here.
       if (item) selectSnippet(item.getAttribute("data-snippet-select"));
     });
     const snippetEditor = document.getElementById("snippet-editor");
-    on(snippetEditor, "submit", (ev) => saveSnippetEditor(ev).catch((err) => toast(err.message, true)));
+    // The editor posts with Datastar (@post /ui/forms/snippet-editor,
+    // pages.templ); afterFormSaved clears dirty when it went through.
     on(snippetEditor, "input", () => {
       snippetEditor.dataset.dirty = "1";
       syncSnippetPreview();
@@ -7093,7 +7051,7 @@ Write a runbook here.
     // snippet, off by default (§6.3).
     on(document.getElementById("snippet-editor-agent"), "click", (ev) => {
       const sw = ev.currentTarget;
-      sw.setAttribute("aria-checked", sw.getAttribute("aria-checked") === "true" ? "false" : "true");
+      setSwitch(sw.id, sw.getAttribute("aria-checked") !== "true");
       snippetEditor.dataset.dirty = "1";
     });
     on(snippetEditor, "keydown", (ev) => {
@@ -7593,8 +7551,7 @@ Write a runbook here.
     on(els.hostForm?.keepAlive, "change", toggleKeepAliveFields);
     on(els.identityForm?.kind, "change", toggleIdentFields);
     on(els.tunnelForm?.kind, "change", toggleTunnelDest);
-    on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
-    // The group, identity, forward and snippet dialogs post with Datastar
+    // The host, group, identity, forward and snippet dialogs post with Datastar
     // (@post /ui/forms/{kind}, dialogs.templ). The server shows errors in the
     // form and dispatches keel-form-saved when the save went through.
     on(window, "keel-form-saved", (ev) => afterFormSaved(ev.detail || {}));

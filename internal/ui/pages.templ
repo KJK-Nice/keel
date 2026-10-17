@@ -123,12 +123,12 @@ templ SnippetsPage(p PageProps) {
 				@SnippetList(p)
 			</div>
 			<div class="k-split-detail">
-				<form class="k-editor" id="snippet-editor" hidden>
+				<form class="k-editor" id="snippet-editor" hidden data-on:submit__prevent="@post('/ui/forms/snippet-editor', {contentType: 'form'})" data-indicator:_saving>
 					<input type="hidden" name="id"/>
 					<div class="k-editor-head">
 						<input class="k-input k-editor-title" name="name" aria-label="Snippet name" autocomplete="off" required/>
 						<button type="button" class="k-btn" id="snippet-editor-run" data-run="">Type into pane…</button>
-						<button type="submit" class="k-btn k-btn--primary" id="snippet-editor-save">
+						<button type="submit" class="k-btn k-btn--primary" id="snippet-editor-save" data-attr:disabled="$_saving">
 							Save
 							<kbd class="k-kbd" aria-hidden="true">⌘S</kbd>
 						</button>
@@ -163,8 +163,11 @@ templ SnippetsPage(p PageProps) {
 							aria-checked="false"
 							aria-labelledby="snippet-editor-agent-label"
 							aria-describedby="snippet-editor-agent-help"
+							data-switch-field="agentUsable"
 						></button>
+						<input type="hidden" name="agentUsable" value="false"/>
 					</div>
+					<p id="snippet-editor-form-error" class="k-error" role="alert" hidden></p>
 					<div class="k-editor-foot">
 						<span class="k-spacer"></span>
 						<button type="button" class="k-btn k-btn--danger k-btn--sm" id="snippet-editor-delete" data-delete-snippet="">Delete snippet</button>

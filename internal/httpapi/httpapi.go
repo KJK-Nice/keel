@@ -473,17 +473,12 @@ func (s *Server) upsertHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.ID = ""
-	if err := validateHost(h); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	saved, err := s.store.UpsertHost(h)
+	saved, err := s.saveHost(h)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeSaveErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
-	s.note("host", "host created: "+saved.Name, saved.ID, "", "")
 }
 
 func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
@@ -493,17 +488,12 @@ func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.ID = r.PathValue("id")
-	if err := validateHost(h); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	saved, err := s.store.UpsertHost(h)
+	saved, err := s.saveHost(h)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeSaveErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, redactHost(saved))
-	s.note("host", "host updated: "+saved.Name, saved.ID, "", "")
 }
 
 func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {

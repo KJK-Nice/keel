@@ -211,7 +211,7 @@ One phase per branch and PR.
 
 ## 12. Datastar for the vault surfaces
 
-Status: D1 and D2 done, D3 in progress (group, identity, tunnel and snippet dialogs; the host dialog is D3b) · 2026-10-17
+Status: D1, D2 and D3 done; D4 next · 2026-10-17
 
 Until now Datastar was loaded but unused: no `data-*` attribute read the page signals, and `term.js` fetched and swapped every vault list itself (`paintList`, `loadAll`). The vault surfaces move to Datastar; the session workspace does not.
 
@@ -224,6 +224,6 @@ Until now Datastar was loaded but unused: no `data-*` attribute read the page si
 |---|---|
 | D1 · Live lists | The stream; the sidebar host filter via `@get`; `loadAll` no longer repaints lists |
 | D2 · Pages | Keychain / Forwards / Snippets / Notebooks filters and the Forwards / Logs chips are underscore signals (kept in the page) with `data-show` on each row; the Logs search is `@get('/ui/logs')`; new log entries are pushed on the stream (at most once a second) instead of the 3 s poll |
-| D3 · Forms | Group, identity, tunnel and snippet dialogs post with `@post('/ui/forms/{kind}', {contentType: 'form'})` (`internal/httpapi/forms.go`, the same save functions as the JSON API). An error patches the dialog's `#{kind}-form-error`; a save clears it and dispatches `keel-form-saved`, which term.js uses to close the dialog and toast. The lists change through the stream. `data-indicator:_saving` disables Save while the request runs. term.js still calls `loadAll` after a save for its JSON state until D4. D3b: the host dialog (secrets, host key, agent switch), the snippet editor and notebook rename |
+| D3 · Forms | Group, identity, tunnel and snippet dialogs post with `@post('/ui/forms/{kind}', {contentType: 'form'})` (`internal/httpapi/forms.go`, the same save functions as the JSON API). An error patches the dialog's `#{kind}-form-error`; a save clears it and dispatches `keel-form-saved`, which term.js uses to close the dialog and toast. The lists change through the stream. `data-indicator:_saving` disables Save while the request runs. term.js still calls `loadAll` after a save for its JSON state until D4. D3b moved the host dialog and the Snippets page editor (`/ui/forms/host`, `/ui/forms/snippet-editor`): a `k-switch` with `data-switch-field` mirrors into a hidden input (`setSwitch`) so it posts with the form, and the server parses tags, keepalive and secrets (`hostFromForm`). Test connection and Trust and save stay JSON (they are actions, not saves). Notebook rename stays in term.js: it renames open notebook tabs and panes, which term.js owns |
 | D4 · Cleanup | Remove `paintList`, `datastarQS`, the client-side list renderers in `vaultview.js` and `/ui/vault`; feed the JSON state term.js still needs (palette, new-tab page) from the stream |
 
