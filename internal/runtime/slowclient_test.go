@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"keel/internal/inject"
 )
 
 // A burst of many small output chunks (yes | head over SSH) must not drop a
@@ -126,4 +128,32 @@ func (s *Session) hasClient(id uint64) bool {
 	defer s.mu.Unlock()
 	_, ok := s.clients[id]
 	return ok
+}
+
+// The log names what overflowed: unread output or a pile of other events.
+func TestOfferDropReason(t *testing.T) {
+	cases := []struct {
+		ev   Event
+		want string
+	}{
+		{Event{Kind: "bytes", Bytes: bytes.Repeat([]byte("x"), 32<<10)}, "MB of output unread"},
+		{Event{Kind: "presence"}, "events unread"},
+	}
+	for _, tc := range cases {
+		c := newClientConn(Client{}, inject.SurfaceTerm)
+		refused := false
+		for i := 0; i < 2*clientMaxQueuedEvents+clientChanCap+1; i++ {
+			if !c.offer(tc.ev) {
+				refused = true
+				break
+			}
+		}
+		c.stop()
+		if !refused {
+			t.Fatalf("%s: never refused", tc.ev.Kind)
+		}
+		if got := c.dropped(); !strings.Contains(got, tc.want) {
+			t.Fatalf("%s: reason %q, want %q", tc.ev.Kind, got, tc.want)
+		}
+	}
 }

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,8 +16,8 @@ import (
 // client is dropped only when its unread output passes the byte budget.
 const (
 	// clientMaxQueuedBytes is how much unread output a client may hold
-	// before it is dropped as a slow consumer (as the share hub's
-	// maxBuffered caps a viewer).
+	// before it is dropped as a slow consumer. Share viewers are paced by
+	// their data channel (share hub sendHigh), so this is their cap too.
 	clientMaxQueuedBytes = 4 << 20
 	// clientMaxQueuedEvents bounds the non-output events a stalled client
 	// can pile up (presence, status, control).
@@ -45,15 +46,20 @@ type clientConn struct {
 	ch      chan Event
 	focused inject.Surface
 
-	qmu      sync.Mutex
-	queue    []queuedEvent
-	queued   int // bytes of output in queue and in flight to ch
-	closing  bool
-	wake     chan struct{}
-	done     chan struct{}
-	doneOnce sync.Once
-	fin      chan struct{}
-	finOnce  sync.Once
+	qmu   sync.Mutex
+	queue []queuedEvent
+	// queued is the bytes of output in queue and being handed to ch. Up to
+	// clientChanCap events already in ch are not counted, so a client may
+	// hold about clientChanCap*clientMergeBytes more than the budget.
+	queued  int
+	closing bool
+	// dropReason says why offer refused an event, for the log.
+	dropReason string
+	wake       chan struct{}
+	done       chan struct{}
+	doneOnce   sync.Once
+	fin        chan struct{}
+	finOnce    sync.Once
 }
 
 func newClientConn(cl Client, focused inject.Surface) *clientConn {
@@ -79,6 +85,7 @@ func (c *clientConn) offer(ev Event) bool {
 	}
 	if ev.Kind == "bytes" {
 		if c.queued+len(ev.Bytes) > clientMaxQueuedBytes {
+			c.dropReason = fmt.Sprintf("more than %d MB of output unread", clientMaxQueuedBytes>>20)
 			c.qmu.Unlock()
 			return false
 		}
@@ -98,6 +105,7 @@ func (c *clientConn) offer(ev Event) bool {
 			return true
 		}
 	} else if len(c.queue) >= clientMaxQueuedEvents {
+		c.dropReason = fmt.Sprintf("more than %d events unread", clientMaxQueuedEvents)
 		c.qmu.Unlock()
 		return false
 	}
@@ -105,6 +113,12 @@ func (c *clientConn) offer(ev Event) bool {
 	c.qmu.Unlock()
 	c.signal()
 	return true
+}
+
+func (c *clientConn) dropped() string {
+	c.qmu.Lock()
+	defer c.qmu.Unlock()
+	return c.dropReason
 }
 
 func (c *clientConn) signal() {

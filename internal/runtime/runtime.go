@@ -471,7 +471,9 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	msg := "left"
 	if slow {
 		msg = "dropped (slow consumer)"
-		s.rt.note("session", fmt.Sprintf("client %s (%s) dropped: more than %d MB of output unread", c.Client.Name, c.Client.Kind, clientMaxQueuedBytes>>20), hostID, s.id)
+		// The name is chosen by the joining peer: quote it so it cannot
+		// forge log lines.
+		s.rt.note("session", fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
 	}
 	s.emitPresence(msg)
 }
