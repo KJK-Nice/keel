@@ -28,6 +28,8 @@ templ VaultSidebar(p PageProps) {
 						autocomplete="off"
 						spellcheck="false"
 						value={ p.Query }
+						data-seg="hosts"
+						data-on:input__debounce.120ms="el.dataset.seg === 'hosts' && ($query = el.value, @get('/ui/hosts'))"
 					/>
 				</div>
 				<button

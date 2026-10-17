@@ -59,10 +59,16 @@ type Server struct {
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
 	agentJudge        service.JudgeFactory
 	agentDetectWindow time.Duration
+	// streams are the open /ui/stream connections (uistream.go).
+	streams *uiStreams
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
-	return &Server{store: st, rt: rt, web: web, share: sh, started: time.Now()}
+	s := &Server{store: st, rt: rt, web: web, share: sh, started: time.Now(), streams: newUIStreams()}
+	if st != nil {
+		st.OnChange(s.streams.kickAll)
+	}
+	return s
 }
 
 // WithRuntimeInfo sets the listen address and data directory that GET
@@ -75,6 +81,9 @@ func (s *Server) WithRuntimeInfo(addr, dataDir string) *Server {
 
 func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
 	s.tunnels = t
+	if t != nil {
+		t.OnChange(s.streams.kickAll)
+	}
 	return s
 }
 
@@ -164,6 +173,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
 	mux.HandleFunc("GET /{$}", s.page)
+	mux.HandleFunc("GET /ui/stream", s.uiStream)
 	mux.HandleFunc("GET /ui/hosts", s.uiHosts)
 	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
 	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)

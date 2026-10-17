@@ -208,3 +208,22 @@ One phase per branch and PR.
 3. Jev vs a local model for detection: latency and offline requirements. **Decided (6c):** Jev (`internal/agent/provider/jev`, model pinned to `jev-1.13.0`), one Noul per typing pause (350 ms), notice at P ≥ 0.70, a 900 ms timeout. With no Jev key, offline, an error or a timeout, only `#` lines are noticed, silently. Without a model key there is no notice at all. Jev also rates every suggestion (one Choice per command, one request), and may only make the code rating stricter. Questions and thresholds: `internal/agent/service/suggestq.go`. Measured from a home connection: 270–470 ms per call, so the < 150 ms budget holds only near the endpoint.
 4. Should "Treat as production" default on for hosts in a folder named `production`? **Decided (6a):** yes, at the moment a host is created in, or moved into, a group whose own name is `production` (any case; the direct parent only, not an ancestor). Deleting a group whose hosts move up into a `production` parent counts as a move. Nothing else sets it (loading or renaming never does), and the user can turn it off. A value sent on create wins over the rule, so **6d's Edit host dialog must prefill "Treat as production" on when the chosen group is named `production`**, so an untouched dialog still gets it.
 5. Light theme: ship together with dark in phase 0, or after?
+
+## 12. Datastar for the vault surfaces
+
+Status: D1 in progress · 2026-10-17
+
+Until now Datastar was loaded but unused: no `data-*` attribute read the page signals, and `term.js` fetched and swapped every vault list itself (`paintList`, `loadAll`). The vault surfaces move to Datastar; the session workspace does not.
+
+- **Datastar owns:** the vault lists (host tree, Keychain, Forwards, Snippets, Notebooks, Logs), their filters, and then the vault forms. The server renders templ and is the only source of the lists.
+- **term.js keeps:** terminals (xterm, the PTY WebSockets), tabs, panes and splits, the agent panel, the palette and the new-tab page, plus the behaviour it layers on the lists (selection, collapsed groups, live badges, drag and drop). It re-applies that after each morph (`watchStreamedLists`).
+- **One stream:** `GET /ui/stream` (`internal/httpapi/uistream.go`) is opened by `#ui-stream` (`page.templ`). It patches the lists, morphed by `id`, whenever the store saves or a tunnel changes state. Filters are request/response (`@get('/ui/hosts')`); the server records them against the page's `streamId` signal so later pushes keep them.
+- **Bridge:** term.js talks to Datastar through window events (`keel-stream`) and `data-*` attributes (`#search[data-seg]`), never through Datastar internals. Signals the server reads are the fields of `uiSignals` (`internal/httpapi/ui.go`).
+
+| Phase | Scope |
+|---|---|
+| D1 · Live lists | The stream; the sidebar host filter via `@get`; `loadAll` no longer repaints lists |
+| D2 · Pages | Keychain / Forwards / Snippets / Notebooks / Logs filters and chips as signals; logs pushed on the stream instead of the 3 s poll |
+| D3 · Forms | Host, identity, snippet, tunnel and group dialogs post with `@post`; the server answers with patches or field errors; no JSON reload after a save |
+| D4 · Cleanup | Remove `paintList`, `datastarQS`, the client-side list renderers in `vaultview.js` and `/ui/vault`; feed the JSON state term.js still needs (palette, new-tab page) from the stream |
+

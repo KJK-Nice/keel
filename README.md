@@ -191,4 +191,4 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 
 ## Why this shape
 
-Go owns SSH and PTYs. The window is Wails v3 (native webview) pointed at localhost because Wails cannot proxy WebSockets. The chrome is templ + shadcn-templ; Datastar patches vault lists. Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.
+Go owns SSH and PTYs. The window is Wails v3 (native webview) pointed at localhost because Wails cannot proxy WebSockets. The chrome is templ + shadcn-templ; the vault lists reach the page over one Datastar stream (`GET /ui/stream`) that patches them whenever the vault changes (docs/ui-redesign.md §12). Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.

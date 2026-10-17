@@ -61,7 +61,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"></div><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" id=\"btn-new-host\" aria-label=\"New host\" title=\"New host\" data-kbd=\"N\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" data-seg=\"hosts\" data-on:input__debounce.120ms=\"el.dataset.seg === 'hosts' && ($query = el.value, @get('/ui/hosts'))\"></div><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" id=\"btn-new-host\" aria-label=\"New host\" title=\"New host\" data-kbd=\"N\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
