@@ -45,6 +45,25 @@ func writeSaveErr(w http.ResponseWriter, err error) {
 	writeStoreErr(w, err)
 }
 
+// saveHost creates (h.ID "") or updates a host. Blank secrets keep the
+// saved ones (store.UpsertHost).
+func (s *Server) saveHost(h store.Host) (store.Host, error) {
+	if err := validateHost(h); err != nil {
+		return store.Host{}, badInput(err.Error())
+	}
+	isNew := h.ID == ""
+	saved, err := s.store.UpsertHost(h)
+	if err != nil {
+		return store.Host{}, err
+	}
+	if isNew {
+		s.note("host", "host created: "+saved.Name, saved.ID, "", "")
+	} else {
+		s.note("host", "host updated: "+saved.Name, saved.ID, "", "")
+	}
+	return saved, nil
+}
+
 // saveGroup creates (id "") or updates a group.
 func (s *Server) saveGroup(id, name, parentID string) (store.Group, error) {
 	if strings.TrimSpace(name) == "" {
@@ -129,7 +148,13 @@ func (s *Server) saveSnippet(id, name, command string, agentUsable *bool) (store
 				old = x
 			}
 		}
-	} else if strings.TrimSpace(name) == "" || strings.TrimSpace(command) == "" {
+	} else if strings.TrimSpace(command) == "" {
+		return store.Snippet{}, badInput("name and command are required")
+	}
+	if strings.TrimSpace(name) == "" {
+		if id != "" {
+			return store.Snippet{}, badInput("Give the snippet a name")
+		}
 		return store.Snippet{}, badInput("name and command are required")
 	}
 	sn := store.Snippet{ID: id, Name: name, Command: command, AgentUsable: old.AgentUsable}
@@ -162,6 +187,9 @@ func (s *Server) uiForm(w http.ResponseWriter, r *http.Request) {
 		err error
 	)
 	switch kind {
+	case "host":
+		_, err = s.saveHost(hostFromForm(f, r.FormValue))
+		msg = "Host saved"
 	case "group":
 		_, err = s.saveGroup(f("id"), f("name"), f("parentId"))
 		msg = "Group saved"
@@ -203,6 +231,19 @@ func (s *Server) uiForm(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err = s.saveSnippet(f("id"), f("name"), command, nil)
 		msg = "Snippet saved"
+	case "snippet-editor":
+		// The Snippets page editor: an existing snippet, with the agent switch.
+		if f("id") == "" {
+			err = badInput("Pick a snippet first")
+			break
+		}
+		command := r.FormValue("command")
+		if !strings.HasSuffix(command, "\n") {
+			command += "\n"
+		}
+		agent := f("agentUsable") == "true"
+		_, err = s.saveSnippet(f("id"), f("name"), command, &agent)
+		msg = "Snippet saved"
 	default:
 		writeError(w, http.StatusNotFound, "unknown form")
 		return
@@ -224,6 +265,72 @@ func (s *Server) uiForm(w http.ResponseWriter, r *http.Request) {
 	_ = sse.ExecuteScript(fmt.Sprintf(
 		`window.dispatchEvent(new CustomEvent("keel-form-saved", {detail: {form: %q, message: %q}}))`,
 		kind, msg))
+}
+
+// hostFromForm reads the host dialog. Switches post as hidden "true" /
+// "false" inputs; checkboxes are present only when checked. A local shell
+// has no keepalive, reconnect, jump host or startup command.
+func hostFromForm(f, raw func(string) string) store.Host {
+	auth := f("authType")
+	port := formInt(f("port"))
+	if port == 0 {
+		port = 22
+	}
+	h := store.Host{
+		ID:             f("id"),
+		Name:           f("name"),
+		GroupID:        f("groupId"),
+		Tags:           formTags(f("tags")),
+		Address:        f("address"),
+		Port:           port,
+		Username:       f("username"),
+		AuthType:       auth,
+		Password:       formSecret(raw("password")),
+		PrivateKey:     formSecret(raw("privateKey")),
+		Passphrase:     formSecret(raw("passphrase")),
+		Color:          f("color"),
+		JumpHost:       f("jumpHost"),
+		StartupCommand: f("startupCommand"),
+		AgentReadable:  formBool(f("agentReadable"), true),
+		Production:     formBool(f("production"), false),
+	}
+	if auth == "identity" {
+		h.IdentityID = f("identityId")
+	}
+	switch {
+	case auth == "local":
+		h.KeepAliveSec, h.JumpHost, h.StartupCommand = 0, "", ""
+	case f("keepAlive") != "":
+		h.KeepAliveSec = formInt(f("keepAliveSec"))
+		if h.KeepAliveSec <= 0 {
+			h.KeepAliveSec = 30
+		}
+	default:
+		h.KeepAliveSec = -1
+	}
+	h.NoAutoReconnect = auth != "local" && f("autoReconnect") == ""
+	return h
+}
+
+func formTags(v string) []string {
+	var out []string
+	for _, t := range strings.Split(v, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func formBool(v string, def bool) *bool {
+	b := def
+	switch v {
+	case "true":
+		b = true
+	case "false":
+		b = false
+	}
+	return &b
 }
 
 // formSecret maps the dialogs' "keep the saved secret" placeholder value to

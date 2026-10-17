@@ -132,7 +132,7 @@ templ confirmDialog() {
 // a key on its own: Trust and save is a separate click.
 templ hostDialog() {
 	<dialog class="modal modal--host" id="host-modal">
-		<form id="host-form">
+		<form id="host-form" data-on:submit__prevent="@post('/ui/forms/host', {contentType: 'form'})" data-indicator:_saving>
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "host-modal-title"}) {
 					New host
@@ -220,14 +220,16 @@ templ hostDialog() {
 							<span id="host-agent-readable-label">Agent can read this host's panes</span>
 							<span class="k-help">You still choose panes per conversation.</span>
 						</div>
-						<button type="button" class="k-switch" role="switch" id="host-agent-readable" aria-checked="true" aria-labelledby="host-agent-readable-label"></button>
+						<button type="button" class="k-switch" role="switch" id="host-agent-readable" aria-checked="true" aria-labelledby="host-agent-readable-label" data-switch-field="agentReadable"></button>
+						<input type="hidden" name="agentReadable" value="true"/>
 					</div>
 					<div class="k-field k-field--row">
 						<div class="k-field-copy">
 							<span id="host-production-label">Treat as production</span>
 							<span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.</span>
 						</div>
-						<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label"></button>
+						<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label" data-switch-field="production"></button>
+						<input type="hidden" name="production" value="false"/>
 					</div>
 				</div>
 			</div>
@@ -238,6 +240,7 @@ templ hostDialog() {
 					<button type="button" class="k-btn k-btn--sm" id="host-test-trust">Trust and save</button>
 				</div>
 			</div>
+			<p id="host-form-error" class="k-error" role="alert" hidden></p>
 			<div class="k-host-foot">
 				<button type="button" class="k-btn k-btn--danger k-btn--sm" id="host-delete" hidden>Delete host</button>
 				<span class="k-spacer"></span>
@@ -246,7 +249,7 @@ templ hostDialog() {
 				@button.Button(button.Props{ID: "host-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				<button type="submit" class="k-btn k-btn--primary" aria-label="Save host">
+				<button type="submit" class="k-btn k-btn--primary" aria-label="Save host" data-attr:disabled="$_saving">
 					Save host
 					<span class="k-kbd" id="host-save-kbd" aria-hidden="true">⌘↵</span>
 				</button>
