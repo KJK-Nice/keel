@@ -43,6 +43,7 @@ import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
+import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
 import { keysFor } from "./lib/shortcutmap.js";
@@ -2090,8 +2091,10 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     if (!pane?.pending?.length || !pane.term?.element) return;
     const chunks = pane.pending;
     pane.pending = [];
+    // Invalidate once xterm has parsed the last chunk, as writePaneBytes does.
+    const last = chunks.pop();
     for (const chunk of chunks) pane.term.write(chunk);
-    schedulePaneInvalidate(pane);
+    pane.term.write(last, () => schedulePaneInvalidate(pane));
   }
 
   function writePaneBytes(pane, data) {
@@ -2111,10 +2114,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   // xterm paints. Dummy term.resize(cols±1) kicks Relayout but reflows the
   // whole grid and blinks on every keystroke. Refresh + a subpixel canvas
   // layer nudge republishes the GPU texture without changing PTY size.
-  // Panes on the DOM renderer (native splits) have no WebGL layer to go
-  // stale, so they skip the full-viewport redraw.
   function invalidatePaneRender(pane) {
-    if (!isNativeWindow() || !pane?.term?.element || !pane.term._keelWebgl) return;
+    if (!isNativeWindow() || !pane?.term?.element) return;
     try {
       const rows = pane.term.rows;
       pane.term.refresh(0, Math.max(0, (rows || 1) - 1));
@@ -2135,27 +2136,18 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     }
   }
 
-  // The invalidate redraws every row and rebuilds the canvas layer, so under
-  // streaming output it runs at most once per PANE_INVALIDATE_MS: the first
-  // paint after a quiet spell (a key echo) goes out on the next frame, later
-  // ones wait, and a trailing pass always republishes the last frame.
+  // The invalidate redraws every row and rebuilds the canvas layer, so the
+  // write path runs it at most once per PANE_INVALIDATE_MS (framethrottle.js).
+  // Panes on the DOM renderer (native splits) have no WebGL layer to go stale
+  // and skip it here; layout changes still refresh them (refreshPaneRender).
   const PANE_INVALIDATE_MS = 50;
 
   function schedulePaneInvalidate(pane) {
     if (!isNativeWindow() || !pane || !pane.term?._keelWebgl) return;
-    if (pane._invalidateQueued || pane._invalidateTimer) return;
-    const wait = PANE_INVALIDATE_MS - (performance.now() - (pane._invalidateAt || 0));
-    const run = () => {
-      pane._invalidateTimer = 0;
-      pane._invalidateQueued = true;
-      requestAnimationFrame(() => {
-        pane._invalidateQueued = false;
-        pane._invalidateAt = performance.now();
-        if (pane.wrap?.isConnected) invalidatePaneRender(pane);
-      });
-    };
-    if (wait > 0) pane._invalidateTimer = setTimeout(run, wait);
-    else run();
+    if (!pane._invalidate) pane._invalidate = createFrameThrottle({ intervalMs: PANE_INVALIDATE_MS });
+    pane._invalidate.schedule(() => {
+      if (pane.wrap?.isConnected) invalidatePaneRender(pane);
+    });
   }
 
   function reflowPane(pane) {
