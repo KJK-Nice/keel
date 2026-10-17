@@ -43,16 +43,11 @@ func (s *Server) upsertIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.ID = ""
-	if err := validateIdentity(in); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	saved, err := s.store.UpsertIdentity(in)
+	saved, err := s.saveIdentity(in)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeSaveErr(w, err)
 		return
 	}
-	s.note("identity", "identity created: "+saved.Name, "", "", "")
 	writeJSON(w, http.StatusCreated, redactIdentity(saved))
 }
 
@@ -63,16 +58,11 @@ func (s *Server) updateIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.ID = r.PathValue("id")
-	if err := validateIdentity(in); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	saved, err := s.store.UpsertIdentity(in)
+	saved, err := s.saveIdentity(in)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeSaveErr(w, err)
 		return
 	}
-	s.note("identity", "identity updated: "+saved.Name, "", "", "")
 	writeJSON(w, http.StatusOK, redactIdentity(saved))
 }
 
@@ -113,16 +103,11 @@ func (s *Server) upsertTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tn.ID = ""
-	saved, err := s.store.UpsertTunnel(tn)
+	saved, err := s.saveTunnel(tn)
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) || errors.Is(err, store.ErrNotFound) {
-			writeStoreErr(w, err)
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeSaveErr(w, err)
 		return
 	}
-	s.note("tunnel", "tunnel created: "+saved.Name, saved.HostID, "", saved.ID)
 	writeJSON(w, http.StatusCreated, saved)
 }
 
@@ -133,16 +118,11 @@ func (s *Server) updateTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tn.ID = r.PathValue("id")
-	saved, err := s.store.UpsertTunnel(tn)
+	saved, err := s.saveTunnel(tn)
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) || errors.Is(err, store.ErrNotFound) {
-			writeStoreErr(w, err)
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeSaveErr(w, err)
 		return
 	}
-	s.note("tunnel", "tunnel updated: "+saved.Name, saved.HostID, "", saved.ID)
 	writeJSON(w, http.StatusOK, saved)
 }
 
