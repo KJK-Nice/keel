@@ -91,7 +91,20 @@
   // Re-init on any childList mutation, directly (never rAF-deferred: rAF
   // does not fire in hidden tabs or throttled iframes): swapped-in markup
   // wires itself.
-  new MutationObserver(() => init()).observe(document.body, { childList: true, subtree: true });
+  // Skip mutations that cannot hold component markup: xterm's own DOM
+  // (rows, measure elements, helpers), which changes on every frame of
+  // terminal output, and nodes already detached. Each of these used to
+  // re-run init(), which queries the whole document.
+  function touchesComponents(records) {
+    for (const r of records) {
+      const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+      if (t && t.isConnected && !t.closest(".xterm")) return true;
+    }
+    return false;
+  }
+  new MutationObserver((records) => {
+    if (touchesComponents(records)) init();
+  }).observe(document.body, { childList: true, subtree: true });
 
   // Expose public API
   window.tui = window.tui || {};
