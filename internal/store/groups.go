@@ -11,11 +11,14 @@ func (s *Store) ListGroups() ([]Group, error) {
 	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return nil, err
-	}
+	dirty := s.migrateGroupsLocked()
 	out := make([]Group, len(s.data.Groups))
 	copy(out, s.data.Groups)
+	if dirty {
+		if err := s.saveLocked(); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
 }
 
@@ -31,9 +34,7 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 		g.Name = "Folder"
 	}
 	g.ParentID = strings.TrimSpace(g.ParentID)
-	if err := s.ensureGroupsLocked(); err != nil {
-		return Group{}, err
-	}
+	s.migrateGroupsLocked()
 	if err := s.validateNestLocked(g.ID, g.ParentID); err != nil {
 		return Group{}, err
 	}
@@ -141,7 +142,10 @@ func (s *Store) resolveGroupRefLocked(groupID, groupName string) (string, error)
 	return g.ID, nil
 }
 
-func (s *Store) ensureGroupsLocked() error {
+// migrateGroupsLocked turns host group names from older files into group
+// IDs, creating groups as needed, and reports whether s.data changed. It does
+// not save: saveLocked releases mu, so the caller saves as its last step.
+func (s *Store) migrateGroupsLocked() bool {
 	if s.data.Groups == nil {
 		s.data.Groups = []Group{}
 	}
@@ -181,10 +185,7 @@ func (s *Store) ensureGroupsLocked() error {
 		s.data.Hosts[i].Group = id
 		dirty = true
 	}
-	if !dirty {
-		return nil
-	}
-	return s.saveLocked()
+	return dirty
 }
 
 func (s *Store) groupByIDLocked(id string) (Group, bool) {
@@ -245,9 +246,7 @@ func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return err
-	}
+	s.migrateGroupsLocked()
 	groupID = strings.TrimSpace(groupID)
 	if groupID != "" {
 		if _, ok := s.groupByIDLocked(groupID); !ok {

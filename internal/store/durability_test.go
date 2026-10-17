@@ -206,3 +206,132 @@ func TestConcurrentSavesKeepEveryChange(t *testing.T) {
 		t.Fatalf("after reopen %d snippets, in memory %d, want >= %d", len(got), len(want), n)
 	}
 }
+
+// Concurrent host saves each change keel.vault; every password must be in
+// the vault after reopen, whichever order the writes reached the disk.
+func TestConcurrentHostSecretsSurviveReopen(t *testing.T) {
+	st := testStore(t)
+	const n = 12
+	var wg sync.WaitGroup
+	ids := make([]string, n)
+	errs := make(chan error, 2*n)
+	for i := 0; i < n; i++ {
+		wg.Add(2)
+		go func(i int) {
+			defer wg.Done()
+			h, err := st.UpsertHost(Host{
+				Name: fmt.Sprintf("box%02d", i), Address: "10.0.0.1", Port: 22, Username: "root",
+				AuthType: "password", Password: fmt.Sprintf("pw%02d", i),
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			ids[i] = h.ID
+		}(i)
+		go func(i int) {
+			defer wg.Done()
+			if _, err := st.UpsertSnippet(Snippet{Name: fmt.Sprintf("s%02d", i), Command: "true\n"}); err != nil {
+				errs <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	reopened, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, id := range ids {
+		got, err := reopened.GetHost(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("pw%02d", i); got.Password != want {
+			t.Fatalf("host %d password after reopen = %q, want %q", i, got.Password, want)
+		}
+	}
+}
+
+// A save that snapshots while an earlier vault write is still in flight
+// must carry the secrets too: if the earlier write fails, the later save is
+// the one that puts them on disk.
+func TestSnapshotDuringVaultWriteCarriesSecrets(t *testing.T) {
+	st := testStore(t)
+	st.mu.Lock()
+	st.secrets["extra"] = hostSecret{Token: "t"}
+	first, err := st.snapshotLocked()
+	if err != nil {
+		st.mu.Unlock()
+		t.Fatal(err)
+	}
+	second, err := st.snapshotLocked()
+	st.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.vault || !second.vault {
+		t.Fatalf("vault flags first=%v second=%v, want both", first.vault, second.vault)
+	}
+	// The newer snapshot lands first; the older one must not overwrite it.
+	if wrote, err := st.writeSnapshot(second); err != nil || !wrote {
+		t.Fatalf("second write: wrote=%v err=%v", wrote, err)
+	}
+	if wrote, err := st.writeSnapshot(first); err != nil || wrote {
+		t.Fatalf("first write: wrote=%v err=%v, want skipped", wrote, err)
+	}
+}
+
+// A failed keel.vault write must be retried by the next save, even one
+// that changes no secret.
+func TestFailedVaultWriteRetriedByNextSave(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("rename over a directory")
+	}
+	st := testStore(t)
+	h, err := st.UpsertHost(Host{
+		Name: "box", Address: "10.0.0.1", Port: 22, Username: "root",
+		AuthType: "password", Password: "first",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.ReadFile(st.vaultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A non-empty directory where keel.vault was makes the rename fail.
+	if err := os.Remove(st.vaultPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(st.vaultPath, "block"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.Password = "second"
+	if _, err := st.UpsertHost(h); err == nil {
+		t.Fatal("save with an unwritable vault succeeded")
+	}
+	if err := os.RemoveAll(st.vaultPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(st.vaultPath, orig, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := New(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopened.GetHost(h.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Password != "second" {
+		t.Fatalf("password after reopen = %q, want second", got.Password)
+	}
+}

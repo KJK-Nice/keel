@@ -159,7 +159,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 	} else {
 		delete(s.data.KnownHostTypes, hostname)
 	}
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveDurableLocked(); err != nil {
 		return KnownHostKey{}, err
 	}
 	return KnownHostKey{Hostname: hostname, Fingerprint: fingerprint, KeyType: o.keyType, Known: true}, nil

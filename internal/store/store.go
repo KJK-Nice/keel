@@ -310,14 +310,22 @@ type Store struct {
 	vaultSum       [32]byte
 	vaultRecipient age.Recipient
 
+	// vaultNoted is the snapshot that vaultSum and vaultRecipient describe
+	// (under mu).
+	vaultNoted uint64
+
 	// writeMu orders the file writes of saves that run with mu released.
 	// saveGen numbers each save's snapshot (under mu); jsonGen and vaultGen
 	// are the newest snapshots on disk (under writeMu), so an older save
 	// that reaches the disk after a newer one does not overwrite it.
-	writeMu  sync.Mutex
-	saveGen  uint64
-	jsonGen  uint64
-	vaultGen uint64
+	// diskSum and diskRecipient describe keel.vault as written (under
+	// writeMu).
+	writeMu       sync.Mutex
+	saveGen       uint64
+	jsonGen       uint64
+	vaultGen      uint64
+	diskSum       [32]byte
+	diskRecipient age.Recipient
 }
 
 func New(path string) (*Store, error) {
@@ -618,12 +626,15 @@ func (s *Store) ListHosts() ([]Host, error) {
 	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return nil, err
-	}
+	dirty := s.migrateGroupsLocked()
 	out := make([]Host, len(s.data.Hosts))
 	for i, h := range s.data.Hosts {
 		out[i] = s.viewLocked(h)
+	}
+	if dirty {
+		if err := s.saveLocked(); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -701,9 +712,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if h.Port == 0 && h.AuthType != "local" {
 		h.Port = 22
 	}
-	if err := s.ensureGroupsLocked(); err != nil {
-		return Host{}, err
-	}
+	s.migrateGroupsLocked()
 	gid, err := s.resolveGroupRefLocked(h.GroupID, h.Group)
 	if err != nil {
 		return Host{}, err
@@ -1014,7 +1023,7 @@ func (s *Store) TrustHostKeyType(hostname, fingerprint, keyType string, replace 
 	} else {
 		delete(s.data.KnownHostTypes, hostname)
 	}
-	return s.saveLocked()
+	return s.saveDurableLocked()
 }
 
 // saveLocked persists s.data, and keel.vault when the secrets changed. Call
@@ -1029,12 +1038,22 @@ func (s *Store) saveLocked() error {
 		return err
 	}
 	s.mu.Unlock()
-	werr := s.writeSnapshot(job)
+	wroteVault, werr := s.writeSnapshot(job)
 	s.mu.Lock()
-	if werr != nil && job.vault {
-		// Force the next save to try keel.vault again.
-		s.vaultRecipient = nil
+	s.noteVaultLocked(job, wroteVault)
+	return werr
+}
+
+// saveDurableLocked is saveLocked without releasing mu: no reader sees the
+// change before it is on disk. Use it where acting on an unsaved change is
+// unsafe, such as trusting a host key.
+func (s *Store) saveDurableLocked() error {
+	job, err := s.snapshotLocked()
+	if err != nil {
+		return err
 	}
+	wroteVault, werr := s.writeSnapshot(job)
+	s.noteVaultLocked(job, wroteVault)
 	return werr
 }
 
@@ -1042,6 +1061,7 @@ type saveSnapshot struct {
 	gen       uint64
 	data      []byte
 	vault     bool
+	sum       [32]byte
 	secrets   map[string]hostSecret
 	recipient age.Recipient
 }
@@ -1064,43 +1084,61 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 	}
 	s.saveGen++
 	job := saveSnapshot{gen: s.saveGen, data: b}
-	// Rewrite when the secrets or recipient changed, or when keel.vault is
-	// gone: every save used to recreate it, and a missing vault at the next
-	// start is read as "no secrets".
+	// Rewrite when the secrets or recipient differ from keel.vault on disk,
+	// or when keel.vault is gone: every save used to recreate it, and a
+	// missing vault at the next start is read as "no secrets". vaultSum only
+	// moves once a write succeeds, so a save that snapshots while an earlier
+	// vault write is in flight, or after one failed, carries the secrets too.
 	if sum != s.vaultSum || s.recipient != s.vaultRecipient || !fileExists(s.vaultPath) {
 		job.vault = true
+		job.sum = sum
 		job.secrets = make(map[string]hostSecret, len(s.secrets))
 		for k, v := range s.secrets {
 			job.secrets[k] = v
 		}
 		job.recipient = s.recipient
-		s.vaultSum, s.vaultRecipient = sum, s.recipient
 	}
 	return job, nil
 }
 
+// noteVaultLocked records that keel.vault now holds job's secrets, unless a
+// newer snapshot was already recorded.
+func (s *Store) noteVaultLocked(job saveSnapshot, wroteVault bool) {
+	if wroteVault && job.gen > s.vaultNoted {
+		s.vaultSum, s.vaultRecipient, s.vaultNoted = job.sum, job.recipient, job.gen
+	}
+}
+
 // writeSnapshot writes job's files unless a newer snapshot already reached
-// the disk. It runs without mu.
-func (s *Store) writeSnapshot(job saveSnapshot) error {
+// the disk, and reports whether keel.vault holds job's secrets. It does not
+// need mu.
+func (s *Store) writeSnapshot(job saveSnapshot) (bool, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	wroteVault := false
 	if job.vault && job.gen > s.vaultGen {
-		blob, err := encryptVault(job.secrets, job.recipient)
-		if err != nil {
-			return err
-		}
-		if err := writePrivate(s.vaultPath, blob); err != nil {
-			return err
+		// An earlier snapshot may have written the same secrets already:
+		// skip the encryption (a second of scrypt for passphrase vaults).
+		if job.sum != s.diskSum || job.recipient != s.diskRecipient || !fileExists(s.vaultPath) {
+			blob, err := encryptVault(job.secrets, job.recipient)
+			if err != nil {
+				return false, err
+			}
+			if err := writePrivate(s.vaultPath, blob); err != nil {
+				return false, err
+			}
+			s.diskSum, s.diskRecipient = job.sum, job.recipient
 		}
 		s.vaultGen = job.gen
+		wroteVault = true
 	}
 	if job.gen > s.jsonGen {
 		if err := writePrivate(s.path, job.data); err != nil {
-			return err
+			return wroteVault, err
 		}
 		s.jsonGen = job.gen
 	}
-	return nil
+	return wroteVault, nil
 }
 
 func fileExists(path string) bool {
