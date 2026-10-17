@@ -61,9 +61,18 @@ func (p PageProps) SignalsJSON() string {
 	lf, _ := json.Marshal(p.LogFilter)
 	gf, _ := json.Marshal(p.GroupFocus)
 	return fmt.Sprintf(
-		`{"vault":"hosts","query":%s,"logFilter":%s,"groupFocus":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local"}`,
+		`{"vault":"hosts","query":%s,"logFilter":%s,"groupFocus":%s,"locked":%s,"needsSetup":%s,"authType":"password","identKind":"password","tunnelKind":"local",`+
+			// Page-local filters (docs/ui-redesign.md §12, D2). The leading
+			// underscore keeps Datastar from sending them to the server.
+			`"_identityFilter":"","_snippetFilter":"","_tunnelFilter":"","_notebookFilter":"","_tunnelState":"all","_logKind":"all"}`,
 		q, lf, gf, locked, setup,
 	)
+}
+
+// filterShow is a data-show expression for a page row: shown while the
+// page's filter signal is empty or the row's data-filter-text contains it.
+func filterShow(signal string) string {
+	return "!$" + signal + ".trim() || el.dataset.filterText.toLowerCase().includes($" + signal + ".trim().toLowerCase())"
 }
 
 func hostSubtitle(h store.Host) string {

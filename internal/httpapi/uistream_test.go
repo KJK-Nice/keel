@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
+	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -131,5 +134,35 @@ func TestUIStreamKeepsFilterFromHostsRequest(t *testing.T) {
 	}
 	if !strings.Contains(ev, "web-a") {
 		t.Fatalf("filtered push lost a matching host: %q", ev)
+	}
+}
+
+// New log entries reach an open stream (they replace the Logs page poll),
+// at most once a second.
+func TestUIStreamPushesLogs(t *testing.T) {
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("KEEL_VAULT_FAST", "1")
+	st, err := store.New(t.TempDir() + "/keel.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := applog.New(t.TempDir() + "/keel.log")
+	srv := httptest.NewServer(New(st, nil, fstest.MapFS{}, nil).WithLogs(logs).Handler())
+	t.Cleanup(srv.Close)
+
+	stream, cancel := openStream(t, srv.URL, `{}`)
+	defer cancel()
+	stream.next(t, `id="log-list"`)
+
+	logs.Append(applog.Entry{Kind: "vault", Message: "first-event"})
+	ev := stream.next(t, "first-event")
+	if strings.Contains(ev, `id="host-list"`) {
+		t.Fatalf("a log entry re-sent the other lists: %q", ev)
+	}
+	start := time.Now()
+	logs.Append(applog.Entry{Kind: "vault", Message: "second-event"})
+	stream.next(t, "second-event")
+	if time.Since(start) < uiLogPushEvery/2 {
+		t.Fatalf("log pushes not throttled: second came after %v", time.Since(start))
 	}
 }
