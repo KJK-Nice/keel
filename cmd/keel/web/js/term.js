@@ -118,7 +118,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     sidebarQuery: { panes: "", snippets: "", forwards: "" },
     selectedIdentity: "",
     selectedSnippet: "",
-    logFilter: "",
     name: localStorage.getItem("keel-name-custom") || params.get("name") || localStorage.getItem("keel-name") || "",
     pendingSession: params.get("session") || params.get("id") || "",
     herdWs: null,
@@ -746,10 +745,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 
   const els = {
     hostList: document.getElementById("host-list"),
-    snippetList: document.getElementById("snippet-list"),
-    notebookList: document.getElementById("notebook-list"),
-    identityList: document.getElementById("identity-list"),
-    tunnelList: document.getElementById("tunnel-list"),
     logList: document.getElementById("log-list"),
     tabs: document.getElementById("tabs"),
     terminals: document.getElementById("terminals"),
@@ -791,39 +786,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   function on(el, type, fn, opts) {
     if (!el) return;
     el.addEventListener(type, fn, opts);
-  }
-
-  function datastarQS() {
-    return new URLSearchParams({
-      datastar: JSON.stringify({
-        query: state.query || "",
-        logFilter: state.logFilter || "",
-      }),
-    }).toString();
-  }
-
-  // paintList swaps a server-rendered list into place. With a signal and
-  // isStale (lib/latest.js) a superseded request paints nothing and resolves
-  // to null, so only the newest filter result reaches the DOM.
-  async function paintList(id, url, { signal, isStale } = {}) {
-    try {
-      const res = await fetch(url, { headers: { Accept: "text/html" }, signal });
-      if (isStale?.()) return null;
-      if (!res.ok) return false;
-      const html = await res.text();
-      if (isStale?.()) return null;
-      const current = document.getElementById(id);
-      if (!current) return false;
-      const tpl = document.createElement("template");
-      tpl.innerHTML = html.trim();
-      const next = tpl.content.querySelector("#" + CSS.escape(id));
-      if (!next) return false;
-      current.innerHTML = next.innerHTML;
-      afterListPaint(id);
-      return true;
-    } catch {
-      return isStale?.() ? null : false;
-    }
   }
 
   function setSelectValue(triggerId, value) {
@@ -1050,7 +1012,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   const groupDescendantDepth = (id) => G.groupDescendantDepth(state.groups, id);
   const groupDepth = (id) => G.groupDepth(state.groups, id);
   const isGroupUnder = (id, ancestorId) => G.isGroupUnder(state.groups, id, ancestorId);
-  const nestGroupTreeJS = (query, parentId) => G.nestGroupTree(state.groups, state.hosts, query, parentId);
   const groupOptionEntries = (excludeId) => G.groupOptionEntries(state.groups, excludeId);
   const { hostSubtitle } = G;
 
@@ -1304,43 +1265,6 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       persistWorkspace();
     }
   }
-
-  // Hosts outside any (existing) group sit at the root of the sidebar tree.
-  function looseHosts(query) {
-    const ids = new Set((state.groups || []).map((g) => g.id));
-    return state.hosts.filter((h) => (!h.groupId || !ids.has(h.groupId)) && hostMatches(h, query));
-  }
-
-  function renderHosts() {
-    els.hostList.innerHTML = V.hostsHTML({ tree: nestGroupTreeJS(state.query, ""), loose: looseHosts(state.query) });
-    afterListPaint("host-list");
-  }
-
-  function renderSnippets() {
-    els.snippetList.innerHTML = V.snippetsHTML(state.snippets);
-    afterListPaint("snippet-list");
-  }
-
-  function renderNotebooks() {
-    if (els.notebookList) els.notebookList.innerHTML = V.notebooksHTML(state.notebooks);
-    afterListPaint("notebook-list");
-  }
-
-  async function paintVaultNotebooks() {
-    if (await paintList("notebook-list", "/ui/notebooks?" + datastarQS())) return;
-    renderNotebooks();
-  }
-
-  function renderIdentities() {
-    els.identityList.innerHTML = V.identitiesHTML(state.identities, state.hosts);
-    afterListPaint("identity-list");
-  }
-
-  function renderTunnels() {
-    els.tunnelList.innerHTML = V.tunnelsHTML(state.tunnels, state.hosts);
-    afterListPaint("tunnel-list");
-  }
-
 
   // afterListPaint re-applies what lives in the page, not in the list
   // markup: tree collapse, selection, filters and the derived detail.
@@ -2740,6 +2664,33 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     refreshStartTabs();
     paintSidebar();
     agentPanel?.refresh();
+  }
+
+  // The stream dispatches keel-vault-changed with every list push (a store
+  // save or a tunnel state change, from this window or anywhere else), so
+  // the JSON state the palette, the new-tab page, the sidebar sections and
+  // the dialogs read follows the vault without a reload after each action.
+  // One refresh runs at a time; changes during it queue one more.
+  let stateRefresh = null;
+  let stateRefreshAgain = false;
+  function refreshState() {
+    if (stateRefresh) {
+      stateRefreshAgain = true;
+      return stateRefresh;
+    }
+    stateRefresh = loadAll()
+      .then(() => {
+        for (const id of ["identity-list", "snippet-list", "tunnel-list"]) afterListPaint(id);
+      })
+      .catch(() => {})
+      .finally(() => {
+        stateRefresh = null;
+        if (stateRefreshAgain) {
+          stateRefreshAgain = false;
+          refreshState();
+        }
+      });
+    return stateRefresh;
   }
 
   function localHost() {
@@ -4749,7 +4700,6 @@ Write a runbook here.
     if (i >= 0) state.notebooks[i] = rec;
     else state.notebooks.unshift(rec);
     paintSidebar();
-    paintVaultNotebooks();
   }
 
   function createNotebookTab(saved, opts = {}) {
@@ -4824,7 +4774,6 @@ Write a runbook here.
       if (tab) syncPaneChrome(tab, pane);
       persistWorkspace();
       paintSidebar();
-      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not save notebook", true);
     }
@@ -4932,7 +4881,6 @@ Write a runbook here.
       closeModal(els.notebookRenameModal);
       persistWorkspace();
       paintSidebar();
-      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not rename notebook", true);
     }
@@ -4954,7 +4902,6 @@ Write a runbook here.
         }
       }
       paintSidebar();
-      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not pin notebook", true);
     }
@@ -4970,7 +4917,6 @@ Write a runbook here.
       const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
       for (const pane of open) closePane(pane.id);
       paintSidebar();
-      paintVaultNotebooks();
     } catch (err) {
       toast(err.message || "Could not delete notebook", true);
     }
@@ -5715,7 +5661,6 @@ Write a runbook here.
       }
       try {
         await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name: next }) });
-        await loadAll();
       } catch (err) {
         title.textContent = original;
         toast(err.message, true);
@@ -5745,7 +5690,6 @@ Write a runbook here.
     if (!g) return;
     if (!(await askConfirm(`Remove group ${g.name}? Hosts and subgroups move up one level.`))) return;
     await api(`/api/groups/${id}`, { method: "DELETE" });
-    await loadAll();
     toast("Group removed");
   }
 
@@ -5754,7 +5698,6 @@ Write a runbook here.
     if (!unique.length) return;
     await api("/api/hosts/move", { method: "POST", body: JSON.stringify({ ids: unique, groupId: groupId || "" }) });
     setHostSelection([]);
-    await loadAll();
   }
 
   function fillIdentityForm(id) {
@@ -5854,15 +5797,13 @@ Write a runbook here.
   const FORM_MODALS = { host: "hostModal", group: "groupModal", identity: "identityModal", tunnel: "tunnelModal", snippet: "snippetModal" };
 
   // afterFormSaved closes a dialog whose Datastar post went through. The
-  // lists update over the stream; loadAll refreshes the JSON state the rest
-  // of term.js still reads (palette, new-tab page, host form selects).
+  // lists and the JSON state both follow from the stream (keel-vault-changed).
   function afterFormSaved({ form, message }) {
     const modal = els[FORM_MODALS[form]];
     if (form === "host") resetHostTest();
     if (form === "snippet-editor") delete document.getElementById("snippet-editor")?.dataset.dirty;
     if (modal) closeModal(modal);
     if (message) toast(message);
-    loadAll().catch(() => {});
   }
 
   // clearFormError hides the server's error line when a dialog opens again.
@@ -5963,7 +5904,6 @@ Write a runbook here.
       }
       if (retry.tunnelId) {
         await api(`/api/tunnels/${retry.tunnelId}/start`, { method: "POST" });
-        await loadAll();
       }
       state.hostKeyRetry = null;
       toast("Host key saved");
@@ -7196,7 +7136,6 @@ Write a runbook here.
           return;
         }
         const saved = await api(`/api/hosts/${host.id}/duplicate`, { method: "POST" });
-        await loadAll();
         toast(`Duplicated as ${saved.name || host.name + " (copy)"}`);
         return;
       }
@@ -7210,7 +7149,6 @@ Write a runbook here.
         }
         if (!(await askConfirm(`Remove ${host.name}?`))) return;
         await api(`/api/hosts/${host.id}`, { method: "DELETE" });
-        await loadAll();
         return;
       }
       const run = ev.target.closest("[data-run]");
@@ -7235,7 +7173,7 @@ Write a runbook here.
       if (delSn) {
         const sn = state.snippets.find((s) => s.id === delSn.dataset.deleteSnippet);
         if (!sn || !(await askConfirm(`Delete snippet “${sn.name}”?`))) return;
-        api(`/api/snippets/${sn.id}`, { method: "DELETE" }).then(loadAll);
+        api(`/api/snippets/${sn.id}`, { method: "DELETE" }).catch((err) => toast(err.message, true));
       }
       const openNb = ev.target.closest("[data-notebook-open]");
       if (openNb) {
@@ -7295,12 +7233,11 @@ Write a runbook here.
       if (delId) {
         const id = state.identities.find((x) => x.id === delId.dataset.deleteIdentity);
         if (!id || !(await askConfirm(`Delete identity “${id.name}”?`))) return;
-        api(`/api/identities/${id.id}`, { method: "DELETE" }).then(loadAll);
+        api(`/api/identities/${id.id}`, { method: "DELETE" }).catch((err) => toast(err.message, true));
       }
       const startTn = ev.target.closest("[data-tunnel-start]");
       if (startTn) {
         api(`/api/tunnels/${startTn.dataset.tunnelStart}/start`, { method: "POST" })
-          .then(loadAll)
           .catch((err) => {
             if (!promptHostKey(err, { tunnelId: startTn.dataset.tunnelStart })) toast(err.message, true);
           });
@@ -7308,7 +7245,6 @@ Write a runbook here.
       const stopTn = ev.target.closest("[data-tunnel-stop]");
       if (stopTn) {
         api(`/api/tunnels/${stopTn.dataset.tunnelStop}/stop`, { method: "POST" })
-          .then(loadAll)
           .catch((err) => toast(err.message, true));
       }
       const editTn = ev.target.closest("[data-edit-tunnel]");
@@ -7321,7 +7257,7 @@ Write a runbook here.
       if (delTn) {
         const t = state.tunnels.find((x) => x.id === delTn.dataset.deleteTunnel);
         if (!t || !(await askConfirm(`Delete forward “${t.name}”?`))) return;
-        api(`/api/tunnels/${t.id}`, { method: "DELETE" }).then(loadAll);
+        api(`/api/tunnels/${t.id}`, { method: "DELETE" }).catch((err) => toast(err.message, true));
       }
     });
 
@@ -7395,7 +7331,6 @@ Write a runbook here.
           return;
         }
         api(`/api/groups/${drag.id}`, { method: "PUT", body: JSON.stringify({ ...g, parentId: dest }) })
-          .then(loadAll)
           .catch((err) => toast(err.message, true));
       }
     });
@@ -7533,7 +7468,6 @@ Write a runbook here.
       }
       try {
         await api(`/api/hosts/${host.id}`, { method: "DELETE" });
-        await loadAll();
       } catch (err) {
         toast(err.message, true);
       }
@@ -7555,6 +7489,7 @@ Write a runbook here.
     // (@post /ui/forms/{kind}, dialogs.templ). The server shows errors in the
     // form and dispatches keel-form-saved when the save went through.
     on(window, "keel-form-saved", (ev) => afterFormSaved(ev.detail || {}));
+    on(window, "keel-vault-changed", () => refreshState());
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
     on(els.notebookRenameForm, "submit", (ev) => saveNotebookRename(ev).catch((err) => toast(err.message, true)));
     on(els.joinForm, "submit", (ev) => submitJoin(ev));

@@ -34,7 +34,6 @@ test("cycles in group data don't hang", () => {
   assert.equal(G.groupDepth(loop, "a"), 2);
   assert.ok(!G.isGroupUnder(loop, "a", "zzz"));
   assert.equal(G.groupOptionLabel(loop, loop[0]), "B / A");
-  assert.deepEqual(G.nestGroupTree(loop, [], "", ""), []);
 });
 
 test("search matches group names above the host and tags", () => {
@@ -42,20 +41,6 @@ test("search matches group names above the host and tags", () => {
   assert.deepEqual(G.hostsInSubtree(groups, hosts, "infra", "").map((h) => h.id), ["h1", "h2"]);
   assert.deepEqual(G.hostsInSubtree(groups, hosts, "", "postgres").map((h) => h.id), ["h1"]);
   assert.deepEqual(G.hostsInSubtree(groups, hosts, "", "INFRA").map((h) => h.id), ["h1", "h2"]);
-});
-
-test("nestGroupTree counts hosts through the tree and filters by query", () => {
-  const tree = G.nestGroupTree(groups, hosts, "", "");
-  assert.deepEqual(tree.map((n) => n.group.id), ["apps", "infra"]);
-  const infra = tree[1];
-  assert.equal(infra.count, 2);
-  assert.equal(infra.kids[0].group.id, "db");
-  assert.equal(infra.kids[0].kids[0].depth, 3);
-
-  const q = G.nestGroupTree(groups, hosts, "pg-2", "");
-  assert.deepEqual(q.map((n) => n.group.id), ["infra"]);
-  assert.deepEqual(q[0].kids[0].hosts, []);
-  assert.deepEqual(q[0].kids[0].kids[0].hosts.map((h) => h.id), ["h2"]);
 });
 
 test("parent picker labels paths and excludes a group's own subtree", () => {

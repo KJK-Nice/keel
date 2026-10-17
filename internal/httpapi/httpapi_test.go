@@ -1232,14 +1232,8 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 		t.Fatal("the Notebooks tab page has a page head like the other tab pages")
 	}
 
-	frag, err := http.Get(srv.URL + "/ui/notebooks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer frag.Body.Close()
-	fragBody, _ := io.ReadAll(frag.Body)
-	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="notebook-list"`) {
-		t.Fatalf("ui notebooks %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
+	if !strings.Contains(string(body), `id="notebook-list"`) {
+		t.Fatal("the page renders the notebook list")
 	}
 
 	created, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{"name":"ops","cells":[{"body":"ls"}]}`))
@@ -1251,12 +1245,8 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 		b, _ := io.ReadAll(created.Body)
 		t.Fatalf("create %d %s", created.StatusCode, b)
 	}
-	listed, err := http.Get(srv.URL + "/ui/notebooks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listed.Body.Close()
-	listBody, _ := io.ReadAll(listed.Body)
+	// The list is templ, on the page and pushed over /ui/stream.
+	listBody := listSection(t, srv.URL, "notebook-list")
 	if !strings.Contains(string(listBody), `data-notebook-open`) || !strings.Contains(string(listBody), "ops") {
 		t.Fatal("vault notebook cards must be openable without a session")
 	}
@@ -1927,7 +1917,7 @@ func TestHostListDuplicateAction(t *testing.T) {
 	defer js.Body.Close()
 	jsBody, _ := io.ReadAll(js.Body)
 	term := string(jsBody)
-	if !strings.Contains(readWebLib(t, "lib/vaultview.js"), `["data-duplicate", h.id, "Duplicate"]`) || !strings.Contains(term, "/duplicate") {
+	if !strings.Contains(term, "/duplicate") {
 		t.Fatal("term.js must duplicate hosts through the vault API")
 	}
 	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sidebarFocused() || state.openModal || ptyInjectWaiter") {
@@ -2074,7 +2064,6 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	term := string(jsBody)
 	for _, want := range []string{
 		"const MAX_GROUP_DEPTH = 8",
-		"const nestGroupTreeJS = ",
 		"function assignHostsGroup",
 		"data-group-rename",
 		"data-drag-group",
@@ -2765,27 +2754,21 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(body), `id="btn-new-group"`) {
 		t.Fatal("index missing Parent Group dialogs")
 	}
-	snip, err := http.Get(srv.URL + "/ui/snippets")
-	if err != nil {
-		t.Fatal(err)
+	if !strings.Contains(listSection(t, srv.URL, "snippet-list"), `data-snippet-select`) {
+		t.Fatal("the page should render the snippet list")
 	}
-	defer snip.Body.Close()
-	snipBody, _ := io.ReadAll(snip.Body)
-	if snip.StatusCode != http.StatusOK || !strings.Contains(string(snipBody), `id="snippet-list"`) {
-		t.Fatalf("ui snippets %d: %s", snip.StatusCode, snipBody[:min(len(snipBody), 200)])
+	if !strings.Contains(listSection(t, srv.URL, "identity-list"), `data-slot="empty"`) {
+		t.Fatal("the page should render the empty identity list")
 	}
-	if !strings.Contains(string(snipBody), `data-snippet-select`) {
-		t.Fatal("ui snippets fragment should render the snippet list")
-	}
-	ident, err := http.Get(srv.URL + "/ui/identities")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ident.Body.Close()
-	identBody, _ := io.ReadAll(ident.Body)
-	if ident.StatusCode != http.StatusOK || !strings.Contains(string(identBody), `id="identity-list"`) ||
-		!strings.Contains(string(identBody), `data-slot="empty"`) {
-		t.Fatal("ui identities fragment should render the empty card state")
+	for _, gone := range []string{"/ui/snippets", "/ui/identities", "/ui/tunnels", "/ui/notebooks"} {
+		res, err := http.Get(srv.URL + gone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode == http.StatusOK {
+			t.Fatalf("%s should be gone: the lists come from the stream (D4)", gone)
+		}
 	}
 	logsFrag, err := http.Get(srv.URL + "/ui/logs")
 	if err != nil {
@@ -2801,8 +2784,13 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), ".k-table {") {
 		t.Fatal("keel.css must lay out the tab pages")
 	}
-	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "export function identityDetailHTML") || !strings.Contains(vv, "SSH keys") {
-		t.Fatal("term.js fallback lists must match the tab pages")
+	// D4: the lists are templ only; vaultview.js keeps the Keychain detail
+	// and the snippet preview, not list renderers.
+	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "export function identityDetailHTML") || strings.Contains(vv, "export function hostsHTML") {
+		t.Fatal("vaultview.js keeps the detail painters and drops the list renderers")
+	}
+	if term := readWebLib(t, "term.js"); strings.Contains(term, "function paintList") || strings.Contains(term, "function datastarQS") {
+		t.Fatal("term.js must not fetch and swap lists itself (D4)")
 	}
 	if strings.Contains(string(body), `data-vault-view-btn`) {
 		t.Fatal("the card/list view toggle left with the Hosts page")
@@ -3446,4 +3434,26 @@ func TestRuntimeInfo(t *testing.T) {
 	if got.Build != "abc-123" || got.Addr != "127.0.0.1:9" || got.DataDir != "/data/keel" || !got.CanStop || got.Sessions != 0 || got.UptimeSec < 0 || got.StartedAt == "" || got.SignalURL != "" {
 		t.Fatalf("runtime info = %+v", got)
 	}
+}
+
+// listSection returns the page's markup from the element with id up to the
+// next list (at most 8 KB), for checks on one server-rendered list.
+func listSection(t *testing.T, srvURL, id string) string {
+	t.Helper()
+	res, err := http.Get(srvURL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	page := string(b)
+	i := strings.Index(page, `id="`+id+`"`)
+	if i < 0 {
+		t.Fatalf("page has no #%s", id)
+	}
+	sec := page[i:]
+	if len(sec) > 8192 {
+		sec = sec[:8192]
+	}
+	return sec
 }

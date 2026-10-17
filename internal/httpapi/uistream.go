@@ -191,5 +191,7 @@ func (s *Server) pushLists(sse *datastar.ServerSentEventGenerator, r *http.Reque
 			return err
 		}
 	}
-	return nil
+	// term.js keeps JSON state (palette, new-tab page, sidebar sections,
+	// dialog selects) beside these lists; it refreshes it on this event.
+	return sse.ExecuteScript(`window.dispatchEvent(new CustomEvent("keel-vault-changed"))`)
 }

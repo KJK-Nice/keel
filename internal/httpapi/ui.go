@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"errors"
 	"log"
 	"net/http"
 	goruntime "runtime"
@@ -9,7 +8,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/starfederation/datastar-go/datastar"
 
-	"keel/internal/store"
 	"keel/internal/tunnel"
 	"keel/internal/ui"
 )
@@ -91,22 +89,6 @@ func (s *Server) uiHosts(w http.ResponseWriter, r *http.Request) {
 	writeTempl(w, r, ui.HostList(s.listProps(r, sig)))
 }
 
-func (s *Server) uiIdentities(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.IdentityList(s.pageProps(r)))
-}
-
-func (s *Server) uiTunnels(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.TunnelList(s.pageProps(r)))
-}
-
-func (s *Server) uiSnippets(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.SnippetList(s.pageProps(r)))
-}
-
-func (s *Server) uiNotebooks(w http.ResponseWriter, r *http.Request) {
-	writeTempl(w, r, ui.NotebookList(s.pageProps(r)))
-}
-
 // uiLogs answers the Logs page search (@get) and its Refresh button; like
 // uiHosts it records the filter against the caller's stream.
 func (s *Server) uiLogs(w http.ResponseWriter, r *http.Request) {
@@ -114,29 +96,4 @@ func (s *Server) uiLogs(w http.ResponseWriter, r *http.Request) {
 	_ = datastar.ReadSignals(r, &sig)
 	s.streams.setFilter(sig.StreamID, sig)
 	writeTempl(w, r, ui.LogList(s.listProps(r, sig)))
-}
-
-func (s *Server) uiVault(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid form")
-		return
-	}
-	pass := r.FormValue("passphrase")
-	var err error
-	if s.store.NeedsSetup() {
-		err = s.store.Setup(pass)
-	} else {
-		err = s.store.Unlock(pass)
-	}
-	if err != nil {
-		if errors.Is(err, store.ErrPassphrase) {
-			writeError(w, http.StatusForbidden, "incorrect passphrase")
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	s.note("vault", "vault unlocked", "", "", "")
-	sse := datastar.NewSSE(w, r)
-	_ = sse.Redirect("/")
 }
