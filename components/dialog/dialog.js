@@ -791,7 +791,19 @@
   // server-rendered dialog with Open true still opens. Also retire dialogs
   // whose source got swapped out of the DOM (releasing the scroll lock and
   // the aria-hidden marking).
-  new MutationObserver(() => {
+  // Skip mutations that cannot hold component markup: xterm's own DOM
+  // (rows, measure elements, helpers), which changes on every frame of
+  // terminal output, and nodes already detached. Each of these used to
+  // re-run init(), which queries the whole document.
+  function touchesComponents(records) {
+    for (const r of records) {
+      const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+      if (t && t.isConnected && !t.closest(".xterm")) return true;
+    }
+    return false;
+  }
+  new MutationObserver((records) => {
+    if (!touchesComponents(records)) return;
     init();
     unlockScroll();
   }).observe(document.body, {

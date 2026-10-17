@@ -9,6 +9,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
+import { setText } from "../lib/dom.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -221,7 +222,7 @@ export function createAgentPanel(deps) {
     if (state.scopeAuto && state.settings) state.scope = A.defaultScope(state.settings.defaultScope, all);
     else state.scope = A.reconcileScope(state.scope, all);
     const m = A.candidatePanes(all).length;
-    if (el.scopeLabel) el.scopeLabel.textContent = A.scopeLabel(state.scope.length, m);
+    setText(el.scopeLabel, A.scopeLabel(state.scope.length, m));
     paintChips();
     if (!el.picker.hidden) paintPicker();
     for (const rec of state.proposals.values()) if (!rec.editing) paintCard(rec);
