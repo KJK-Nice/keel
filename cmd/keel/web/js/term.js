@@ -5731,34 +5731,6 @@ Write a runbook here.
     openGroupForm(g, g.parentId || "");
   }
 
-  async function saveGroup(event) {
-    event.preventDefault();
-    const form = els.groupForm;
-    const name = form.name.value.trim();
-    if (!name) {
-      toast("Label is required", true);
-      return;
-    }
-    const parentId = fieldValue(form, "parentId", "group-parent");
-    const id = form.id.value;
-    if (id && (parentId === id || isGroupUnder(parentId, id))) {
-      toast("group cannot nest under itself", true);
-      return;
-    }
-    if (parentId && groupDepth(parentId) + 1 + (id ? groupDescendantDepth(id) : 0) > MAX_GROUP_DEPTH) {
-      toast("group nest is deeper than 8", true);
-      return;
-    }
-    if (id) {
-      const g = groupById(id) || { id };
-      await api(`/api/groups/${id}`, { method: "PUT", body: JSON.stringify({ ...g, name, parentId }) });
-    } else {
-      await api("/api/groups", { method: "POST", body: JSON.stringify({ name, parentId }) });
-    }
-    closeModal(els.groupModal);
-    await loadAll();
-    toast("Group saved");
-  }
 
   async function renameGroup(id) {
     const g = groupById(id);
@@ -5843,26 +5815,6 @@ Write a runbook here.
     toggleIdentFields();
   }
 
-  async function saveIdentity(event) {
-    event.preventDefault();
-    const form = els.identityForm;
-    const payload = {
-      name: form.name.value.trim(),
-      username: form.username.value.trim(),
-      kind: form.kind.value,
-      password: secretPayload(form.password.value),
-      privateKey: secretPayload(form.privateKey.value),
-      passphrase: secretPayload(form.passphrase.value),
-    };
-    if (form.id.value) {
-      await api(`/api/identities/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
-    } else {
-      await api("/api/identities", { method: "POST", body: JSON.stringify(payload) });
-    }
-    closeModal(els.identityModal);
-    await loadAll();
-    toast("Identity saved");
-  }
 
   function sshHosts() {
     return state.hosts.filter((h) => h.authType !== "local");
@@ -5894,31 +5846,6 @@ Write a runbook here.
     toggleTunnelDest();
   }
 
-  async function saveTunnel(event) {
-    event.preventDefault();
-    const form = els.tunnelForm;
-    if (!form.hostId.value) {
-      toast("Pick an SSH host first", true);
-      return;
-    }
-    const payload = {
-      name: form.name.value.trim(),
-      hostId: form.hostId.value,
-      kind: form.kind.value,
-      bindAddr: form.bindAddr.value.trim() || "127.0.0.1",
-      bindPort: Number(form.bindPort.value || 0),
-      destHost: form.destHost.value.trim(),
-      destPort: Number(form.destPort.value || 0),
-    };
-    if (form.id.value) {
-      await api(`/api/tunnels/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
-    } else {
-      await api("/api/tunnels", { method: "POST", body: JSON.stringify(payload) });
-    }
-    closeModal(els.tunnelModal);
-    await loadAll();
-    toast("Forward saved");
-  }
 
   async function saveQuick(event) {
     event.preventDefault();
@@ -5968,25 +5895,29 @@ Write a runbook here.
     toast("No matching host", true);
   }
 
-  async function saveSnippet(event) {
-    event.preventDefault();
-    const form = els.snippetForm;
-    let command = form.command.value;
-    if (!command.endsWith("\n")) command += "\n";
-    const payload = { name: form.name.value.trim(), command };
-    if (form.id.value) {
-      // The modal has no agent switch and sends no agentUsable, so keel
-      // serve keeps what the Snippets page set.
-      await api(`/api/snippets/${form.id.value}`, { method: "PUT", body: JSON.stringify({ ...payload, id: form.id.value }) });
-    } else {
-      await api("/api/snippets", { method: "POST", body: JSON.stringify(payload) });
-    }
-    closeModal(els.snippetModal);
-    await loadAll();
-    toast("Snippet saved");
+
+  const FORM_MODALS = { group: "groupModal", identity: "identityModal", tunnel: "tunnelModal", snippet: "snippetModal" };
+
+  // afterFormSaved closes a dialog whose Datastar post went through. The
+  // lists update over the stream; loadAll refreshes the JSON state the rest
+  // of term.js still reads (palette, new-tab page, host form selects).
+  function afterFormSaved({ form, message }) {
+    const modal = els[FORM_MODALS[form]];
+    if (modal) closeModal(modal);
+    if (message) toast(message);
+    loadAll().catch(() => {});
+  }
+
+  // clearFormError hides the server's error line when a dialog opens again.
+  function clearFormError(modal) {
+    modal?.querySelectorAll("[id$='-form-error']").forEach((el) => {
+      el.hidden = true;
+      el.textContent = "";
+    });
   }
 
   function openModal(el) {
+    clearFormError(el);
     if (!el) return;
     if (state.openModal && state.openModal !== el) closeModal(state.openModal);
     try {
@@ -7663,11 +7594,11 @@ Write a runbook here.
     on(els.identityForm?.kind, "change", toggleIdentFields);
     on(els.tunnelForm?.kind, "change", toggleTunnelDest);
     on(els.hostForm, "submit", (ev) => saveHost(ev).catch((err) => toast(err.message, true)));
-    on(els.groupForm, "submit", (ev) => saveGroup(ev).catch((err) => toast(err.message, true)));
-    on(els.identityForm, "submit", (ev) => saveIdentity(ev).catch((err) => toast(err.message, true)));
-    on(els.tunnelForm, "submit", (ev) => saveTunnel(ev).catch((err) => toast(err.message, true)));
+    // The group, identity, forward and snippet dialogs post with Datastar
+    // (@post /ui/forms/{kind}, dialogs.templ). The server shows errors in the
+    // form and dispatches keel-form-saved when the save went through.
+    on(window, "keel-form-saved", (ev) => afterFormSaved(ev.detail || {}));
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
-    on(els.snippetForm, "submit", (ev) => saveSnippet(ev).catch((err) => toast(err.message, true)));
     on(els.notebookRenameForm, "submit", (ev) => saveNotebookRename(ev).catch((err) => toast(err.message, true)));
     on(els.joinForm, "submit", (ev) => submitJoin(ev));
     on(els.hostKeyForm, "submit", (ev) => submitHostKey(ev).catch((err) => toast(err.message, true)));

@@ -257,7 +257,7 @@ templ hostDialog() {
 
 templ groupDialog() {
 	<dialog class="modal" id="group-modal">
-		<form id="group-form">
+		<form id="group-form" data-on:submit__prevent="@post('/ui/forms/group', {contentType: 'form'})" data-indicator:_saving>
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "group-modal-title"}) {
 					New group
@@ -269,11 +269,12 @@ templ groupDialog() {
 			<input type="hidden" name="id"/>
 			@labeledInput("group-label", "Label", "name", "Production", true)
 			@labeledSelect("group-parent", "Parent Group", "parentId", "No parent", "", false, []string{""}, []string{"No parent"})
+			<p id="group-form-error" class="k-error" role="alert" hidden></p>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "group-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
+				@button.Button(button.Props{Type: button.TypeSubmit, Attributes: savingAttrs}) {
 					Save group
 				}
 			</div>
@@ -283,7 +284,7 @@ templ groupDialog() {
 
 templ identityDialog() {
 	<dialog class="modal" id="identity-modal">
-		<form id="identity-form">
+		<form id="identity-form" data-on:submit__prevent="@post('/ui/forms/identity', {contentType: 'form'})" data-indicator:_saving>
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "identity-modal-title"}) {
 					New identity
@@ -300,11 +301,12 @@ templ identityDialog() {
 				@labeledTextarea("ident-private-key", "Private key", "privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----", 6, false)
 				@labeledPassword("ident-passphrase", "Key passphrase", "passphrase", "Optional", false)
 			</div>
+			<p id="identity-form-error" class="k-error" role="alert" hidden></p>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "identity-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
+				@button.Button(button.Props{Type: button.TypeSubmit, Attributes: savingAttrs}) {
 					Save identity
 				}
 			</div>
@@ -314,7 +316,7 @@ templ identityDialog() {
 
 templ tunnelDialog() {
 	<dialog class="modal" id="tunnel-modal">
-		<form id="tunnel-form">
+		<form id="tunnel-form" data-on:submit__prevent="@post('/ui/forms/tunnel', {contentType: 'form'})" data-indicator:_saving>
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "tunnel-modal-title"}) {
 					New forward
@@ -335,11 +337,12 @@ templ tunnelDialog() {
 			@dialog.Description() {
 				Bind 0.0.0.0 exposes the port on every interface.
 			}
+			<p id="tunnel-form-error" class="k-error" role="alert" hidden></p>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "tunnel-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
+				@button.Button(button.Props{Type: button.TypeSubmit, Attributes: savingAttrs}) {
 					Save forward
 				}
 			</div>
@@ -425,7 +428,7 @@ templ hostKeyDialog() {
 
 templ snippetDialog() {
 	<dialog class="modal" id="snippet-modal">
-		<form id="snippet-form">
+		<form id="snippet-form" data-on:submit__prevent="@post('/ui/forms/snippet', {contentType: 'form'})" data-indicator:_saving>
 			@dialog.Header() {
 				@dialog.Title(dialog.TitleProps{ID: "snippet-modal-title"}) {
 					New snippet
@@ -434,11 +437,12 @@ templ snippetDialog() {
 			<input type="hidden" name="id"/>
 			@labeledInput("snippet-name", "Name", "name", "disk usage", true)
 			@labeledTextarea("snippet-command", "Command", "command", "df -h", 4, true)
+			<p id="snippet-form-error" class="k-error" role="alert" hidden></p>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "snippet-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
 				}
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
+				@button.Button(button.Props{Type: button.TypeSubmit, Attributes: savingAttrs}) {
 					Save snippet
 				}
 			</div>
@@ -537,3 +541,7 @@ templ labeledSelect(id, caption, name, placeholder, current string, required boo
 		@formSelect(id, name, "", placeholder, current, required, "w-full min-w-0", selectcomp.AlignStart, values, labels)
 	}
 }
+
+// savingAttrs disables a dialog's Save button while its @post is in flight
+// (data-indicator:_saving on the form), so a slow save is not sent twice.
+var savingAttrs = templ.Attributes{"data-attr:disabled": "$_saving"}

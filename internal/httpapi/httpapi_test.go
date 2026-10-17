@@ -2088,7 +2088,7 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 			t.Fatalf("term.js missing %q", want)
 		}
 	}
-	for _, fn := range []string{"async function assignHostsGroup", "async function saveGroup"} {
+	for _, fn := range []string{"async function assignHostsGroup", "function afterFormSaved"} {
 		i := strings.Index(term, fn)
 		if i < 0 {
 			t.Fatalf("missing %s", fn)

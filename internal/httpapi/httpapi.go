@@ -177,6 +177,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ws/herd", s.herdWS)
 	mux.HandleFunc("GET /{$}", s.page)
 	mux.HandleFunc("GET /ui/stream", s.uiStream)
+	mux.HandleFunc("POST /ui/forms/{kind}", s.uiForm)
 	mux.HandleFunc("GET /ui/hosts", s.uiHosts)
 	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
 	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)
@@ -644,20 +645,6 @@ type snippetPayload struct {
 	AgentUsable *bool  `json:"agentUsable"`
 }
 
-// decodeSnippet reads a snippet payload, keeping old's agent flag when the
-// payload does not carry one.
-func decodeSnippet(r *http.Request, old store.Snippet) (store.Snippet, error) {
-	var p snippetPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		return store.Snippet{}, err
-	}
-	sn := store.Snippet{Name: p.Name, Command: p.Command, AgentUsable: old.AgentUsable}
-	if p.AgentUsable != nil {
-		sn.AgentUsable = *p.AgentUsable
-	}
-	return sn, nil
-}
-
 // noteSnippetFlag logs a change of "Let the agent suggest this snippet"
 // as an agent event: the snippet's name, never its command.
 func (s *Server) noteSnippetFlag(name string, before, after bool) {
@@ -672,52 +659,31 @@ func (s *Server) noteSnippetFlag(name string, before, after bool) {
 }
 
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
-	sn, err := decodeSnippet(r, store.Snippet{})
-	if err != nil {
+	var p snippetPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
-	if strings.TrimSpace(sn.Name) == "" || strings.TrimSpace(sn.Command) == "" {
-		writeError(w, http.StatusBadRequest, "name and command are required")
-		return
-	}
-	saved, err := s.store.UpsertSnippet(sn)
+	saved, err := s.saveSnippet("", p.Name, p.Command, p.AgentUsable)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeSaveErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
-	s.note("snippet", "snippet created: "+saved.Name, "", "", "")
-	s.noteSnippetFlag(saved.Name, false, saved.AgentUsable)
 }
 
 func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var old store.Snippet
-	all, err := s.store.ListSnippets()
-	if err != nil {
-		writeStoreErr(w, err)
-		return
-	}
-	for _, x := range all {
-		if x.ID == id {
-			old = x
-		}
-	}
-	sn, err := decodeSnippet(r, old)
-	if err != nil {
+	var p snippetPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
-	sn.ID = id
-	saved, err := s.store.UpsertSnippet(sn)
+	saved, err := s.saveSnippet(r.PathValue("id"), p.Name, p.Command, p.AgentUsable)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeSaveErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
-	s.note("snippet", "snippet updated: "+saved.Name, "", "", "")
-	s.noteSnippetFlag(saved.Name, old.AgentUsable, saved.AgentUsable)
 }
 
 func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
