@@ -179,12 +179,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/stream", s.uiStream)
 	mux.HandleFunc("POST /ui/forms/{kind}", s.uiForm)
 	mux.HandleFunc("GET /ui/hosts", s.uiHosts)
-	mux.HandleFunc("GET /ui/identities", s.uiIdentities)
-	mux.HandleFunc("GET /ui/tunnels", s.uiTunnels)
-	mux.HandleFunc("GET /ui/snippets", s.uiSnippets)
-	mux.HandleFunc("GET /ui/notebooks", s.uiNotebooks)
 	mux.HandleFunc("GET /ui/logs", s.uiLogs)
-	mux.HandleFunc("POST /ui/vault", s.uiVault)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
 	mux.Handle("/", newStaticHandler(s.web))
 	return withLogging(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux)))))
@@ -261,7 +256,7 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/api/vault" || r.URL.Path == "/ui/vault" {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/api/vault" {
 			next.ServeHTTP(w, r)
 			return
 		}

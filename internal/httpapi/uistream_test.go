@@ -100,6 +100,8 @@ func TestUIStreamPushesListsOnChange(t *testing.T) {
 	if !strings.Contains(ev, "datastar-patch-elements") || !strings.Contains(ev, `id="host-list"`) {
 		t.Fatalf("store change did not push the host list: %q", ev)
 	}
+	// The same push tells term.js to refresh its JSON state.
+	stream.next(t, "keel-vault-changed")
 }
 
 // A filter request names its stream; later pushes keep that filter.

@@ -211,19 +211,19 @@ One phase per branch and PR.
 
 ## 12. Datastar for the vault surfaces
 
-Status: D1, D2 and D3 done; D4 next · 2026-10-17
+Status: D1–D4 done · 2026-10-17
 
 Until now Datastar was loaded but unused: no `data-*` attribute read the page signals, and `term.js` fetched and swapped every vault list itself (`paintList`, `loadAll`). The vault surfaces move to Datastar; the session workspace does not.
 
 - **Datastar owns:** the vault lists (host tree, Keychain, Forwards, Snippets, Notebooks, Logs), their filters, and then the vault forms. The server renders templ and is the only source of the lists.
 - **term.js keeps:** terminals (xterm, the PTY WebSockets), tabs, panes and splits, the agent panel, the palette and the new-tab page, plus the behaviour it layers on the lists (selection, collapsed groups, live badges, drag and drop). It re-applies that after each morph (`watchStreamedLists`).
 - **One stream:** `GET /ui/stream` (`internal/httpapi/uistream.go`) is opened by `#ui-stream` (`page.templ`). It patches the lists, morphed by `id`, whenever the store saves or a tunnel changes state. Filters are request/response (`@get('/ui/hosts')`); the server records them against the page's `streamId` signal so later pushes keep them.
-- **Bridge:** term.js talks to Datastar through window events (`keel-stream`) and `data-*` attributes (`#search[data-seg]`), never through Datastar internals. Signals the server reads are the fields of `uiSignals` (`internal/httpapi/ui.go`).
+- **Bridge:** term.js talks to Datastar through window events (`keel-stream`, `keel-form-saved`, `keel-vault-changed`) and `data-*` attributes (`#search[data-seg]`), never through Datastar internals. Signals the server reads are the fields of `uiSignals` (`internal/httpapi/ui.go`).
 
 | Phase | Scope |
 |---|---|
 | D1 · Live lists | The stream; the sidebar host filter via `@get`; `loadAll` no longer repaints lists |
 | D2 · Pages | Keychain / Forwards / Snippets / Notebooks filters and the Forwards / Logs chips are underscore signals (kept in the page) with `data-show` on each row; the Logs search is `@get('/ui/logs')`; new log entries are pushed on the stream (at most once a second) instead of the 3 s poll |
 | D3 · Forms | Group, identity, tunnel and snippet dialogs post with `@post('/ui/forms/{kind}', {contentType: 'form'})` (`internal/httpapi/forms.go`, the same save functions as the JSON API). An error patches the dialog's `#{kind}-form-error`; a save clears it and dispatches `keel-form-saved`, which term.js uses to close the dialog and toast. The lists change through the stream. `data-indicator:_saving` disables Save while the request runs. term.js still calls `loadAll` after a save for its JSON state until D4. D3b moved the host dialog and the Snippets page editor (`/ui/forms/host`, `/ui/forms/snippet-editor`): a `k-switch` with `data-switch-field` mirrors into a hidden input (`setSwitch`) so it posts with the form, and the server parses tags, keepalive and secrets (`hostFromForm`). Test connection and Trust and save stay JSON (they are actions, not saves). Notebook rename stays in term.js: it renames open notebook tabs and panes, which term.js owns |
-| D4 · Cleanup | Remove `paintList`, `datastarQS`, the client-side list renderers in `vaultview.js` and `/ui/vault`; feed the JSON state term.js still needs (palette, new-tab page) from the stream |
+| D4 · Cleanup | Removed `paintList`, `datastarQS`, `paintVaultNotebooks`, the client list renderers in `vaultview.js` (it keeps the Keychain detail, the snippet preview and the glyphs) and `nestGroupTree`; removed the fragment routes only `paintList` used (`/ui/identities`, `/ui/tunnels`, `/ui/snippets`, `/ui/notebooks`) and the unused, token-exempt `POST /ui/vault`. Every list push also dispatches `keel-vault-changed`; term.js refreshes its JSON state on it (`refreshState`: one `loadAll` at a time, one queued), so saves no longer call `loadAll` themselves and changes from other windows or the agent reach the palette, the new-tab page and the dialogs |
 
