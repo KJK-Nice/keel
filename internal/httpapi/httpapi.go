@@ -172,19 +172,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/logs", s.uiLogs)
 	mux.HandleFunc("POST /ui/vault", s.uiVault)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
-	mux.Handle("/", noCacheStatic(http.FileServer(http.FS(s.web))))
+	mux.Handle("/", newStaticHandler(s.web))
 	return withLogging(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux)))))
-}
-
-func noCacheStatic(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		if strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".css") {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			w.Header().Set("Pragma", "no-cache")
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 // allowLocalOrigin blocks cross-site use of the privileged loopback API.
