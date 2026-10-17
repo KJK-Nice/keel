@@ -2487,8 +2487,19 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(refreshFn, "invalidatePaneRender") || !strings.Contains(refreshFn, "reflowPane") {
 		t.Fatal("resize observer path must still reflow then invalidate")
 	}
-	if !strings.Contains(schedFn, "requestAnimationFrame") {
+	// The per-frame coalescing lives in ui/framethrottle.js (unit-tested in
+	// framethrottle.test.mjs); schedulePaneInvalidate must go through it.
+	if !strings.Contains(schedFn, "createFrameThrottle") {
 		t.Fatal("PTY writes must coalesce invalidates per frame")
+	}
+	throttleJS, err := http.Get(srv.URL + "/js/ui/framethrottle.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer throttleJS.Body.Close()
+	throttleBody, _ := io.ReadAll(throttleJS.Body)
+	if throttleJS.StatusCode != http.StatusOK || !strings.Contains(string(throttleBody), "requestAnimationFrame") {
+		t.Fatal("framethrottle.js must run the coalesced invalidate on an animation frame")
 	}
 	if !strings.Contains(string(termBody), "else writePaneBytes(pane, ev.data)") {
 		t.Fatal("remote PTY bytes must go through writePaneBytes so they invalidate too")
