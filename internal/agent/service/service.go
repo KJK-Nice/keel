@@ -94,6 +94,9 @@ type Options struct {
 	// Chats saves conversations (sessions.go). nil keeps them in memory
 	// only.
 	Chats ChatStore
+	// Notes keeps the notes for the agent (notes.go). nil means no notes:
+	// none are sent and none can be saved.
+	Notes NoteStore
 }
 
 type Service struct {
@@ -109,8 +112,9 @@ type Service struct {
 	mu    sync.Mutex
 	convs map[string]*conversation
 
-	chats ChatStore
-	log   agent.Logger
+	chats   ChatStore
+	notesSt NoteStore
+	log     agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -146,7 +150,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -182,7 +186,9 @@ type conversation struct {
 	turns     []turn
 	asks      int
 	proposals []*Proposal
-	used      time.Time
+	// notes are the notes the agent proposed, waiting for the user (notes.go).
+	notes []*NoteProposal
+	used  time.Time
 
 	// title, created, updated and record are what is saved (sessions.go):
 	// record holds every turn as the panel showed it, redacted.
@@ -216,6 +222,11 @@ type TraceStep struct {
 	// when the pane's last command was read from its shell-integration
 	// marks (OSC 133) instead of its last lines.
 	Command string `json:"command,omitempty"`
+	// NoteKind and Notes are set on a step with Status "notes": the notes
+	// for the agent sent with the question, the host's ("host", Host names
+	// it) or the user's own ("user"), and how many.
+	NoteKind string `json:"noteKind,omitempty"`
+	Notes    int    `json:"notes,omitempty"`
 }
 
 // Proposal is a command the agent suggests. It is kept in the conversation
@@ -260,7 +271,10 @@ type AskResponse struct {
 	QuestionRedactions map[string]int `json:"questionRedactions,omitempty"`
 	Answer             string         `json:"answer"`
 	Proposals          []Proposal     `json:"proposals"`
-	Usage              Usage          `json:"usage"`
+	// Notes are notes the agent proposes to remember; nothing is saved
+	// until the user saves one (notes.go).
+	Notes []NoteProposal `json:"notes"`
+	Usage Usage          `json:"usage"`
 }
 
 var convIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
@@ -363,10 +377,18 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		trace = append(trace, step)
 	}
 
-	// One message: the excerpts, then the question. Everything in it goes
-	// through the same Redactor (excerpts are already redacted, and a
-	// second pass leaves them as they are).
+	// Notes for the agent go only with panes that were read: a host's
+	// notes with a pane on that host, the user's own with any pane. They
+	// come first in the trace, as on the board, and in the message, framed
+	// apart from pane text.
+	notesText, noteSteps := s.noteContext(excerpts, byID, scope, r)
+	trace = append(noteSteps, trace...)
+
+	// One message: the notes, the excerpts, then the question. Everything
+	// in it goes through the same Redactor (notes and excerpts are already
+	// redacted, and a second pass leaves them as they are).
 	var msg strings.Builder
+	msg.WriteString(notesText)
 	fmt.Fprintf(&msg, "Panes in scope: %d\n\n", len(excerpts))
 	for i, ex := range excerpts {
 		if ex.LastCommand {
@@ -401,7 +423,8 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		return AskResponse{}, s.providerErr(ctx, cctx, err)
 	}
 
-	answer, raws := parseResponse(resp.Text)
+	rest, rawNotes := parseNotes(resp.Text)
+	answer, raws := parseResponse(rest)
 	out := AskResponse{
 		ConversationID:     conv.id,
 		Provider:           desc.ID,
@@ -411,6 +434,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		QuestionRedactions: qRep.Strings(),
 		Answer:             answer,
 		Proposals:          []Proposal{},
+		Notes:              []NoteProposal{},
 		Usage:              Usage{InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens},
 	}
 	now := s.now()
@@ -438,6 +462,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	if n := len(conv.proposals); n > maxProposalsKept {
 		conv.proposals = conv.proposals[n-maxProposalsKept:]
 	}
+	notes := s.noteProposals(rawNotes, excerpts, byID, r, now)
+	for _, np := range notes {
+		out.Notes = append(out.Notes, *np)
+	}
 
 	// History keeps the question and the reply, not the excerpts: the next
 	// ask reads the panes again.
@@ -455,10 +483,13 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	// and is redacted again before it is kept.
 	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Model: conv.turns[len(conv.turns)-1].model.String()}
 	for _, st := range trace {
-		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command})
+		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes})
 	}
 	for _, p := range made {
 		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), r.Text(p.Why).String(), now))
+	}
+	for _, np := range notes {
+		rec.Notes = append(rec.Notes, noteRecord(np))
 	}
 
 	s.mu.Lock()
@@ -469,6 +500,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		conv.created = now
 	}
 	conv.updated = now
+	conv.notes = append(conv.notes, notes...)
+	if n := len(conv.notes); n > maxNoteProposalsKept {
+		conv.notes = conv.notes[n-maxNoteProposalsKept:]
+	}
 	conv.addRecordLocked(rec)
 	out.Title = conv.title
 	out.SaveError = s.saveErr

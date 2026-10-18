@@ -293,6 +293,7 @@ func hostFromForm(f, raw func(string) string) store.Host {
 		StartupCommand: f("startupCommand"),
 		AgentReadable:  formBool(f("agentReadable"), true),
 		Production:     formBool(f("production"), false),
+		AgentNotes:     formBool(f("agentNotes"), true),
 	}
 	if auth == "identity" {
 		h.IdentityID = f("identityId")

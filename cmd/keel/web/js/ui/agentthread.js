@@ -13,6 +13,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
+import * as N from "../lib/notes.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -55,12 +56,16 @@ export const ICON = {
   shield: svg(
     '<path d="M18.7088 3.49534C16.8165 2.55382 14.5009 2 12 2C9.4991 2 7.1835 2.55382 5.29116 3.49534C4.36318 3.95706 3.89919 4.18792 3.4496 4.91378C3 5.63965 3 6.34248 3 7.74814V11.2371C3 16.9205 7.54236 20.0804 10.173 21.4338C10.9067 21.8113 11.2735 22 12 22C12.7265 22 13.0933 21.8113 13.8269 21.4338C16.4576 20.0804 21 16.9205 21 11.2371L21 7.74814C21 6.34249 21 5.63966 20.5504 4.91378C20.1008 4.18791 19.6368 3.95706 18.7088 3.49534Z"/>',
   ),
+  note: svg(
+    '<path d="M15.5 21H9.5C6.2 21 4.6 21 3.5 20C2.5 18.9 2.5 17.3 2.5 14V10C2.5 6.7 2.5 5.1 3.5 4C4.6 3 6.2 3 9.5 3H14.5C17.8 3 19.4 3 20.5 4C21.5 5.1 21.5 6.7 21.5 10V15L15.5 21Z"/><path d="M15 21V18.5C15 17.1 15 16.4 15.4 16C15.9 15.5 16.6 15.5 18 15.5H21.5"/><path d="M7 8H17M7 12H12"/>',
+  ),
   eye: svg(
     '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
   ),
 };
 
 export function stepHTML(step) {
+  if (step.status === "notes") return `<div class="k-agent-step k-agent-step--note">${ICON.note}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   const cls = step.status === "read" ? "k-agent-step--read" : "k-agent-step--skip";
   const icon = step.status === "read" ? ICON.tick : ICON.skip;
   return `<div class="k-agent-step ${cls}">${icon}<span>${escapeHtml(A.traceText(step))}</span></div>`;
@@ -143,6 +148,7 @@ export function createThreadView(opts) {
   const shiftWord = opts.isMac ? "⇧" : "Shift";
   const typeLabel = opts.typeLabel || (() => "Type into pane");
   const recs = new Map(); // proposal id → { el, editing }
+  const noteRecs = new Map(); // note proposal id → { el, editing }
   let turns = 0;
 
   function scrollDown() {
@@ -160,6 +166,7 @@ export function createThreadView(opts) {
   function clear() {
     el.innerHTML = "";
     recs.clear();
+    noteRecs.clear();
     turns = 0;
   }
 
@@ -191,6 +198,7 @@ export function createThreadView(opts) {
     }
     if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
     for (const p of res.proposals || []) addProposal(p.id);
+    for (const n of res.notes || []) addNote(n.id);
     scrollDown();
   }
 
@@ -216,6 +224,7 @@ export function createThreadView(opts) {
         turns++;
       }
       for (const p of turn.proposals || []) addProposal(p.id);
+      for (const n of turn.notes || []) addNote(n.id);
     }
     const anyExpired = (t.turns || []).some((turn) => (turn.proposals || []).some((p) => p.expired));
     if (anyExpired || turns) {
@@ -318,6 +327,86 @@ export function createThreadView(opts) {
   // card's state, changed).
   function repaint() {
     for (const [id, rec] of recs) if (!rec.editing) paintCard(id);
+    for (const [id, rec] of noteRecs) if (!rec.editing) paintNote(id);
+  }
+
+  // --- notes the agent proposes (§15) ---
+  //
+  // Nothing is saved until the user presses Save (or Save anyway, on a note
+  // whose text came from pane output). The card names whose notes it joins
+  // and when they are sent.
+
+  function addNote(id) {
+    if (noteRecs.has(id)) return noteRecs.get(id).el;
+    const node = doc.createElement("div");
+    node.className = "k-prop k-prop--note";
+    node.setAttribute("role", "group");
+    node.setAttribute("aria-label", "Proposed note");
+    node.dataset.noteId = id;
+    el.appendChild(node);
+    noteRecs.set(id, { el: node, editing: false });
+    paintNote(id);
+    return node;
+  }
+
+  function paintNote(id) {
+    const rec = noteRecs.get(id);
+    const cur = ctl.note?.(id);
+    if (!rec || !cur) return;
+    const { n, busy, error } = cur;
+    const warn = !!n.fromPane;
+    rec.el.classList.toggle("k-prop--warn", warn && n.status === "open");
+    if (n.status !== "open" || n.expired) {
+      rec.editing = false;
+      const text = n.status === "open" ? "Not saved. This proposal expired; add the note yourself in Edit host or Settings · Agent." : N.proposalDone(n);
+      const undo = !n.expired ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-note-undo${busy ? " disabled" : ""}>Undo</button>` : "";
+      const icon = n.status === "saved" ? `<span class="k-note-done-ok">${ICON.tick}</span>` : ICON.info;
+      rec.el.classList.add("k-prop--done");
+      rec.el.innerHTML = `<div class="k-note-done" role="status">${icon}<span>${escapeHtml(text)}</span>${undo}</div>`;
+      return;
+    }
+    rec.el.classList.remove("k-prop--done");
+    const badges = `${warn ? '<span class="k-badge k-badge--flare">From pane output</span>' : ""}<span class="k-badge k-badge--mono">${escapeHtml(N.proposalTarget(n))}</span>`;
+    const body = rec.editing
+      ? `<textarea class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
+      : `<p class="k-note-text">${A.answerHTML(n.text)}</p>`;
+    const notes = [];
+    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(N.FROM_PANE_WARNING)}</span></div>`);
+    if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
+    notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you press Save. Notes live in the vault; edit them in Edit host or Settings · Agent."));
+    const save = warn
+      ? `<button type="button" class="k-btn k-btn--sm" data-note-save${busy ? " disabled" : ""}>Save anyway</button>`
+      : `<button type="button" class="k-btn k-btn--primary k-btn--sm" data-note-save${busy ? " disabled" : ""}>Save</button>`;
+    const foot = rec.editing
+      ? `<span class="k-spacer"></span>
+         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-note-cancel>Cancel</button>
+         ${save}`
+      : `<span class="k-prop-count">${escapeHtml(N.proposalScope(n))}</span>
+         <span class="k-spacer"></span>
+         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-note-dismiss${busy ? " disabled" : ""}>Dismiss</button>
+         <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-note-edit-btn aria-label="Edit note" title="Edit">${ICON.edit}</button>
+         ${save}`;
+    rec.el.innerHTML = `<div class="k-prop-head">${ICON.note}<span>Remember this?</span><span class="k-prop-badges">${badges}</span></div>
+      <div class="k-prop-body">${body}<p class="k-note-src">${escapeHtml(N.proposalSource(n))}</p>${notes.join("")}</div>
+      <div class="k-prop-foot">${foot}</div>`;
+    if (rec.editing) rec.el.querySelector("[data-note-edit]")?.focus({ preventScroll: true });
+  }
+
+  async function saveNote(id) {
+    const rec = noteRecs.get(id);
+    const text = rec?.editing ? rec.el.querySelector("[data-note-edit]")?.value || "" : "";
+    if (await ctl.saveNote(id, text)) {
+      rec.editing = false;
+      paintNote(id);
+      rec.el.querySelector("[data-note-undo]")?.focus({ preventScroll: true });
+    }
+  }
+
+  function setNoteEditing(id, on) {
+    const rec = noteRecs.get(id);
+    if (!rec) return;
+    rec.editing = on;
+    paintNote(id);
   }
 
   async function typeIt(id, shift) {
@@ -355,6 +444,15 @@ export function createThreadView(opts) {
   }
 
   el.addEventListener("click", (ev) => {
+    const nid = ev.target.closest(".k-prop--note")?.dataset.noteId;
+    if (nid && noteRecs.has(nid)) {
+      if (ev.target.closest("[data-note-save]")) saveNote(nid);
+      else if (ev.target.closest("[data-note-dismiss]")) ctl.dismissNote(nid);
+      else if (ev.target.closest("[data-note-undo]")) ctl.undoNote(nid);
+      else if (ev.target.closest("[data-note-edit-btn]")) setNoteEditing(nid, true);
+      else if (ev.target.closest("[data-note-cancel]")) setNoteEditing(nid, false);
+      return;
+    }
     const id = ev.target.closest(".k-prop")?.dataset.proposalId;
     if (!id || !recs.has(id)) return;
     if (ev.target.closest("[data-prop-type]")) typeIt(id, ev.shiftKey);
@@ -365,6 +463,19 @@ export function createThreadView(opts) {
     else if (ev.target.closest("[data-prop-save]")) saveEdit(id);
   });
   el.addEventListener("keydown", (ev) => {
+    const nid = ev.target.closest(".k-prop--note")?.dataset.noteId;
+    const nrec = nid && noteRecs.get(nid);
+    if (nrec?.editing) {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setNoteEditing(nid, false);
+      } else if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+        ev.preventDefault();
+        saveNote(nid);
+      }
+      return;
+    }
     const id = ev.target.closest(".k-prop")?.dataset.proposalId;
     const rec = id && recs.get(id);
     if (!rec) return;
@@ -397,6 +508,8 @@ export function createThreadView(opts) {
     renderTranscript,
     addProposal,
     paintCard,
+    addNote,
+    paintNote,
     repaint,
     scrollDown,
   };

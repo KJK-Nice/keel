@@ -504,3 +504,59 @@ describe('agent page', { tags: ['visual'], serial: true }, () => {
     });
   }
 });
+// Notes for the agent (§15, boards HostNotes and MemoryPropose): Edit host
+// with its notes (two written by the user, one the agent proposed and the
+// user saved), then the agent panel with a note proposal from pane output.
+describe('host notes', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`host notes (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/notes');
+      const hosts = await keelApi<{ id: string; authType: string }[]>(app.baseUrl, '/api/hosts');
+      const local = hosts.find((h) => h.authType === 'local')!;
+      await keelSend(app.baseUrl, 'POST', '/api/agent/notes', { hostId: local.id, text: 'Patroni cluster "main". Config is `/etc/patroni.yml`; run `patronictl` as `sudo -u postgres`.' });
+      await keelSend(app.baseUrl, 'POST', '/api/agent/notes', { hostId: local.id, text: 'Do not restart postgres during 08:00–20:00 ICT; page the on-call first.' });
+      await openKeel(app);
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      const sessions = await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions');
+      const pane = sessions[sessions.length - 1].id;
+      // One proposal saved through the API, so the list shows an agent note.
+      const conv = `conv-visual-notes-${theme}-${Date.now()}`;
+      const res = await keelSend<{ notes: { id: string }[] }>(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: conv, question: 'remember this, no command', panes: [pane] });
+      await keelSend(app.baseUrl, 'POST', `/api/agent/conversations/${conv}/notes/${res.notes[0].id}`, {});
+
+      // Edit host: the notes column.
+      const vault = screen.getByRole('complementary', 'Vault');
+      await vault.getByRole('button', 'Actions', { visible: true }).first().tap();
+      await screen.getByRole('menuitem', 'Edit').tap();
+      const dialog = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
+      await expect(dialog.getByRole('region', 'Notes for the agent').getByRole('listitem')).toHaveCount(3);
+      await app.screenshot(`${theme}-host-notes`);
+      await dialog.getByRole('button', 'Cancel').tap();
+      await expect(dialog).toBeHidden();
+
+      // The panel: a note from pane output waits for Save anyway.
+      await input.press('Meta+i');
+      const panel = screen.getByRole('complementary', 'Agent');
+      await expect(panel).toBeVisible();
+      const ask = panel.getByRole('textbox', 'Message the agent');
+      await ask.fill('Why does replication restart? remember from the pane, no command');
+      await ask.press('Enter');
+      await expect(panel.getByRole('group', 'Proposed note')).toContainText('From pane output');
+      await expect(panel).toContainText('Used host notes · Local Shell (3)');
+      await app.screenshot(`${theme}-note-proposal`);
+
+      await panel.getByRole('button', 'Close agent').tap();
+      await screen.getByRole('button', 'Close tab').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/notes');
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+      await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${pane}`).catch(() => {});
+    });
+  }
+});

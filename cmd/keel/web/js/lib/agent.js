@@ -7,6 +7,7 @@
 // AuthorizeType) before the approved bytes are written.
 
 import { escapeHtml } from "./html.js";
+import { noteStepText } from "./notes.js";
 
 // A pane as the panel sees it (built by term.js from its pane state):
 //   { sessionId, label, sub, tabId, focused, inActiveTab, readable,
@@ -111,6 +112,7 @@ function redactedNote(counts) {
 
 // traceText is one line of the agent trace: what it read, or why not.
 export function traceText(step) {
+  if (step?.status === "notes") return noteStepText(step);
   const host = step?.host || "a pane";
   if (step?.status === "read" && step.command) {
     // From the shell's OSC 133 marks: the last command, its output and how it ended.

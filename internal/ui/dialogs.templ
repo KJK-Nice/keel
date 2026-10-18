@@ -231,6 +231,15 @@ templ hostDialog() {
 						<button type="button" class="k-switch" role="switch" id="host-production" aria-checked="false" aria-labelledby="host-production-label" data-switch-field="production"></button>
 						<input type="hidden" name="production" value="false"/>
 					</div>
+					<div class="k-field k-field--row">
+						<div class="k-field-copy">
+							<span id="host-agent-notes-label">Let the agent propose notes</span>
+							<span class="k-help">It asks first. Nothing is saved until you press Save.</span>
+						</div>
+						<button type="button" class="k-switch" role="switch" id="host-agent-notes" aria-checked="true" aria-labelledby="host-agent-notes-label" data-switch-field="agentNotes"></button>
+						<input type="hidden" name="agentNotes" value="true"/>
+					</div>
+					@notesBlock("host-notes", "Notes for the agent", "Add a note, e.g. Backups run at 02:00 from pgbackrest", "Sent to the agent only when this host is in scope and Agent can read is on. Redacted like pane text. Stored encrypted in the vault.", true)
 				</div>
 			</div>
 			<div class="k-start-notes k-host-test" id="host-test-detail" role="status" hidden>
@@ -548,3 +557,39 @@ templ labeledSelect(id, caption, name, placeholder, current string, required boo
 // savingAttrs disables a dialog's Save button while its @post is in flight
 // (data-indicator:_saving on the form), so a slow save is not sent twice.
 var savingAttrs = templ.Attributes{"data-attr:disabled": "$_saving"}
+
+// notesBlock is a notes list for the agent (docs/ui-redesign.md §15, board
+// HostNotes): a host's notes in Edit host, or the user's own in Settings ·
+// Agent. js/ui/notes.js fills it and saves each change as it is made; the
+// field has no name, so it is never posted with the host form.
+templ notesBlock(id, title, placeholder, help string, host bool) {
+	<section class="k-notes-block" id={ id } aria-labelledby={ id + "-label" }>
+		<div class="k-notes-head">
+			@noteIcon()
+			<span class="k-menu-label" id={ id + "-label" }>{ title }</span>
+			<span class="k-notes-count" data-notes-count></span>
+		</div>
+		if host {
+			<div class="k-review" data-notes-off role="note" hidden>
+				@shieldIcon()
+				<span>Agent can read is off, so these notes are not sent. They stay in the vault.</span>
+			</div>
+			<p class="k-help" data-notes-unsaved hidden>Save the host first, then add notes for the agent.</p>
+		}
+		<div class="k-notes" role="list" aria-labelledby={ id + "-label" } data-notes-list></div>
+		<div class="k-note-add" data-notes-add-row>
+			<input class="k-input" type="text" data-notes-input aria-label="Add a note" placeholder={ placeholder } maxlength="1000" autocomplete="off" spellcheck="true"/>
+			<button type="button" class="k-btn k-btn--sm" data-notes-add>Add</button>
+		</div>
+		<p class="k-error" role="alert" data-notes-error hidden></p>
+		<span class="k-help">{ help }</span>
+	</section>
+}
+
+templ noteIcon() {
+	<svg class="k-notes-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 21H9.5C6.2 21 4.6 21 3.5 20C2.5 18.9 2.5 17.3 2.5 14V10C2.5 6.7 2.5 5.1 3.5 4C4.6 3 6.2 3 9.5 3H14.5C17.8 3 19.4 3 20.5 4C21.5 5.1 21.5 6.7 21.5 10V15L15.5 21Z"></path><path d="M15 21V18.5C15 17.1 15 16.4 15.4 16C15.9 15.5 16.6 15.5 18 15.5H21.5"></path><path d="M7 8H17M7 12H12"></path></svg>
+}
+
+templ shieldIcon() {
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.7 3.5C16.8 2.6 14.5 2 12 2C9.5 2 7.2 2.6 5.3 3.5C4.4 4 3.9 4.2 3.4 4.9C3 5.6 3 6.3 3 7.7V11.2C3 16.9 7.5 20.1 10.2 21.4C10.9 21.8 11.3 22 12 22C12.7 22 13.1 21.8 13.8 21.4C16.5 20.1 21 16.9 21 11.2V7.7C21 6.3 21 5.6 20.6 4.9C20.1 4.2 19.6 4 18.7 3.5Z"></path></svg>
+}

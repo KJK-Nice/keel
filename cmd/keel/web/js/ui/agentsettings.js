@@ -15,6 +15,7 @@
 // never put in a toast, an error line or the console.
 
 import * as S from "../lib/agentsettings.js";
+import { createNotesEditor } from "./notes.js";
 
 export function createAgentSettings({ doc = document, api, toast, confirm, widgets = {} }) {
   const root = doc.getElementById("agent-settings");
@@ -35,7 +36,10 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
     hosts: $("agent-set-hostnames"),
     history: $("agent-set-history"),
     deleteHistory: $("agent-set-delete-history"),
+    deleteNotes: $("agent-set-delete-notes"),
   };
+  // The user's own notes for the agent (§15).
+  const notes = createNotesEditor({ root: $("agent-set-notes"), api, toast, kind: "user" });
 
   const state = {
     settings: null,
@@ -110,6 +114,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
   // --- load and save ---
 
   async function load() {
+    notes?.load();
     try {
       const [res, list] = await Promise.all([api("/api/agent/settings"), state.providers.length ? Promise.resolve(state.providers) : api("/api/agent/providers")]);
       state.settings = res.settings || null;
@@ -202,6 +207,23 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
     }
   }
 
+  async function deleteNotes() {
+    if (
+      !(await confirm("Every host note and every note about you is deleted from the vault. Conversations and the log stay.", {
+        title: "Delete all notes?",
+        action: "Delete all notes",
+      }))
+    )
+      return;
+    try {
+      await api("/api/agent/notes", { method: "DELETE" });
+      toast("Notes deleted");
+      notes?.load();
+    } catch (err) {
+      toast(err?.message || "Could not delete the notes", true);
+    }
+  }
+
   // --- events ---
 
   root.addEventListener("keydown", (ev) => {
@@ -262,6 +284,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
       return;
     }
     if (t.closest("#agent-set-delete-history")) deleteHistory();
+    if (t.closest("#agent-set-delete-notes")) deleteNotes();
   });
 
   // Radio groups move with the arrow keys, as radios do.

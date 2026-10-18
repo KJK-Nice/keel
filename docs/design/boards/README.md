@@ -9,6 +9,7 @@ Versioned snapshot of the Keel redesign canvas, so phase work uses a fixed desig
 - `Panes.dc.html`, `workspace.css` (the `kw-map` / `kw-pane-row` rules at its end) and `canvas.json` were taken from artifact version `1792114738-a1e8` on 2026-10-16; the other boards stay at the snapshot above.
 - `AgentSessions.dc.html`, `AgentPage.dc.html` and the "Agent sessions" section of `workspace.css` were copied from the approved canvas on 2026-10-18 (agent sessions phase). `canvas.json` was not updated: the canvas now holds further boards (notes, runbooks, groups, notebook) that are not in this folder.
 - `Notebook.dc.html`, `NotebookTypes.dc.html` and their `notebook.css` (the `nb-*` styles) were copied on 2026-10-18 from the canvas as approved on 2026-10-16. `canvas.json` and `workspace.css` were not refreshed with them.
+- `HostNotes.dc.html`, `MemoryPropose.dc.html` and the "Memory and skills" section of `workspace.css` (the `kw-note*`, `kw-mem*` and `kw-review` rules, plus the `kw-rb-*` / `kw-rp-*` rules the next phase's runbook boards use) were copied on 2026-10-18 from the canvas as approved (host notes phase, §15). `canvas.json` was not updated.
 
 The boards are reference markup, not app code. They reference `./support.js` from the canvas runtime and use `<x-dc>` / `dc-import`, so they will not run standalone. Read them for structure, copy and state; build in templ with the `k-*` classes from `docs/design/components.css`. Tokens come only from `docs/design/tokens.json`. Fonts are loaded from Google Fonts in the boards for preview only; the app ships woff2 locally.
 
@@ -39,6 +40,8 @@ The boards are reference markup, not app code. They reference `./support.js` fro
 | `AgentPage.dc.html` | §5.4.1 Agent tab page (three columns) | follow-up |
 | `Notebook.dc.html` | §13 notebook reading spec (the pane beside a session) | post-plan polish |
 | `NotebookTypes.dc.html` | §13 notebook type specimen (each block and its tokens) | post-plan polish |
+| `HostNotes.dc.html` | §15 notes for the agent in Edit host | Host notes |
+| `MemoryPropose.dc.html` | §15 a note the agent proposes (host note, user note, from pane output) | Host notes |
 
 ## Drift from repo tokens
 
@@ -60,3 +63,5 @@ The AgentSessions board's `kw-sess-*`, `kw-pop*`, `kw-agent-sub`, `kw-divider` a
 The Panes board's `kw-seg-n`, `kw-map` / `kw-map-cell` and `kw-pane-row` rules ship in `keel.css` as `k-seg-n`, `k-panemap` / `k-panemap-cell` and `k-pane-row`, with no new token: the 76px map is `size-row + size-control-lg`, the 40px row `size-control-lg + space-2`, and the cell radius is `radius-xs` (3px; the board has 2px). The map places cells from the tab's real split tree instead of the board's fixed grid.
 
 The Notebook boards' `nb-*` rules ship in `keel.css` as `notebook-*` (the class names the editor bundle already used). Two tokens were added for them: the `reading` type style (14/22, sans 400) and `size-reading` (68ch, the `nb-col` measure). The generator now also writes every type style to `tokens.css` as `--type-<name>` (a font shorthand in rem), so `nb-*`'s `font: 600 28px/32px var(--font-display)` becomes `font: var(--type-display)`. Pixel paddings in `notebook.css` (28 / 32 / 48, 10, 22) are `space-*` sums or the nearest step; the host chip's 20px height comes from `space-0.5` padding around the `meta` line height. The proposed blocks (checklist, table, `> [!WARNING]`) are not built: see `docs/ui-redesign.md` §13.
+
+The HostNotes and MemoryPropose boards' `kw-note*`, `kw-mem*` and `kw-review` rules ship in `keel.css` (reference in `docs/design/components.css`) as `k-notes-block`, `k-notes`, `k-note*`, `k-review`, and, for the proposal, the `k-prop` card with `k-prop--note`, `k-prop--warn`, `k-prop-badges`, `k-note-warn` and `k-note-done`, with no new token. The board's 36px host tile and `deploy@… · via bastion` line are left out: the app's Edit host dialog keeps its own title row, and the notes sit under its Agent switches in the right column.

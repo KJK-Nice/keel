@@ -51,6 +51,7 @@ import { createAgentPanel } from "./ui/agentpanel.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
+import { createNotesEditor } from "./ui/notes.js";
 import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 import { attachCommandMarks } from "./lib/cmdmarks.js";
@@ -138,6 +139,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   let agentPanel = null;
   let agentPage = null;
   let agentSettings = null;
+  // The host's notes for the agent in Edit host (§15, js/ui/notes.js).
+  let hostNotes = null;
   let settingsPages = null;
 
   function loadPrefs() {
@@ -5367,6 +5370,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // would do (§11.4), and is always sent, so an untouched dialog keeps it.
     setSwitch("host-agent-readable", !host || host.agentReadable !== false);
     setSwitch("host-production", host?.id ? host.production === true : host?.production === true || isProductionGroup(host?.groupId));
+    setSwitch("host-agent-notes", !host || host.agentNotes !== false);
+    // Notes for the agent (§15): saved one by one as they are added, so a
+    // new host has none until it is saved.
+    hostNotes?.load(host?.id || "");
+    hostNotes?.setReadable(switchOn("host-agent-readable"));
     const title = document.getElementById("host-modal-title");
     if (title) title.textContent = host?.id ? "Edit host" : "New host";
     const del = document.getElementById("host-delete");
@@ -7584,9 +7592,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         toast(err.message, true);
       }
     });
+    hostNotes = createNotesEditor({ root: document.getElementById("host-notes"), api, toast, kind: "host" });
     on(els.hostForm, "click", (ev) => {
       const sw = ev.target.closest("button.k-switch");
       if (sw) setSwitch(sw.id, sw.getAttribute("aria-checked") !== "true");
+      if (sw?.id === "host-agent-readable") hostNotes?.setReadable(switchOn("host-agent-readable"));
     });
     // Choosing a group named production turns Treat as production on (the
     // user can turn it off); leaving one never turns it off.

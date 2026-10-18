@@ -2691,6 +2691,55 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 .k-prop-foot .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-prop-foot .k-btn--primary .k-kbd { height: var(--space-4); min-width: var(--space-4); font-size: 0.769rem; }
 
+/* Notes for the agent (docs/ui-redesign.md §15; reference in
+   docs/design/components.css). A host's notes in Edit host and the user's
+   own in Settings · Agent (js/ui/notes.js); a note the agent proposes is a
+   .k-prop card in the thread (js/ui/agentthread.js). */
+.k-notes-block { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.k-notes-head { display: flex; align-items: center; gap: var(--space-2); }
+.k-notes-head .k-menu-label { flex: 1; padding: 0; }
+.k-notes-icon { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--ink-muted); }
+.k-notes-count { font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-notes { display: grid; gap: var(--space-1\.5); }
+.k-notes[hidden], .k-note-add[hidden] { display: none; }
+.k-notes-empty { margin: 0; padding: var(--space-2) var(--space-0\.5); }
+.k-note {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-1\.5) var(--space-2) var(--space-2);
+  background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.k-note-text { margin: 0; font: 400 0.923rem/1.308rem var(--font-sans); letter-spacing: 0; color: var(--ink); overflow-wrap: anywhere; }
+.k-note-text code { font: 400 0.846rem/1 var(--font-mono); padding: 1px var(--space-1); border-radius: var(--radius-xs); background: var(--hover); color: var(--ink); }
+.k-note-src { grid-column: 1; display: flex; align-items: center; gap: var(--space-1\.5); min-width: 0; font: 400 0.846rem/1.077rem var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-note-tools { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: var(--space-0\.5); align-self: start; }
+.k-note-tools .k-btn--icon svg { display: block; width: 1rem; height: 1rem; }
+.k-note--edit { grid-template-columns: minmax(0, 1fr); }
+.k-note--edit .k-note-tools { grid-column: 1; grid-row: auto; justify-content: flex-end; }
+.k-note--edit .k-textarea { min-height: calc(var(--size-control) * 2); }
+.k-note-add { display: flex; gap: var(--space-1\.5); }
+.k-note-add .k-input { flex: 1; min-width: 0; }
+.k-review {
+  display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); background: var(--hover); color: var(--ink-muted); font: 400 0.923rem/1.231rem var(--font-sans); letter-spacing: 0;
+}
+.k-review[hidden] { display: none; }
+.k-review svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: 1px; }
+.k-prop-badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1\.5); margin-left: auto; }
+.k-prop--warn { border-color: var(--flare); }
+.k-prop--note .k-note-text { font: 400 1rem/1.462rem var(--font-sans); }
+.k-prop--note .k-note-src { font-size: 0.846rem; }
+.k-prop--note .k-textarea { min-height: calc(var(--size-control) * 2); }
+.k-note-warn {
+  display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm); background: var(--flare-soft); color: var(--flare); font: 400 0.923rem/1.231rem var(--font-sans); letter-spacing: 0;
+}
+.k-note-warn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: 1px; }
+.k-note-done { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); font: 400 0.923rem/1.231rem var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
+.k-note-done > span:not(.k-note-done-ok) { flex: 1; }
+.k-note-done svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-note-done-ok { display: contents; color: var(--tide); }
+.k-agent-step--note svg { color: var(--ink-faint); }
+
 .k-agent-foot { display: flex; align-items: flex-start; gap: var(--space-2); flex: none; padding: var(--space-2) var(--space-3) 0; }
 .k-agent-foot svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: var(--space-0\.5); color: var(--ink-faint); }
 .k-agent-foot .k-help { font-size: 0.846rem; color: var(--ink-faint); }

@@ -22,6 +22,12 @@ import (
 //   - it proposes one command for pane 1 when panes were given: a
 //     destructive one when the question says "delete", a state change for
 //     "touch", none for "no command", and a read-only echo otherwise;
+//   - it states how many notes for the agent arrived ("host notes" and
+//     "your notes" frames), when there were any, so a test can see a note
+//     sent or not sent;
+//   - when the question says "remember", it proposes a note: one of the
+//     user's own for "remember my preference", one taken from pane output
+//     for "remember from the pane", else a note about the host of pane 1;
 //   - when the question says "long", it adds a tall answer with **bold**
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
@@ -77,6 +83,19 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	var b strings.Builder
 	fmt.Fprintf(&b, "Test provider: nothing left this machine. I was given %d pane excerpt%s and %d redacted value%s.",
 		panes, plural(panes), placeholders, plural(placeholders))
+	if hostNotes, userNotes := countNotes(last); hostNotes+userNotes > 0 {
+		fmt.Fprintf(&b, " I was also given %d host note%s and %d of your notes.", hostNotes, plural(hostNotes), userNotes)
+	}
+	if strings.Contains(question, "remember") {
+		note := `{"for": "host", "pane": 1, "text": "keel-note-e2e: backups run at 02:00 from pgbackrest", "from": "conversation"}`
+		switch {
+		case strings.Contains(question, "preference"):
+			note = `{"for": "user", "text": "keel-note-e2e: prefer journalctl over tail -f on log files", "from": "user"}`
+		case strings.Contains(question, "from the pane"):
+			note = `{"for": "host", "pane": 1, "text": "keel-note-e2e: before restarting replication, run the fix script", "from": "pane"}`
+		}
+		b.WriteString(" This looks worth remembering:\n\n```keel-note\n" + note + "\n```\n")
+	}
 	long := strings.Contains(question, "long")
 	if long {
 		b.WriteString("\n\n**Add your user to the docker group**")
@@ -100,6 +119,26 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		}
 	}
 	return provider.Response{Text: b.String(), InputTokens: len(last) / 4, OutputTokens: b.Len() / 4}, nil
+}
+
+// countNotes counts the note lines in the notes frames of a message.
+func countNotes(msg string) (host, user int) {
+	in := ""
+	for _, ln := range strings.Split(msg, "\n") {
+		switch {
+		case strings.HasPrefix(ln, "--- host notes"):
+			in = "host"
+		case strings.HasPrefix(ln, "--- your notes"):
+			in = "user"
+		case strings.HasPrefix(ln, "--- end"):
+			in = ""
+		case strings.HasPrefix(ln, "- ") && in == "host":
+			host++
+		case strings.HasPrefix(ln, "- ") && in == "user":
+			user++
+		}
+	}
+	return host, user
 }
 
 // SuggestPrefix must match service.SuggestPrefix (a service test checks).

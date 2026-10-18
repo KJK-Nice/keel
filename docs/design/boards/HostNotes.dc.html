@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel host notes for the agent</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--stage); font-family: var(--font-sans); color: var(--ink)">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="n-trash" viewBox="0 0 24 24"><path d="M19.5 5.5L18.9 15.5C18.7 18.1 18.6 19.4 18 20.3C17.7 20.8 17.2 21.2 16.7 21.5C15.8 22 14.5 22 11.9 22C9.3 22 8 22 7.1 21.5C6.6 21.2 6.2 20.8 5.9 20.3C5.3 19.4 5.2 18.1 5 15.5L4.5 5.5"></path><path d="M3 5.5H21M16.1 5.5L15.4 4.1C15 3.2 14.7 2.7 14.2 2.4C14.1 2.3 14 2.3 13.9 2.2C13.4 2 12.9 2 11.9 2C10.9 2 10.4 2 9.9 2.2C9.8 2.3 9.7 2.3 9.6 2.4C9.2 2.7 8.9 3.2 8.6 4.1L8 5.5"></path></symbol>
+<symbol id="n-note" viewBox="0 0 24 24"><path d="M15.5 21H9.5C6.2 21 4.6 21 3.5 20C2.5 18.9 2.5 17.3 2.5 14V10C2.5 6.7 2.5 5.1 3.5 4C4.6 3 6.2 3 9.5 3H14.5C17.8 3 19.4 3 20.5 4C21.5 5.1 21.5 6.7 21.5 10V15L15.5 21Z"></path><path d="M15 21V18.5C15 17.1 15 16.4 15.4 16C15.9 15.5 16.6 15.5 18 15.5H21.5"></path><path d="M7 8H17M7 12H12"></path></symbol>
+</svg>
+<dc-import name="Main" theme="{{theme}}" agent="{{no}}" hint-size="1440px,900px"></dc-import>
+
+<div class="k-scrim" style="position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 48px">
+<div class="k-dialog" role="dialog" aria-labelledby="hn-title" style="width: 760px">
+<div class="k-dialog-head" style="grid-template-columns: auto 1fr auto; align-items: center; column-gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line)">
+<span class="k-tile" style="--host: var(--ansi-14); width: 36px; height: 36px"><svg class="kw-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-server"></use></svg></span>
+<div style="display: grid; gap: 2px"><h2 class="k-dialog-title" id="hn-title">prod-db-01</h2><span class="k-muted" style="font: 400 12px/16px var(--font-mono)">deploy@10.0.4.21:22 · via bastion</span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Close"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg></button>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); max-height: 640px; overflow: auto">
+
+<div style="padding: 16px; display: grid; gap: 14px; align-content: start; border-right: 1px solid var(--line)">
+<div class="k-menu-label" style="padding: 0">Session</div>
+<div class="k-field"><label class="k-label" for="hn-start">Startup command</label><input id="hn-start" class="k-input k-input--mono" placeholder="tmux new -A -s main"></div>
+<div class="k-field k-field--row"><span>Keepalive every 30 s</span><button class="k-switch" role="switch" aria-checked="true" aria-label="Keepalive"></button></div>
+
+<div class="k-menu-label" style="padding: 6px 0 0">Agent</div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Agent can read this host's panes</span><span class="k-help">You still choose panes per conversation.</span></div><button class="k-switch" role="switch" aria-checked="{{canRead}}" aria-label="Agent can read panes" onClick="{{toggleRead}}"></button></div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Treat as production</span><span class="k-help">Suggestions that change state need ⇧⇥ and show a red edge.</span></div><button class="k-switch" role="switch" aria-checked="true" aria-label="Treat as production"></button></div>
+<div class="k-field k-field--row"><div style="display: grid; gap: 2px"><span>Let the agent propose notes</span><span class="k-help">It asks first. Nothing is saved until you press Save.</span></div><button class="k-switch" role="switch" aria-checked="{{canPropose}}" aria-label="Let the agent propose notes" onClick="{{togglePropose}}"></button></div>
+</div>
+
+<div style="padding: 16px; display: grid; gap: 12px; align-content: start">
+<div style="display: flex; align-items: center; gap: 8px">
+<svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-muted)"><use href="#n-note"></use></svg>
+<span class="k-menu-label" style="padding: 0; flex: 1">Notes for the agent</span>
+<span class="k-faint" style="font: 400 11px/1 var(--font-mono)">{{count}} notes · {{chars}} chars</span>
+</div>
+
+<sc-if value="{{offNote}}" hint-placeholder-val="{{ false }}">
+<div class="kw-review" style="background: var(--hover); color: var(--ink-muted)"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 1px"><use href="#i-shield"></use></svg><span>Agent can read is off, so these notes are not sent. They stay in the vault.</span></div>
+</sc-if>
+
+<div class="kw-notes">
+<sc-for list="{{notes}}" as="n" hint-placeholder-count="4">
+<div class="kw-note">
+<p class="kw-note-text">{{n.text}}</p>
+<span class="kw-note-src">{{n.src}}</span>
+<span class="kw-note-tools">
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Edit note"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-edit"></use></svg></button>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Delete note" onClick="{{n.remove}}"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#n-trash"></use></svg></button>
+</span>
+</div>
+</sc-for>
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}"><p class="k-help" style="margin: 0; padding: 8px 2px">No notes. The agent will ask when it needs a fact about this host.</p></sc-if>
+</div>
+
+<div class="kw-note-add">
+<label class="k-label" for="hn-add" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Add a note</label>
+<input id="hn-add" class="k-input" placeholder="Add a note, e.g. Backups run at 02:00 from pgbackrest" style="flex: 1">
+<button class="k-btn k-btn--sm" onClick="{{addNote}}">Add</button>
+</div>
+<span class="k-help">Sent to the agent only when this host is in scope and Agent can read is on. Redacted like pane text.</span>
+</div>
+</div>
+
+<div class="k-dialog-foot" style="align-items: center">
+<button class="k-btn k-btn--danger k-btn--sm">Delete host</button>
+<span class="k-spacer"></span>
+<span class="k-help" style="margin-right: 4px">Notes are stored encrypted in the vault.</span>
+<button class="k-btn k-btn--ghost">Cancel</button>
+<button class="k-btn k-btn--primary">Save<span class="k-kbd">⌘↵</span></button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const base = [
+      { id: 'a', text: 'Patroni cluster "main". Config is /etc/patroni.yml; run patronictl and psql as sudo -u postgres.', src: 'You · Oct 12' },
+      { id: 'b', text: 'pg-2 (prod-db-02) replicates over SSL on 10.0.4.0/24. Timeouts there have come from the conntrack table on bastion filling up.', src: 'Proposed by the agent from pane prod-db-02 · Oct 14 · you approved' },
+      { id: 'c', text: 'Backups: pgbackrest, full on Sunday 02:00, diff daily. Repo is s3://keel-pg-backups.', src: 'You · Oct 12' },
+      { id: 'd', text: 'Do not restart postgres during 08:00–20:00 ICT; page the on-call first.', src: 'You · Oct 13' }
+    ];
+    const removed = this.state.removed ?? [];
+    const added = this.state.added ?? [];
+    const all = base.concat(added).filter((n) => removed.indexOf(n.id) < 0);
+    const notes = all.map((n) => ({ ...n, remove: () => this.setState({ removed: removed.concat([n.id]) }) }));
+    const chars = all.reduce((s, n) => s + n.text.length, 0);
+    const canRead = this.state.canRead ?? true;
+    const canPropose = this.state.canPropose ?? true;
+    return {
+      theme: this.props.theme ?? 'dark',
+      no: false,
+      notes: notes,
+      empty: notes.length === 0,
+      count: notes.length,
+      chars: chars,
+      canRead: canRead ? 'true' : 'false',
+      canPropose: canPropose ? 'true' : 'false',
+      offNote: !canRead,
+      toggleRead: () => this.setState({ canRead: !canRead }),
+      togglePropose: () => this.setState({ canPropose: !canPropose }),
+      addNote: () => this.setState({ added: added.concat([{ id: 'n' + added.length, text: 'Backups run at 02:00 from pgbackrest.', src: 'You · just now' }]) })
+    };
+  }
+}
+</script>
+</body>
+</html>

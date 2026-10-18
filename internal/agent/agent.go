@@ -27,6 +27,7 @@ const (
 	EventSuggest = "agent.suggest" // a suggestion was produced for a pane
 	EventInsert  = "agent.insert"  // a suggestion was inserted on the prompt line (⇥ / ⇧⇥), not run
 	EventType    = "agent.type"    // a proposal was typed into a pane (Type into pane ↵)
+	EventNote    = "agent.note"    // notes for the agent sent with a question, or saved, edited or deleted
 )
 
 // Role is the client's role in a session. The values match
@@ -56,6 +57,8 @@ type Host struct {
 	Address       string
 	AgentReadable bool
 	Production    bool
+	// ProposeNotes is the host's "Let the agent propose notes".
+	ProposeNotes bool
 }
 
 // HostsFrom copies the non-secret fields of store hosts.
@@ -68,6 +71,7 @@ func HostsFrom(hosts []store.Host) []Host {
 			Address:       h.Address,
 			AgentReadable: h.ReadableByAgent(),
 			Production:    h.IsProduction(),
+			ProposeNotes:  h.ProposesNotes(),
 		})
 	}
 	return out
@@ -98,6 +102,12 @@ func NewScope(hosts []Host) Scope {
 // Allows reports whether the agent may read p.
 func (s Scope) Allows(p Pane) bool {
 	return p.HostID != "" && s.readable[p.HostID]
+}
+
+// AllowsHost reports whether the agent may read what belongs to a host:
+// its panes and its notes. An unknown host is out.
+func (s Scope) AllowsHost(hostID string) bool {
+	return hostID != "" && s.readable[hostID]
 }
 
 // Filter splits panes into the ones the agent may read and the rest, both
