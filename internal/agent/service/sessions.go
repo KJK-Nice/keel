@@ -213,7 +213,7 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	for _, t := range chat.Turns {
 		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals))}
 		for _, st := range t.Trace {
-			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions})
+			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command})
 		}
 		for _, sp := range t.Proposals {
 			if p, ok := live[sp.ID]; ok {

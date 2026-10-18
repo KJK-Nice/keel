@@ -57,3 +57,22 @@ func (r *ring) BytesSince(mark uint64) []byte {
 	}
 	return append([]byte(nil), r.buf[uint64(len(r.buf))-n:]...)
 }
+
+// Range returns what was written between the stream offsets from and to
+// that the ring still holds. truncated is true when from had already left
+// the ring (what is returned then starts at the oldest byte held).
+func (r *ring) Range(from, to uint64) (b []byte, truncated bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if to > r.total {
+		to = r.total
+	}
+	start := r.total - uint64(len(r.buf))
+	if from < start {
+		from, truncated = start, true
+	}
+	if from >= to {
+		return nil, truncated
+	}
+	return append([]byte(nil), r.buf[from-start:to-start]...), truncated
+}

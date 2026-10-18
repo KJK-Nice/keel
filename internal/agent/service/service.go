@@ -212,6 +212,10 @@ type TraceStep struct {
 	Reason     string         `json:"reason,omitempty"`
 	Lines      int            `json:"lines"`
 	Redactions map[string]int `json:"redactions,omitempty"`
+	// Command is "exit 1", "exit status not reported" or "still running"
+	// when the pane's last command was read from its shell-integration
+	// marks (OSC 133) instead of its last lines.
+	Command string `json:"command,omitempty"`
 }
 
 // Proposal is a command the agent suggests. It is kept in the conversation
@@ -353,6 +357,9 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		}
 		excerpts = append(excerpts, ex)
 		step.Status, step.Pane, step.Lines, step.Redactions = "read", len(excerpts), ex.Lines, ex.Report.Strings()
+		if ex.LastCommand {
+			step.Command = ex.Command.Label()
+		}
 		trace = append(trace, step)
 	}
 
@@ -362,6 +369,13 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	var msg strings.Builder
 	fmt.Fprintf(&msg, "Panes in scope: %d\n\n", len(excerpts))
 	for i, ex := range excerpts {
+		if ex.LastCommand {
+			// From the shell's own marks: the last command, its output,
+			// how it ended and what came after. The marks are output too,
+			// so the frame says unverified (systemPrompt explains).
+			fmt.Fprintf(&msg, "--- pane %d · host %s · last command reported by the pane's shell (unverified) ---\n%s\n--- end pane %d ---\n\n", i+1, ex.Pane.HostName, ex.Text.String(), i+1)
+			continue
+		}
 		fmt.Fprintf(&msg, "--- pane %d · host %s · last %d lines ---\n%s\n--- end pane %d ---\n\n", i+1, ex.Pane.HostName, ex.Lines, ex.Text.String(), i+1)
 	}
 	msg.WriteString("Question:\n")
@@ -441,7 +455,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	// and is redacted again before it is kept.
 	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Model: conv.turns[len(conv.turns)-1].model.String()}
 	for _, st := range trace {
-		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions})
+		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command})
 	}
 	for _, p := range made {
 		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), r.Text(p.Why).String(), now))

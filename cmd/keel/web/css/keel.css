@@ -1305,6 +1305,26 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
 .term-body .xterm .xterm-scrollable-element > .shadow {
   display: none !important;
 }
+/* Command marks (OSC 133, lib/cmdmarks.js; docs/ui-redesign.md §14). The
+   decoration is the first cell of the prompt line; its dot sits in the
+   .xterm left inset (space-2), so it never covers text. A dot, not a side
+   bar: tide when the command exited 0, flare otherwise, and a failed one
+   also gets the "exit N" chip at the right end of its prompt line. */
+.k-cmdmark { pointer-events: none; overflow: visible; }
+.k-cmdmark-dot {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--space-1\.5));
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  transform: translateY(-50%);
+}
+.k-cmdmark--ok .k-cmdmark-dot { background: var(--tide); }
+.k-cmdmark--failed .k-cmdmark-dot { background: var(--flare); }
+/* xterm leaves `right` unset for anchor "right" with x 0; pin it here. */
+.k-cmdchip-cell { right: 0; pointer-events: none; display: flex; justify-content: flex-end; align-items: center; }
+.k-cmdchip { height: 100%; padding: 0 var(--space-1); font: var(--type-meta); line-height: 1; }
 .pane-progress {
   flex-shrink: 0;
   height: 2px;

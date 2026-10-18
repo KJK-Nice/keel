@@ -16,6 +16,7 @@ import (
 	"keel/internal/inject"
 	"keel/internal/scrollback"
 	"keel/internal/session"
+	"keel/internal/shellmark"
 	"keel/internal/store"
 )
 
@@ -165,6 +166,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 		id:            newID(),
 		host:          host,
 		buf:           newRing(256 * 1024),
+		marks:         shellmark.NewTracker(),
 		clients:       map[uint64]*clientConn{},
 		cols:          cols,
 		rows:          rows,
@@ -313,13 +315,16 @@ func (r *Runtime) emitHerd(ev HerdEvent) {
 }
 
 type Session struct {
-	rt             *Runtime
-	id             string
-	host           store.Host
-	mu             sync.Mutex
-	info           Info
-	br             session.Bridge
-	buf            *ring
+	rt   *Runtime
+	id   string
+	host store.Host
+	mu   sync.Mutex
+	info Info
+	br   session.Bridge
+	buf  *ring
+	// marks reads OSC 133 / OSC 7 shell-integration marks from the output
+	// (under mu, with buf). Read-only: it never writes to the PTY.
+	marks          *shellmark.Tracker
 	clients        map[uint64]*clientConn
 	next           uint64
 	ownerID        uint64
@@ -601,6 +606,85 @@ func (s *Session) ReadScrollback() []byte {
 	return scrollback.Read(s.buf.Bytes())
 }
 
+// maxCommandText caps the command line read for a block: the typed text
+// between the B and C marks (a huge paste is cut, not read whole).
+const maxCommandText = 4096
+
+// maxAfterText caps what LastCommand reads after a finished command: the
+// whole ring, so the part after the command is never cut shorter than the
+// scrollback the agent would otherwise read.
+const maxAfterText = 256 * 1024
+
+// LastCommand returns the pane's latest command from its shell-integration
+// marks (OSC 133), with its text read from the scrollback under the same
+// mask as ReadScrollback. ok is false when the shell sent no marks, or the
+// command's output has left the ring. A running command's output runs to
+// the end of what was written so far. The marks are untrusted output: the
+// block is something to read, never a reason to do anything.
+func (s *Session) LastCommand() (shellmark.Block, bool) {
+	s.mu.Lock()
+	c, ok := s.marks.Last()
+	s.mu.Unlock()
+	if !ok {
+		return shellmark.Block{}, false
+	}
+	end := c.OutputEnd
+	if !c.Done {
+		end = s.buf.Mark()
+	}
+	out, truncated := s.buf.Range(c.OutputStart, end)
+	if truncated && len(out) == 0 {
+		return shellmark.Block{}, false
+	}
+	blk := shellmark.Block{
+		Output:    string(scrollback.Read(out)),
+		Exit:      c.Exit,
+		HasExit:   c.HasExit,
+		Done:      c.Done,
+		Abandoned: c.Abandoned,
+		Cwd:       c.Cwd,
+		Truncated: truncated,
+	}
+	if c.Done {
+		// What came after the end: never hidden by a D mark, so a fake
+		// end printed by a program cannot keep the rest of the pane from
+		// the agent. Bounded to the last maxAfterText bytes.
+		total := s.buf.Mark()
+		from := c.OutputEnd
+		if total > from+maxAfterText {
+			from, blk.AfterTruncated = total-maxAfterText, true
+		}
+		after, cut := s.buf.Range(from, total)
+		blk.After = string(scrollback.Read(after))
+		blk.AfterTruncated = blk.AfterTruncated || cut
+	}
+	regionStart := c.CommandTextEnd
+	if c.HasCommandStart {
+		regionStart = c.CommandStart
+	}
+	before, _ := s.buf.Range(0, regionStart)
+	blk.Before = string(scrollback.Read(before))
+	if c.HasCommandStart {
+		cmd, cut := s.buf.Range(c.CommandStart, c.CommandTextEnd)
+		if !cut {
+			if len(cmd) > maxCommandText {
+				cmd = cmd[:maxCommandText]
+			}
+			blk.Command = string(scrollback.Read(cmd))
+		}
+	}
+	return blk, true
+}
+
+// LastCommand is Session.LastCommand by session id.
+func (r *Runtime) LastCommand(id string) (shellmark.Block, bool) {
+	s, err := r.Get(id)
+	if err != nil {
+		return shellmark.Block{}, false
+	}
+	return s.LastCommand()
+}
+
 func (s *Session) Resize(clientID uint64, cols, rows int) error {
 	if cols < 1 || rows < 1 {
 		return nil
@@ -817,6 +901,9 @@ func (s *Session) runLoop() {
 		}
 		old := s.br
 		s.br = br
+		// A new shell: half a mark from the old one must not join it, and
+		// a command the old shell left open is abandoned.
+		s.marks.Reset(s.buf.Mark())
 		// A driver may have resized while the bridge was connecting (an SSH
 		// connect takes seconds; the client fits and sends its size as soon
 		// as it attaches). Resize only recorded that size, since there was
@@ -873,6 +960,9 @@ func (s *Session) runLoop() {
 			if same {
 				s.br = nil
 			}
+			// The shell is gone: a command it left open ends here, before
+			// Keel's own note ("Connection lost — reconnecting…").
+			s.marks.Reset(s.buf.Mark())
 			auto := s.host.AutoReconnect()
 			force := s.forceReconnect
 			s.forceReconnect = false
@@ -1015,7 +1105,9 @@ func (s *Session) noteLine(msg string) {
 // broadcast then delivered b again, so the new client printed it twice.
 func (s *Session) output(b []byte) {
 	s.mu.Lock()
+	base := s.buf.Mark()
 	s.buf.Write(b)
+	s.marks.Feed(b, base)
 	slow := s.fanoutLocked(Event{Kind: "bytes", Bytes: b})
 	s.mu.Unlock()
 	for _, id := range slow {

@@ -112,6 +112,10 @@ function redactedNote(counts) {
 // traceText is one line of the agent trace: what it read, or why not.
 export function traceText(step) {
   const host = step?.host || "a pane";
+  if (step?.status === "read" && step.command) {
+    // From the shell's OSC 133 marks: the last command, its output and how it ended.
+    return `Read ${host} · last command, ${step.command} · ${step.lines} ${step.lines === 1 ? "line" : "lines"} of output${redactedNote(step.redactions)}`;
+  }
   if (step?.status === "read") {
     return `Read ${host} · last ${step.lines} ${step.lines === 1 ? "line" : "lines"}${redactedNote(step.redactions)}`;
   }
