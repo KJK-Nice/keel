@@ -62,7 +62,7 @@ test("agent proposals are typed only through approve-before-type, to one pane", 
   // only through deps.typeProposal.
   for (const file of ["agentpanel.js", "agentthread.js", "agentpage.js"]) {
     const src = readFileSync(join(dir, "..", "ui", file), "utf8");
-    for (const bad of ["sendSession", "inject", "/ws/", ".send("]) assert.ok(!src.includes(bad), `${file} must not use ${bad}`);
+    for (const bad of ["sendSession", "inject", "/ws/", ".send(", "WebSocket", "new WebSocket("]) assert.ok(!src.includes(bad), `${file} must not use ${bad}`);
   }
 });
 

@@ -1,4 +1,5 @@
 import { escapeHtml } from "./lib/html.js";
+import { paneTarget } from "./lib/agent.js";
 import * as G from "./lib/groups.js";
 import * as V from "./lib/vaultview.js";
 import { createPaletteList } from "./ui/palette.js";
@@ -6415,7 +6416,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const pane = findPaneByRuntime(proposal.sessionId);
     if (!pane || !isTermPane(pane) || pane.remote) return { ok: false, message: "That pane is not open in this window." };
     if (!isDriving(pane)) return { ok: false, message: "You follow this pane. The agent cannot type into it." };
-    const label = `${proposal.host || pane.title || "the pane"} (agent proposal)`;
+    // The tab name tells two panes on one host apart.
+    const tab = state.tabs.get(pane.tabId);
+    const label = `${paneTarget(proposal.host || pane.title || "the pane", tab ? tabName(tab) : "")} (agent proposal)`;
     const ok = await approveBeforeType(proposal.bytes, label);
     if (!ok) return { cancelled: true };
     holdPtyFromChrome();

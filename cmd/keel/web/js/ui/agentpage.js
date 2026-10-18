@@ -57,7 +57,7 @@ export function createAgentPage(deps) {
     props: $("agentpage-props"),
     propsCount: $("agentpage-props-count"),
   };
-  const state = { host: "", renaming: false, stale: true };
+  const state = { host: "", renaming: false };
   if (el.panelKbd) el.panelKbd.textContent = deps.isMac ? "⌘I" : "Ctrl+⇧I";
 
   function emptyHTML() {
@@ -81,7 +81,7 @@ export function createAgentPage(deps) {
     emptyHTML,
     // The page is away from the panes, so the button names the pane it
     // types into.
-    typeLabel: (p, pane) => `Type into ${pane?.label || p.host || "pane"}`,
+    typeLabel: (p, pane) => `Type into ${pane ? A.paneTarget(pane.label, pane.sub) : p.host || "pane"}`,
   });
 
   // --- left column: the saved conversations ---
@@ -189,7 +189,7 @@ export function createAgentPage(deps) {
       ? s.scope
           .map(
             (p) =>
-              `<div class="k-agentpage-ctx-row"><span class="k-dot k-dot--live" aria-hidden="true"></span><span class="k-agentpage-ctx-name">${escapeHtml(p.label)}</span>${
+              `<div class="k-agentpage-ctx-row"><span class="k-dot k-dot--live" aria-hidden="true"></span><span class="k-agentpage-ctx-name">${escapeHtml(A.paneTarget(p.label, p.sub))}</span>${
                 p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
               }<span class="k-badge k-badge--haze">Agent reads</span></div>`,
           )
@@ -232,7 +232,6 @@ export function createAgentPage(deps) {
   // show runs when the page becomes the selected tab: the list and the
   // settings may have changed meanwhile.
   function show() {
-    state.stale = false;
     conv.loadSettings();
     conv.loadSessions();
     paintAll();
@@ -259,7 +258,6 @@ export function createAgentPage(deps) {
         // A finished ask saved the conversation: list it.
         if (!conv.snapshot().busy) {
           if (deps.isShown?.()) conv.loadSessions();
-          else state.stale = true;
         }
         break;
       case "busy":
@@ -327,7 +325,10 @@ export function createAgentPage(deps) {
     const q = el.input.value;
     if (!q.trim()) return;
     el.input.value = "";
-    conv.ask(q);
+    // Nothing sent (busy, or no key yet): give the words back.
+    conv.ask(q).then((sent) => {
+      if (sent === false && !el.input.value) el.input.value = q;
+    });
   });
   el.input?.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing && !ev.altKey && !ev.metaKey && !ev.ctrlKey) {
@@ -349,7 +350,6 @@ export function createAgentPage(deps) {
       conv.newConversation();
       el.input?.focus({ preventScroll: true });
     },
-    isStale: () => state.stale,
     view,
   };
 }

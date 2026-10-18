@@ -458,19 +458,24 @@ export function createAgentPanel(deps) {
     return null;
   }
 
+  // proposeAgain asks for a fresh proposal from a saved one. The answer is
+  // dropped when the conversation changed while it was asked (resume, new,
+  // delete): it belongs to the old one, not to what the views show now.
   async function proposeAgain(id) {
+    const conv = state.conv;
     try {
       const p = await deps.api(
-        `/api/agent/conversations/${encodeURIComponent(state.conv)}/proposals/${encodeURIComponent(id)}/again`,
+        `/api/agent/conversations/${encodeURIComponent(conv)}/proposals/${encodeURIComponent(id)}/again`,
         { method: "POST" },
       );
+      if (conv !== state.conv) return null;
       registerProposal(p);
       state.model.turns.push({ at: new Date().toISOString(), again: true, trace: [], proposals: [p] });
       eachView((v) => v.addProposal(p.id));
       emit("proposal");
       return p.id;
     } catch (err) {
-      deps.toast(err?.message || String(err), true);
+      if (conv === state.conv) deps.toast(err?.message || String(err), true);
       return null;
     }
   }
@@ -478,11 +483,13 @@ export function createAgentPanel(deps) {
   async function saveEdit(id, command) {
     const rec = state.props.get(id);
     if (!rec) return false;
+    const conv = state.conv;
     try {
-      const p = await deps.api(`/api/agent/conversations/${encodeURIComponent(state.conv)}/proposals/${encodeURIComponent(id)}`, {
+      const p = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/proposals/${encodeURIComponent(id)}`, {
         method: "PUT",
         body: JSON.stringify({ command }),
       });
+      if (conv !== state.conv) return false;
       rec.p = p;
       rec.status = null;
       for (const t of state.model.turns) t.proposals = (t.proposals || []).map((x) => (x.id === id ? p : x));
@@ -798,7 +805,10 @@ export function createAgentPanel(deps) {
     const q = el.input.value;
     if (!q.trim()) return;
     el.input.value = "";
-    ask(q);
+    // Nothing sent (busy, or no key yet): give the words back.
+    ask(q).then((sent) => {
+      if (sent === false && !el.input.value) el.input.value = q;
+    });
   });
   el.input.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing && !ev.altKey && !ev.metaKey && !ev.ctrlKey) {
@@ -940,6 +950,7 @@ export function createAgentPanel(deps) {
       settings: state.settings,
     }),
     proposal: ctl.proposal,
+    again: proposeAgain,
     sessionsEmptyText,
     ask,
     stop: () => state.busy?.abort(),

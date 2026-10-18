@@ -294,6 +294,16 @@ export function retentionNote(historyDays) {
 
 // --- the Agent tab page (§5.4.2) ---
 
+// paneTarget names a pane with its tab ("prod-db-01 · deploy"), so two
+// panes on one host in different tabs can be told apart. The tab name is
+// left out when it only repeats the pane's name.
+export function paneTarget(label, tab) {
+  const l = String(label || "").trim();
+  const t = String(tab || "").trim();
+  if (!t || t === l) return l;
+  return l ? `${l} · ${t}` : t;
+}
+
 // hostFilters are the Agent page's host chips: the hosts the saved
 // conversations read or proposed for, most recent conversation first, at
 // most max of them.
