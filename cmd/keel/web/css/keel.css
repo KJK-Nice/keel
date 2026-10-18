@@ -2314,7 +2314,8 @@ button.k-rail-item[aria-selected="true"] { background: var(--hover); color: var(
 .k-gate-bar { flex: none; height: var(--size-titlebar); background: var(--chrome); border-bottom: 1px solid var(--line); }
 html[data-chrome="titlebar"] .k-gate-bar { --wails-draggable: drag; -webkit-app-region: drag; }
 .k-gate-status { flex: none; }
-.k-gate-mark { display: block; border-radius: var(--radius-lg); }
+/* The mark is a white tile: a hairline keeps its edge on the light stage. */
+.k-gate-mark { display: block; border-radius: var(--radius-lg); box-shadow: 0 0 0 1px var(--line); }
 .k-gate-head { display: grid; gap: var(--space-1\.5); justify-items: start; }
 .k-gate-head .k-gate-mark { margin-bottom: var(--space-2); }
 .k-gate-title {
