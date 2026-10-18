@@ -1865,6 +1865,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     });
     const closeBtn = pane.wrap.querySelector("[data-pane-close]");
     if (closeBtn) closeBtn.title = leafCount(tab.layout) > 1 ? "Close pane" : "Close tab";
+    if (isNotebookPane(pane)) syncNotebookMeta(pane);
   }
 
   // Role chip on the pane bar, only when the session is shared or joined.
@@ -4661,14 +4662,15 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     return { wrap, body };
   }
 
-  const DEFAULT_NOTEBOOK_MD = `# Notebook
+  // The notebook's name is its title, so the starter text has no H1.
+  const DEFAULT_NOTEBOOK_MD = `Write a runbook here.
 
-Write a runbook here.
+## Check
 
-- Bullet lists render here
-- Fenced \`\`\`sh or \`\`\`bash blocks can run in a terminal after you confirm
+1. Numbered lists render as steps
+2. Fenced \`\`\`sh or \`\`\`bash blocks type into the terminal beside the notebook after you confirm
 
-1. Numbered lists render too
+- Bullet lists render too
 `;
 
   function notebookMarkdown(pane) {
@@ -4935,12 +4937,61 @@ Write a runbook here.
       return;
     }
     disposeNotebookEditor(pane);
-    body.innerHTML = `<div class="notebook-scroll">
-      <input class="notebook-title" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" />
+    // One title: the notebook's name is the H1 (and stays editable); the
+    // meta line under it names the pane shell fences type into.
+    body.innerHTML = `<article class="notebook-col">
+      <h1 class="notebook-title"><input class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
+      <div class="notebook-meta" data-notebook-meta></div>
+      <hr class="notebook-rule" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
-    </div>`;
+    </article>`;
     pane._docEl = body.querySelector("[data-notebook-doc]");
+    pane._metaKey = null;
     mountNotebookEditor(pane);
+    syncNotebookMeta(pane);
+  }
+
+  // notebookTarget is the terminal a notebook's shell fences type into (the
+  // one runNotebookFence picks: the tab's first live terminal) as the
+  // notebook names it: the pane's title and its host's colour.
+  function notebookTarget(pane) {
+    const term = termTarget(pane);
+    if (!term) return null;
+    const host = term.hostId ? state.hosts.find((h) => h.id === term.hostId) : null;
+    return { name: term.title || host?.name || "session", color: host?.color || "" };
+  }
+
+  function notebookUpdated(pane) {
+    const at = notebookById(pane.notebookId)?.updatedAt;
+    const d = at ? new Date(at) : null;
+    if (!d || Number.isNaN(d.getTime())) return "";
+    return `Updated ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
+
+  // syncNotebookMeta repaints the line under the title and renames the
+  // fences' Type button when the target pane or the save date changes.
+  // syncPaneChrome calls it, so splits, closes and connects keep it true.
+  function syncNotebookMeta(pane) {
+    if (!isNotebookPane(pane) || pane.closing) return;
+    const target = notebookTarget(pane);
+    const updated = notebookUpdated(pane);
+    const key = `${target?.name || ""}\n${target?.color || ""}\n${updated}`;
+    if (pane._metaKey === key) return;
+    pane._metaKey = key;
+    pane.mdEditor?.setTarget?.(target?.name || "");
+    const meta = pane.body?.querySelector("[data-notebook-meta]");
+    if (!meta) return;
+    const parts = ["<span>Notebook</span>"];
+    if (updated) parts.push(`<span>${escapeHtml(updated)}</span>`);
+    if (target) {
+      const color = target.color ? ` style="--host:${escapeHtml(target.color)}"` : "";
+      parts.push(
+        `<span class="notebook-hostchip"${color} title="Shell blocks type into this pane"><span class="notebook-hostchip-dot" aria-hidden="true"></span>${escapeHtml(target.name)}</span>`,
+      );
+    } else {
+      parts.push("<span>No terminal in this tab</span>");
+    }
+    meta.innerHTML = parts.join('<span class="notebook-meta-sep" aria-hidden="true">·</span>');
   }
 
   function mountNotebookEditor(pane) {
@@ -4957,9 +5008,11 @@ Write a runbook here.
       host.innerHTML = `<textarea class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
       return;
     }
+    // Shell fences say "Type into <pane>" (target) and go through
+    // runNotebookFence: the CLI input, then approve-before-type.
     pane.mdEditor = KeelMD.mount(host, {
       markdown: notebookMarkdown(pane),
-      buttonLabel: "Run in terminal",
+      target: notebookTarget(pane)?.name || "",
       onChange: (md) => {
         if (pane.closing || !pane.mdEditor) return;
         setNotebookMarkdown(pane, md);

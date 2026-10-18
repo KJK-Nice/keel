@@ -1005,8 +1005,8 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(persist, "output") || strings.Contains(persist, "stdout") {
 		t.Fatal("notebook persist must not store cell outputs")
 	}
-	if !strings.Contains(term, "Run in terminal") || !strings.Contains(css, ".term-input") {
-		t.Fatal("fenced blocks must offer Run in terminal into a CLI input buffer beside the terminal")
+	if !strings.Contains(mount, "target: notebookTarget(pane)") || !strings.Contains(term, "pane.mdEditor?.setTarget") || !strings.Contains(css, ".term-input") {
+		t.Fatal("shell fences must name the pane they type into (Type into <pane>) and fill a CLI input buffer beside the terminal")
 	}
 	if !strings.Contains(term, "function runNotebookFence") || !strings.Contains(term, "function copyNotebookFence") {
 		t.Fatal("fenced blocks must offer Copy and Run in terminal")
@@ -1227,6 +1227,9 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	}
 	if !strings.Contains(string(edBody), "KeelMarkdownEditor") || !strings.Contains(string(edBody), "notebook-fence") {
 		t.Fatal("notebook markdown editor must be vendored")
+	}
+	if !strings.Contains(string(edBody), "Type into ") || !strings.Contains(string(edBody), "notebook-callout") || !strings.Contains(string(edBody), "setTarget") {
+		t.Fatal("the editor bundle must name the fence's target pane and render blockquotes as callouts (rebuild with make notebook-editor)")
 	}
 	if !strings.Contains(string(body), `<h1 class="k-page-title">Notebooks</h1>`) {
 		t.Fatal("the Notebooks tab page has a page head like the other tab pages")

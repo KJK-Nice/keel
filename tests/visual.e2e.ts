@@ -18,6 +18,35 @@ async function openLocalShell(screen: any) {
   await vault.getByRole('button', /^Local Shell\b/).tap();
 }
 
+// The notebook shot's document (board Notebook): prose with inline code and
+// a link, headings, lists, a shell and a yaml fence, and a callout.
+const NOTEBOOK_MD = [
+  'Replica **pg-2** falls 10–20 MB behind, and the stream drops every 30 s with `SSL SYSCALL error`. Failover rules are in the [Patroni docs](https://patroni.readthedocs.io).',
+  '',
+  '## Check',
+  '',
+  '1. Confirm what the leader sees for the replica.',
+  '2. Compare `sent_lsn` with `replay_lsn`.',
+  '3. If the gap grows, check the network path between the two hosts.',
+  '',
+  '```sh',
+  'sudo -u postgres psql -xc "select client_addr, state, sent_lsn, replay_lsn, replay_lag from pg_stat_replication;"',
+  '```',
+  '',
+  '### Notes',
+  '',
+  '- The leader is `pg-1` at 10.0.4.21.',
+  '- TCP keepalives are set in `/etc/patroni.yml`.',
+  '',
+  '```yaml',
+  'postgresql:',
+  '  parameters:',
+  '    tcp_keepalives_idle: 60',
+  '```',
+  '',
+  '> **Before you touch anything:** if lag passes 500 MB, page the DB owner.',
+].join('\n');
+
 describe('screens', { tags: ['visual'], serial: true }, () => {
   for (const theme of ['dark', 'light'] as const) {
     // The Vault sidebar (expanded, then collapsed) and each tab page.
@@ -302,6 +331,32 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await screen.getByRole('group', 'Show events').getByRole('button', 'Agent').tap();
       await app.screenshot(`${theme}-logs-agent`);
       await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+    });
+
+    // The notebook pane beside a session (board Notebook): title, meta line,
+    // headings, lists, inline code, a shell and a yaml fence, and a callout.
+    // Last, so the shots above keep their numbers. The locators hold on the
+    // base build too (no assertions on the new chrome).
+    test(`notebook pane (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      const name = `pg-2 replication lag ${theme}`;
+      const nb = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', { name, cells: [{ body: NOTEBOOK_MD }] });
+      try {
+        await openKeel(app);
+        await openLocalShell(screen);
+        await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+        const vault = screen.getByRole('complementary', 'Vault');
+        await vault.getByRole('button', 'Snippets').tap();
+        await vault.getByRole('button', new RegExp(`^${name}$`)).tap();
+        await expect(screen.getByRole('textbox', 'Rename notebook')).toHaveValue(name);
+        await app.screenshot(`${theme}-notebook`);
+        await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
+        await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+        await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+        await expect(screen.getByRole('textbox', 'Rename notebook')).toBeHidden();
+      } finally {
+        await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
+      }
     });
   }
 });

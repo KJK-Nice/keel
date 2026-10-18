@@ -999,130 +999,213 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   font-weight: 600;
   letter-spacing: 0.04em;
 }
+/* ---------- Notebook pane (docs/ui-redesign.md §13, boards Notebook and
+   NotebookTypes) ----------
+   A reading surface on surface: one size-reading column, the name as the
+   only display title, prose in the reading style. Fences, callouts and the
+   fallback source field sit on stage. No coloured side bars. */
 .notebook-pane {
   flex: 1 1 0%;
   min-height: 0;
   overflow: auto;
-  background: var(--stage);
-  padding: 12px 14px 16px;
+  background: var(--surface);
 }
-.notebook-scroll {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 100%;
+.notebook-col {
+  max-width: var(--size-reading);
+  padding: calc(var(--space-6) + var(--space-1)) var(--space-8) calc(var(--space-8) + var(--space-4));
+  font: var(--type-reading);
+  letter-spacing: 0;
+  color: var(--ink);
 }
-.notebook-title {
-  flex: 0 0 auto;
+.notebook-title { margin: 0; }
+.notebook-title-input {
+  display: block;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 2px 2px 4px;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  font-size: 1.15rem;
-  font-weight: 650;
-  line-height: 1.3;
+  font: var(--type-display);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
 }
-.notebook-title:focus {
-  outline: none;
-  box-shadow: none;
+.notebook-title-input:focus { outline: none; box-shadow: 0 1px 0 var(--focus); }
+.notebook-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1\.5) var(--space-2);
+  margin-top: var(--space-2);
+  font: var(--type-caption);
+  color: var(--ink-muted);
 }
-.notebook-doc {
-  flex: 1 1 auto;
-  min-height: 12rem;
+.notebook-meta-sep { color: var(--ink-faint); }
+.notebook-hostchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0\.5) var(--space-1\.5);
+  border-radius: var(--radius-xs);
+  background: var(--hover);
+  color: var(--ink);
+  font: var(--type-meta);
+  font-weight: 400;
 }
+.notebook-hostchip-dot {
+  width: var(--space-1\.5);
+  height: var(--space-1\.5);
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--host, var(--ink-faint));
+}
+.notebook-rule {
+  height: 1px;
+  margin: var(--space-4) 0 var(--space-1);
+  border: 0;
+  background: var(--line);
+}
+.notebook-doc { min-height: 12rem; }
 .notebook-source {
+  display: block;
   width: 100%;
   min-height: 16rem;
+  margin-top: var(--space-3);
   resize: vertical;
-  padding: 10px 12px;
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--chrome);
+  border-radius: var(--radius-md);
+  background: var(--stage);
   color: var(--ink);
-  font: 0.875rem/1.5 var(--font-mono);
+  font: var(--type-code);
 }
 .notebook-doc .ProseMirror,
 .notebook-prose {
   min-height: 12rem;
-  padding: 4px 2px 28px;
+  padding-bottom: var(--space-8);
   outline: none;
   color: var(--ink);
-  font-size: 0.95rem;
-  line-height: 1.55;
 }
-.notebook-doc .ProseMirror p { margin: 0.4rem 0 0.7rem; }
+
+/* Block rhythm: 12 between blocks, more above headings than below. A
+   markdown H1 reads as an H2: the notebook's name is the only H1. */
+.notebook-doc .ProseMirror > :first-child { margin-top: var(--space-3); }
+.notebook-doc .ProseMirror p { margin: var(--space-3) 0 0; }
 .notebook-doc .ProseMirror h1,
-.notebook-doc .ProseMirror h2,
-.notebook-doc .ProseMirror h3 {
-  margin: 1rem 0 0.45rem;
-  line-height: 1.25;
-  font-weight: 650;
+.notebook-doc .ProseMirror h2 { margin: var(--space-8) 0 0; font: var(--type-heading); letter-spacing: 0; color: var(--ink); }
+.notebook-doc .ProseMirror h3,
+.notebook-doc .ProseMirror h4,
+.notebook-doc .ProseMirror h5,
+.notebook-doc .ProseMirror h6 { margin: var(--space-6) 0 0; font: var(--type-title); letter-spacing: 0; color: var(--ink); }
+.notebook-doc .ProseMirror :is(h1, h2, h3, h4, h5, h6) + :is(p, ul, ol) { margin-top: var(--space-2); }
+.notebook-doc .ProseMirror strong { font-weight: 600; }
+.notebook-doc .ProseMirror a {
+  color: var(--brass-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-0\.5);
+  text-decoration-color: var(--line-strong);
 }
-.notebook-doc .ProseMirror h1 { font-size: 1.55rem; }
-.notebook-doc .ProseMirror h2 { font-size: 1.25rem; }
-.notebook-doc .ProseMirror h3 { font-size: 1.05rem; }
+.notebook-doc .ProseMirror a:hover { text-decoration-color: var(--brass-ink); }
+.notebook-doc .ProseMirror hr { height: 1px; margin: var(--space-6) 0 0; border: 0; background: var(--line); }
+
+/* Inline code: smaller mono on a chip so it reads as a token; never wraps. */
+.notebook-doc .ProseMirror code {
+  padding: var(--space-0\.5) var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--hover);
+  font: var(--type-code);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Lists: hanging markers in ink-faint, 4 between items. */
 .notebook-doc .ProseMirror ul,
 .notebook-doc .ProseMirror ol {
-  margin: 0.35rem 0 0.7rem;
-  padding-left: 1.5rem;
+  margin: var(--space-3) 0 0;
+  padding-left: calc(var(--space-4) + var(--space-1\.5));
 }
 .notebook-doc .ProseMirror ul { list-style-type: disc; list-style-position: outside; }
 .notebook-doc .ProseMirror ol { list-style-type: decimal; list-style-position: outside; }
-.notebook-doc .ProseMirror li { display: list-item; }
-.notebook-doc .ProseMirror li p { margin: 0.15rem 0; }
-.notebook-doc .ProseMirror blockquote {
-  margin: 0.5rem 0;
-  padding: 0 0 0 0.8rem;
-  border-left: 3px solid var(--line);
-  color: var(--ink-muted);
+.notebook-doc .ProseMirror li { display: list-item; margin-top: var(--space-1); padding-left: var(--space-0\.5); }
+.notebook-doc .ProseMirror li p { margin: 0; }
+.notebook-doc .ProseMirror li::marker { color: var(--ink-faint); }
+.notebook-doc .ProseMirror ol > li::marker { font-family: var(--font-mono); font-weight: 500; }
+
+/* Callout (a blockquote): a box with an icon, not a side bar. */
+.notebook-doc .ProseMirror .notebook-callout {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--stage);
+  color: var(--ink);
 }
-.notebook-doc .ProseMirror code {
-  font-family: var(--font-mono);
-  font-size: inherit;
-}
-.notebook-doc .ProseMirror a { color: var(--brass-ink); }
+.notebook-callout-icon { padding-top: var(--space-1); color: var(--ink-muted); user-select: none; }
+.notebook-callout-body { flex: 1; min-width: 0; }
+.notebook-doc .ProseMirror .notebook-callout-body > :first-child { margin-top: 0; }
+
+/* Fence: one box on stage; the 32px bar lives inside it. The language is a
+   quiet select, Copy is an icon, and Type names its pane. Code does not
+   wrap: it scrolls sideways. */
 .notebook-fence {
-  position: relative;
-  margin: 0.75rem 0;
+  margin: var(--space-4) 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--stage);
+  overflow: hidden;
 }
 .notebook-fence-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: var(--space-1\.5);
+  height: var(--size-control-lg);
+  padding: 0 var(--space-1\.5) 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
 }
 .notebook-fence-lang {
-  margin-right: auto;
-  min-width: 5.5rem;
-  max-width: 9rem;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--chrome);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8rem;
+  height: var(--size-control-sm);
+  margin-left: calc(var(--space-1\.5) * -1);
+  padding: 0 var(--space-1\.5);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-faint);
+  font: var(--type-meta);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.notebook-fence pre {
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--chrome);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: inherit;
-  line-height: 1.55;
-}
+.notebook-fence-lang:hover { background: var(--hover); color: var(--ink-muted); }
+.notebook-fence-lang:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.notebook-fence-gap { flex: 1; }
 .notebook-fence-run,
 .notebook-fence-copy {
   flex: 0 0 auto;
+}
+.notebook-fence-run { min-width: 0; flex-shrink: 1; }
+.notebook-fence-run span { overflow: hidden; text-overflow: ellipsis; }
+.notebook-doc .ProseMirror .notebook-fence pre {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  overflow-x: auto;
+  white-space: pre;
+  font: var(--type-code);
+  color: var(--ink);
+}
+.notebook-doc .ProseMirror .notebook-fence pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  white-space: inherit;
 }
 .term-input {
   flex: 0 0 auto;
