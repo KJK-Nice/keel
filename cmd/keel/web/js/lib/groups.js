@@ -95,41 +95,6 @@ export function hostsInSubtree(groups, hosts, focus, query) {
   });
 }
 
-// nestGroupTree builds the folder tree under parentId ("" for the top):
-// [{ group, hosts, kids, count, depth }], sorted by name. With a query,
-// hosts are filtered and a group survives only if it (or something
-// below it) matches.
-export function nestGroupTree(groups, hosts, query, parentId) {
-  const q = norm(query);
-  const byParent = new Map();
-  for (const g of groups || []) {
-    const parent = g.parentId || "";
-    if (!byParent.has(parent)) byParent.set(parent, []);
-    byParent.get(parent).push(g);
-  }
-  const hostsBy = new Map();
-  for (const h of hosts || []) {
-    if (!h.groupId || (q && !hostSearchHay(groups, h).includes(q))) continue;
-    if (!hostsBy.has(h.groupId)) hostsBy.set(h.groupId, []);
-    hostsBy.get(h.groupId).push(h);
-  }
-  const seen = new Set();
-  const build = (pid, depth) => {
-    const out = [];
-    for (const g of [...(byParent.get(pid) || [])].sort((a, b) => byName(a.name, b.name))) {
-      if (seen.has(g.id)) continue;
-      seen.add(g.id);
-      const kids = build(g.id, depth + 1);
-      const own = hostsBy.get(g.id) || [];
-      const count = own.length + kids.reduce((n, k) => n + k.count, 0);
-      if (q && count === 0 && !String(g.name || "").toLowerCase().includes(q)) continue;
-      out.push({ group: g, hosts: own, kids, count, depth });
-    }
-    return out;
-  };
-  return build(String(parentId || ""), 1);
-}
-
 // groupOptionLabel is "Parent / Child / Group".
 export function groupOptionLabel(groups, g) {
   return ancestry(groups, g?.id)

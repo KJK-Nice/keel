@@ -1,12 +1,11 @@
-// Vault markup for the sidebar host tree and the tab pages (Keychain, Port
-// forwarding, Snippets, Notebooks, Logs). Pure functions from data to HTML
-// strings with the same k-* classes and data-* hooks as the templ
-// fragments (internal/ui/lists.templ); term.js uses them when a fragment
-// cannot be fetched and for the parts painted from the selection.
-// Every value from the vault goes through escapeHtml.
+// Vault markup term.js paints from the page's selection and state: the
+// glyphs, the Snippets editor preview, the Keychain detail, and the tunnel
+// and notebook helpers the sidebar sections use. The lists themselves are
+// templ (internal/ui/lists.templ) pushed over the Datastar stream
+// (docs/ui-redesign.md §12). Every value from the vault goes through
+// escapeHtml.
 
 import { escapeHtml } from "./html.js";
-import { hostSubtitle } from "./groups.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -28,99 +27,6 @@ const GLYPHS = {
 
 export function glyphSVG(kind) {
   return svg(GLYPHS[kind] || GLYPHS.server);
-}
-
-// A plain (no menu library) action trigger and its items, for the fallback
-// lists; the templ fragments use the dropdown menu component instead.
-const actionButtons = (items) =>
-  items
-    .map(
-      ([attr, id, label, danger]) =>
-        `<button type="button" class="k-btn k-btn--ghost k-btn--sm${danger ? " k-btn--danger" : ""}" ${attr}="${escapeHtml(id)}">${escapeHtml(label)}</button>`,
-    )
-    .join("");
-
-export function sideEmptyHTML(title, desc) {
-  return `<div class="k-side-empty" data-slot="empty"><p class="k-side-empty-title">${escapeHtml(title)}</p><p class="k-help">${escapeHtml(desc)}</p></div>`;
-}
-
-function hostTile(h) {
-  const style = h.color ? ` style="--host:${escapeHtml(h.color)}"` : "";
-  return `<span class="k-tile k-tile--sm"${style}>${glyphSVG(h.authType === "local" ? "local" : "server")}</span>`;
-}
-
-export function treeHostHTML(h) {
-  const id = escapeHtml(h.id);
-  const menu = [["data-edit", h.id, "Edit"]];
-  if (h.authType !== "local") menu.push(["data-duplicate", h.id, "Duplicate"], ["data-delete", h.id, "Remove", true]);
-  return `<div class="k-tree-row k-tree-hostrow" data-id="${id}" draggable="true" data-drag-host="${id}">
-      <button type="button" class="k-tree-host" data-connect="${id}" title="${escapeHtml(hostSubtitle(h))}">
-        ${hostTile(h)}
-        <span class="k-tree-name">${escapeHtml(h.name)}</span>
-        <span class="k-tree-live" data-host-live="${id}" hidden></span>
-      </button>
-      <div class="k-tree-menu k-tree-menu--inline">${actionButtons(menu)}</div>
-    </div>`;
-}
-
-export function treeGroupHTML(n) {
-  const g = n.group;
-  const id = escapeHtml(g.id);
-  const children = (n.hosts || []).map(treeHostHTML).join("") + (n.kids || []).map(treeGroupHTML).join("");
-  return `<div class="group-tree-node k-tree-group" data-group-id="${id}" data-group-drop="${id}" data-group-parent="${escapeHtml(g.parentId || "")}" data-group-depth="${n.depth}" data-group-name="${escapeHtml(g.name)}">
-      <div class="group-tree-heading k-tree-row" draggable="true" data-drag-group="${id}">
-        <button type="button" class="k-tree-grp" data-group-toggle="${id}" aria-expanded="true">
-          <span class="k-tree-chev">${glyphSVG("chevron")}</span>
-          <span class="k-tree-grp-name" data-group-title="${id}">${escapeHtml(g.name)}</span>
-          <span class="k-tree-count">${n.count}</span>
-        </button>
-        <div class="k-tree-menu k-tree-menu--inline" data-group-menu="${id}">${actionButtons([
-          ["data-group-edit", g.id, "Edit"],
-          ["data-group-new", g.id, "New subgroup"],
-          ["data-group-rename", g.id, "Rename"],
-          ["data-group-move", g.id, "Move into…"],
-          ["data-group-delete", g.id, "Remove", true],
-        ])}</div>
-      </div>
-      <div class="group-tree-children">${children}</div>
-    </div>`;
-}
-
-// hostsHTML is the sidebar tree: hosts outside any group, then the groups
-// (from nestGroupTree) with their hosts and subgroups.
-export function hostsHTML({ tree, loose }) {
-  if (!tree.length && !loose.length) return sideEmptyHTML("No hosts match", "Add a host or clear the filter.");
-  return loose.map(treeHostHTML).join("") + tree.map(treeGroupHTML).join("");
-}
-
-const itemHTML = ({ attr, id, glyph, name, sub, badge, filter }) =>
-  `<button type="button" class="k-item" ${attr}="${escapeHtml(id)}" data-filter-text="${escapeHtml(filter)}" aria-selected="false">
-      <span class="k-tile">${glyphSVG(glyph)}</span>
-      <span class="k-item-main"><span class="k-item-name">${escapeHtml(name)}</span><span class="k-item-sub">${escapeHtml(sub)}</span></span>
-      ${badge ? `<span class="k-badge">${escapeHtml(badge)}</span>` : "<span></span>"}
-    </button>`;
-
-export function snippetFirstLine(command) {
-  const lines = String(command || "").trim().split("\n");
-  return lines.length > 1 ? `${lines[0].trim()} …` : lines[0].trim();
-}
-
-export function snippetsHTML(snippets) {
-  if (!snippets?.length) {
-    return sideEmptyHTML("No snippets yet", "Save commands you type often. Typing one always goes through Approve before type.");
-  }
-  return snippets
-    .map((s) =>
-      itemHTML({
-        attr: "data-snippet-select",
-        id: s.id,
-        glyph: "snippet",
-        name: s.name,
-        sub: snippetFirstLine(s.command),
-        filter: `${s.name} ${s.command}`,
-      }),
-    )
-    .join("");
 }
 
 // snippetPreview is the exact bytes a snippet types after Approve: each
@@ -146,44 +52,6 @@ export function sortedNotebooks(notebooks) {
   );
 }
 
-export function notebookPreview(nb) {
-  for (const cell of nb?.cells || []) {
-    const line = String(cell.body || "")
-      .split("\n")
-      .map((s) => s.trim())
-      .find(Boolean);
-    if (line) return line;
-  }
-  return "Empty notebook";
-}
-
-export function notebooksHTML(notebooks) {
-  if (!notebooks?.length) {
-    return sideEmptyHTML(
-      "No notebooks yet",
-      "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.",
-    );
-  }
-  return sortedNotebooks(notebooks)
-    .map((nb) => {
-      const id = escapeHtml(nb.id);
-      const pin = nb.pinned ? "Unpin" : "Pin";
-      return `<div class="k-rowitem" data-id="${id}" data-filter-text="${escapeHtml(`${nb.name || ""} ${notebookPreview(nb)}`)}">
-          <button type="button" class="k-rowitem-main" data-notebook-open="${id}">
-            <span class="k-tile">${glyphSVG("notebook")}</span>
-            <span class="k-item-main"><span class="k-item-name">${escapeHtml(nb.name || "Notebook")}</span><span class="k-item-sub">${escapeHtml(notebookPreview(nb))}</span></span>
-          </button>
-          ${nb.pinned ? `<span class="k-badge">Pinned</span>` : ""}
-          ${actionButtons([
-            ["data-notebook-rename", nb.id, "Rename"],
-            ["data-notebook-pin", nb.id, pin],
-            ["data-delete-notebook", nb.id, "Remove", true],
-          ])}
-        </div>`;
-    })
-    .join("");
-}
-
 // identityHosts are the saved hosts that authenticate with identity id.
 export function identityHosts(hosts, id) {
   return (hosts || []).filter((h) => h.authType === "identity" && h.identityId === id);
@@ -191,38 +59,6 @@ export function identityHosts(hosts, id) {
 
 function identityKind(id) {
   return id?.kind === "key" ? "key" : "password";
-}
-
-function identitySubtitle(id, hosts) {
-  const n = identityHosts(hosts, id.id).length;
-  return [identityKind(id) === "key" ? "SSH key" : "Password", id.username || "", `${n} ${n === 1 ? "host" : "hosts"}`].filter(Boolean).join(" · ");
-}
-
-export function identitiesHTML(identities, hosts) {
-  if (!identities?.length) return sideEmptyHTML("No identities yet", "Add an SSH key or a password and attach it to hosts.");
-  const out = [];
-  for (const [kind, label] of [
-    ["key", "SSH keys"],
-    ["password", "Passwords"],
-  ]) {
-    const list = identities.filter((id) => identityKind(id) === kind);
-    if (!list.length) continue;
-    out.push(`<div class="k-split-label">${label}</div>`);
-    for (const id of list) {
-      out.push(
-        itemHTML({
-          attr: "data-identity-select",
-          id: id.id,
-          glyph: kind,
-          name: id.name,
-          sub: identitySubtitle(id, hosts),
-          badge: kind === "key" && id.passphrase ? "passphrase" : "",
-          filter: `${id.name} ${id.username || ""}`,
-        }),
-      );
-    }
-  }
-  return out.join("");
 }
 
 function dateLabel(iso) {
@@ -272,8 +108,6 @@ export function identityDetailHTML(id, hosts) {
     ${inUse ? `<p class="k-help k-detail-note">Remove it from ${hostWord} before you can delete it.</p>` : ""}`;
 }
 
-const TUNNEL_FLAGS = { local: "-L", remote: "-R", dynamic: "-D" };
-
 export function tunnelListen(t) {
   return t.listenAddr || `${t.bindAddr}:${t.bindPort || "auto"}`;
 }
@@ -298,117 +132,4 @@ export function tunnelState(t) {
     default:
       return { label: "Stopped", dot: "k-dot--idle", state: "", filter: "stopped", on: false };
   }
-}
-
-export function tunnelEveryInterface(t) {
-  return ["0.0.0.0", "::", "[::]", "*"].includes(String(t?.bindAddr || "").trim());
-}
-
-export function tunnelsHTML(tunnels, hosts) {
-  if (!tunnels?.length) {
-    return `<tr class="k-table-empty"><td colspan="7">${sideEmptyHTML("No forwards yet", "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host.")}</td></tr>`;
-  }
-  return tunnels
-    .map((t) => {
-      const host = (hosts || []).find((h) => h.id === t.hostId);
-      const st = tunnelState(t);
-      const id = escapeHtml(t.id);
-      const every = tunnelEveryInterface(t) ? ` <span class="k-badge k-badge--signal">${glyphSVG("alert")}Every interface</span>` : "";
-      const retry = t.status === "error" ? ` <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-tunnel-start="${id}">Retry</button>` : "";
-      const toggle = st.on ? `data-tunnel-stop="${id}"` : `data-tunnel-start="${id}"`;
-      return `<tr data-id="${id}" data-status="${st.filter}" data-filter-text="${escapeHtml(`${t.name} ${host?.name || ""} ${tunnelRoute(t)}`)}">
-          <td><span class="k-cell-name">${escapeHtml(t.name)}</span></td>
-          <td><span class="k-badge k-badge--mono">${TUNNEL_FLAGS[t.kind] || "-L"}</span></td>
-          <td><span class="k-flow">${escapeHtml(tunnelListen(t))}<span class="k-flow-arrow" aria-hidden="true">→</span>${escapeHtml(tunnelDest(t))}</span>${every}</td>
-          <td><span class="k-mono k-muted">${escapeHtml(host?.name || t.hostId || "")}</span></td>
-          <td><span class="k-state ${st.state}"><span class="k-dot ${st.dot}" aria-hidden="true"></span>${escapeHtml(st.label)}</span>${retry}</td>
-          <td class="k-cell-end"><button type="button" class="k-switch" role="switch" aria-checked="${st.on}" aria-label="${escapeHtml(t.name)} on" ${toggle}></button></td>
-          <td class="k-cell-end">${actionButtons([
-            ["data-edit-tunnel", t.id, "Edit"],
-            ["data-delete-tunnel", t.id, "Remove", true],
-          ])}</td>
-        </tr>`;
-    })
-    .join("");
-}
-
-export function logParts(iso) {
-  if (!iso) return { date: "", time: "" };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
-  return {
-    date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
-    time: d.toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-  };
-}
-
-// logGroup is the Logs chip a log kind belongs to.
-export function logGroup(kind) {
-  const k = String(kind || "").toLowerCase();
-  if (k === "session") return "sessions";
-  if (k === "tunnel") return "forwards";
-  // agent.read / agent.suggest / agent.insert / agent.type and agent
-  // settings changes (the Agent chip on the Logs page).
-  if (k === "agent" || k.startsWith("agent.")) return "agent";
-  if (["vault", "host", "group", "identity", "snippet", "notebook"].includes(k)) return "vault";
-  return "other";
-}
-
-function logTarget(e, ctx) {
-  if (e.tunnelId) {
-    const t = (ctx?.tunnels || []).find((x) => x.id === e.tunnelId);
-    if (t) return t.name;
-  }
-  if (e.hostId) {
-    const h = (ctx?.hosts || []).find((x) => x.id === e.hostId);
-    if (h) return h.name;
-  }
-  return "—";
-}
-
-// logFacts is the list of short labels an agent entry carries: lines, bytes,
-// prompt lines sent, redactions, source, model and Jev timings (the same as
-// internal/ui logFacts, which renders the server-side rows).
-export function logFacts(e) {
-  const out = [];
-  const n = (v) => Number(v) || 0;
-  if (n(e.count) > 1) out.push(`${n(e.count)} sent`);
-  else if (n(e.lines) > 0) out.push(`${n(e.lines)} ${n(e.lines) === 1 ? "line" : "lines"}`);
-  if (n(e.bytes) > 0) out.push(`${n(e.bytes)} ${n(e.bytes) === 1 ? "byte" : "bytes"}`);
-  const red = Object.values(e.redactions || {}).reduce((a, b) => a + n(b), 0);
-  if (red > 0) out.push(`${red} redacted`);
-  if (e.source) out.push(`via ${e.source}`);
-  if (n(e.modelMs) > 0) out.push(`model ${n(e.modelMs)} ms`);
-  if (n(e.jevMs) > 0) out.push(`Jev ${n(e.jevMs)} ms`);
-  return out;
-}
-
-function logFactsHTML(e) {
-  const facts = logFacts(e);
-  if (!facts.length) return "";
-  const kinds = Object.keys(e.redactions || {}).sort();
-  const title = kinds.length ? ` title="${escapeHtml("Redacted: " + kinds.map((k) => `${k} ${e.redactions[k]}`).join(", "))}"` : "";
-  return `<span class="k-log-facts"${title}>${facts.map((f) => `<span class="k-badge k-badge--outline">${escapeHtml(f)}</span>`).join("")}</span>`;
-}
-
-// logsHTML lists log entries whose kind or message contains filter.
-export function logsHTML(logs, filter, ctx) {
-  const q = String(filter || "").trim().toLowerCase();
-  const rows = (logs || []).filter((e) => !q || `${e.kind} ${e.message}`.toLowerCase().includes(q));
-  if (!rows.length) {
-    return `<tr class="k-table-empty"><td colspan="4">${sideEmptyHTML("No log entries", "Sessions, forwards and vault changes show up here.")}</td></tr>`;
-  }
-  return rows
-    .map((e) => {
-      const { date, time } = logParts(e.time);
-      const k = String(e.kind || "").toLowerCase();
-      const flare = k === "error" || k === "fail" || k === "denied" ? " k-badge--flare" : "";
-      return `<tr data-log-kind="${logGroup(e.kind)}">
-          <td><span class="k-mono k-muted" title="${escapeHtml(date)}">${escapeHtml(time)}</span></td>
-          <td><span class="k-badge${flare}">${escapeHtml(e.kind)}</span></td>
-          <td><span class="k-mono k-muted">${escapeHtml(logTarget(e, ctx))}</span></td>
-          <td class="k-cell-wide"><span class="k-cell-msg">${escapeHtml(e.message)}</span>${logFactsHTML(e)}</td>
-        </tr>`;
-    })
-    .join("");
 }
