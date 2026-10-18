@@ -99,6 +99,10 @@ test('Edit host: jump host, Test connection with Trust and save, startup command
     // Edit: the fields come back, and the host key line shows the key.
     await openKeel(app);
     await vault.getByRole('searchbox', 'Search hosts').fill(names.db);
+    // The filter is a debounced server round trip: wait for the
+    // filtered tree, so this host's "Actions" is the only one left.
+    await expect(vault.getByRole('button', new RegExp(`^${names.db}\\b`))).toBeVisible();
+    await expect(vault.getByRole('button', /^Local Shell\b/)).toBeHidden();
     await vault.getByRole('button', 'Actions', { visible: true }).tap();
     await screen.getByRole('menuitem', 'Edit').tap();
     const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
