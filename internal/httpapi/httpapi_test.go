@@ -393,7 +393,7 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	info := spawn(t, srv.URL, host.ID)
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	defer alice.Close()
-	waitJSON(t, alice, "ready")
+	waitBridgeReady(t, alice, waitJSON(t, alice, "ready"))
 
 	got := make(chan string, 1)
 	readPTY := func() {
@@ -493,7 +493,7 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 	info := spawn(t, srv.URL, host.ID)
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	defer alice.Close()
-	waitJSON(t, alice, "ready")
+	waitBridgeReady(t, alice, waitJSON(t, alice, "ready"))
 
 	got := make(chan string, 1)
 	readPTY := func() {
@@ -553,6 +553,7 @@ func TestChromeWSFocusAndNoUnapprovedInject(t *testing.T) {
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	defer alice.Close()
 	ready := waitJSON(t, alice, "ready")
+	waitBridgeReady(t, alice, ready)
 	aliceID := uint64(ready["you"].(map[string]any)["id"].(float64))
 	sess, err := rt.Get(info.ID)
 	if err != nil {
@@ -3073,6 +3074,39 @@ func waitJSON(t *testing.T, conn *websocket.Conn, typ string) map[string]any {
 	}
 	t.Fatalf("timeout waiting for %s", typ)
 	return nil
+}
+
+// waitBridgeReady waits until the session's bridge is connected. The
+// "ready" message only means the socket attached: the runtime dials the
+// bridge on its own goroutine, and until it lands Session.Write fails with
+// "session is not ready" (which closes the socket) and nothing can reach the
+// PTY, so a "nothing was written" check would pass for the wrong reason.
+// ready is the attach message; if it already reports StatusReady there is no
+// later status event to wait for.
+func waitBridgeReady(t *testing.T, conn *websocket.Conn, ready map[string]any) {
+	t.Helper()
+	if ready["status"] == string(runtime.StatusReady) {
+		return
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(deadline)
+		mt, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mt != websocket.TextMessage {
+			continue
+		}
+		var body map[string]any
+		if json.Unmarshal(msg, &body) != nil {
+			continue
+		}
+		if body["type"] == "status" && body["status"] == string(runtime.StatusReady) {
+			return
+		}
+	}
+	t.Fatal("timeout waiting for the session bridge to connect")
 }
 
 func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {

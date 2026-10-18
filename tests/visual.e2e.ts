@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelSend, openKeel, sshTest } from './keel.ts';
+import { keelApi, keelSend, openKeel, sshTest } from './keel.ts';
 
 // Named screenshots of the main screens in both themes, for before/after
 // comparisons of visual-only changes (`--output .e2e/proof/<name>`). They
@@ -363,6 +363,79 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       } finally {
         await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
       }
+    });
+
+    // Light-theme coverage (issue #55), last so the shots above keep their
+    // numbers: all 16 ANSI colours, the New identity dialog, a confirm
+    // alertdialog, and the agent panel's Recent conversations list and an
+    // Expired proposal card (board AgentSessions).
+    test(`ansi, dialogs and agent conversations (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await openKeel(app);
+      const vault = screen.getByRole('complementary', 'Vault');
+
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      await input.pressSequentially('for i in 0 1 2 3 4 5 6 7; do printf "\\033[3${i}m ansi-$i \\033[9${i}m ansi-$((i+8)) \\033[0m\\n"; done');
+      await input.press('Enter');
+      await app.screenshot(`${theme}-terminal-ansi`);
+
+      // A conversation with a proposal for this pane, then enough others
+      // that keel serve drops it from memory (it keeps 16): resumed, its
+      // proposal is Expired.
+      const sessions = await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions');
+      const pane = sessions[sessions.length - 1].id;
+      await expect
+        .poll(async () => {
+          try {
+            await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: `conv-visual-${theme}-${Date.now()}`, question: 'expired visual please touch a file', panes: [pane] });
+            return true;
+          } catch {
+            return false;
+          }
+        })
+        .toBe(true);
+      for (let i = 0; i < 17; i++) {
+        await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: `conv-visual-fill-${i}-${Date.now()}`, question: `filler ${i}` });
+      }
+      await input.press('Meta+i');
+      const panel = screen.getByRole('complementary', 'Agent');
+      await expect(panel).toBeVisible();
+      await panel.getByRole('button', 'Recent conversations').tap();
+      const pop = panel.getByRole('dialog', 'Recent conversations');
+      await expect(pop).toContainText('expired visual please touch a file');
+      await app.screenshot(`${theme}-agent-conversations`);
+      await pop.getByRole('searchbox', 'Search conversations').fill('expired visual');
+      await pop.getByRole('button', /^expired visual please touch a file/).tap();
+      await expect(panel.getByRole('group', 'Proposal').first()).toContainText('Expired');
+      await app.screenshot(`${theme}-agent-expired`);
+
+      await panel.getByRole('button', 'Close agent').tap();
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+      await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
+
+      // The dialogs last: the Settings page's masked key field would
+      // otherwise show through the terminal shots.
+      await vault.getByRole('button', 'Keychain').tap();
+      await screen.getByRole('region', 'Keychain').getByRole('button', 'New identity').tap();
+      await expect(screen.getByRole('dialog').filter({ hasText: 'New identity' })).toBeVisible();
+      await app.screenshot(`${theme}-new-identity`);
+      await screen.getByRole('button', 'Cancel', { visible: true }).tap();
+
+      await vault.getByRole('button', 'Settings').tap();
+      const settings = screen.getByRole('region', 'Settings');
+      await settings.getByRole('tab', 'Agent').tap();
+      await settings.getByRole('group', 'Google Gemini').getByRole('button', 'Disconnect').tap();
+      const confirm = screen.getByRole('alertdialog');
+      await expect(confirm).toBeVisible();
+      await app.screenshot(`${theme}-confirm`);
+      await confirm.getByRole('button', 'Cancel').tap();
+      await expect(confirm).toBeHidden();
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
     });
   }
 });
