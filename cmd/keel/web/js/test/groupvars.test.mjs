@@ -79,6 +79,12 @@ test("runbook captures in the editor's input", () => {
   assert.match(checkInput(toInput({ name: "k", steps: [{ title: "a", captures: [{ name: "9", pattern: "(a)" }] }] })), /name/);
 });
 
+test("trace: values sent as {{name}} are counted apart from redactions", async () => {
+  const A = await import("../lib/agent.js");
+  assert.equal(A.traceText({ status: "read", host: "cp-1", lines: 40, redactions: { captured: 2 } }), "Read cp-1 · last 40 lines · 2 values withheld by Keel");
+  assert.equal(A.traceText({ status: "read", host: "cp-1", lines: 1, redactions: { aws_key: 1, variable: 1 } }), "Read cp-1 · last 1 line · 1 redacted · 1 value withheld by Keel");
+});
+
 test("exportQuery and the dry-run hint", () => {
   assert.equal(V.exportQuery({ format: "yaml" }), "format=yaml");
   assert.equal(V.exportQuery({ format: "ini", runbookId: "rb_1", mode: "parallel", user: false, jump: true }), "format=ini&runbookId=rb_1&mode=parallel&user=0&jump=1");

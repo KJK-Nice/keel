@@ -533,7 +533,7 @@ func TestPlaybookRolling(t *testing.T) {
 	endsWithOneNewline(t, src)
 	for _, want := range []string{
 		"# Upgrade K8s! · exported by Keel from a runbook. Review before use.\n",
-		"# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini upgrade-k8s.yml --check\n",
+		"# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/upgrade-k8s.yml --check\n",
 		"# Look first then act\n- name: \"Step 1 · Check\"\n",
 		"    # TODO: Keel captures ver from this step's output (pattern v(\\d+) #x). Ansible does not: set it with ansible.builtin.set_fact from keel_step_2.stdout, or pass -e ver=… .\n",
 	} {
@@ -609,7 +609,7 @@ func TestPlaybookJinja(t *testing.T) {
 	if !strings.HasPrefix(src, "# {{ lookup('pipe','id') }} · exported by Keel") {
 		t.Errorf("header:\n%s", src)
 	}
-	if !strings.Contains(src, "--check\n") || !strings.Contains(src, "inventory.ini lookup-pipe-id.yml") {
+	if !strings.Contains(src, "--check\n") || !strings.Contains(src, "inventory.ini playbooks/lookup-pipe-id.yml") {
 		t.Errorf("slugged file name:\n%s", src)
 	}
 	plays := decode(t, src).([]any)
@@ -674,7 +674,7 @@ func TestPlaybookMultilineCommand(t *testing.T) {
 
 func TestPlaybookEmpty(t *testing.T) {
 	src := PlaybookYAML(Playbook{}, Inventory{})
-	if !strings.Contains(src, "-i inventory.ini runbook.yml --check\n[]\n") {
+	if !strings.Contains(src, "-i inventory.ini playbooks/runbook.yml --check\n[]\n") {
 		t.Errorf("empty playbook:\n%s", src)
 	}
 	if v, ok := decode(t, src).([]any); !ok || len(v) != 0 {

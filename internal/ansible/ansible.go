@@ -582,7 +582,7 @@ func PlaybookYAML(pb Playbook, inv Inventory) string {
 		name = "Runbook"
 	}
 	b.WriteString("# " + name + " · exported by Keel from a runbook. Review before use.\n")
-	b.WriteString("# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini " + Slug(pb.Name) + ".yml --check\n")
+	b.WriteString("# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/" + Slug(pb.Name) + ".yml --check\n")
 	if len(pb.Steps) == 0 {
 		b.WriteString("[]\n")
 		return b.String()

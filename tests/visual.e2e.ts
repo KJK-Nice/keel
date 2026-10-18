@@ -725,3 +725,93 @@ describe('groups', { tags: ['visual'], serial: true }, () => {
     });
   }
 });
+
+// Groups, part 2 (§17, boards CaptureVars, AnsibleExport and the GroupRoles
+// drawer): group variables and the Ansible export drawer on the group page,
+// a run whose step 1 captured a value, and the approve dialog with the
+// values filled in.
+describe('group variables', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`group variables and export (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      const hosts = await keelApi<{ id: string; name: string }[]>(app.baseUrl, '/api/hosts');
+      const ids: string[] = [];
+      for (const name of ['vv-cp-1', 'vv-wk-1']) {
+        const have = hosts.find((h) => h.name === name);
+        ids.push(have ? have.id : (await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/hosts', { name, authType: 'local', agentReadable: true })).id);
+      }
+      const groups = await keelApi<{ id: string; name: string }[]>(app.baseUrl, '/api/groups');
+      const group = groups.find((g) => g.name === 'k8s-vars') ?? (await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/groups', { name: 'k8s-vars' }));
+      await keelSend(app.baseUrl, 'POST', '/api/hosts/move', { ids, groupId: group.id });
+      await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: ids[0], role: 'control-plane' });
+      await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: ids[1], role: 'worker' });
+      for (const [name, value] of [['k8s_version', '1.31.2'], ['api_vip', '10.20.0.10'], ['cri', 'containerd']]) {
+        await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/vars`, { name, value });
+      }
+      await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
+        name: 'Bootstrap k8s-vars',
+        steps: [
+          {
+            title: 'kubeadm init on the control plane',
+            command: `t=abcdef; printf '\\033]133;C\\007kubeadm join 10.20.0.10:6443 --code %s.0123456789abcdef\\n\\033]133;D;0\\007' "$t"`,
+            role: 'control-plane',
+            captures: [{ name: 'join_code', pattern: '--code\\s+(\\S+)' }],
+          },
+          { title: 'Join the workers', command: `printf '\\033]133;C\\007joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{k8s_version}}`, role: 'worker' },
+        ],
+      });
+      await openKeel(app);
+      await screen.getByRole('button', 'New host', { visible: true }).first().press('Meta+k');
+      const palette = screen.getByRole('dialog', 'Command palette');
+      await palette.getByRole('combobox').fill('Group k8s-vars');
+      await palette.getByRole('option').filter({ hasText: 'Group k8s-vars' }).first().tap();
+      const page = screen.getByRole('region', 'Group');
+      await expect(page.getByRole('region', 'Group variables')).toContainText('containerd');
+      await page.getByRole('button', 'Export to Ansible').tap();
+      const drawer = screen.getByRole('complementary', 'Export to Ansible');
+      await expect(drawer).toContainText('[control_plane]');
+      await app.screenshot(`${theme}-group-export`);
+      await drawer.getByRole('button', 'Close').tap();
+
+      await page.getByRole('button', 'Run a runbook on this group').tap();
+      await page.getByRole('menuitem', /Bootstrap k8s-vars/).tap();
+      const run = screen.getByRole('region', 'Group run');
+      const back = () => screen.getByRole('button', /Run · Bootstrap k8s-vars/).first().tap();
+      await run.getByRole('button', 'Open a pane on vv-cp-1').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
+      await back();
+      const typeBtn = run.getByRole('button', /^Type into 1 pane/);
+      await expect(typeBtn).toBeEnabled({ timeout: 10_000 });
+      await typeBtn.tap();
+      const dlg = screen.getByRole('dialog').filter({ hasText: 'Type into these panes?' });
+      await dlg.getByRole('button', 'Type into 1 pane').tap();
+      await expect(run.getByRole('row', /^vv-cp-1/)).toContainText('✓ exit 0', { timeout: 15_000 });
+      await run.getByRole('button', 'Open a pane on vv-wk-1').tap();
+      await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
+      await back();
+      await expect(run).toContainText('Uses 1 group variable and 1 captured value');
+      await expect(typeBtn).toBeEnabled({ timeout: 10_000 });
+      await app.screenshot(`${theme}-group-capture`);
+      await typeBtn.tap();
+      await expect(dlg).toContainText('filled in by Keel');
+      await app.screenshot(`${theme}-group-approve-filled`);
+      await dlg.getByRole('button', 'Cancel').tap();
+
+      await run.getByRole('button', 'Stop runbook').first().tap();
+      await screen.getByRole('alertdialog').getByRole('button', 'Stop runbook').tap();
+      for (let i = 0; i < 6; i++) {
+        const close = screen.getByRole('button', 'Close tab', { visible: true });
+        if (!(await close.count())) break;
+        await close.first().tap();
+      }
+      for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      await retire(app, /^vv-/, 'k8s-vars');
+    });
+  }
+});
