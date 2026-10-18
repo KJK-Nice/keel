@@ -63,12 +63,13 @@ type Transcript struct {
 
 // TranscriptTurn is one saved turn.
 type TranscriptTurn struct {
-	At        time.Time   `json:"at"`
-	Question  string      `json:"question,omitempty"`
-	Answer    string      `json:"answer,omitempty"`
-	Trace     []TraceStep `json:"trace"`
-	Proposals []Proposal  `json:"proposals"`
-	Again     bool        `json:"again,omitempty"`
+	At        time.Time      `json:"at"`
+	Question  string         `json:"question,omitempty"`
+	Answer    string         `json:"answer,omitempty"`
+	Trace     []TraceStep    `json:"trace"`
+	Proposals []Proposal     `json:"proposals"`
+	Notes     []NoteProposal `json:"notes"`
+	Again     bool           `json:"again,omitempty"`
 }
 
 // Sessions is the session list: the saved conversations, after removing
@@ -188,8 +189,9 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	s.mu.Lock()
 	c := s.convs[id]
 	var (
-		chat store.AgentChat
-		live map[string]*Proposal
+		chat      store.AgentChat
+		live      map[string]*Proposal
+		liveNotes map[string]NoteProposal
 	)
 	if c != nil && len(c.record) > 0 {
 		chat = c.snapshotLocked(s.now())
@@ -198,6 +200,10 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 		for _, p := range c.proposals {
 			cp := *p
 			live[p.ID] = &cp
+		}
+		liveNotes = make(map[string]NoteProposal, len(c.notes))
+		for _, n := range c.notes {
+			liveNotes[n.ID] = *n
 		}
 	}
 	s.mu.Unlock()
@@ -211,9 +217,16 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	out := Transcript{ID: chat.ID, Title: chat.Title, CreatedAt: chat.CreatedAt, UpdatedAt: chat.UpdatedAt, Saved: saved, Turns: make([]TranscriptTurn, 0, len(chat.Turns))}
 	prodCache := map[string]bool{}
 	for _, t := range chat.Turns {
-		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals))}
+		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes))}
 		for _, st := range t.Trace {
-			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command})
+			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes})
+		}
+		for _, sn := range t.Notes {
+			if n, ok := liveNotes[sn.ID]; ok {
+				tt.Notes = append(tt.Notes, n)
+				continue
+			}
+			tt.Notes = append(tt.Notes, noteFromRecord(sn))
 		}
 		for _, sp := range t.Proposals {
 			if p, ok := live[sp.ID]; ok {
@@ -319,6 +332,7 @@ func (c *conversation) snapshotLocked(now time.Time) store.AgentChat {
 	turns := make([]store.AgentChatTurn, len(c.record))
 	for i, t := range c.record {
 		t.Proposals = append([]store.AgentChatProposal(nil), t.Proposals...)
+		t.Notes = append([]store.AgentChatNote(nil), t.Notes...)
 		turns[i] = t
 	}
 	created := c.created

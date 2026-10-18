@@ -77,7 +77,10 @@ type AgentChatTurn struct {
 	Model     string              `json:"model,omitempty"`
 	Trace     []AgentChatStep     `json:"trace,omitempty"`
 	Proposals []AgentChatProposal `json:"proposals,omitempty"`
-	Again     bool                `json:"again,omitempty"`
+	// Notes are the notes the agent proposed in this turn (agentnotes.go)
+	// and what the user did with them.
+	Notes []AgentChatNote `json:"notes,omitempty"`
+	Again bool            `json:"again,omitempty"`
 }
 
 // AgentChatStep is one line of a turn's trace. It names a pane and what
@@ -93,6 +96,26 @@ type AgentChatStep struct {
 	// Command is how the pane's last command ended ("exit 1") when it was
 	// read from shell-integration marks; never the command itself.
 	Command string `json:"command,omitempty"`
+	// NoteKind ("host" or "user") and Notes are set on a step that sent
+	// notes for the agent: whose and how many, never their text.
+	NoteKind string `json:"noteKind,omitempty"`
+	Notes    int    `json:"notes,omitempty"`
+}
+
+// AgentChatNote is a note the agent proposed, redacted, and its state:
+// "open", "saved" (NoteID names the note) or "dismissed".
+type AgentChatNote struct {
+	ID         string    `json:"id"`
+	For        string    `json:"for"`
+	HostID     string    `json:"hostId,omitempty"`
+	Host       string    `json:"host,omitempty"`
+	Text       string    `json:"text"`
+	FromPane   bool      `json:"fromPane,omitempty"`
+	SeenIn     string    `json:"seenIn,omitempty"`
+	PanesRead  []string  `json:"panesRead,omitempty"`
+	Status     string    `json:"status"`
+	NoteID     string    `json:"noteId,omitempty"`
+	ProposedAt time.Time `json:"proposedAt"`
 }
 
 // AgentChatProposal is a command the agent proposed, as it was last shown.

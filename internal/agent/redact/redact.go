@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Kind is one rule that matched. Kinds are stable: they are written to
@@ -330,6 +331,15 @@ func knownList(values []string) []knownValue {
 	}
 	for _, v := range values {
 		add(v)
+		// The same value as text that went through whitespace or
+		// invisible-character cleaning (a note is one line with single
+		// spaces, store.CleanAgentNote): a vault value with a tab, two
+		// spaces, a zero-width or a bidi character must still match.
+		for _, w := range normalizedForms(v) {
+			if w != v {
+				add(w)
+			}
+		}
 		if strings.Contains(v, "\n") {
 			for _, line := range strings.Split(v, "\n") {
 				if len(strings.TrimSpace(line)) >= 16 {
@@ -341,6 +351,25 @@ func knownList(values []string) []knownValue {
 	// Longest first so a whole key wins over one of its lines.
 	sort.SliceStable(out, func(i, j int) bool { return len(out[i].v) > len(out[j].v) })
 	return out
+}
+
+// normalizedForms is v with control, separator and format characters
+// turned into spaces and whitespace runs collapsed (as notes are cleaned),
+// and v with format characters removed and whitespace collapsed.
+func normalizedForms(v string) []string {
+	spaced := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) || unicode.Is(unicode.Cf, r) {
+			return ' '
+		}
+		return r
+	}, v)
+	stripped := strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, v)
+	return []string{strings.Join(strings.Fields(spaced), " "), strings.Join(strings.Fields(stripped), " ")}
 }
 
 func hostList(addrs []string, ips, names bool) []knownValue {

@@ -82,10 +82,14 @@ type Host struct {
 	// sent": an update keeps the saved value, a create takes the default
 	// (readable; production only when created in a group named
 	// "production", see production.go). Older clients never send them.
-	AgentReadable *bool     `json:"agentReadable"`
-	Production    *bool     `json:"production"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	AgentReadable *bool `json:"agentReadable"`
+	Production    *bool `json:"production"`
+	// AgentNotes is "Let the agent propose notes" (on by default, nil like
+	// the switches above): with it off the agent's note proposals for this
+	// host are dropped (agentnotes.go, docs/ui-redesign.md §15).
+	AgentNotes *bool     `json:"agentNotes"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 // ReadableByAgent reports whether the agent may read this host's panes.
@@ -97,6 +101,12 @@ func (h Host) ReadableByAgent() bool {
 // IsProduction reports whether the host is treated as production.
 func (h Host) IsProduction() bool {
 	return h.Production != nil && *h.Production
+}
+
+// ProposesNotes reports whether the agent may propose notes for this host.
+// A host that never set it may (the default).
+func (h Host) ProposesNotes() bool {
+	return h.AgentNotes == nil || *h.AgentNotes
 }
 
 // Group is a Termius-style parent tree (not a filesystem folder).
@@ -250,10 +260,12 @@ type persistHost struct {
 	// AgentOff is stored inverted so a host saved before the field existed
 	// (no key) stays readable by the agent. Production has no key until
 	// set, so older hosts load as not production.
-	AgentOff   bool      `json:"agentOff,omitempty"`
-	Production bool      `json:"production,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	AgentOff   bool `json:"agentOff,omitempty"`
+	Production bool `json:"production,omitempty"`
+	// AgentNotesOff is stored inverted like AgentOff.
+	AgentNotesOff bool      `json:"agentNotesOff,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 type persistIdentity struct {
@@ -331,6 +343,11 @@ type Store struct {
 	// It is taken before mu, never while holding it.
 	chatMu sync.Mutex
 	chat   chatState
+
+	// memMu guards mem, the notes for the agent (agentnotes.go). Like
+	// chatMu it is taken before mu, never while holding it.
+	memMu sync.Mutex
+	mem   memoryState
 
 	// onChange listeners run after every successful save (OnChange).
 	listenMu sync.Mutex
@@ -448,14 +465,16 @@ func loadPlain(b []byte) (loaded, error) {
 			return loaded{}, fmt.Errorf("parse host: %w", err)
 		}
 		var flags struct {
-			AgentOff   bool `json:"agentOff"`
-			Production bool `json:"production"`
+			AgentOff      bool `json:"agentOff"`
+			Production    bool `json:"production"`
+			AgentNotesOff bool `json:"agentNotesOff"`
 		}
 		if err := json.Unmarshal(rawHost, &flags); err != nil {
 			return loaded{}, fmt.Errorf("parse host: %w", err)
 		}
 		h.AgentReadable = boolPtr(!flags.AgentOff)
 		h.Production = boolPtr(flags.Production)
+		h.AgentNotes = boolPtr(!flags.AgentNotesOff)
 		if h.Password != "" || h.PrivateKey != "" || h.Passphrase != "" {
 			secrets[h.ID] = hostSecret{
 				Password:   h.Password,
@@ -569,6 +588,7 @@ func (s *Store) Unlock(passphrase string) error {
 	// the vault as it is unlocked now (agentchats.go). chatMu comes before
 	// mu.
 	s.forgetChats()
+	s.forgetMemory()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.locked.Load() {
@@ -701,6 +721,7 @@ func (s *Store) viewLocked(h persistHost) Host {
 		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
 		AgentReadable: boolPtr(!h.AgentOff),
 		Production:    boolPtr(h.Production),
+		AgentNotes:    boolPtr(!h.AgentNotesOff),
 		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	out = s.hydrateGroupLocked(out, h.Group)
@@ -728,6 +749,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
 		AgentReadable: boolPtr(!h.AgentOff),
 		Production:    boolPtr(h.Production),
+		AgentNotes:    boolPtr(!h.AgentNotesOff),
 		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 	out = s.hydrateGroupLocked(out, h.Group)
@@ -740,6 +762,15 @@ func (s *Store) fullLocked(h persistHost) Host {
 }
 
 func (s *Store) UpsertHost(h Host) (Host, error) {
+	// A host created under an id the caller chose starts with no notes: a
+	// note left from an earlier host with that id (whose notes could not be
+	// removed when it was deleted) must not come back with it. Notes are
+	// taken before mu (memMu comes first).
+	if id := strings.TrimSpace(h.ID); id != "" && !s.locked.Load() && !s.hostExists(id) {
+		if err := s.deleteHostNotes(id); err != nil && !errors.Is(err, ErrMemoryUnreadable) {
+			return Host{}, fmt.Errorf("notes left from an earlier host with this id could not be removed: %w", err)
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
@@ -870,9 +901,10 @@ func persistFrom(h Host) persistHost {
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
 		Tags:     append([]string(nil), h.Tags...),
 		JumpHost: strings.TrimSpace(h.JumpHost), StartupCommand: h.StartupCommand,
-		AgentOff:   !h.ReadableByAgent(),
-		Production: h.IsProduction(),
-		CreatedAt:  h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		AgentOff:      !h.ReadableByAgent(),
+		Production:    h.IsProduction(),
+		AgentNotesOff: !h.ProposesNotes(),
+		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
 	}
 }
 
@@ -905,7 +937,23 @@ func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 	s.secrets[id] = sec
 }
 
+// DeleteHost removes a host, its secrets and its notes for the agent
+// (agentnotes.go). When the notes cannot be removed the host is still gone
+// and the error says so. A keel.memory that cannot be read is no error
+// here: nothing in it can be read or sent until Delete all notes replaces
+// it, and a host created later under the same id clears its notes first
+// (UpsertHost).
 func (s *Store) DeleteHost(id string) error {
+	if err := s.deleteHost(id); err != nil {
+		return err
+	}
+	if err := s.deleteHostNotes(id); err != nil && !errors.Is(err, ErrMemoryUnreadable) {
+		return fmt.Errorf("host deleted, but its notes for the agent could not be removed: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) deleteHost(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {

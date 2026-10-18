@@ -95,6 +95,7 @@ export function createAgentPanel(deps) {
     // started, and per turn { at, question, trace, proposals, again }.
     model: { createdAt: "", updatedAt: "", turns: [] },
     props: new Map(), // proposal id → { p, status }
+    notes: new Map(), // note proposal id → { n, busy, error } (§15)
   };
 
   if (el.toggleKbd) el.toggleKbd.textContent = deps.isMac ? "⌘I" : "Ctrl+⇧I";
@@ -124,6 +125,10 @@ export function createAgentPanel(deps) {
       const rec = state.props.get(id);
       if (rec) deps.copyText(rec.p.command);
     },
+    note: (id) => state.notes.get(id) || null,
+    saveNote,
+    dismissNote: (id) => noteAction(id, "DELETE", ""),
+    undoNote: (id) => noteAction(id, "POST", "/undo"),
   };
 
   const views = [];
@@ -392,7 +397,9 @@ export function createAgentPanel(deps) {
       if (res.title) setTitle(res.title);
       turnModel.trace = res.trace || [];
       for (const p of res.proposals || []) registerProposal(p);
+      for (const n of res.notes || []) registerNote(n);
       turnModel.proposals = (res.proposals || []).slice();
+      turnModel.notes = (res.notes || []).slice();
       state.model.updatedAt = new Date().toISOString();
       for (const [v, t] of turns) v.askDone(t, res);
     } catch (err) {
@@ -434,6 +441,65 @@ export function createAgentPanel(deps) {
   function repaintProposal(id) {
     eachView((v) => v.paintCard(id));
     emit("proposal");
+  }
+
+  // --- notes the agent proposes (§15) ---
+  //
+  // A proposal is only a suggestion: keel serve keeps nothing until Save
+  // here (POST …/notes/{id}, with the user's edit if any). Dismiss and Undo
+  // change only its state; Undo after Save deletes the note again.
+
+  function registerNote(n) {
+    state.notes.set(n.id, { n, busy: false, error: "" });
+  }
+
+  function repaintNote(id) {
+    eachView((v) => v.paintNote(id));
+    emit("note");
+  }
+
+  async function saveNote(id, text) {
+    const rec = state.notes.get(id);
+    if (!rec || rec.busy) return false;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintNote(id);
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notes/${encodeURIComponent(id)}`, {
+        method: "POST",
+        body: JSON.stringify({ text: text || "" }),
+      });
+      if (conv !== state.conv) return false;
+      rec.n = res.proposal || { ...rec.n, status: "saved", noteId: res.note?.id };
+      if (res.redacted) deps.toast(`Saved. ${res.redacted === 1 ? "1 secret-looking value was" : `${res.redacted} secret-looking values were`} replaced first.`);
+      return true;
+    } catch (err) {
+      rec.error = err?.message || String(err);
+      return false;
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintNote(id);
+    }
+  }
+
+  async function noteAction(id, method, suffix) {
+    const rec = state.notes.get(id);
+    if (!rec || rec.busy) return;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintNote(id);
+    try {
+      const n = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notes/${encodeURIComponent(id)}${suffix}`, { method });
+      if (conv !== state.conv) return;
+      rec.n = n;
+    } catch (err) {
+      rec.error = err?.message || String(err);
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintNote(id);
+    }
   }
 
   async function typeProposal(id, shift) {
@@ -511,6 +577,7 @@ export function createAgentPanel(deps) {
     state.turns = 0;
     state.title = "";
     state.props.clear();
+    state.notes.clear();
     state.model = { createdAt: "", updatedAt: "", turns: [] };
     state.scopeAuto = true;
     if (state.settings) state.scope = A.defaultScope(state.settings.defaultScope, panes());
@@ -621,12 +688,14 @@ export function createAgentPanel(deps) {
     state.conv = t.id;
     state.title = t.title || "";
     state.props.clear();
+    state.notes.clear();
     state.model = {
       createdAt: t.createdAt || "",
       updatedAt: t.updatedAt || "",
-      turns: (t.turns || []).map((turn) => ({ at: turn.at, question: turn.question, again: !!turn.again, trace: turn.trace || [], proposals: turn.proposals || [] })),
+      turns: (t.turns || []).map((turn) => ({ at: turn.at, question: turn.question, again: !!turn.again, trace: turn.trace || [], proposals: turn.proposals || [], notes: turn.notes || [] })),
     };
     for (const turn of t.turns || []) for (const p of turn.proposals || []) registerProposal(p);
+    for (const turn of t.turns || []) for (const n of turn.notes || []) registerNote(n);
     eachView((v) => v.renderTranscript(t));
     state.turns = Math.max(1, state.model.turns.filter((x) => !x.again).length);
     if (el.input) el.input.placeholder = "Continue this conversation…";

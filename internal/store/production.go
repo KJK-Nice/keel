@@ -36,6 +36,9 @@ func (s *Store) applyCreateDefaultsLocked(h *Host) {
 	if h.AgentReadable == nil {
 		h.AgentReadable = boolPtr(true)
 	}
+	if h.AgentNotes == nil {
+		h.AgentNotes = boolPtr(true)
+	}
 	if h.Production == nil {
 		h.Production = boolPtr(s.isProductionGroupLocked(h.GroupID))
 	}
@@ -47,6 +50,9 @@ func (s *Store) applyCreateDefaultsLocked(h *Host) {
 func (s *Store) applyUpdateDefaultsLocked(h *Host, existing persistHost) {
 	if h.AgentReadable == nil {
 		h.AgentReadable = boolPtr(!existing.AgentOff)
+	}
+	if h.AgentNotes == nil {
+		h.AgentNotes = boolPtr(!existing.AgentNotesOff)
 	}
 	if h.Production == nil {
 		prod := existing.Production

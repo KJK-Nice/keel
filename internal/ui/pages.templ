@@ -450,6 +450,22 @@ templ agentSettingsPanel() {
 				</div>
 			</div>
 		}
+		@settingsGroup("Notes for the agent") {
+			<div class="pref-row pref-row-stack">
+				<div class="pref-copy">
+					<div class="pref-title">Your notes</div>
+					<p class="pref-desc">How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.</p>
+				</div>
+				@notesBlock("agent-set-notes", "Notes about you", "Add a note, e.g. Prefer journalctl over tail -f", "The agent may propose a note; nothing is saved until you press Save. Stored encrypted in the vault.", false)
+			</div>
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Delete all notes</div>
+					<p class="pref-desc">Forget every host note and every note about you. Conversations stay.</p>
+				</div>
+				<button type="button" class="k-btn k-btn--danger k-btn--sm" id="agent-set-delete-notes">Delete all notes</button>
+			</div>
+		}
 		@settingsGroup("Safety") {
 			<div class="pref-row">
 				<div class="pref-copy">
