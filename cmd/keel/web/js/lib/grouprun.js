@@ -47,6 +47,9 @@ export const MODE_HELP = {
   parallel: "Parallel: every host at once. A failure does not stop the others. Best for read-only steps.",
 };
 
+// MODE_LOCKED says why the mode buttons are off.
+export const MODE_LOCKED = "The mode can change once no host of this step is proposed or waiting for its result, and no failure stopped the step.";
+
 export function modeShort(mode) {
   return mode === "parallel" ? "parallel" : "rolling, one at a time";
 }
@@ -62,7 +65,7 @@ export function targetLabel(step) {
   return step.role ? `Role ${step.role} · ${hosts}` : `Every host · ${hosts}`;
 }
 
-const GLYPH = { done: "✓", failed: "✗", typed: "◌", proposed: "·", waiting: "·", skipped: "–" };
+const GLYPH = { done: "✓", failed: "✗", typed: "◌", typing: "◌", proposed: "·", waiting: "·", skipped: "–" };
 
 // cellView is how a host × step shows: its glyph, words and class.
 export function cellView(c) {
@@ -85,6 +88,10 @@ export function cellView(c) {
       else if (c.result === "abandoned") text = "shell went away";
       else text = "running";
       cls = c.confirm ? "k-gx-st k-gx-st--run" : "k-gx-st k-gx-st--run";
+      break;
+    case "typing":
+      text = "typing";
+      cls = "k-gx-st k-gx-st--run";
       break;
     case "proposed":
       text = "waiting for you";

@@ -1140,6 +1140,10 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				// result is the first command the shell reports after it.
 				mark := sess.StreamMark()
 				if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
+					if ctl.Agent.GroupRunID != "" {
+						// The host goes back to proposed: nothing was written.
+						s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
+					}
 					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
 					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
 					break

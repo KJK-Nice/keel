@@ -214,7 +214,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 		if err != nil || nx.Count == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", h.Name, nx.Text.String())
+		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", frameName(h.Name, r), nx.Text.String())
 		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: "notes", NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
 	}
 	gText, gSteps := s.groupNoteContext(read, byID, byGroup, scope, r)
@@ -227,6 +227,14 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 		}
 	}
 	return b.String(), steps
+}
+
+// frameName is a host or group name as a notes frame line holds it: through
+// the request's Redactor (it may hold a secret-looking value or a hostname
+// the settings redact) and on one line, so it cannot draw its own frame.
+func frameName(name string, r *redact.Redactor) string {
+	c, _ := store.CleanLine(r.Text(name).String(), 4*store.MaxRunbookNameBytes)
+	return c
 }
 
 // GroupSource lists the folders, for group notes and roles (§17).
@@ -293,7 +301,7 @@ func (s *Service) groupNoteContext(read []agent.Excerpt, byID map[string]agent.H
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", gr.g.Name, nx.Text.String())
+		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", frameName(gr.g.Name, r), nx.Text.String())
 		if nx.Count > 0 {
 			steps = append(steps, TraceStep{Host: gr.g.Name, Status: "notes", NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}

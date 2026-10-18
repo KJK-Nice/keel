@@ -651,6 +651,7 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-gx-mode button { height: var(--size-control-sm); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); font: var(--type-label); cursor: pointer; }
 .k-gx-mode button[aria-pressed="true"] { background: var(--raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
 .k-gx-mode button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.k-gx-mode button:disabled { color: var(--ink-faint); cursor: default; }
 .k-gx-prop .k-bytes { max-height: none; }
 .k-gx-grow { flex: 1; min-width: 0; }
 .k-gx-halt {

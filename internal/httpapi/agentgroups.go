@@ -183,6 +183,8 @@ func writeGroupRunErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, service.ErrNoGroupRun):
 		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, service.ErrModeLocked), errors.Is(err, service.ErrTyping), errors.Is(err, service.ErrResultPending), errors.Is(err, service.ErrTooManyRuns):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeRunbookErr(w, err)
 	}

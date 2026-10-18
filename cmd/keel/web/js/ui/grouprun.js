@@ -119,6 +119,9 @@ export function createGroupRunPage(deps) {
     switch (c.state) {
       case "typed":
         if (c.confirm) return b("confirm", "Confirm", `Confirm ${name} done`, "") + b("retry", "Retry", `Retry ${name}`);
+        // While the shell may still report the exit status, Mark done waits
+        // (keel serve refuses it too).
+        if (c.pending) return b("retry", "Retry", `Retry ${name}`);
         return b("done", "Mark done", `Mark ${name} done`) + b("retry", "Retry", `Retry ${name}`);
       case "failed":
         return b("retry", "Retry", `Retry ${name}`, "") + b("skip", "Skip", `Skip ${name}`) + b("done", "Mark done", `Mark ${name} done`);
@@ -180,11 +183,11 @@ export function createGroupRunPage(deps) {
     if (!st) return "";
     const i = run.current;
     const mode = `<div class="k-gx-mode" role="group" aria-label="How to run on several hosts">
-        <button type="button" aria-pressed="${run.mode === "rolling"}" data-mode="rolling">Rolling</button>
-        <button type="button" aria-pressed="${run.mode === "parallel"}" data-mode="parallel">Parallel</button>
+        <button type="button" aria-pressed="${run.mode === "rolling"}" data-mode="rolling"${run.modeLocked ? " disabled" : ""}>Rolling</button>
+        <button type="button" aria-pressed="${run.mode === "parallel"}" data-mode="parallel"${run.modeLocked ? " disabled" : ""}>Parallel</button>
       </div>`;
     const head = `<div class="k-gx-curhead"><h2 class="k-gx-h2">Step ${i + 1} · ${escapeHtml(st.title)}</h2>${st.command ? mode : ""}</div>
-      ${st.command ? `<p class="k-help k-gx-modehelp">${escapeHtml(G.MODE_HELP[run.mode] || "")}</p>` : ""}
+      ${st.command ? `<p class="k-help k-gx-modehelp">${escapeHtml(G.MODE_HELP[run.mode] || "")}${run.modeLocked ? ` ${escapeHtml(G.MODE_LOCKED)}` : ""}</p>` : ""}
       ${st.description ? `<p class="k-gx-desc">${escapeHtml(st.description)}</p>` : ""}`;
     if (!st.command) {
       return `${head}<div class="k-review k-gx-banner" role="note">${ICON.info}<span>This step has no command. Check it yourself, then mark it done.${st.expect ? ` Expected: ${escapeHtml(st.expect)}.` : ""}</span>

@@ -21,7 +21,7 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 		"authorizeGroupType": {"Service.AuthorizeType"},
 		"GroupTypeDoneAt":    {},
 		"groupProposalLocked": {
-			"Service.authorizeGroupType", "Service.GroupTypeDoneAt",
+			"Service.authorizeGroupType", "Service.GroupTypeDoneAt", "Service.GroupTypeFailed",
 		},
 	}
 	seen := map[string]int{}

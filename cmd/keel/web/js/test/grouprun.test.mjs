@@ -35,6 +35,7 @@ test("a cell's words never say more than the shell reported", () => {
   assert.equal(G.cellView(cell("h1", "typed", { exit: 0, confirm: true })).text, "exit 0 · confirm");
   assert.equal(G.cellView(cell("h1", "typed", { result: "unreported" })).text, "no exit status");
   assert.equal(G.cellView(cell("h1", "waiting", { blocked: "No pane" })).text, "needs a pane");
+  assert.equal(G.cellView(cell("h1", "typing")).text, "typing");
 });
 
 test("the approve dialog: one row per host, nothing ticked unless it is the only one", () => {

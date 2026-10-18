@@ -57,6 +57,14 @@ const (
 	cellDone     = "done"
 	cellFailed   = "failed"
 	cellSkipped  = "skipped"
+	// cellTyping is a host whose proposal keel serve authorized and is
+	// writing now: between AuthorizeType and the write, nothing may reset
+	// it (a Retry there would let the command run twice).
+	cellTyping = "typing"
+
+	// pendingResultFor is how long Mark done waits for a shell that sends
+	// OSC 133 marks to report a typed host's exit status.
+	pendingResultFor = 10 * time.Minute
 )
 
 var (
@@ -67,6 +75,17 @@ var (
 	// ErrNotProposed refuses typing a group run proposal twice, or one the
 	// user retried or skipped.
 	ErrNotProposed = errors.New("agent: this host's step is not waiting to be typed; propose it again")
+	// ErrModeLocked refuses a mode change while a rolling step is stopped
+	// at a failure or while a host's proposal is live: switching then would
+	// lift the rolling stop or leave later hosts typeable.
+	ErrModeLocked = errors.New("agent: the mode can change only when no host of the current step is proposed, being typed or waiting for its result, and no failure stopped the step; retry or skip the host first")
+	// ErrTyping refuses Retry or Skip on a host whose step is being typed.
+	ErrTyping = errors.New("agent: this host's step is being typed right now; wait for it, then retry or skip")
+	// ErrResultPending refuses Mark done while the shell may still report
+	// the exit status.
+	ErrResultPending = errors.New("agent: this host's shell reports exit codes; wait for it, or retry or skip the host")
+	// ErrTooManyRuns refuses a new run while maxGroupRuns are active.
+	ErrTooManyRuns = errors.New("agent: 8 group runs are active; stop one before you start another")
 )
 
 // GroupMemberSource lists a group's hosts with their roles. *store.Store
@@ -98,6 +117,8 @@ type GroupRun struct {
 	Current int `json:"current"`
 	// Halted names the host whose failure stopped a rolling step.
 	Halted string `json:"halted,omitempty"`
+	// ModeLocked is set while the mode may not change (modeLockedLocked).
+	ModeLocked bool `json:"modeLocked,omitempty"`
 	// NeedPane are the hosts of the current step Keel would propose for now
 	// but found no pane open on in the asking window.
 	NeedPane []GroupRunHost `json:"needPane"`
@@ -154,7 +175,11 @@ type GroupRunCell struct {
 	// the user.
 	Confirm bool `json:"confirm,omitempty"`
 	// Blocked says why Keel did not propose for this host now.
-	Blocked    string     `json:"blocked,omitempty"`
+	Blocked string `json:"blocked,omitempty"`
+	// Pending is set on a typed host whose shell sends OSC 133 marks and
+	// has not reported this command's exit status yet (for up to
+	// pendingResultFor): Mark done waits.
+	Pending    bool       `json:"pending,omitempty"`
 	ProposedAt *time.Time `json:"proposedAt,omitempty"`
 	TypedAt    *time.Time `json:"typedAt,omitempty"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
@@ -169,7 +194,9 @@ type groupRun struct {
 }
 
 func (r *groupRun) view() GroupRun {
+	locked := r.Status == runActive && r.modeLockedLocked()
 	out := r.GroupRun
+	out.ModeLocked = locked
 	out.Members = append([]GroupRunMember(nil), r.Members...)
 	out.NeedPane = append([]GroupRunHost{}, r.NeedPane...)
 	out.Steps = make([]GroupRunStep, len(r.Steps))
@@ -330,7 +357,10 @@ func (s *Service) StartGroupRun(req GroupRunRequest) (GroupRun, error) {
 		s.groupRuns = map[string]*groupRun{}
 	}
 	for len(s.groupRuns) >= maxGroupRuns {
-		s.evictGroupRunLocked()
+		if !s.evictGroupRunLocked() {
+			s.mu.Unlock()
+			return GroupRun{}, ErrTooManyRuns
+		}
 	}
 	s.groupRuns[run.ID] = run
 	out := run.view()
@@ -339,22 +369,21 @@ func (s *Service) StartGroupRun(req GroupRunRequest) (GroupRun, error) {
 	return out, nil
 }
 
-// evictGroupRunLocked drops the least recently used run, ended ones first.
-func (s *Service) evictGroupRunLocked() {
+// evictGroupRunLocked drops the least recently used ended run. An active
+// run is never dropped: false when every run is active.
+func (s *Service) evictGroupRunLocked() bool {
 	ids := make([]string, 0, len(s.groupRuns))
-	for k := range s.groupRuns {
-		ids = append(ids, k)
-	}
-	sort.Slice(ids, func(i, j int) bool {
-		a, b := s.groupRuns[ids[i]], s.groupRuns[ids[j]]
-		if (a.Status == runActive) != (b.Status == runActive) {
-			return b.Status == runActive
+	for k, r := range s.groupRuns {
+		if r.Status != runActive {
+			ids = append(ids, k)
 		}
-		return a.used.Before(b.used)
-	})
-	if len(ids) > 0 {
-		delete(s.groupRuns, ids[0])
 	}
+	if len(ids) == 0 {
+		return false
+	}
+	sort.Slice(ids, func(i, j int) bool { return s.groupRuns[ids[i]].used.Before(s.groupRuns[ids[j]].used) })
+	delete(s.groupRuns, ids[0])
+	return true
 }
 
 // GroupRunState returns a run, after looking for typed hosts' results in
@@ -603,7 +632,35 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 	if agent.NeedsShift(snap.Risk, snap.Production || h.Production) && !req.Shift {
 		return ErrNeedsShift
 	}
-	return s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes)
+	if err := agent.CanInsert(req.Role); err != nil {
+		return err
+	}
+	// Claim the host under the lock: it is typing until the write is done
+	// (GroupTypeDoneAt) or failed (GroupTypeFailed), and Retry, Skip and a
+	// mode change leave it alone meanwhile.
+	s.mu.Lock()
+	run, c = s.groupProposalLocked(req.GroupRunID, req.ProposalID)
+	if run == nil || c == nil || run.Status != runActive || c.State != cellProposed {
+		s.mu.Unlock()
+		return ErrNotProposed
+	}
+	c.State = cellTyping
+	s.mu.Unlock()
+	if err := s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes); err != nil {
+		s.GroupTypeFailed(req.GroupRunID, req.ProposalID)
+		return err
+	}
+	return nil
+}
+
+// GroupTypeFailed puts a host back to proposed when its authorized bytes
+// were not written (the inject ticket was refused or expired).
+func (s *Service) GroupTypeFailed(runID, proposalID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, c := s.groupProposalLocked(runID, proposalID); c != nil && c.State == cellTyping {
+		c.State = cellProposed
+	}
 }
 
 // GroupTypeDoneAt records that a run's proposal was typed, with the pane's
@@ -613,7 +670,7 @@ func (s *Service) GroupTypeDoneAt(runID, proposalID string, mark uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	run, c := s.groupProposalLocked(runID, proposalID)
-	if run == nil || c == nil || c.State != cellProposed {
+	if run == nil || c == nil || c.State != cellTyping {
 		return
 	}
 	c.Proposal.TypedAt = &now
@@ -664,6 +721,7 @@ func (s *Service) refreshGroupRun(id string) {
 		abandoned   bool
 		gotResult   bool
 		production  bool
+		hasMarks    bool
 		stepNo, ofN int
 	}
 	var pend []pending
@@ -684,17 +742,15 @@ func (s *Service) refreshGroupRun(id string) {
 	if len(pend) == 0 {
 		return
 	}
-	any := false
 	for k := range pend {
 		p := &pend[k]
 		p.exit, p.noStatus, p.abandoned, p.gotResult = cmdResult(src.CommandsAfter(p.sessionID, p.mark), p.want)
+		// A shell that has ever sent a mark is expected to report this
+		// command too; one that never did leaves the result to the user.
+		p.hasMarks = len(src.CommandsAfter(p.sessionID, 0)) > 0
 		if p.gotResult {
-			any = true
 			p.production, _ = s.hostProduction(p.hostID)
 		}
-	}
-	if !any {
-		return
 	}
 	now := s.now()
 	var logs []func()
@@ -705,11 +761,16 @@ func (s *Service) refreshGroupRun(id string) {
 		return
 	}
 	for _, p := range pend {
-		if !p.gotResult || p.step >= len(run.Steps) || p.cell >= len(run.Steps[p.step].Cells) {
+		if p.step >= len(run.Steps) || p.cell >= len(run.Steps[p.step].Cells) {
 			continue
 		}
 		c := &run.Steps[p.step].Cells[p.cell]
 		if c.State != cellTyped || c.Result != "" || c.Proposal == nil || c.Proposal.ID != p.proposalID {
+			continue
+		}
+		c.Pending = false
+		if !p.gotResult {
+			c.Pending = p.hasMarks && c.TypedAt != nil && now.Sub(*c.TypedAt) < pendingResultFor
 			continue
 		}
 		runID, rb, host, n, of := run.ID, run.RunbookID, p.hostID, p.stepNo, p.ofN
@@ -788,6 +849,12 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 			st.Done = true
 			what = "checked by you"
 		case "skip":
+			for _, c := range st.Cells {
+				if c.State == cellTyping {
+					s.mu.Unlock()
+					return GroupRun{}, ErrTyping
+				}
+			}
 			st.Skipped = true
 			for j := range st.Cells {
 				if c := &st.Cells[j]; c.State != cellDone {
@@ -810,13 +877,17 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 			s.mu.Unlock()
 			return GroupRun{}, ErrNotFound
 		}
+		if c.State == cellTyping && action != "confirm" {
+			s.mu.Unlock()
+			return GroupRun{}, ErrTyping
+		}
 		switch action {
 		case "retry":
 			if c.State != cellFailed && c.State != cellTyped && c.State != cellProposed {
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("only a proposed, typed or failed host can be retried")
 			}
-			c.State, c.Proposal, c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark = cellWaiting, nil, nil, "", false, nil, nil, false
+			c.State, c.Proposal, c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark, c.Pending = cellWaiting, nil, nil, "", false, nil, nil, false, false
 			if st.OneHost {
 				c.HostID, c.Host, c.SessionID = "", "", ""
 			}
@@ -826,12 +897,16 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("this host is done")
 			}
-			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark = cellSkipped, nil, "user", &now, false
+			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark, c.Pending = cellSkipped, nil, "user", &now, false, false
 			what = "skipped by you"
 		case "done":
 			if c.State != cellTyped && c.State != cellFailed {
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("only a typed or failed host can be marked done")
+			}
+			if c.Pending {
+				s.mu.Unlock()
+				return GroupRun{}, ErrResultPending
 			}
 			if c.Confirm && c.Exit != nil && *c.Exit == 0 {
 				what = "confirmed done by you after a reported exit 0"
@@ -839,7 +914,7 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 				c.Result = "user"
 				what = "marked done by you"
 			}
-			c.State, c.Confirm, c.FinishedAt, c.hasMark = cellDone, false, &now, false
+			c.State, c.Confirm, c.FinishedAt, c.hasMark, c.Pending = cellDone, false, &now, false, false
 		case "confirm":
 			if !(c.State == cellTyped && c.Confirm) {
 				s.mu.Unlock()
@@ -861,8 +936,31 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 	return out, nil
 }
 
-// SetGroupRunMode switches between rolling and parallel. It applies to the
-// proposals made from now on; live ones stay.
+// modeLockedLocked reports whether the mode may not change now: a rolling
+// step stopped at a failure, or a host of the current step proposed, being
+// typed or waiting for its result. Call with s.mu held.
+func (r *groupRun) modeLockedLocked() bool {
+	r.advanceLocked()
+	if r.Halted != "" {
+		return true
+	}
+	if r.Current < 0 {
+		return false
+	}
+	for _, c := range r.Steps[r.Current].Cells {
+		switch {
+		case c.State == cellProposed, c.State == cellTyping:
+			return true
+		case c.State == cellTyped && !c.Confirm && c.Result == "":
+			return true
+		}
+	}
+	return false
+}
+
+// SetGroupRunMode switches between rolling and parallel, only while
+// modeLockedLocked allows it (ErrModeLocked otherwise). It applies to the
+// proposals made from then on.
 func (s *Service) SetGroupRunMode(id, mode string) (GroupRun, error) {
 	if !validMode(mode) {
 		return GroupRun{}, badRequest("mode is rolling or parallel")
@@ -874,6 +972,10 @@ func (s *Service) SetGroupRunMode(id, mode string) (GroupRun, error) {
 		return GroupRun{}, ErrNoGroupRun
 	}
 	changed := run.Mode != mode
+	if changed && run.modeLockedLocked() {
+		s.mu.Unlock()
+		return GroupRun{}, ErrModeLocked
+	}
 	run.Mode = mode
 	run.advanceLocked()
 	out := run.view()
