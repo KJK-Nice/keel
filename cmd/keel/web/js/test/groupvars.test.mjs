@@ -38,6 +38,8 @@ test("usesLine and captures: names only, captured values never shown", () => {
   assert.equal(V.usesLine({ vars: [] }, steps, 1), "");
   assert.deepEqual(V.captureView({ name: "t", state: "captured", bytes: 23 }), { mask: "••••••••••••", text: "23 bytes", state: "captured" });
   assert.match(V.captureView({ state: "blocked" }).text, /vault/);
+  assert.match(V.captureView({ state: "too-short" }).text, /too short to keep from the agent/);
+  assert.match(V.captureView({ state: "full" }).text, /Restart Keel to clear them/);
   assert.equal(V.captureView(undefined).text, "not captured yet");
   assert.match(V.expiryLine({ cells: [] }), /after 1 hour/);
   assert.equal(V.usedLine([{ name: "a", from: "group variable" }, { name: "b", quoted: true, from: "captured on cp-1 · step 1" }]), "{{a}} group variable, {{b|q}} captured on cp-1 · step 1");

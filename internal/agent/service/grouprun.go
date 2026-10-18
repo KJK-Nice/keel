@@ -848,7 +848,7 @@ func (s *Service) refreshGroupRun(id string) {
 				// Withheld from the model first, for good: a value the set
 				// cannot take is not kept for filling either.
 				if cr.state == CaptureCaptured && !s.withholdLocked(cr.name, cr.value) {
-					cr.state, cr.value = CaptureRefused, ""
+					cr.state, cr.value = CaptureFull, ""
 				}
 				if cr.state == CaptureCaptured {
 					if run.captures == nil {

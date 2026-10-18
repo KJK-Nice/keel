@@ -93,6 +93,8 @@ const CAPTURE_TEXT = {
   "no-match": "no match in the output",
   blocked: "not kept: it holds a value from the vault",
   refused: "not kept: a line break, control character or over 512 bytes",
+  "too-short": "not kept: under 3 bytes, too short to keep from the agent",
+  full: "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
   "no-output": "not captured: the shell sent no command marks (OSC 133)",
   expired: "expired",
 };

@@ -52,6 +52,12 @@ const (
 	CaptureRefused  = "refused"   // a control character, or too long: not kept
 	CaptureNoOutput = "no-output" // no OSC 133 output to read
 	CaptureExpired  = "expired"
+	// CaptureTooShort is a value under 3 bytes: the Redactor cannot match
+	// one that short, so it could not be kept from the model; not kept.
+	CaptureTooShort = "too-short"
+	// CaptureFull is a value not kept because the redact-only set is full
+	// (maxWithheld); restarting keel serve clears the set.
+	CaptureFull = "full"
 )
 
 var (
@@ -175,6 +181,10 @@ func (s *Service) requestRedactor(opts store.AgentRedaction, hosts []agent.Host)
 // full a new value is not kept at all (the capture is refused), so no
 // value is ever filled in that the Redactor would not withhold.
 const maxWithheld = 1024
+
+// minCapturedBytes is the shortest value a capture keeps: the Redactor
+// matches no named value under 3 bytes.
+const minCapturedBytes = 3
 
 // withholdLocked adds a captured value to the redact-only set, kept for
 // the life of this keel serve whatever happens to its run (finished,
@@ -331,6 +341,10 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 		switch {
 		case !found:
 			out = append(out, captureResult{name: c.Name, state: CaptureNoMatch})
+		case len(strings.TrimSpace(v)) < minCapturedBytes:
+			// Too short for the Redactor to withhold (redact.namedList
+			// skips it): never kept, so never typed.
+			out = append(out, captureResult{name: c.Name, state: CaptureTooShort})
 		case runvars.CheckValue(v, runvars.MaxValueBytes) != nil:
 			out = append(out, captureResult{name: c.Name, state: CaptureRefused})
 		default:

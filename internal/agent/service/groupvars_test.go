@@ -564,6 +564,39 @@ func TestPerHostCaptureNotFilledElsewhere(t *testing.T) {
 	}
 }
 
+// A value under 3 bytes could never be withheld from the model, so it is
+// not kept; when the redact-only set is full a new value is not kept
+// either, and the user is told to restart Keel.
+func TestCaptureTooShortOrSetFull(t *testing.T) {
+	v := varRunFixture(t)
+	run := v.startToStep2(t, v.joinRunbook(t, "echo {{join_token}}"), "kubeadm join x --token ab\n")
+	if got := cellOf(t, run, 0, "cp1").Captures; len(got) != 1 || got[0].State != CaptureTooShort {
+		t.Fatalf("short value kept: %+v", got)
+	}
+	if liveCaptures(v.svc) != 0 || len(v.svc.namedValues(false)) != 0 {
+		t.Fatal("a short value is held")
+	}
+	c := cellOf(t, run, 1, "wk1")
+	if fills, _ := v.svc.FillGroupProposals(run.ID, []string{c.Proposal.ID}); !strings.Contains(fills[0].Error, "has no value") {
+		t.Fatalf("short value filled: %+v", fills)
+	}
+
+	v2 := varRunFixture(t)
+	v2.svc.mu.Lock()
+	v2.svc.withheld = map[string]string{}
+	for i := 0; i < maxWithheld; i++ {
+		v2.svc.withheld[newID("old-")] = "old"
+	}
+	v2.svc.mu.Unlock()
+	run = v2.startToStep2(t, v2.joinRunbook(t, "echo {{join_token}}"), joinOut)
+	if got := cellOf(t, run, 0, "cp1").Captures; len(got) != 1 || got[0].State != CaptureFull {
+		t.Fatalf("captured past a full set: %+v", got)
+	}
+	if liveCaptures(v2.svc) != 0 {
+		t.Fatal("a value the set could not take is held for filling")
+	}
+}
+
 // A captured piece of a vault value (6 bytes or more) is blocked like the
 // whole value.
 func TestCapturedPieceOfVaultValueBlocked(t *testing.T) {
