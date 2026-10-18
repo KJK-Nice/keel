@@ -64,6 +64,9 @@ type Host struct {
 	// may pick for a pane on it (a runbook's Hosts).
 	Group string
 	Tags  []string
+	// GroupID is the host's folder: its group notes and roles are those of
+	// that folder and the folders above it (§17).
+	GroupID string
 }
 
 // HostsFrom copies the non-secret fields of store hosts.
@@ -79,6 +82,7 @@ func HostsFrom(hosts []store.Host) []Host {
 			ProposeNotes:  h.ProposesNotes(),
 			Group:         h.Group,
 			Tags:          append([]string(nil), h.Tags...),
+			GroupID:       h.GroupID,
 		})
 	}
 	return out

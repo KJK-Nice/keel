@@ -1,0 +1,525 @@
+{"time":"2026-10-18T12:10:43.991324Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:10:43.997344Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:10:44.361777Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563"}
+{"time":"2026-10-18T12:10:44.829174Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563","lines":3}
+{"time":"2026-10-18T12:10:44.830092Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563"}
+{"time":"2026-10-18T12:10:45.386094Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563","lines":3}
+{"time":"2026-10-18T12:10:45.386413Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563"}
+{"time":"2026-10-18T12:10:48.412983Z","kind":"agent.type","message":"agent command typed into Local Shell · 20 bytes, 1 lines","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563","lines":1,"bytes":20}
+{"time":"2026-10-18T12:10:48.530482Z","kind":"agent.read","message":"agent read Local Shell · last 5 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563","lines":5}
+{"time":"2026-10-18T12:10:48.530892Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"8168ea3284084563"}
+{"time":"2026-10-18T12:10:49.617316Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:10:49.642666Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:10:49.647387Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:10:50.323364Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"6ac93c208d10f4cd"}
+{"time":"2026-10-18T12:10:50.59629Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"6ac93c208d10f4cd","lines":2}
+{"time":"2026-10-18T12:10:50.596735Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"6ac93c208d10f4cd"}
+{"time":"2026-10-18T12:10:51.751742Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"6ac93c208d10f4cd"}
+{"time":"2026-10-18T12:10:53.552151Z","kind":"agent","message":"agent history deleted (18 conversations)"}
+{"time":"2026-10-18T12:10:53.581135Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:10:53.586078Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:10:54.320057Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"243ba2586087f6c1"}
+{"time":"2026-10-18T12:10:54.745897Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"243ba2586087f6c1","lines":3}
+{"time":"2026-10-18T12:10:54.746336Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"243ba2586087f6c1"}
+{"time":"2026-10-18T12:10:55.29603Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"243ba2586087f6c1","lines":3}
+{"time":"2026-10-18T12:10:55.296318Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"243ba2586087f6c1"}
+{"time":"2026-10-18T12:10:57.692913Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:10:57.715579Z","kind":"session","message":"session killed","sessionId":"243ba2586087f6c1"}
+{"time":"2026-10-18T12:10:57.83172Z","kind":"session","message":"session killed","sessionId":"6ac93c208d10f4cd"}
+{"time":"2026-10-18T12:10:57.932053Z","kind":"session","message":"session killed","sessionId":"8168ea3284084563"}
+{"time":"2026-10-18T12:10:58.006218Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:10:58.011266Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:10:58.36434Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e"}
+{"time":"2026-10-18T12:10:58.629492Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e","lines":2}
+{"time":"2026-10-18T12:10:58.629854Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e"}
+{"time":"2026-10-18T12:10:59.754209Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e"}
+{"time":"2026-10-18T12:11:01.000326Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e","lines":3}
+{"time":"2026-10-18T12:11:01.000693Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51790de201fd702e"}
+{"time":"2026-10-18T12:11:01.574885Z","kind":"agent","message":"agent history deleted (18 conversations)"}
+{"time":"2026-10-18T12:11:01.603215Z","kind":"session","message":"session killed","sessionId":"51790de201fd702e"}
+{"time":"2026-10-18T12:11:02.168534Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:02.170586Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:02.179567Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:03.284835Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:04.283612Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:04.905201Z","kind":"agent","message":"agent key saved for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:07.140423Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:07.350268Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.462562Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.564099Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.66516Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.763709Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.86172Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:07.963451Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:08.063257Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:08.966788Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:11:09.500885Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:09.502992Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:09.512955Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:09.515829Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:09.51759Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:09.527006Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:10.446177Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:11.422801Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:12.000431Z","kind":"agent","message":"agent key saved for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:14.15295Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:14.403272Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:14.514328Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:14.615395Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:14.715941Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:14.813483Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:14.915117Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:15.016008Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:15.116851Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:16.074098Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:11:16.611355Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:16.613445Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:16.620983Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:16.631335Z","kind":"group","message":"group created: Production"}
+{"time":"2026-10-18T12:11:17.671717Z","kind":"host","message":"host created: e2e-plain-mvdsb8r2","hostId":"93c3ffef1faa115b"}
+{"time":"2026-10-18T12:11:18.975996Z","kind":"host","message":"host created: e2e-prod-mvdsb8r2","hostId":"36e0a94d6186460d"}
+{"time":"2026-10-18T12:11:20.403523Z","kind":"host","message":"host created: e2e-off-mvdsb8r2","hostId":"8ee6c0a9d28b8856"}
+{"time":"2026-10-18T12:11:21.737057Z","kind":"host","message":"host deleted: e2e-off-mvdsb8r2","hostId":"8ee6c0a9d28b8856"}
+{"time":"2026-10-18T12:11:22.222011Z","kind":"host","message":"host deleted: e2e-plain-mvdsb8r2","hostId":"93c3ffef1faa115b"}
+{"time":"2026-10-18T12:11:22.694028Z","kind":"host","message":"host deleted: e2e-prod-mvdsb8r2","hostId":"36e0a94d6186460d"}
+{"time":"2026-10-18T12:11:22.704054Z","kind":"group","message":"group deleted"}
+{"time":"2026-10-18T12:11:22.707403Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:22.709239Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:22.716615Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:23.185754Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:23.189643Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"b4fd101ca4acb2ab"}
+{"time":"2026-10-18T12:11:23.192414Z","kind":"agent.read","message":"agent read Local Shell · last 0 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"b4fd101ca4acb2ab"}
+{"time":"2026-10-18T12:11:23.193238Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"b4fd101ca4acb2ab"}
+{"time":"2026-10-18T12:11:24.114442Z","kind":"session","message":"session killed","sessionId":"b4fd101ca4acb2ab"}
+{"time":"2026-10-18T12:11:24.601597Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:24.603721Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:24.613624Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:24.616286Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:24.617972Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:24.627601Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:25.105575Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:25.783957Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"51951c9f3cf07c8f"}
+{"time":"2026-10-18T12:11:26.54269Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51951c9f3cf07c8f","lines":3}
+{"time":"2026-10-18T12:11:26.543062Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"51951c9f3cf07c8f"}
+{"time":"2026-10-18T12:11:27.033072Z","kind":"session","message":"session killed","sessionId":"51951c9f3cf07c8f"}
+{"time":"2026-10-18T12:11:27.839938Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:27.842107Z","kind":"agent","message":"agent key removed for TypeSafe Jev"}
+{"time":"2026-10-18T12:11:27.851892Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:11:27.879156Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:11:28.231485Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"2a392a8289445f85"}
+{"time":"2026-10-18T12:11:29.262615Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:29.419569Z","kind":"session","message":"session killed","sessionId":"2a392a8289445f85"}
+{"time":"2026-10-18T12:11:29.48015Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:29.817068Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"71255c251d442843"}
+{"time":"2026-10-18T12:11:30.353908Z","kind":"agent.read","message":"agent read Local Shell · last 5 lines · 2 redactions","hostId":"9d4a3c6f540307ab","sessionId":"71255c251d442843","lines":5,"redactions":{"github_token":2}}
+{"time":"2026-10-18T12:11:30.354383Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · 2 redactions","hostId":"9d4a3c6f540307ab","sessionId":"71255c251d442843","redactions":{"github_token":2}}
+{"time":"2026-10-18T12:11:30.651708Z","kind":"agent.type","message":"agent command typed into Local Shell · 20 bytes, 1 lines","hostId":"9d4a3c6f540307ab","sessionId":"71255c251d442843","lines":1,"bytes":20}
+{"time":"2026-10-18T12:11:30.703909Z","kind":"session","message":"session killed","sessionId":"71255c251d442843"}
+{"time":"2026-10-18T12:11:30.77572Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:30.787497Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:31.121201Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed"}
+{"time":"2026-10-18T12:11:31.527265Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed","lines":3}
+{"time":"2026-10-18T12:11:31.52776Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed"}
+{"time":"2026-10-18T12:11:31.83955Z","kind":"agent.type","message":"agent command typed into Local Shell · 35 bytes, 1 lines","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed","lines":1,"bytes":35}
+{"time":"2026-10-18T12:11:31.926063Z","kind":"agent.read","message":"agent read Local Shell · last 4 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed","lines":4}
+{"time":"2026-10-18T12:11:31.926443Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Destructive · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"1260694b302327ed"}
+{"time":"2026-10-18T12:11:32.258751Z","kind":"session","message":"session killed","sessionId":"1260694b302327ed"}
+{"time":"2026-10-18T12:11:32.329258Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:32.34734Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:32.355982Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:32.690788Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"41ebec14e9a693ed"}
+{"time":"2026-10-18T12:11:33.630329Z","kind":"session","message":"session killed","sessionId":"41ebec14e9a693ed"}
+{"time":"2026-10-18T12:11:33.69127Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:33.706118Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:34.086445Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"be41e948eaf6599a"}
+{"time":"2026-10-18T12:11:34.487017Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"be41e948eaf6599a","lines":3}
+{"time":"2026-10-18T12:11:34.487443Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"be41e948eaf6599a"}
+{"time":"2026-10-18T12:11:34.487491Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"be41e948eaf6599a"}
+{"time":"2026-10-18T12:11:36.842966Z","kind":"session","message":"session killed","sessionId":"be41e948eaf6599a"}
+{"time":"2026-10-18T12:11:36.912828Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:37.280095Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"c98f799e11b40b9a"}
+{"time":"2026-10-18T12:11:38.920871Z","kind":"session","message":"session killed","sessionId":"c98f799e11b40b9a"}
+{"time":"2026-10-18T12:11:39.103493Z","kind":"host","message":"host created: wx-wk-1","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:39.115889Z","kind":"host","message":"host created: wx-wk-2","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:39.127494Z","kind":"host","message":"host created: wx-off","hostId":"13d6af4916e62dd8"}
+{"time":"2026-10-18T12:11:39.138395Z","kind":"group","message":"group created: gx-e2e"}
+{"time":"2026-10-18T12:11:39.148436Z","kind":"group","message":"hosts moved"}
+{"time":"2026-10-18T12:11:39.158439Z","kind":"group","message":"host role set in group 722ea5422305c203","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:39.166482Z","kind":"group","message":"host role set in group 722ea5422305c203","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:39.176435Z","kind":"group","message":"host role set in group 722ea5422305c203","hostId":"13d6af4916e62dd8"}
+{"time":"2026-10-18T12:11:39.682817Z","kind":"agent.runbook","message":"runbook added by you (1 steps) · rb_b509a2b50a8bb1f3"}
+{"time":"2026-10-18T12:11:40.417221Z","kind":"group","message":"host role set in group 722ea5422305c203","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:40.521057Z","kind":"group","message":"host role set in group 722ea5422305c203","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:40.679816Z","kind":"agent.note","message":"note added by you · group notes for group 722ea5422305c203 · no redactions","source":"group"}
+{"time":"2026-10-18T12:11:40.87083Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af started by you on group 722ea5422305c203 (1 steps, 2 hosts, 1 left out: Agent can read is off, rolling) · rb_b509a2b50a8bb1f3"}
+{"time":"2026-10-18T12:11:40.981596Z","kind":"session","message":"session spawned: wx-wk-1","hostId":"66c9ff702a52949b","sessionId":"8df1b9bb82cd27f3"}
+{"time":"2026-10-18T12:11:41.290172Z","kind":"agent.suggest","message":"agent suggested a command for wx-wk-1 · Changes state · no redactions","hostId":"66c9ff702a52949b","sessionId":"8df1b9bb82cd27f3"}
+{"time":"2026-10-18T12:11:41.290389Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af · step 1 of 1 proposed for 1 host (rolling) · rb_b509a2b50a8bb1f3"}
+{"time":"2026-10-18T12:11:41.504869Z","kind":"agent.type","message":"agent command typed into wx-wk-1 · 292 bytes, 1 lines","hostId":"66c9ff702a52949b","sessionId":"8df1b9bb82cd27f3","lines":1,"bytes":292}
+{"time":"2026-10-18T12:11:43.012201Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af · step 1 of 1 · exit 0 reported by the shell · rb_b509a2b50a8bb1f3","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:43.154139Z","kind":"session","message":"session spawned: wx-wk-2","hostId":"764b71308f3c341b","sessionId":"fd97690e9afe47ae"}
+{"time":"2026-10-18T12:11:43.473889Z","kind":"agent.suggest","message":"agent suggested a command for wx-wk-2 · Changes state · no redactions","hostId":"764b71308f3c341b","sessionId":"fd97690e9afe47ae"}
+{"time":"2026-10-18T12:11:43.474069Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af · step 1 of 1 proposed for 1 host (rolling) · rb_b509a2b50a8bb1f3"}
+{"time":"2026-10-18T12:11:43.691014Z","kind":"agent.type","message":"agent command typed into wx-wk-2 · 292 bytes, 1 lines","hostId":"764b71308f3c341b","sessionId":"fd97690e9afe47ae","lines":1,"bytes":292}
+{"time":"2026-10-18T12:11:45.195068Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af · step 1 of 1 · exit 1 reported by the shell · rb_b509a2b50a8bb1f3","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:45.420892Z","kind":"agent.runbook","message":"group run gr_4b38c311955eb3af · step 1 of 1 skipped by you · rb_b509a2b50a8bb1f3","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:45.490438Z","kind":"session","message":"session killed","sessionId":"8df1b9bb82cd27f3"}
+{"time":"2026-10-18T12:11:45.493045Z","kind":"session","message":"session killed","sessionId":"fd97690e9afe47ae"}
+{"time":"2026-10-18T12:11:45.504696Z","kind":"host","message":"host updated: wx-wk-1","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:45.515631Z","kind":"host","message":"host deleted: wx-wk-1","hostId":"66c9ff702a52949b"}
+{"time":"2026-10-18T12:11:45.527585Z","kind":"host","message":"host updated: wx-wk-2","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:45.537595Z","kind":"host","message":"host deleted: wx-wk-2","hostId":"764b71308f3c341b"}
+{"time":"2026-10-18T12:11:45.545691Z","kind":"host","message":"host updated: wx-off","hostId":"13d6af4916e62dd8"}
+{"time":"2026-10-18T12:11:45.554645Z","kind":"host","message":"host deleted: wx-off","hostId":"13d6af4916e62dd8"}
+{"time":"2026-10-18T12:11:45.574645Z","kind":"group","message":"group deleted"}
+{"time":"2026-10-18T12:11:45.593498Z","kind":"agent.runbook","message":"runbook deleted by you · rb_b509a2b50a8bb1f3"}
+{"time":"2026-10-18T12:11:45.605598Z","kind":"host","message":"host created: wx-wk-1","hostId":"37c10d9d9cd0273d"}
+{"time":"2026-10-18T12:11:45.6176Z","kind":"host","message":"host created: wx-wk-2","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:45.629598Z","kind":"host","message":"host created: wx-off","hostId":"58978d61159780ce"}
+{"time":"2026-10-18T12:11:45.638724Z","kind":"group","message":"group created: gx-e2e"}
+{"time":"2026-10-18T12:11:45.648646Z","kind":"group","message":"hosts moved"}
+{"time":"2026-10-18T12:11:45.658615Z","kind":"group","message":"host role set in group e7eef9db71ca09fb","hostId":"37c10d9d9cd0273d"}
+{"time":"2026-10-18T12:11:45.665633Z","kind":"group","message":"host role set in group e7eef9db71ca09fb","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:45.674645Z","kind":"group","message":"host role set in group e7eef9db71ca09fb","hostId":"58978d61159780ce"}
+{"time":"2026-10-18T12:11:45.686571Z","kind":"agent.runbook","message":"runbook added by you (1 steps) · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:45.695628Z","kind":"group","message":"host role set in group e7eef9db71ca09fb","hostId":"37c10d9d9cd0273d"}
+{"time":"2026-10-18T12:11:45.705591Z","kind":"group","message":"host role set in group e7eef9db71ca09fb","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:46.380163Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 started by you on group e7eef9db71ca09fb (1 steps, 2 hosts, 1 left out: Agent can read is off, rolling) · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:46.461561Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 · mode set to parallel by you · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:48.149219Z","kind":"session","message":"session spawned: wx-wk-1","hostId":"37c10d9d9cd0273d","sessionId":"d35e4e29aaf2449b"}
+{"time":"2026-10-18T12:11:48.464775Z","kind":"agent.suggest","message":"agent suggested a command for wx-wk-1 · Read-only · no redactions","hostId":"37c10d9d9cd0273d","sessionId":"d35e4e29aaf2449b"}
+{"time":"2026-10-18T12:11:48.465189Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 · step 1 of 1 proposed for 1 host (parallel) · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:48.562033Z","kind":"session","message":"session spawned: wx-wk-2","hostId":"e03c848b44f67a69","sessionId":"6c1514394f64eda2"}
+{"time":"2026-10-18T12:11:48.87312Z","kind":"agent.suggest","message":"agent suggested a command for wx-wk-2 · Read-only · no redactions","hostId":"e03c848b44f67a69","sessionId":"6c1514394f64eda2"}
+{"time":"2026-10-18T12:11:48.873404Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 · step 1 of 1 proposed for 1 host (parallel) · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:49.217371Z","kind":"agent.type","message":"agent command typed into wx-wk-2 · 49 bytes, 1 lines","hostId":"e03c848b44f67a69","sessionId":"6c1514394f64eda2","lines":1,"bytes":49}
+{"time":"2026-10-18T12:11:49.219488Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 · step 1 of 1 · exit 0 reported by the shell · rb_67cde3bc34f0cba7","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:49.509064Z","kind":"agent.runbook","message":"group run gr_8d9d3a167a34fe11 stopped by you at step 1 of 1 · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:11:49.579251Z","kind":"session","message":"session killed","sessionId":"d35e4e29aaf2449b"}
+{"time":"2026-10-18T12:11:49.582156Z","kind":"session","message":"session killed","sessionId":"6c1514394f64eda2"}
+{"time":"2026-10-18T12:11:49.598499Z","kind":"host","message":"host updated: wx-wk-1","hostId":"37c10d9d9cd0273d"}
+{"time":"2026-10-18T12:11:49.610521Z","kind":"host","message":"host deleted: wx-wk-1","hostId":"37c10d9d9cd0273d"}
+{"time":"2026-10-18T12:11:49.621465Z","kind":"host","message":"host updated: wx-wk-2","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:49.631463Z","kind":"host","message":"host deleted: wx-wk-2","hostId":"e03c848b44f67a69"}
+{"time":"2026-10-18T12:11:49.641553Z","kind":"host","message":"host updated: wx-off","hostId":"58978d61159780ce"}
+{"time":"2026-10-18T12:11:49.650416Z","kind":"host","message":"host deleted: wx-off","hostId":"58978d61159780ce"}
+{"time":"2026-10-18T12:11:49.661461Z","kind":"group","message":"group deleted"}
+{"time":"2026-10-18T12:11:49.682452Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:50.190726Z","kind":"agent","message":"agent history deleted (6 conversations)"}
+{"time":"2026-10-18T12:11:50.199718Z","kind":"agent.note","message":"every note for the agent deleted by you (0)"}
+{"time":"2026-10-18T12:11:50.211744Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:50.559857Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"e0cfc8e32b25a354"}
+{"time":"2026-10-18T12:11:50.963024Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e0cfc8e32b25a354","lines":3}
+{"time":"2026-10-18T12:11:50.963459Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e0cfc8e32b25a354"}
+{"time":"2026-10-18T12:11:51.140417Z","kind":"agent.note","message":"note proposed by the agent saved by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:51.240551Z","kind":"agent.note","message":"note proposed by the agent deleted by you (undo) · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:51.305295Z","kind":"agent.note","message":"note proposed by the agent saved by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:51.548454Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e0cfc8e32b25a354","lines":3}
+{"time":"2026-10-18T12:11:51.548638Z","kind":"agent.note","message":"agent sent 1 host note for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":1}
+{"time":"2026-10-18T12:11:51.549Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e0cfc8e32b25a354"}
+{"time":"2026-10-18T12:11:51.684038Z","kind":"session","message":"session killed","sessionId":"e0cfc8e32b25a354"}
+{"time":"2026-10-18T12:11:51.778918Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:52.321174Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:11:52.333193Z","kind":"agent.note","message":"every note for the agent deleted by you (1)","count":1}
+{"time":"2026-10-18T12:11:52.34514Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:52.740687Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"fb5d46dd6402143e"}
+{"time":"2026-10-18T12:11:53.242007Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"fb5d46dd6402143e","lines":3}
+{"time":"2026-10-18T12:11:53.242611Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"fb5d46dd6402143e"}
+{"time":"2026-10-18T12:11:53.826742Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"fb5d46dd6402143e","lines":3}
+{"time":"2026-10-18T12:11:53.827403Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"fb5d46dd6402143e"}
+{"time":"2026-10-18T12:11:53.961595Z","kind":"session","message":"session killed","sessionId":"fb5d46dd6402143e"}
+{"time":"2026-10-18T12:11:54.047676Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:11:54.542052Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:11:54.552001Z","kind":"agent.note","message":"every note for the agent deleted by you (0)"}
+{"time":"2026-10-18T12:11:54.56403Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:55.305983Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:55.470122Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:55.688058Z","kind":"agent.note","message":"note edited by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:55.786627Z","kind":"agent.note","message":"note deleted by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:56.052473Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:56.503679Z","kind":"agent.note","message":"note added by you · your notes · no redactions"}
+{"time":"2026-10-18T12:11:56.704984Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"1fda48064e8cdc87"}
+{"time":"2026-10-18T12:11:59.340008Z","kind":"host","message":"host updated: Local Shell","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:11:59.377851Z","kind":"session","message":"session killed","sessionId":"1fda48064e8cdc87"}
+{"time":"2026-10-18T12:11:59.763052Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"4e72503a2646221e"}
+{"time":"2026-10-18T12:12:00.142891Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"4e72503a2646221e","lines":2}
+{"time":"2026-10-18T12:12:00.14321Z","kind":"agent.note","message":"agent sent 1 host note for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":1}
+{"time":"2026-10-18T12:12:00.143422Z","kind":"agent.note","message":"agent sent 1 of your notes with a question · no redactions","source":"user","count":1}
+{"time":"2026-10-18T12:12:00.143938Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"4e72503a2646221e"}
+{"time":"2026-10-18T12:12:00.260116Z","kind":"session","message":"session killed","sessionId":"4e72503a2646221e"}
+{"time":"2026-10-18T12:12:00.33687Z","kind":"agent.note","message":"every note for the agent deleted by you (2)","count":2}
+{"time":"2026-10-18T12:12:00.930996Z","kind":"agent","message":"agent history deleted (3 conversations)"}
+{"time":"2026-10-18T12:12:00.957112Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:00.963087Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:12:00.976102Z","kind":"agent.runbook","message":"runbook deleted by you · rb_67cde3bc34f0cba7"}
+{"time":"2026-10-18T12:12:01.395586Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"f49a37160b5d4805"}
+{"time":"2026-10-18T12:12:02.343284Z","kind":"agent.runbook","message":"runbook added by you (2 steps) · rb_526a920dd1d0046c"}
+{"time":"2026-10-18T12:12:02.510959Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"f49a37160b5d4805","lines":3}
+{"time":"2026-10-18T12:12:02.51118Z","kind":"agent.runbook","message":"runbook started by you (2 steps) · rb_526a920dd1d0046c"}
+{"time":"2026-10-18T12:12:02.511748Z","kind":"agent.runbook","message":"agent sent runbook rb_526a920dd1d0046c (2 steps) with a question · no redactions","count":2}
+{"time":"2026-10-18T12:12:02.512294Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"f49a37160b5d4805"}
+{"time":"2026-10-18T12:12:02.512336Z","kind":"agent.runbook","message":"runbook step 1 of 2 proposed for Local Shell · rb_526a920dd1d0046c","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:12:02.766387Z","kind":"agent.type","message":"agent command typed into Local Shell · 53 bytes, 1 lines","hostId":"9d4a3c6f540307ab","sessionId":"f49a37160b5d4805","lines":1,"bytes":53}
+{"time":"2026-10-18T12:12:04.2754Z","kind":"agent.runbook","message":"runbook step 1 of 2 · exit 0 reported by the shell · rb_526a920dd1d0046c","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:12:04.504853Z","kind":"agent.runbook","message":"runbook step 2 of 2 marked done by you · rb_526a920dd1d0046c"}
+{"time":"2026-10-18T12:12:04.710608Z","kind":"session","message":"session killed","sessionId":"f49a37160b5d4805"}
+{"time":"2026-10-18T12:12:04.72183Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:05.301759Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:12:05.320752Z","kind":"agent.runbook","message":"runbook deleted by you · rb_526a920dd1d0046c"}
+{"time":"2026-10-18T12:12:05.341652Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:05.34677Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:12:05.738191Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"036c247a23e37674"}
+{"time":"2026-10-18T12:12:06.155852Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"036c247a23e37674","lines":3}
+{"time":"2026-10-18T12:12:06.156308Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"036c247a23e37674"}
+{"time":"2026-10-18T12:12:06.319882Z","kind":"agent.runbook","message":"runbook proposed by the agent after reading panes saved by you (2 steps) · rb_75fb56297a625b08"}
+{"time":"2026-10-18T12:12:06.620626Z","kind":"agent.runbook","message":"runbook: the agent may pick it (set by you) · rb_75fb56297a625b08"}
+{"time":"2026-10-18T12:12:07.705894Z","kind":"session","message":"session killed","sessionId":"036c247a23e37674"}
+{"time":"2026-10-18T12:12:07.71826Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:08.25154Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:12:08.264565Z","kind":"agent.runbook","message":"runbook deleted by you · rb_75fb56297a625b08"}
+{"time":"2026-10-18T12:12:08.280576Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:08.285566Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:12:08.297565Z","kind":"agent.runbook","message":"runbook added by you (1 steps) · rb_6397caf69b831f7d"}
+{"time":"2026-10-18T12:12:08.676266Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"fddf1385abda3433"}
+{"time":"2026-10-18T12:12:09.338999Z","kind":"agent.runbook","message":"runbook edited by you (1 steps) · rb_6397caf69b831f7d"}
+{"time":"2026-10-18T12:12:09.424874Z","kind":"agent.runbook","message":"runbook: the agent may no longer pick it (set by you) · rb_6397caf69b831f7d"}
+{"time":"2026-10-18T12:12:09.670127Z","kind":"agent.runbook","message":"runbook deleted by you · rb_6397caf69b831f7d"}
+{"time":"2026-10-18T12:12:09.737895Z","kind":"session","message":"session killed","sessionId":"fddf1385abda3433"}
+{"time":"2026-10-18T12:12:10.849796Z","kind":"host","message":"host created: visual-edit-dark","hostId":"95ee04f8c2a85bc8"}
+{"time":"2026-10-18T12:12:11.441912Z","kind":"host","message":"connection test visual-edit-dark: unknown-host","hostId":"95ee04f8c2a85bc8"}
+{"time":"2026-10-18T12:12:11.541711Z","kind":"host","message":"trusted host key for 127.0.0.1:62524 (SHA256:O8ocEEnTRwkVtTER6aBt4GNf1VrHvbV2zzUXgTdv4V8)"}
+{"time":"2026-10-18T12:12:11.550206Z","kind":"host","message":"connection test visual-edit-dark: ok","hostId":"95ee04f8c2a85bc8"}
+{"time":"2026-10-18T12:12:12.256065Z","kind":"host","message":"host deleted: visual-edit-dark","hostId":"95ee04f8c2a85bc8"}
+{"time":"2026-10-18T12:12:14.388676Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"318ef5bbd796c834"}
+{"time":"2026-10-18T12:12:15.179673Z","kind":"session","message":"session killed","sessionId":"318ef5bbd796c834"}
+{"time":"2026-10-18T12:12:15.536145Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"fe6e995a89d690df"}
+{"time":"2026-10-18T12:12:15.860749Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"93f8105a9216c2ad"}
+{"time":"2026-10-18T12:12:16.258971Z","kind":"session","message":"session killed","sessionId":"fe6e995a89d690df"}
+{"time":"2026-10-18T12:12:16.366825Z","kind":"session","message":"session killed","sessionId":"93f8105a9216c2ad"}
+{"time":"2026-10-18T12:12:16.425815Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:16.689759Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"cfce258bf90efad1"}
+{"time":"2026-10-18T12:12:17.288262Z","kind":"agent.read","message":"agent read Local Shell · last 5 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"cfce258bf90efad1","lines":5}
+{"time":"2026-10-18T12:12:17.289069Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"cfce258bf90efad1"}
+{"time":"2026-10-18T12:12:17.538052Z","kind":"session","message":"session killed","sessionId":"cfce258bf90efad1"}
+{"time":"2026-10-18T12:12:17.880203Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"c3ce9effe9dbec66"}
+{"time":"2026-10-18T12:12:18.225459Z","kind":"session","message":"session killed","sessionId":"c3ce9effe9dbec66"}
+{"time":"2026-10-18T12:12:18.476163Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"cdc746053c61e20a"}
+{"time":"2026-10-18T12:12:19.124575Z","kind":"session","message":"session killed","sessionId":"cdc746053c61e20a"}
+{"time":"2026-10-18T12:12:19.404523Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"c22038fc3acbf0c1"}
+{"time":"2026-10-18T12:12:19.723571Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"6189c05e37cf317b"}
+{"time":"2026-10-18T12:12:20.101346Z","kind":"session","message":"session killed","sessionId":"c22038fc3acbf0c1"}
+{"time":"2026-10-18T12:12:20.201332Z","kind":"session","message":"session killed","sessionId":"6189c05e37cf317b"}
+{"time":"2026-10-18T12:12:20.480866Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"accb9f89febaf633"}
+{"time":"2026-10-18T12:12:23.978273Z","kind":"session","message":"session killed","sessionId":"accb9f89febaf633"}
+{"time":"2026-10-18T12:12:24.317972Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"31c5d77724860cd4"}
+{"time":"2026-10-18T12:12:24.814823Z","kind":"session","message":"session killed","sessionId":"31c5d77724860cd4"}
+{"time":"2026-10-18T12:12:24.874975Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:24.88694Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:12:26.949401Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:12:26.962557Z","kind":"notebook","message":"notebook created: pg-2 replication lag dark"}
+{"time":"2026-10-18T12:12:27.830798Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"f077e4174909f2ce"}
+{"time":"2026-10-18T12:12:28.859182Z","kind":"session","message":"session killed","sessionId":"f077e4174909f2ce"}
+{"time":"2026-10-18T12:12:29.02088Z","kind":"notebook","message":"notebook deleted"}
+{"time":"2026-10-18T12:12:29.573647Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:30.112088Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:12:30.464996Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"e15b12010aa9007a"}
+{"time":"2026-10-18T12:12:31.017376Z","kind":"agent.read","message":"agent read Local Shell · last 11 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e15b12010aa9007a","lines":11}
+{"time":"2026-10-18T12:12:31.018973Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e15b12010aa9007a"}
+{"time":"2026-10-18T12:12:32.748541Z","kind":"agent","message":"agent history deleted (18 conversations)"}
+{"time":"2026-10-18T12:12:32.778486Z","kind":"session","message":"session killed","sessionId":"e15b12010aa9007a"}
+{"time":"2026-10-18T12:12:34.132566Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:12:35.225756Z","kind":"host","message":"host created: visual-edit-light","hostId":"28f2b5fba5564760"}
+{"time":"2026-10-18T12:12:35.951356Z","kind":"host","message":"connection test visual-edit-light: ok","hostId":"28f2b5fba5564760"}
+{"time":"2026-10-18T12:12:36.806135Z","kind":"host","message":"host deleted: visual-edit-light","hostId":"28f2b5fba5564760"}
+{"time":"2026-10-18T12:12:38.983139Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"6ecfba629bcfc6ba"}
+{"time":"2026-10-18T12:12:39.762148Z","kind":"session","message":"session killed","sessionId":"6ecfba629bcfc6ba"}
+{"time":"2026-10-18T12:12:40.045944Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"63616f62cd1fe5a5"}
+{"time":"2026-10-18T12:12:40.362471Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"aa22797ec68d7c14"}
+{"time":"2026-10-18T12:12:40.750583Z","kind":"session","message":"session killed","sessionId":"63616f62cd1fe5a5"}
+{"time":"2026-10-18T12:12:40.859256Z","kind":"session","message":"session killed","sessionId":"aa22797ec68d7c14"}
+{"time":"2026-10-18T12:12:41.419303Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:41.690864Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"47fd341a060f09c2"}
+{"time":"2026-10-18T12:12:42.253545Z","kind":"agent.read","message":"agent read Local Shell · last 5 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"47fd341a060f09c2","lines":5}
+{"time":"2026-10-18T12:12:42.254031Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"47fd341a060f09c2"}
+{"time":"2026-10-18T12:12:42.521462Z","kind":"session","message":"session killed","sessionId":"47fd341a060f09c2"}
+{"time":"2026-10-18T12:12:42.891667Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"fd9931f164a6d285"}
+{"time":"2026-10-18T12:12:43.208638Z","kind":"session","message":"session killed","sessionId":"fd9931f164a6d285"}
+{"time":"2026-10-18T12:12:43.470724Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"e85f640681a2d968"}
+{"time":"2026-10-18T12:12:44.104055Z","kind":"session","message":"session killed","sessionId":"e85f640681a2d968"}
+{"time":"2026-10-18T12:12:44.386172Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"d7d0e05059420d16"}
+{"time":"2026-10-18T12:12:44.704675Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"3ec53ebda936d5b5"}
+{"time":"2026-10-18T12:12:45.082495Z","kind":"session","message":"session killed","sessionId":"d7d0e05059420d16"}
+{"time":"2026-10-18T12:12:45.182593Z","kind":"session","message":"session killed","sessionId":"3ec53ebda936d5b5"}
+{"time":"2026-10-18T12:12:45.463523Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"16a252b164afae63"}
+{"time":"2026-10-18T12:12:49.028957Z","kind":"session","message":"session killed","sessionId":"16a252b164afae63"}
+{"time":"2026-10-18T12:12:49.338263Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"637705187cc16415"}
+{"time":"2026-10-18T12:12:49.801634Z","kind":"session","message":"session killed","sessionId":"637705187cc16415"}
+{"time":"2026-10-18T12:12:49.860927Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:49.875875Z","kind":"agent","message":"agent settings saved"}
+{"time":"2026-10-18T12:12:51.850475Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:12:51.86363Z","kind":"notebook","message":"notebook created: pg-2 replication lag light"}
+{"time":"2026-10-18T12:12:52.699721Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"064acca8f15cfc45"}
+{"time":"2026-10-18T12:12:53.628365Z","kind":"session","message":"session killed","sessionId":"064acca8f15cfc45"}
+{"time":"2026-10-18T12:12:53.820675Z","kind":"notebook","message":"notebook deleted"}
+{"time":"2026-10-18T12:12:54.369861Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:54.880941Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:12:55.213329Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"520a6e77aa4d6725"}
+{"time":"2026-10-18T12:12:55.709873Z","kind":"agent.read","message":"agent read Local Shell · last 11 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"520a6e77aa4d6725","lines":11}
+{"time":"2026-10-18T12:12:55.710408Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"520a6e77aa4d6725"}
+{"time":"2026-10-18T12:12:57.464466Z","kind":"agent","message":"agent history deleted (18 conversations)"}
+{"time":"2026-10-18T12:12:57.490566Z","kind":"session","message":"session killed","sessionId":"520a6e77aa4d6725"}
+{"time":"2026-10-18T12:12:58.962457Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:12:59.517801Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:12:59.522999Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:12:59.989926Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c"}
+{"time":"2026-10-18T12:13:00.294819Z","kind":"agent.read","message":"agent read Local Shell · last 1 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c","lines":1}
+{"time":"2026-10-18T12:13:00.295296Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c"}
+{"time":"2026-10-18T12:13:01.286708Z","kind":"agent.read","message":"agent read Local Shell · last 1 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c","lines":1}
+{"time":"2026-10-18T12:13:01.2875Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c"}
+{"time":"2026-10-18T12:13:01.309277Z","kind":"agent.read","message":"agent read Local Shell · last 1 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"c75ff198d0afab6c","lines":1}
+{"time":"2026-10-18T12:13:02.663647Z","kind":"agent","message":"agent history deleted (2 conversations)"}
+{"time":"2026-10-18T12:13:03.228822Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:03.240826Z","kind":"session","message":"session killed","sessionId":"c75ff198d0afab6c"}
+{"time":"2026-10-18T12:13:03.82244Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:13:03.82848Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:13:04.141738Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673"}
+{"time":"2026-10-18T12:13:04.43621Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673","lines":2}
+{"time":"2026-10-18T12:13:04.437033Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Changes state · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673"}
+{"time":"2026-10-18T12:13:05.324612Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673","lines":2}
+{"time":"2026-10-18T12:13:05.325667Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673"}
+{"time":"2026-10-18T12:13:05.337332Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"5c3c745af7a86673","lines":2}
+{"time":"2026-10-18T12:13:06.420446Z","kind":"agent","message":"agent history deleted (2 conversations)"}
+{"time":"2026-10-18T12:13:06.897525Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:06.908737Z","kind":"session","message":"session killed","sessionId":"5c3c745af7a86673"}
+{"time":"2026-10-18T12:13:07.418268Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:13:07.42338Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:13:07.907652Z","kind":"agent.note","message":"every note for the agent deleted by you (0)"}
+{"time":"2026-10-18T12:13:08.394492Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:08.40453Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:08.782366Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"4748d308a7232f2c"}
+{"time":"2026-10-18T12:13:09.065411Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"4748d308a7232f2c","lines":2}
+{"time":"2026-10-18T12:13:09.065946Z","kind":"agent.note","message":"agent sent 2 host notes for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":2}
+{"time":"2026-10-18T12:13:09.078143Z","kind":"agent.note","message":"note proposed by the agent saved by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:09.682155Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"4748d308a7232f2c","lines":3}
+{"time":"2026-10-18T12:13:09.682575Z","kind":"agent.note","message":"agent sent 3 host notes for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":3}
+{"time":"2026-10-18T12:13:09.905289Z","kind":"session","message":"session killed","sessionId":"4748d308a7232f2c"}
+{"time":"2026-10-18T12:13:10.457268Z","kind":"agent.note","message":"every note for the agent deleted by you (3)","count":3}
+{"time":"2026-10-18T12:13:10.982466Z","kind":"agent","message":"agent history deleted (2 conversations)"}
+{"time":"2026-10-18T12:13:11.484511Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:11.965627Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:13:11.970591Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:13:11.975567Z","kind":"agent.note","message":"every note for the agent deleted by you (0)"}
+{"time":"2026-10-18T12:13:12.472872Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:12.483923Z","kind":"agent.note","message":"note added by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:12.739555Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"a76b4a973ea0b445"}
+{"time":"2026-10-18T12:13:12.846561Z","kind":"agent.read","message":"agent read Local Shell · last 2 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"a76b4a973ea0b445","lines":2}
+{"time":"2026-10-18T12:13:12.846975Z","kind":"agent.note","message":"agent sent 2 host notes for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":2}
+{"time":"2026-10-18T12:13:12.858009Z","kind":"agent.note","message":"note proposed by the agent saved by you · host notes for Local Shell · no redactions","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:13.543326Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"a76b4a973ea0b445","lines":3}
+{"time":"2026-10-18T12:13:13.543733Z","kind":"agent.note","message":"agent sent 3 host notes for Local Shell with a question · no redactions","hostId":"9d4a3c6f540307ab","source":"host","count":3}
+{"time":"2026-10-18T12:13:13.756013Z","kind":"session","message":"session killed","sessionId":"a76b4a973ea0b445"}
+{"time":"2026-10-18T12:13:14.30681Z","kind":"agent.note","message":"every note for the agent deleted by you (3)","count":3}
+{"time":"2026-10-18T12:13:14.814359Z","kind":"agent","message":"agent history deleted (2 conversations)"}
+{"time":"2026-10-18T12:13:15.291274Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:15.819809Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:13:15.825779Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:13:16.317554Z","kind":"agent.runbook","message":"runbook added by you (4 steps) · rb_49ae65e543744669"}
+{"time":"2026-10-18T12:13:16.328639Z","kind":"notebook","message":"notebook created: nginx 502 checklist"}
+{"time":"2026-10-18T12:13:16.341549Z","kind":"agent.runbook","message":"runbook added by you from a notebook (1 steps) · rb_b6746f88491be03b"}
+{"time":"2026-10-18T12:13:16.352463Z","kind":"notebook","message":"notebook deleted"}
+{"time":"2026-10-18T12:13:16.751534Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"d4c9c76e2e868792"}
+{"time":"2026-10-18T12:13:17.701966Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"d4c9c76e2e868792","lines":3}
+{"time":"2026-10-18T12:13:17.702246Z","kind":"agent.runbook","message":"runbook started by you (4 steps) · rb_49ae65e543744669"}
+{"time":"2026-10-18T12:13:17.703132Z","kind":"agent.runbook","message":"agent sent runbook rb_49ae65e543744669 (4 steps) with a question · no redactions","count":4}
+{"time":"2026-10-18T12:13:17.704022Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"d4c9c76e2e868792"}
+{"time":"2026-10-18T12:13:17.704093Z","kind":"agent.runbook","message":"runbook step 1 of 4 proposed for Local Shell · rb_49ae65e543744669","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:18.331835Z","kind":"agent.runbook","message":"runbook not used in this conversation (set by you) · rb_49ae65e543744669"}
+{"time":"2026-10-18T12:13:18.331933Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"d4c9c76e2e868792","lines":3}
+{"time":"2026-10-18T12:13:18.332699Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"d4c9c76e2e868792"}
+{"time":"2026-10-18T12:13:19.101222Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:13:19.1141Z","kind":"agent.runbook","message":"runbook deleted by you · rb_49ae65e543744669"}
+{"time":"2026-10-18T12:13:19.122167Z","kind":"agent.runbook","message":"runbook deleted by you · rb_b6746f88491be03b"}
+{"time":"2026-10-18T12:13:19.627904Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:19.63209Z","kind":"session","message":"session killed","sessionId":"d4c9c76e2e868792"}
+{"time":"2026-10-18T12:13:20.136911Z","kind":"agent","message":"agent key saved for Google Gemini"}
+{"time":"2026-10-18T12:13:20.141915Z","kind":"agent","message":"agent history deleted (0 conversations)"}
+{"time":"2026-10-18T12:13:20.154853Z","kind":"agent.runbook","message":"runbook added by you (4 steps) · rb_745d5821b09671b7"}
+{"time":"2026-10-18T12:13:20.171565Z","kind":"notebook","message":"notebook created: nginx 502 checklist"}
+{"time":"2026-10-18T12:13:20.19035Z","kind":"agent.runbook","message":"runbook added by you from a notebook (1 steps) · rb_895593ba19a022fd"}
+{"time":"2026-10-18T12:13:20.201979Z","kind":"notebook","message":"notebook deleted"}
+{"time":"2026-10-18T12:13:20.492403Z","kind":"session","message":"session spawned: Local Shell","hostId":"9d4a3c6f540307ab","sessionId":"e94eaf21aecd8ecd"}
+{"time":"2026-10-18T12:13:21.431257Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e94eaf21aecd8ecd","lines":3}
+{"time":"2026-10-18T12:13:21.431507Z","kind":"agent.runbook","message":"runbook started by you (4 steps) · rb_745d5821b09671b7"}
+{"time":"2026-10-18T12:13:21.432225Z","kind":"agent.runbook","message":"agent sent runbook rb_745d5821b09671b7 (4 steps) with a question · no redactions","count":4}
+{"time":"2026-10-18T12:13:21.433136Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e94eaf21aecd8ecd"}
+{"time":"2026-10-18T12:13:21.433226Z","kind":"agent.runbook","message":"runbook step 1 of 4 proposed for Local Shell · rb_745d5821b09671b7","hostId":"9d4a3c6f540307ab"}
+{"time":"2026-10-18T12:13:22.064342Z","kind":"agent.runbook","message":"runbook not used in this conversation (set by you) · rb_745d5821b09671b7"}
+{"time":"2026-10-18T12:13:22.064548Z","kind":"agent.read","message":"agent read Local Shell · last 3 lines · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e94eaf21aecd8ecd","lines":3}
+{"time":"2026-10-18T12:13:22.065413Z","kind":"agent.suggest","message":"agent suggested a command for Local Shell · Read-only · no redactions","hostId":"9d4a3c6f540307ab","sessionId":"e94eaf21aecd8ecd"}
+{"time":"2026-10-18T12:13:22.937104Z","kind":"agent","message":"agent history deleted (1 conversation)"}
+{"time":"2026-10-18T12:13:22.954039Z","kind":"agent.runbook","message":"runbook deleted by you · rb_745d5821b09671b7"}
+{"time":"2026-10-18T12:13:22.963094Z","kind":"agent.runbook","message":"runbook deleted by you · rb_895593ba19a022fd"}
+{"time":"2026-10-18T12:13:23.520017Z","kind":"agent","message":"agent key removed for Google Gemini"}
+{"time":"2026-10-18T12:13:23.524615Z","kind":"session","message":"session killed","sessionId":"e94eaf21aecd8ecd"}
+{"time":"2026-10-18T12:13:23.555046Z","kind":"host","message":"host created: vx-cp-1","hostId":"4f4cfda8c6384c0c"}
+{"time":"2026-10-18T12:13:23.564083Z","kind":"host","message":"host created: vx-wk-1","hostId":"9b4656c0628655fc"}
+{"time":"2026-10-18T12:13:23.578982Z","kind":"host","message":"host created: vx-wk-2","hostId":"d8a7fd802bef7873"}
+{"time":"2026-10-18T12:13:23.589317Z","kind":"group","message":"group created: k8s-visual"}
+{"time":"2026-10-18T12:13:23.598015Z","kind":"group","message":"hosts moved"}
+{"time":"2026-10-18T12:13:23.609084Z","kind":"group","message":"host role set in group b9231083ff7a26a8","hostId":"4f4cfda8c6384c0c"}
+{"time":"2026-10-18T12:13:23.619052Z","kind":"group","message":"host role set in group b9231083ff7a26a8","hostId":"9b4656c0628655fc"}
+{"time":"2026-10-18T12:13:23.630842Z","kind":"group","message":"host role set in group b9231083ff7a26a8","hostId":"d8a7fd802bef7873"}
+{"time":"2026-10-18T12:13:23.645025Z","kind":"agent.note","message":"note added by you · group notes for group b9231083ff7a26a8 · no redactions","source":"group"}
+{"time":"2026-10-18T12:13:23.657027Z","kind":"agent.runbook","message":"runbook added by you (3 steps) · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:24.414953Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 started by you on group b9231083ff7a26a8 (3 steps, 3 hosts, 0 left out: Agent can read is off, rolling) · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:24.51489Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 · mode set to parallel by you · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:24.591961Z","kind":"session","message":"session spawned: vx-wk-1","hostId":"9b4656c0628655fc","sessionId":"88769c8d17ebe461"}
+{"time":"2026-10-18T12:13:24.923738Z","kind":"agent.suggest","message":"agent suggested a command for vx-wk-1 · Read-only · no redactions","hostId":"9b4656c0628655fc","sessionId":"88769c8d17ebe461"}
+{"time":"2026-10-18T12:13:24.923931Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 · step 1 of 3 proposed for 1 host (parallel) · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:25.015411Z","kind":"session","message":"session spawned: vx-wk-2","hostId":"d8a7fd802bef7873","sessionId":"3792fad82e13745a"}
+{"time":"2026-10-18T12:13:25.34426Z","kind":"agent.suggest","message":"agent suggested a command for vx-wk-2 · Read-only · no redactions","hostId":"d8a7fd802bef7873","sessionId":"3792fad82e13745a"}
+{"time":"2026-10-18T12:13:25.344445Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 · step 1 of 3 proposed for 1 host (parallel) · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:25.697507Z","kind":"agent.type","message":"agent command typed into vx-wk-1 · 49 bytes, 1 lines","hostId":"9b4656c0628655fc","sessionId":"88769c8d17ebe461","lines":1,"bytes":49}
+{"time":"2026-10-18T12:13:25.706313Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 · step 1 of 3 · exit 0 reported by the shell · rb_1dcacd9e6fb7ae0e","hostId":"9b4656c0628655fc"}
+{"time":"2026-10-18T12:13:26.003132Z","kind":"agent.runbook","message":"group run gr_a3b5c461b9daa592 stopped by you at step 1 of 3 · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:26.096211Z","kind":"session","message":"session killed","sessionId":"88769c8d17ebe461"}
+{"time":"2026-10-18T12:13:26.099936Z","kind":"session","message":"session killed","sessionId":"3792fad82e13745a"}
+{"time":"2026-10-18T12:13:26.113532Z","kind":"agent.runbook","message":"runbook deleted by you · rb_1dcacd9e6fb7ae0e"}
+{"time":"2026-10-18T12:13:26.128482Z","kind":"host","message":"host updated: vx-cp-1","hostId":"4f4cfda8c6384c0c"}
+{"time":"2026-10-18T12:13:26.139391Z","kind":"host","message":"host deleted: vx-cp-1","hostId":"4f4cfda8c6384c0c"}
+{"time":"2026-10-18T12:13:26.151544Z","kind":"host","message":"host updated: vx-wk-1","hostId":"9b4656c0628655fc"}
+{"time":"2026-10-18T12:13:26.162544Z","kind":"host","message":"host deleted: vx-wk-1","hostId":"9b4656c0628655fc"}
+{"time":"2026-10-18T12:13:26.170531Z","kind":"host","message":"host updated: vx-wk-2","hostId":"d8a7fd802bef7873"}
+{"time":"2026-10-18T12:13:26.178546Z","kind":"host","message":"host deleted: vx-wk-2","hostId":"d8a7fd802bef7873"}
+{"time":"2026-10-18T12:13:26.19949Z","kind":"group","message":"group deleted"}
+{"time":"2026-10-18T12:13:26.215434Z","kind":"host","message":"host created: vx-cp-1","hostId":"eefb60b1e7c5e543"}
+{"time":"2026-10-18T12:13:26.227485Z","kind":"host","message":"host created: vx-wk-1","hostId":"71c928b78614be7d"}
+{"time":"2026-10-18T12:13:26.237484Z","kind":"host","message":"host created: vx-wk-2","hostId":"9c382e6fc59b58e4"}
+{"time":"2026-10-18T12:13:26.249472Z","kind":"group","message":"group created: k8s-visual"}
+{"time":"2026-10-18T12:13:26.259648Z","kind":"group","message":"hosts moved"}
+{"time":"2026-10-18T12:13:26.27144Z","kind":"group","message":"host role set in group fb893e605ddad05e","hostId":"eefb60b1e7c5e543"}
+{"time":"2026-10-18T12:13:26.281488Z","kind":"group","message":"host role set in group fb893e605ddad05e","hostId":"71c928b78614be7d"}
+{"time":"2026-10-18T12:13:26.291532Z","kind":"group","message":"host role set in group fb893e605ddad05e","hostId":"9c382e6fc59b58e4"}
+{"time":"2026-10-18T12:13:26.304462Z","kind":"agent.note","message":"note added by you · group notes for group fb893e605ddad05e · no redactions","source":"group"}
+{"time":"2026-10-18T12:13:26.316476Z","kind":"agent.runbook","message":"runbook added by you (3 steps) · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:27.011746Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a started by you on group fb893e605ddad05e (3 steps, 3 hosts, 0 left out: Agent can read is off, rolling) · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:27.093477Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a · mode set to parallel by you · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:27.166141Z","kind":"session","message":"session spawned: vx-wk-1","hostId":"71c928b78614be7d","sessionId":"b2934f8260834a9a"}
+{"time":"2026-10-18T12:13:27.486012Z","kind":"agent.suggest","message":"agent suggested a command for vx-wk-1 · Read-only · no redactions","hostId":"71c928b78614be7d","sessionId":"b2934f8260834a9a"}
+{"time":"2026-10-18T12:13:27.486213Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a · step 1 of 3 proposed for 1 host (parallel) · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:27.578224Z","kind":"session","message":"session spawned: vx-wk-2","hostId":"9c382e6fc59b58e4","sessionId":"4eb7bd9ccf53c2f1"}
+{"time":"2026-10-18T12:13:27.906332Z","kind":"agent.suggest","message":"agent suggested a command for vx-wk-2 · Read-only · no redactions","hostId":"9c382e6fc59b58e4","sessionId":"4eb7bd9ccf53c2f1"}
+{"time":"2026-10-18T12:13:27.906513Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a · step 1 of 3 proposed for 1 host (parallel) · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:28.231918Z","kind":"agent.type","message":"agent command typed into vx-wk-1 · 49 bytes, 1 lines","hostId":"71c928b78614be7d","sessionId":"b2934f8260834a9a","lines":1,"bytes":49}
+{"time":"2026-10-18T12:13:28.233959Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a · step 1 of 3 · exit 0 reported by the shell · rb_36514d9c8f6a49af","hostId":"71c928b78614be7d"}
+{"time":"2026-10-18T12:13:28.531534Z","kind":"agent.runbook","message":"group run gr_42030a06eddea42a stopped by you at step 1 of 3 · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:28.616113Z","kind":"session","message":"session killed","sessionId":"b2934f8260834a9a"}
+{"time":"2026-10-18T12:13:28.619528Z","kind":"session","message":"session killed","sessionId":"4eb7bd9ccf53c2f1"}
+{"time":"2026-10-18T12:13:28.635333Z","kind":"agent.runbook","message":"runbook deleted by you · rb_36514d9c8f6a49af"}
+{"time":"2026-10-18T12:13:28.648089Z","kind":"host","message":"host updated: vx-cp-1","hostId":"eefb60b1e7c5e543"}
+{"time":"2026-10-18T12:13:28.660122Z","kind":"host","message":"host deleted: vx-cp-1","hostId":"eefb60b1e7c5e543"}
+{"time":"2026-10-18T12:13:28.671211Z","kind":"host","message":"host updated: vx-wk-1","hostId":"71c928b78614be7d"}
+{"time":"2026-10-18T12:13:28.681228Z","kind":"host","message":"host deleted: vx-wk-1","hostId":"71c928b78614be7d"}
+{"time":"2026-10-18T12:13:28.692205Z","kind":"host","message":"host updated: vx-wk-2","hostId":"9c382e6fc59b58e4"}
+{"time":"2026-10-18T12:13:28.702208Z","kind":"host","message":"host deleted: vx-wk-2","hostId":"9c382e6fc59b58e4"}
+{"time":"2026-10-18T12:13:28.722211Z","kind":"group","message":"group deleted"}

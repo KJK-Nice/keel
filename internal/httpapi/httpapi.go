@@ -139,6 +139,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/groups", s.upsertGroup)
 	mux.HandleFunc("PUT /api/groups/{id}", s.updateGroup)
 	mux.HandleFunc("DELETE /api/groups/{id}", s.deleteGroup)
+	mux.HandleFunc("GET /api/groups/{id}/members", s.groupMembers)
+	mux.HandleFunc("PUT /api/groups/{id}/roles", s.setGroupRole)
 	mux.HandleFunc("GET /api/snippets", s.listSnippets)
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
 	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
@@ -192,6 +194,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
+	mux.HandleFunc("GET /api/agent/groupruns", s.agentGroupRuns)
+	mux.HandleFunc("POST /api/agent/groupruns", s.agentStartGroupRun)
+	mux.HandleFunc("GET /api/agent/groupruns/{id}", s.agentGroupRun)
+	mux.HandleFunc("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
+	mux.HandleFunc("POST /api/agent/groupruns/{id}/steps/{sid}", s.agentGroupHostAction)
+	mux.HandleFunc("PUT /api/agent/groupruns/{id}/mode", s.agentGroupRunMode)
+	mux.HandleFunc("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
@@ -1135,7 +1144,11 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
 					break
 				}
-				s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
+				if ctl.Agent.GroupRunID != "" {
+					s.agent.GroupTypeDoneAt(ctl.Agent.GroupRunID, ctl.Agent.ProposalID, mark)
+				} else {
+					s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
+				}
 				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
 			}
 			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {

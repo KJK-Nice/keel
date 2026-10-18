@@ -95,6 +95,10 @@ func Dialogs(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = groupApproveDialog().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
@@ -2152,7 +2156,7 @@ func labeledInput(id, caption, name, placeholder string, required bool) templ.Co
 				var templ_7745c5c3_Var78 string
 				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 490, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 491, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -2236,7 +2240,7 @@ func labeledNumber(id, caption, name, value, min, max string) templ.Component {
 				var templ_7745c5c3_Var82 string
 				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 505, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 506, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 				if templ_7745c5c3_Err != nil {
@@ -2320,7 +2324,7 @@ func labeledPassword(id, caption, name, placeholder string, required bool) templ
 				var templ_7745c5c3_Var86 string
 				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 520, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 521, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 				if templ_7745c5c3_Err != nil {
@@ -2405,7 +2409,7 @@ func labeledTextarea(id, caption, name, placeholder string, rows int, required b
 				var templ_7745c5c3_Var90 string
 				templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 536, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 537, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 				if templ_7745c5c3_Err != nil {
@@ -2489,7 +2493,7 @@ func labeledSelect(id, caption, name, placeholder, current string, required bool
 				var templ_7745c5c3_Var94 string
 				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 551, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 552, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 				if templ_7745c5c3_Err != nil {
@@ -2555,7 +2559,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var96 string
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 566, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 567, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var96)
 		if templ_7745c5c3_Err != nil {
@@ -2568,7 +2572,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var97 string
 		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 566, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 567, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var97)
 		if templ_7745c5c3_Err != nil {
@@ -2589,7 +2593,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var98 string
 		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 569, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 570, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var98)
 		if templ_7745c5c3_Err != nil {
@@ -2602,7 +2606,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var99 string
 		templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 569, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 570, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 		if templ_7745c5c3_Err != nil {
@@ -2633,7 +2637,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var100 string
 		templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 579, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 580, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var100)
 		if templ_7745c5c3_Err != nil {
@@ -2646,7 +2650,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var101 string
 		templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.ResolveAttributeValue(placeholder)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 581, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 582, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var101)
 		if templ_7745c5c3_Err != nil {
@@ -2659,7 +2663,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var102 string
 		templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(help)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 585, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 586, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 		if templ_7745c5c3_Err != nil {

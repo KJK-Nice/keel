@@ -18,11 +18,15 @@ import (
 func TestNotesOnlyThroughTheirPaths(t *testing.T) {
 	allowed := map[string][]string{
 		"ListAgentNotes":  {"Service.noteContext", "Service.ListNotes"},
-		"AddAgentNote":    {"Service.AddNote", "Service.SaveNoteProposal"},
+		"AddAgentNote":    {"Service.AddNote", "Service.AddGroupNote", "Service.SaveNoteProposal"},
 		"UpdateAgentNote": {"Service.EditNote"},
 		"ReadHostNotes":   {"Service.noteContext"},
 		"ReadUserNotes":   {"Service.noteContext"},
-		"noteContext":     {"Service.Ask"},
+		// Group notes (§17) go only with a read pane on a host in the
+		// group, through the Auditor.
+		"ReadGroupNotes":   {"Service.groupNoteContext"},
+		"groupNoteContext": {"Service.noteContext"},
+		"noteContext":      {"Service.Ask"},
 	}
 	seen := map[string]int{}
 	for _, f := range parseModule(t) {

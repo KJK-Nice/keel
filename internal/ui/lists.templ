@@ -128,6 +128,9 @@ templ groupRowMenu(n groupNode) {
 			@icon.MoreHorizontal()
 		</button>
 		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-open": n.Group.ID}}) {
+				Roles and runbooks
+			}
 			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-edit": n.Group.ID}}) {
 				Edit
 			}

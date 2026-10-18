@@ -56,6 +56,60 @@ func (a *Auditor) ReadHostNotes(scope Scope, h Host, notes []string, r *redact.R
 	return ex, nil
 }
 
+// ReadGroupNotes redacts a group's notes (§17) with r for one request and
+// logs agent.note with the group's id and the count, never the text or the
+// group's name. read are the hosts in the group whose panes were read for
+// the question: it is refused, before anything is redacted or logged,
+// unless the agent may read at least one of them. extra are lines Keel
+// adds after the notes (the roles of the hosts read), redacted with them.
+func (a *Auditor) ReadGroupNotes(scope Scope, groupID string, read []Host, notes, extra []string, r *redact.Redactor) (NoteExcerpt, error) {
+	ok := false
+	for _, h := range read {
+		ok = ok || scope.AllowsHost(h.ID)
+	}
+	if !ok || groupID == "" {
+		return NoteExcerpt{}, ErrNotReadable
+	}
+	if r == nil {
+		return NoteExcerpt{}, fmt.Errorf("agent: no redactor")
+	}
+	var b strings.Builder
+	n := 0
+	for _, t := range notes {
+		t = strings.TrimSpace(strings.NewReplacer("\r", " ", "\n", " ").Replace(t))
+		if t == "" {
+			continue
+		}
+		b.WriteString("- " + t + "\n")
+		n++
+	}
+	for _, t := range extra {
+		b.WriteString(strings.NewReplacer("\r", " ", "\n", " ").Replace(t) + "\n")
+	}
+	before := r.Report()
+	safe := r.Text(strings.TrimRight(b.String(), "\n"))
+	ex := NoteExcerpt{Count: n, Text: safe, Report: diff(before, r.Report())}
+	a.log.Append(applog.Entry{
+		Kind:       EventNote,
+		Message:    fmt.Sprintf("agent sent %s for group %s with a question · %s", noteCount(ex.Count, "group note", "group notes"), groupID, redactionNote(ex.Report)),
+		Count:      ex.Count,
+		Redactions: ex.Report.Strings(),
+		Source:     "group",
+	})
+	return ex, nil
+}
+
+// GroupNoteChanged logs agent.note for a group note the user added, edited
+// or deleted: what happened and the group's id, never the text.
+func (a *Auditor) GroupNoteChanged(what, groupID string, rep redact.Report) {
+	a.log.Append(applog.Entry{
+		Kind:       EventNote,
+		Message:    fmt.Sprintf("%s · group notes for group %s · %s", what, groupID, redactionNote(rep)),
+		Redactions: rep.Strings(),
+		Source:     "group",
+	})
+}
+
 // ReadUserNotes redacts the user's own notes with r and logs agent.note.
 func (a *Auditor) ReadUserNotes(notes []string, r *redact.Redactor) (NoteExcerpt, error) {
 	ex, err := a.readNotes(notes, r)

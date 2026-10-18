@@ -19,10 +19,11 @@ import (
 // text field is redacted by the agent service (saveRedactor) before it gets
 // here, the way notes are.
 //
-// The shape is single-host for now. The next phase (boards GroupRoles,
-// GroupRunbook, CaptureVars) adds host roles, rolling or parallel runs and
-// captured variables as new optional fields; steps and runbooks have
-// stable ids so per-host results can be keyed by (runbook, step, host).
+// A step may name a role (and OneHost) for group runs (§17,
+// service/grouprun.go); the run's mode (rolling or parallel) belongs to the
+// run, not the runbook. Captured variables (the next phase, board
+// CaptureVars) will be new optional fields; steps and runbooks have stable
+// ids, so per-host results are keyed by (run, step, host).
 
 const (
 	// MaxRunbooks bounds the runbooks kept, MaxRunbookSteps the steps of
@@ -95,6 +96,13 @@ type RunbookStep struct {
 	Command     string `json:"command,omitempty"`
 	// Expect is the optional expected result ("exit 0", "state streaming").
 	Expect string `json:"expect,omitempty"`
+	// Role and OneHost say where the step runs in a group run (§17): on
+	// every host in the group with that role, or on every host in the
+	// group when Role is empty; with OneHost, on one of them only (the
+	// first with a pane open), as for a kubectl check on one control-plane
+	// node. A single-host run ignores both.
+	Role    string `json:"role,omitempty"`
+	OneHost bool   `json:"oneHost,omitempty"`
 }
 
 func validRunbookSource(s string) bool {
@@ -195,6 +203,9 @@ func cleanRunbook(b Runbook) (Runbook, error) {
 		}
 		if st.Expect, ok = CleanLine(st.Expect, MaxRunbookExpectBytes); !ok {
 			return bad(fmt.Sprintf("step %d: the expected result is at most %d bytes", n, MaxRunbookExpectBytes))
+		}
+		if st.Role, ok = CleanRole(st.Role); !ok {
+			return bad(fmt.Sprintf("step %d: a role is one lower-case word of up to %d letters, digits, \"-\", \"_\" or \".\" (such as worker)", n, MaxRoleBytes))
 		}
 		if st.Command, ok = CleanRunbookCommand(st.Command); !ok {
 			return bad(fmt.Sprintf("step %d: a command is at most %d bytes and %d lines, with no control characters", n, MaxRunbookCommandBytes, MaxRunbookCommandLines))

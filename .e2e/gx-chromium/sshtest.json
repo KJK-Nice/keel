@@ -1,0 +1,16 @@
+{
+  "jump": {
+    "host": "127.0.0.1",
+    "port": 62523,
+    "user": "jumper",
+    "password": "e2e-jump-pass",
+    "fingerprint": "SHA256:AWHALXN6erg+w0gEhnsQq9huhp3a+80uUqUhYkDTVQs"
+  },
+  "target": {
+    "host": "127.0.0.1",
+    "port": 62524,
+    "user": "deploy",
+    "password": "e2e-target-pass",
+    "fingerprint": "SHA256:O8ocEEnTRwkVtTER6aBt4GNf1VrHvbV2zzUXgTdv4V8"
+  }
+}

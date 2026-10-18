@@ -1,6 +1,8 @@
 package store
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -13,7 +15,9 @@ func (s *Store) ListGroups() ([]Group, error) {
 	}
 	dirty := s.migrateGroupsLocked()
 	out := make([]Group, len(s.data.Groups))
-	copy(out, s.data.Groups)
+	for i, g := range s.data.Groups {
+		out[i] = copyGroup(g, s.groupSubtreeLocked(g.ID), s.data.Hosts)
+	}
 	if dirty {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
@@ -38,6 +42,9 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	if err := s.validateNestLocked(g.ID, g.ParentID); err != nil {
 		return Group{}, err
 	}
+	// Roles change only through SetGroupRole: a rename or move from a form
+	// keeps them, and a new group starts with none.
+	g.Roles = nil
 	if g.ID == "" {
 		g.ID = newID()
 		g.CreatedAt = now
@@ -48,6 +55,7 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	for i, existing := range s.data.Groups {
 		if existing.ID == g.ID {
 			g.CreatedAt = existing.CreatedAt
+			g.Roles = existing.Roles
 			g.UpdatedAt = now
 			s.data.Groups[i] = g
 			return g, s.saveLocked()
@@ -59,7 +67,19 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	return g, s.saveLocked()
 }
 
+// DeleteGroup removes a group: its hosts and subgroups move up to its
+// parent, and its notes for the agent (keel.memory) go with it.
 func (s *Store) DeleteGroup(id string) error {
+	if err := s.deleteGroup(id); err != nil {
+		return err
+	}
+	if err := s.deleteGroupNotes(strings.TrimSpace(id)); err != nil && !errors.Is(err, ErrMemoryUnreadable) {
+		return fmt.Errorf("group deleted, but its notes for the agent could not be removed: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) deleteGroup(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {

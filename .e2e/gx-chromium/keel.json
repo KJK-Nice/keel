@@ -1,0 +1,81 @@
+{
+  "version": 3,
+  "vault": "scrypt",
+  "firstRun": true,
+  "hosts": [
+    {
+      "id": "9d4a3c6f540307ab",
+      "name": "Local Shell",
+      "group": "49deed143ffc498c",
+      "address": "localhost",
+      "port": 22,
+      "username": "",
+      "authType": "local",
+      "color": "#5ee0b5",
+      "keepAliveSec": 0,
+      "createdAt": "2026-10-18T12:10:39.929914Z",
+      "updatedAt": "2026-10-18T12:11:59.331025Z"
+    }
+  ],
+  "identities": null,
+  "tunnels": null,
+  "snippets": [
+    {
+      "id": "475fe657658c27c2",
+      "name": "list files",
+      "command": "ls -la\n",
+      "agentUsable": false,
+      "createdAt": "2026-10-18T12:10:39.929914Z"
+    },
+    {
+      "id": "1641f065e1ea8036",
+      "name": "disk",
+      "command": "df -h\n",
+      "agentUsable": false,
+      "createdAt": "2026-10-18T12:10:39.929914Z"
+    },
+    {
+      "id": "8f761aa06702e458",
+      "name": "memory",
+      "command": "free -h\n",
+      "agentUsable": false,
+      "createdAt": "2026-10-18T12:10:39.929914Z"
+    },
+    {
+      "id": "a4ae55741233b255",
+      "name": "top cpu",
+      "command": "ps aux --sort=-%cpu | head -n 15\n",
+      "agentUsable": false,
+      "createdAt": "2026-10-18T12:10:39.929914Z"
+    }
+  ],
+  "groups": [
+    {
+      "id": "49deed143ffc498c",
+      "name": "This machine",
+      "createdAt": "2026-10-18T12:10:44.047202Z",
+      "updatedAt": "2026-10-18T12:10:44.047202Z"
+    }
+  ],
+  "knownHosts": {
+    "127.0.0.1:62524": "SHA256:O8ocEEnTRwkVtTER6aBt4GNf1VrHvbV2zzUXgTdv4V8"
+  },
+  "knownHostTypes": {
+    "127.0.0.1:62524": "ssh-ed25519"
+  },
+  "agent": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "detection": "auto",
+    "suggestions": "on",
+    "historySuggestions": "on",
+    "defaultScope": "focused",
+    "scrollbackLines": 200,
+    "redact": {
+      "secrets": true,
+      "ips": false,
+      "hostnames": false
+    },
+    "historyDays": 30
+  }
+}

@@ -31,8 +31,10 @@ import (
 //     came from it, is marked FromPane: terminal output is untrusted remote
 //     text and a saved note is sent again and again, so the panel warns.
 //   - Ask sends them (noteContext): a host's notes only when a pane on that
-//     host is read for the question (in scope, "Agent can read" on), the
-//     user's notes when at least one pane is read; through the request's
+//     host is read for the question (in scope, "Agent can read" on), a
+//     group's notes (§17) only when a pane on a host in that group (its
+//     folder or one below) is read and readable, the user's notes when at
+//     least one pane is read; through the request's
 //     Redactor and the Auditor (agent.note); framed as user-curated
 //     context, apart from pane text.
 
@@ -182,8 +184,14 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 		return "", nil
 	}
 	byHost := map[string][]string{}
+	byGroup := map[string][]string{}
 	for _, n := range all {
-		if len(byHost[n.HostID]) < maxNotesSent {
+		switch {
+		case n.GroupID != "":
+			if len(byGroup[n.GroupID]) < maxNotesSent {
+				byGroup[n.GroupID] = append(byGroup[n.GroupID], n.Text)
+			}
+		case len(byHost[n.HostID]) < maxNotesSent:
 			byHost[n.HostID] = append(byHost[n.HostID], n.Text)
 		}
 	}
@@ -209,10 +217,85 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", h.Name, nx.Text.String())
 		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: "notes", NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
 	}
+	gText, gSteps := s.groupNoteContext(read, byID, byGroup, scope, r)
+	b.WriteString(gText)
+	steps = append(steps, gSteps...)
 	if mine := byHost[""]; len(mine) > 0 {
 		if nx, err := s.audit.ReadUserNotes(mine, r); err == nil && nx.Count > 0 {
 			fmt.Fprintf(&b, "--- your notes · the user's own preferences, saved by the user ---\n%s\n--- end your notes ---\n\n", nx.Text.String())
 			steps = append(steps, TraceStep{Status: "notes", NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
+		}
+	}
+	return b.String(), steps
+}
+
+// GroupSource lists the folders, for group notes and roles (§17).
+// *store.Store satisfies it.
+type GroupSource interface {
+	ListGroups() ([]store.Group, error)
+}
+
+// groupNoteContext is the group part of noteContext (§17): for each folder
+// that holds a host whose pane was read (its own folder and the folders
+// above it), that group's notes and the roles of the hosts read in it, as
+// user-curated context. Only for hosts the agent may read: ReadGroupNotes
+// refuses a group none of whose read hosts it may read, before anything is
+// redacted or logged.
+func (s *Service) groupNoteContext(read []agent.Excerpt, byID map[string]agent.Host, byGroup map[string][]string, scope agent.Scope, r *redact.Redactor) (string, []TraceStep) {
+	src, ok := s.st.(GroupSource)
+	if !ok {
+		return "", nil
+	}
+	groups, err := src.ListGroups()
+	if err != nil || len(groups) == 0 {
+		return "", nil
+	}
+	type groupRead struct {
+		g     store.Group
+		hosts []agent.Host
+	}
+	var order []string
+	seen := map[string]*groupRead{}
+	hostSeen := map[string]bool{}
+	for _, ex := range read {
+		h, ok := byID[ex.Pane.HostID]
+		if !ok || hostSeen[h.ID] || !scope.AllowsHost(h.ID) {
+			continue
+		}
+		hostSeen[h.ID] = true
+		for _, g := range store.GroupChain(groups, h.GroupID) {
+			gr := seen[g.ID]
+			if gr == nil {
+				gr = &groupRead{g: g}
+				seen[g.ID] = gr
+				order = append(order, g.ID)
+			}
+			gr.hosts = append(gr.hosts, h)
+		}
+	}
+	var (
+		b     strings.Builder
+		steps []TraceStep
+	)
+	for _, id := range order {
+		gr := seen[id]
+		var roles []string
+		for _, h := range gr.hosts {
+			if role := gr.g.Roles[h.ID]; role != "" {
+				roles = append(roles, fmt.Sprintf("role of %s in this group: %s", h.Name, role))
+			}
+		}
+		notes := byGroup[id]
+		if len(notes) == 0 && len(roles) == 0 {
+			continue
+		}
+		nx, err := s.audit.ReadGroupNotes(scope, id, gr.hosts, notes, roles, r)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", gr.g.Name, nx.Text.String())
+		if nx.Count > 0 {
+			steps = append(steps, TraceStep{Host: gr.g.Name, Status: "notes", NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -459,6 +542,27 @@ func (s *Service) AddNote(hostID, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
+// AddGroupNote saves a note the user wrote about every host in a group
+// (§17).
+func (s *Service) AddGroupNote(groupID, text string) (SavedNote, error) {
+	if s.notesSt == nil {
+		return SavedNote{}, ErrNoNotes
+	}
+	if groupID == "" {
+		return SavedNote{}, badRequest("name a group")
+	}
+	t, rep, err := s.cleanNote(text)
+	if err != nil {
+		return SavedNote{}, err
+	}
+	n, err := s.notesSt.AddAgentNote(store.AgentNote{GroupID: groupID, Text: t, Source: store.NoteSourceUser})
+	if err != nil {
+		return SavedNote{}, noteErr(err)
+	}
+	s.audit.GroupNoteChanged("note added by you", groupID, rep)
+	return SavedNote{Note: n, Redacted: rep.Total()}, nil
+}
+
 // EditNote replaces a note's text.
 func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	if s.notesSt == nil {
@@ -472,7 +576,11 @@ func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	if err != nil {
 		return SavedNote{}, noteErr(err)
 	}
-	s.audit.NoteChanged("note edited by you", n.HostID, s.hostName(n.HostID), rep)
+	if n.GroupID != "" {
+		s.audit.GroupNoteChanged("note edited by you", n.GroupID, rep)
+	} else {
+		s.audit.NoteChanged("note edited by you", n.HostID, s.hostName(n.HostID), rep)
+	}
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
@@ -485,7 +593,11 @@ func (s *Service) DeleteNote(id string) error {
 	if err != nil {
 		return noteErr(err)
 	}
-	s.audit.NoteChanged("note deleted by you", n.HostID, s.hostName(n.HostID), redact.Report{})
+	if n.GroupID != "" {
+		s.audit.GroupNoteChanged("note deleted by you", n.GroupID, redact.Report{})
+	} else {
+		s.audit.NoteChanged("note deleted by you", n.HostID, s.hostName(n.HostID), redact.Report{})
+	}
 	return nil
 }
 
