@@ -517,12 +517,13 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 }
 .k-rb-n { width: calc(var(--space-4) + var(--space-1) + var(--space-0\.5)); height: calc(var(--space-4) + var(--space-1) + var(--space-0\.5)); margin-top: var(--space-1); }
 .k-rb-body { display: grid; gap: var(--space-1\.5); min-width: 0; }
-.k-rb-step-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.k-input.k-rb-step-title { flex: 1; min-width: 0; font: var(--type-body-strong); }
+.k-rb-step-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-2); min-width: 0; }
+.k-rb-step-head > .k-badge { justify-self: start; }
+.k-input.k-rb-step-title { width: 100%; min-width: 0; font: var(--type-body-strong); }
 .k-rb-step-tools { display: flex; gap: var(--space-0\.5); flex: none; }
 .k-rb-step-tools .k-btn--icon svg { display: block; width: 1rem; height: 1rem; }
 .k-input.k-rb-step-desc, .k-input.k-rb-step-expect { font: var(--type-caption); color: var(--ink-muted); }
-.k-textarea.k-rb-cmd { min-height: var(--size-control); background: var(--surface); }
+.k-textarea.k-rb-cmd { min-height: calc(var(--size-control) * 2); resize: vertical; background: var(--surface); }
 .k-rb-main > div > .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
 .k-rb-box { display: grid; gap: calc(var(--space-3) + var(--space-0\.5)); padding: var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .k-inputgroup.k-rb-hosts { height: auto; min-height: var(--size-control); flex-wrap: wrap; gap: var(--space-1); padding: var(--space-0\.5) var(--space-1\.5); background: var(--stage); }

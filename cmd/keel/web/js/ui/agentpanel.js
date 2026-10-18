@@ -467,6 +467,7 @@ export function createAgentPanel(deps) {
   function setBusy(on) {
     if (el.stop) el.stop.hidden = !on;
     if (el.send) el.send.disabled = on;
+    eachView((v) => v.paintRuns());
     emit("busy");
   }
 

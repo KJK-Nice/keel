@@ -617,6 +617,8 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
       const panel = screen.getByRole('complementary', 'Agent');
       await expect(panel.getByRole('group', 'Runbook Diagnose replication lag')).toBeVisible();
       await expect(panel.getByRole('group', 'Proposal').last()).toContainText('Step 1 · Run on');
+      // The run card, as on the board, at the top of the thread.
+      await browser.evaluate("document.querySelector('#agent-thread .k-rb-pick')?.scrollIntoView({ block: 'start' })");
       await app.screenshot(`${theme}-runbook-in-use`);
 
       // A runbook the agent proposes.
