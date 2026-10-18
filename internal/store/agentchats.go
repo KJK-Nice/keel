@@ -86,9 +86,17 @@ type AgentChatRunbook struct {
 	Turn      int       `json:"turn"`
 	StartedAt time.Time `json:"startedAt"`
 	// Hosts are the runbook's folders and tags when it started: a step is
-	// aimed at the first pane read on one of them.
-	Hosts []string           `json:"hosts,omitempty"`
-	Steps []AgentChatRunStep `json:"steps"`
+	// aimed only at a pane read on one of them.
+	Hosts []string `json:"hosts,omitempty"`
+	// PinHostID, PinHost and PinSessionID are the host (and pane) of the
+	// first step proposed: later steps go only to that host, until the
+	// user moves the run. Blocked says why the current step could not be
+	// proposed ("", or a sentence for the card).
+	PinHostID    string             `json:"pinHostId,omitempty"`
+	PinHost      string             `json:"pinHost,omitempty"`
+	PinSessionID string             `json:"pinSessionId,omitempty"`
+	Blocked      string             `json:"blocked,omitempty"`
+	Steps        []AgentChatRunStep `json:"steps"`
 }
 
 // AgentChatRunStep is one step of a runbook in use. State is "next",
@@ -113,6 +121,11 @@ type AgentChatRunStep struct {
 	FinishedAt  *time.Time `json:"finishedAt,omitempty"`
 	Exit        *int       `json:"exit,omitempty"`
 	Result      string     `json:"result,omitempty"`
+	// Edited is set when the user changed the step's proposal before
+	// typing it; Typed is that command (redacted). Command stays the
+	// saved one.
+	Edited bool   `json:"edited,omitempty"`
+	Typed  string `json:"typed,omitempty"`
 }
 
 // Copy returns a deep copy.

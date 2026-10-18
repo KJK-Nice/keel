@@ -154,3 +154,18 @@ test("a runbook the agent proposes is warned about after any pane read", () => {
   assert.match(R.proposalDone({ status: "saved" }), /may not pick it until you review it/);
   assert.equal(R.proposalDone({ status: "dismissed" }), "Dismissed. Nothing was saved.");
 });
+
+test("review fixes: placeholders are never typed, production exit 0 waits, drafts carry their id", async () => {
+  const A = await import("../lib/agent.js");
+  const pane = { sessionId: "s1", driving: true };
+  assert.equal(A.typeOffer({ sessionId: "s1", placeholders: true }, pane), "placeholder");
+  assert.deepEqual(A.typeGate({ sessionId: "s1", placeholders: true }, pane, true), { ok: false, reason: "placeholder" });
+  const r = run([{ state: "typed", result: "reported", exit: 0 }, { state: "next" }]);
+  assert.equal(R.nextAction(r).kind, "confirm");
+  assert.equal(R.stepRow(r, 0).note, "exit 0 · reported — confirm");
+  assert.equal(R.waitingForShell(r), false);
+  assert.match(R.stepRow(run([{ state: "typed", edited: true }]), 0).note, /· edited$/);
+  const input = R.toInput({ name: "x", steps: [{ title: "t" }], source: "notebook", draftId: "dr_1" });
+  assert.equal(input.draftId, "dr_1");
+  assert.equal("source" in input, false);
+});

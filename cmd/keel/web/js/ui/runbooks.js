@@ -124,6 +124,7 @@ export function createRunbooksPage(deps) {
       agentMayPick: !!rb.agentMayPick,
       source: rb.source || "user",
       sourceRef: rb.sourceRef || "",
+      draftId: rb.draftId || "",
       fromPane: !!rb.fromPane,
       createdAt: rb.createdAt || "",
       lastUsedAt: rb.lastUsedAt || "",

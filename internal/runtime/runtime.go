@@ -678,35 +678,36 @@ func (s *Session) LastCommand() (shellmark.Block, bool) {
 
 // StreamMark is the pane's output stream offset now (the scrollback ring's
 // write counter). Taken right before a runbook step is typed, it lets
-// CommandAfter find the command that step started.
+// CommandsAfter find the commands that step started.
 func (s *Session) StreamMark() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.buf.Mark()
 }
 
-// CommandAfter returns the first command record whose output started at
-// or after from (a StreamMark). ok is false when the shell reported none
-// yet. Like every mark it is untrusted output: a runbook step shows its
-// exit status as reported, never as proof.
-func (s *Session) CommandAfter(from uint64) (shellmark.Command, bool) {
+// CommandsAfter returns the command records whose output started at or
+// after from (a StreamMark), oldest first; none when the shell reported
+// none yet. Like every mark they are untrusted output: a runbook step
+// shows its exit status as reported, never as proof.
+func (s *Session) CommandsAfter(from uint64) []shellmark.Command {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var out []shellmark.Command
 	for _, c := range s.marks.Commands() {
 		if c.OutputStart >= from {
-			return c, true
+			out = append(out, c)
 		}
 	}
-	return shellmark.Command{}, false
+	return out
 }
 
-// CommandAfter is Session.CommandAfter by session id.
-func (r *Runtime) CommandAfter(id string, from uint64) (shellmark.Command, bool) {
+// CommandsAfter is Session.CommandsAfter by session id.
+func (r *Runtime) CommandsAfter(id string, from uint64) []shellmark.Command {
 	s, err := r.Get(id)
 	if err != nil {
-		return shellmark.Command{}, false
+		return nil
 	}
-	return s.CommandAfter(from)
+	return s.CommandsAfter(from)
 }
 
 // LastCommand is Session.LastCommand by session id.

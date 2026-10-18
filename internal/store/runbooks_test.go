@@ -170,8 +170,18 @@ func TestRunbookUpdateKeepsSourceAndStepIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Source != RunbookSourceConversation || got.SourceRef != "pg-2 lag" || got.FromPane || !got.AgentMayPick || got.Name != "Replication lag" {
+	// Not the user's own and not reviewed: an edit's save cannot turn
+	// Agent may pick on; only the review action can, and after it an edit
+	// keeps it.
+	if got.Source != RunbookSourceConversation || got.SourceRef != "pg-2 lag" || got.FromPane || got.AgentMayPick || got.Name != "Replication lag" {
 		t.Fatalf("updated %+v", got)
+	}
+	if on, err := st.SetRunbookAgentMayPick(b.ID, true); err != nil || !on.AgentMayPick {
+		t.Fatalf("enable %+v %v", on, err)
+	}
+	edit.Steps = got.Steps
+	if got, err = st.UpdateRunbook(edit); err != nil || !got.AgentMayPick {
+		t.Fatalf("edit after review %+v %v", got, err)
 	}
 	if got.Steps[1].ID != first || got.Steps[2].ID == first || !strings.HasPrefix(got.Steps[3].ID, "st_") {
 		t.Fatalf("step ids %+v", got.Steps)

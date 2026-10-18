@@ -312,6 +312,12 @@ func (s *Store) UpdateRunbook(b Runbook) (Runbook, error) {
 		}
 		in := old
 		in.Name, in.When, in.Hosts, in.AgentMayPick, in.Steps = b.Name, b.When, b.Hosts, b.AgentMayPick, b.Steps
+		// A runbook the user did not write is turned on only by the
+		// separate review action (SetRunbookAgentMayPick), never by an
+		// edit's save.
+		if old.Source != RunbookSourceUser && !old.AgentMayPick {
+			in.AgentMayPick = false
+		}
 		in, err := cleanRunbook(in)
 		if err != nil {
 			return Runbook{}, err

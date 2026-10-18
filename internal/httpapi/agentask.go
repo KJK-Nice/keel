@@ -54,10 +54,10 @@ func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.Read
 // marks (agent.CommandSource), with the same mask as ReadScrollback.
 func (a agentPanes) LastCommand(id string) (shellmark.Block, bool) { return a.rt.LastCommand(id) }
 
-// CommandAfter passes on the first command a pane's shell reported after
-// a stream offset (service.StepSource), for a runbook step's result.
-func (a agentPanes) CommandAfter(id string, from uint64) (shellmark.Command, bool) {
-	return a.rt.CommandAfter(id, from)
+// CommandsAfter passes on the commands a pane's shell reported after a
+// stream offset (service.StepSource), for a runbook step's result.
+func (a agentPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
+	return a.rt.CommandsAfter(id, from)
 }
 
 func (s *Server) initAgent() {

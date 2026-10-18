@@ -568,6 +568,11 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rb-safe { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; }
 .k-rb-safe svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: var(--space-0\.5); color: var(--ink-faint); }
 
+.k-rb-target { display: flex; align-items: center; gap: var(--space-1\.5); margin: 0; font: var(--type-label); color: var(--ink); }
+.k-rb-target svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--ink-muted); }
+.k-rb-target b { font-weight: 500; }
+.k-rb-now--signal { color: var(--signal); }
+
 /* A runbook the agent proposes. */
 .k-rbp-name { margin: 0; font: var(--type-body-strong); color: var(--ink); }
 .k-rbp-steps { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }

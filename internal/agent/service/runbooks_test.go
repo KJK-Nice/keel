@@ -109,15 +109,16 @@ type markPanes struct {
 	cmds map[string][]shellmark.Command // session → commands
 }
 
-func (m *markPanes) CommandAfter(id string, from uint64) (shellmark.Command, bool) {
+func (m *markPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	var out []shellmark.Command
 	for _, c := range m.cmds[id] {
 		if c.OutputStart >= from {
-			return c, true
+			out = append(out, c)
 		}
 	}
-	return shellmark.Command{}, false
+	return out
 }
 
 func (m *markPanes) report(id string, at uint64, exit int) {
@@ -161,37 +162,54 @@ func (f *fixture) runbookLogs(t *testing.T) []string {
 	return out
 }
 
-// Saving redacts every text for secrets (vault values, secret-looking
-// values), keeps IPs and hostnames, and logs agent.runbook with the id,
-// never the text.
+// Saving redacts every text field for secrets (vault values,
+// secret-looking values), keeps IPs and hostnames, and logs agent.runbook
+// with the id, never the text. A command is never kept redacted: one the
+// Redactor would change, or one holding a placeholder (a shell glob such
+// as [secret:1]), is refused with a hint.
 func TestRunbookSaveRedactsAndLogs(t *testing.T) {
 	f, books, _ := booksFixture(t, "ok")
+	for _, cmd := range []string{
+		"curl -H 'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789' https://api",
+		"login --password " + vaultPass,
+		"rm -f /tmp/[secret:1]",
+	} {
+		in := threeSteps("secret", true)
+		in.Steps[1].Command = cmd
+		if _, err := f.svc.AddRunbook(in); !errors.Is(err, ErrBadRequest) || !strings.Contains(err.Error(), "read -s") || !strings.Contains(err.Error(), "step 2") {
+			t.Fatalf("%q kept: %v", cmd, err)
+		}
+	}
+	if len(books.books) != 0 {
+		t.Fatal("a runbook with a secret command was kept")
+	}
 	in := threeSteps("nginx 502", true)
 	in.Steps[0].Description = "log in with " + vaultPass + " on 10.0.0.9"
-	in.Steps[1].Command = "curl -H 'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789' https://api"
+	in.Steps[1].Command = "read -s DB_PASS && psql -h db -c 'select 1'"
 	saved, err := f.svc.AddRunbook(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Redacted < 2 {
+	if saved.Redacted < 1 {
 		t.Fatalf("redacted %d", saved.Redacted)
 	}
 	b := books.books[0]
 	if strings.Contains(b.Steps[0].Description, vaultPass) || !strings.Contains(b.Steps[0].Description, "10.0.0.9") {
 		t.Fatalf("description %q", b.Steps[0].Description)
 	}
-	if strings.Contains(b.Steps[1].Command, "ghp_") || !strings.Contains(b.Steps[1].Command, "[secret:") {
+	if b.Steps[1].Command != in.Steps[1].Command {
 		t.Fatalf("command %q", b.Steps[1].Command)
 	}
 	if saved.Runbook.Steps[2].Risk == agent.RiskReadOnly {
 		t.Fatalf("restart rated %q", saved.Runbook.Steps[2].Risk)
 	}
-	// An "agent" runbook cannot be made by the user's add.
+	// The client cannot name a source: without a draft it is the user's.
 	in3 := threeSteps("x", true)
 	in3.Source = store.RunbookSourceAgent
-	if _, err := f.svc.AddRunbook(in3); !errors.Is(err, ErrBadRequest) {
-		t.Fatalf("agent source accepted: %v", err)
+	if got, err := f.svc.AddRunbook(in3); err != nil || got.Runbook.Source != store.RunbookSourceUser {
+		t.Fatalf("client source: %+v %v", got.Runbook, err)
 	}
+	_ = f.svc.DeleteRunbook(books.books[1].ID)
 	if _, err := f.svc.UpdateRunbook(saved.Runbook.ID, threeSteps("renamed", false)); err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +220,7 @@ func TestRunbookSaveRedactsAndLogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	logs := f.runbookLogs(t)
-	if len(logs) != 4 {
+	if len(logs) != 6 {
 		t.Fatalf("logs %v", logs)
 	}
 	for _, l := range logs {
@@ -529,8 +547,10 @@ func TestRunbookProposalSaveDismissUndo(t *testing.T) {
 		t.Fatalf("runbook proposals %+v answer %q", resp.Runbooks, resp.Answer)
 	}
 	rp := resp.Runbooks[0]
-	if strings.Contains(rp.Steps[0].Command, vaultPass) || !strings.Contains(rp.Steps[0].Command, "[secret:") {
-		t.Fatalf("proposed command %q", rp.Steps[0].Command)
+	// The command held a secret: left out, with a note, never a
+	// placeholder that could be typed.
+	if rp.Steps[0].Command != "" || !strings.Contains(rp.Steps[0].Description, "Command left out") || strings.Contains(fmt.Sprint(rp), vaultPass) {
+		t.Fatalf("proposed step %+v", rp.Steps[0])
 	}
 	if len(rp.PanesRead) != 1 || !rp.FromPane || rp.SeenIn != "web-1" {
 		t.Fatalf("pane flags %+v", rp)
@@ -597,5 +617,194 @@ func TestDraftFromConversation(t *testing.T) {
 	}
 	if _, err := f.svc.RunbookDraft(DraftRequest{}); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("empty: %v", err)
+	}
+}
+
+// M1: a step goes only to a pane on a host the runbook is for; with none
+// read, no proposal and the card says why. The run is pinned to the host
+// of its first step until the user moves it.
+func TestRunTargetsAndPinning(t *testing.T) {
+	f, _, _ := booksFixture(t, "ok")
+	nginx, _ := f.svc.AddRunbook(threeSteps("nginx", false, "nginx"))
+	resp, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "walk", Panes: []string{"s-db"}, RunbookID: nginx.Runbook.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Proposals) != 0 || !strings.Contains(resp.Runbook.Blocked, "No pane in scope is on a host this runbook is for (nginx)") {
+		t.Fatalf("db pane for an nginx runbook: %+v %q", resp.Proposals, resp.Runbook.Blocked)
+	}
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "go", Panes: []string{"s-db", "s-web"}})
+	if len(resp.Proposals) != 1 || resp.Proposals[0].SessionID != "s-web" || resp.Runbook.PinHost != "web-1" || resp.Runbook.Blocked != "" {
+		t.Fatalf("web pane: %+v %+v", resp.Proposals, resp.Runbook)
+	}
+
+	// No hosts listed: step 1 pins the run to web-1; step 2 does not go
+	// to prod-db-01 even when only that pane is read.
+	const c2 = "conv-test-0002"
+	any, _ := f.svc.AddRunbook(threeSteps("any host", false))
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: c2, Question: "walk", Panes: []string{"s-web"}, RunbookID: any.Runbook.ID})
+	if resp.Proposals[0].SessionID != "s-web" {
+		t.Fatalf("step 1 %+v", resp.Proposals)
+	}
+	if _, err := f.svc.StepAction(c2, resp.Runbook.Steps[0].ID, "done"); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: c2, Question: "next", Panes: []string{"s-db"}})
+	if len(resp.Proposals) != 0 || !strings.Contains(resp.Runbook.Blocked, "This runbook runs on web-1") {
+		t.Fatalf("step 2 went to another host: %+v %q", resp.Proposals, resp.Runbook.Blocked)
+	}
+	if _, err := f.svc.MoveRun(c2); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: c2, Question: "next", Panes: []string{"s-db"}})
+	if len(resp.Proposals) != 1 || resp.Proposals[0].SessionID != "s-db" || resp.Proposals[0].Runbook.Step != 2 || resp.Runbook.PinHost != "prod-db-01" {
+		t.Fatalf("after move: %+v %+v", resp.Proposals, resp.Runbook)
+	}
+	if !strings.Contains(strings.Join(f.runbookLogs(t), "\n"), "runbook moved by you off web-1") {
+		t.Fatal("move not logged")
+	}
+}
+
+// M2: no proposal, runbook or not, is typed while its command holds a
+// redaction placeholder; the user edits it first.
+func TestTypeRefusesPlaceholders(t *testing.T) {
+	reply := "```keel-proposal\n{\"pane\": 1, \"command\": \"rm -f /tmp/[secret:1]\", \"why\": \"glob\", \"risk\": \"changes\"}\n```"
+	f, _, _ := booksFixture(t, reply)
+	resp, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "clean", Panes: []string{"s-web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := resp.Proposals[0]
+	if !p.Placeholders {
+		t.Fatalf("not flagged: %+v", p)
+	}
+	if err := f.svc.AuthorizeType(TypeRequest{ConversationID: conv, ProposalID: p.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: p.Bytes, Shift: true}); !errors.Is(err, ErrPlaceholder) {
+		t.Fatalf("typed a placeholder: %v", err)
+	}
+	ed, err := f.svc.EditProposal(conv, p.ID, "rm -f /tmp/keel-scratch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.AuthorizeType(TypeRequest{ConversationID: conv, ProposalID: p.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: ed.Bytes, Shift: true}); err != nil {
+		t.Fatalf("edited: %v", err)
+	}
+}
+
+// L1: a step of several commands is done only when the last of them ends
+// with exit 0; any non-zero exit fails it.
+func TestMultiCommandStep(t *testing.T) {
+	f, _, mp := booksFixture(t, "ok")
+	in := threeSteps("multi", false)
+	in.Steps[0].Command = "echo one \\\n  more\n# a comment\n\necho two"
+	saved, err := f.svc.AddRunbook(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := stepCommands(saved.Runbook.Steps[0].Command); n != 2 {
+		t.Fatalf("commands %d", n)
+	}
+	resp, _ := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "walk", Panes: []string{"s-web"}, RunbookID: saved.Runbook.ID})
+	f.svc.TypeDoneAt(conv, resp.Proposals[0].ID, 100)
+	mp.report("s-web", 110, 0)
+	if st, _ := f.svc.RunbookState(conv); st.Runbook.Steps[0].State != stepTyped {
+		t.Fatalf("done after the first of two: %+v", st.Runbook.Steps[0])
+	}
+	mp.report("s-web", 120, 0)
+	if st, _ := f.svc.RunbookState(conv); st.Runbook.Steps[0].State != stepDone {
+		t.Fatalf("not done after both: %+v", st.Runbook.Steps[0])
+	}
+
+	const c2 = "conv-test-0003"
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: c2, Question: "walk", Panes: []string{"s-web"}, RunbookID: saved.Runbook.ID})
+	f.svc.TypeDoneAt(c2, resp.Proposals[0].ID, 200)
+	mp.report("s-web", 210, 4)
+	st, _ := f.svc.RunbookState(c2)
+	if st.Runbook.Steps[0].State != stepFailed || *st.Runbook.Steps[0].Exit != 4 {
+		t.Fatalf("first command failed: %+v", st.Runbook.Steps[0])
+	}
+}
+
+// L2: on a production host a reported exit 0 waits for the user to
+// confirm the step.
+func TestProductionStepNeedsConfirm(t *testing.T) {
+	f, _, mp := booksFixture(t, "ok")
+	saved, _ := f.svc.AddRunbook(threeSteps("db", false))
+	resp, _ := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "walk", Panes: []string{"s-db"}, RunbookID: saved.Runbook.ID})
+	f.svc.TypeDoneAt(conv, resp.Proposals[0].ID, 100)
+	mp.report("s-db", 110, 0)
+	st, _ := f.svc.RunbookState(conv)
+	s0 := st.Runbook.Steps[0]
+	if s0.State != stepTyped || s0.Result != "reported" || s0.Exit == nil || *s0.Exit != 0 {
+		t.Fatalf("production exit 0 marked done: %+v", s0)
+	}
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "next", Panes: []string{"s-db"}})
+	if len(resp.Proposals) != 0 {
+		t.Fatal("step 2 proposed before step 1 was confirmed")
+	}
+	st, err := f.svc.StepAction(conv, s0.ID, "done")
+	if err != nil || st.Runbook.Steps[0].State != stepDone || st.Runbook.Steps[0].Result != "reported" {
+		t.Fatalf("confirm: %+v %v", st.Runbook.Steps[0], err)
+	}
+	if !strings.Contains(strings.Join(f.runbookLogs(t), "\n"), "waiting for you to confirm (production host)") {
+		t.Fatal("not logged")
+	}
+}
+
+// L3: an edited step proposal is recorded as the step's typed command,
+// beside the saved one, and the frame shows both.
+func TestEditedStepKeepsSavedCommand(t *testing.T) {
+	f, _, _ := booksFixture(t, "ok")
+	saved, _ := f.svc.AddRunbook(threeSteps("edit", false))
+	resp, _ := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "walk", Panes: []string{"s-web"}, RunbookID: saved.Runbook.ID})
+	if _, err := f.svc.EditProposal(conv, resp.Proposals[0].ID, "tail -n 200 /var/log/nginx/error.log"); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := f.svc.RunbookState(conv)
+	s0 := st.Runbook.Steps[0]
+	if !s0.Edited || s0.Typed != "tail -n 200 /var/log/nginx/error.log" || s0.Command != "tail -n 50 /var/log/nginx/error.log" {
+		t.Fatalf("edited step %+v", s0)
+	}
+	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "and?", Panes: []string{"s-web"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.requestBodies(t), "edited by the user before typing, typed as:") {
+		t.Fatal("frame lacks the edit")
+	}
+}
+
+// L4: a save takes its source from keel serve's own draft record, not
+// from the client, and starts off.
+func TestDraftSourceIsServerSide(t *testing.T) {
+	f, books, _ := booksFixture(t, "```keel-proposal\n{\"pane\": 1, \"command\": \"df -h\", \"why\": \"Free space\", \"risk\": \"readonly\"}\n```")
+	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "disk", Panes: []string{"s-web"}}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := f.svc.RunbookDraft(DraftRequest{ConversationID: conv})
+	if err != nil || d.DraftID == "" {
+		t.Fatalf("draft %+v %v", d, err)
+	}
+	d.Source, d.AgentMayPick = store.RunbookSourceUser, true
+	saved, err := f.svc.AddRunbook(d)
+	if err != nil || saved.Runbook.Source != store.RunbookSourceConversation || saved.Runbook.AgentMayPick || books.books[0].Source != store.RunbookSourceConversation {
+		t.Fatalf("draft saved as %+v %v", saved.Runbook, err)
+	}
+	// A draft id is used once.
+	again, _ := f.svc.AddRunbook(d)
+	if again.Runbook.Source != store.RunbookSourceUser {
+		t.Fatalf("draft id reused: %+v", again.Runbook)
+	}
+}
+
+// L5: Don't use on an unknown conversation is 404 and makes nothing.
+func TestStopRunbookUnknown(t *testing.T) {
+	f, _, _ := booksFixture(t, "ok")
+	if _, err := f.svc.StopRunbook("conv-none-0009"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stop unknown: %v", err)
+	}
+	f.svc.mu.Lock()
+	n := len(f.svc.convs)
+	f.svc.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("a stop made %d conversations", n)
 	}
 }

@@ -576,7 +576,8 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
       const lag = await keelSend<{ runbook: { id: string } }>(app.baseUrl, 'POST', '/api/agent/runbooks', {
         name: 'Diagnose replication lag',
         when: 'A Patroni replica is behind or its WAL stream keeps restarting.',
-        hosts: ['production', 'postgres'],
+        // No hosts: Local Shell is in no folder; the step pins the run to it.
+        hosts: [],
         agentMayPick: true,
         steps: [
           { title: 'Check replication on the leader', description: 'Read lag and state for every replica.', command: 'sudo -u postgres psql -xc "select client_addr, state, replay_lag from pg_stat_replication;"', expect: 'state streaming' },
@@ -585,14 +586,15 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
           { title: 'Ask before changing conntrack' },
         ],
       });
-      await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
+      // A runbook made from a notebook draft: keel serve sets its source,
+      // so it waits for a review.
+      const nb = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', {
         name: 'nginx 502 checklist',
-        when: 'nginx returns 502 or 504 for an upstream app.',
-        hosts: ['nginx'],
-        source: 'conversation',
-        sourceRef: 'nginx 502 on prod-api-01',
-        steps: [{ title: 'Find the failing upstream', command: 'sudo tail -n 50 /var/log/nginx/error.log' }],
+        cells: [{ body: '## Find the failing upstream\n\nThe error log names the upstream and the reason.\n\n```sh\nsudo tail -n 50 /var/log/nginx/error.log\n```\n' }],
       });
+      const draft = await keelSend<Record<string, unknown>>(app.baseUrl, 'POST', '/api/agent/runbooks/draft', { notebookId: nb.id });
+      await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', { ...draft, when: 'nginx returns 502 or 504 for an upstream app.', hosts: ['nginx'] });
+      await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
       await openKeel(app);
       await openLocalShell(screen);
       const input = screen.getByRole('textbox', 'Terminal input');

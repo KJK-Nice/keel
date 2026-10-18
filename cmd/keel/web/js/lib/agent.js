@@ -156,6 +156,9 @@ export function answerHTML(text) {
 //               Propose again only)
 export function typeOffer(proposal, pane) {
   if (proposal?.expired) return "expired";
+  // keel serve refuses to type a redaction placeholder such as [secret:1]
+  // (a shell glob): the user edits the command first.
+  if (proposal?.placeholders) return "placeholder";
   if (!proposal?.sessionId) return "none";
   if (!pane || pane.remote) return pane?.remote ? "following" : "closed";
   if (!pane.driving) return "following";

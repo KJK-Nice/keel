@@ -30,10 +30,19 @@ func TestAgentRunbookRoutes(t *testing.T) {
 		Name: "RUNBOOK-NAME-MARKER", When: "502s on the web tier", AgentMayPick: true,
 		Steps: []store.RunbookStep{
 			{Title: "STEP-ONE check", Command: "echo step-one"},
-			{Title: "STEP-TWO login", Command: "login --password " + askHostPass},
+			{Title: "STEP-TWO login", Command: "read -s DB_PASS && login"},
 			{Title: "STEP-THREE look"},
 		},
 	}
+	// A step command holding a vault secret is refused, not kept with a
+	// placeholder that could be typed.
+	bad := in
+	bad.Steps = append([]store.RunbookStep(nil), in.Steps...)
+	bad.Steps[1].Command = "login --password " + askHostPass
+	if code, b := f.call(t, "POST", "/api/agent/runbooks", bad); code != 400 || !bytes.Contains(b, []byte("read -s")) || bytes.Contains(b, []byte(askHostPass)) {
+		t.Fatalf("secret command → %d %s", code, b)
+	}
+	in.Steps[2].Description = "the password is " + askHostPass
 	code, b := f.call(t, "POST", "/api/agent/runbooks", in)
 	var saved service.SavedRunbook
 	if code != 200 || json.Unmarshal(b, &saved) != nil || saved.Redacted != 1 || strings.Contains(string(b), askHostPass) {
@@ -114,11 +123,18 @@ func TestAgentRunbookRoutes(t *testing.T) {
 		t.Fatalf("step 1 %+v", s0)
 	}
 
-	// The next ask proposes step 2, whose saved command was redacted.
+	// The next ask proposes step 2, on the same pane (the run is pinned
+	// to web-1).
 	_, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "next", "panes": []string{web.ID}})
 	props = proposalsOf(t, resp)
-	if len(props) != 1 || props[0]["runbook"].(map[string]any)["step"] != float64(2) || !strings.Contains(props[0]["command"].(string), "[secret:") || props[0]["placeholders"] != true {
+	if len(props) != 1 || props[0]["runbook"].(map[string]any)["step"] != float64(2) || props[0]["sessionId"] != web.ID || resp["runbook"].(map[string]any)["pinHost"] != "web-1" {
 		t.Fatalf("step 2 %v", props)
+	}
+	if code, _ := f.call(t, "POST", "/api/agent/conversations/"+askConv+"/runbook/move", nil); code != 200 {
+		t.Fatalf("move → %d", code)
+	}
+	if code, _ := f.call(t, "DELETE", "/api/agent/conversations/conv-none-0042/runbook", nil); code != 404 {
+		t.Fatalf("don't use on an unknown conversation → %d", code)
 	}
 	if code, b := f.call(t, "POST", "/api/agent/conversations/"+askConv+"/runbook/steps/"+stepIDs[1], map[string]string{"action": "skip"}); code != 200 || !bytes.Contains(b, []byte(`"state":"skipped"`)) {
 		t.Fatalf("skip → %d %s", code, b)

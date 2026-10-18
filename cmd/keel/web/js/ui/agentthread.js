@@ -320,7 +320,7 @@ export function createThreadView(opts) {
     if (offer === "following") notes.push(noteHTML("haze", ICON.eye, "You follow this pane. The agent cannot type into it."));
     if (offer === "closed") notes.push(noteHTML("haze", ICON.info, "That pane is not open in this window. Copy the command instead."));
     if (offer === "none") notes.push(noteHTML("haze", ICON.info, "No pane named for this command. Copy it instead."));
-    if (p.placeholders) notes.push(noteHTML("signal", ICON.alert, "It holds a redacted placeholder such as [secret:1]. Edit it before you type it."));
+    if (p.placeholders) notes.push(noteHTML("signal", ICON.alert, "It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first."));
     if (status) notes.push(noteHTML(status.ok ? "tide" : "flare", status.ok ? ICON.tick : ICON.alert, escapeHtml(status.text)));
     const canType = offer === "type" || offer === "shift";
     const typeKbd = offer === "shift" ? `${shiftWord === "⇧" ? "⇧↵" : "Shift+↵"}` : "↵";
@@ -381,7 +381,7 @@ export function createThreadView(opts) {
     for (const [runId, node] of runRecs) paintRun(runId, node);
   }
 
-  function runActionsHTML(act, busy) {
+  function runActionsHTML(act, busy, run) {
     const dis = busy ? " disabled" : "";
     const b = (attr, label, primary = false) => `<button type="button" class="k-btn ${primary ? "k-btn--primary" : "k-btn--ghost"} k-btn--sm" ${attr}${dis}>${escapeHtml(label)}</button>`;
     const sid = act.step ? ` data-rb-step="${escapeHtml(act.step.id)}"` : "";
@@ -390,6 +390,8 @@ export function createThreadView(opts) {
         return `<p class="k-rb-now">${escapeHtml(`Next: step ${act.step.n} · ${act.step.title}`)}</p><div class="k-rb-actions">${b(`data-rb-propose${sid}`, `Propose step ${act.step.n}`, true)}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
       case "proposed":
         return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} is proposed below. Nothing is typed until you press Type.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "confirm":
+        return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} · exit 0, reported by the shell. ${run?.pinHost || "This host"} is a production host: confirm the step before going on.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Confirm done", true)}${b(`data-rb-retry${sid}`, "Retry")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
       case "waiting":
         return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} was typed. Its exit status shows here when the pane's shell reports it; otherwise mark it yourself.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done", true)}${b(`data-rb-retry${sid}`, "Retry")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
       case "noexit":
@@ -430,6 +432,16 @@ export function createThreadView(opts) {
       })
       .join("");
     const act = R.nextAction(run, (pid) => !!ctl.proposal(pid) && !ctl.proposal(pid).p.expired);
+    // Where the steps go: the host of the first step, pinned, with its tab.
+    const pinPane = run.pinSessionId ? ctl.paneById(run.pinSessionId) : null;
+    const target = run.pinHost
+      ? `<p class="k-rb-target">${ICON.cmd}<span>Run on <b class="k-mono">${escapeHtml(run.pinHost)}</b>${pinPane?.sub ? ` · ${escapeHtml(pinPane.sub)}` : ""}</span></p>`
+      : "";
+    const blocked = run.blocked
+      ? `<p class="k-rb-now k-rb-now--signal">${escapeHtml(run.blocked)}</p>${
+          run.pinHost ? `<div class="k-rb-actions"><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-move${cur.busy ? " disabled" : ""}>Move the run to another host</button></div>` : ""
+        }`
+      : "";
     const others = cur.choosing
       ? `<div class="k-rb-others" role="group" aria-label="Other runbooks">${
           cur.others == null
@@ -446,9 +458,9 @@ export function createThreadView(opts) {
       : "";
     const err = cur.error ? `<p class="k-prop-note k-prop-note--flare">${ICON.alert}<span>${escapeHtml(cur.error)}</span></p>` : "";
     node.innerHTML = `<div class="k-rb-pick-name">${ICON.book}<span class="k-rb-pick-title">${escapeHtml(name)}</span><span class="k-badge">Runbook</span></div>
-      <p class="k-rb-why">${escapeHtml(R.whyLine(run))}</p>
+      ${target}<p class="k-rb-why">${escapeHtml(R.whyLine(run))}</p>
       <ol class="k-rp" aria-label="Steps">${rows}</ol>
-      ${runActionsHTML(act, cur.busy)}${err}
+      ${blocked}${runActionsHTML(act, cur.busy, run)}${err}
       <div class="k-rb-actions">
         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-choose aria-expanded="${cur.choosing ? "true" : "false"}">Use a different runbook</button>
         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-stop${cur.busy ? " disabled" : ""}>Don't use</button>
@@ -637,6 +649,7 @@ export function createThreadView(opts) {
       else if (btn.hasAttribute("data-rb-retry")) ctl.stepAction?.(step, "retry");
       else if (btn.hasAttribute("data-rb-choose")) ctl.toggleChoose?.();
       else if (btn.hasAttribute("data-rb-stop")) ctl.stopRunbook?.();
+      else if (btn.hasAttribute("data-rb-move")) ctl.moveRun?.();
       else if (btn.dataset.rbUse) ctl.useRunbook?.(btn.dataset.rbUse);
       return;
     }

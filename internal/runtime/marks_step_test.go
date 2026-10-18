@@ -9,22 +9,22 @@ func TestCommandAfterMark(t *testing.T) {
 	s := markSession(1 << 16)
 	s.output([]byte("\x1b]133;A\x07$ \x1b]133;B\x07true\r\n\x1b]133;C\x07\x1b]133;D;0\x07\x1b]133;A\x07$ \x1b]133;B\x07"))
 	mark := s.StreamMark()
-	if _, ok := s.CommandAfter(mark); ok {
+	if got := s.CommandsAfter(mark); len(got) != 0 {
 		t.Fatal("found a command before the step ran")
 	}
 	s.output([]byte("false\r\n\x1b]133;C\x07"))
-	c, ok := s.CommandAfter(mark)
-	if !ok || c.Done {
-		t.Fatalf("running step: %+v %v", c, ok)
+	got := s.CommandsAfter(mark)
+	if len(got) != 1 || got[0].Done {
+		t.Fatalf("running step: %+v", got)
 	}
 	s.output([]byte("\x1b]133;D;3\x07\x1b]133;A\x07$ "))
-	c, ok = s.CommandAfter(mark)
-	if !ok || !c.Done || !c.HasExit || c.Exit != 3 {
-		t.Fatalf("finished step: %+v %v", c, ok)
+	got = s.CommandsAfter(mark)
+	if len(got) != 1 || !got[0].Done || !got[0].HasExit || got[0].Exit != 3 {
+		t.Fatalf("finished step: %+v", got)
 	}
-	// A later command does not replace the step's own.
+	// A later command comes after the step's own, in order.
 	s.output([]byte("\x1b]133;B\x07true\r\n\x1b]133;C\x07\x1b]133;D;0\x07"))
-	if c, _ = s.CommandAfter(mark); c.Exit != 3 {
-		t.Fatalf("later command won: %+v", c)
+	if got = s.CommandsAfter(mark); len(got) != 2 || got[0].Exit != 3 || got[1].Exit != 0 {
+		t.Fatalf("commands after the mark: %+v", got)
 	}
 }

@@ -28,6 +28,7 @@ func TestRunbooksOnlyThroughTheirPaths(t *testing.T) {
 		"runbookAfter":           {"Service.Ask"},
 		"runbookFrame":           {"Service.runbookBefore"},
 		"stepTypedLocked":        {"Service.typeDone"},
+		"stepEditedLocked":       {"Service.EditProposal"},
 		"startRunLocked":         {"Service.runbookBefore", "Service.runbookAfter"},
 	}
 	seen := map[string]int{}

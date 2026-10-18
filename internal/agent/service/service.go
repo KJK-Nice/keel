@@ -71,6 +71,9 @@ var (
 	ErrChanged     = errors.New("agent: the command differs from the proposal; edit it in the panel first")
 	ErrNeedsShift  = errors.New("agent: this command changes or deletes data on a production host, or is destructive; hold Shift and press Type")
 	ErrNotProvider = errors.New("agent: the selected provider cannot answer questions")
+	// ErrPlaceholder refuses to type a command that still holds a
+	// redaction placeholder such as [secret:1] (a shell glob).
+	ErrPlaceholder = errors.New("agent: this command still holds a redacted placeholder such as [secret:1]; edit it to the real value or an environment variable before you type it")
 )
 
 // ProviderError is a failed provider call, with the key removed from its
@@ -118,7 +121,10 @@ type Service struct {
 	chats   ChatStore
 	notesSt NoteStore
 	books   RunbookStore
-	log     agent.Logger
+	// drafts are the runbook drafts made by RunbookDraft, by id: a save
+	// takes its source from here (under mu).
+	drafts map[string]draftOrigin
+	log    agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -730,8 +736,11 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 		// What the user typed into the edit is kept redacted.
 		sp.Command, sp.Risk, sp.Production, sp.Edited = r.Text(cmd).String(), string(p.Risk), production, true
 	}
+	// A runbook step's edit is the step's typed command, not its saved
+	// one (runbooks.go).
+	step := p.Runbook != nil && c.stepEditedLocked(proposalID, r.Text(cmd).String())
 	s.mu.Unlock()
-	if sp != nil {
+	if sp != nil || step {
 		s.persist(c)
 	}
 	return out, nil
@@ -771,6 +780,9 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 	}
 	if req.Bytes != snap.Bytes {
 		return ErrChanged
+	}
+	if hasPlaceholder(snap.Command) {
+		return ErrPlaceholder
 	}
 	current, err := s.hostProduction(snap.HostID)
 	if err != nil {

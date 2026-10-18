@@ -158,6 +158,7 @@ export function createAgentPanel(deps) {
     proposeStep,
     stepAction,
     stopRunbook,
+    moveRun,
     useRunbook,
     toggleChoose,
     bookProp: (id) => state.bookProps.get(id) || null,
@@ -689,6 +690,24 @@ export function createAgentPanel(deps) {
       if (conv !== state.conv) return;
       state.noRunbook = true;
       state.choosing = false;
+      state.runError = "";
+      setRun(res.runbook);
+    } catch (err) {
+      if (conv === state.conv) runError(err?.message || String(err));
+    } finally {
+      state.runBusy = false;
+      if (conv === state.conv) eachView((v) => v.paintRuns());
+    }
+  }
+
+  // moveRun unpins the run from its host, so the next step may go to a
+  // pane on another host the runbook is for (the user's choice only).
+  async function moveRun() {
+    const conv = state.conv;
+    state.runBusy = true;
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbook/move`, { method: "POST" });
+      if (conv !== state.conv) return;
       state.runError = "";
       setRun(res.runbook);
     } catch (err) {

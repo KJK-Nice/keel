@@ -139,8 +139,8 @@ export function toInput(ed) {
     hosts: (ed?.hosts || []).map(cleanLine).filter(Boolean),
     agentMayPick: !!ed?.agentMayPick,
     steps,
-    source: ed?.source || "user",
-    sourceRef: ed?.sourceRef || "",
+    // keel serve takes the source from its own record of the draft.
+    draftId: ed?.draftId || "",
   };
 }
 
@@ -188,13 +188,14 @@ export function stepRow(run, i, now = new Date()) {
   const reported = st.result === "reported" ? `${exit} · reported` : "";
   switch (st.state) {
     case "done":
-      return { state: "done", mark: "✓", note: st.result === "user" ? "marked done" : reported || "done" };
+      return { state: "done", mark: "✓", note: (st.result === "user" ? "marked done" : reported || "done") + (st.edited ? " · edited" : "") };
     case "skipped":
       return { state: "skipped", mark: "–", note: "skipped" };
     case "failed":
       return { state: "failed", mark: "✗", note: st.result === "user" ? "failed" : reported };
     case "typed": {
-      const t = st.typedAt ? `typed ${stampLabel(st.typedAt, now)}` : "typed";
+      const t = (st.typedAt ? `typed ${stampLabel(st.typedAt, now)}` : "typed") + (st.edited ? " · edited" : "");
+      if (st.result === "reported" && st.exit === 0) return { state: "now", mark: String(i + 1), note: "exit 0 · reported — confirm" };
       if (st.result === "abandoned") return { state: "now", mark: String(i + 1), note: `${t} · shell went away` };
       if (st.result === "unreported") return { state: "now", mark: String(i + 1), note: `${t} · no exit status` };
       return { state: "now", mark: String(i + 1), note: t };
@@ -222,6 +223,7 @@ export function nextAction(run, proposalLive) {
   const st = run.steps[i];
   const step = { index: i, n: i + 1, of: run.steps.length, title: st.title, id: st.id };
   if (st.state === "failed") return { kind: "failed", step, exit: st.exit };
+  if (st.state === "typed" && st.result === "reported" && st.exit === 0) return { kind: "confirm", step };
   if (st.state === "typed") return { kind: st.result === "abandoned" || st.result === "unreported" ? "noexit" : "waiting", step };
   if (!st.command) return { kind: "check", step };
   if (st.state === "proposed" && proposalLive?.(st.proposalId)) return { kind: "proposed", step };

@@ -3173,3 +3173,8 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rbp-step .k-rp-mark { margin-top: var(--space-0\.5); }
 .k-rbp-step-main { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
 .k-rbp-step .k-bytes { max-height: calc(var(--size-row) * 2); }
+
+.k-rb-target { display: flex; align-items: center; gap: var(--space-1\.5); margin: 0; font: var(--type-label); color: var(--ink); }
+.k-rb-target svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--ink-muted); }
+.k-rb-target b { font-weight: 500; }
+.k-rb-now--signal { color: var(--signal); }

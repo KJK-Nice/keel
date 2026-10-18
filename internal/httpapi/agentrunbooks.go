@@ -222,6 +222,21 @@ func (s *Server) agentStopRunbook(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// agentMoveRunbook unpins the runbook in use from its host (the user's
+// "Move the run"): the next step may go to another host.
+func (s *Server) agentMoveRunbook(w http.ResponseWriter, r *http.Request) {
+	if s.agent == nil {
+		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
+		return
+	}
+	out, err := s.agent.MoveRun(r.PathValue("id"))
+	if err != nil {
+		writeRunbookErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func writeRunbookErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, service.ErrRunbookClosed), errors.Is(err, service.ErrStepNotCurrent), errors.Is(err, service.ErrNoRun):
