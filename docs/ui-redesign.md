@@ -27,7 +27,7 @@ Non-goals (this round)
 - An agent that runs commands by itself, including read-only ones.
 - Changes to the runtime, SSH, PTY or WebRTC protocols.
 - Settings sections other than Agent (Appearance, Terminal, Keyboard, Sharing, Runtime keep their current content and get restyled only).
-- Notebook editor redesign.
+- Notebook editor redesign (the editor stays ProseMirror + CommonMark; its reading styles were restyled later, §13).
 
 ## 3. Visual foundations (summary; `docs/design/` is the source of truth)
 
@@ -227,3 +227,20 @@ Until now Datastar was loaded but unused: no `data-*` attribute read the page si
 | D3 · Forms | Group, identity, tunnel and snippet dialogs post with `@post('/ui/forms/{kind}', {contentType: 'form'})` (`internal/httpapi/forms.go`, the same save functions as the JSON API). An error patches the dialog's `#{kind}-form-error`; a save clears it and dispatches `keel-form-saved`, which term.js uses to close the dialog and toast. The lists change through the stream. `data-indicator:_saving` disables Save while the request runs. term.js still calls `loadAll` after a save for its JSON state until D4. D3b moved the host dialog and the Snippets page editor (`/ui/forms/host`, `/ui/forms/snippet-editor`): a `k-switch` with `data-switch-field` mirrors into a hidden input (`setSwitch`) so it posts with the form, and the server parses tags, keepalive and secrets (`hostFromForm`). Test connection and Trust and save stay JSON (they are actions, not saves). Notebook rename stays in term.js: it renames open notebook tabs and panes, which term.js owns |
 | D4 · Cleanup | Removed `paintList`, `datastarQS`, `paintVaultNotebooks`, the client list renderers in `vaultview.js` (it keeps the Keychain detail, the snippet preview and the glyphs) and `nestGroupTree`; removed the fragment routes only `paintList` used (`/ui/identities`, `/ui/tunnels`, `/ui/snippets`, `/ui/notebooks`) and the unused, token-exempt `POST /ui/vault`. Every list push also dispatches `keel-vault-changed`; term.js refreshes its JSON state on it (`refreshState`: one `loadAll` at a time, one queued), so saves no longer call `loadAll` themselves and changes from other windows or the agent reach the palette, the new-tab page and the dialogs |
 
+## 13. Notebook reading spec
+
+Status: built · 2026-10-18 · boards `Notebook` (the pane beside a session) and `NotebookTypes` (type specimen), copied to `docs/design/boards/`.
+
+The notebook pane is a document you read beside a terminal, not a form. Code: `paintNotebook` and `syncNotebookMeta` in `term.js`, the fence and callout node views in `js/notebook-editor.mjs` (bundled to `vendor/notebook/editor.js` by `make notebook-editor`), the `notebook-*` rules in `keel.css`.
+
+- **Ground and column.** The pane is on `surface`. Content sits in one column `size-reading` (68ch) wide, padded `space-6 + space-1` / `space-8` / `space-8 + space-4`; a wider pane leaves the rest empty.
+- **One title.** The notebook's name is the only H1 (`display` 28/32, −0.01em) and stays editable in place (the field is `Rename notebook`). There is no separate name field above a second heading. A markdown `#` heading in the body renders like H2, and new notebooks start without one.
+- **Meta line** under the title (`caption`, `ink-muted`, `·` separators in `ink-faint`): "Notebook", "Updated <date>", and a host chip (mono, `hover` ground, a dot in the host's colour) naming the pane shell fences type into, or "No terminal in this tab". A hairline (`line`) follows.
+- **Type.** H2 `heading` 18/22 (display family), H3–H6 `title` 15/20, prose `reading` 14/22 (a new style in `tokens.json`: long-form text only, the interface stays on `body`). Block rhythm: `space-3` between blocks, `space-8` above H2, `space-6` above H3, `space-2` under a heading. Links `brass-ink`, underline `line-strong`.
+- **Inline code:** `code` mono 12 on `hover`, `radius-xs`, never wraps.
+- **Lists:** hanging markers in `ink-faint`, ordered numbers in mono 500, `space-1` between items.
+- **Fence:** one box on `stage` (`line`, `radius-md`) with a 32px bar inside it (`size-control-lg`, hairline under it): the language as a quiet uppercase `meta` select, then an icon-only Copy, then "Type into <pane name>". Code is `code` 12/18, does not wrap and scrolls sideways. Only `sh`, `bash` and `shell` fences get Type; every fence gets Copy.
+- **Type into <pane>** names the pane it will type into (the tab's first live terminal; "Type into pane" when there is none, which says to split a terminal first). It takes the same confirm path as agent proposals: the command fills the pane's CLI input, then the approve dialog (`approveBeforeType`) shows the exact bytes and the target, and nothing reaches the PTY until you approve (`sendApprovedInject` with a server nonce). The notebook never writes to a PTY itself.
+- **Callout:** a blockquote is a box on `stage` (`line`, `radius-md`) with an info icon in `ink-muted`, `role="note"`. No side bar.
+- **Not built (proposed on the boards):** the warning callout (`> [!WARNING]` on `signal-soft`), checklists and GFM tables. The editor parses CommonMark with prosemirror-markdown's default schema, which has none of them; each needs a schema node, a markdown-it plugin and a serializer rule, so they wait for their own change.
+- Tests: `tests/notebook.e2e.ts` (one H1, the target pane in the meta line and on the button, Copy on every fence and Type only on shell fences, the callout, no wrapping, Type stops at the approve dialog, rename), and the `notebook pane` shots in `tests/visual.e2e.ts`.

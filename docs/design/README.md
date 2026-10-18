@@ -46,13 +46,15 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 - `sans` (IBM Plex Sans) for the interface. `display` (IBM Plex Sans Condensed) for dialog titles, page titles and empty states only. `mono` (JetBrains Mono) for terminals, addresses, keys, flags and `meta` labels.
 - Default UI size is 13px (`body` = 1rem). The user scales the UI from 11–16px, so in the app every size here is written in rem (px ÷ 13). Terminal text scales separately (10–22px, ⌘0 resets to 12).
-- Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 11/14 uppercase +0.06em, `kbd` 11/14.
+- Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 11/14 uppercase +0.06em, `kbd` 11/14.
+- `reading` is for long-form prose only (the notebook's reading column, `size-reading` 68ch wide). The interface stays on `body`.
+- `tokens.css` carries each style as a font shorthand, `--type-<name>` (weight, size/line height in rem, family). Use `font: var(--type-reading)`; add letter spacing and case in the rule.
 - Ship the three families as local woff2 files with the app. Keel is a desktop app and must look right offline; do not load Google Fonts at runtime.
 
 ## Space, size and shape
 
 - Spacing steps: `space-0.5` 2 · `space-1` 4 · `space-1.5` 6 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-6` 24 · `space-8` 32. Lay out with `gap`, not margins.
-- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208 (settings sections), `size-sidebar` 252 (Vault sidebar), `size-list` 360 (list column of a list and detail page), `size-agent` 380 (agent panel).
+- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208 (settings sections), `size-sidebar` 252 (Vault sidebar), `size-list` 360 (list column of a list and detail page), `size-agent` 380 (agent panel), `size-reading` 68ch (notebook reading column).
 - Radii are small and tight: `radius-xs` 3 (kbd, badge, menu item), `radius-sm` 5 (buttons, inputs, tabs), `radius-md` 8 (menus, toasts), `radius-lg` 12 (dialogs, palette), `radius-full` for dots, chips and the switch.
 
 ## Depth, borders, motion
