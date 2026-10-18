@@ -96,7 +96,7 @@ func AgentPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span> <input class=\"k-input\" id=\"agent-sessions-filter\" type=\"search\" placeholder=\"Search conversations\" aria-label=\"Search conversations\" autocomplete=\"off\" spellcheck=\"false\"></div></div><div class=\"k-agent-sessions-list\" id=\"agent-sessions-list\"></div><div class=\"k-agent-sessions-foot\"><span class=\"k-agent-sessions-note\" id=\"agent-sessions-note\"></span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-agent-danger\" id=\"agent-sessions-clear\">Delete all</button></div></div><div class=\"k-agent-picker\" id=\"agent-picker\" role=\"dialog\" aria-label=\"Panes the agent reads\" tabindex=\"-1\" hidden></div><div class=\"k-agent-thread\" id=\"agent-thread\" aria-live=\"polite\"></div><div class=\"k-agent-foot\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span> <input class=\"k-input\" id=\"agent-sessions-filter\" type=\"search\" placeholder=\"Search conversations\" aria-label=\"Search conversations\" autocomplete=\"off\" spellcheck=\"false\"></div></div><div class=\"k-agent-sessions-list\" id=\"agent-sessions-list\"></div><div class=\"k-agent-sessions-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"agent-sessions-page\">Open all in a tab</button> <span class=\"k-agent-sessions-note\" id=\"agent-sessions-note\"></span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-agent-danger\" id=\"agent-sessions-clear\">Delete all</button></div></div><div class=\"k-agent-picker\" id=\"agent-picker\" role=\"dialog\" aria-label=\"Panes the agent reads\" tabindex=\"-1\" hidden></div><div class=\"k-agent-thread\" id=\"agent-thread\" aria-live=\"polite\"></div><div class=\"k-agent-foot\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -111,7 +111,7 @@ func AgentPanel() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("@ add a pane · ↵ send")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 84, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 85, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {

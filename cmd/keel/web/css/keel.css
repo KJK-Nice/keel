@@ -2729,6 +2729,109 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 .k-agent-hint { font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
 .k-agent-composer-foot .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-agent-composer-foot [hidden] { display: none; }
+/* Popover foot: Open all in a tab, the retention, Delete all. */
+.k-agent-sessions-foot #agent-sessions-page + .k-agent-sessions-note { padding-left: 0; }
+
+/* ---------- Agent tab page (docs/ui-redesign.md §5.4.2) ----------
+   The AgentPage board's kw-agentpage, kw-acol, kw-acenter and kw-ctx
+   re-expressed with tokens. Three columns: saved conversations, the
+   conversation (the panel's thread, k-agent-* and k-prop), its context.
+   js/ui/agentpage.js fills it. */
+.term-tab.page-tab > .k-agentpage { flex: 1; }
+.term-tab.page-tab:has(> .k-agentpage) { container-type: inline-size; }
+.k-agentpage {
+  display: grid; grid-template-columns: var(--size-agentpage-list) minmax(0, 1fr) var(--size-agentpage-context);
+  grid-template-areas: "list main ctx"; grid-template-rows: minmax(0, 1fr);
+  min-width: 0; min-height: 0; overflow: hidden; background: var(--surface);
+}
+.k-agentpage-list-col { grid-area: list; }
+.k-agentpage-main { grid-area: main; }
+.k-agentpage-ctx-col { grid-area: ctx; }
+/* With the Vault sidebar and the agent panel open the tab is narrower than
+   the board. Breakpoints (container queries cannot read tokens):
+   960px = size-agentpage-list + size-agentpage-context + size-agent, the
+   least room for three columns with a thread as wide as the panel; below
+   it the context column goes under the list. 660px = size-agentpage-list
+   + size-agent; below it the two columns share the width. */
+@container (max-width: 960px) {
+  .k-agentpage {
+    grid-template-columns: var(--size-agentpage-list) minmax(0, 1fr);
+    grid-template-areas: "list main" "ctx main"; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  }
+  .k-agentpage > .k-agentpage-ctx-col { border-left: 0; border-right: 1px solid var(--line); border-top: 1px solid var(--line); }
+}
+@container (max-width: 660px) {
+  .k-agentpage { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+}
+html[data-native] .k-agentpage { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+.k-agentpage-col { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--chrome); }
+.k-agentpage-list-col { border-right: 1px solid var(--line); }
+.k-agentpage-ctx-col {
+  gap: calc(var(--space-4) + var(--space-1)); padding: var(--space-4) calc(var(--space-3) + var(--space-0\.5));
+  border-left: 1px solid var(--line);
+}
+html[data-native] .k-agentpage-col { background: color-mix(in srgb, var(--chrome) 86%, transparent); }
+
+/* Left: the conversation list */
+.k-agentpage-list-head { display: grid; gap: var(--space-2); flex: none; padding: var(--space-3) calc(var(--space-2) + var(--space-0\.5)) var(--space-2); }
+.k-agentpage-list-titlerow { display: flex; align-items: center; gap: var(--space-2); }
+.k-agentpage-list-title { flex: 1; font: 600 1rem/1 var(--font-sans); letter-spacing: 0; color: var(--ink); }
+.k-agentpage-list-head .k-inputgroup { height: var(--size-control); }
+.k-agentpage-list-head .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
+.k-agentpage-hosts[hidden] { display: none; }
+.k-agentpage-hosts button.k-chip { max-width: 100%; padding: 0 calc(var(--space-2) + var(--space-0\.5)); font: 500 0.846rem/1 var(--font-mono); }
+.k-agentpage-list { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-1\.5) var(--space-2); }
+.k-agentpage-list .k-agent-sess-grp:first-child { margin-top: 0; }
+.k-agent-sess-row--plain { grid-template-columns: minmax(0, 1fr); }
+.k-agentpage-list-foot {
+  display: grid; gap: var(--space-1); flex: none; justify-items: start;
+  padding: calc(var(--space-2) + var(--space-0\.5)); border-top: 1px solid var(--line);
+}
+.k-agentpage-list-foot .k-help { font-size: 0.846rem; }
+button.k-agentpage-link {
+  padding: 0; border: 0; background: transparent; cursor: pointer;
+  font: 400 0.923rem/1.231rem var(--font-sans); letter-spacing: 0; color: var(--brass-ink);
+}
+button.k-agentpage-link:hover { text-decoration: underline; }
+
+/* Middle: the conversation */
+.k-agentpage-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
+.k-agentpage-head {
+  display: flex; align-items: center; gap: calc(var(--space-2) + var(--space-0\.5)); flex: none;
+  padding: var(--space-4) var(--space-6) calc(var(--space-3) + var(--space-0\.5)); border-bottom: 1px solid var(--line);
+}
+.k-agentpage-head-text { display: grid; gap: var(--space-1\.5); flex: 1; min-width: 0; }
+.k-agentpage-title {
+  margin: 0; font: 600 1.385rem/1.846rem var(--font-display); letter-spacing: 0; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.k-agentpage-title[hidden], .k-agentpage-rename[hidden] { display: none; }
+.k-agentpage-rename { display: flex; align-items: center; gap: var(--space-2); }
+.k-agentpage-rename .k-input { flex: 1; min-width: 0; height: var(--size-control-lg); font: 600 1.154rem/1 var(--font-display); }
+.k-agentpage-head .k-agent-sess-meta { flex-wrap: wrap; row-gap: var(--space-1); white-space: normal; }
+.k-agentpage-head .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
+.k-agentpage-head .k-kbd { height: var(--space-4); min-width: var(--space-4); font-size: 0.769rem; }
+.k-agentpage-thread { width: 100%; max-width: var(--size-agentpage-thread); box-sizing: border-box; padding: calc(var(--space-4) + var(--space-1)) var(--space-6); }
+.k-agentpage-composer { max-width: calc(var(--size-agentpage-thread) - 2 * var(--space-6)); margin: 0 var(--space-6) var(--space-4); box-sizing: border-box; }
+.k-agentpage-empty-action { justify-self: center; }
+
+/* Right: in scope, read so far, proposals */
+.k-agentpage-ctx { display: grid; gap: var(--space-1\.5); }
+.k-agentpage-section {
+  display: flex; align-items: center; gap: var(--space-2);
+  font: 500 0.846rem/1.077rem var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.k-agentpage-section span + span { margin-left: auto; letter-spacing: 0; text-transform: none; }
+.k-agentpage-ctx-rows { display: grid; gap: var(--space-0\.5); }
+.k-agentpage-ctx-row {
+  display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-control-sm);
+  font: 400 0.923rem/1.231rem var(--font-mono); letter-spacing: 0; color: var(--ink-muted);
+}
+.k-agentpage-ctx-row > span { flex: none; }
+.k-agentpage-ctx-row > .k-agentpage-ctx-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.k-agentpage-ctx-row .k-dot { width: var(--space-1\.5); height: var(--space-1\.5); box-shadow: none; }
+.k-agentpage-ctx-faint { color: var(--ink-faint); }
+.k-agentpage-ctx-empty, .k-agentpage-ctx-note { margin: 0; font-size: 0.846rem; }
 
 /* ---------- Suggestions in a pane (docs/ui-redesign.md §5.5, phase 6c) ----------
    The Suggest board's kw-nl, kw-ghost, kw-sug*, kw-inserted and
