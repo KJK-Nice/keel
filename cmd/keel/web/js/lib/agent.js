@@ -144,7 +144,10 @@ export function answerHTML(text) {
 //   "following" no Type: you follow that pane (§6.6)
 //   "closed"    no Type: the pane is not open in this window
 //   "none"      no Type: the proposal names no pane
+//   "expired"   no Type: a saved proposal from an earlier run (Copy or
+//               Propose again only)
 export function typeOffer(proposal, pane) {
+  if (proposal?.expired) return "expired";
   if (!proposal?.sessionId) return "none";
   if (!pane || pane.remote) return pane?.remote ? "following" : "closed";
   if (!pane.driving) return "following";
@@ -180,4 +183,104 @@ export function conversationId(rand = Math.random) {
   let s = "c";
   while (s.length < 20) s += Math.floor(rand() * 36).toString(36);
   return s;
+}
+
+// --- saved conversations (§5.4.1) ---
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function toDate(v) {
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function dayStart(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// dayGroup puts a time in "Today", "Yesterday" or "Older" by local date.
+export function dayGroup(when, now = new Date()) {
+  const d = toDate(when);
+  if (!d) return "Older";
+  const diff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return "Older";
+}
+
+// sessionWhen is the list's time: 16:02 today and yesterday, Oct 14 before.
+export function sessionWhen(when, now = new Date()) {
+  const d = toDate(when);
+  if (!d) return "";
+  if (dayGroup(d, now) === "Older") return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+// stampLabel is a message's time in a transcript: 16:02 today, Oct 14,
+// 16:02 before.
+export function stampLabel(when, now = new Date()) {
+  const d = toDate(when);
+  if (!d) return "";
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return dayGroup(d, now) === "Today" ? hm : `${MONTHS[d.getMonth()]} ${d.getDate()}, ${hm}`;
+}
+
+// agoLabel says how long ago a conversation was last used (the Resumed
+// divider).
+export function agoLabel(when, now = new Date()) {
+  const d = toDate(when);
+  if (!d) return "earlier";
+  const mins = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} ${mins === 1 ? "minute" : "minutes"} ago`;
+  if (dayGroup(d, now) === "Today") {
+    const hours = Math.floor(mins / 60);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  const days = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  if (days <= 1) return "yesterday";
+  return `${days} days ago`;
+}
+
+export function proposalsLabel(n) {
+  const k = Number(n) || 0;
+  if (!k) return "no proposals";
+  return `${k} ${k === 1 ? "proposal" : "proposals"}`;
+}
+
+// sessionGroups filters the saved conversations by the search text (title
+// or host, any case) and groups them Today / Yesterday / Older, keeping
+// the server's order (most recent first). Empty groups are left out.
+export function sessionGroups(sessions, query = "", now = new Date()) {
+  const q = String(query || "").trim().toLowerCase();
+  const match = (s) =>
+    !q || String(s.title || "").toLowerCase().includes(q) || (s.hosts || []).some((h) => String(h).toLowerCase().includes(q));
+  const groups = [
+    { label: "Today", rows: [] },
+    { label: "Yesterday", rows: [] },
+    { label: "Older", rows: [] },
+  ];
+  for (const s of sessions || []) {
+    if (!s || !s.id || !match(s)) continue;
+    groups.find((g) => g.label === dayGroup(s.updatedAt, now)).rows.push(s);
+  }
+  return groups.filter((g) => g.rows.length);
+}
+
+// savedLabel is the sub row's note on where the conversation lives. A
+// save error (keel serve could not write or read keel.chats) wins: the
+// panel must not say "Saved" when it is not.
+export function savedLabel(historyDays, saveError = "") {
+  if ((Number(historyDays) || 0) <= 0) return "Not saved · kept while open";
+  return saveError ? "Not saved" : "Saved in the vault";
+}
+
+// retentionNote is the session list's footnote.
+export function retentionNote(historyDays) {
+  const d = Number(historyDays) || 0;
+  if (d <= 0) return "History is off";
+  if (d === 365) return "Kept 1 year";
+  return `Kept ${d} ${d === 1 ? "day" : "days"}`;
 }

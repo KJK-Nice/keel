@@ -165,6 +165,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/agent/keys/{provider}", s.deleteAgentKey)
 	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
 	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
+	mux.HandleFunc("GET /api/agent/conversations", s.agentSessions)
+	mux.HandleFunc("GET /api/agent/conversations/{id}", s.agentTranscript)
+	mux.HandleFunc("PATCH /api/agent/conversations/{id}", s.agentRename)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/proposals/{pid}/again", s.agentProposeAgain)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}", s.agentReset)
 	mux.HandleFunc("DELETE /api/agent/conversations", s.agentResetAll)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
@@ -1107,6 +1111,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
 					break
 				}
+				s.agent.TypeDone(ctl.Agent.ConversationID, ctl.Agent.ProposalID)
 				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
 			}
 			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {

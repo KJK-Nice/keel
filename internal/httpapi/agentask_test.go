@@ -97,8 +97,16 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		}
 		return f.fake, nil
 	}
-	f.srv = httptest.NewServer(New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).Handler())
-	t.Cleanup(f.srv.Close)
+	server := New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil })
+	f.srv = httptest.NewServer(server.Handler())
+	t.Cleanup(func() {
+		f.srv.Close()
+		// Conversations are saved in the background; let the last save
+		// finish before the temp dir goes.
+		if server.agent != nil {
+			server.agent.FlushSaves()
+		}
+	})
 	return f
 }
 

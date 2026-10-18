@@ -6444,6 +6444,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
   agentPanel = createAgentPanel({
     api,
     toast,
+    confirm: askConfirm,
     isMac,
     listPanes: agentPanes,
     typeProposal: typeAgentProposal,

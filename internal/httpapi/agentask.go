@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"keel/internal/agent"
 	"keel/internal/agent/service"
@@ -52,9 +53,33 @@ func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
 		return
 	}
-	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow})
+	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, Chats: s.store})
 	if err == nil {
 		s.agent = svc
+		go s.agentRetention()
+	}
+}
+
+// agentRetentionEvery is how often saved conversations past the retention
+// (Settings · Agent, Keep conversations) are pruned, besides at start and
+// on every session list.
+const agentRetentionEvery = time.Hour
+
+func (s *Server) agentRetention() {
+	s.pruneAgentChats()
+	t := time.NewTicker(agentRetentionEvery)
+	defer t.Stop()
+	for range t.C {
+		s.pruneAgentChats()
+	}
+}
+
+// pruneAgentChats removes expired saved conversations and logs how many,
+// never what they said. A locked vault is tried again next time.
+func (s *Server) pruneAgentChats() {
+	n, err := s.agent.Prune()
+	if err == nil && n > 0 {
+		s.note("agent", fmt.Sprintf("%d agent %s past the retention deleted from the vault", n, plural(n, "conversation", "conversations")), "", "", "")
 	}
 }
 
@@ -96,20 +121,93 @@ func (s *Server) agentEditProposal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
+// agentSessions lists the saved conversations (the panel's session list).
+func (s *Server) agentSessions(w http.ResponseWriter, _ *http.Request) {
+	if s.agent == nil {
+		writeJSON(w, http.StatusOK, service.Sessions{Sessions: []store.AgentChatSummary{}})
+		return
+	}
+	out, err := s.agent.ListSessions()
+	if err != nil {
+		writeAgentErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// agentTranscript returns one conversation to resume. Reading it sends
+// nothing anywhere and reads no pane.
+func (s *Server) agentTranscript(w http.ResponseWriter, r *http.Request) {
+	if s.agent == nil {
+		writeError(w, http.StatusNotFound, "no such conversation")
+		return
+	}
+	t, err := s.agent.Transcript(r.PathValue("id"))
+	if err != nil {
+		writeAgentErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+func (s *Server) agentRename(w http.ResponseWriter, r *http.Request) {
+	if s.agent == nil {
+		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxAskBody)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid rename payload")
+		return
+	}
+	title, err := s.agent.Rename(r.PathValue("id"), req.Title)
+	if err != nil {
+		writeAgentErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"id": r.PathValue("id"), "title": title})
+}
+
+// agentProposeAgain makes a new proposal from a saved (expired) one. The
+// new proposal is typed, if at all, through the session socket's
+// approve-before-type path like any other.
+func (s *Server) agentProposeAgain(w http.ResponseWriter, r *http.Request) {
+	if s.agent == nil {
+		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
+		return
+	}
+	p, err := s.agent.ProposeAgain(r.PathValue("id"), r.PathValue("pid"))
+	if err != nil {
+		writeAgentErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+// agentReset deletes one conversation, in memory and in the vault.
 func (s *Server) agentReset(w http.ResponseWriter, r *http.Request) {
 	if s.agent != nil {
-		s.agent.Reset(r.PathValue("id"))
+		if err := s.agent.Delete(r.PathValue("id")); err != nil {
+			writeAgentErr(w, err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// agentResetAll is Settings, Delete all history: it drops every
-// conversation the agent service keeps in memory and writes one log entry
-// with the count. Nothing else is stored, and what was said is never logged.
+// agentResetAll is Delete all history (Settings and the session list): it
+// drops every conversation, in memory and saved in the vault, and writes
+// one log entry with the count. What was said is never logged.
 func (s *Server) agentResetAll(w http.ResponseWriter, _ *http.Request) {
 	n := 0
 	if s.agent != nil {
-		n = s.agent.ResetAll()
+		var err error
+		if n, err = s.agent.DeleteAll(); err != nil {
+			writeAgentErr(w, err)
+			return
+		}
 	}
 	s.note("agent", fmt.Sprintf("agent history deleted (%d %s)", n, plural(n, "conversation", "conversations")), "", "", "")
 	w.WriteHeader(http.StatusNoContent)

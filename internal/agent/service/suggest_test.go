@@ -233,20 +233,20 @@ func TestDetectGates(t *testing.T) {
 		t.Fatalf("unreadable host → %+v", r)
 	}
 	// Hash-only detection.
-	f.st.settings.Detection = store.DetectionHashOnly
+	f.st.setSettings(func(s *store.AgentSettings) { s.Detection = store.DetectionHashOnly })
 	if r := f.detect(t, "s-web", agent.RoleDriver, "show me disk usage"); r.Plain || r.Source != DetectHashOnly {
 		t.Fatalf("hash-only → %+v", r)
 	}
 	if r := f.detect(t, "s-web", agent.RoleDriver, "#show me disk usage"); !r.Plain {
 		t.Fatal("hash-only must notice #-lines")
 	}
-	f.st.settings.Detection = store.DetectionAuto
+	f.st.setSettings(func(s *store.AgentSettings) { s.Detection = store.DetectionAuto })
 	// Suggestions off.
-	f.st.settings.Suggestions = store.SuggestionsOff
+	f.st.setSettings(func(s *store.AgentSettings) { s.Suggestions = store.SuggestionsOff })
 	if r := f.detect(t, "s-web", agent.RoleDriver, "# show me disk usage"); r.Plain || r.Source != DetectOff {
 		t.Fatalf("off → %+v", r)
 	}
-	f.st.settings.Suggestions = store.SuggestionsOn
+	f.st.setSettings(func(s *store.AgentSettings) { s.Suggestions = store.SuggestionsOn })
 	// No model key: no hint at all.
 	f.st.setKey("gemini", "")
 	if r := f.detect(t, "s-web", agent.RoleDriver, "# show me disk usage"); r.Plain || r.Source != DetectOff {
@@ -456,11 +456,11 @@ func TestSuggestGates(t *testing.T) {
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-sec", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, agent.ErrNotReadable) {
 		t.Fatalf("unreadable → %v", err)
 	}
-	f.st.settings.Suggestions = store.SuggestionsOff
+	f.st.setSettings(func(s *store.AgentSettings) { s.Suggestions = store.SuggestionsOff })
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrSuggestOff) {
 		t.Fatalf("off → %v", err)
 	}
-	f.st.settings.Suggestions = store.SuggestionsOn
+	f.st.setSettings(func(s *store.AgentSettings) { s.Suggestions = store.SuggestionsOn })
 	f.st.setKey("gemini", "")
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "list files"}); !errors.Is(err, ErrNoKey) {
 		t.Fatalf("no key → %v", err)
@@ -748,7 +748,7 @@ func TestSuggestReturnsBeforeJev(t *testing.T) {
 	if req.Model != "gemini-3.5-flash-lite" || req.Thinking != provider.ThinkingMinimal {
 		t.Fatalf("model %q thinking %q; want the suggestion model", req.Model, req.Thinking)
 	}
-	if f.st.settings.Model == req.Model {
+	if set, _ := f.st.AgentSettings(); set.Model == req.Model {
 		t.Fatal("the fixture should keep the panel on another model")
 	}
 	// agent.suggest waits for the timings.

@@ -1202,7 +1202,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Keep conversations</div><p class=\"pref-desc\">Conversations live in memory in keel serve and are never written to disk.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Keep conversations</div><p class=\"pref-desc\">Saved encrypted in the vault, redacted as sent, and deleted when older than this. Only while open never writes them to disk.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

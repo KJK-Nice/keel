@@ -93,6 +93,11 @@ func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.note("agent", "agent settings saved", "", "", "")
+	// A shorter Keep conversations (or Only while open) applies now, not
+	// at the next hourly prune.
+	if s.agent != nil {
+		s.pruneAgentChats()
+	}
 	s.writeAgentSettings(w, http.StatusOK, saved)
 }
 

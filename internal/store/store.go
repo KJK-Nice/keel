@@ -327,6 +327,11 @@ type Store struct {
 	diskSum       [32]byte
 	diskRecipient age.Recipient
 
+	// chatMu guards chat, the saved agent conversations (agentchats.go).
+	// It is taken before mu, never while holding it.
+	chatMu sync.Mutex
+	chat   chatState
+
 	// onChange listeners run after every successful save (OnChange).
 	listenMu sync.Mutex
 	onChange []func()
@@ -560,6 +565,10 @@ func (s *Store) NeedsSetup() bool {
 }
 
 func (s *Store) Unlock(passphrase string) error {
+	// Nothing about saved agent conversations survives a lock; start from
+	// the vault as it is unlocked now (agentchats.go). chatMu comes before
+	// mu.
+	s.forgetChats()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.locked.Load() {
