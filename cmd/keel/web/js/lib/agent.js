@@ -269,9 +269,12 @@ export function sessionGroups(sessions, query = "", now = new Date()) {
   return groups.filter((g) => g.rows.length);
 }
 
-// savedLabel is the sub row's note on where the conversation lives.
-export function savedLabel(historyDays) {
-  return (Number(historyDays) || 0) > 0 ? "Saved in the vault" : "Not saved · kept while open";
+// savedLabel is the sub row's note on where the conversation lives. A
+// save error (keel serve could not write or read keel.chats) wins: the
+// panel must not say "Saved" when it is not.
+export function savedLabel(historyDays, saveError = "") {
+  if ((Number(historyDays) || 0) <= 0) return "Not saved · kept while open";
+  return saveError ? "Not saved" : "Saved in the vault";
 }
 
 // retentionNote is the session list's footnote.

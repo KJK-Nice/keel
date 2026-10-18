@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -85,6 +86,8 @@ func TestAgentSessionRoutes(t *testing.T) {
 		t.Fatalf("missing transcript → %d", code)
 	}
 
+	// Saves run in the background; listing writes what is pending first.
+	f.call(t, "GET", "/api/agent/conversations", nil)
 	chats, err := os.ReadFile(filepath.Join(filepath.Dir(f.logPath), "keel.chats"))
 	if err != nil {
 		t.Fatal(err)
@@ -112,5 +115,40 @@ func TestAgentSessionRoutes(t *testing.T) {
 	code, b = f.call(t, "GET", "/api/agent/conversations", nil)
 	if code != 200 || !strings.Contains(string(b), `"sessions":[]`) {
 		t.Fatalf("list after delete → %d %s", code, b)
+	}
+}
+
+// Switching Keep conversations to Only while open applies at once: the
+// saved conversations, keel.chats and its key are gone before the
+// settings response returns.
+func TestAgentHistoryOffPrunesNow(t *testing.T) {
+	f := newAskFixture(t, true)
+	if code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "keep me?"}); code != http.StatusOK {
+		t.Fatalf("ask → %d %v", code, resp)
+	}
+	if code, b := f.call(t, "GET", "/api/agent/conversations", nil); code != 200 || !bytes.Contains(b, []byte(askConv)) {
+		t.Fatalf("list → %d %s", code, b)
+	}
+	chatsPath := filepath.Join(filepath.Dir(f.logPath), "keel.chats")
+	if _, err := os.Stat(chatsPath); err != nil {
+		t.Fatal(err)
+	}
+	if code, b := f.call(t, "PUT", "/api/agent/settings", map[string]any{"historyDays": 0}); code != 200 {
+		t.Fatalf("settings → %d %s", code, b)
+	}
+	if _, err := os.Stat(chatsPath); !os.IsNotExist(err) {
+		t.Fatal("keel.chats still there after Only while open")
+	}
+	if _, err := f.st.GetAgentChat(askConv); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("saved conversation after Only while open: %v", err)
+	}
+	found := false
+	for _, e := range f.logs.Recent(500) {
+		if strings.Contains(e.Message, "past the retention deleted from the vault") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the prune was not logged")
 	}
 }

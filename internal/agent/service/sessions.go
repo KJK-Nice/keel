@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -76,6 +77,12 @@ type TranscriptTurn struct {
 type Sessions struct {
 	HistoryDays int                      `json:"historyDays"`
 	Sessions    []store.AgentChatSummary `json:"sessions"`
+	// SaveError says why conversations are not being saved now (the last
+	// save failed, or keel.chats cannot be read); empty when saving works.
+	SaveError string `json:"saveError,omitempty"`
+	// Unreadable is set when keel.chats cannot be read: nothing saved can
+	// be listed until Delete all replaces it with a fresh file.
+	Unreadable bool `json:"unreadable,omitempty"`
 }
 
 // saving reports whether conversations are saved now.
@@ -99,8 +106,11 @@ func retentionCutoff(now time.Time, days int) time.Time {
 }
 
 // Prune removes the saved conversations last used before the retention
-// (historyDays) and returns how many went. keel serve calls it at start
-// and periodically; the session list calls it too.
+// (historyDays) and returns how many went. keel serve calls it at start,
+// hourly and when the settings change; the session list calls it too.
+// With history off ("only while open") it deletes everything saved, the
+// file and its key with it (store.DeleteAllAgentChats), which also
+// replaces a keel.chats that cannot be read.
 func (s *Service) Prune() (int, error) {
 	if s.chats == nil {
 		return 0, nil
@@ -109,28 +119,41 @@ func (s *Service) Prune() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
+	if set.HistoryDays <= 0 {
+		return s.chats.DeleteAllAgentChats()
+	}
 	gone, err := s.chats.PruneAgentChats(retentionCutoff(s.now(), set.HistoryDays))
 	return len(gone), err
 }
 
-// ListSessions prunes, then lists the saved conversations.
+// ListSessions saves what is pending, prunes, then lists the saved
+// conversations. An unreadable keel.chats is a state, not an error: the
+// list is empty and says so, and Delete all is the way out.
 func (s *Service) ListSessions() (Sessions, error) {
 	days, on := s.saving()
 	out := Sessions{HistoryDays: days, Sessions: []store.AgentChatSummary{}}
 	if s.chats == nil {
 		return out, nil
 	}
-	if _, err := s.Prune(); err != nil {
-		return out, err
+	s.FlushSaves()
+	_, err := s.Prune()
+	if err == nil && on {
+		var list []store.AgentChatSummary
+		if list, err = s.chats.ListAgentChats(); err == nil {
+			out.Sessions = list
+		}
 	}
-	if !on {
+	if errors.Is(err, store.ErrChatsUnreadable) {
+		out.Unreadable = true
+		out.SaveError = saveErrorText(err)
 		return out, nil
 	}
-	list, err := s.chats.ListAgentChats()
 	if err != nil {
 		return out, err
 	}
-	out.Sessions = list
+	out.SaveError = s.lastSaveError()
 	return out, nil
 }
 
@@ -234,7 +257,9 @@ func (s *Service) hydrate(id string) error {
 		return nil
 	}
 	chat, err := s.savedChat(id)
-	if errors.Is(err, ErrNotFound) {
+	if errors.Is(err, ErrNotFound) || errors.Is(err, store.ErrChatsUnreadable) {
+		// Nothing to resume; the conversation goes on in memory (and a
+		// save of it reports the unreadable file).
 		return nil
 	}
 	if err != nil {
@@ -296,25 +321,107 @@ func (c *conversation) snapshotLocked(now time.Time) store.AgentChat {
 	return store.AgentChat{ID: c.id, Title: c.title, CreatedAt: created, UpdatedAt: now, Turns: turns}
 }
 
-// persist saves c when history is on. A failed save does not fail the ask:
-// the conversation goes on in memory.
+// persist queues c to be saved when history is on, and returns at once:
+// it is called from the session socket's read loop (TypeDone) and must not
+// wait on encryption and fsync. One worker saves queued conversations in
+// order; each save snapshots the conversation as it is then, so the newest
+// state wins. A failed save does not fail anything: the conversation goes
+// on in memory, keel.log gets one line (no content), and the panel shows
+// that it is not being saved.
 func (s *Service) persist(c *conversation) {
 	if _, on := s.saving(); !on {
 		return
 	}
+	s.mu.Lock()
+	c.updated = s.now()
+	s.dirty[c.id] = c
+	start := !s.saverRunning
+	s.saverRunning = true
+	s.mu.Unlock()
+	if start {
+		go s.saver()
+	}
+	select {
+	case s.saveKick <- struct{}{}:
+	default:
+	}
+}
+
+// saver is the save worker. It runs for the life of the service.
+func (s *Service) saver() {
+	for range s.saveKick {
+		s.FlushSaves()
+	}
+}
+
+// FlushSaves writes every queued conversation now, in this goroutine.
+func (s *Service) FlushSaves() {
 	s.saveMu.Lock()
 	defer s.saveMu.Unlock()
-	s.mu.Lock()
-	if len(c.record) == 0 || s.convs[c.id] != c {
-		// Deleted meanwhile: do not bring it back.
+	if _, on := s.saving(); !on {
+		// History was turned off after these were queued: saving them now
+		// would undo the prune that came with the change.
+		s.mu.Lock()
+		s.dirty = map[string]*conversation{}
 		s.mu.Unlock()
 		return
 	}
-	now := s.now()
-	c.updated = now
-	chat := c.snapshotLocked(now)
+	for {
+		s.mu.Lock()
+		var c *conversation
+		for id, x := range s.dirty {
+			c = x
+			delete(s.dirty, id)
+			break
+		}
+		if c == nil {
+			s.mu.Unlock()
+			return
+		}
+		if len(c.record) == 0 || c.deleted {
+			// Deleted meanwhile: do not bring it back. (A conversation
+			// only evicted from memory is still saved.)
+			s.mu.Unlock()
+			continue
+		}
+		chat := c.snapshotLocked(c.updated)
+		s.mu.Unlock()
+		s.noteSave(s.chats.PutAgentChat(chat))
+	}
+}
+
+// noteSave records the outcome of a save. A failure is logged once per
+// new reason, never with content.
+func (s *Service) noteSave(err error) {
+	msg := ""
+	if err != nil {
+		msg = saveErrorText(err)
+	}
+	s.mu.Lock()
+	changed := msg != s.saveErr
+	s.saveErr = msg
 	s.mu.Unlock()
-	_ = s.chats.PutAgentChat(chat)
+	if changed && msg != "" {
+		s.log.Append(applog.Entry{Kind: "agent", Message: "agent conversation not saved: " + msg})
+	}
+}
+
+func (s *Service) lastSaveError() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saveErr
+}
+
+// saveErrorText says why saving failed, in words for the panel and the
+// log. It never holds conversation text.
+func saveErrorText(err error) string {
+	switch {
+	case errors.Is(err, store.ErrChatsUnreadable):
+		return "keel.chats cannot be read; Delete all starts a fresh file"
+	case errors.Is(err, store.ErrLocked):
+		return "the vault is locked"
+	}
+	return err.Error()
 }
 
 // record adds a turn to c's saved record. Call with s.mu held.
@@ -366,6 +473,10 @@ func (s *Service) Rename(id, title string) (string, error) {
 	if title == "" {
 		return "", badRequest(fmt.Sprintf("a title is 1 to %d bytes on one line", store.MaxAgentChatTitle))
 	}
+	// Ordered with the save worker, so a save snapshotted before the rename
+	// cannot land after it with the old title.
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	c := s.convs[id]
 	if c != nil {
@@ -388,7 +499,8 @@ func (s *Service) Rename(id, title string) (string, error) {
 // ProposeAgain makes a new proposal from a saved one: the command is
 // rated again, the production flag is the host's now (a host that is gone
 // counts as production), and it targets the same pane only while that
-// pane is still open on the same host. It writes nothing to a pane; the
+// pane is still open on the same host and the agent may read that host
+// (§6.2). It writes nothing to a pane; the
 // new proposal is typed, if at all, through AuthorizeType like any other.
 func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 	if !convIDRe.MatchString(convID) {
@@ -425,14 +537,22 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 			host = &h
 		}
 	}
+	r, err := s.redactor()
+	if err != nil {
+		return Proposal{}, err
+	}
 	risk := agent.Stricter(agent.Classify(cmd), agent.Risk(src.Risk))
 	now := s.now()
-	p := &Proposal{ID: newID("p_"), Command: cmd, Bytes: typedBytes(cmd), Why: src.Why, Risk: risk, ProposedAt: &now}
+	p := &Proposal{ID: newID("p_"), Command: cmd, Bytes: typedBytes(cmd), Why: r.Text(src.Why).String(), Risk: risk, ProposedAt: &now}
 	p.Host, p.HostID = src.Host, src.HostID
 	p.Production = host == nil || host.Production
 	if host != nil {
 		p.Host = host.Name
-		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID {
+		// The pane is a target only while it is still open on the same
+		// host and the agent may read that host now (§6.2): otherwise the
+		// new proposal is Copy only.
+		scope := agent.NewScope(agent.HostsFrom(hosts))
+		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID && scope.Allows(pane) {
 			p.SessionID = src.SessionID
 			s.audit.Suggest(agent.Pane{SessionID: pane.SessionID, HostID: host.ID, HostName: host.Name}, redact.Report{}, riskLabel(risk))
 		}
@@ -450,17 +570,19 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 	if n := len(c.proposals); n > maxProposalsKept {
 		c.proposals = c.proposals[n-maxProposalsKept:]
 	}
-	c.addRecordLocked(store.AgentChatTurn{At: now, Again: true, Proposals: []store.AgentChatProposal{recordOf(p, cmd, now)}})
+	c.addRecordLocked(store.AgentChatTurn{At: now, Again: true, Proposals: []store.AgentChatProposal{recordOf(p, r.Text(cmd).String(), r.Text(p.Why).String(), now)}})
 	out := *p
 	s.mu.Unlock()
 	s.persist(c)
 	return out, nil
 }
 
-func recordOf(p *Proposal, command string, at time.Time) store.AgentChatProposal {
+// recordOf is a proposal as saved; command and why are passed in already
+// redacted.
+func recordOf(p *Proposal, command, why string, at time.Time) store.AgentChatProposal {
 	return store.AgentChatProposal{
 		ID: p.ID, SessionID: p.SessionID, HostID: p.HostID, Host: p.Host, Production: p.Production,
-		Command: command, Why: p.Why, Risk: string(p.Risk), Edited: p.Edited, ProposedAt: at,
+		Command: command, Why: why, Risk: string(p.Risk), Edited: p.Edited, ProposedAt: at,
 	}
 }
 
@@ -489,47 +611,62 @@ func (s *Service) TypeDone(convID, proposalID string) {
 	}
 }
 
-// Delete forgets a conversation, in memory and in the vault.
+// Delete forgets a conversation, in memory and in the vault. Any store
+// error is returned: the panel must not report a delete that did not
+// happen.
 func (s *Service) Delete(id string) error {
 	s.saveMu.Lock()
 	defer s.saveMu.Unlock()
 	s.mu.Lock()
+	if c := s.convs[id]; c != nil {
+		c.deleted = true
+	}
+	if c := s.dirty[id]; c != nil {
+		c.deleted = true
+	}
 	delete(s.convs, id)
+	delete(s.dirty, id)
 	s.mu.Unlock()
 	if s.chats == nil {
 		return nil
 	}
-	err := s.chats.DeleteAgentChat(id)
-	if errors.Is(err, store.ErrLocked) {
-		return err
-	}
-	return nil
+	return s.chats.DeleteAgentChat(id)
 }
 
 // DeleteAll forgets every conversation, in memory and in the vault, and
-// returns how many there were.
+// returns how many there were. The vault side removes keel.chats and its
+// key (store.DeleteAllAgentChats), so it also replaces a keel.chats that
+// cannot be read.
 func (s *Service) DeleteAll() (int, error) {
 	s.saveMu.Lock()
 	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	ids := make(map[string]bool, len(s.convs))
-	for id := range s.convs {
+	for id, c := range s.convs {
 		ids[id] = true
+		c.deleted = true
+	}
+	for _, c := range s.dirty {
+		c.deleted = true
 	}
 	s.convs = map[string]*conversation{}
+	s.dirty = map[string]*conversation{}
 	s.mu.Unlock()
 	if s.chats == nil {
 		return len(ids), nil
 	}
-	list, err := s.chats.ListAgentChats()
-	if err != nil {
+	if list, err := s.chats.ListAgentChats(); err == nil {
+		for _, c := range list {
+			ids[c.ID] = true
+		}
+	} else if !errors.Is(err, store.ErrChatsUnreadable) {
 		return len(ids), err
-	}
-	for _, c := range list {
-		ids[c.ID] = true
 	}
 	if _, err := s.chats.DeleteAllAgentChats(); err != nil {
 		return len(ids), err
 	}
+	s.mu.Lock()
+	s.saveErr = ""
+	s.mu.Unlock()
 	return len(ids), nil
 }

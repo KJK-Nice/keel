@@ -2484,6 +2484,7 @@ button.k-agent-sess:hover, button.k-agent-sess[aria-expanded="true"] { backgroun
   border-bottom: 1px solid var(--line);
 }
 .k-agent-saved { flex: none; font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-agent-saved--warn { color: var(--signal); }
 button.k-agent-scope {
   display: inline-flex; align-items: center; gap: var(--space-1\.5); min-width: 0;
   height: var(--size-control-sm); padding: 0 var(--space-2);

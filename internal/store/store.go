@@ -565,6 +565,10 @@ func (s *Store) NeedsSetup() bool {
 }
 
 func (s *Store) Unlock(passphrase string) error {
+	// Nothing about saved agent conversations survives a lock; start from
+	// the vault as it is unlocked now (agentchats.go). chatMu comes before
+	// mu.
+	s.forgetChats()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.locked.Load() {

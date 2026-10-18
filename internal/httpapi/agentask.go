@@ -79,7 +79,7 @@ func (s *Server) agentRetention() {
 func (s *Server) pruneAgentChats() {
 	n, err := s.agent.Prune()
 	if err == nil && n > 0 {
-		s.note("agent", fmt.Sprintf("%d expired agent %s deleted from the vault", n, plural(n, "conversation", "conversations")), "", "", "")
+		s.note("agent", fmt.Sprintf("%d agent %s past the retention deleted from the vault", n, plural(n, "conversation", "conversations")), "", "", "")
 	}
 }
 

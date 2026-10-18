@@ -140,6 +140,7 @@ test("saved conversations group by local day and filter by title or host", () =>
   assert.equal(A.proposalsLabel(2), "2 proposals");
   assert.equal(A.savedLabel(30), "Saved in the vault");
   assert.equal(A.savedLabel(0), "Not saved · kept while open");
+  assert.equal(A.savedLabel(30, "the vault is locked"), "Not saved");
   assert.equal(A.retentionNote(30), "Kept 30 days");
   assert.equal(A.retentionNote(365), "Kept 1 year");
 });

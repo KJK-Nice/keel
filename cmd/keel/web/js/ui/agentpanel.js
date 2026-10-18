@@ -123,6 +123,8 @@ export function createAgentPanel(deps) {
     proposals: new Map(), // id → { p, el, editing, status }
     title: "",
     historyDays: null, // from the settings; 0 keeps conversations only while open
+    saveError: "", // why keel serve is not saving conversations, "" when it is
+    unreadable: false, // keel.chats cannot be read: Delete all starts over
     sessions: [], // the last session list
     renaming: null, // id of the session row being renamed
   };
@@ -255,7 +257,11 @@ export function createAgentPanel(deps) {
   function paintTitle() {
     setText(el.title, state.title || NEW_TITLE);
     if (el.sessBtn) el.sessBtn.title = state.title ? `${state.title} · Recent conversations` : "Recent conversations";
-    if (el.saved && state.historyDays != null) setText(el.saved, A.savedLabel(state.historyDays));
+    if (el.saved && state.historyDays != null) {
+      setText(el.saved, A.savedLabel(state.historyDays, state.saveError));
+      el.saved.classList.toggle("k-agent-saved--warn", !!state.saveError && state.historyDays > 0);
+      el.saved.title = state.saveError ? `Not saved: ${state.saveError}` : "";
+    }
   }
 
   // --- scope ---
@@ -396,6 +402,8 @@ export function createAgentPanel(deps) {
         signal: ctl.signal,
       });
       if (res.conversationId !== state.conv) return; // a new conversation started meanwhile
+      state.saveError = res.saveError || "";
+      paintTitle();
       if (res.title) {
         state.title = res.title;
         paintTitle();
@@ -624,6 +632,8 @@ export function createAgentPanel(deps) {
       const res = await deps.api("/api/agent/conversations");
       state.sessions = res?.sessions || [];
       if (res?.historyDays != null) state.historyDays = res.historyDays;
+      state.saveError = res?.saveError || "";
+      state.unreadable = !!res?.unreadable;
       paintTitle();
     } catch (err) {
       state.sessions = [];
@@ -664,7 +674,11 @@ export function createAgentPanel(deps) {
   function paintSessions() {
     const days = state.historyDays;
     setText(el.sessNote, days == null ? "" : A.retentionNote(days));
-    if (el.sessClear) el.sessClear.disabled = !state.sessions.length;
+    if (el.sessClear) el.sessClear.disabled = !state.sessions.length && !state.unreadable;
+    if (state.unreadable) {
+      el.sessList.innerHTML = `<p class="k-help k-agent-sessions-empty" role="alert">Saved conversations cannot be opened: keel.chats cannot be read. New ones are not saved until Delete all starts a fresh file.</p>`;
+      return;
+    }
     const groups = A.sessionGroups(state.sessions, el.sessFilter?.value || "");
     if (!groups.length) {
       const msg = state.sessions.length
@@ -801,6 +815,8 @@ export function createAgentPanel(deps) {
       return;
     }
     state.sessions = [];
+    state.saveError = "";
+    state.unreadable = false;
     newConversation({ focus: false });
     paintSessions();
     deps.toast("Agent history deleted");

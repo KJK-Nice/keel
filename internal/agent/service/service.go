@@ -110,9 +110,17 @@ type Service struct {
 	convs map[string]*conversation
 
 	chats ChatStore
+	log   agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
-	// snapshot never lands after a newer one or after a delete.
-	saveMu sync.Mutex
+	// snapshot never lands after a newer one or after a delete. dirty (under
+	// mu) is the save queue: conversations to save, by id; saveKick wakes
+	// the worker, started on the first save (sessions.go).
+	saveMu       sync.Mutex
+	dirty        map[string]*conversation
+	saveKick     chan struct{}
+	saverRunning bool
+	// saveErr is why the last save failed, "" when it worked (under mu).
+	saveErr string
 
 	sug          suggestState
 	detectWindow time.Duration
@@ -138,7 +146,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -182,6 +190,9 @@ type conversation struct {
 	created time.Time
 	updated time.Time
 	record  []store.AgentChatTurn
+	// deleted is set by Delete and DeleteAll so a queued or late save
+	// does not bring the conversation back (under mu).
+	deleted bool
 }
 
 // AskRequest is the body of POST /api/agent/ask.
@@ -232,8 +243,11 @@ type Usage struct {
 
 // AskResponse is what the panel shows for one ask.
 type AskResponse struct {
-	ConversationID     string         `json:"conversationId"`
-	Title              string         `json:"title"`
+	ConversationID string `json:"conversationId"`
+	Title          string `json:"title"`
+	// SaveError is why saving conversations failed last time, "" when it
+	// worked or history is off (sessions.go).
+	SaveError          string         `json:"saveError,omitempty"`
 	Turn               int            `json:"turn"`
 	Provider           string         `json:"provider"`
 	Model              string         `json:"model"`
@@ -430,7 +444,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions})
 	}
 	for _, p := range made {
-		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), now))
+		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), r.Text(p.Why).String(), now))
 	}
 
 	s.mu.Lock()
@@ -443,6 +457,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	conv.updated = now
 	conv.addRecordLocked(rec)
 	out.Title = conv.title
+	out.SaveError = s.saveErr
 	s.mu.Unlock()
 	s.persist(conv)
 	return out, nil
@@ -577,7 +592,13 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 			return Proposal{}, err
 		}
 	}
-	r, _ := s.redactor()
+	// Build the Redactor first: the edit is kept redacted, and without one
+	// the edit is refused rather than shown in the panel and saved
+	// differently (or as typed).
+	r, err := s.redactor()
+	if err != nil {
+		return Proposal{}, err
+	}
 	s.mu.Lock()
 	p, err = s.proposalLocked(convID, proposalID)
 	if err != nil {
@@ -592,12 +613,12 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	out := *p
 	c := s.convs[convID]
 	sp := c.recordProposalLocked(proposalID)
-	if sp != nil && r != nil {
+	if sp != nil {
 		// What the user typed into the edit is kept redacted.
 		sp.Command, sp.Risk, sp.Production, sp.Edited = r.Text(cmd).String(), string(p.Risk), production, true
 	}
 	s.mu.Unlock()
-	if sp != nil && r != nil {
+	if sp != nil {
 		s.persist(c)
 	}
 	return out, nil

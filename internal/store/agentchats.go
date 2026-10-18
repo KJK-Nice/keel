@@ -41,9 +41,19 @@ const (
 	MaxAgentChats = 200
 	// MaxAgentChatTitle is the longest title, in bytes.
 	MaxAgentChatTitle = 120
+	// MaxAgentChatsBytes bounds the saved conversations' JSON in total: the
+	// least recently used go first (the one being saved always stays).
+	MaxAgentChatsBytes = 8 << 20
 )
 
-var ErrAgentChat = errors.New("invalid agent conversation")
+var (
+	ErrAgentChat = errors.New("invalid agent conversation")
+	// ErrChatsUnreadable is keel.chats that cannot be decrypted or parsed
+	// (damaged, or written under a key the vault no longer holds). Nothing
+	// saved can be read or added until DeleteAllAgentChats starts a fresh
+	// file under a new key.
+	ErrChatsUnreadable = errors.New("saved agent conversations cannot be read")
+)
 
 // AgentChat is one saved conversation.
 type AgentChat struct {
@@ -143,10 +153,22 @@ type chatsFileData struct {
 }
 
 // chatState is keel.chats decrypted, loaded on first use (under chatMu).
+// It holds the conversations' key and their decrypted text: anything that
+// locks the vault again must drop it with forgetChats.
 type chatState struct {
 	loaded bool
 	ident  *age.X25519Identity
 	chats  map[string]AgentChat
+}
+
+// forgetChats drops the decrypted conversations and their key from memory.
+// The store has no way to lock an open vault today; a future Lock must call
+// this (with chatMu free), or the transcripts would stay readable while the
+// vault is locked.
+func (s *Store) forgetChats() {
+	s.chatMu.Lock()
+	s.chat = chatState{}
+	s.chatMu.Unlock()
 }
 
 func (s *Store) chatsPath() string {
@@ -184,7 +206,9 @@ func (s *Store) chatKey(create bool) (*age.X25519Identity, error) {
 // chatsLocked loads keel.chats once the vault is open. Call with chatMu
 // held. With no key in the vault there is nothing to read: a keel.chats
 // left from a key that is gone cannot be opened, and the next save
-// replaces it.
+// replaces it. A file that does not decrypt or parse gives
+// ErrChatsUnreadable, every time, until DeleteAllAgentChats replaces it;
+// a save never overwrites it, so nothing is lost silently.
 func (s *Store) chatsLocked() (map[string]AgentChat, error) {
 	if s.chat.loaded {
 		return s.chat.chats, nil
@@ -200,15 +224,15 @@ func (s *Store) chatsLocked() (map[string]AgentChat, error) {
 		case err == nil:
 			r, derr := age.Decrypt(bytes.NewReader(blob), ident)
 			if derr != nil {
-				return nil, fmt.Errorf("keel.chats: %w", derr)
+				return nil, fmt.Errorf("%w: %v", ErrChatsUnreadable, derr)
 			}
 			plain, rerr := io.ReadAll(r)
 			if rerr != nil {
-				return nil, fmt.Errorf("keel.chats: %w", rerr)
+				return nil, fmt.Errorf("%w: %v", ErrChatsUnreadable, rerr)
 			}
 			var f chatsFileData
 			if jerr := json.Unmarshal(plain, &f); jerr != nil {
-				return nil, fmt.Errorf("keel.chats: %w", jerr)
+				return nil, fmt.Errorf("%w: %v", ErrChatsUnreadable, jerr)
 			}
 			for _, c := range f.Chats {
 				if c.ID != "" {
@@ -311,13 +335,24 @@ func (s *Store) PutAgentChat(c AgentChat) error {
 		c.CreatedAt = c.UpdatedAt
 	}
 	chats[c.ID] = c
-	for len(chats) > MaxAgentChats {
+	sizes := make(map[string]int, len(chats))
+	total := 0
+	for id, x := range chats {
+		b, err := json.Marshal(x)
+		if err != nil {
+			return err
+		}
+		sizes[id] = len(b)
+		total += len(b)
+	}
+	for len(chats) > 1 && (len(chats) > MaxAgentChats || total > MaxAgentChatsBytes) {
 		oldest := ""
 		for id, x := range chats {
-			if oldest == "" || x.UpdatedAt.Before(chats[oldest].UpdatedAt) {
+			if id != c.ID && (oldest == "" || x.UpdatedAt.Before(chats[oldest].UpdatedAt)) {
 				oldest = id
 			}
 		}
+		total -= sizes[oldest]
 		delete(chats, oldest)
 	}
 	return s.writeChatsLocked()
@@ -362,20 +397,41 @@ func (s *Store) DeleteAgentChat(id string) error {
 }
 
 // DeleteAllAgentChats removes every saved conversation and returns how
-// many there were.
+// many there were (0 when keel.chats was unreadable). It removes keel.chats
+// and the key from the vault, so the next save starts a fresh file under a
+// new key. This is also how an unreadable keel.chats is replaced. With no
+// key and no file it writes nothing.
 func (s *Store) DeleteAllAgentChats() (int, error) {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
+	n := 0
 	chats, err := s.chatsLocked()
-	if err != nil {
+	switch {
+	case err == nil:
+		n = len(chats)
+	case !errors.Is(err, ErrChatsUnreadable):
 		return 0, err
 	}
-	n := len(chats)
-	s.chat.chats = map[string]AgentChat{}
-	if n == 0 {
-		return 0, nil
+	s.mu.Lock()
+	if s.locked.Load() {
+		s.mu.Unlock()
+		return 0, ErrLocked
 	}
-	return n, s.writeChatsLocked()
+	if prev, ok := s.secrets[chatKeySecretID]; ok {
+		delete(s.secrets, chatKeySecretID)
+		if err := s.saveLocked(); err != nil {
+			s.secrets[chatKeySecretID] = prev
+			s.mu.Unlock()
+			return 0, err
+		}
+	}
+	s.mu.Unlock()
+	s.chat = chatState{loaded: true, chats: map[string]AgentChat{}}
+	if err := os.Remove(s.chatsPath()); err != nil && !os.IsNotExist(err) {
+		return n, err
+	}
+	syncDir(filepath.Dir(s.chatsPath()))
+	return n, nil
 }
 
 // PruneAgentChats removes the conversations last used before cutoff and
