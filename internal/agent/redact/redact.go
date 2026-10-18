@@ -248,6 +248,22 @@ func (r *Redactor) HoldsKnown(s string) bool {
 	return len(findKnown(Normalize(s), r.known, 0)) > 0 || len(findKnown(s, r.known, 0)) > 0
 }
 
+// InsideKnown reports whether s, 6 bytes or longer, is part of one of the
+// Known (vault) values, as stored or in a cleaned form: a captured piece
+// of a vault secret. It redacts nothing and counts nothing.
+func (r *Redactor) InsideKnown(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) < 6 {
+		return false
+	}
+	for _, k := range r.known {
+		if strings.Contains(k.v, s) {
+			return true
+		}
+	}
+	return false
+}
+
 // Report returns the counts so far.
 func (r *Redactor) Report() Report {
 	out := Report{Counts: make(map[Kind]int, len(r.report.Counts))}

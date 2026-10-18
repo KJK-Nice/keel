@@ -255,7 +255,10 @@ func TestCapturedValuesNeverReachTheModel(t *testing.T) {
 // typed.
 func TestFillShellSafety(t *testing.T) {
 	v := varRunFixture(t)
-	if _, err := v.svc.SetGroupVar("grp-1", "opts", "--force; rm -rf /"); err != nil {
+	if _, err := v.svc.SetGroupVar("grp-1", "opts", "a b; rm -rf /"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.svc.SetGroupVar("grp-1", "flag", "-rf"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := v.svc.SetGroupVar("grp-1", "bad", "it's"); err != nil {
@@ -268,7 +271,10 @@ func TestFillShellSafety(t *testing.T) {
 		cmd, want, errHas string
 	}{
 		{"echo {{opts}}", "", "{{opts|q}}"},
-		{"echo {{opts|q}}", "\x15echo '--force; rm -rf /'\n", ""},
+		{"echo {{opts|q}}", "\x15echo 'a b; rm -rf /'\n", ""},
+		// A leading - is an option to the command even in quotes.
+		{"rm {{flag|q}} /tmp/x", "", "starts with -"},
+		{"rm {{flag}} /tmp/x", "", "starts with -"},
 		{"echo {{bad|q}}", "", "single quote"},
 		{"echo {{nope}}", "", "has no value"},
 		{"echo {{NOPE}}", "", "not a variable name"},
@@ -354,7 +360,7 @@ func TestCaptureExpiresAndEndsWithRun(t *testing.T) {
 	v.svc.now = func() time.Time { return now }
 	b := v.joinRunbook(t, "echo {{join_token}}")
 	run := v.startToStep2(t, b, joinOut)
-	if n := len(v.svc.namedValues(false)); n != 1 {
+	if n := liveCaptures(v.svc); n != 1 {
 		t.Fatalf("held values %d", n)
 	}
 	now = now.Add(captureTTL + time.Second)
@@ -372,7 +378,7 @@ func TestCaptureExpiresAndEndsWithRun(t *testing.T) {
 	if _, err := v2.svc.StopGroupRun(run.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(v2.svc.namedValues(false)); n != 0 {
+	if n := liveCaptures(v2.svc); n != 0 {
 		t.Fatalf("a stopped run still holds %d values", n)
 	}
 }
@@ -394,13 +400,13 @@ func TestRetryDropsCapture(t *testing.T) {
 	}
 	v.op.say("s-cp1", 120, 0, joinOut)
 	run, _ = v.svc.GroupRunState(run.ID)
-	if len(v.svc.namedValues(false)) != 1 {
+	if liveCaptures(v.svc) != 1 {
 		t.Fatal("not captured")
 	}
 	if _, err := v.svc.GroupHostAction(run.ID, run.Steps[0].ID, "cp1", "retry"); err != nil {
 		t.Fatal(err)
 	}
-	if len(v.svc.namedValues(false)) != 0 {
+	if liveCaptures(v.svc) != 0 {
 		t.Fatal("retry kept the old value")
 	}
 }
@@ -431,5 +437,140 @@ func TestGroupVarRefusesSecrets(t *testing.T) {
 	}
 	if _, err := v.svc.SetGroupVar("grp-1", "9bad", "x"); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("bad name: %v", err)
+	}
+	// A piece of a vault value is refused too.
+	if _, err := v.svc.SetGroupVar("grp-1", "x", vaultPass[5:]); !errors.Is(err, ErrGroupVarSecret) {
+		t.Fatalf("a piece of a vault value kept: %v", err)
+	}
+}
+
+// Every Redactor the service builds replaces group variables' values, but
+// a command the user writes with one (a runbook step) is kept as written:
+// a variable is config, not a secret.
+func TestGroupVarsInKeptText(t *testing.T) {
+	v := varRunFixture(t)
+	if _, err := v.svc.SetGroupVar("grp-1", "api_vip", "10.20.0.10"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := v.svc.AddRunbook(RunbookInput{Name: "ping", Steps: []store.RunbookStep{{Title: "ping the VIP 10.20.0.10", Command: "ping -c1 10.20.0.10"}}})
+	if err != nil {
+		t.Fatalf("a command holding a variable's value refused: %v", err)
+	}
+	if st := saved.Runbook.Steps[0]; st.Command != "ping -c1 10.20.0.10" || st.Title != "ping the VIP {{api_vip}}" {
+		t.Fatalf("step %+v", st)
+	}
+	n, err := v.svc.AddNote("", "the API VIP is 10.20.0.10")
+	if err != nil || n.Note.Text != "the API VIP is {{api_vip}}" {
+		t.Fatalf("note %+v %v", n.Note, err)
+	}
+}
+
+// liveCaptures counts the values runs hold for filling.
+func liveCaptures(s *Service) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, r := range s.groupRuns {
+		for _, byName := range r.captures {
+			n += len(byName)
+		}
+	}
+	return n
+}
+
+// A captured value stays in the scrollback after its run: finished,
+// stopped or expired, it is still withheld from every read for the life of
+// keel serve, though no longer filled in.
+func TestCapturedValueWithheldAfterRunEnds(t *testing.T) {
+	for _, end := range []string{"stop", "finish", "expire"} {
+		v := varRunFixture(t)
+		now := time.Now()
+		v.svc.now = func() time.Time { return now }
+		run := v.startToStep2(t, v.joinRunbook(t, "echo {{join_token}}"), joinOut)
+		switch end {
+		case "stop":
+			if _, err := v.svc.StopGroupRun(run.ID); err != nil {
+				t.Fatal(err)
+			}
+		case "finish":
+			if _, err := v.svc.GroupHostAction(run.ID, run.Steps[1].ID, "", "skip"); err != nil {
+				t.Fatal(err)
+			}
+			if r, _ := v.svc.GroupRunState(run.ID); r.Status != runFinished {
+				t.Fatalf("not finished: %s", r.Status)
+			}
+		case "expire":
+			now = now.Add(captureTTL + time.Minute)
+			_, _ = v.svc.GroupRunState(run.ID)
+		}
+		if liveCaptures(v.svc) != 0 {
+			t.Fatalf("%s: the value is still held for filling", end)
+		}
+		v.panes.mu.Lock()
+		v.panes.panes["s-cp1"] = pane{host: "cp1", text: "kubeadm join 10.20.0.10:6443 --token " + joinToken + "\n$ "}
+		v.panes.mu.Unlock()
+		if _, err := v.svc.Ask(context.Background(), AskRequest{ConversationID: newID("conv-"), Question: "what now?", Panes: []string{"s-cp1"}}); err != nil {
+			t.Fatal(err)
+		}
+		sent := v.requestBodies(t)
+		if strings.Contains(sent, joinToken) || !strings.Contains(sent, "{{join_token}}") {
+			t.Fatalf("%s: the value reached the provider after its run: %s", end, sent)
+		}
+		// And a note saved after the run keeps the name, not the value.
+		if r, err := v.svc.saveRedactor(); err != nil || strings.Contains(r.Text("token "+joinToken).String(), joinToken) {
+			t.Fatalf("%s: save Redactor kept the value", end)
+		}
+	}
+}
+
+// A value captured by a step that runs on each host is that host's own:
+// it is never filled in on another host. Only a One host only step's value
+// serves the whole run.
+func TestPerHostCaptureNotFilledElsewhere(t *testing.T) {
+	v := varRunFixture(t)
+	saved, err := v.svc.AddRunbook(RunbookInput{Name: "per host", Steps: []store.RunbookStep{
+		{Title: "id", Command: "cat /etc/machine-id", Role: "worker", Captures: []store.StepCapture{{Name: "node_id", Pattern: `id=(\S+)`}}},
+		{Title: "use", Command: "echo {{node_id}}", Role: "worker"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, _ := v.svc.StartGroupRun(GroupRunRequest{RunbookID: saved.Runbook.ID, GroupID: "grp-1", Mode: ModeParallel})
+	run, _ = v.svc.ProposeGroupStep(run.ID, allPanes)
+	if err := v.typeCell(t, run, 0, "wk1", false); err != nil {
+		t.Fatal(err)
+	}
+	v.op.say("s-wk1", 120, 0, "id=abc123def\n")
+	run, _ = v.svc.GroupRunState(run.ID)
+	for _, h := range []string{"wk2", "wk3"} {
+		if run, err = v.svc.GroupHostAction(run.ID, run.Steps[0].ID, h, "skip"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run, _ = v.svc.ProposeGroupStep(run.ID, allPanes)
+	var ids []string
+	for _, h := range []string{"wk1", "wk2"} {
+		ids = append(ids, cellOf(t, run, 1, h).Proposal.ID)
+	}
+	fills, err := v.svc.FillGroupProposals(run.ID, ids)
+	if err != nil || len(fills) != 2 {
+		t.Fatal(err)
+	}
+	if fills[0].Bytes != "\x15echo abc123def\n" || fills[0].Error != "" {
+		t.Fatalf("own host: %+v", fills[0])
+	}
+	if fills[1].Bytes != "" || !strings.Contains(fills[1].Error, "has no value for wk-2: it was captured on wk-1 by a step that runs on each host") {
+		t.Fatalf("other host filled with wk-1's value: %+v", fills[1])
+	}
+}
+
+// A captured piece of a vault value (6 bytes or more) is blocked like the
+// whole value.
+func TestCapturedPieceOfVaultValueBlocked(t *testing.T) {
+	v := varRunFixture(t)
+	piece := vaultPass[6:20]
+	run := v.startToStep2(t, v.joinRunbook(t, "echo {{join_token}}"), "kubeadm join x --token "+piece+"\n")
+	if got := cellOf(t, run, 0, "cp1").Captures; len(got) != 1 || got[0].State != CaptureBlocked {
+		t.Fatalf("piece kept: %+v", got)
 	}
 }

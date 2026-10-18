@@ -147,6 +147,17 @@ func TestGroupVarsCaptureFillTypeAndExport(t *testing.T) {
 			t.Fatalf("the export holds %q", secret)
 		}
 	}
+	// A variable kept before its value went into the vault (straight in the
+	// store, past the save check) is left out of the export.
+	if _, err := f.st.SetGroupVar(g.ID, "old_pw", askHostPass); err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []string{"ini", "yaml"} {
+		code, b = f.call(t, "GET", "/api/groups/"+g.ID+"/ansible?format="+format, nil)
+		if code != 200 || strings.Contains(string(b), askHostPass) || !strings.Contains(string(b), "old_pw: left out: its value is also in Keel's vault") {
+			t.Fatalf("%s export with a vault value → %d %s", format, code, b)
+		}
+	}
 	code, b = f.call(t, "GET", "/api/groups/"+g.ID+"/ansible?format=yaml", nil)
 	if code != 200 || !strings.Contains(string(b), "inventory.yml") || strings.Contains(string(b), askHostPass) {
 		t.Fatalf("yaml export → %d %s", code, b)

@@ -69,6 +69,14 @@ test("fillRows: exact filled bytes per host; a failed fill cannot be ticked", ()
   );
 });
 
+test("sameSources: same bytes from different sources are listed per host", () => {
+  const a = { used: [{ name: "t", from: "captured on cp-1 · step 1" }] };
+  const b = { used: [{ name: "t", from: "group variable" }] };
+  assert.equal(V.sameSources([a, { ...a }]), true);
+  assert.equal(V.sameSources([a, b]), false);
+  assert.equal(V.sameSources([]), true);
+});
+
 test("runbook captures in the editor's input", () => {
   const input = toInput({ name: "k8s", steps: [{ title: "init", command: "kubeadm init", captures: [{ name: " Join_Token ", pattern: " --token\\s+(\\S+) " }, { name: "", pattern: "" }] }] });
   assert.deepEqual(input.steps[0].captures, [{ name: "join_token", pattern: "--token\\s+(\\S+)" }]);

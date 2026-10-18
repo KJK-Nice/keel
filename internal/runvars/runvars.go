@@ -21,7 +21,8 @@
 //   - `{{name|q}}` (the step marks it quoted): the value is put in single
 //     quotes. It may then hold spaces and shell characters, but never a
 //     single quote or a backslash (fish reads `\'` and `\\` inside single
-//     quotes, other shells do not), and never a control, format, line or
+//     quotes, other shells do not), never a leading - (quotes do not stop
+//     the command reading it as an option), and never a control, format, line or
 //     paragraph separator character (no newline can ever be typed from a
 //     value).
 //
@@ -160,6 +161,11 @@ func Quote(v string) (string, error) {
 	if strings.ContainsAny(v, `'\`) {
 		return "", fmt.Errorf("%w: it holds a single quote or a backslash, which shells read differently inside quotes", ErrUnsafe)
 	}
+	// Quotes keep the shell from reading it, not the command: '-rf' is
+	// still an option to rm. Keel cannot tell whether a -- came first.
+	if strings.HasPrefix(v, "-") {
+		return "", fmt.Errorf("%w: it starts with -, which the command would read as an option even in quotes", ErrUnsafe)
+	}
 	return "'" + v + "'", nil
 }
 
@@ -208,6 +214,8 @@ func Fill(cmd string, lookup func(name string) (Value, error)) (string, []Used, 
 			if put, err = Quote(v.Value); err != nil {
 				return "", nil, fmt.Errorf("{{%s|q}} (%s) cannot be typed: %w", r.Name, v.From, err)
 			}
+		} else if strings.HasPrefix(v.Value, "-") {
+			return "", nil, fmt.Errorf("%w: {{%s}} (%s) starts with -, which the command would read as an option, quoted or not", ErrUnsafe, r.Name, v.From)
 		} else if !SafeUnquoted(v.Value) {
 			return "", nil, fmt.Errorf("%w: {{%s}} (%s) holds characters a shell would read as more than one plain word (a space, quote, $, glob, ; or similar), or starts with -; write {{%s|q}} in the step to type it single-quoted", ErrUnsafe, r.Name, v.From, r.Name)
 		}

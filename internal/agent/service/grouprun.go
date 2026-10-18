@@ -783,6 +783,7 @@ func (s *Service) refreshGroupRun(id string) {
 		stepID      string
 		host        string
 		caps        []store.StepCapture
+		oneHost     bool
 		captured    []captureResult
 	}
 	var pend []pending
@@ -795,7 +796,7 @@ func (s *Service) refreshGroupRun(id string) {
 	for i, st := range run.Steps {
 		for j, c := range st.Cells {
 			if c.State == cellTyped && c.Result == "" && c.hasMark && c.Proposal != nil {
-				pend = append(pend, pending{step: i, cell: j, sessionID: c.SessionID, hostID: c.HostID, mark: c.mark, want: stepCommands(st.Command), proposalID: c.Proposal.ID, stepNo: i + 1, ofN: len(run.Steps), stepID: st.ID, host: c.Host, caps: append([]store.StepCapture(nil), st.Captures...)})
+				pend = append(pend, pending{step: i, cell: j, sessionID: c.SessionID, hostID: c.HostID, mark: c.mark, want: stepCommands(st.Command), proposalID: c.Proposal.ID, stepNo: i + 1, ofN: len(run.Steps), stepID: st.ID, host: c.Host, oneHost: st.OneHost, caps: append([]store.StepCapture(nil), st.Captures...)})
 			}
 		}
 	}
@@ -844,6 +845,11 @@ func (s *Service) refreshGroupRun(id string) {
 			kept, other := 0, 0
 			for _, cr := range p.captured {
 				var exp *time.Time
+				// Withheld from the model first, for good: a value the set
+				// cannot take is not kept for filling either.
+				if cr.state == CaptureCaptured && !s.withholdLocked(cr.name, cr.value) {
+					cr.state, cr.value = CaptureRefused, ""
+				}
 				if cr.state == CaptureCaptured {
 					if run.captures == nil {
 						run.captures = map[string]map[string]*capturedValue{}
@@ -851,7 +857,7 @@ func (s *Service) refreshGroupRun(id string) {
 					if run.captures[p.hostID] == nil {
 						run.captures[p.hostID] = map[string]*capturedValue{}
 					}
-					run.captures[p.hostID][cr.name] = &capturedValue{value: cr.value, stepID: p.stepID, stepNo: p.stepNo, host: p.host, at: now}
+					run.captures[p.hostID][cr.name] = &capturedValue{value: cr.value, stepID: p.stepID, stepNo: p.stepNo, host: p.host, at: now, oneHost: p.oneHost}
 					t := now.Add(captureTTL)
 					exp = &t
 					kept++

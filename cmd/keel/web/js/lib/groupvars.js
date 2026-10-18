@@ -126,6 +126,12 @@ export function usedLine(used) {
   return (used || []).map((u) => `{{${u.name}${u.quoted ? "|q" : ""}}} ${u.from}`).join(", ");
 }
 
+// sameSources: every row's values came from the same places, so the
+// dialog says it once; otherwise each row says its own.
+export function sameSources(rows) {
+  return new Set((rows || []).map((r) => usedLine(r.used))).size <= 1;
+}
+
 // cleanCaptures is the editor's captures as keel serve takes them (empty
 // rows dropped).
 export function cleanCaptures(list) {

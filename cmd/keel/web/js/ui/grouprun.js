@@ -294,8 +294,11 @@ export function createGroupRunPage(deps) {
       el.bytes.hidden = !same || !typeable.length;
       el.bytes.innerHTML = A.bytesHTML(typeable[0]?.bytes || "");
     }
+    // Where the values came from, once when every host's are the same,
+    // else on each row (the same bytes can come from different sources).
+    const sameUsed = V.sameSources(typeable);
     if (el.count) {
-      const used = typeable.some((r) => (r.used || []).length) ? ` · filled in by Keel: ${V.usedLine(typeable[0].used)}` : "";
+      const used = sameUsed && typeable.some((r) => (r.used || []).length) ? ` · filled in by Keel: ${V.usedLine(typeable[0].used)}` : "";
       el.count.textContent = !typeable.length
         ? "No host can be typed into now."
         : same
@@ -305,7 +308,9 @@ export function createGroupRunPage(deps) {
     if (el.rows) {
       el.rows.innerHTML = rows
         .map((r, k) => {
-          const own = !same && !r.error ? `<pre class="k-bytes k-gx-approve-rowbytes" aria-label="Exact bytes for ${escapeHtml(r.host)}">${A.bytesHTML(r.bytes)}</pre><span class="k-help k-gx-approve-used">${escapeHtml(`${G.bytesLine(r.bytes)}${(r.used || []).length ? ` · ${V.usedLine(r.used)}` : ""}`)}</span>` : "";
+          let own = "";
+          if (!r.error && !same) own = `<pre class="k-bytes k-gx-approve-rowbytes" aria-label="Exact bytes for ${escapeHtml(r.host)}">${A.bytesHTML(r.bytes)}</pre><span class="k-help k-gx-approve-used">${escapeHtml(`${G.bytesLine(r.bytes)}${(r.used || []).length ? ` · ${V.usedLine(r.used)}` : ""}`)}</span>`;
+          else if (!r.error && !sameUsed) own = `<span class="k-help k-gx-approve-used">${escapeHtml((r.used || []).length ? `Filled in by Keel: ${V.usedLine(r.used)}` : "No variables")}</span>`;
           const err = r.error ? `<span class="k-error k-gx-approve-err">${escapeHtml(r.error)}</span>` : "";
           return `<div class="k-gx-approve-row${r.error ? " is-blocked" : ""}">
             <button type="button" class="k-check" role="checkbox" aria-checked="${r.checked}" data-approve-row="${k}" aria-label="Type into ${escapeHtml(r.host)}"${r.error ? ' aria-disabled="true" disabled' : ""}><span class="k-i">${ICON.tick}</span></button>

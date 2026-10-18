@@ -335,7 +335,25 @@ func (s *Service) hydrate(id string) error {
 
 // redactor builds a Redactor with the current settings and hosts, for
 // text the service keeps rather than sends.
+//
+// Like every Redactor the service builds it replaces captured values and
+// group variables' values with {{name}} (groupvars.go), except
+// commandRedactor's.
 func (s *Service) redactor() (*redact.Redactor, error) {
+	return s.keptRedactor(true)
+}
+
+// commandRedactor is redactor for a command the user will type (an edited
+// proposal): captured values are withheld, group variables are not. A
+// group variable is config, not a secret, and a command the user wrote
+// with its value (an address, a version) must stay typeable; the model
+// never sees such a command's text but through a request Redactor, which
+// replaces it.
+func (s *Service) commandRedactor() (*redact.Redactor, error) {
+	return s.keptRedactor(false)
+}
+
+func (s *Service) keptRedactor(withVars bool) (*redact.Redactor, error) {
 	set, err := s.st.AgentSettings()
 	if err != nil {
 		return nil, err
@@ -344,7 +362,7 @@ func (s *Service) redactor() (*redact.Redactor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts), s.namedValues(false)...)
+	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts), s.namedValues(withVars)...)
 }
 
 // snapshotLocked copies the conversation's record for saving. Call with

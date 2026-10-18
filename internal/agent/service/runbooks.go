@@ -293,6 +293,12 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
+	// Commands are checked without the group variables (a command may
+	// hold a variable's value as the user wrote it).
+	cr, err := s.saveCommandRedactor()
+	if err != nil {
+		return store.Runbook{}, redact.Report{}, err
+	}
 	line := func(t string, max int) (string, error) {
 		if len(t) > 4*max+64 {
 			return "", badRequest(fmt.Sprintf("a field is at most %d bytes", max))
@@ -353,7 +359,7 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 		// A command is never kept redacted: a placeholder such as
 		// [secret:1] is a shell glob that could be typed. One the Redactor
 		// would change (as typed, or cleaned) is refused instead.
-		if !commandKeepable(r, st.Command) || !commandKeepable(r, cmd) {
+		if !commandKeepable(cr, st.Command) || !commandKeepable(cr, cmd) {
 			return store.Runbook{}, redact.Report{}, fmt.Errorf("%w: step %d: %v", ErrBadRequest, len(b.Steps)+1, ErrSecretInCommand)
 		}
 		out.Command = cmd
@@ -515,8 +521,12 @@ func (s *Service) RunbookDraft(req DraftRequest) (RunbookInput, error) {
 	if err != nil {
 		return RunbookInput{}, err
 	}
+	cr, err := s.saveCommandRedactor()
+	if err != nil {
+		return RunbookInput{}, err
+	}
 	for i := range in.Steps {
-		if c := in.Steps[i].Command; c != "" && !commandKeepable(sr, c) {
+		if c := in.Steps[i].Command; c != "" && !commandKeepable(cr, c) {
 			in.Steps[i].Command = ""
 			in.Steps[i].Description = truncate(strings.TrimSpace(in.Steps[i].Description+" "+secretLeftOut), store.MaxRunbookTextBytes-4)
 		}

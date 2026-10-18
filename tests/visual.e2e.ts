@@ -758,6 +758,7 @@ describe('group variables', { tags: ['visual'], serial: true }, () => {
             title: 'kubeadm init on the control plane',
             command: `t=abcdef; printf '\\033]133;C\\007kubeadm join 10.20.0.10:6443 --code %s.0123456789abcdef\\n\\033]133;D;0\\007' "$t"`,
             role: 'control-plane',
+            oneHost: true,
             captures: [{ name: 'join_code', pattern: '--code\\s+(\\S+)' }],
           },
           { title: 'Join the workers', command: `printf '\\033]133;C\\007joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{k8s_version}}`, role: 'worker' },

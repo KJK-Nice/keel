@@ -90,7 +90,8 @@ func TestFillShellSafety(t *testing.T) {
 		"long":    strings.Repeat("a", MaxValueBytes+1),
 		"utf8":    "\xff",
 		"empty":   "",
-		"spaced":  "--force; rm -rf /",
+		"spaced":  "a b; rm -rf /",
+		"opt":     "-rf",
 		"brace":   "{a,b}",
 		"hist":    "a!b",
 		"hash2":   "#x",
@@ -100,7 +101,7 @@ func TestFillShellSafety(t *testing.T) {
 	ok := map[string]string{
 		"echo {{tok}}":                   "echo abcdef.0123456789abcdef",
 		"echo {{hash}}":                  "echo sha256:4f1c9a0b",
-		"echo {{spaced|q}}":              "echo '--force; rm -rf /'",
+		"echo {{spaced|q}}":              "echo 'a b; rm -rf /'",
 		"echo {{space|q}}":               "echo 'a b'",
 		"echo {{dollar|q}}":              "echo '$HOME'",
 		"echo {{tick|q}}":                "echo '`id`'",
@@ -113,13 +114,13 @@ func TestFillShellSafety(t *testing.T) {
 			t.Errorf("%q: %q %v, want %q", cmd, got, err, want)
 		}
 	}
-	for _, name := range []string{"url", "space", "semi", "dollar", "tick", "glob", "dash", "tilde", "eq", "spaced", "brace", "hist", "hash2", "caret", "percent", "quote", "bslash"} {
+	for _, name := range []string{"url", "space", "semi", "dollar", "tick", "glob", "tilde", "eq", "spaced", "brace", "hist", "hash2", "caret", "percent", "quote", "bslash"} {
 		got, _, err := Fill("echo {{"+name+"}}", lookupFrom(vals))
 		if err == nil || got != "" || !errors.Is(err, ErrUnsafe) || !strings.Contains(err.Error(), "{{"+name+"|q}}") {
 			t.Errorf("%s unquoted: %q %v", name, got, err)
 		}
 	}
-	for _, name := range []string{"nl", "cr", "tab", "esc", "bidi", "zw", "ls", "nbsp", "quote", "bslash", "long", "utf8", "empty"} {
+	for _, name := range []string{"nl", "cr", "tab", "esc", "bidi", "zw", "ls", "nbsp", "quote", "bslash", "long", "utf8", "empty", "opt", "dash"} {
 		for _, q := range []string{"", "|q"} {
 			got, _, err := Fill("echo {{"+name+q+"}}", lookupFrom(vals))
 			if err == nil || got != "" {

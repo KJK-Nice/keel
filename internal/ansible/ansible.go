@@ -51,6 +51,9 @@ type Inventory struct {
 	UseUser bool   // write ansible_user from each host's saved user
 	UseJump bool   // write the jump host as ansible_ssh_common_args (-o ProxyJump=user@addr:port)
 	Stamp   string // a date line for the header comment, e.g. "2026-10-18"; may be empty
+	// Withheld are names of group variables the caller left out of Vars
+	// because their value is in the vault: each gets a comment.
+	Withheld []string
 }
 
 // Names maps Keel names to the Ansible names used in both files.
@@ -290,7 +293,10 @@ func leftOutINI(name, key string) string {
 
 // usableVars splits the group vars into those written and comment lines for
 // the rest (bad names, repeats).
-func usableVars(vars []Var) (ok []Var, notes []string) {
+func usableVars(vars []Var, withheld []string) (ok []Var, notes []string) {
+	for _, name := range withheld {
+		notes = append(notes, oneLine(name)+": left out: its value is also in Keel's vault. Set it yourself, with ansible-vault.")
+	}
 	seen := map[string]bool{}
 	for _, v := range vars {
 		switch {
@@ -376,7 +382,7 @@ func INI(inv Inventory) string {
 		sections = append(sections, b.String())
 	}
 
-	vars, notes := usableVars(inv.Vars)
+	vars, notes := usableVars(inv.Vars, inv.Withheld)
 	if len(vars) > 0 || len(notes) > 0 {
 		b.Reset()
 		b.WriteString("[" + n.Group + ":vars]\n")
@@ -440,7 +446,7 @@ func YAML(inv Inventory) string {
 		}
 	}
 
-	vars, notes := usableVars(inv.Vars)
+	vars, notes := usableVars(inv.Vars, inv.Withheld)
 	if len(vars) > 0 {
 		b.WriteString("      vars:\n")
 		for _, c := range notes {

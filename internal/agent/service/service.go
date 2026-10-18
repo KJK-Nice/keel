@@ -128,7 +128,12 @@ type Service struct {
 	// groupRuns are the runbook runs across a group (grouprun.go), by id
 	// (under mu).
 	groupRuns map[string]*groupRun
-	log       agent.Logger
+	// withheld are every value a group run ever captured (groupvars.go),
+	// by value, with its name: redacted out of everything sent to the
+	// model for the life of this keel serve, never used to fill a command
+	// (under mu). The value outlives its run in the panes' scrollback.
+	withheld map[string]string
+	log      agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -722,7 +727,7 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	// Build the Redactor first: the edit is kept redacted, and without one
 	// the edit is refused rather than shown in the panel and saved
 	// differently (or as typed).
-	r, err := s.redactor()
+	r, err := s.commandRedactor()
 	if err != nil {
 		return Proposal{}, err
 	}

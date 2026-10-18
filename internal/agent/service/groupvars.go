@@ -93,6 +93,9 @@ type capturedValue struct {
 	stepNo int
 	host   string
 	at     time.Time
+	// oneHost is set when the capturing step runs on one host only: only
+	// then may its value be filled in on the run's other hosts.
+	oneHost bool
 }
 
 // SetGroupVar sets a group variable for the user (an empty value removes
@@ -109,7 +112,7 @@ func (s *Service) SetGroupVar(groupID, name, value string) (store.Group, error) 
 			return store.Group{}, err
 		}
 		v := strings.TrimSpace(value)
-		if r.Text(v).String() != v {
+		if r.Text(v).String() != v || r.InsideKnown(v) {
 			return store.Group{}, ErrGroupVarSecret
 		}
 	}
@@ -141,6 +144,26 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 	return false, nil
 }
 
+// overlapsVault reports whether a value to fill in holds a vault value, or
+// (6 bytes or longer) is part of one: a captured piece of a vault secret
+// is as much a secret as the whole. Exported for the Ansible export too
+// (HoldsVaultValue).
+func (s *Service) overlapsVault(v string) (bool, error) {
+	r, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	if err != nil {
+		return false, err
+	}
+	return r.HoldsKnown(v) || r.InsideKnown(v), nil
+}
+
+// HoldsVaultValue is overlapsVault for keel serve's Ansible export: a
+// group variable saved before its value went into the vault is left out.
+// It fails closed (true) when the vault cannot be read.
+func (s *Service) HoldsVaultValue(v string) bool {
+	bad, err := s.overlapsVault(v)
+	return err != nil || bad
+}
+
 // requestRedactor is the Redactor of one agent request: agent.NewRedactor
 // with every captured value and every group variable's value replaced by
 // its {{name}}.
@@ -148,21 +171,41 @@ func (s *Service) requestRedactor(opts store.AgentRedaction, hosts []agent.Host)
 	return agent.NewRedactor(s.st, opts, hosts, s.namedValues(true)...)
 }
 
-// namedValues lists the values the model must never see: captured values
-// held by any run, and (withVars) every group variable's value.
+// maxWithheld bounds the redact-only set of captured values. When it is
+// full a new value is not kept at all (the capture is refused), so no
+// value is ever filled in that the Redactor would not withhold.
+const maxWithheld = 1024
+
+// withholdLocked adds a captured value to the redact-only set, kept for
+// the life of this keel serve whatever happens to its run (finished,
+// stopped, evicted, expired, retried): the value stays in the scrollback
+// of the pane it was captured from and of every pane it was typed into.
+// It reports false when the set is full. Call with s.mu held.
+func (s *Service) withholdLocked(name, value string) bool {
+	if s.withheld == nil {
+		s.withheld = map[string]string{}
+	}
+	if _, ok := s.withheld[value]; ok {
+		return true
+	}
+	if len(s.withheld) >= maxWithheld {
+		return false
+	}
+	s.withheld[value] = name
+	return true
+}
+
+// namedValues lists the values the model must never see: every value a
+// group run captured since keel serve started (the redact-only set, which
+// outlives the runs), and (withVars) every group variable's value.
 func (s *Service) namedValues(withVars bool) []redact.Named {
 	var out []redact.Named
-	now := s.now()
 	s.mu.Lock()
-	for _, run := range s.groupRuns {
-		run.pruneCapturesLocked(now)
-		for _, byName := range run.captures {
-			for name, cv := range byName {
-				out = append(out, redact.Named{Name: name, Value: cv.value, Kind: redact.KindCaptured})
-			}
-		}
+	for value, name := range s.withheld {
+		out = append(out, redact.Named{Name: name, Value: value, Kind: redact.KindCaptured})
 	}
 	s.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Value < out[j].Value })
 	if withVars {
 		if vs, ok := s.st.(GroupVarStore); ok {
 			if all, err := vs.AllGroupVars(); err == nil {
@@ -301,7 +344,7 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 		if out[i].state != CaptureCaptured {
 			continue
 		}
-		if bad, err := s.holdsVaultValue(out[i].value); err != nil || bad {
+		if bad, err := s.overlapsVault(out[i].value); err != nil || bad {
 			out[i].value, out[i].state = "", CaptureBlocked
 		}
 	}
@@ -394,7 +437,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		}
 		groupVars = all[groupID]
 	}
-	// Only its vault matches are used (HoldsKnown).
+	// Only its vault matches are used (HoldsKnown, InsideKnown).
 	vault, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
 	if err != nil {
 		return f, err
@@ -408,12 +451,21 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 			var hosts []string
 			vals := map[string]bool{}
 			var any capturedValue
+			perHost := false
 			for _, cv := range held[name] {
 				hosts = append(hosts, cv.host)
 				vals[cv.value] = true
 				any = cv
+				perHost = perHost || !cv.oneHost
 			}
 			sort.Strings(hosts)
+			// A value captured by a step that runs on each host of its role
+			// is that host's own value (a node's id, its disk): never filled
+			// in on another host. Only a One host only step's value (a join
+			// token from one control-plane node) serves the whole run.
+			if perHost {
+				return v, fmt.Errorf("%w: {{%s}} has no value for %s: it was captured on %s by a step that runs on each host, so it is that host's own value. Capture it on %s too, or make the capturing step One host only", ErrFill, name, snap.Host, strings.Join(hosts, ", "), snap.Host)
+			}
 			if len(vals) > 1 {
 				return v, fmt.Errorf("%w: {{%s}} was captured with different values on %s; Keel will not pick one for %s. Skip the hosts whose value you do not want, or retry the step", ErrFill, name, strings.Join(hosts, ", "), snap.Host)
 			}
@@ -429,7 +481,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		if !found {
 			return v, fmt.Errorf("%w: {{%s}} has no value for %s: no earlier step of this run captured it (or it expired after an hour) and the group has no variable with that name. Add it on the group's page, or retry the step that captures it", ErrFill, name, snap.Host)
 		}
-		if vault.HoldsKnown(v.Value) {
+		if vault.HoldsKnown(v.Value) || vault.InsideKnown(v.Value) {
 			return v, fmt.Errorf("%w: {{%s}} (%s) holds a value from the vault; Keel never types a vault secret from a variable", ErrFill, name, v.From)
 		}
 		return v, nil

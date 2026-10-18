@@ -133,7 +133,13 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 		}
 		inv.Hosts = append(inv.Hosts, exportHost(h, m.Role, byID))
 	}
+	// A variable saved before its value went into the vault (or with no
+	// agent service to check) is left out: no vault value is exported.
 	for _, v := range g.Vars {
+		if s.agent == nil || s.agent.HoldsVaultValue(v.Value) {
+			inv.Withheld = append(inv.Withheld, v.Name)
+			continue
+		}
 		inv.Vars = append(inv.Vars, ansible.Var{Name: v.Name, Value: v.Value})
 	}
 	format := q.Get("format")
