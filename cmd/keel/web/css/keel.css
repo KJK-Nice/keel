@@ -2384,7 +2384,23 @@ button.k-agent-toggle[aria-pressed="true"] { background: var(--hover); color: va
 }
 .k-agent-mark { display: inline-flex; color: var(--brass-ink); }
 .k-agent-mark svg { display: block; width: 1.231rem; height: 1.231rem; }
-.k-agent-title { font: 600 1rem/1 var(--font-sans); letter-spacing: 0; }
+/* The conversation title opens the session list (board AgentSessions). */
+button.k-agent-sess {
+  flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: var(--space-1\.5);
+  height: var(--size-control); padding: 0 var(--space-2); margin-left: calc(-1 * var(--space-1));
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink);
+  font: 600 1rem/1 var(--font-sans); letter-spacing: 0; text-align: left; cursor: pointer;
+  transition: background var(--duration-fast);
+}
+button.k-agent-sess:hover, button.k-agent-sess[aria-expanded="true"] { background: var(--hover); }
+.k-agent-sess-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-agent-sess svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; color: var(--ink-muted); }
+.k-agent-sub {
+  display: flex; align-items: center; gap: var(--space-2); flex: none;
+  height: calc(var(--size-control-lg) + var(--space-1)); padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.k-agent-saved { flex: none; font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
 button.k-agent-scope {
   display: inline-flex; align-items: center; gap: var(--space-1\.5); min-width: 0;
   height: var(--size-control-sm); padding: 0 var(--space-2);
@@ -2396,9 +2412,10 @@ button.k-agent-scope:hover, button.k-agent-scope[aria-expanded="true"] { color: 
 .k-agent-scope svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; }
 .k-agent-head .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
 
-/* Pane picker: a k-menu-shaped popover under the scope chip. */
+/* Pane picker: a k-menu-shaped popover under the scope chip (header, then
+   the sub row). */
 .k-agent-picker {
-  position: absolute; z-index: 30; top: calc(var(--size-control-lg) + var(--space-3)); left: var(--space-3); right: var(--space-3);
+  position: absolute; z-index: 30; top: calc(var(--size-control-lg) * 2 + var(--space-3) + var(--space-1)); left: var(--space-3); right: var(--space-3);
   display: grid; gap: var(--space-0\.5); padding: var(--space-1);
   max-height: 60%; overflow: auto;
   background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-md);
@@ -2420,6 +2437,50 @@ button.k-agent-pick[aria-disabled="true"]:hover { background: transparent; }
 .k-agent-pick .k-badge { flex: none; }
 .k-agent-picker-empty { padding: var(--space-2); }
 .k-agent-picker-foot { display: flex; gap: var(--space-1); margin-top: var(--space-1); padding: var(--space-1) var(--space-1) 0; border-top: 1px solid var(--line); }
+
+/* Session list: saved conversations, a popover under the title (§5.4.1). */
+.k-agent-sessions {
+  position: absolute; z-index: 30; top: calc(var(--size-control-lg) + var(--space-3)); left: var(--space-2); right: var(--space-2);
+  display: flex; flex-direction: column; max-height: 70%;
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop); overflow: hidden;
+}
+.k-agent-sessions[hidden] { display: none; }
+.k-agent-sessions-search { flex: none; padding: var(--space-2) var(--space-2) var(--space-1); }
+.k-agent-sessions-search .k-inputgroup { height: var(--size-control); }
+.k-agent-sessions-list { flex: 1; min-height: 0; overflow: auto; padding: var(--space-1) var(--space-1\.5) var(--space-1\.5); }
+.k-agent-sessions-empty { margin: 0; padding: var(--space-3) var(--space-2); }
+.k-agent-sessions-foot {
+  display: flex; align-items: center; gap: var(--space-1\.5); flex: none;
+  padding: var(--space-1\.5); border-top: 1px solid var(--line); background: var(--surface);
+}
+.k-agent-sessions-note { padding-left: var(--space-1\.5); font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-btn.k-agent-danger { color: var(--flare); }
+.k-agent-sess-grp {
+  display: flex; align-items: center; gap: var(--space-1\.5);
+  height: calc(var(--size-control-sm) + var(--space-0\.5)); padding: 0 var(--space-2); margin-top: var(--space-1\.5);
+  font: 500 0.846rem/1.077rem var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.k-agent-sess-grp span:last-child { margin-left: auto; letter-spacing: 0; }
+.k-agent-sess-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-0\.5) var(--space-1);
+  padding: var(--space-1\.5) var(--space-1) var(--space-1\.5) var(--space-2); border-radius: var(--radius-sm);
+}
+.k-agent-sess-row:hover, .k-agent-sess-row[aria-current="true"] { background: var(--hover); }
+.k-agent-sess-row--edit { grid-template-columns: minmax(0, 1fr) auto; }
+.k-agent-sess-row--edit .k-input { height: var(--size-control); min-width: 0; }
+.k-agent-sess-row .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
+button.k-agent-sess-pick {
+  display: grid; gap: var(--space-1); min-width: 0; padding: 0; border: 0; border-radius: var(--radius-xs);
+  background: transparent; color: var(--ink-muted); text-align: left; cursor: pointer; font: inherit;
+}
+.k-agent-sess-name { font: 400 1rem/1.308rem var(--font-sans); letter-spacing: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-agent-sess-row[aria-current="true"] .k-agent-sess-name { font-weight: 500; }
+.k-agent-sess-meta {
+  display: flex; align-items: center; gap: var(--space-1\.5); min-width: 0; overflow: hidden; white-space: nowrap;
+  font: 400 0.846rem/1.077rem var(--font-mono); letter-spacing: 0; color: var(--ink-faint);
+}
+.k-agent-sess-meta .k-badge { flex: none; height: var(--space-4); padding: 0 var(--space-1); font-size: 0.769rem; }
 
 /* Thread */
 .k-agent-thread {
@@ -2508,6 +2569,20 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
   border-top: 1px solid var(--line); background: var(--surface);
 }
 .k-prop-count { font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
+.k-prop-foot .k-btn:not(.k-btn--icon) svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+/* A saved proposal from an earlier run: Copy or Propose again, no Type. */
+.k-prop--expired .k-bytes { color: var(--ink-muted); }
+.k-prop--expired .k-prop-foot { flex-wrap: wrap; row-gap: var(--space-2); }
+.k-prop--expired .k-prop-count { line-height: 1.231rem; }
+
+/* Resumed conversation: a divider after the saved turns, then a note. */
+.k-agent-divider {
+  display: flex; align-items: center; gap: var(--space-2);
+  font: 500 0.846rem/1.077rem var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.k-agent-divider::before, .k-agent-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.k-agent-resumed { display: flex; align-items: flex-start; gap: var(--space-2); padding: 0 var(--space-0\.5); }
+.k-agent-resumed svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: var(--space-0\.5); color: var(--ink-faint); }
 .k-prop-foot .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-prop-foot .k-btn--primary .k-kbd { height: var(--space-4); min-width: var(--space-4); font-size: 0.769rem; }
 

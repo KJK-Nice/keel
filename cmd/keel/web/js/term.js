@@ -6391,6 +6391,7 @@ Write a runbook here.
   agentPanel = createAgentPanel({
     api,
     toast,
+    confirm: askConfirm,
     isMac,
     listPanes: agentPanes,
     typeProposal: typeAgentProposal,

@@ -188,7 +188,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
 
   async function deleteHistory() {
     if (
-      !(await confirm("Every agent conversation Keel holds is forgotten, in every window. The log entries that say what the agent read stay in Logs.", {
+      !(await confirm("Every agent conversation is forgotten, including the ones saved in the vault, in every window. The log entries that say what the agent read stay in Logs.", {
         title: "Delete all history?",
         action: "Delete all history",
       }))

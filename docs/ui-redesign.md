@@ -85,6 +85,16 @@ Board names refer to the canvas.
 - Composer: @-chips for panes in scope, `@` adds a pane, ↵ send.
 - Footer line: "Nothing reaches a pane until you press Type…"
 
+### 5.4.1 Agent sessions (`AgentSessions`; `AgentPage` is a follow-up)
+- **Header**: the conversation's title (its first question, redacted, until renamed) is a button that opens **Recent conversations**; then New conversation and Close. The scope chip moves to a sub row with "Saved in the vault" (or "Not saved · kept while open" when history is off) on the right.
+- **Recent conversations** (popover under the title): Search conversations (title or host), groups Today / Yesterday / Older with counts, one row per conversation (title, host badges it read or proposed for, time, "N proposals"), Rename (inline field, ↵ saves, esc cancels) and Delete per row; footer: the retention ("Kept 30 days") and Delete all (asks first). ↑↓ moves between rows, esc closes. "Open all in a tab" (the `AgentPage` board: three-column Agent tab page) is not built yet.
+- **New conversation** starts a fresh thread and keeps the old one; nothing is deleted.
+- **Resume**: picking a row shows its saved thread (You · time, the trace lines, answers, proposals), then a "Resumed · 2 days ago" divider and the note "Earlier reads stay in this conversation as text. New reads use only the panes in scope now, on hosts that still allow the agent." The next ask continues the conversation: keel serve sends the earlier questions and replies (never pane text, none is kept) and reads the panes in scope again through the Auditor and the scope rules as they are now (§6.2, §6.7).
+- **Expired proposals**: a proposal keel serve no longer holds (loaded from the vault after a restart, or after the conversation left memory) shows an Expired badge, "Panes may have changed since this was proposed.", "Proposed <time> · not typed" (or "typed <time>"), and only **Copy** and **Propose again**. There is no Type and no Edit: keel serve refuses both for it (`AuthorizeType` looks proposals up in memory only). Propose again asks keel serve for a new proposal from the saved command: rated again (code rating, never looser than the saved one), the host's production flag now (a deleted host counts as production), aimed at the same pane only while it is still open on the same host (else Copy only), logged as `agent.suggest`; the new card then goes through the normal approve-before-type path. A proposal from this run that is still in memory stays live when its conversation is reopened.
+- **Storage**: `keel.chats`, next to `keel.vault`, age-encrypted to an X25519 key that is itself a vault secret (`agentchats:key`, made on the first save). So transcripts open only with the vault, and a save re-encrypts `keel.chats` only, not `keel.vault` (no scrypt per save in passphrase mode). Nothing goes to `keel.json`. Saved per conversation: id, title, created and updated times, and per turn the question as sent (redacted), the shown answer (redacted), the model's reply kept for context (redacted, truncated), the trace (host, line count, redaction counts; never pane text) and the proposals (command passed through the Redactor again, so a vault secret typed into an edit is not kept; risk, host, pane id, proposed and typed times). At most 200 conversations and 100 turns each; the oldest go first.
+- **Retention**: Settings · Agent → Keep conversations (`historyDays`: only while open, 7, 30, 90 days, 1 year). keel serve deletes conversations last used before that on start, every hour and on each list; `keel.log` gets "N expired agent conversations deleted from the vault", never their content. "Only while open" saves nothing and deletes what was saved; the open conversation lives in memory until keel serve stops or it idles out. Delete all (here or in Settings) deletes both the in-memory and the saved conversations.
+- API: `GET /api/agent/conversations` (list, after pruning), `GET /api/agent/conversations/{id}` (transcript; reads no pane, sends nothing), `PATCH /api/agent/conversations/{id}` `{title}`, `POST /api/agent/conversations/{id}/proposals/{pid}/again`, `DELETE /api/agent/conversations/{id}`, `DELETE /api/agent/conversations`.
+
 ### 5.5 Plain language → command in a pane (`Suggest`)
 1. **Notice**: when the prompt line looks like plain language, it is highlighted (`haze-soft` + underline) and a hint shows "⇥ suggest a command". Detection is automatic (see §7).
 2. **Suggest**: ⇥ opens a card under the line: command, Read-only badge, one-line reason, up to 2 alternatives (2, 3 or ↑↓), ⇥ insert · esc keep my words.
@@ -112,7 +122,7 @@ Board names refer to the canvas.
 - **Trusting a key** (`POST /api/known-hosts`) takes only a key a connect was just refused for: each refusal records an offer (address:port, fingerprint, key type) under a random token for 2 minutes, and the request must name that token with the same address:port and fingerprint; a changed key also needs `replace`, and the saved key must not have changed since. Session prompts, forwards and Test connection all trust this way.
 
 ### 5.9 Settings · Agent (`Settings`)
-- Provider (connect; key stored in the vault). Suggestions in panes (on/off; Notice automatically / Only lines starting with `#`). Default panes per conversation (focused only / pick each time / every pane in tab). Scrollback lines per pane (50–1000, default 200). Safety (two always-on rows, ⇧⇥ rule, redaction of secrets / IPs / hostnames). History retention and delete all.
+- Provider (connect; key stored in the vault). Suggestions in panes (on/off; Notice automatically / Only lines starting with `#`). Default panes per conversation (focused only / pick each time / every pane in tab). Scrollback lines per pane (50–1000, default 200). Safety (two always-on rows, ⇧⇥ rule, redaction of secrets / IPs / hostnames). History retention and delete all (§5.4.1: saved in the vault, pruned by `historyDays`).
 
 ### 5.10 Port forwarding (`Forwards`)
 - Table: name, type (-L/-R/-D), route `local → remote`, through host, status, traffic, on/off switch, more.
@@ -185,6 +195,7 @@ Board names refer to the canvas.
 - Snippet: `kind` (`readonly` | `changes-state`), `vars` with defaults, `offerOnTags[]`, `agentUsable` (bool, default false; 6c+).
 - Settings: agent provider ref (secret in vault), detection mode, default scope, scrollback lines, redaction toggles, history retention, `historySuggestions` (on|off, default on; 6c+: suggest from the pane's scrollback).
 - Log events: `agent.read`, `agent.suggest`, `agent.insert`, `agent.type`, `share.request`, `share.pass`.
+- Saved agent conversations: `keel.chats` (age, X25519) with the key in the vault as `agentchats:key`; schema `store.AgentChat` (`internal/store/agentchats.go`, §5.4.1).
 
 ## 10. Build plan
 
@@ -200,6 +211,7 @@ One phase per branch and PR.
 | 5 · Unlock + First run | ssh config import, key copy | New backend for import |
 | 6 · Agent | Provider, scope, redaction, audit log, panel, proposals, then in-pane suggestions | Invariants in §6 are acceptance criteria |
 | Polish · Sidebar Panes | Panes segment and section in the Vault sidebar (§5.1, board `Panes`) | Post-plan polish PR; UI only, no backend data |
+| Agent sessions | Conversations saved encrypted in the vault, `historyDays` retention, the Recent conversations list in the panel (search, resume, rename, delete), Expired proposals with Copy / Propose again (§5.4.1, board `AgentSessions`) | The Agent tab page (board `AgentPage`) is the next PR |
 
 ## 11. Open questions
 

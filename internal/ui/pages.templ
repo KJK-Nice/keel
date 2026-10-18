@@ -490,7 +490,7 @@ templ agentSettingsPanel() {
 			<div class="pref-row">
 				<div class="pref-copy">
 					<div class="pref-title">Keep conversations</div>
-					<p class="pref-desc">Conversations live in memory in keel serve and are never written to disk.</p>
+					<p class="pref-desc">Saved encrypted in the vault, redacted as sent, and deleted when older than this. Only while open never writes them to disk.</p>
 				</div>
 				@settingsSelect("agent-set-history", "agentHistory", "Keep conversations", "Keep", "30", []string{"0", "7", "30", "90", "365"}, []string{"Only while open", "7 days", "30 days", "90 days", "1 year"})
 			</div>

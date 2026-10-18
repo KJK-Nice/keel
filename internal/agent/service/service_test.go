@@ -474,7 +474,7 @@ func TestHistoryIsBoundedAndReset(t *testing.T) {
 	if len(last.Messages) > maxHistoryMessages+1 {
 		t.Fatalf("request carried %d messages", len(last.Messages))
 	}
-	f.svc.Reset(conv)
+	_ = f.svc.Delete(conv)
 	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "fresh"}); err != nil {
 		t.Fatal(err)
 	}
@@ -598,10 +598,10 @@ func TestResetAllDropsEveryConversation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n := f.svc.ResetAll(); n != 2 {
+	if n, _ := f.svc.DeleteAll(); n != 2 {
 		t.Fatalf("ResetAll dropped %d, want 2", n)
 	}
-	if n := f.svc.ResetAll(); n != 0 {
+	if n, _ := f.svc.DeleteAll(); n != 0 {
 		t.Fatalf("second ResetAll dropped %d, want 0", n)
 	}
 	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "fresh"}); err != nil {

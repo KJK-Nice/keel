@@ -18,7 +18,27 @@ templ AgentPanel() {
 			<span class="k-agent-mark" aria-hidden="true">
 				@icon.AiMagic()
 			</span>
-			<span class="k-agent-title">Agent</span>
+			<button
+				type="button"
+				class="k-agent-sess"
+				id="agent-sessions-btn"
+				aria-haspopup="dialog"
+				aria-expanded="false"
+				aria-controls="agent-sessions"
+				aria-label="Recent conversations"
+				title="Recent conversations"
+			>
+				<span class="k-agent-sess-title" id="agent-title">New conversation</span>
+				@icon.ArrowDown01()
+			</button>
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="agent-new" aria-label="New conversation" title="New conversation">
+				@icon.Add01()
+			</button>
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="agent-close" aria-label="Close agent" title="Close agent">
+				@icon.Cancel01()
+			</button>
+		</div>
+		<div class="k-agent-sub">
 			<button
 				type="button"
 				class="k-agent-scope"
@@ -33,12 +53,23 @@ templ AgentPanel() {
 				@icon.ArrowDown01()
 			</button>
 			<span class="k-spacer"></span>
-			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="agent-new" aria-label="New conversation" title="New conversation">
-				@icon.Add01()
-			</button>
-			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="agent-close" aria-label="Close agent" title="Close agent">
-				@icon.Cancel01()
-			</button>
+			<span class="k-agent-saved" id="agent-saved">Saved in the vault</span>
+		</div>
+		<div class="k-agent-sessions" id="agent-sessions" role="dialog" aria-label="Recent conversations" hidden>
+			<div class="k-agent-sessions-search">
+				<div class="k-inputgroup">
+					<span class="k-addon">
+						@icon.Search01()
+					</span>
+					<input class="k-input" id="agent-sessions-filter" type="search" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" spellcheck="false"/>
+				</div>
+			</div>
+			<div class="k-agent-sessions-list" id="agent-sessions-list"></div>
+			<div class="k-agent-sessions-foot">
+				<span class="k-agent-sessions-note" id="agent-sessions-note"></span>
+				<span class="k-spacer"></span>
+				<button type="button" class="k-btn k-btn--ghost k-btn--sm k-agent-danger" id="agent-sessions-clear">Delete all</button>
+			</div>
 		</div>
 		<div class="k-agent-picker" id="agent-picker" role="dialog" aria-label="Panes the agent reads" tabindex="-1" hidden></div>
 		<div class="k-agent-thread" id="agent-thread" aria-live="polite"></div>

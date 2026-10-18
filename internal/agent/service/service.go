@@ -12,9 +12,11 @@
 // AuthorizeType (the ⇧ rule, the driver check, the agent.type log line)
 // before it writes.
 //
-// Conversations live in memory only, bounded, and are cleared by "New
-// conversation" (Reset) or when keel serve stops. Nothing is written to
-// disk, so the historyDays setting has nothing to apply to yet.
+// Conversations live in memory, bounded. When Settings · Agent keeps
+// history (historyDays > 0) each one is also saved, encrypted in the vault,
+// after every answer, and can be resumed after keel serve restarts; saved
+// ones past the retention are pruned (sessions.go). Deleting a conversation
+// removes it from both.
 package service
 
 import (
@@ -89,6 +91,9 @@ type Options struct {
 	// DetectLogWindow is how long detection reads of one pane are
 	// summarised into one keel.log entry (tests shorten it).
 	DetectLogWindow time.Duration
+	// Chats saves conversations (sessions.go). nil keeps them in memory
+	// only.
+	Chats ChatStore
 }
 
 type Service struct {
@@ -103,6 +108,11 @@ type Service struct {
 
 	mu    sync.Mutex
 	convs map[string]*conversation
+
+	chats ChatStore
+	// saveMu orders saves and deletes of saved conversations, so an older
+	// snapshot never lands after a newer one or after a delete.
+	saveMu sync.Mutex
 
 	sug          suggestState
 	detectWindow time.Duration
@@ -128,7 +138,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -165,6 +175,13 @@ type conversation struct {
 	asks      int
 	proposals []*Proposal
 	used      time.Time
+
+	// title, created, updated and record are what is saved (sessions.go):
+	// record holds every turn as the panel showed it, redacted.
+	title   string
+	created time.Time
+	updated time.Time
+	record  []store.AgentChatTurn
 }
 
 // AskRequest is the body of POST /api/agent/ask.
@@ -201,6 +218,11 @@ type Proposal struct {
 	NeedsShift   bool       `json:"needsShift"`
 	Placeholders bool       `json:"placeholders"` // holds [secret:N]-style text to replace before typing
 	Edited       bool       `json:"edited"`
+	ProposedAt   *time.Time `json:"proposedAt,omitempty"`
+	TypedAt      *time.Time `json:"typedAt,omitempty"`
+	// Expired is set on a saved proposal the service no longer holds
+	// (sessions.go): it can be copied or proposed again, not typed.
+	Expired bool `json:"expired,omitempty"`
 }
 
 type Usage struct {
@@ -211,6 +233,7 @@ type Usage struct {
 // AskResponse is what the panel shows for one ask.
 type AskResponse struct {
 	ConversationID     string         `json:"conversationId"`
+	Title              string         `json:"title"`
 	Turn               int            `json:"turn"`
 	Provider           string         `json:"provider"`
 	Model              string         `json:"model"`
@@ -259,6 +282,11 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		return AskResponse{}, ErrNoKey
 	}
 
+	// A saved conversation resumes here: its question and reply history
+	// comes back for context, never pane text (sessions.go).
+	if err := s.hydrate(req.ConversationID); err != nil {
+		return AskResponse{}, err
+	}
 	conv, err := s.begin(req.ConversationID)
 	if err != nil {
 		return AskResponse{}, err
@@ -357,8 +385,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		Proposals:          []Proposal{},
 		Usage:              Usage{InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens},
 	}
+	now := s.now()
+	var made []*Proposal
 	for _, raw := range raws {
-		p := &Proposal{ID: newID("p_"), Command: raw.Command, Bytes: typedBytes(raw.Command), Why: raw.Why, Risk: rate(raw.Command, raw.Risk)}
+		p := &Proposal{ID: newID("p_"), Command: raw.Command, Bytes: typedBytes(raw.Command), Why: raw.Why, Risk: rate(raw.Command, raw.Risk), ProposedAt: &now}
 		var target *agent.Excerpt
 		switch {
 		case raw.Pane >= 1 && raw.Pane <= len(excerpts):
@@ -375,6 +405,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		p.Placeholders = hasPlaceholder(p.Command)
 		out.Proposals = append(out.Proposals, *p)
 		conv.proposals = append(conv.proposals, p)
+		made = append(made, p)
 	}
 	if n := len(conv.proposals); n > maxProposalsKept {
 		conv.proposals = conv.proposals[n-maxProposalsKept:]
@@ -389,6 +420,31 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	conv.trimHistory()
 	conv.asks++
 	out.Turn = conv.asks
+
+	// What is saved (sessions.go) goes through the same Redactor: the
+	// question as sent, the answer, the trace (no pane text) and the
+	// proposals. A command came from a model that saw redacted text only,
+	// and is redacted again before it is kept.
+	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Model: conv.turns[len(conv.turns)-1].model.String()}
+	for _, st := range trace {
+		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions})
+	}
+	for _, p := range made {
+		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), now))
+	}
+
+	s.mu.Lock()
+	if conv.title == "" {
+		conv.title = titleFrom(r.Text(question))
+	}
+	if conv.created.IsZero() {
+		conv.created = now
+	}
+	conv.updated = now
+	conv.addRecordLocked(rec)
+	out.Title = conv.title
+	s.mu.Unlock()
+	s.persist(conv)
 	return out, nil
 }
 
@@ -521,10 +577,11 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 			return Proposal{}, err
 		}
 	}
+	r, _ := s.redactor()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	p, err = s.proposalLocked(convID, proposalID)
 	if err != nil {
+		s.mu.Unlock()
 		return Proposal{}, err
 	}
 	p.Command, p.Bytes, p.Edited = cmd, typedBytes(cmd), true
@@ -532,7 +589,18 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	p.Production = production
 	p.NeedsShift = agent.NeedsShift(p.Risk, production)
 	p.Placeholders = hasPlaceholder(cmd)
-	return *p, nil
+	out := *p
+	c := s.convs[convID]
+	sp := c.recordProposalLocked(proposalID)
+	if sp != nil && r != nil {
+		// What the user typed into the edit is kept redacted.
+		sp.Command, sp.Risk, sp.Production, sp.Edited = r.Text(cmd).String(), string(p.Risk), production, true
+	}
+	s.mu.Unlock()
+	if sp != nil && r != nil {
+		s.persist(c)
+	}
+	return out, nil
 }
 
 // TypeRequest is the user's Type into pane, as keel serve sees it on the
@@ -578,26 +646,6 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 		return ErrNeedsShift
 	}
 	return s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes)
-}
-
-// Reset forgets a conversation ("New conversation").
-func (s *Service) Reset(convID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.convs, convID)
-}
-
-// ResetAll forgets every conversation (Settings, Delete all history). The
-// service keeps conversations in memory only, so this is all there is to
-// delete. It returns how many were dropped. A conversation with an ask in
-// flight is dropped too: the ask finishes into a conversation nobody can
-// reach any more.
-func (s *Service) ResetAll() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	n := len(s.convs)
-	s.convs = map[string]*conversation{}
-	return n
 }
 
 // hostProduction reports a host's current production flag. It fails

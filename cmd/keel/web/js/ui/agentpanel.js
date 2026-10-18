@@ -40,6 +40,18 @@ const ICON = {
     '<path d="M13.9248 21H10.0752C5.44476 21 3.12955 21 2.27636 19.4939C1.42317 17.9879 2.60736 15.9914 4.97574 11.9985L6.90057 8.75333C9.17559 4.91778 10.3131 3 12 3C13.6869 3 14.8244 4.91777 17.0994 8.75332L19.0243 11.9985C21.3926 15.9914 22.5768 17.9879 21.7236 19.4939C20.8704 21 18.5552 21 13.9248 21Z"/><path d="M12 9V13"/><path d="M12 16.75H12.01"/>',
   ),
   info: svg('<circle cx="12" cy="12" r="10"/><path d="M12 16V12"/><path d="M12 8.25H12.01"/>'),
+  trash: svg(
+    '<path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5"/><path d="M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5"/><path d="M9.5 16.5L9.5 10.5"/><path d="M14.5 16.5L14.5 10.5"/>',
+  ),
+  redo: svg(
+    '<path d="M21 8H9C5.68629 8 3 10.6863 3 14C3 17.3137 5.68629 20 9 20H13"/><path d="M17 4L18.1538 4.87652C20.0513 6.31801 21 7.03875 21 8C21 8.96125 20.0513 9.68199 18.1538 11.1235L17 12"/>',
+  ),
+  history: svg(
+    '<path d="M3.49902 14.9656C4.72475 18.4791 8.06749 21 11.999 21C16.9696 21 20.999 16.9706 20.999 12C20.999 7.02944 16.9696 3 11.999 3C8.29827 3 4.8984 5.6756 3.68943 8.5"/><path d="M11.999 7V12L14.999 14"/><path d="M7.49751 8.74363C7.49751 8.74363 3.81388 9.3026 3.25487 8.7436C2.69585 8.1846 3.25488 4.50098 3.25488 4.50098"/>',
+  ),
+  shield: svg(
+    '<path d="M18.7088 3.49534C16.8165 2.55382 14.5009 2 12 2C9.4991 2 7.1835 2.55382 5.29116 3.49534C4.36318 3.95706 3.89919 4.18792 3.4496 4.91378C3 5.63965 3 6.34248 3 7.74814V11.2371C3 16.9205 7.54236 20.0804 10.173 21.4338C10.9067 21.8113 11.2735 22 12 22C12.7265 22 13.0933 21.8113 13.8269 21.4338C16.4576 20.0804 21 16.9205 21 11.2371L21 7.74814C21 6.34249 21 5.63966 20.5504 4.91378C20.1008 4.18791 19.6368 3.95706 18.7088 3.49534Z"/>',
+  ),
   eye: svg(
     '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
   ),
@@ -57,6 +69,14 @@ export const AGENT_ALERT_ICON = ICON.alert;
 //   copyText(text)
 //   onOpenChange(open)        layout and keyboard surface follow-up
 //   onResize()                the panel width changed; refit the terminals
+//   confirm(msg, opts)        → Promise<boolean> (the alertdialog), for Delete all
+//
+// Saved conversations (§5.4.1): the title button in the header opens the
+// session list (GET /api/agent/conversations). Picking one loads its
+// transcript (GET /api/agent/conversations/{id}) and the next ask
+// continues it; keel serve reads the panes in scope again then. Proposals
+// from an earlier run come back Expired: Copy, or Propose again, which asks
+// keel serve for a fresh proposal that goes through the normal Type path.
 export function createAgentPanel(deps) {
   const doc = deps.doc || document;
   const $ = (id) => doc.getElementById(id);
@@ -77,7 +97,17 @@ export function createAgentPanel(deps) {
     close: $("agent-close"),
     toggle: $("btn-agent"),
     toggleKbd: $("btn-agent-kbd"),
+    sessBtn: $("agent-sessions-btn"),
+    title: $("agent-title"),
+    saved: $("agent-saved"),
+    sessions: $("agent-sessions"),
+    sessFilter: $("agent-sessions-filter"),
+    sessList: $("agent-sessions-list"),
+    sessNote: $("agent-sessions-note"),
+    sessClear: $("agent-sessions-clear"),
   };
+  const NEW_TITLE = "New conversation";
+  const INPUT_HINT = el.input?.getAttribute("placeholder") || "Ask about these sessions…";
   const shiftWord = deps.isMac ? "⇧" : "Shift";
 
   const state = {
@@ -91,6 +121,10 @@ export function createAgentPanel(deps) {
     busy: null, // AbortController of the ask in flight
     turns: 0,
     proposals: new Map(), // id → { p, el, editing, status }
+    title: "",
+    historyDays: null, // from the settings; 0 keeps conversations only while open
+    sessions: [], // the last session list
+    renaming: null, // id of the session row being renamed
   };
 
   if (el.toggleKbd) el.toggleKbd.textContent = deps.isMac ? "⌘I" : "Ctrl+⇧I";
@@ -117,7 +151,10 @@ export function createAgentPanel(deps) {
   function setOpen(open, { focus = true } = {}) {
     state.open = !!open;
     applyOpen();
-    if (!state.open) closePicker();
+    if (!state.open) {
+      closePicker();
+      closeSessions();
+    }
     deps.onOpenChange?.(state.open);
     if (state.open) {
       refresh();
@@ -138,6 +175,8 @@ export function createAgentPanel(deps) {
       state.settings = res.settings || null;
       const pid = state.settings?.provider || "gemini";
       state.keyConfigured = !!res.keys?.[pid]?.configured;
+      state.historyDays = state.settings?.historyDays ?? null;
+      paintTitle();
       if (state.scopeAuto) state.scope = A.defaultScope(state.settings?.defaultScope, panes());
       if (!state.keyConfigured && !state.provider) {
         const list = await deps.api("/api/agent/providers");
@@ -211,6 +250,14 @@ export function createAgentPanel(deps) {
     }
   }
 
+  // --- title and the saved note ---
+
+  function paintTitle() {
+    setText(el.title, state.title || NEW_TITLE);
+    if (el.sessBtn) el.sessBtn.title = state.title ? `${state.title} · Recent conversations` : "Recent conversations";
+    if (el.saved && state.historyDays != null) setText(el.saved, A.savedLabel(state.historyDays));
+  }
+
   // --- scope ---
 
   function scopePanes() {
@@ -267,6 +314,7 @@ export function createAgentPanel(deps) {
   }
 
   function openPicker() {
+    closeSessions();
     paintPicker();
     el.picker.hidden = false;
     el.scope.setAttribute("aria-expanded", "true");
@@ -329,6 +377,7 @@ export function createAgentPanel(deps) {
       return;
     }
     closePicker();
+    closeSessions();
     startThread();
     const inScope = scopePanes();
     appendHTML(`<div class="k-agent-turn"><div class="k-agent-who">You</div><p class="k-agent-msg">${escapeHtml(q)}</p></div>`);
@@ -347,6 +396,10 @@ export function createAgentPanel(deps) {
         signal: ctl.signal,
       });
       if (res.conversationId !== state.conv) return; // a new conversation started meanwhile
+      if (res.title) {
+        state.title = res.title;
+        paintTitle();
+      }
       const trace = turn.querySelector(".k-agent-trace");
       trace.innerHTML =
         (res.trace || []).map(stepHTML).join("") || `<div class="k-agent-step k-agent-step--skip">${ICON.skip}<span>Read no pane</span></div>`;
@@ -391,16 +444,64 @@ export function createAgentPanel(deps) {
     node.dataset.proposalId = p.id;
     el.thread.appendChild(node);
     const rec = { p, el: node, editing: false, status: null };
+    if (p.typedAt && !p.expired) rec.status = { ok: true, text: `Typed into ${p.host || "the pane"} at ${A.stampLabel(p.typedAt)}.` };
     state.proposals.set(p.id, rec);
     paintCard(rec);
+    return node;
   }
 
   function noteHTML(kind, icon, text) {
     return `<p class="k-prop-note k-prop-note--${kind}">${icon}<span>${text}</span></p>`;
   }
 
+  // An expired card is a proposal saved from an earlier run: the panes may
+  // have changed, so it cannot be typed. Copy, or Propose again (a fresh
+  // proposal through the normal path).
+  function paintExpired(rec) {
+    const { p } = rec;
+    const badge = A.riskBadge(p.risk);
+    rec.el.classList.add("k-prop--expired");
+    rec.el.dataset.risk = p.risk;
+    const when = p.proposedAt ? A.stampLabel(p.proposedAt) : "";
+    const typed = p.typedAt ? `typed ${A.stampLabel(p.typedAt)}` : "not typed";
+    rec.el.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>Run on</span><span class="k-mono">${escapeHtml(p.host || "no pane")}</span>${
+      p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
+    }<span class="k-badge ${badge.cls} k-prop-risk">${badge.label}</span><span class="k-badge">Expired</span></div>
+      <div class="k-prop-body"><pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>${p.why ? `<p class="k-prop-why">${escapeHtml(p.why)}</p>` : ""}${noteHTML(
+        "muted",
+        ICON.history,
+        "Panes may have changed since this was proposed.",
+      )}</div>
+      <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml([when ? `Proposed ${when}` : "", typed].filter(Boolean).join(" · "))}</span>
+        <span class="k-spacer"></span>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-prop-copy>${ICON.copy}Copy</button>
+        <button type="button" class="k-btn k-btn--sm" data-prop-again>${ICON.redo}Propose again</button></div>`;
+  }
+
+  async function proposeAgain(rec) {
+    const btn = rec.el.querySelector("[data-prop-again]");
+    if (btn) btn.disabled = true;
+    try {
+      const p = await deps.api(
+        `/api/agent/conversations/${encodeURIComponent(state.conv)}/proposals/${encodeURIComponent(rec.p.id)}/again`,
+        { method: "POST" },
+      );
+      const node = addProposal(p);
+      node.scrollIntoView?.({ block: "nearest" });
+      node.querySelector("[data-prop-type], [data-prop-copy]")?.focus({ preventScroll: true });
+    } catch (err) {
+      deps.toast(err?.message || String(err), true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function paintCard(rec) {
     const { p } = rec;
+    if (p.expired) {
+      paintExpired(rec);
+      return;
+    }
     const pane = paneById(p.sessionId);
     const offer = A.typeOffer(p, pane);
     const badge = A.riskBadge(p.risk);
@@ -475,18 +576,234 @@ export function createAgentPanel(deps) {
 
   // --- new conversation ---
 
-  function newConversation() {
-    const old = state.conv;
+  // newConversation starts a fresh thread. The old one stays: it is saved
+  // in the vault (with history on) and listed under the title button.
+  function newConversation({ focus = true } = {}) {
     state.busy?.abort();
     state.conv = A.conversationId();
     state.turns = 0;
+    state.title = "";
     state.proposals.clear();
     state.scopeAuto = true;
     if (state.settings) state.scope = A.defaultScope(state.settings.defaultScope, panes());
-    deps.api(`/api/agent/conversations/${encodeURIComponent(old)}`, { method: "DELETE" }).catch(() => {});
+    if (el.input) el.input.placeholder = INPUT_HINT;
+    paintTitle();
     refresh();
     paintEmpty();
+    if (focus) el.input?.focus({ preventScroll: true });
+  }
+
+  // --- saved conversations (the title button's list) ---
+
+  function sessionsOpen() {
+    return !!el.sessions && !el.sessions.hidden;
+  }
+
+  async function openSessions() {
+    if (!el.sessions) return;
+    closePicker();
+    el.sessions.hidden = false;
+    el.sessBtn?.setAttribute("aria-expanded", "true");
+    if (el.sessFilter) el.sessFilter.value = "";
+    state.renaming = null;
+    el.sessList.innerHTML = `<p class="k-help k-agent-sessions-empty">Loading…</p>`;
+    el.sessFilter?.focus({ preventScroll: true });
+    await loadSessions();
+  }
+
+  function closeSessions({ refocus = false } = {}) {
+    if (!sessionsOpen()) return;
+    el.sessions.hidden = true;
+    state.renaming = null;
+    el.sessBtn?.setAttribute("aria-expanded", "false");
+    if (refocus) el.sessBtn?.focus({ preventScroll: true });
+  }
+
+  async function loadSessions() {
+    try {
+      const res = await deps.api("/api/agent/conversations");
+      state.sessions = res?.sessions || [];
+      if (res?.historyDays != null) state.historyDays = res.historyDays;
+      paintTitle();
+    } catch (err) {
+      state.sessions = [];
+      el.sessList.innerHTML = `<p class="k-help k-agent-sessions-empty">${
+        err?.code === 423 ? "Unlock the vault to see saved conversations." : escapeHtml(err?.message || String(err))
+      }</p>`;
+      return;
+    }
+    paintSessions();
+  }
+
+  function sessionRowHTML(s) {
+    const current = s.id === state.conv;
+    const hosts = (s.hosts || [])
+      .slice(0, 3)
+      .map((h) => `<span class="k-badge k-badge--mono">${escapeHtml(h)}</span>`)
+      .join("");
+    if (state.renaming === s.id) {
+      return `<form class="k-agent-sess-row k-agent-sess-row--edit" data-sess-rename-form="${escapeHtml(s.id)}" aria-current="${current}">
+        <input class="k-input" data-sess-title value="${escapeHtml(s.title || "")}" maxlength="120" aria-label="Conversation title" spellcheck="false" autocomplete="off" />
+        <button type="submit" class="k-btn k-btn--primary k-btn--sm">Save</button>
+      </form>`;
+    }
+    return `<div class="k-agent-sess-row" aria-current="${current}" data-sess="${escapeHtml(s.id)}">
+      <button type="button" class="k-agent-sess-pick" data-sess-pick="${escapeHtml(s.id)}">
+        <span class="k-agent-sess-name">${escapeHtml(s.title || NEW_TITLE)}</span>
+        <span class="k-agent-sess-meta">${hosts}<span>${escapeHtml(A.sessionWhen(s.updatedAt))}</span><span>· ${escapeHtml(A.proposalsLabel(s.proposals))}</span></span>
+      </button>
+      <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-sess-rename="${escapeHtml(s.id)}" aria-label="Rename ${escapeHtml(
+        s.title || NEW_TITLE,
+      )}" title="Rename">${ICON.edit}</button>
+      <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-sess-delete="${escapeHtml(s.id)}" aria-label="Delete ${escapeHtml(
+        s.title || NEW_TITLE,
+      )}" title="Delete">${ICON.trash}</button>
+    </div>`;
+  }
+
+  function paintSessions() {
+    const days = state.historyDays;
+    setText(el.sessNote, days == null ? "" : A.retentionNote(days));
+    if (el.sessClear) el.sessClear.disabled = !state.sessions.length;
+    const groups = A.sessionGroups(state.sessions, el.sessFilter?.value || "");
+    if (!groups.length) {
+      const msg = state.sessions.length
+        ? "No conversation matches."
+        : days === 0
+          ? "History is off: conversations are kept only while the panel is open. Turn it on in Settings · Agent."
+          : "No saved conversations.";
+      el.sessList.innerHTML = `<p class="k-help k-agent-sessions-empty">${escapeHtml(msg)}</p>`;
+      return;
+    }
+    el.sessList.innerHTML = groups
+      .map(
+        (g) =>
+          `<div class="k-agent-sess-grp" role="presentation"><span>${escapeHtml(g.label)}</span><span>${g.rows.length}</span></div>${g.rows
+            .map(sessionRowHTML)
+            .join("")}`,
+      )
+      .join("");
+    if (state.renaming) {
+      const input = el.sessList.querySelector("[data-sess-title]");
+      input?.focus({ preventScroll: true });
+      input?.select();
+    }
+  }
+
+  function threadTurnHTML(t) {
+    if (t.again) return "";
+    const who = t.at ? ` · ${escapeHtml(A.stampLabel(t.at))}` : "";
+    const trace = (t.trace || []).map(stepHTML).join("");
+    return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
+      <div class="k-agent-turn"><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
+        t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
+      }</div>`;
+  }
+
+  // resume opens a saved conversation. Nothing is read or sent: the
+  // transcript comes from keel serve, and the next ask reads the panes in
+  // scope as they are then.
+  async function resume(id) {
+    if (!id) return;
+    if (id === state.conv && state.turns > 0) {
+      closeSessions();
+      el.input?.focus({ preventScroll: true });
+      return;
+    }
+    let t;
+    try {
+      t = await deps.api(`/api/agent/conversations/${encodeURIComponent(id)}`);
+    } catch (err) {
+      deps.toast(err?.code === 404 ? "That conversation is gone." : err?.message || String(err), true);
+      loadSessions();
+      return;
+    }
+    closeSessions();
+    state.busy?.abort();
+    state.conv = t.id;
+    state.title = t.title || "";
+    state.proposals.clear();
+    state.turns = 0;
+    el.thread.innerHTML = "";
+    for (const turn of t.turns || []) {
+      const html = threadTurnHTML(turn);
+      if (html) {
+        el.thread.insertAdjacentHTML("beforeend", html);
+        state.turns++;
+      }
+      for (const p of turn.proposals || []) addProposal(p);
+    }
+    const anyExpired = (t.turns || []).some((turn) => (turn.proposals || []).some((p) => p.expired));
+    if (anyExpired || state.turns) {
+      el.thread.insertAdjacentHTML(
+        "beforeend",
+        `<div class="k-agent-divider" role="separator">Resumed · ${escapeHtml(A.agoLabel(t.updatedAt))}</div>
+         <div class="k-agent-resumed">${ICON.shield}<span class="k-help">Earlier reads stay in this conversation as text. New reads use only the panes in scope now, on hosts that still allow the agent.</span></div>`,
+      );
+    }
+    if (!state.turns) state.turns = 1; // keep the transcript when nothing new is asked
+    if (el.input) el.input.placeholder = "Continue this conversation…";
+    paintTitle();
+    refresh();
+    scrollDown();
     el.input?.focus({ preventScroll: true });
+  }
+
+  async function renameSession(id, title) {
+    const t = String(title || "").trim();
+    if (!t) {
+      state.renaming = null;
+      paintSessions();
+      return;
+    }
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ title: t }) });
+      const s = state.sessions.find((x) => x.id === id);
+      if (s) s.title = res.title;
+      if (id === state.conv) {
+        state.title = res.title;
+        paintTitle();
+      }
+    } catch (err) {
+      deps.toast(err?.message || String(err), true);
+    }
+    state.renaming = null;
+    paintSessions();
+    el.sessList.querySelector(`[data-sess-rename="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+  }
+
+  async function deleteSession(id) {
+    try {
+      await deps.api(`/api/agent/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch (err) {
+      deps.toast(err?.message || String(err), true);
+      return;
+    }
+    state.sessions = state.sessions.filter((s) => s.id !== id);
+    if (id === state.conv) newConversation({ focus: false });
+    paintSessions();
+    (el.sessList.querySelector("[data-sess-pick]") || el.sessFilter)?.focus({ preventScroll: true });
+    deps.toast("Conversation deleted");
+  }
+
+  async function deleteAllSessions() {
+    if (deps.confirm) {
+      const ok = await deps.confirm("Every saved agent conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs.", {
+        title: "Delete all conversations?",
+        action: "Delete all",
+      });
+      if (!ok) return;
+    }
+    try {
+      await deps.api("/api/agent/conversations", { method: "DELETE" });
+    } catch (err) {
+      deps.toast(err?.message || String(err), true);
+      return;
+    }
+    state.sessions = [];
+    newConversation({ focus: false });
+    paintSessions();
+    deps.toast("Agent history deleted");
   }
 
   // --- events ---
@@ -527,9 +844,54 @@ export function createAgentPanel(deps) {
     }
   });
   doc.addEventListener("pointerdown", (ev) => {
+    if (sessionsOpen() && !el.sessions.contains(ev.target) && !el.sessBtn?.contains(ev.target)) closeSessions();
     if (el.picker.hidden) return;
     if (el.picker.contains(ev.target) || el.scope.contains(ev.target)) return;
     closePicker();
+  });
+
+  el.sessBtn?.addEventListener("click", () => (sessionsOpen() ? closeSessions({ refocus: true }) : openSessions()));
+  el.sessFilter?.addEventListener("input", () => paintSessions());
+  el.sessClear?.addEventListener("click", () => deleteAllSessions());
+  el.sessList?.addEventListener("click", (ev) => {
+    const pick = ev.target.closest("[data-sess-pick]")?.dataset.sessPick;
+    if (pick) return void resume(pick);
+    const ren = ev.target.closest("[data-sess-rename]")?.dataset.sessRename;
+    if (ren) {
+      state.renaming = ren;
+      paintSessions();
+      return;
+    }
+    const del = ev.target.closest("[data-sess-delete]")?.dataset.sessDelete;
+    if (del) deleteSession(del);
+  });
+  el.sessList?.addEventListener("submit", (ev) => {
+    const form = ev.target.closest("[data-sess-rename-form]");
+    if (!form) return;
+    ev.preventDefault();
+    renameSession(form.dataset.sessRenameForm, form.querySelector("[data-sess-title]")?.value);
+  });
+  el.sessions?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (state.renaming) {
+        const id = state.renaming;
+        state.renaming = null;
+        paintSessions();
+        el.sessList.querySelector(`[data-sess-rename="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+        return;
+      }
+      closeSessions({ refocus: true });
+      return;
+    }
+    if ((ev.key === "ArrowDown" || ev.key === "ArrowUp") && !state.renaming) {
+      const items = [el.sessFilter, ...el.sessList.querySelectorAll("[data-sess-pick]")].filter(Boolean);
+      const i = items.indexOf(doc.activeElement);
+      const next = items[(i + (ev.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
+      next?.focus({ preventScroll: true });
+      ev.preventDefault();
+    }
   });
 
   el.chips.addEventListener("click", (ev) => {
@@ -569,6 +931,7 @@ export function createAgentPanel(deps) {
     const rec = card && state.proposals.get(card.dataset.proposalId);
     if (!rec) return;
     if (ev.target.closest("[data-prop-type]")) typeIt(rec, ev.shiftKey);
+    else if (ev.target.closest("[data-prop-again]")) proposeAgain(rec);
     else if (ev.target.closest("[data-prop-copy]")) deps.copyText(rec.p.command);
     else if (ev.target.closest("[data-prop-edit-btn]")) {
       rec.editing = true;
@@ -708,6 +1071,7 @@ export function createAgentPanel(deps) {
     refresh,
     focused: () => root.contains(doc.activeElement),
     ask,
+    resume,
     // test seam for node: the current scope ids
     scope: () => state.scope.slice(),
   };

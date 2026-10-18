@@ -103,3 +103,43 @@ test("@ opens the pane picker only at the start of a word", () => {
 test("conversation ids match the server's pattern", () => {
   for (let i = 0; i < 20; i++) assert.match(A.conversationId(), /^[A-Za-z0-9_-]{8,64}$/);
 });
+
+test("an expired proposal is never offered for typing", () => {
+  const p = { sessionId: "s1", expired: true, needsShift: false };
+  assert.equal(A.typeOffer(p, panes[0]), "expired");
+  assert.deepEqual(A.typeGate(p, panes[0], true), { ok: false, reason: "expired" });
+});
+
+test("saved conversations group by local day and filter by title or host", () => {
+  const now = new Date(2026, 9, 18, 10, 0);
+  const list = [
+    { id: "a", title: "Why is pg-2 lagging?", hosts: ["prod-db-01"], updatedAt: new Date(2026, 9, 18, 9, 14).toISOString() },
+    { id: "b", title: "TLS cert", hosts: ["ceph-rgw-1"], updatedAt: new Date(2026, 9, 17, 17, 40).toISOString() },
+    { id: "c", title: "Disk full", hosts: ["gitlab-runner-3"], updatedAt: new Date(2026, 9, 14, 16, 2).toISOString() },
+  ];
+  assert.deepEqual(
+    A.sessionGroups(list, "", now).map((g) => [g.label, g.rows.map((r) => r.id)]),
+    [
+      ["Today", ["a"]],
+      ["Yesterday", ["b"]],
+      ["Older", ["c"]],
+    ],
+  );
+  assert.deepEqual(A.sessionGroups(list, "RUNNER", now).map((g) => g.label), ["Older"]);
+  assert.deepEqual(A.sessionGroups(list, "pg-2", now)[0].rows[0].id, "a");
+  assert.deepEqual(A.sessionGroups(list, "nothing", now), []);
+  assert.equal(A.sessionWhen(list[0].updatedAt, now), "09:14");
+  assert.equal(A.sessionWhen(list[1].updatedAt, now), "17:40");
+  assert.equal(A.sessionWhen(list[2].updatedAt, now), "Oct 14");
+  assert.equal(A.stampLabel(list[2].updatedAt, now), "Oct 14, 16:02");
+  assert.equal(A.agoLabel(list[2].updatedAt, now), "4 days ago");
+  assert.equal(A.agoLabel(list[1].updatedAt, now), "yesterday");
+  assert.equal(A.agoLabel(new Date(2026, 9, 18, 9, 55), now), "5 minutes ago");
+  assert.equal(A.proposalsLabel(0), "no proposals");
+  assert.equal(A.proposalsLabel(1), "1 proposal");
+  assert.equal(A.proposalsLabel(2), "2 proposals");
+  assert.equal(A.savedLabel(30), "Saved in the vault");
+  assert.equal(A.savedLabel(0), "Not saved · kept while open");
+  assert.equal(A.retentionNote(30), "Kept 30 days");
+  assert.equal(A.retentionNote(365), "Kept 1 year");
+});
