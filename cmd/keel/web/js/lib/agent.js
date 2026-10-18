@@ -257,10 +257,13 @@ export function proposalsLabel(n) {
 // sessionGroups filters the saved conversations by the search text (title
 // or host, any case) and groups them Today / Yesterday / Older, keeping
 // the server's order (most recent first). Empty groups are left out.
-export function sessionGroups(sessions, query = "", now = new Date()) {
+// host, when set, keeps only conversations that read or proposed for that
+// host (the Agent page's host filter).
+export function sessionGroups(sessions, query = "", now = new Date(), host = "") {
   const q = String(query || "").trim().toLowerCase();
   const match = (s) =>
-    !q || String(s.title || "").toLowerCase().includes(q) || (s.hosts || []).some((h) => String(h).toLowerCase().includes(q));
+    (!host || (s.hosts || []).includes(host)) &&
+    (!q || String(s.title || "").toLowerCase().includes(q) || (s.hosts || []).some((h) => String(h).toLowerCase().includes(q)));
   const groups = [
     { label: "Today", rows: [] },
     { label: "Yesterday", rows: [] },
@@ -287,4 +290,87 @@ export function retentionNote(historyDays) {
   if (d <= 0) return "History is off";
   if (d === 365) return "Kept 1 year";
   return `Kept ${d} ${d === 1 ? "day" : "days"}`;
+}
+
+// --- the Agent tab page (§5.4.2) ---
+
+// paneTarget names a pane with its tab ("prod-db-01 · deploy"), so two
+// panes on one host in different tabs can be told apart. The tab name is
+// left out when it only repeats the pane's name.
+export function paneTarget(label, tab) {
+  const l = String(label || "").trim();
+  const t = String(tab || "").trim();
+  if (!t || t === l) return l;
+  return l ? `${l} · ${t}` : t;
+}
+
+// hostFilters are the Agent page's host chips: the hosts the saved
+// conversations read or proposed for, most recent conversation first, at
+// most max of them.
+export function hostFilters(sessions, max = 6) {
+  const out = [];
+  for (const s of sessions || []) {
+    for (const h of s?.hosts || []) {
+      if (out.length >= max) return out;
+      if (h && !out.includes(h)) out.push(h);
+    }
+  }
+  return out;
+}
+
+// conversationHosts are the hosts one conversation read or proposed for,
+// in first seen order. turns are the conversation model: { trace,
+// proposals }.
+export function conversationHosts(turns) {
+  const out = [];
+  const add = (h) => {
+    if (h && !out.includes(h)) out.push(h);
+  };
+  for (const t of turns || []) {
+    for (const st of t.trace || []) if (st.status === "read") add(st.host);
+    for (const p of t.proposals || []) add(p.host);
+  }
+  return out;
+}
+
+// readSummary adds up what a conversation read, per host: lines and how
+// many values were redacted. Skipped panes are left out.
+export function readSummary(turns) {
+  const by = new Map();
+  for (const t of turns || []) {
+    for (const st of t.trace || []) {
+      if (st.status !== "read") continue;
+      const host = st.host || "a pane";
+      const r = by.get(host) || { host, lines: 0, redacted: 0 };
+      r.lines += Number(st.lines) || 0;
+      r.redacted += Object.values(st.redactions || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+      by.set(host, r);
+    }
+  }
+  return [...by.values()].map((r) => ({
+    ...r,
+    linesLabel: `${r.lines} ${r.lines === 1 ? "line" : "lines"}`,
+    redactedLabel: `${r.redacted} redacted`,
+  }));
+}
+
+// proposalState is a proposal's badge in the page's Proposals list. typed
+// is true when it was typed in this window (the card's status) even if the
+// proposal object has no typedAt yet.
+export function proposalState(p, typed = false) {
+  if (typed || p?.typedAt) return { label: p?.edited ? "Edited, typed" : "Typed", cls: "k-badge--brass" };
+  if (p?.expired) return { label: "Expired", cls: "" };
+  return { label: "Not typed", cls: "k-badge--outline" };
+}
+
+// startedLabel is the page header's "Today 09:14 · 2 questions".
+export function startedLabel(when, questions, now = new Date()) {
+  const n = Number(questions) || 0;
+  const count = `${n} ${n === 1 ? "question" : "questions"}`;
+  const d = toDate(when);
+  if (!d) return count;
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const g = dayGroup(d, now);
+  const day = g === "Older" ? `${MONTHS[d.getMonth()]} ${d.getDate()}` : g;
+  return `${day} ${hm} · ${count}`;
 }

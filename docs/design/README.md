@@ -54,7 +54,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 ## Space, size and shape
 
 - Spacing steps: `space-0.5` 2 · `space-1` 4 · `space-1.5` 6 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-6` 24 · `space-8` 32. Lay out with `gap`, not margins.
-- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208 (settings sections), `size-sidebar` 252 (Vault sidebar), `size-list` 360 (list column of a list and detail page), `size-agent` 380 (agent panel), `size-reading` 68ch (notebook reading column).
+- Fixed chrome: `size-titlebar` 38, `size-tab` 28, `size-panebar` 30, `size-control` 28 (`-sm` 24, `-lg` 32), `size-row` 44, `size-rail` 208 (settings sections), `size-sidebar` 252 (Vault sidebar), `size-list` 360 (list column of a list and detail page), `size-agent` 380 (agent panel), `size-agentpage-list` 280 / `size-agentpage-context` 300 / `size-agentpage-thread` 820 (Agent tab page columns and thread measure), `size-reading` 68ch (notebook reading column).
 - Radii are small and tight: `radius-xs` 3 (kbd, badge, menu item), `radius-sm` 5 (buttons, inputs, tabs), `radius-md` 8 (menus, toasts), `radius-lg` 12 (dialogs, palette), `radius-full` for dots, chips and the switch.
 
 ## Depth, borders, motion

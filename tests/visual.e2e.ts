@@ -439,3 +439,68 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
     });
   }
 });
+
+// The Agent tab page (§5.4.2, board AgentPage): a live conversation, then
+// one whose proposal is Expired.
+describe('agent page', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`agent page (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await openKeel(app);
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      const sessions = await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions');
+      const pane = sessions[sessions.length - 1].id;
+
+      // The expired one: asked, then pushed out of memory by 17 others
+      // (keel serve keeps 16), which are deleted again.
+      await expect
+        .poll(async () => {
+          try {
+            await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: `conv-visual-page-old-${theme}-${Date.now()}`, question: 'Clean up the build scratch, please touch a file', panes: [pane] });
+            return true;
+          } catch {
+            return false;
+          }
+        })
+        .toBe(true);
+      const fillers: string[] = [];
+      for (let i = 0; i < 17; i++) {
+        fillers.push(`conv-visual-page-fill-${i}-${Date.now()}`);
+        await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: fillers[i], question: `filler ${i}` });
+      }
+      for (const id of fillers) await keelSend(app.baseUrl, 'DELETE', `/api/agent/conversations/${id}`);
+      const live = `conv-visual-page-live-${theme}-${Date.now()}`;
+      await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: live, question: 'Why is the replica lagging behind?', panes: [pane] });
+      await keelSend(app.baseUrl, 'POST', '/api/agent/ask', { conversationId: live, question: 'Is it the network or the disk? no command', panes: [pane] });
+
+      await input.press('Meta+k');
+      const palette = screen.getByRole('dialog', 'Command palette');
+      await palette.getByRole('combobox').fill('Agent conversations');
+      await palette.getByRole('option').filter({ hasText: 'Agent conversations' }).first().tap();
+      const page = screen.getByRole('region', 'Agent');
+      const list = page.getByRole('navigation', 'Conversations');
+      await list.getByRole('button', /^Why is the replica lagging behind/).tap();
+      await expect(page.getByRole('region', 'Conversation').getByRole('group', 'Proposal')).toHaveCount(1);
+      await expect(page.getByRole('complementary', 'Conversation context')).toContainText('echo keel-agent-ok');
+      await app.screenshot(`${theme}-agent-page`);
+
+      await list.getByRole('button', /^Clean up the build scratch/).tap();
+      await expect(page.getByRole('region', 'Conversation').getByRole('group', 'Proposal').first()).toContainText('Expired');
+      await app.screenshot(`${theme}-agent-page-expired`);
+
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+      for (let i = 0; i < 3; i++) {
+        const close = screen.getByRole('button', 'Close tab', { visible: true });
+        if (!(await close.count())) break;
+        await close.first().tap();
+      }
+      // keel serve restores running sessions as tabs on the next load.
+      await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${pane}`).catch(() => {});
+    });
+  }
+});

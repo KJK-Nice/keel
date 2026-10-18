@@ -146,3 +146,52 @@ test("saved conversations group by local day and filter by title or host", () =>
   assert.equal(A.retentionNote(30), "Kept 30 days");
   assert.equal(A.retentionNote(365), "Kept 1 year");
 });
+
+test("Agent page: host chips, host filter, context column (§5.4.2)", () => {
+  const now = new Date(2026, 9, 18, 10, 0);
+  const list = [
+    { id: "a", title: "pg lag", hosts: ["prod-db-01", "prod-db-02"], updatedAt: new Date(2026, 9, 18, 9, 14).toISOString() },
+    { id: "b", title: "502", hosts: ["prod-api-01", "prod-db-01"], updatedAt: new Date(2026, 9, 18, 8, 2).toISOString() },
+    { id: "c", title: "disk", hosts: ["gitlab-runner-3"], updatedAt: new Date(2026, 9, 14, 16, 2).toISOString() },
+  ];
+  assert.deepEqual(A.hostFilters(list), ["prod-db-01", "prod-db-02", "prod-api-01", "gitlab-runner-3"]);
+  assert.deepEqual(A.hostFilters(list, 2), ["prod-db-01", "prod-db-02"]);
+  assert.deepEqual(A.hostFilters([]), []);
+  assert.deepEqual(
+    A.sessionGroups(list, "", now, "prod-db-01").map((g) => g.rows.map((r) => r.id)),
+    [["a", "b"]],
+  );
+  assert.deepEqual(A.sessionGroups(list, "502", now, "prod-db-02"), []);
+
+  const turns = [
+    {
+      trace: [
+        { host: "prod-db-01", status: "read", lines: 120 },
+        { host: "prod-db-02", status: "read", lines: 64, redactions: { secret: 1 } },
+        { host: "secret-box", status: "skipped", reason: "not-readable" },
+      ],
+      proposals: [{ id: "p1", host: "prod-db-01", command: "psql" }],
+    },
+    { trace: [{ host: "prod-db-01", status: "read", lines: 1 }], proposals: [] },
+    { again: true, trace: [], proposals: [{ id: "p2", host: "web-1", command: "psql" }] },
+  ];
+  assert.deepEqual(A.conversationHosts(turns), ["prod-db-01", "prod-db-02", "web-1"]);
+  assert.deepEqual(
+    A.readSummary(turns).map((r) => [r.host, r.linesLabel, r.redactedLabel]),
+    [
+      ["prod-db-01", "121 lines", "0 redacted"],
+      ["prod-db-02", "64 lines", "1 redacted"],
+    ],
+  );
+  assert.deepEqual(A.readSummary([]), []);
+
+  assert.deepEqual(A.proposalState({ expired: true }), { label: "Expired", cls: "" });
+  assert.deepEqual(A.proposalState({ expired: true, typedAt: "x" }), { label: "Typed", cls: "k-badge--brass" });
+  assert.deepEqual(A.proposalState({ edited: true }, true), { label: "Edited, typed", cls: "k-badge--brass" });
+  assert.equal(A.proposalState({}).label, "Not typed");
+
+  assert.equal(A.startedLabel(new Date(2026, 9, 18, 9, 14), 2, now), "Today 09:14 · 2 questions");
+  assert.equal(A.startedLabel(new Date(2026, 9, 17, 9, 14), 1, now), "Yesterday 09:14 · 1 question");
+  assert.equal(A.startedLabel(new Date(2026, 9, 14, 16, 2), 3, now), "Oct 14 16:02 · 3 questions");
+  assert.equal(A.startedLabel("", 0, now), "0 questions");
+});

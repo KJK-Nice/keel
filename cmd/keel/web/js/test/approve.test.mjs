@@ -58,8 +58,12 @@ test("agent proposals are typed only through approve-before-type, to one pane", 
   assert.match(body, /if \(!isDriving\(pane\)\) return/);
   assert.match(fns.get("sendApprovedInject"), /const single = !!\(opts\.agent \|\| opts\.suggestion\);/);
   assert.match(fns.get("sendApprovedInject"), /single \? \[pane\]/);
-  const panel = readFileSync(join(dir, "..", "ui", "agentpanel.js"), "utf8");
-  for (const bad of ["sendSession", "inject", "/ws/", ".send("]) assert.ok(!panel.includes(bad), `agentpanel.js must not use ${bad}`);
+  // The panel, its thread views and the Agent page (§5.4.2) reach a pane
+  // only through deps.typeProposal.
+  for (const file of ["agentpanel.js", "agentthread.js", "agentpage.js"]) {
+    const src = readFileSync(join(dir, "..", "ui", file), "utf8");
+    for (const bad of ["sendSession", "inject", "/ws/", ".send(", "WebSocket", "new WebSocket("]) assert.ok(!src.includes(bad), `${file} must not use ${bad}`);
+  }
 });
 
 // §5.5, §6.1, §6.5: an in-pane suggestion reaches a pane only through the
