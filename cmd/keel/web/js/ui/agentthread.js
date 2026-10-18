@@ -354,7 +354,7 @@ export function createThreadView(opts) {
     const cur = ctl.note?.(id);
     if (!rec || !cur) return;
     const { n, busy, error } = cur;
-    const warn = !!n.fromPane;
+    const warn = N.proposalWarn(n);
     rec.el.classList.toggle("k-prop--warn", warn && n.status === "open");
     if (n.status !== "open" || n.expired) {
       rec.editing = false;
@@ -366,12 +366,14 @@ export function createThreadView(opts) {
       return;
     }
     rec.el.classList.remove("k-prop--done");
-    const badges = `${warn ? '<span class="k-badge k-badge--flare">From pane output</span>' : ""}<span class="k-badge k-badge--mono">${escapeHtml(N.proposalTarget(n))}</span>`;
+    const badges = `${n.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}<span class="k-badge k-badge--mono">${escapeHtml(N.proposalTarget(n))}</span>`;
     const body = rec.editing
       ? `<textarea class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
       : `<p class="k-note-text">${A.answerHTML(n.text)}</p>`;
     const notes = [];
-    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(N.FROM_PANE_WARNING)}</span></div>`);
+    const origin = N.proposalOrigin(n);
+    if (origin) notes.push(noteHTML("signal", ICON.info, escapeHtml(origin)));
+    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(N.proposalWarning(n))}</span></div>`);
     if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
     notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you press Save. Notes live in the vault; edit them in Edit host or Settings · Agent."));
     const save = warn

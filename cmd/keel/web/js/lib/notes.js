@@ -85,6 +85,39 @@ export function proposalDone(p) {
 export const FROM_PANE_WARNING =
   "This text came from terminal output, not from you. Check it before saving: a saved note is sent to the agent with every question that reads this host, and text in a pane can be written to mislead the agent.";
 
+// proposalWarn reports whether a proposed note gets the warning
+// treatment: its text was found in pane output, or any pane was read for
+// the answer that proposed it. Keel's own "from pane output" check is a
+// hint a crafted pane can evade, so a read pane is reason enough.
+export function proposalWarn(p) {
+  return !!p?.fromPane || (p?.panesRead || []).length > 0;
+}
+
+// proposalWarning is the warning a proposed note shows, "" for none. A note
+// about the user is sent on every host, so its warning is the strongest.
+export function proposalWarning(p) {
+  if (!proposalWarn(p)) return "";
+  if (p.for === "user") {
+    return "The agent read terminal output for this answer, and this note may come from it, not from you. A note about you is sent with questions on every host the agent may read. Save it only if you would have written it yourself.";
+  }
+  if (p.fromPane) return FROM_PANE_WARNING;
+  return "The agent read terminal output for this answer, and this text may come from it, not from you. Check it before saving: a saved note is sent to the agent with every question that reads this host.";
+}
+
+// proposalOrigin says where the text was read and where the note would go,
+// when they differ: "Seen in pane db-2; it would be saved to the notes of
+// web-1." or "This answer read db-2 and web-1; the note would be saved to
+// the notes of web-1." "" when there is nothing to tell apart.
+export function proposalOrigin(p) {
+  const read = (p?.panesRead || []).filter(Boolean);
+  const list = read.length > 1 ? `${read.slice(0, -1).join(", ")} and ${read[read.length - 1]}` : read[0] || "";
+  if (p?.for === "user") return list ? `This answer read ${list}; this note would be sent on every host.` : "";
+  const host = p?.host || "this host";
+  if (p?.seenIn && p.seenIn !== p.host) return `Seen in pane ${p.seenIn}; it would be saved to the notes of ${host}.`;
+  if (read.some((h) => h !== p?.host)) return `This answer read ${list}; the note would be saved to the notes of ${host}.`;
+  return "";
+}
+
 // noteStepText is a trace line for notes sent with a question.
 export function noteStepText(step) {
   const n = Number(step?.notes) || 0;

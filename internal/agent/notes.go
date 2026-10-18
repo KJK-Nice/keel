@@ -79,7 +79,10 @@ func (a *Auditor) readNotes(notes []string, r *redact.Redactor) (NoteExcerpt, er
 	var b strings.Builder
 	n := 0
 	for _, t := range notes {
-		t = strings.Join(strings.Fields(t), " ")
+		// Kept notes are one line already; only line breaks become spaces
+		// here. Whitespace is not collapsed before redaction, so a vault
+		// value is matched as it is in the note.
+		t = strings.TrimSpace(strings.NewReplacer("\r", " ", "\n", " ").Replace(t))
 		if t == "" {
 			continue
 		}

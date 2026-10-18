@@ -762,6 +762,15 @@ func (s *Store) fullLocked(h persistHost) Host {
 }
 
 func (s *Store) UpsertHost(h Host) (Host, error) {
+	// A host created under an id the caller chose starts with no notes: a
+	// note left from an earlier host with that id (whose notes could not be
+	// removed when it was deleted) must not come back with it. Notes are
+	// taken before mu (memMu comes first).
+	if id := strings.TrimSpace(h.ID); id != "" && !s.locked.Load() && !s.hostExists(id) {
+		if err := s.deleteHostNotes(id); err != nil && !errors.Is(err, ErrMemoryUnreadable) {
+			return Host{}, fmt.Errorf("notes left from an earlier host with this id could not be removed: %w", err)
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
@@ -929,13 +938,18 @@ func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 }
 
 // DeleteHost removes a host, its secrets and its notes for the agent
-// (agentnotes.go). A keel.memory that cannot be read keeps the notes; they
-// name a host that is gone, so they are never sent again.
+// (agentnotes.go). When the notes cannot be removed the host is still gone
+// and the error says so. A keel.memory that cannot be read is no error
+// here: nothing in it can be read or sent until Delete all notes replaces
+// it, and a host created later under the same id clears its notes first
+// (UpsertHost).
 func (s *Store) DeleteHost(id string) error {
 	if err := s.deleteHost(id); err != nil {
 		return err
 	}
-	_ = s.deleteHostNotes(id)
+	if err := s.deleteHostNotes(id); err != nil && !errors.Is(err, ErrMemoryUnreadable) {
+		return fmt.Errorf("host deleted, but its notes for the agent could not be removed: %w", err)
+	}
 	return nil
 }
 

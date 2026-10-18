@@ -51,6 +51,20 @@ test("a proposed note says whose notes it joins, where it came from and when it 
   assert.match(N.FROM_PANE_WARNING, /terminal output, not from you/);
 });
 
+test("every proposal from an answer that read a pane is warned; a note about you most strongly", () => {
+  assert.equal(N.proposalWarn({ for: "host", host: "web-1" }), false);
+  assert.equal(N.proposalWarning({ for: "host", host: "web-1" }), "");
+  const read = { for: "host", host: "web-1", panesRead: ["web-1"] };
+  assert.equal(N.proposalWarn(read), true);
+  assert.match(N.proposalWarning(read), /^The agent read terminal output for this answer/);
+  assert.equal(N.proposalWarning({ ...read, fromPane: true }), N.FROM_PANE_WARNING);
+  assert.match(N.proposalWarning({ for: "user", panesRead: ["web-1"] }), /every host the agent may read\. Save it only if you would have written it yourself/);
+  assert.equal(N.proposalOrigin(read), "");
+  assert.equal(N.proposalOrigin({ ...read, panesRead: ["db-2", "web-1"] }), "This answer read db-2 and web-1; the note would be saved to the notes of web-1.");
+  assert.equal(N.proposalOrigin({ ...read, fromPane: true, seenIn: "db-2" }), "Seen in pane db-2; it would be saved to the notes of web-1.");
+  assert.equal(N.proposalOrigin({ for: "user", panesRead: ["a", "b", "c"] }), "This answer read a, b and c; this note would be sent on every host.");
+});
+
 test("the trace says which notes went with a question; Read so far leaves them out", () => {
   assert.equal(traceText({ status: "notes", noteKind: "host", host: "prod-db-01", notes: 3 }), "Used host notes · prod-db-01 (3)");
   assert.equal(traceText({ status: "notes", noteKind: "user", notes: 2 }), "Used your notes (2)");

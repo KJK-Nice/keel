@@ -154,7 +154,7 @@ func writeNoteErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, service.ErrNoteClosed):
 		writeError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, service.ErrNoteRefused):
+	case errors.Is(err, service.ErrNoteRefused), errors.Is(err, service.ErrNoteNotReadable):
 		writeError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, service.ErrNoteExpired):
 		writeError(w, http.StatusGone, err.Error())

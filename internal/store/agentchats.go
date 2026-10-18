@@ -112,6 +112,7 @@ type AgentChatNote struct {
 	Text       string    `json:"text"`
 	FromPane   bool      `json:"fromPane,omitempty"`
 	SeenIn     string    `json:"seenIn,omitempty"`
+	PanesRead  []string  `json:"panesRead,omitempty"`
 	Status     string    `json:"status"`
 	NoteID     string    `json:"noteId,omitempty"`
 	ProposedAt time.Time `json:"proposedAt"`

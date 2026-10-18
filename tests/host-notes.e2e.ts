@@ -92,11 +92,14 @@ test('a proposed note is saved only on Save, then sent with the next question an
   await expect(card).toContainText('Host notes · Local Shell');
   await expect(card).toContainText('Sent when Local Shell is in scope');
   await expect(card.getByText('From pane output')).toHaveCount(0);
+  // A pane was read for this answer, so the text may come from it: warned anyway.
+  await expect(card).toContainText('After reading panes');
+  await expect(card).toContainText('The agent read terminal output for this answer');
   await app.screenshot('notes-proposed');
   // Nothing is kept before Save.
   expect(await notes(app)).toHaveLength(0);
 
-  await card.getByRole('button', 'Save', { exact: true }).tap();
+  await card.getByRole('button', 'Save anyway').tap();
   await expect(card).toContainText('Saved to host notes · Local Shell');
   const kept = await notes(app);
   expect(kept).toHaveLength(1);
@@ -105,9 +108,9 @@ test('a proposed note is saved only on Save, then sent with the next question an
 
   // Undo deletes it again; Save keeps it.
   await card.getByRole('button', 'Undo').tap();
-  await expect(card.getByRole('button', 'Save', { exact: true })).toBeVisible();
+  await expect(card.getByRole('button', 'Save anyway')).toBeVisible();
   expect(await notes(app)).toHaveLength(0);
-  await card.getByRole('button', 'Save', { exact: true }).tap();
+  await card.getByRole('button', 'Save anyway').tap();
   await expect(card).toContainText('Saved to host notes');
 
   // The next question reads Local Shell: its note goes with it.
@@ -140,6 +143,15 @@ test('a note taken from pane output is flagged; Dismiss keeps nothing', { tags: 
   await card.getByRole('button', 'Dismiss').tap();
   await expect(card).toContainText('Dismissed. Nothing was saved.');
   expect(await notes(app)).toHaveLength(0);
+
+  // A note about the user, proposed after reading a pane, gets the
+  // strongest warning: it would go with questions on every host.
+  await ask(screen, 'remember my preference');
+  const mine = panel(screen).getByRole('group', 'Proposed note').last();
+  await expect(mine).toContainText('Your notes · every host');
+  await expect(mine).toContainText('A note about you is sent with questions on every host the agent may read.');
+  await expect(mine).toContainText('This answer read Local Shell; this note would be sent on every host.');
+  await expect(mine.getByRole('button', 'Save anyway')).toBeVisible();
   await closeTabs(app, screen);
 });
 
