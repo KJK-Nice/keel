@@ -560,3 +560,90 @@ describe('host notes', { tags: ['visual'], serial: true }, () => {
     });
   }
 });
+
+// Runbooks (§16, boards Runbooks and RunbookInUse): the page with a
+// runbook open, a runbook in use in the panel with a step proposed, and a
+// runbook the agent proposes.
+describe('runbooks', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`runbooks (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      const lag = await keelSend<{ runbook: { id: string } }>(app.baseUrl, 'POST', '/api/agent/runbooks', {
+        name: 'Diagnose replication lag',
+        when: 'A Patroni replica is behind or its WAL stream keeps restarting.',
+        // No hosts: Local Shell is in no folder; the step pins the run to it.
+        hosts: [],
+        agentMayPick: true,
+        steps: [
+          { title: 'Check replication on the leader', description: 'Read lag and state for every replica.', command: 'sudo -u postgres psql -xc "select client_addr, state, replay_lag from pg_stat_replication;"', expect: 'state streaming' },
+          { title: 'Look for network errors on the replica', description: 'SSL timeouts point at the network, not Postgres.', command: 'sudo journalctl -u patroni --since "30 min ago" | grep -iE "timeout|ssl"' },
+          { title: 'Restart Patroni on the replica', description: 'Only after the log shows the stream is stuck.', command: 'sudo systemctl restart patroni' },
+          { title: 'Ask before changing conntrack' },
+        ],
+      });
+      // A runbook made from a notebook draft: keel serve sets its source,
+      // so it waits for a review.
+      const nb = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', {
+        name: 'nginx 502 checklist',
+        cells: [{ body: '## Find the failing upstream\n\nThe error log names the upstream and the reason.\n\n```sh\nsudo tail -n 50 /var/log/nginx/error.log\n```\n' }],
+      });
+      const draft = await keelSend<Record<string, unknown>>(app.baseUrl, 'POST', '/api/agent/runbooks/draft', { notebookId: nb.id });
+      await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', { ...draft, when: 'nginx returns 502 or 504 for an upstream app.', hosts: ['nginx'] });
+      await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
+      await openKeel(app);
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+
+      // The page, with the first runbook open.
+      await input.press('Meta+k');
+      const palette = screen.getByRole('dialog', 'Command palette');
+      await palette.getByRole('combobox').fill('Runbooks');
+      await palette.getByRole('option').filter({ hasText: 'Runbooks' }).first().tap();
+      const page = screen.getByRole('region', 'Runbooks');
+      await page.getByRole('button', 'Open Diagnose replication lag').tap();
+      await expect(page.getByRole('textbox', 'Step 4 title')).toBeVisible();
+      await app.screenshot(`${theme}-runbooks`);
+      await page.getByRole('button', 'Open nginx 502 checklist').tap();
+      await expect(page).toContainText('Not enabled yet. Review before enabling.');
+      await app.screenshot(`${theme}-runbooks-review`);
+
+      // In use: Use in agent proposes step 1 in the panel.
+      await page.getByRole('button', 'Open Diagnose replication lag').tap();
+      await page.getByRole('button', 'Use in agent').tap();
+      const panel = screen.getByRole('complementary', 'Agent');
+      await expect(panel.getByRole('group', 'Runbook Diagnose replication lag')).toBeVisible();
+      await expect(panel.getByRole('group', 'Proposal').last()).toContainText('Step 1 · Run on');
+      // The run card, as on the board, at the top of the thread.
+      await browser.evaluate("document.querySelector('#agent-thread .k-rb-pick')?.scrollIntoView({ block: 'start' })");
+      await app.screenshot(`${theme}-runbook-in-use`);
+
+      // A runbook the agent proposes.
+      const ask = panel.getByRole('textbox', 'Message the agent');
+      await panel.getByRole('button', "Don't use").tap();
+      await ask.fill('save this as a runbook');
+      await ask.press('Enter');
+      await expect(panel.getByRole('group', 'Proposed runbook')).toContainText('After reading panes');
+      await app.screenshot(`${theme}-runbook-proposal`);
+
+      await panel.getByRole('button', 'Close agent').tap();
+      for (let i = 0; i < 3; i++) {
+        const close = screen.getByRole('button', 'Close tab', { visible: true });
+        if (!(await close.count())) break;
+        await close.first().tap();
+      }
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+      for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
+      void lag;
+    });
+  }
+});

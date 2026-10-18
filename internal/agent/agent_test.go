@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -57,7 +58,7 @@ func testHosts() []Host {
 
 func TestHostsFromCopiesNoSecrets(t *testing.T) {
 	hs := HostsFrom([]store.Host{{ID: "a", Name: "a", Address: "a.example.com", Password: "pw", PrivateKey: "k", Passphrase: "pp", Production: tptr(true)}})
-	if len(hs) != 1 || hs[0] != (Host{ID: "a", Name: "a", Address: "a.example.com", AgentReadable: true, Production: true, ProposeNotes: true}) {
+	if len(hs) != 1 || !reflect.DeepEqual(hs[0], Host{ID: "a", Name: "a", Address: "a.example.com", AgentReadable: true, Production: true, ProposeNotes: true}) {
 		t.Fatalf("HostsFrom = %+v", hs)
 	}
 }

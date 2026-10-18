@@ -28,6 +28,7 @@ const (
 	EventInsert  = "agent.insert"  // a suggestion was inserted on the prompt line (⇥ / ⇧⇥), not run
 	EventType    = "agent.type"    // a proposal was typed into a pane (Type into pane ↵)
 	EventNote    = "agent.note"    // notes for the agent sent with a question, or saved, edited or deleted
+	EventRunbook = "agent.runbook" // a runbook sent with a question, offered, used, changed, or a step's result
 )
 
 // Role is the client's role in a session. The values match
@@ -59,6 +60,10 @@ type Host struct {
 	Production    bool
 	// ProposeNotes is the host's "Let the agent propose notes".
 	ProposeNotes bool
+	// Group (its folder's name) and Tags decide which runbooks the agent
+	// may pick for a pane on it (a runbook's Hosts).
+	Group string
+	Tags  []string
 }
 
 // HostsFrom copies the non-secret fields of store hosts.
@@ -72,6 +77,8 @@ func HostsFrom(hosts []store.Host) []Host {
 			AgentReadable: h.ReadableByAgent(),
 			Production:    h.IsProduction(),
 			ProposeNotes:  h.ProposesNotes(),
+			Group:         h.Group,
+			Tags:          append([]string(nil), h.Tags...),
 		})
 	}
 	return out

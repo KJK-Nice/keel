@@ -62,6 +62,94 @@ type AgentChat struct {
 	CreatedAt time.Time       `json:"createdAt"`
 	UpdatedAt time.Time       `json:"updatedAt"`
 	Turns     []AgentChatTurn `json:"turns"`
+	// Runbook is the runbook used in this conversation last (runbooks.go,
+	// docs/ui-redesign.md §16) and how far it got; NoRunbook is the user's
+	// "Don't use", so the agent does not pick one again here.
+	Runbook   *AgentChatRunbook `json:"runbook,omitempty"`
+	NoRunbook bool              `json:"noRunbook,omitempty"`
+}
+
+// AgentChatRunbook is a runbook in use in a conversation: a copy of its
+// steps as they were when it started (redacted when they were saved), and
+// each step's progress.
+type AgentChatRunbook struct {
+	// ID names this use; RunbookID the saved runbook.
+	ID        string `json:"id"`
+	RunbookID string `json:"runbookId"`
+	Name      string `json:"name"`
+	// PickedBy is "user" or "agent"; Why is the agent's reason, or "".
+	PickedBy string `json:"pickedBy"`
+	Why      string `json:"why,omitempty"`
+	// Status is "active", "finished" or "stopped".
+	Status string `json:"status"`
+	// Turn is the ask (1-based) that started it.
+	Turn      int       `json:"turn"`
+	StartedAt time.Time `json:"startedAt"`
+	// Hosts are the runbook's folders and tags when it started: a step is
+	// aimed only at a pane read on one of them.
+	Hosts []string `json:"hosts,omitempty"`
+	// PinHostID, PinHost and PinSessionID are the host (and pane) of the
+	// first step proposed: later steps go only to that host, until the
+	// user moves the run. Blocked says why the current step could not be
+	// proposed ("", or a sentence for the card).
+	PinHostID    string             `json:"pinHostId,omitempty"`
+	PinHost      string             `json:"pinHost,omitempty"`
+	PinSessionID string             `json:"pinSessionId,omitempty"`
+	Blocked      string             `json:"blocked,omitempty"`
+	Steps        []AgentChatRunStep `json:"steps"`
+}
+
+// AgentChatRunStep is one step of a runbook in use. State is "next",
+// "proposed", "typed", "done", "failed" or "skipped". Result says where an
+// end came from: "reported" (the exit status the pane's shell reported
+// with OSC 133 marks: a claim, never proof), "user" (marked by the user)
+// or "abandoned" (the shell went away before it ended).
+type AgentChatRunStep struct {
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	Command     string     `json:"command,omitempty"`
+	Expect      string     `json:"expect,omitempty"`
+	Risk        string     `json:"risk,omitempty"`
+	State       string     `json:"state"`
+	ProposalID  string     `json:"proposalId,omitempty"`
+	SessionID   string     `json:"sessionId,omitempty"`
+	HostID      string     `json:"hostId,omitempty"`
+	Host        string     `json:"host,omitempty"`
+	ProposedAt  *time.Time `json:"proposedAt,omitempty"`
+	TypedAt     *time.Time `json:"typedAt,omitempty"`
+	FinishedAt  *time.Time `json:"finishedAt,omitempty"`
+	Exit        *int       `json:"exit,omitempty"`
+	Result      string     `json:"result,omitempty"`
+	// Edited is set when the user changed the step's proposal before
+	// typing it; Typed is that command (redacted). Command stays the
+	// saved one.
+	Edited bool   `json:"edited,omitempty"`
+	Typed  string `json:"typed,omitempty"`
+}
+
+// Copy returns a deep copy.
+func (r *AgentChatRunbook) Copy() *AgentChatRunbook {
+	if r == nil {
+		return nil
+	}
+	out := *r
+	out.Hosts = append([]string(nil), r.Hosts...)
+	out.Steps = make([]AgentChatRunStep, len(r.Steps))
+	for i, st := range r.Steps {
+		for _, p := range []**time.Time{&st.ProposedAt, &st.TypedAt, &st.FinishedAt} {
+			if *p != nil {
+				t := **p
+				*p = &t
+			}
+		}
+		if st.Exit != nil {
+			e := *st.Exit
+			st.Exit = &e
+		}
+		out.Steps[i] = st
+	}
+	return &out
 }
 
 // AgentChatTurn is one question and its answer, or (Again) a proposal the
@@ -80,7 +168,25 @@ type AgentChatTurn struct {
 	// Notes are the notes the agent proposed in this turn (agentnotes.go)
 	// and what the user did with them.
 	Notes []AgentChatNote `json:"notes,omitempty"`
-	Again bool            `json:"again,omitempty"`
+	// Runbooks are the runbooks the agent proposed to save in this turn
+	// (runbooks.go) and what the user did with them.
+	Runbooks []AgentChatRunbookProposal `json:"runbooks,omitempty"`
+	Again    bool                       `json:"again,omitempty"`
+}
+
+// AgentChatRunbookProposal is a runbook the agent proposed, redacted, and
+// its state: "open", "saved" (RunbookID names it) or "dismissed".
+type AgentChatRunbookProposal struct {
+	ID         string        `json:"id"`
+	Name       string        `json:"name"`
+	When       string        `json:"when,omitempty"`
+	Steps      []RunbookStep `json:"steps"`
+	FromPane   bool          `json:"fromPane,omitempty"`
+	SeenIn     string        `json:"seenIn,omitempty"`
+	PanesRead  []string      `json:"panesRead,omitempty"`
+	Status     string        `json:"status"`
+	RunbookID  string        `json:"runbookId,omitempty"`
+	ProposedAt time.Time     `json:"proposedAt"`
 }
 
 // AgentChatStep is one line of a turn's trace. It names a pane and what
@@ -100,6 +206,8 @@ type AgentChatStep struct {
 	// notes for the agent: whose and how many, never their text.
 	NoteKind string `json:"noteKind,omitempty"`
 	Notes    int    `json:"notes,omitempty"`
+	// Runbook names the runbook a step with Status "runbook" sent.
+	Runbook string `json:"runbook,omitempty"`
 }
 
 // AgentChatNote is a note the agent proposed, redacted, and its state:
@@ -131,6 +239,10 @@ type AgentChatProposal struct {
 	Edited     bool       `json:"edited,omitempty"`
 	ProposedAt time.Time  `json:"proposedAt"`
 	TypedAt    *time.Time `json:"typedAt,omitempty"`
+	// Step and Steps are set on a runbook step's proposal: its number and
+	// how many the runbook has.
+	Step  int `json:"step,omitempty"`
+	Steps int `json:"steps,omitempty"`
 }
 
 // AgentChatSummary is a conversation as the list shows it.

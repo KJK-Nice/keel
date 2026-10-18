@@ -54,11 +54,17 @@ func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.Read
 // marks (agent.CommandSource), with the same mask as ReadScrollback.
 func (a agentPanes) LastCommand(id string) (shellmark.Block, bool) { return a.rt.LastCommand(id) }
 
+// CommandsAfter passes on the commands a pane's shell reported after a
+// stream offset (service.StepSource), for a runbook step's result.
+func (a agentPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
+	return a.rt.CommandsAfter(id, from)
+}
+
 func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
 		return
 	}
-	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, Chats: s.store, Notes: s.store})
+	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, Chats: s.store, Notes: s.store, Runbooks: s.store})
 	if err == nil {
 		s.agent = svc
 		go s.agentRetention()
