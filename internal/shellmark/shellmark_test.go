@@ -97,11 +97,16 @@ func TestMalformed(t *testing.T) {
 		"letter then junk":        osc("133;AB"),
 		"empty":                   osc("133;"),
 		"other osc":               osc("0;title") + osc("8;;https://x") + osc("52;c;aGk="),
-		"control in payload":      esc + "]133;\x01A" + bel,
 		"cancelled":               esc + "]133;A\x18" + "rest",
 		"substituted":             esc + "]133;A\x1a",
 		"unterminated":            esc + "]133;A",
-		"esc not st":              esc + "]133;A" + esc + "x",
+		"c1 abandons":             esc + "]133;A\xc2\x85" + bel,
+		"c1 csi abandons":         "\xc2\x9d133;A\xc2\x9b" + bel,
+		"c2 not c1":               "\xc2\xa9]133;A" + bel,
+		"bare c1 byte":            "\x9d133;A" + bel,
+		"id not a number":         osc("13x;A"),
+		"id too long":             osc("00000000133;A"),
+		"del in payload":          osc("133;A\x7f"),
 		"non ascii":               esc + "]133;A;é" + bel,
 		"cwd no scheme":           osc("7;/tmp"),
 		"cwd no path":             osc("7;file://host"),
@@ -285,13 +290,31 @@ func TestTrackerIsBounded(t *testing.T) {
 func TestTrackerReset(t *testing.T) {
 	tr := NewTracker()
 	feedTracker(tr, osc("133;A")+osc("133;B")+"cmd"+esc+"]133")
-	tr.Reset()
+	tr.Reset(900)
 	// The new shell's first bytes do not finish the old sequence, and its
 	// C has no B from the old prompt.
 	tr.Feed([]byte(";C"+bel+osc("133;C")), 1000)
 	cmds := tr.Commands()
 	if len(cmds) != 1 || cmds[0].HasCommandStart || cmds[0].OutputStart != 1000+3+uint64(len(osc("133;C"))) {
 		t.Fatalf("%+v", cmds)
+	}
+}
+
+// A command open when the shell goes away is closed there as abandoned,
+// with no exit status; a later D (from the new shell) does not reopen it.
+func TestTrackerResetAbandonsOpenCommand(t *testing.T) {
+	tr := NewTracker()
+	end := feedTracker(tr, osc("133;A")+osc("133;B")+"top\r\n"+osc("133;C")+"load 0.1")
+	tr.Reset(end)
+	tr.Feed([]byte(osc("133;D;0")), end+100)
+	c, ok := tr.Last()
+	if !ok || !c.Done || !c.Abandoned || c.HasExit || c.OutputEnd != end {
+		t.Fatalf("%+v", c)
+	}
+	// A finished command is left as it was.
+	tr.Reset(end + 500)
+	if c2, _ := tr.Last(); c2 != c {
+		t.Fatalf("reset changed a finished record: %+v", c2)
 	}
 }
 

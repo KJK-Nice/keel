@@ -68,21 +68,39 @@ type Excerpt struct {
 // CommandEnd is how a command read from shell-integration marks ended, as
 // the shell reported it. It is untrusted output like the text itself.
 type CommandEnd struct {
-	Running bool
-	Exit    int
-	HasExit bool
+	Running   bool
+	Abandoned bool
+	Exit      int
+	HasExit   bool
 }
 
-// Label is the short form used in the excerpt header, keel.log and the
-// trace: "exit 1", "exit status not reported", "still running".
+// Label is the short form used in keel.log and the trace: "exit 1",
+// "exit status not reported", "still running", "ended when the shell went
+// away".
 func (c CommandEnd) Label() string {
 	switch {
 	case c.Running:
 		return "still running"
+	case c.Abandoned:
+		return "ended when the shell went away"
 	case c.HasExit:
 		return fmt.Sprintf("exit %d", c.Exit)
 	default:
 		return "exit status not reported"
+	}
+}
+
+// reported is the value on the excerpt's "reported exit:" line.
+func (c CommandEnd) reported() string {
+	switch {
+	case c.Running:
+		return "none yet (still running)"
+	case c.Abandoned:
+		return "none (the shell went away before it ended)"
+	case c.HasExit:
+		return fmt.Sprintf("%d", c.Exit)
+	default:
+		return "not reported"
 	}
 }
 
@@ -91,7 +109,8 @@ func (c CommandEnd) Label() string {
 // redaction counts. A pane out of scope is refused before anything is
 // read. When the pane's shell reports its commands (OSC 133, src is a
 // CommandSource), it reads the last command, its output (at most lines
-// lines) and its exit status; otherwise the last lines of the scrollback.
+// lines), its exit status and what the pane printed after it; otherwise
+// the last lines of the scrollback.
 func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
 	if !scope.Allows(p) {
 		return Excerpt{}, ErrNotReadable
@@ -107,44 +126,70 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	return a.readPane(src, scope, p, lines, r, false)
 }
 
-// readCommand turns a command block into an excerpt: "$ <command>", its
-// output (the last lines of it) and how it ended, as one plain text that
-// goes through r like any pane text. Logged as agent.read.
+// readCommand turns a command block into an excerpt, as one plain text
+// that goes through r like any pane text. Logged as agent.read.
+//
+// Every field the marks gave is labelled "reported": the command line, the
+// exit status, the cwd and where the output starts and ends come from the
+// remote's own output, and a program (cat of a crafted file) can print
+// fake ones. So the excerpt never uses a prompt-like "$ " that would read
+// as Keel's own statement, and it always carries what the pane printed
+// after the command's end, so a fake end cannot hide the latest text.
 func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.Redactor) Excerpt {
-	end := CommandEnd{Running: !blk.Done, Exit: blk.Exit, HasExit: blk.HasExit}
+	end := CommandEnd{Running: !blk.Done, Abandoned: blk.Abandoned, Exit: blk.Exit, HasExit: blk.HasExit}
+	budget := ClampLines(lines)
 	var b strings.Builder
 	if blk.Cwd != "" {
-		fmt.Fprintf(&b, "(in %s)\n", oneLine(blk.Cwd))
+		fmt.Fprintf(&b, "reported cwd: %s\n", oneLine(blk.Cwd))
 	}
 	cmd := commandText(blk.Command)
-	if cmd != "" {
-		for _, ln := range strings.Split(cmd, "\n") {
-			b.WriteString("$ " + ln + "\n")
-		}
+	if cmd == "" {
+		b.WriteString("reported command: (not reported)\n")
 	} else {
-		b.WriteString("$ (command not shown)\n")
+		for _, ln := range strings.Split(cmd, "\n") {
+			b.WriteString("reported command: " + ln + "\n")
+		}
 	}
-	norm := strings.TrimRight(redact.Normalize(blk.Output), "\n")
-	out, n := LastLines(norm, ClampLines(lines))
-	if blk.Truncated || (norm != "" && n < strings.Count(norm, "\n")+1) {
-		b.WriteString("(earlier output not included)\n")
-	}
+	b.WriteString("reported output:\n")
+	out, n := tailPart(blk.Output, budget, blk.Truncated, &b)
 	if out != "" {
 		b.WriteString(out + "\n")
 	}
-	fmt.Fprintf(&b, "[%s]", end.Label())
+	fmt.Fprintf(&b, "reported exit: %s\n", end.reported())
+	afterLines := 0
+	if strings.TrimSpace(redact.Normalize(blk.After)) != "" {
+		b.WriteString("output after that command (the pane's latest text):\n")
+		var after string
+		after, afterLines = tailPart(blk.After, budget, blk.AfterTruncated, &b)
+		b.WriteString(after + "\n")
+	}
 	before := r.Report()
-	safe := r.Text(b.String()).Tail(maxExcerptBytes)
+	safe := r.Text(strings.TrimRight(b.String(), "\n")).Tail(maxExcerptBytes)
 	rep := diff(before, r.Report())
+	afterNote := ""
+	if afterLines > 0 {
+		afterNote = fmt.Sprintf(" · %d after it", afterLines)
+	}
 	a.log.Append(applog.Entry{
 		Kind:       EventRead,
-		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output · %s", hostLabel(p), end.Label(), n, redactionNote(rep)),
+		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output%s · %s", hostLabel(p), end.Label(), n, afterNote, redactionNote(rep)),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
-		Lines:      n,
+		Lines:      n + afterLines,
 		Redactions: rep.Strings(),
 	})
 	return Excerpt{Pane: p, Lines: n, Text: safe, Report: rep, LastCommand: true, Command: end}
+}
+
+// tailPart is the last lines of raw PTY text as plain text, writing a
+// "(earlier text not included)" line to b first when it was cut.
+func tailPart(raw string, lines int, truncated bool, b *strings.Builder) (string, int) {
+	norm := strings.TrimRight(redact.Normalize(raw), "\n")
+	out, n := LastLines(norm, lines)
+	if truncated || (norm != "" && n < strings.Count(norm, "\n")+1) {
+		b.WriteString("(earlier text not included)\n")
+	}
+	return out, n
 }
 
 // commandText is the typed command from the region between the B and C

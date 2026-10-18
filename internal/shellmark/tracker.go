@@ -30,6 +30,10 @@ type Command struct {
 	Done        bool
 	Exit        int
 	HasExit     bool
+	// Abandoned is set when the shell went away (the connection dropped or
+	// the session reconnected) while the command was open: it is Done at
+	// that point, with no exit status.
+	Abandoned bool
 	// Cwd is the last OSC 7 directory seen before the command started.
 	Cwd      string
 	Started  time.Time
@@ -61,11 +65,21 @@ func (t *Tracker) Feed(b []byte, base uint64) {
 	t.p.Feed(b, base, t.mark)
 }
 
-// Reset is called when a new shell starts on the same pane (reconnect): a
-// sequence or prompt in progress belongs to the old shell. Records stay.
-func (t *Tracker) Reset() {
+// Reset is called when a pane's shell goes away or a new one starts on it
+// (a drop, a reconnect): a sequence or prompt in progress belongs to the
+// old shell, and a command still open is closed at at (the stream offset
+// now) as abandoned, with no exit status. Without that, the old shell's
+// running command would go on "running" over Keel's reconnect note and the
+// new shell's banner. Records stay.
+func (t *Tracker) Reset(at uint64) {
 	t.p.Reset()
 	t.pending = nil
+	if n := len(t.cmds); n > 0 && !t.cmds[n-1].Done {
+		c := &t.cmds[n-1]
+		c.Done, c.Abandoned, c.HasExit = true, true, false
+		c.OutputEnd = max(at, c.OutputStart)
+		c.Finished = t.now()
+	}
 }
 
 func (t *Tracker) mark(m Mark) {
@@ -137,8 +151,16 @@ type Block struct {
 	Exit    int
 	HasExit bool
 	Done    bool
-	Cwd     string
+	// Abandoned: the shell went away before the command reported an end.
+	Abandoned bool
+	Cwd       string
 	// Truncated is true when the start of the output had already left the
 	// scrollback ring.
 	Truncated bool
+	// After is what the pane printed after the command ended: the next
+	// prompt, the line being typed, and anything written meanwhile
+	// (background jobs, wall, a program printing marks of its own). Empty
+	// while the command runs. AfterTruncated: only its end is kept.
+	After          string
+	AfterTruncated bool
 }

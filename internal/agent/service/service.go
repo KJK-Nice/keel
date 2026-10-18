@@ -370,9 +370,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	fmt.Fprintf(&msg, "Panes in scope: %d\n\n", len(excerpts))
 	for i, ex := range excerpts {
 		if ex.LastCommand {
-			// From the shell's own marks: the last command, its output
-			// and how it ended. The marks are output too, so not proof.
-			fmt.Fprintf(&msg, "--- pane %d · host %s · last command (from shell integration marks), %s ---\n%s\n--- end pane %d ---\n\n", i+1, ex.Pane.HostName, ex.Command.Label(), ex.Text.String(), i+1)
+			// From the shell's own marks: the last command, its output,
+			// how it ended and what came after. The marks are output too,
+			// so the frame says unverified (systemPrompt explains).
+			fmt.Fprintf(&msg, "--- pane %d · host %s · last command reported by the pane's shell (unverified) ---\n%s\n--- end pane %d ---\n\n", i+1, ex.Pane.HostName, ex.Text.String(), i+1)
 			continue
 		}
 		fmt.Fprintf(&msg, "--- pane %d · host %s · last %d lines ---\n%s\n--- end pane %d ---\n\n", i+1, ex.Pane.HostName, ex.Lines, ex.Text.String(), i+1)

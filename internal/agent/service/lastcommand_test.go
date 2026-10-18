@@ -58,7 +58,7 @@ func TestAskPrefersLastCommandFromMarks(t *testing.T) {
 		t.Errorf("scrollback read %v although the pane has marks", f.panes.reads)
 	}
 	body := f.requestBodies(t)
-	for _, want := range []string{"last command (from shell integration marks), exit 2", "(in /srv/app)", "$ make test", "FAIL pkg/db", "[exit 2]"} {
+	for _, want := range []string{"last command reported by the pane's shell (unverified)", "reported cwd: /srv/app", "reported command: make test", "FAIL pkg/db", "reported exit: 2"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("request lacks %q: %s", want, body)
 		}
@@ -126,7 +126,7 @@ func TestLastCommandRunningAndLong(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := f.requestBodies(t)
-	for _, want := range []string{"still running", "(earlier output not included)", "line 80", "line 31"} {
+	for _, want := range []string{"still running", "(earlier text not included)", "line 80", "line 31"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("request lacks %q", want)
 		}

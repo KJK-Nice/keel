@@ -610,6 +610,9 @@ func (s *Session) ReadScrollback() []byte {
 // between the B and C marks (a huge paste is cut, not read whole).
 const maxCommandText = 4096
 
+// maxAfterText caps what LastCommand reads after a finished command.
+const maxAfterText = 64 * 1024
+
 // LastCommand returns the pane's latest command from its shell-integration
 // marks (OSC 133), with its text read from the scrollback under the same
 // mask as ReadScrollback. ok is false when the shell sent no marks, or the
@@ -636,8 +639,22 @@ func (s *Session) LastCommand() (shellmark.Block, bool) {
 		Exit:      c.Exit,
 		HasExit:   c.HasExit,
 		Done:      c.Done,
+		Abandoned: c.Abandoned,
 		Cwd:       c.Cwd,
 		Truncated: truncated,
+	}
+	if c.Done {
+		// What came after the end: never hidden by a D mark, so a fake
+		// end printed by a program cannot keep the rest of the pane from
+		// the agent. Bounded to the last maxAfterText bytes.
+		total := s.buf.Mark()
+		from := c.OutputEnd
+		if total > from+maxAfterText {
+			from, blk.AfterTruncated = total-maxAfterText, true
+		}
+		after, cut := s.buf.Range(from, total)
+		blk.After = string(scrollback.Read(after))
+		blk.AfterTruncated = blk.AfterTruncated || cut
 	}
 	if c.HasCommandStart {
 		cmd, cut := s.buf.Range(c.CommandStart, c.CommandTextEnd)
@@ -876,8 +893,9 @@ func (s *Session) runLoop() {
 		}
 		old := s.br
 		s.br = br
-		// A new shell: half a mark from the old one must not join it.
-		s.marks.Reset()
+		// A new shell: half a mark from the old one must not join it, and
+		// a command the old shell left open is abandoned.
+		s.marks.Reset(s.buf.Mark())
 		// A driver may have resized while the bridge was connecting (an SSH
 		// connect takes seconds; the client fits and sends its size as soon
 		// as it attaches). Resize only recorded that size, since there was
@@ -934,6 +952,9 @@ func (s *Session) runLoop() {
 			if same {
 				s.br = nil
 			}
+			// The shell is gone: a command it left open ends here, before
+			// Keel's own note ("Connection lost — reconnecting…").
+			s.marks.Reset(s.buf.Mark())
 			auto := s.host.AutoReconnect()
 			force := s.forceReconnect
 			s.forceReconnect = false

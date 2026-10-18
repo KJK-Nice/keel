@@ -12,7 +12,7 @@ test("parseMark is strict", () => {
   for (const bad of ["D;-1", "D;+1", "D; 1", "D;1x", "D;2147483648", "D;99999999999", "D;<img>"]) {
     assert.equal(parseMark(bad).exit, null, bad);
   }
-  for (const bad of ["", "Z", "AB", "P;k=v", "A;é", "A\u0007", null, undefined, 42, "A;" + "x".repeat(3000)]) {
+  for (const bad of ["", "Z", "AB", "P;k=v", "A;é", "A\u0007", null, undefined, 42, "A;" + "x".repeat(2043)]) {
     assert.equal(parseMark(bad), null, String(bad).slice(0, 20));
   }
   assert.equal(exitLabel(2), "exit 2");

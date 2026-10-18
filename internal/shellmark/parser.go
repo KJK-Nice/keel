@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"net/url"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -53,21 +54,30 @@ type Mark struct {
 
 const (
 	stGround = iota
+	stC2     // saw 0xC2 outside an OSC: C2 9D is the C1 OSC introducer
 	stEsc    // saw ESC
-	stOSC    // inside ESC ] ...
-	stOSCEsc // saw ESC inside an OSC: ESC \ ends it, anything else aborts it
+	stOSC    // inside an OSC
+	stOSCEsc // saw ESC inside an OSC
+	stOSCC2  // saw 0xC2 inside an OSC: C2 9C ends it, other C1 abort it
 )
 
 // Parser finds marks in a byte stream fed in chunks of any size. A
 // sequence split across chunks is found as if it came in one. The zero
 // value is ready to use. It is not safe for concurrent use.
+//
+// It follows xterm.js's VT500 parser for OSCs, so the marks Keel records
+// are the marks the terminal draws: an OSC starts with ESC ] or the C1
+// code U+009D (UTF-8 C2 9D); it ends with BEL, ST (ESC \ or U+009C), or
+// any other ESC (which then starts a new sequence); CAN and SUB, and the
+// other C1 codes, abandon it; C0 controls inside it are dropped. The one
+// deliberate difference is the length cap (MaxPayload), which the
+// terminal side (js/lib/cmdmarks.js) applies too.
 type Parser struct {
 	state    int
 	buf      []byte
 	overflow bool // the payload passed MaxPayload: skip this OSC
-	bad      bool // the payload held a control byte: skip this OSC
 	start    uint64
-	escAt    uint64
+	escAt    uint64 // offset of the last ESC or 0xC2 seen
 }
 
 // Reset drops a sequence in progress (a new shell starts on a reconnect;
@@ -75,7 +85,14 @@ type Parser struct {
 func (p *Parser) Reset() {
 	p.state = stGround
 	p.buf = p.buf[:0]
-	p.overflow, p.bad = false, false
+	p.overflow = false
+}
+
+func (p *Parser) begin(at uint64) {
+	p.state = stOSC
+	p.start = at
+	p.buf = p.buf[:0]
+	p.overflow = false
 }
 
 // Feed scans b, whose first byte is at stream offset base, and calls emit
@@ -83,61 +100,112 @@ func (p *Parser) Reset() {
 func (p *Parser) Feed(b []byte, base uint64, emit func(Mark)) {
 	for i := 0; i < len(b); i++ {
 		c := b[i]
+		at := base + uint64(i)
 		switch p.state {
 		case stGround:
-			j := bytes.IndexByte(b[i:], 0x1b)
+			j := nextIntroducer(b[i:])
 			if j < 0 {
 				return
 			}
 			i += j
-			p.state = stEsc
 			p.escAt = base + uint64(i)
+			if b[i] == 0x1b {
+				p.state = stEsc
+			} else {
+				p.state = stC2
+			}
+		case stC2:
+			if c == 0x9d {
+				p.begin(p.escAt)
+				continue
+			}
+			p.state = stGround
+			i--
 		case stEsc:
 			switch c {
 			case ']':
-				p.state = stOSC
-				p.start = p.escAt
-				p.buf = p.buf[:0]
-				p.overflow, p.bad = false, false
+				p.begin(p.escAt)
 			case 0x1b:
-				p.escAt = base + uint64(i)
+				p.escAt = at
+			case 0xc2:
+				p.state = stGround
+				i--
 			default:
 				p.state = stGround
 			}
 		case stOSC:
 			switch {
 			case c == 0x07:
-				p.finish(base+uint64(i)+1, emit)
+				p.finish(at+1, emit)
 			case c == 0x1b:
 				p.state = stOSCEsc
-				p.escAt = base + uint64(i)
-			case c == 0x18 || c == 0x1a: // CAN, SUB cancel the sequence
+				p.escAt = at
+			case c == 0xc2:
+				p.state = stOSCC2
+				p.escAt = at
+			case c == 0x18 || c == 0x1a: // CAN, SUB abandon the sequence
 				p.state = stGround
-			case c < 0x20 || c == 0x7f:
-				p.bad = true
+			case c < 0x20:
+				// Other C0 controls are dropped, as xterm does.
 			default:
-				if len(p.buf) < MaxPayload {
-					p.buf = append(p.buf, c)
-				} else {
-					p.overflow = true
-				}
+				p.put(c)
 			}
 		case stOSCEsc:
 			if c == '\\' {
-				p.finish(base+uint64(i)+1, emit)
+				p.finish(at+1, emit)
 				continue
 			}
-			// The OSC is abandoned; this ESC may begin another sequence
-			// (ESC ] inside an OSC starts a new one: "nested" marks).
+			// Any other ESC ends the OSC too (xterm ends it and reads the
+			// ESC as the start of the next sequence: ESC ] inside an OSC
+			// ends one and starts another).
+			p.finish(p.escAt, emit)
 			p.state = stEsc
 			i--
+		case stOSCC2:
+			switch {
+			case c == 0x9c: // ST
+				p.finish(at+1, emit)
+			case c == 0x9d: // a new OSC; the old one is abandoned
+				p.begin(p.escAt)
+			case c >= 0x80 && c <= 0x9f: // another C1 code abandons it
+				p.state = stGround
+			default: // a non-C1 character: payload, not ASCII, so invalid
+				p.put(0xc2)
+				p.state = stOSC
+				i--
+			}
 		}
+	}
+}
+
+// nextIntroducer is the index of the next ESC or 0xC2 (the first byte of
+// the C1 OSC introducer) in b, or -1.
+func nextIntroducer(b []byte) int {
+	e := bytes.IndexByte(b, 0x1b)
+	if e < 0 {
+		e = len(b)
+	}
+	c := bytes.IndexByte(b[:e], 0xc2)
+	if c >= 0 {
+		return c
+	}
+	if e == len(b) {
+		return -1
+	}
+	return e
+}
+
+func (p *Parser) put(c byte) {
+	if len(p.buf) < MaxPayload {
+		p.buf = append(p.buf, c)
+	} else {
+		p.overflow = true
 	}
 }
 
 func (p *Parser) finish(end uint64, emit func(Mark)) {
 	p.state = stGround
-	if p.overflow || p.bad {
+	if p.overflow {
 		return
 	}
 	if m, ok := parsePayload(p.buf); ok {
@@ -146,8 +214,9 @@ func (p *Parser) finish(end uint64, emit func(Mark)) {
 	}
 }
 
-// parsePayload reads "133;X[;params]" or "7;file://host/path". Anything
-// else, including other OSCs (titles, hyperlinks, clipboard), is ignored.
+// parsePayload reads "133;X[;params]" or "7;file://host/path" (the id may
+// have leading zeros, as xterm reads it as a number). Anything else,
+// including other OSCs (titles, hyperlinks, clipboard), is ignored.
 func parsePayload(b []byte) (Mark, bool) {
 	for _, c := range b {
 		if c < 0x20 || c > 0x7e {
@@ -155,9 +224,22 @@ func parsePayload(b []byte) (Mark, bool) {
 		}
 	}
 	s := string(b)
-	switch {
-	case len(s) >= 5 && s[:4] == "133;":
-		rest := s[4:]
+	semi := strings.IndexByte(s, ';')
+	if semi < 1 || semi > 10 {
+		return Mark{}, false
+	}
+	id := strings.TrimLeft(s[:semi], "0")
+	for i := 0; i < len(id); i++ {
+		if id[i] < '0' || id[i] > '9' {
+			return Mark{}, false
+		}
+	}
+	rest := s[semi+1:]
+	switch id {
+	case "133":
+		if rest == "" {
+			return Mark{}, false
+		}
 		k := Kind(rest[0])
 		if len(rest) > 1 && rest[1] != ';' {
 			return Mark{}, false
@@ -169,19 +251,16 @@ func parsePayload(b []byte) (Mark, bool) {
 			m := Mark{Kind: k}
 			if len(rest) > 2 {
 				param := rest[2:]
-				for i := 0; i < len(param); i++ {
-					if param[i] == ';' {
-						param = param[:i]
-						break
-					}
+				if i := strings.IndexByte(param, ';'); i >= 0 {
+					param = param[:i]
 				}
 				m.Exit, m.HasExit = parseExit(param)
 			}
 			return m, true
 		}
 		return Mark{}, false
-	case len(s) > 2 && s[:2] == "7;":
-		cwd, ok := parseCwd(s[2:])
+	case "7":
+		cwd, ok := parseCwd(rest)
 		if !ok {
 			return Mark{}, false
 		}

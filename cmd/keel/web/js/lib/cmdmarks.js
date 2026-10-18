@@ -8,7 +8,9 @@
 // only thing they can do is draw a mark, and the chip text is built from
 // digits only. Nothing here writes to the PTY.
 
-const MAX_PAYLOAD = 2048;
+// internal/shellmark caps the whole OSC payload ("133;" + data) at 2048 bytes;
+// xterm hands this handler only the data, so the same cap is 2048 - 4.
+const MAX_DATA = 2048 - 4;
 const MAX_EXIT = 2147483647;
 // Prompt markers kept per terminal; older ones are disposed (xterm also
 // disposes a marker when its line leaves the scrollback).
@@ -18,7 +20,7 @@ const MAX_PROMPTS = 1000;
 // returns { kind, exit } or null. exit is a number only for D with 1–10
 // digits within int32; anything else is no exit status.
 export function parseMark(data) {
-  if (typeof data !== "string" || data.length === 0 || data.length > MAX_PAYLOAD) return null;
+  if (typeof data !== "string" || data.length === 0 || data.length > MAX_DATA) return null;
   if (!/^[\x20-\x7e]+$/.test(data)) return null;
   const kind = data[0];
   if (data.length > 1 && data[1] !== ";") return null;
