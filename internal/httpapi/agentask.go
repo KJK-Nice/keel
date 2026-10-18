@@ -258,8 +258,10 @@ func writeAgentErr(w http.ResponseWriter, err error) {
 // the user pressed Type into pane on a proposal (and approved the bytes).
 type agentTypeMsg struct {
 	ConversationID string `json:"conversationId"`
-	ProposalID     string `json:"proposalId"`
-	Shift          bool   `json:"shift"`
+	// GroupRunID names a group run's proposal instead (§17).
+	GroupRunID string `json:"groupRunId,omitempty"`
+	ProposalID string `json:"proposalId"`
+	Shift      bool   `json:"shift"`
 }
 
 // authorizeAgentType runs service.AuthorizeType for a client of sess. The
@@ -278,6 +280,7 @@ func (s *Server) authorizeAgentType(sess *runtime.Session, clientID uint64, msg 
 	}
 	return s.agent.AuthorizeType(service.TypeRequest{
 		ConversationID: msg.ConversationID,
+		GroupRunID:     msg.GroupRunID,
 		ProposalID:     msg.ProposalID,
 		SessionID:      info.ID,
 		Role:           role,

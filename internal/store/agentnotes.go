@@ -45,6 +45,8 @@ const (
 	// user's own.
 	MaxAgentNotesPerHost = 50
 	MaxUserNotes         = 50
+	// MaxGroupNotes bounds a group's notes (§17).
+	MaxGroupNotes = 50
 
 	// NoteSourceUser is a note the user wrote; NoteSourceAgent one the
 	// agent proposed and the user saved.
@@ -67,7 +69,11 @@ var (
 type AgentNote struct {
 	ID     string `json:"id"`
 	HostID string `json:"hostId,omitempty"`
-	Text   string `json:"text"`
+	// GroupID is set on a group note (§17): about every host in that group
+	// (its folder and the folders below it). A note has a HostID, a
+	// GroupID or neither (the user's own), never both.
+	GroupID string `json:"groupId,omitempty"`
+	Text    string `json:"text"`
 	// Source is NoteSourceUser or NoteSourceAgent (proposed by the agent,
 	// saved by the user).
 	Source string `json:"source"`
@@ -241,6 +247,9 @@ func (s *Store) ListAgentNotes() ([]AgentNote, error) {
 	}
 	out := append([]AgentNote(nil), notes...)
 	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].GroupID != out[j].GroupID {
+			return out[i].GroupID < out[j].GroupID
+		}
 		if out[i].HostID != out[j].HostID {
 			return out[i].HostID < out[j].HostID
 		}
@@ -261,9 +270,15 @@ func (s *Store) AddAgentNote(n AgentNote) (AgentNote, error) {
 		n.Source, n.FromPane, n.SeenIn, n.Edited = NoteSourceUser, false, "", false
 	}
 	n.SeenIn = CleanAgentChatTitle(n.SeenIn)
+	if n.HostID != "" && n.GroupID != "" {
+		return AgentNote{}, fmt.Errorf("%w: a note is for a host or a group, not both", ErrAgentNote)
+	}
 	s.memMu.Lock()
 	defer s.memMu.Unlock()
 	if n.HostID != "" && !s.hostExists(n.HostID) {
+		return AgentNote{}, ErrNotFound
+	}
+	if n.GroupID != "" && !s.groupExists(n.GroupID) {
 		return AgentNote{}, ErrNotFound
 	}
 	notes, err := s.memoryLocked()
@@ -272,12 +287,15 @@ func (s *Store) AddAgentNote(n AgentNote) (AgentNote, error) {
 	}
 	count := 0
 	for _, x := range notes {
-		if x.HostID == n.HostID {
+		if x.HostID == n.HostID && x.GroupID == n.GroupID {
 			count++
 		}
 	}
 	limit := MaxAgentNotesPerHost
-	if n.HostID == "" {
+	switch {
+	case n.GroupID != "":
+		limit = MaxGroupNotes
+	case n.HostID == "":
 		limit = MaxUserNotes
 	}
 	if count >= limit {
@@ -368,6 +386,37 @@ func (s *Store) deleteHostNotes(hostID string) error {
 		return nil
 	}
 	return s.writeMemoryLocked(next)
+}
+
+// deleteGroupNotes removes a deleted group's notes. A keel.memory that
+// cannot be read is left as it is.
+func (s *Store) deleteGroupNotes(groupID string) error {
+	if groupID == "" {
+		return nil
+	}
+	s.memMu.Lock()
+	defer s.memMu.Unlock()
+	notes, err := s.memoryLocked()
+	if err != nil {
+		return err
+	}
+	next := make([]AgentNote, 0, len(notes))
+	for _, n := range notes {
+		if n.GroupID != groupID {
+			next = append(next, n)
+		}
+	}
+	if len(next) == len(notes) {
+		return nil
+	}
+	return s.writeMemoryLocked(next)
+}
+
+func (s *Store) groupExists(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.groupByIDLocked(id)
+	return ok
 }
 
 // DeleteAllAgentNotes removes every note and returns how many there were

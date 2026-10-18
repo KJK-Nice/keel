@@ -113,11 +113,14 @@ func (h Host) ProposesNotes() bool {
 // ParentID empty means a root group. Hosts belong to at most one group;
 // tags stay orthogonal. v1 does not inherit creds/proxy/theme from parents.
 type Group struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	ParentID  string    `json:"parentId,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ParentID string `json:"parentId,omitempty"`
+	// Roles are the roles of hosts in the group, by host id (grouproles.go).
+	// Only SetGroupRole changes them.
+	Roles     map[string]string `json:"roles,omitempty"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
 }
 
 // MaxGroupDepth is the Termius-like nest cap (6–8). Moves/creates that would

@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keel runbook across a group</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/keel/tokens.css">
+<link rel="stylesheet" href="ds/keel/components/bundle.css">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 1440px; height: 900px; display: flex; flex-direction: column; overflow: hidden; background: var(--stage); color: var(--ink); font-family: var(--font-sans); font-size: 13px; line-height: 18px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="i-server" viewBox="0 0 24 24"><path d="M2 8C2 6.1 2 5.2 2.6 4.6C3.2 4 4.1 4 6 4H18C19.9 4 20.8 4 21.4 4.6C22 5.2 22 6.1 22 8C22 9.9 22 10.8 21.4 11.4C20.8 12 19.9 12 18 12H6C4.1 12 3.2 12 2.6 11.4C2 10.8 2 9.9 2 8Z"></path><path d="M2 16C2 14.1 2 13.2 2.6 12.6C3.2 12 4.1 12 6 12H18C19.9 12 20.8 12 21.4 12.6C22 13.2 22 14.1 22 16C22 17.9 22 18.8 21.4 19.4C20.8 20 19.9 20 18 20H6C4.1 20 3.2 20 2.6 19.4C2 18.8 2 17.9 2 16Z"></path><path d="M6 8H6.01M6 16H6.01M10 8H10.01M10 16H10.01" stroke-width="2.2"></path></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24"><path d="M7.5 7.5L8.72654 8.55719C9.24218 9.00163 9.5 9.22386 9.5 9.5C9.5 9.77614 9.24218 9.99836 8.72654 10.4428L7.5 11.5"></path><path d="M11.5 12.5H15.5"></path><path d="M12 21C15.7497 21 17.6246 21 18.9389 20.0451C19.3634 19.7367 19.7367 19.3634 20.0451 18.9389C21 17.6246 21 15.7497 21 12C21 8.25027 21 6.3754 20.0451 5.06107C19.7367 4.6366 19.3634 4.26331 18.9389 3.95491C17.6246 3 15.7497 3 12 3C8.25027 3 6.3754 3 5.06107 3.95491C4.6366 4.26331 4.26331 4.6366 3.95491 5.06107C3 6.3754 3 8.25027 3 12C3 15.7497 3 17.6246 3.95491 18.9389C4.26331 19.3634 4.6366 19.7367 5.06107 20.0451C6.3754 21 8.25027 21 12 21Z"></path></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><path d="M17 17L21 21"></path><path d="M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z"></path></symbol>
+<symbol id="i-panel-left" viewBox="0 0 24 24"><path d="M13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3Z"></path><path d="M9 3V21"></path></symbol>
+<symbol id="i-ai" viewBox="0 0 24 24"><path d="M13.427 8.08396C12.8007 5.84272 12.3226 4 11.0004 4C9.67824 4 9.19964 5.84274 8.5731 8.08399C8.31853 8.99465 8.19125 9.44998 7.82042 9.82077C7.4496 10.1916 6.99434 10.3188 6.08381 10.5732C3.84273 11.1995 2 11.6775 2 13C2 14.3225 3.84273 14.8005 6.08381 15.4268C6.99434 15.6812 7.4496 15.8084 7.82042 16.1792C8.19125 16.55 8.31853 17.0054 8.5731 17.916C9.19964 20.1573 9.67824 22 11.0004 22C12.3226 22 12.8007 20.1573 13.427 17.916C13.6815 17.0054 13.8087 16.5501 14.1795 16.1793C14.5504 15.8085 15.0056 15.6812 15.9162 15.4268C18.1573 14.8005 20 14.3225 20 13C20 11.6775 18.1573 11.1995 15.9162 10.5732C15.0056 10.3188 14.5504 10.1915 14.1795 9.8207C13.8087 9.44986 13.6815 8.99456 13.427 8.08396Z"></path><path d="M19.5 2.9V6.1M17.9 4.5H21.1"></path></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M21 6.5C21 8.15685 19.6569 9.5 18 9.5C16.3431 9.5 15 8.15685 15 6.5C15 4.84315 16.3431 3.5 18 3.5C19.6569 3.5 21 4.84315 21 6.5Z"></path><path d="M9 12C9 13.6569 7.65685 15 6 15C4.34315 15 3 13.6569 3 12C3 10.3431 4.34315 9 6 9C7.65685 9 9 10.3431 9 12Z"></path><path d="M21 17.5C21 19.1569 19.6569 20.5 18 20.5C16.3431 20.5 15 19.1569 15 17.5C15 15.8431 16.3431 14.5 18 14.5C19.6569 14.5 21 15.8431 21 17.5Z"></path><path d="M8.72852 10.7495L15.2285 7.75M8.72852 13.25L15.2285 16.2495"></path></symbol>
+<symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5V19"></path><path d="M19 12H5"></path></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M18 18L6 6"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M12 5H12.01M12 12H12.01M12 19H12.01" stroke-width="3"></path></symbol>
+<symbol id="i-split-h" viewBox="0 0 24 24"><path d="M3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124Z"></path><path d="M12 2.5V21.5"></path></symbol>
+<symbol id="i-split-v" viewBox="0 0 24 24"><path d="M20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124Z"></path><path d="M21.5 12L2.5 12"></path></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24"><path d="M16.9767 19.5C19.4017 17.8876 21 15.1305 21 12C21 7.02944 16.9706 3 12 3C11.3126 3 10.6432 3.07706 10 3.22302M16.9767 19.5V16M16.9767 19.5H20.5M7 4.51555C4.58803 6.13007 3 8.87958 3 12C3 16.9706 7.02944 21 12 21C12.6874 21 13.3568 20.9229 14 20.777M7 4.51555V8M7 4.51555H3.5"></path></symbol>
+<symbol id="i-steering" viewBox="0 0 24 24"><path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"></path><path d="M18.9181 10.4125C17.9491 10.8367 16.4851 11.218 15.1595 10.7168C13.2638 10 12.2893 10 12 10C11.7107 10 10.7362 10 8.84049 10.7168C7.51492 11.218 6.05092 10.8367 5.08186 10.4125M19 13.2548C16.8546 13.6631 13.6079 14.878 13.5238 19M10.4762 19C10.3921 14.878 7.14544 13.6631 5 13.2548"></path></symbol>
+<symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M18 9C18 9 13.5811 15 12 15C10.4188 15 6 9 6 9"></path></symbol>
+<symbol id="i-chev-right" viewBox="0 0 24 24"><path d="M9 6C9 6 15 10.4189 15 12C15 13.5812 9 18 9 18"></path></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="M15 15.5C18.5899 15.5 21.5 12.5899 21.5 9C21.5 5.41015 18.5899 2.5 15 2.5C11.4101 2.5 8.5 5.41015 8.5 9C8.5 9.41773 8.5394 9.82625 8.6147 10.2221C8.75737 10.972 8.82871 11.347 8.75558 11.5844C8.68245 11.8217 8.47202 12.032 8.05118 12.4526L3.67253 16.8283C3.094 17.4064 2.80474 17.6955 2.65237 18.0631C2.5 18.4308 2.5 18.8398 2.5 19.6576V21.5H6V19.5H8V17.5H10L11.5526 15.9485C11.9729 15.5286 12.183 15.3186 12.4201 15.2456C12.6572 15.1726 13.0316 15.2436 13.7806 15.3858C14.1756 15.4608 14.5832 15.5 15 15.5Z"></path><path d="M18 7.5C18 8.32843 17.3284 9 16.5 9C15.6716 9 15 8.32843 15 7.5C15 6.67157 15.6716 6 16.5 6C17.3284 6 18 6.67157 18 7.5Z"></path></symbol>
+<symbol id="i-logs" viewBox="0 0 24 24"><path d="M19 16V7C19 5.1 19 4.2 18.4 3.6C17.8 3 16.9 3 15 3H4C2.9 3 2 3.9 2 5V7C2 8 2 8.4 2.3 8.7C2.6 9 3 9 4 9H6"></path><path d="M6 5V19C6 20.1 6.9 21 8 21H20C21.1 21 22 20.1 22 19V18C22 17.1 22 16.6 21.7 16.3C21.4 16 20.9 16 20 16H12C11.1 16 10.6 16 10.3 16.3C10 16.6 10 17.1 10 18V19C10 20.1 9.1 21 8 21"></path><path d="M10 8H15M10 11H13"></path></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M21.3175 7.14139L20.8239 6.28479C20.4506 5.63696 20.264 5.31305 19.9464 5.18388C19.6288 5.05472 19.2696 5.15664 18.5513 5.36048L17.3311 5.70418C16.8725 5.80994 16.3913 5.74994 15.9726 5.53479L15.6357 5.34042C15.2766 5.11043 15.0004 4.77133 14.8475 4.37274L14.5136 3.37536C14.294 2.71534 14.1842 2.38533 13.9228 2.19657C13.6615 2.00781 13.3143 2.00781 12.6199 2.00781H11.5051C10.8108 2.00781 10.4636 2.00781 10.2022 2.19657C9.94085 2.38533 9.83106 2.71534 9.61149 3.37536L9.27753 4.37274C9.12465 4.77133 8.84845 5.11043 8.48937 5.34042L8.15249 5.53479C7.73374 5.74994 7.25259 5.80994 6.79398 5.70418L5.57375 5.36048C4.85541 5.15664 4.49625 5.05472 4.17867 5.18388C3.86109 5.31305 3.67445 5.63696 3.30115 6.28479L2.80757 7.14139C2.45766 7.74864 2.2827 8.05227 2.31666 8.37549C2.35061 8.69871 2.58483 8.95918 3.05326 9.48012L4.0843 10.6328C4.3363 10.9518 4.51521 11.5078 4.51521 12.0077C4.51521 12.5078 4.33636 13.0636 4.08433 13.3827L3.05326 14.5354C2.58483 15.0564 2.35062 15.3168 2.31666 15.6401C2.2827 15.9633 2.45766 16.2669 2.80757 16.8741L3.30114 17.7307C3.67443 18.3785 3.86109 18.7025 4.17867 18.8316C4.49625 18.9608 4.85542 18.8589 5.57377 18.655L6.79394 18.3113C7.25263 18.2055 7.73387 18.2656 8.15267 18.4808L8.4895 18.6752C8.84851 18.9052 9.12464 19.2442 9.2775 19.6428L9.61149 20.6403C9.83106 21.3003 9.94085 21.6303 10.2022 21.8191C10.4636 22.0078 10.8108 22.0078 11.5051 22.0078H12.6199C13.3143 22.0078 13.6615 22.0078 13.9228 21.8191C14.1842 21.6303 14.294 21.3003 14.5136 20.6403L14.8476 19.6428C15.0004 19.2442 15.2765 18.9052 15.6356 18.6752L15.9724 18.4808C16.3912 18.2656 16.8724 18.2055 17.3311 18.3113L18.5513 18.655C19.2696 18.8589 19.6288 18.9608 19.9464 18.8316C20.264 18.7025 20.4506 18.3785 20.8239 17.7307L21.3175 16.8741C21.6674 16.2669 21.8423 15.9633 21.8084 15.6401C21.7744 15.3168 21.5402 15.0564 21.0718 14.5354L20.0407 13.3827C19.7887 13.0636 19.6098 12.5078 19.6098 12.0077C19.6098 11.5078 19.7888 10.9518 20.0407 10.6328L21.0718 9.48012C21.5402 8.95918 21.7744 8.69871 21.8084 8.37549C21.8423 8.05227 21.6674 7.74864 21.3175 7.14139Z"></path><path d="M15.5195 12C15.5195 13.933 13.9525 15.5 12.0195 15.5C10.0865 15.5 8.51953 13.933 8.51953 12C8.51953 10.067 10.0865 8.5 12.0195 8.5C13.9525 8.5 15.5195 10.067 15.5195 12Z"></path></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><path d="M7.5 14.5C7.5 11.2002 7.5 9.55025 8.52513 8.52513C9.55025 7.5 11.2002 7.5 14.5 7.5C17.7998 7.5 19.4497 7.5 20.4749 8.52513C21.5 9.55025 21.5 11.2002 21.5 14.5C21.5 17.7998 21.5 19.4497 20.4749 20.4749C19.4497 21.5 17.7998 21.5 14.5 21.5C11.2002 21.5 9.55025 21.5 8.52513 20.4749C7.5 19.4497 7.5 17.7998 7.5 14.5Z"></path><path d="M7.5 16.5C6.10355 16.5 5.40533 16.5 4.84402 16.3036C3.83866 15.9518 3.0482 15.1613 2.69641 14.156C2.5 13.5947 2.5 12.8964 2.5 11.5V9.5C2.5 6.20017 2.5 4.55025 3.52513 3.52513C4.55025 2.5 6.20017 2.5 9.5 2.5H11.5C12.8964 2.5 13.5947 2.5 14.156 2.69641C15.1613 3.0482 15.9518 3.83866 16.3036 4.84402C16.5 5.40533 16.5 6.10355 16.5 7.5"></path></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M16.4249 4.60509L17.4149 3.6151C18.2351 2.79497 19.5648 2.79497 20.3849 3.6151C21.205 4.43524 21.205 5.76493 20.3849 6.58507L19.3949 7.57506M16.4249 4.60509L9.76558 11.2644C9.25807 11.772 8.89804 12.4078 8.72397 13.1041L8 16L10.8959 15.276C11.5922 15.102 12.228 14.7419 12.7356 14.2344L19.3949 7.57506M16.4249 4.60509L19.3949 7.57506"></path><path d="M19 13.5C19 16.7875 19 18.4312 18.092 19.5376C17.9258 19.7401 17.7401 19.9258 17.5375 20.092C16.4312 21 14.7874 21 11.5 21H11C7.22876 21 5.34316 21 4.17159 19.8284C3.00003 18.6569 3 16.7712 3 13V12.5C3 9.21252 3 7.56879 3.90794 6.46244C4.07417 6.2599 4.2599 6.07417 4.46244 5.90794C5.56879 5 7.21252 5 10.5 5"></path></symbol>
+<symbol id="i-cmd" viewBox="0 0 24 24"><path d="M14 4H10C6.22876 4 4.34315 4 3.17157 5.17157C2 6.34315 2 8.22876 2 12C2 15.7712 2 17.6569 3.17157 18.8284C4.34315 20 6.22876 20 10 20H14C17.7712 20 19.6569 20 20.8284 18.8284C22 17.6569 22 15.7712 22 12C22 8.22876 22 6.34315 20.8284 5.17157C19.6569 4 17.7712 4 14 4Z"></path><path d="M7 9L8.83981 10.5858C9.61327 11.2525 10 11.5858 10 12C10 12.4142 9.61327 12.7475 8.83981 13.4142L7 15"></path><path d="M13 16H17"></path></symbol>
+<symbol id="i-tick" viewBox="0 0 24 24"><path d="M5 14L8.5 17.5L19 6.5"></path></symbol>
+<symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 5.5V19"></path><path d="M18 11C18 11 13.5811 5.00001 12 5C10.4188 4.99999 6 11 6 11"></path></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M18.7088 3.49534C16.8164 2.55382 14.5008 2 11.9999 2C9.49904 2 7.18344 2.55382 5.2911 3.49534C4.36312 3.95706 3.89913 4.18792 3.44954 4.91378C2.99994 5.63965 2.99994 6.34248 2.99994 7.74814V11.2371C2.99994 16.9205 7.54229 20.0804 10.173 21.4338C10.9066 21.8113 11.2734 22 11.9999 22C12.7264 22 13.0932 21.8113 13.8269 21.4338C16.4576 20.0804 20.9999 16.9205 20.9999 11.2371L20.9999 7.74814C20.9999 6.34249 20.9999 5.63966 20.5503 4.91378C20.1007 4.18791 19.6367 3.95706 18.7088 3.49534Z"></path><path d="M9 12L11 14L15 10"></path></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><path d="M15.6 8.4V12.9C15.6 14.4 16.8 15.6 18.3 15.6C19.8 15.6 21 14.4 21 12.9V12C21 7 17 3 12 3C7 3 3 7 3 12C3 17 7 21 12 21C14 21 15.9 20.3 17.4 19.2M15.6 12C15.6 14 14 15.6 12 15.6C10 15.6 8.4 14 8.4 12C8.4 10 10 8.4 12 8.4C14 8.4 15.6 10 15.6 12Z"></path></symbol>
+<symbol id="i-forward" viewBox="0 0 24 24"><path d="M20 17L4 17"></path><path d="M17 14C17 14 20 16.2 20 17C20 17.8 17 20 17 20"></path><path d="M5 7L20 7"></path><path d="M7 4C7 4 4 6.2 4 7C4 7.8 7 10 7 10"></path></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"></path><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"></path></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 11A8 8 0 1 0 17.66 16.66"></path><path d="M20 4V11H13"></path></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M5.04 5.04A9.97 9.97 0 0 1 12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22C6.48 22 2 17.52 2 12"></path><path d="M2 5V9H6"></path><path d="M12 7V12L15 14"></path></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M15.5 21H9.5C6.2 21 4.6 21 3.5 20C2.5 18.9 2.5 17.3 2.5 14V10C2.5 6.7 2.5 5.1 3.5 4C4.6 3 6.2 3 9.5 3H14.5C17.8 3 19.4 3 20.5 4C21.5 5.1 21.5 6.7 21.5 10V15L15.5 21Z"></path><path d="M15 21V18.5C15 17.1 15 16.4 15.4 16C15.9 15.5 16.6 15.5 18 15.5H21.5"></path><path d="M7 8H17M7 12H12"></path></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M20.5 16.9V11C20.5 7.2 20.5 5.3 19.3 4.2C18.2 3 16.3 3 12.5 3H11.5C7.7 3 5.8 3 4.7 4.2C3.5 5.3 3.5 7.2 3.5 11V19.5"></path><path d="M20.5 17H6C4.6 17 3.5 18.1 3.5 19.5C3.5 20.9 4.6 22 6 22H20.5"></path><path d="M20.5 22C19.1 22 18 20.9 18 19.5C18 18.1 19.1 17 20.5 17"></path><path d="M9 8H15M9 12H13"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M13.9 21H10.1C5.4 21 3.1 21 2.3 19.5C1.4 18 2.6 16 5 12L6.9 8.8C9.2 4.9 10.3 3 12 3C13.7 3 14.8 4.9 17.1 8.8L19 12C21.4 16 22.6 18 21.7 19.5C20.9 21 18.6 21 13.9 21Z"></path><path d="M12 9V13"></path><path d="M12 16.8H12.01" stroke-width="2.2"></path></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3M12 3C11.4 3 9.5 5.4 8.5 6.5M12 3C12.6 3 14.5 5.4 15.5 6.5"></path><path d="M3 15C3 17.8 3 19.2 3.9 20.1C4.8 21 6.2 21 9 21H15C17.8 21 19.2 21 20.1 20.1C21 19.2 21 17.8 21 15"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><path d="M4.27 16.4C4.5 18.1 5.9 19.4 7.6 19.5C8.9 19.6 10.4 19.7 12 19.7C13.6 19.7 15.1 19.6 16.4 19.5C18.1 19.4 19.5 18.1 19.7 16.4C19.9 15.3 20 14.2 20 13C20 11.8 19.9 10.7 19.7 9.6C19.5 7.9 18.1 6.6 16.4 6.5C15.1 6.4 13.6 6.3 12 6.3C10.4 6.3 8.9 6.4 7.6 6.5C5.9 6.6 4.5 7.9 4.27 9.6C4.1 10.7 4 11.8 4 13C4 14.2 4.1 15.3 4.27 16.4Z"></path><path d="M7.5 6.5V5C7.5 2.5 9.5 0.5 12 0.5C14.5 0.5 16.5 2.5 16.5 5V6.5"></path><path d="M12 11V15"></path></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2.5H9C6.2 2.5 4.8 2.5 3.9 3.4C3 4.3 3 5.7 3 8.5V15.5C3 18.3 3 19.7 3.9 20.6C4.8 21.5 6.2 21.5 9 21.5H15C17.8 21.5 19.2 21.5 20.1 20.6C21 19.7 21 18.3 21 15.5V9.5L14 2.5Z"></path><path d="M14 2.5V5.5C14 7.4 14 8.3 14.6 8.9C15.2 9.5 16.1 9.5 18 9.5H21"></path><path d="M8 13H16M8 17H13"></path></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3L2.5 8L12 13L21.5 8L12 3Z"></path><path d="M2.5 12.5L12 17.5L21.5 12.5"></path><path d="M2.5 17L12 22L21.5 17"></path></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M18.9 12.8C18.5 14.2 16.9 15.2 13.6 17.2C10.4 19.1 8.8 20.1 7.5 19.7C7 19.6 6.5 19.3 6.1 18.9C5 18 5 16 5 12C5 8 5 6 6.1 5.1C6.5 4.7 7 4.4 7.5 4.3C8.8 3.9 10.4 4.9 13.6 6.8C16.9 8.8 18.5 9.8 18.9 11.2C19 11.7 19 12.3 18.9 12.8Z"></path></symbol>
+</svg>
+
+<header class="k-tabs" style="padding-left: 76px; gap: 2px; flex: none">
+<div class="k-traffic"><span></span><span></span><span></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Show vault sidebar" aria-pressed="false" style="margin-right: 6px"><svg class="kw-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-panel-left"></use></svg></button>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">cp-1</span></div>
+<div class="k-tab"><span class="k-dot k-dot--live"></span><span class="k-tab-label">workers</span><span class="k-badge k-badge--mono" style="height: 16px; padding: 0 4px; font-size: 10px">5</span></div>
+<div class="k-tab" aria-selected="true" style="font-family: var(--font-sans)"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-book"></use></svg><span class="k-tab-label">Run · Restart kubelet</span><span class="k-tab-close"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-x"></use></svg></span></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-tab-new" aria-label="New tab"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><use href="#i-add"></use></svg></button>
+</header>
+
+<div class="kw-split" style="grid-template-columns: 340px minmax(0, 1fr)">
+<div class="kw-list" style="padding: 20px 18px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: grid; gap: 4px">
+<span class="k-menu-label" style="padding: 0">Runbook on k8s-prod</span>
+<h1 style="margin: 0; font: 600 18px/22px var(--font-display)">Rolling restart kubelet on workers</h1>
+<span class="k-help">4 steps · 1 changes state · started 10:02 by you</span>
+</div>
+<div class="kw-rb-steps">
+<div class="kw-rb-step"><span class="kw-rb-n" style="border-color: transparent; background: var(--tide-soft); color: var(--tide)">✓</span><div class="kw-rb-body"><h3>Check nodes are Ready</h3><p>On cp-1 · typed 10:02 · 8 of 8 Ready</p></div></div>
+<div class="kw-rb-step"><span class="kw-rb-n" style="border-color: var(--brass-ink); color: var(--brass-ink)">2</span><div class="kw-rb-body"><h3>Restart kubelet on each worker</h3><p>Role <span class="k-badge k-badge--mono" style="height: 16px; padding: 0 5px; font-size: 10px">worker</span> · 5 hosts · {{modeShort}}</p></div></div>
+<div class="kw-rb-step"><span class="kw-rb-n">3</span><div class="kw-rb-body"><h3 style="color: var(--ink-muted)">Confirm nodes Ready again</h3><p>On cp-1</p></div></div>
+<div class="kw-rb-step"><span class="kw-rb-n">4</span><div class="kw-rb-body"><h3 style="color: var(--ink-muted)">Look for pods in CrashLoopBackOff</h3><p>On cp-1</p></div></div>
+</div>
+<div style="margin-top: auto; display: flex; align-items: flex-start; gap: 8px">
+<svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-faint); margin-top: 2px"><use href="#i-shield"></use></svg>
+<span class="k-help">Each step is one proposal for a set of panes. Nothing is typed until you press Type, and each host's result comes from its shell's exit code.</span>
+</div>
+</div>
+
+<div class="kw-detail" style="gap: 18px">
+<div style="display: flex; align-items: center; gap: 12px">
+<h2 style="margin: 0; flex: 1; font: 600 16px/20px var(--font-sans)">Step 2 · Restart kubelet on each worker</h2>
+<div class="kw-gx-mode" role="group" aria-label="How to run on several hosts">
+<button aria-pressed="{{rollingPressed}}" onClick="{{setRolling}}">Rolling</button>
+<button aria-pressed="{{parallelPressed}}" onClick="{{setParallel}}">Parallel</button>
+</div>
+</div>
+<span class="k-help" style="margin-top: -10px">{{modeHelp}}</span>
+
+<div class="kw-prop">
+<div class="kw-prop-head">
+<svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-muted)"><use href="#i-cmd"></use></svg>
+<span>Run on</span><span class="k-badge k-badge--mono">worker</span><span class="k-mono" style="font-size: 12px; color: var(--ink-muted)">wk-1 … wk-5</span>
+<span class="k-badge k-badge--signal" style="margin-left: auto">Changes</span>
+</div>
+<div class="kw-prop-body">
+<pre class="k-bytes" style="max-height: none">sudo systemctl restart kubelet &amp;&amp; sleep 5 &amp;&amp; systemctl is-active kubelet<span class="k-ctl">↵</span></pre>
+</div>
+<div style="padding: 10px 12px 0">
+<label class="kw-gx-confirm"><input type="checkbox" checked="{{confirmed}}" onChange="{{toggleConfirm}}" aria-label="Confirm production"><span>k8s-prod is <b>production</b>. I checked this command for all 5 hosts.</span></label>
+</div>
+<div class="kw-prop-foot">
+<span class="k-help" style="font-size: 11px">1 line · 75 bytes · same bytes in every pane</span>
+<div style="flex: 1"></div>
+<button class="k-btn k-btn--ghost k-btn--sm k-btn--icon" aria-label="Edit command"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-edit"></use></svg></button>
+<button class="k-btn k-btn--primary k-btn--sm" disabled="{{typeDisabled}}" onClick="{{typeAll}}">Type into 5 panes<span class="k-kbd" style="height: 16px; min-width: 16px; font-size: 10px">⇧↵</span></button>
+</div>
+</div>
+
+<sc-if value="{{halted}}" hint-placeholder-val="{{ true }}">
+<div class="kw-gx-halt" role="alert">
+<svg class="kw-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><use href="#i-alert"></use></svg>
+<span style="flex: 1"><b>wk-3 failed with exit 1. Rolling stopped before wk-4.</b><br>wk-4 and wk-5 were not touched.</span>
+<button class="k-btn k-btn--sm" onClick="{{retry}}">Retry host</button>
+<button class="k-btn k-btn--ghost k-btn--sm" onClick="{{skip}}">Skip host</button>
+<button class="k-btn k-btn--danger k-btn--sm" onClick="{{stop}}">Stop runbook</button>
+</div>
+</sc-if>
+<sc-if value="{{stopped}}" hint-placeholder-val="{{ false }}">
+<div class="kw-review"><span><b>Runbook stopped at step 2.</b> Logs keep what ran on each host. Open the workers tab to look at wk-3.</span></div>
+</sc-if>
+
+<div class="kw-box" style="padding: 0; gap: 0; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line)"><h3 style="margin: 0; flex: 1; font: 600 13px/16px var(--font-sans)">Results</h3><span class="k-help">{{summary}}</span></div>
+<table class="kw-table" aria-label="Result per host">
+<thead><tr><th>Host</th><th>Status</th><th>Time</th><th>Last line</th><th></th></tr></thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+<tr>
+<td class="kw-mono" style="color: var(--ink)">{{r.name}}</td>
+<td><span class="{{r.stClass}}">{{r.glyph}} {{r.status}}</span></td>
+<td class="kw-mono" style="color: var(--ink-muted)">{{r.time}}</td>
+<td class="kw-mono" style="color: var(--ink-muted); max-width: 420px; overflow: hidden; text-overflow: ellipsis">{{r.line}}</td>
+<td style="text-align: right"><sc-if value="{{r.hasOut}}" hint-placeholder-val="{{ true }}"><button class="k-btn k-btn--ghost k-btn--sm" onClick="{{r.view}}">View output</button></sc-if></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+<sc-if value="{{showOut}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 0 14px 14px"><pre class="k-term" style="border-radius: var(--radius-sm); max-height: 140px">{{outText}}</pre></div>
+</sc-if>
+</div>
+</div>
+</div>
+
+<footer class="kw-status">
+<span><span class="k-dot k-dot--live" style="width: 6px; height: 6px; box-shadow: none"></span>keel serve · 7 sessions</span>
+<div style="flex: 1"></div>
+<span>Runbook · step 2 of 4 · {{modeShort}}</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"start":{"editor":"enum","options":["ready","halted"],"default":"halted"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mode = this.state.mode ?? 'rolling';
+    const phase = this.state.phase ?? (this.props.start ?? 'halted');
+    const fix = this.state.fix ?? null;
+    const confirmed = this.state.confirmed ?? true;
+    const names = ['wk-1', 'wk-2', 'wk-3', 'wk-4', 'wk-5'];
+    const ok = { status: 'exit 0', glyph: '✓', stClass: 'kw-gx-st kw-gx-st--ok', line: 'active', hasOut: true };
+    const fail = { status: 'exit 1', glyph: '✗', stClass: 'kw-gx-st kw-gx-st--fail', line: 'Job for kubelet.service failed because the control process exited with error code.', hasOut: true };
+    const wait = { status: 'waiting', glyph: '·', stClass: 'kw-gx-st kw-gx-st--wait', line: '', hasOut: false, time: '' };
+    const run = { status: 'running', glyph: '◌', stClass: 'kw-gx-st kw-gx-st--run', line: 'sleep 5', hasOut: true, time: '3.1 s' };
+    const times = ['6.2 s', '6.0 s', '0.4 s', '6.1 s', '6.3 s'];
+    const rowFor = (i) => {
+      if (phase === 'ready') return wait;
+      const t = { time: times[i] };
+      if (i === 2) {
+        if (fix === 'retry') return { ...ok, time: '6.4 s', line: 'active · retry 1' };
+        if (fix === 'skip') return { status: 'skipped', glyph: '–', stClass: 'kw-gx-st kw-gx-st--wait', line: 'Skipped by you after exit 1', hasOut: true, time: '0.4 s' };
+        return { ...fail, ...t };
+      }
+      if (mode === 'rolling' && i > 2) {
+        if (fix === 'retry' || fix === 'skip') return i === 3 ? { ...ok, ...t } : run;
+        return wait;
+      }
+      return { ...ok, ...t };
+    };
+    const outs = {
+      'wk-3': 'ops@wk-3:~$ sudo systemctl restart kubelet && sleep 5 && systemctl is-active kubelet\nJob for kubelet.service failed because the control process exited with error code.\nSee "systemctl status kubelet.service" and "journalctl -xeu kubelet.service" for details.\nops@wk-3:~$ ',
+      other: 'ops@wk-1:~$ sudo systemctl restart kubelet && sleep 5 && systemctl is-active kubelet\nactive\nops@wk-1:~$ '
+    };
+    const view = this.state.view ?? null;
+    const rows = names.map((n, i) => ({ name: n, ...rowFor(i), view: () => this.setState({ view: view === n ? null : n }) }));
+    const done = rows.filter((r) => r.glyph === '✓').length;
+    const failed = rows.filter((r) => r.glyph === '✗').length;
+    const halted = phase === 'halted' && mode === 'rolling' && fix === null;
+    const stopped = phase === 'stopped';
+    return {
+      theme: this.props.theme ?? 'dark',
+      rows: rows,
+      rollingPressed: mode === 'rolling' ? 'true' : 'false',
+      parallelPressed: mode === 'parallel' ? 'true' : 'false',
+      setRolling: () => this.setState({ mode: 'rolling', fix: null }),
+      setParallel: () => this.setState({ mode: 'parallel', fix: null }),
+      modeShort: mode === 'rolling' ? 'rolling, one at a time' : 'parallel',
+      modeHelp: mode === 'rolling' ? 'Rolling: one host at a time, in order. The first failure stops the step before the next host.' : 'Parallel: every host at once. A failure does not stop the others. Best for read-only steps.',
+      confirmed: confirmed,
+      toggleConfirm: () => this.setState({ confirmed: !confirmed }),
+      typeDisabled: !confirmed,
+      typeAll: () => this.setState({ phase: 'halted', fix: null, view: null }),
+      halted: halted || (phase === 'halted' && mode === 'parallel' && fix === null && false),
+      stopped: stopped,
+      retry: () => this.setState({ fix: 'retry' }),
+      skip: () => this.setState({ fix: 'skip' }),
+      stop: () => this.setState({ phase: 'stopped' }),
+      summary: phase === 'ready' ? 'Not started' : done + ' of 5 exit 0' + (failed ? ' · ' + failed + ' failed' : ''),
+      showOut: view !== null,
+      outText: view === 'wk-3' ? outs['wk-3'] : outs.other.split('wk-1').join(view ?? 'wk-1')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -131,6 +131,9 @@ export function toInput(ed) {
       description: cleanLine(s.description),
       command: String(s.command || "").replace(/\r\n/g, "\n").trim(),
       expect: cleanLine(s.expect),
+      // Where it runs in a group run (§17): a role, one host of it.
+      role: String(s.role || "").trim().toLowerCase(),
+      oneHost: !!s.oneHost,
     }))
     .filter((s) => s.title || s.command);
   return {
@@ -152,6 +155,8 @@ export function checkInput(input) {
   if (input.steps.length > MAX_STEPS) return `A runbook has at most ${MAX_STEPS} steps.`;
   const untitled = input.steps.findIndex((s) => !s.title);
   if (untitled >= 0) return `Step ${untitled + 1} needs a title.`;
+  const badRole = input.steps.findIndex((s) => s.role && !/^[a-z0-9][a-z0-9_.-]{0,31}$/.test(s.role));
+  if (badRole >= 0) return `Step ${badRole + 1}: a role is one word of letters, digits, -, _ or .`;
   return "";
 }
 

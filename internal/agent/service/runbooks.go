@@ -327,7 +327,12 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 		b.Hosts = append(b.Hosts, c)
 	}
 	for _, st := range in.Steps {
-		out := store.RunbookStep{ID: st.ID}
+		out := store.RunbookStep{ID: st.ID, OneHost: st.OneHost}
+		role, ok := store.CleanRole(st.Role)
+		if !ok {
+			return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("step %d: a role is one lower-case word of up to %d letters, digits, \"-\", \"_\" or \".\" (such as worker)", len(b.Steps)+1, store.MaxRoleBytes))
+		}
+		out.Role = role
 		if out.Title, err = line(st.Title, store.MaxRunbookTitleBytes); err != nil {
 			return store.Runbook{}, redact.Report{}, err
 		}

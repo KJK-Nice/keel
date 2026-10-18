@@ -21,7 +21,9 @@ const maxNoteBody = 8 * 1024
 
 type noteBody struct {
 	HostID string `json:"hostId"`
-	Text   string `json:"text"`
+	// GroupID makes it a group note (§17).
+	GroupID string `json:"groupId"`
+	Text    string `json:"text"`
 }
 
 func decodeNote(w http.ResponseWriter, r *http.Request) (noteBody, bool) {
@@ -55,7 +57,19 @@ func (s *Server) agentAddNote(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	out, err := s.agent.AddNote(req.HostID, req.Text)
+	var (
+		out service.SavedNote
+		err error
+	)
+	switch {
+	case req.GroupID != "" && req.HostID != "":
+		writeError(w, http.StatusBadRequest, "a note is for a host or a group, not both")
+		return
+	case req.GroupID != "":
+		out, err = s.agent.AddGroupNote(req.GroupID, req.Text)
+	default:
+		out, err = s.agent.AddNote(req.HostID, req.Text)
+	}
 	if err != nil {
 		writeNoteErr(w, err)
 		return

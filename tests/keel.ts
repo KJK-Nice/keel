@@ -168,3 +168,18 @@ export type SSHTestServer = { host: string; port: number; user: string; password
 export function sshTest(): { jump: SSHTestServer; target: SSHTestServer } {
   return JSON.parse(readFileSync(join(keelData, 'sshtest.json'), 'utf8'));
 }
+
+// retire removes a test's stand-in Local Shell hosts (tests/groups.e2e.ts)
+// at the end, so other tests find only the seeded Local Shell. keel serve
+// refuses to delete a local host, so each is made an ordinary SSH host
+// first, then deleted; and the test's folder.
+export async function retire(app: any, names: RegExp, group = '') {
+  for (const h of await keelApi<{ id: string; name: string; authType: string }[]>(app.baseUrl, '/api/hosts')) {
+    if (!names.test(h.name)) continue;
+    if (h.authType === 'local') await keelSend(app.baseUrl, 'PUT', `/api/hosts/${h.id}`, { ...h, authType: 'password', address: 'retired.invalid', username: 'e2e', port: 22 });
+    await keelSend(app.baseUrl, 'DELETE', `/api/hosts/${h.id}`);
+  }
+  for (const g of await keelApi<{ id: string; name: string }[]>(app.baseUrl, '/api/groups')) {
+    if (group && g.name === group) await keelSend(app.baseUrl, 'DELETE', `/api/groups/${g.id}`);
+  }
+}

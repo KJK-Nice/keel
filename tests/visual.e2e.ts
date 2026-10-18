@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, keelSend, openKeel, sshTest } from './keel.ts';
+import { keelApi, keelSend, openKeel, retire, sshTest } from './keel.ts';
 
 // Named screenshots of the main screens in both themes, for before/after
 // comparisons of visual-only changes (`--output .e2e/proof/<name>`). They
@@ -644,6 +644,84 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
       await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
       for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
       void lag;
+    });
+  }
+});
+
+// Groups, part 1 (§17, boards GroupRoles and GroupRunbook): the group page
+// with roles and a note, a run across two Local Shell hosts with one host
+// done and the other waiting, and the group approve dialog with one row
+// per host.
+describe('groups', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`groups (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      const hosts = await keelApi<{ id: string; name: string }[]>(app.baseUrl, '/api/hosts');
+      const ids: string[] = [];
+      for (const name of ['vx-cp-1', 'vx-wk-1', 'vx-wk-2']) {
+        const have = hosts.find((h) => h.name === name);
+        if (have) await keelSend(app.baseUrl, 'PUT', `/api/hosts/${have.id}`, { ...have, authType: 'local', agentReadable: true });
+        ids.push(have ? have.id : (await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/hosts', { name, authType: 'local', agentReadable: true })).id);
+      }
+      const groups = await keelApi<{ id: string; name: string }[]>(app.baseUrl, '/api/groups');
+      const group = groups.find((g) => g.name === 'k8s-visual') ?? (await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/groups', { name: 'k8s-visual' }));
+      await keelSend(app.baseUrl, 'POST', '/api/hosts/move', { ids, groupId: group.id });
+      const roles = ['control-plane', 'worker', 'worker'];
+      for (let i = 0; i < ids.length; i++) await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: ids[i], role: roles[i] });
+      const notes = await keelApi<{ notes: { id: string; groupId?: string }[] }>(app.baseUrl, '/api/agent/notes');
+      for (const n of notes.notes.filter((x) => x.groupId === group.id)) await keelSend(app.baseUrl, 'DELETE', `/api/agent/notes/${n.id}`);
+      await keelSend(app.baseUrl, 'POST', '/api/agent/notes', { groupId: group.id, text: 'Kubernetes 1.31 via kubeadm. Drain a worker before restarting containerd.' });
+      await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
+        name: 'Rolling restart kubelet on workers',
+        steps: [
+          { title: 'Restart kubelet on each worker', command: "printf '\\033]133;C\\007active\\n\\033]133;D;0\\007'", role: 'worker' },
+          { title: 'Look for pods in CrashLoopBackOff', command: 'kubectl get pods -A | grep -i crashloop', role: 'control-plane', oneHost: true },
+          { title: 'Check the dashboards' },
+        ],
+      });
+      await openKeel(app);
+      await screen.getByRole('button', 'New host', { visible: true }).first().press('Meta+k');
+      const palette = screen.getByRole('dialog', 'Command palette');
+      await palette.getByRole('combobox').fill('Group k8s-visual');
+      await palette.getByRole('option').filter({ hasText: 'Group k8s-visual' }).first().tap();
+      const page = screen.getByRole('region', 'Group');
+      await expect(page).toContainText('Drain a worker');
+      await app.screenshot(`${theme}-group-page`);
+
+      await page.getByRole('button', 'Run a runbook on this group').tap();
+      await page.getByRole('menuitem', /Rolling restart kubelet/).tap();
+      const run = screen.getByRole('region', 'Group run');
+      await run.getByRole('button', 'Parallel').tap();
+      for (const name of ['vx-wk-1', 'vx-wk-2']) {
+        await run.getByRole('button', `Open a pane on ${name}`).tap();
+        await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
+        await screen.getByRole('button', /Run · Rolling restart/).first().tap();
+      }
+      const typeBtn = run.getByRole('button', /^Type into 2 panes/);
+      await expect(typeBtn).toBeEnabled({ timeout: 10_000 });
+      await typeBtn.tap();
+      const dlg = screen.getByRole('dialog').filter({ hasText: 'Type into these panes?' });
+      await dlg.getByRole('checkbox', 'Type into vx-wk-1').tap();
+      await app.screenshot(`${theme}-group-approve`);
+      await dlg.getByRole('button', 'Type into 1 pane').tap();
+      await expect(run.getByRole('row', /^vx-wk-1/)).toContainText('✓ exit 0', { timeout: 15_000 });
+      await app.screenshot(`${theme}-group-run`);
+
+      await run.getByRole('button', 'Stop runbook').first().tap();
+      await screen.getByRole('alertdialog').getByRole('button', 'Stop runbook').tap();
+      for (let i = 0; i < 6; i++) {
+        const close = screen.getByRole('button', 'Close tab', { visible: true });
+        if (!(await close.count())) break;
+        await close.first().tap();
+      }
+      for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
+      for (const rb of (await keelApi<{ runbooks: { id: string }[] }>(app.baseUrl, '/api/agent/runbooks')).runbooks) {
+        await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
+      }
+      await retire(app, /^vx-/, 'k8s-visual');
     });
   }
 });

@@ -124,7 +124,10 @@ type Service struct {
 	// drafts are the runbook drafts made by RunbookDraft, by id: a save
 	// takes its source from here (under mu).
 	drafts map[string]draftOrigin
-	log    agent.Logger
+	// groupRuns are the runbook runs across a group (grouprun.go), by id
+	// (under mu).
+	groupRuns map[string]*groupRun
+	log       agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -750,11 +753,14 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 // session socket.
 type TypeRequest struct {
 	ConversationID string
-	ProposalID     string
-	SessionID      string
-	Role           agent.Role // the typing client's role in that session
-	Bytes          string     // what the client asks to inject
-	Shift          bool       // ⇧ was held
+	// GroupRunID names a group run's proposal instead of a conversation's
+	// (grouprun.go).
+	GroupRunID string
+	ProposalID string
+	SessionID  string
+	Role       agent.Role // the typing client's role in that session
+	Bytes      string     // what the client asks to inject
+	Shift      bool       // ⇧ was held
 }
 
 // AuthorizeType checks a Type into pane before keel serve writes it: the
@@ -762,6 +768,9 @@ type TypeRequest struct {
 // the ⇧ rule holds (with the host's current production flag), and the
 // client drives the session. It then logs agent.type. It writes nothing.
 func (s *Service) AuthorizeType(req TypeRequest) error {
+	if req.GroupRunID != "" {
+		return s.authorizeGroupType(req)
+	}
 	s.mu.Lock()
 	p, err := s.proposalLocked(req.ConversationID, req.ProposalID)
 	var snap Proposal

@@ -129,7 +129,7 @@ export function createRunbooksPage(deps) {
       createdAt: rb.createdAt || "",
       lastUsedAt: rb.lastUsedAt || "",
       lastUsedOn: rb.lastUsedOn || "",
-      steps: (rb.steps || []).map((s) => ({ id: s.id || "", title: s.title || "", description: s.description || "", command: s.command || "", expect: s.expect || "", risk: s.risk || "" })),
+      steps: (rb.steps || []).map((s) => ({ id: s.id || "", title: s.title || "", description: s.description || "", command: s.command || "", expect: s.expect || "", risk: s.risk || "", role: s.role || "", oneHost: !!s.oneHost })),
     };
   }
 
@@ -174,6 +174,10 @@ export function createRunbooksPage(deps) {
         <input class="k-input k-rb-step-desc" data-field="description" value="${escapeHtml(st.description)}" aria-label="Step ${i + 1} description" placeholder="Why, and what to look for" maxlength="1000" autocomplete="off" />
         <textarea class="k-textarea k-textarea--mono k-rb-cmd" data-field="command" rows="${lines}" aria-label="Step ${i + 1} command" placeholder="Command (optional: a step without one is a check you mark done)" spellcheck="false" autocomplete="off">${escapeHtml(st.command)}</textarea>
         <input class="k-input k-rb-step-expect" data-field="expect" value="${escapeHtml(st.expect)}" aria-label="Step ${i + 1} expected result" placeholder="Expected result (optional)" maxlength="300" autocomplete="off" />
+        <div class="k-rb-step-target">
+          <input class="k-input k-rb-step-role" data-field="role" value="${escapeHtml(st.role || "")}" aria-label="Step ${i + 1} role" placeholder="Role in a group run (empty: every host)" maxlength="32" autocomplete="off" spellcheck="false" />
+          <span class="k-rb-onehost"><button type="button" class="k-check" role="checkbox" data-step-onehost aria-checked="${st.oneHost ? "true" : "false"}" aria-label="Step ${i + 1} on one host only"><span class="k-i">${ICON.tick}</span></button><span aria-hidden="true">One host only</span></span>
+        </div>
       </div>
     </li>`;
   }
@@ -451,7 +455,7 @@ export function createRunbooksPage(deps) {
       return;
     }
     if (t.closest("#runbook-add-step")) {
-      ed.steps.push({ id: "", title: "", description: "", command: "", expect: "" });
+      ed.steps.push({ id: "", title: "", description: "", command: "", expect: "", role: "", oneHost: false });
       state.dirty = true;
       paintEditor({ focus: `[data-step="${ed.steps.length - 1}"] [data-field=title]` });
       return;
@@ -464,6 +468,13 @@ export function createRunbooksPage(deps) {
       return;
     }
     if (i < 0) return;
+    const one = t.closest("[data-step-onehost]");
+    if (one) {
+      ed.steps[i].oneHost = !ed.steps[i].oneHost;
+      one.setAttribute("aria-checked", String(ed.steps[i].oneHost));
+      state.dirty = true;
+      return;
+    }
     if (t.closest("[data-step-up]")) {
       ed.steps = R.moveStep(ed.steps, i, -1);
       state.dirty = true;

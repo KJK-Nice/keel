@@ -26,8 +26,9 @@ const fns = functions();
 const calls = (name, text = src) => [...text.matchAll(new RegExp(`(?<![\\w.])${name}\\(`, "g"))].map((m) => m.index);
 
 test("every caller of sendApprovedInject awaits approveBeforeType first and aborts on no", () => {
-  // insertSuggestion is the one exception, pinned in its own test below.
-  const callers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && name !== "insertSuggestion" && calls("sendApprovedInject", body).length);
+  // insertSuggestion and typeGroupProposal are the exceptions, pinned in
+  // their own tests below (the group approve dialog lives in grouprun.js).
+  const callers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && name !== "insertSuggestion" && name !== "typeGroupProposal" && calls("sendApprovedInject", body).length);
   assert.ok(callers.length >= 2, "expected the palette snippet and the terminal input to inject");
   for (const [name, body] of callers) {
     const send = calls("sendApprovedInject", body)[0];
@@ -52,7 +53,7 @@ test("only sendApprovedInject sends an inject message, and only with a server no
 // the agent marker, to that one pane (never Sync input's other panes).
 test("agent proposals are typed only through approve-before-type, to one pane", () => {
   const typers = [...fns].filter(([name, body]) => name !== "sendApprovedInject" && /agent: \{/.test(body) && calls("sendApprovedInject", body).length);
-  assert.deepEqual(typers.map(([name]) => name), ["typeAgentProposal"]);
+  assert.deepEqual(typers.map(([name]) => name), ["typeAgentProposal", "typeGroupProposal"]);
   const body = fns.get("typeAgentProposal");
   assert.ok(body.indexOf("await approveBeforeType(proposal.bytes") < calls("sendApprovedInject", body)[0]);
   assert.match(body, /if \(!isDriving\(pane\)\) return/);
@@ -146,4 +147,33 @@ test("approveBeforeType shows the dialog and settles only on a user action", () 
   // settlePtyInject is the only caller that resolves the waiter.
   const settlers = [...fns].filter(([name, text]) => name !== "approveBeforeType" && /ptyInjectWaiter\)? ?\(|done\(!!ok\)/.test(text));
   assert.deepEqual(settlers.map(([name]) => name), ["settlePtyInject"]);
+});
+
+// §17 and the §6 amendment: a group run's host × step is typed only after
+// the group approve dialog, and only for the hosts the user ticked there.
+// typeGroupProposal (term.js) is handed only to the run page, which calls
+// it only from typeAll, after await approve(...) answered, once per ticked
+// row; each call is one pane, one proposal, one server nonce.
+test("group run steps are typed only for the hosts ticked in the group approve dialog", () => {
+  assert.equal(calls("typeGroupProposal").length, 1, "term.js must not call typeGroupProposal itself (only its definition matches)");
+  assert.match(src, /typeGroup: typeGroupProposal,/);
+  const body = fns.get("typeGroupProposal");
+  assert.match(body, /if \(!isDriving\(pane\)\) return/);
+  assert.match(body, /agent: \{ groupRunId: runId, proposalId: proposal\.id/);
+  const run = readFileSync(join(dir, "..", "ui", "grouprun.js"), "utf8");
+  for (const bad of ["sendSession", "/ws/", ".send(", "WebSocket", "inject"]) assert.ok(!run.includes(bad), `grouprun.js must not use ${bad}`);
+  const uses = [...run.matchAll(/deps\.typeGroup\(/g)];
+  assert.equal(uses.length, 1, "one call site");
+  const typeAll = run.slice(run.indexOf("async function typeAll("), run.indexOf("// --- actions ---"));
+  const approve = typeAll.indexOf("const ok = await approve(");
+  const abort = typeAll.indexOf("if (!ok) return;");
+  const loop = typeAll.indexOf("for (const r of ok.rows)");
+  const send = typeAll.indexOf("deps.typeGroup(");
+  assert.ok(approve >= 0 && approve < abort && abort < loop && loop < send, "approve, abort on cancel, then one type per ticked row");
+  // Only ticked rows leave the dialog, and nothing is ticked in advance
+  // unless it is the only host.
+  assert.match(run, /const picked = a\.rows\.filter\(\(r\) => r\.checked\);/);
+  assert.match(run, /settleApprove\(\{ rows: picked, shift: !!shiftHeld \}\)/);
+  const lib = readFileSync(join(dir, "..", "lib", "grouprun.js"), "utf8");
+  assert.match(lib, /checked: one,/);
 });

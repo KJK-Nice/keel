@@ -53,6 +53,8 @@ import { keysFor } from "./lib/shortcutmap.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
+import { createGroupPage } from "./ui/groups.js";
+import { createGroupRunPage } from "./ui/grouprun.js";
 import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 import { attachCommandMarks } from "./lib/cmdmarks.js";
@@ -91,6 +93,16 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     title: "Runbooks",
     glyph:
       '<path d="M20.5 16.9V11C20.5 7.2 20.5 5.3 19.3 4.2C18.2 3 16.3 3 12.5 3H11.5C7.7 3 5.8 3 4.7 4.2C3.5 5.3 3.5 7.2 3.5 11V19.5"/><path d="M20.5 17H6C4.6 17 3.5 18.1 3.5 19.5C3.5 20.9 4.6 22 6 22H20.5"/><path d="M20.5 22C19.1 22 18 20.9 18 19.5C18 18.1 19.1 17 20.5 17"/><path d="M9 8H15M9 12H13"/>',
+  };
+  // Groups (§17): a folder's roles and notes, and a runbook run across it.
+  // One instance each; the tab is named after the group or the run.
+  PAGES.group = {
+    title: "Group",
+    glyph: '<path d="M12 3L2.5 8L12 13L21.5 8L12 3Z"/><path d="M2.5 12L12 17L21.5 12"/><path d="M2.5 16L12 21L21.5 16"/>',
+  };
+  PAGES.grouprun = {
+    title: "Group run",
+    glyph: '<path d="M18.9 12.8C18.5 14.3 16.8 15.4 13.3 17.4C9.9 19.4 8.2 20.4 6.8 20C6.2 19.8 5.7 19.5 5.3 19.1C4.3 18 4.3 16 4.3 12C4.3 8 4.3 6 5.3 4.9C5.7 4.5 6.2 4.2 6.8 4C8.2 3.6 9.9 4.6 13.3 6.6C16.8 8.6 18.5 9.7 18.9 11.2C19 11.7 19 12.3 18.9 12.8Z"/>',
   };
   const PAGE_PREFIX = "page:";
   const pageTabId = (name) => PAGE_PREFIX + name;
@@ -146,6 +158,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   let agentPanel = null;
   let agentPage = null;
   let runbooksPage = null;
+  let groupPage = null;
+  let groupRunPage = null;
   let agentSettings = null;
   // The host's notes for the agent in Edit host (§15, js/ui/notes.js).
   let hostNotes = null;
@@ -1480,7 +1494,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   function tabTitle(tab) {
-    if (tab.page) return PAGES[tab.page]?.title || tab.page;
+    if (tab.page) return tab.pageTitle || PAGES[tab.page]?.title || tab.page;
     if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
@@ -1494,7 +1508,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   // Tab label without the pane count (the count renders as a badge).
   function tabName(tab) {
-    if (tab.page) return PAGES[tab.page]?.title || tab.page;
+    if (tab.page) return tab.pageTitle || PAGES[tab.page]?.title || tab.page;
     if (tab.customTitle) return tab.customTitle;
     if (tab.start) return tab.title || "New Tab";
     const panes = tabPanes(tab);
@@ -2276,6 +2290,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     else if (page === "forwards") syncTunnelPage();
     else if (page === "agent") agentPage?.show();
     else if (page === "runbooks") runbooksPage?.show();
+    else if (page === "group") groupPage?.show(loadPageRef("group"));
+    else if (page === "grouprun") showGroupRun();
   }
 
   // newItem is ⌘N: the page's own New on Port forwarding, Keychain,
@@ -3181,6 +3197,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     });
     add({ id: "agent-page", group: "Agent", title: "Agent conversations", icon: "agent", run: () => openAgentPage() });
     add({ id: "runbooks-page", group: "Agent", title: "Runbooks", icon: "agent", run: () => openPage("runbooks") });
+    // A folder's roles, notes and runs (§17).
+    for (const g of state.groups || []) {
+      add({ id: `group-page-${g.id}`, group: "Vault", title: `Group ${g.name} · roles and runbooks`, run: () => openGroupPage(g.id) });
+    }
     add({
       id: "search-hosts",
       group: "Vault",
@@ -6556,6 +6576,116 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!agentPanel) return;
     openPage("agent");
   }
+
+  // The group page and the group run page (§17) remember what they show
+  // (a group id, a run id) so a reload reopens them on it.
+  function loadPageRef(name) {
+    try {
+      return localStorage.getItem(`keel-page-${name}`) || "";
+    } catch {
+      return "";
+    }
+  }
+  function savePageRef(name, id) {
+    try {
+      localStorage.setItem(`keel-page-${name}`, id || "");
+    } catch {
+      /* private window */
+    }
+  }
+  function setPageTitle(name, title) {
+    const tab = state.tabs.get(pageTabId(name));
+    if (!tab || tab.pageTitle === title) return;
+    tab.pageTitle = title;
+    renderTabs();
+  }
+
+  function openGroupPage(groupId) {
+    if (!groupId) return;
+    savePageRef("group", groupId);
+    const g = (state.groups || []).find((x) => x.id === groupId);
+    const tab = openPage("group", { render: false });
+    if (tab && g) tab.pageTitle = g.name;
+    state.shownPage = "";
+    renderTabs();
+    groupPage?.show(groupId);
+  }
+
+  function openGroupRun(run) {
+    if (!run?.id) return;
+    savePageRef("grouprun", run.id);
+    const tab = openPage("grouprun", { render: false });
+    if (tab) tab.pageTitle = `Run · ${run.name}`;
+    state.shownPage = "grouprun";
+    renderTabs();
+    groupRunPage?.show(run);
+  }
+
+  async function showGroupRun() {
+    if (!groupRunPage) return;
+    if (groupRunPage.runId()) return groupRunPage.refresh();
+    const id = loadPageRef("grouprun");
+    if (!id) return;
+    try {
+      groupRunPage.show(await api(`/api/agent/groupruns/${encodeURIComponent(id)}`));
+    } catch {
+      /* the run ended with keel serve; the page says how to start one */
+    }
+  }
+
+  // typeGroupProposal types one host's step of a group run (§17) after the
+  // group approve dialog: the user ticked this host. The bytes go to that
+  // one pane with a server nonce, and keel serve checks the proposal (host
+  // still in the group and readable, bytes, driver, ⇧ rule) before it
+  // writes them.
+  async function typeGroupProposal({ runId, proposal, shift }) {
+    const pane = findPaneByRuntime(proposal.sessionId);
+    if (!pane || !isTermPane(pane) || pane.remote) return { ok: false, message: "that pane is not open in this window" };
+    if (!isDriving(pane)) return { ok: false, message: "you follow this pane" };
+    holdPtyFromChrome();
+    const result = new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (pane.agentTypeWaiter) {
+          pane.agentTypeWaiter = null;
+          resolve({ ok: false, message: "keel serve did not answer" });
+        }
+      }, 4000);
+      pane.agentTypeWaiter = (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      };
+    });
+    const sent = await sendApprovedInject(proposal.bytes, pane, {
+      agent: { groupRunId: runId, proposalId: proposal.id, shift: !!shift },
+    });
+    if (!sent) settleAgentType(pane, { ok: false, message: "the session is not connected, or you do not drive it" });
+    return result;
+  }
+
+  groupPage = createGroupPage({
+    api,
+    toast,
+    hosts: () => state.hosts || [],
+    setTitle: (name) => setPageTitle("group", name),
+    startRun: (run) => openGroupRun(run),
+  });
+
+  groupRunPage = createGroupRunPage({
+    api,
+    toast,
+    confirm: askConfirm,
+    isMac,
+    panes: () => agentPanes(),
+    openHost: (hostId) => {
+      const host = state.hosts.find((h) => h.id === hostId);
+      if (host) openSession(host).catch((err) => toast(err?.message || String(err), true));
+    },
+    typeGroup: typeGroupProposal,
+    isOpen: () => state.tabs.has(pageTabId("grouprun")),
+    setTitle: (text) => setPageTitle("grouprun", text),
+    openModal,
+    closeModal,
+  });
   document.getElementById("agent-panel")?.addEventListener("focusin", () => syncSessionSurface());
   document.getElementById("agent-panel")?.addEventListener("focusout", () => setTimeout(syncSessionSurface, 0));
 
@@ -7246,6 +7376,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         editGroup(groupEdit.getAttribute("data-group-edit"));
         return;
       }
+      const groupOpen = ev.target.closest("[data-group-open]");
+      if (groupOpen) {
+        ev.preventDefault();
+        openGroupPage(groupOpen.getAttribute("data-group-open"));
+        return;
+      }
       const groupRename = ev.target.closest("[data-group-rename]");
       if (groupRename) {
         ev.preventDefault();
@@ -7643,7 +7779,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // (@post /ui/forms/{kind}, dialogs.templ). The server shows errors in the
     // form and dispatches keel-form-saved when the save went through.
     on(window, "keel-form-saved", (ev) => afterFormSaved(ev.detail || {}));
-    on(window, "keel-vault-changed", () => refreshState());
+    on(window, "keel-vault-changed", () => {
+      refreshState();
+      if (state.tabs.get(state.activeId)?.page === "group") groupPage?.refresh();
+    });
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
     on(els.notebookRenameForm, "submit", (ev) => saveNotebookRename(ev).catch((err) => toast(err.message, true)));
     on(els.joinForm, "submit", (ev) => submitJoin(ev));

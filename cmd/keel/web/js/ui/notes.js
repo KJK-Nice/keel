@@ -16,7 +16,7 @@ import { ICON } from "./agentthread.js";
 // createNotesEditor wires one notes list. opts:
 //   root      the block (data-notes-* parts inside)
 //   api, toast
-//   kind      "host" or "user"
+//   kind      "host", "group" (§17, the group page) or "user"
 export function createNotesEditor({ root, api, toast, kind = "host" }) {
   if (!root) return null;
   const q = (sel) => root.querySelector(sel);
@@ -33,7 +33,9 @@ export function createNotesEditor({ root, api, toast, kind = "host" }) {
   const state = { hostId: "", notes: [], editing: "", busy: false, loaded: false, unreadable: false, gen: 0 };
 
   function mine(all) {
-    return kind === "user" ? N.userNotes(all) : N.hostNotes(all, state.hostId);
+    if (kind === "user") return N.userNotes(all);
+    if (kind === "group") return N.groupNotes(all, state.hostId);
+    return N.hostNotes(all, state.hostId);
   }
 
   function setError(msg) {
@@ -65,11 +67,12 @@ export function createNotesEditor({ root, api, toast, kind = "host" }) {
   function emptyText() {
     if (state.unreadable) return "Saved notes cannot be read. Delete all notes in Settings · Agent starts a fresh file.";
     if (kind === "user") return "No notes. Add how you like to work, e.g. Prefer journalctl over tail -f.";
+    if (kind === "group") return "No notes. Add what is true of every host in this group.";
     return "No notes. Add what the agent should know about this host.";
   }
 
   function paint() {
-    const noHost = kind === "host" && !state.hostId;
+    const noHost = kind !== "user" && !state.hostId;
     if (el.unsaved) el.unsaved.hidden = !noHost;
     if (el.addRow) el.addRow.hidden = noHost;
     if (el.list) {
@@ -98,7 +101,7 @@ export function createNotesEditor({ root, api, toast, kind = "host" }) {
     if (el.input) el.input.value = "";
     const gen = ++state.gen;
     paint();
-    if (kind === "host" && !state.hostId) return;
+    if (kind !== "user" && !state.hostId) return;
     try {
       const res = await api("/api/agent/notes");
       if (gen !== state.gen) return;
@@ -127,7 +130,7 @@ export function createNotesEditor({ root, api, toast, kind = "host" }) {
     state.busy = true;
     paint();
     try {
-      const res = await api("/api/agent/notes", { method: "POST", body: JSON.stringify({ hostId: kind === "host" ? state.hostId : "", text }) });
+      const res = await api("/api/agent/notes", { method: "POST", body: JSON.stringify({ hostId: kind === "host" ? state.hostId : "", groupId: kind === "group" ? state.hostId : "", text }) });
       state.notes = [...state.notes, res.note];
       if (el.input) el.input.value = "";
       setError("");

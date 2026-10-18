@@ -46,14 +46,20 @@ export function cleanNote(text) {
   return { text: t, ok: t.length > 0 && bytes <= MAX_NOTE_BYTES, tooLong: bytes > MAX_NOTE_BYTES };
 }
 
-// hostNotes and userNotes pick a host's notes, or the user's own, from
+// hostNotes, groupNotes and userNotes pick a host's or a group's notes,
+// or the user's own, from
 // GET /api/agent/notes, oldest first.
 export function hostNotes(notes, hostId) {
   return (notes || []).filter((n) => hostId && n.hostId === hostId);
 }
 
+// groupNotes are a group's notes (§17).
+export function groupNotes(notes, groupId) {
+  return (notes || []).filter((n) => groupId && n.groupId === groupId);
+}
+
 export function userNotes(notes) {
-  return (notes || []).filter((n) => !n.hostId);
+  return (notes || []).filter((n) => !n.hostId && !n.groupId);
 }
 
 // proposalTarget is the badge on a proposed note: whose notes it joins.
@@ -122,6 +128,7 @@ export function proposalOrigin(p) {
 export function noteStepText(step) {
   const n = Number(step?.notes) || 0;
   if (step?.noteKind === "user") return `Used your notes (${n})`;
+  if (step?.noteKind === "group") return `Used group notes · ${step?.host || "a group"} (${n})`;
   return `Used host notes · ${step?.host || "a host"} (${n})`;
 }
 

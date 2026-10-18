@@ -3178,3 +3178,121 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rb-target svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--ink-muted); }
 .k-rb-target b { font-weight: 500; }
 .k-rb-now--signal { color: var(--signal); }
+
+/* ---------- Groups (§17, boards GroupRoles and GroupRunbook) ----------
+   A folder's roles and notes (the Group page), and a runbook walked across
+   a group (the run page): the steps, the current step's proposal for N
+   panes, the host × step results, and the group approve dialog with one
+   ticked row per host. */
+.k-gx-runwrap { position: relative; flex: none; }
+.k-gx-runwrap > .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-gx-runmenu { position: absolute; top: calc(100% + var(--space-1)); right: 0; z-index: 5; min-width: var(--size-list); }
+.k-gx-toolbar { justify-content: space-between; row-gap: var(--space-1\.5); }
+.k-gx-roles { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.k-gx-role {
+  display: inline-flex; align-items: center; gap: var(--space-1\.5); height: var(--size-control-sm); padding: 0 var(--space-2);
+  border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface);
+  font: 500 0.923rem/1 var(--font-mono); color: var(--ink-muted);
+}
+.k-gx-role b { color: var(--ink); font-weight: 600; }
+.k-gx-role--none { border-style: dashed; }
+.k-gx-error { margin: 0 var(--space-8) var(--space-3); }
+.k-gx-hostcell { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.k-gx-folder { font: var(--type-meta); color: var(--ink-faint); }
+.k-gx-addr { color: var(--ink-muted); }
+.k-gx-rolesel, .k-input.k-gx-rolenew {
+  height: var(--size-control-sm); padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--stage); color: var(--ink); font: 400 0.923rem/1 var(--font-mono); cursor: pointer;
+}
+.k-input.k-gx-rolenew { width: calc(var(--size-control) * 5); cursor: text; }
+.k-gx-rolesel:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.k-gx-empty { margin: 0; padding: var(--space-4) var(--space-8); }
+.k-gx-grid { display: grid; grid-template-columns: minmax(0, var(--size-reading)); gap: var(--space-4); padding: var(--space-6) var(--space-8) var(--space-8); }
+
+/* The run page. */
+.k-gx-split { grid-template-columns: var(--size-agentpage-context) minmax(0, 1fr); }
+.k-split-list.k-gx-steps { gap: var(--space-4); padding: var(--space-6) var(--space-4) var(--space-4); overflow: auto; }
+.k-gx-steps-head { display: grid; gap: var(--space-1); }
+.k-gx-steps-head .k-menu-label { padding: 0; }
+.k-gx-title { margin: 0; font: var(--type-heading); color: var(--ink); overflow-wrap: anywhere; }
+.k-gx-steplist { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.k-gx-step { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.k-gx-n { margin-top: 0; }
+.k-gx-step-body { display: grid; gap: var(--space-0\.5); min-width: 0; }
+.k-gx-step-title { margin: 0; font: var(--type-body-strong); color: var(--ink-muted); overflow-wrap: anywhere; }
+.k-gx-step-sub { margin: 0; font: var(--type-caption); color: var(--ink-faint); }
+.k-gx-step[data-state="now"] .k-gx-step-title, .k-gx-step[data-state="failed"] .k-gx-step-title { color: var(--ink); }
+.k-gx-step[data-state="now"] .k-gx-n { border-color: var(--brass-ink); color: var(--brass-ink); }
+.k-gx-step[data-state="done"] .k-gx-n { border-color: transparent; background: var(--tide-soft); color: var(--tide); }
+.k-gx-step[data-state="failed"] .k-gx-n { border-color: transparent; background: var(--flare-soft); color: var(--flare); }
+.k-gx-step[data-state="skipped"] .k-gx-step-title { text-decoration: line-through; }
+.k-gx-steps-foot { display: grid; gap: var(--space-3); justify-items: start; margin-top: auto; }
+.k-split-detail.k-gx-detail { gap: var(--space-4); }
+.k-gx-cur { display: grid; gap: var(--space-3); max-width: calc(var(--size-reading) + var(--size-list)); }
+.k-gx-curhead { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.k-gx-h2 { flex: 1; min-width: 0; margin: 0; font: var(--type-title); color: var(--ink); overflow-wrap: anywhere; }
+.k-gx-h3 { flex: 1; margin: 0; font: var(--type-body-strong); color: var(--ink); }
+.k-gx-modehelp, .k-gx-desc { margin: 0; }
+.k-gx-desc { font: var(--type-caption); color: var(--ink-muted); }
+.k-gx-mode { display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-0\.5); padding: var(--space-0\.5); background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.k-gx-mode button { height: var(--size-control-sm); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); font: var(--type-label); cursor: pointer; }
+.k-gx-mode button[aria-pressed="true"] { background: var(--raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.k-gx-mode button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.k-gx-mode button:disabled { color: var(--ink-faint); cursor: default; }
+.k-gx-prop .k-bytes { max-height: none; }
+.k-gx-grow { flex: 1; min-width: 0; }
+.k-gx-halt {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); background: var(--flare-soft); color: var(--flare); font: var(--type-caption);
+}
+.k-gx-halt > svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-gx-halt b { color: var(--ink); font-weight: 500; }
+.k-gx-halt .k-btn { flex: none; }
+.k-review.k-gx-need, .k-review.k-gx-banner { flex-wrap: wrap; align-items: center; }
+.k-gx-banner .k-btn { flex: none; }
+.k-gx-needlist { display: flex; flex-wrap: wrap; gap: var(--space-1\.5); }
+.k-box.k-gx-results { gap: 0; padding: 0; overflow: hidden; }
+.k-gx-boxhead { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.k-gx-tablewrap { overflow-x: auto; }
+.k-gx-matrix th:first-child, .k-gx-matrix td:first-child { padding-left: var(--space-4); }
+.k-gx-matrix th:last-child, .k-gx-matrix td:last-child { padding-right: var(--space-4); }
+.k-gx-matrix tbody th { height: var(--size-row); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); text-align: left; text-transform: none; letter-spacing: 0; font: var(--type-address); color: var(--ink); white-space: nowrap; }
+.k-gx-matrix thead th[aria-current="step"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--brass); }
+.k-gx-matrix tbody tr:hover th { background: var(--hover); }
+.k-gx-prod { margin-left: var(--space-1\.5); }
+.k-gx-rolecell { color: var(--ink-muted); }
+.k-gx-actions { display: inline-flex; gap: var(--space-1); }
+.k-gx-st { display: inline-flex; align-items: center; gap: var(--space-1\.5); font: 500 0.923rem/1 var(--font-mono); white-space: nowrap; }
+.k-gx-st--ok { color: var(--tide); }
+.k-gx-st--fail { color: var(--flare); }
+.k-gx-st--run { color: var(--signal); }
+.k-gx-st--wait { color: var(--ink-faint); }
+.k-gx-left, .k-gx-reported { margin: 0; padding: var(--space-2) var(--space-4) 0; }
+.k-gx-reported { padding-bottom: var(--space-3); }
+#page-grouprun { container-type: inline-size; }
+@container (width < 760px) {
+  .k-gx-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .k-split-list.k-gx-steps { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40%; }
+}
+
+/* The group approve dialog: the bytes once, one ticked row per host. */
+.modal.k-gx-approve { width: min(calc(var(--size-reading) + var(--space-8)), calc(100vw - var(--space-6))); }
+.k-gx-approve form { gap: var(--space-3); padding: var(--space-4); }
+.k-gx-approve-head { display: grid; gap: var(--space-1); }
+.modal .k-gx-approve-title { margin: 0; font: var(--type-title); letter-spacing: 0; color: var(--ink); }
+.k-gx-approve-head .k-help, .k-gx-approve-count { margin: 0; }
+.k-gx-approve-bytes { max-height: calc(var(--size-row) * 6); margin: 0; }
+.k-gx-approve-rows { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; max-height: calc(var(--size-row) * 8); overflow-y: auto; }
+.k-gx-approve-row { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-row); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); background: var(--stage); }
+.k-gx-approve-row:last-child { border-bottom: 0; }
+.k-gx-approve-host { font: var(--type-address); color: var(--ink); }
+.k-gx-approve-pane { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-gx-approve-shift { margin: 0; font: var(--type-caption); color: var(--signal); }
+.k-gx-approve-shift.is-alert { color: var(--flare); }
+.k-gx-approve-shift[hidden] { display: none; }
+.k-gx-approve .k-btn .k-kbd { margin-left: var(--space-1\.5); }
+
+/* A runbook step's place in a group run (the Runbooks editor). */
+.k-rb-step-target { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.k-input.k-rb-step-role { flex: 1; min-width: calc(var(--size-control) * 5); max-width: var(--size-sidebar); font: var(--type-address); }
+.k-rb-onehost { display: inline-flex; align-items: center; gap: var(--space-1\.5); font: var(--type-caption); color: var(--ink-muted); }
