@@ -2,6 +2,29 @@ package runtime
 
 import "testing"
 
+// A capture (§17, part 2) reads a finished command's raw output between
+// its C and D marks: not a running command, not one whose output left the
+// ring.
+func TestCommandOutput(t *testing.T) {
+	s := markSession(256)
+	mark := s.StreamMark()
+	s.output([]byte("\x1b]133;A\x07$ \x1b]133;B\x07kubeadm init\r\n\x1b]133;C\x07--token \x1b[1mabc.def\x1b[0m\r\n"))
+	cmds := s.CommandsAfter(mark)
+	if _, ok := s.CommandOutput(cmds[0]); ok {
+		t.Fatal("read a running command's output")
+	}
+	s.output([]byte("\x1b]133;D;0\x07\x1b]133;A\x07$ "))
+	cmds = s.CommandsAfter(mark)
+	out, ok := s.CommandOutput(cmds[0])
+	if !ok || string(out) != "--token \x1b[1mabc.def\x1b[0m\r\n" {
+		t.Fatalf("output %q %v", out, ok)
+	}
+	s.output(make([]byte, 512))
+	if _, ok := s.CommandOutput(cmds[0]); ok {
+		t.Fatal("read output that left the ring")
+	}
+}
+
 // A runbook step's result (docs/ui-redesign.md §16): the command whose
 // output starts after the mark taken right before the step was typed, not
 // an earlier one, and none until the shell reports one.

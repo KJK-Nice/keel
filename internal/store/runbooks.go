@@ -8,6 +8,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"keel/internal/runvars"
 )
 
 // Runbooks for the agent (docs/ui-redesign.md §16): user-curated, ordered
@@ -103,6 +105,53 @@ type RunbookStep struct {
 	// node. A single-host run ignores both.
 	Role    string `json:"role,omitempty"`
 	OneHost bool   `json:"oneHost,omitempty"`
+	// Captures are values Keel takes from this step's output on each host
+	// of a group run (§17, part 2, board CaptureVars): a pattern applied by
+	// keel serve to the output the shell's OSC 133 marks delimit, kept in
+	// memory for that run, and filled in where a later step says {{name}}.
+	Captures []StepCapture `json:"captures,omitempty"`
+}
+
+// StepCapture is one captured variable: its name and an RE2 pattern with a
+// group around the value (the group named like the variable, else the
+// first).
+type StepCapture struct {
+	Name    string `json:"name"`
+	Pattern string `json:"pattern"`
+}
+
+// cleanCaptures checks a step's captures; seen holds the names earlier
+// steps capture (a name is captured by one step only).
+func cleanCaptures(n int, in []StepCapture, seen map[string]bool) ([]StepCapture, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	if len(in) > runvars.MaxCapturesPerStep {
+		return nil, fmt.Errorf("%w: step %d: at most %d captures", ErrRunbook, n, runvars.MaxCapturesPerStep)
+	}
+	out := make([]StepCapture, 0, len(in))
+	for _, c := range in {
+		c.Name = strings.ToLower(strings.TrimSpace(c.Name))
+		c.Pattern = strings.TrimSpace(c.Pattern)
+		if c.Name == "" && c.Pattern == "" {
+			continue
+		}
+		if !runvars.ValidName(c.Name) {
+			return nil, fmt.Errorf("%w: step %d: a capture's name is lower-case letters, digits and _, up to %d, not starting with a digit (such as join_token)", ErrRunbook, n, runvars.MaxNameBytes)
+		}
+		if seen[c.Name] {
+			return nil, fmt.Errorf("%w: step %d: %s is captured by another step already", ErrRunbook, n, c.Name)
+		}
+		if _, err := runvars.CompilePattern(c.Pattern); err != nil {
+			return nil, fmt.Errorf("%w: step %d: %s: %s", ErrRunbook, n, c.Name, err.Error())
+		}
+		seen[c.Name] = true
+		out = append(out, c)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func validRunbookSource(s string) bool {
@@ -193,6 +242,8 @@ func cleanRunbook(b Runbook) (Runbook, error) {
 	}
 	steps := make([]RunbookStep, 0, len(b.Steps))
 	ids := map[string]bool{}
+	captured := map[string]bool{}
+	var err error
 	for i, st := range b.Steps {
 		n := i + 1
 		if st.Title, ok = CleanLine(st.Title, MaxRunbookTitleBytes); !ok || st.Title == "" {
@@ -209,6 +260,9 @@ func cleanRunbook(b Runbook) (Runbook, error) {
 		}
 		if st.Command, ok = CleanRunbookCommand(st.Command); !ok {
 			return bad(fmt.Sprintf("step %d: a command is at most %d bytes and %d lines, with no control characters", n, MaxRunbookCommandBytes, MaxRunbookCommandLines))
+		}
+		if st.Captures, err = cleanCaptures(n, st.Captures, captured); err != nil {
+			return Runbook{}, err
 		}
 		if !validStepID(st.ID) || ids[st.ID] {
 			st.ID = "st_" + newID()
@@ -235,6 +289,12 @@ func validStepID(id string) bool {
 func copyRunbook(b Runbook) Runbook {
 	b.Hosts = append([]string(nil), b.Hosts...)
 	b.Steps = append([]RunbookStep(nil), b.Steps...)
+	for i := range b.Steps {
+		b.Steps[i].Captures = append([]StepCapture(nil), b.Steps[i].Captures...)
+		if len(b.Steps[i].Captures) == 0 {
+			b.Steps[i].Captures = nil
+		}
+	}
 	if b.LastUsedAt != nil {
 		t := *b.LastUsedAt
 		b.LastUsedAt = &t

@@ -10,6 +10,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
 )
@@ -356,6 +357,20 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 			return store.Runbook{}, redact.Report{}, fmt.Errorf("%w: step %d: %v", ErrBadRequest, len(b.Steps)+1, ErrSecretInCommand)
 		}
 		out.Command = cmd
+		// A capture's pattern is a regular expression, which secret
+		// detectors would flag for its shape (--token\s+(\S+)); only a vault
+		// value in it is refused. Names are checked by the store.
+		for _, c := range st.Captures {
+			if len(c.Pattern) > 4*runvars.MaxPatternBytes || len(c.Name) > 4*runvars.MaxNameBytes {
+				return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("step %d: a capture pattern is at most %d bytes", len(b.Steps)+1, runvars.MaxPatternBytes))
+			}
+			if bad, err := s.holdsVaultValue(c.Name, c.Pattern); err != nil {
+				return store.Runbook{}, redact.Report{}, err
+			} else if bad {
+				return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("step %d: a capture pattern holds a value from the vault", len(b.Steps)+1))
+			}
+			out.Captures = append(out.Captures, c)
+		}
 		b.Steps = append(b.Steps, out)
 	}
 	return b, r.Report(), nil

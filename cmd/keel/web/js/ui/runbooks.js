@@ -14,6 +14,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as R from "../lib/runbooks.js";
+import * as G from "../lib/groupvars.js";
 import { sessionWhen } from "../lib/agent.js";
 import { ICON } from "./agentthread.js";
 
@@ -129,7 +130,7 @@ export function createRunbooksPage(deps) {
       createdAt: rb.createdAt || "",
       lastUsedAt: rb.lastUsedAt || "",
       lastUsedOn: rb.lastUsedOn || "",
-      steps: (rb.steps || []).map((s) => ({ id: s.id || "", title: s.title || "", description: s.description || "", command: s.command || "", expect: s.expect || "", risk: s.risk || "", role: s.role || "", oneHost: !!s.oneHost })),
+      steps: (rb.steps || []).map((s) => ({ id: s.id || "", title: s.title || "", description: s.description || "", command: s.command || "", expect: s.expect || "", risk: s.risk || "", role: s.role || "", oneHost: !!s.oneHost, captures: (s.captures || []).map((c) => ({ name: c.name || "", pattern: c.pattern || "" })) })),
     };
   }
 
@@ -178,8 +179,28 @@ export function createRunbooksPage(deps) {
           <input class="k-input k-rb-step-role" data-field="role" value="${escapeHtml(st.role || "")}" aria-label="Step ${i + 1} role" placeholder="Role in a group run (empty: every host)" maxlength="32" autocomplete="off" spellcheck="false" />
           <span class="k-rb-onehost"><button type="button" class="k-check" role="checkbox" data-step-onehost aria-checked="${st.oneHost ? "true" : "false"}" aria-label="Step ${i + 1} on one host only"><span class="k-i">${ICON.tick}</span></button><span aria-hidden="true">One host only</span></span>
         </div>
+        ${capturesHTML(st, i)}
       </div>
     </li>`;
+  }
+
+  // capturesHTML is a step's captures (§17 part 2): a name and a pattern
+  // each. In a group run keel serve applies the pattern to the step's
+  // output on each host; a later step uses the value as {{name}}.
+  function capturesHTML(st, i) {
+    const caps = st.captures || [];
+    const rows = caps
+      .map(
+        (c, k) => `<div class="k-rb-cap" data-cap="${k}">
+          <input class="k-input k-rb-cap-name" data-cap-field="name" value="${escapeHtml(c.name)}" aria-label="Step ${i + 1} capture ${k + 1} name" placeholder="join_token" maxlength="32" autocomplete="off" spellcheck="false" />
+          <input class="k-input k-rb-cap-pattern" data-cap-field="pattern" value="${escapeHtml(c.pattern)}" aria-label="Step ${i + 1} capture ${k + 1} pattern" placeholder="--token\\s+(\\S+)" maxlength="256" autocomplete="off" spellcheck="false" />
+          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-cap-remove="${k}" aria-label="Remove capture ${escapeHtml(c.name || String(k + 1))}" title="Remove">${ICON.x}</button>
+        </div>`,
+      )
+      .join("");
+    const add = caps.length < G.MAX_CAPTURES ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-cap-add>Capture a value</button>` : "";
+    const help = caps.length ? `<p class="k-help k-rb-cap-help">In a group run Keel takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.</p>` : "";
+    return `<div class="k-rb-caps">${rows}${help}${add}</div>`;
   }
 
   function paintEditor({ focus = "" } = {}) {
@@ -242,6 +263,18 @@ export function createRunbooksPage(deps) {
   }
 
   function readField(target) {
+    const capField = target.dataset.capField;
+    if (capField && state.ed) {
+      const li = target.closest("[data-step]");
+      const row = target.closest("[data-cap]");
+      const st = li ? state.ed.steps[Number(li.dataset.step)] : null;
+      const cap = st && row ? st.captures[Number(row.dataset.cap)] : null;
+      if (cap) {
+        cap[capField] = target.value;
+        state.dirty = true;
+      }
+      return;
+    }
     const field = target.dataset.field;
     if (!field || !state.ed) return;
     const li = target.closest("[data-step]");
@@ -455,7 +488,7 @@ export function createRunbooksPage(deps) {
       return;
     }
     if (t.closest("#runbook-add-step")) {
-      ed.steps.push({ id: "", title: "", description: "", command: "", expect: "", role: "", oneHost: false });
+      ed.steps.push({ id: "", title: "", description: "", command: "", expect: "", role: "", oneHost: false, captures: [] });
       state.dirty = true;
       paintEditor({ focus: `[data-step="${ed.steps.length - 1}"] [data-field=title]` });
       return;
@@ -468,6 +501,20 @@ export function createRunbooksPage(deps) {
       return;
     }
     if (i < 0) return;
+    if (t.closest("[data-cap-add]")) {
+      const caps = (ed.steps[i].captures = ed.steps[i].captures || []);
+      caps.push({ name: "", pattern: "" });
+      state.dirty = true;
+      paintEditor({ focus: `[data-step="${i}"] [data-cap="${caps.length - 1}"] [data-cap-field=name]` });
+      return;
+    }
+    const capRemove = t.closest("[data-cap-remove]");
+    if (capRemove) {
+      ed.steps[i].captures.splice(Number(capRemove.dataset.capRemove), 1);
+      state.dirty = true;
+      paintEditor({ focus: `[data-step="${i}"] [data-cap-add], [data-step="${i}"] [data-field=role]` });
+      return;
+    }
     const one = t.closest("[data-step-onehost]");
     if (one) {
       ed.steps[i].oneHost = !ed.steps[i].oneHost;

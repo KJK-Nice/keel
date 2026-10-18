@@ -13,6 +13,7 @@ require (
 	github.com/wailsapp/wails/v3 v3.0.0-beta.15
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/crypto v0.57.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

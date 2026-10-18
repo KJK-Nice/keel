@@ -34,6 +34,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/runvars"
 	"keel/internal/store"
 )
 
@@ -280,6 +281,10 @@ type Proposal struct {
 	// Runbook is set on a proposal Keel made from a runbook step
 	// (runbooks.go): typed like any other, through approve-before-type.
 	Runbook *ProposalStep `json:"runbook,omitempty"`
+	// Vars are the variables a group run's step names ({{name}}): Command
+	// and Bytes keep the names; keel serve fills the values in only at
+	// Type time (groupvars.go).
+	Vars []runvars.Ref `json:"vars,omitempty"`
 }
 
 type Usage struct {
@@ -370,7 +375,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		byID[h.ID] = h
 	}
 	scope := agent.NewScope(hosts)
-	r, err := agent.NewRedactor(s.st, set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
 		return AskResponse{}, err
 	}
@@ -792,6 +797,11 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 	}
 	if hasPlaceholder(snap.Command) {
 		return ErrPlaceholder
+	}
+	// Only a group run's step has its variables filled in (groupvars.go);
+	// anywhere else {{name}} would be typed as text.
+	if runvars.HasRefs(snap.Command) {
+		return ErrVarsOutsideRun
 	}
 	current, err := s.hostProduction(snap.HostID)
 	if err != nil {

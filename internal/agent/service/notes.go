@@ -467,7 +467,7 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 // which a note may need and which the request's Redactor replaces anyway
 // when it is sent with the user's settings.
 func (s *Service) saveRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil)
+	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(false)...)
 }
 
 func (s *Service) noteHost(hostID string) (agent.Host, error) {

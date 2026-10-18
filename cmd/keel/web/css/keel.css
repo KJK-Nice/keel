@@ -3296,3 +3296,64 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rb-step-target { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
 .k-input.k-rb-step-role { flex: 1; min-width: calc(var(--size-control) * 5); max-width: var(--size-sidebar); font: var(--type-address); }
 .k-rb-onehost { display: inline-flex; align-items: center; gap: var(--space-1\.5); font: var(--type-caption); color: var(--ink-muted); }
+
+/* Groups, part 2 (§17): group variables, captured values and the Ansible
+   drawer (boards GroupRoles, CaptureVars, AnsibleExport). No new token. */
+.k-gx-page { position: relative; }
+.k-gx-page .k-page-head > .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-gx-boxhead.k-gx-boxhead--flat { padding: 0; border-bottom: 0; }
+.k-gx-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); align-items: center; margin: 0; font: var(--type-address); }
+.k-gx-kv dt { color: var(--ink-muted); }
+.k-gx-kv dd { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin: 0; }
+.k-gx-varval { flex: 1; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.k-gx-varact { display: inline-flex; flex: none; gap: var(--space-1); }
+.k-gx-novars { grid-column: 1 / -1; margin: 0; }
+.k-gx-varadd { display: flex; align-items: center; gap: var(--space-2); }
+.k-input.k-gx-varname { width: calc(var(--size-control) * 5); font: var(--type-address); }
+.k-input.k-gx-varvalue { flex: 1; min-width: 0; font: var(--type-address); }
+.k-gx-var { display: inline-flex; align-items: center; padding: 0 var(--space-1\.5); border-radius: var(--radius-xs); background: var(--brass-soft); color: var(--brass-ink); font: var(--type-meta); }
+.k-gx-fillnote { margin: 0; }
+
+.k-gx-cap { display: grid; gap: var(--space-3); max-width: calc(var(--size-reading) + var(--size-list)); padding: var(--space-3) var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: var(--surface); }
+.k-gx-cap-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font: var(--type-label); color: var(--ink); }
+.k-gx-cap-head > svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--brass-ink); }
+.k-gx-cap-row { display: grid; grid-template-columns: calc(var(--size-control) * 3) minmax(0, 1fr); gap: var(--space-2) var(--space-3); align-items: start; margin: 0; padding-top: var(--space-2); border-top: 1px solid var(--line); font: var(--type-caption); }
+.k-gx-cap-row dt { color: var(--ink-muted); }
+.k-gx-cap-row dd { min-width: 0; margin: 0; }
+.k-gx-cap-pattern { color: var(--ink-muted); overflow-wrap: anywhere; }
+.k-gx-cap-hosts { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.k-gx-cap-host { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.k-gx-mask { font: var(--type-address); color: var(--ink-muted); }
+
+.k-gx-code { margin: 0; padding: var(--space-3) var(--space-4); max-height: calc(var(--size-row) * 8); overflow: auto; background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm); font: var(--type-code); color: var(--ink); white-space: pre; }
+.k-gx-code:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.k-gx-tabs { display: flex; flex-wrap: wrap; gap: var(--space-0\.5); border-bottom: 1px solid var(--line); }
+.k-gx-tabs button { height: var(--size-control-lg); padding: 0 var(--space-3); border: 0; background: transparent; color: var(--ink-muted); font: var(--type-address); cursor: pointer; box-shadow: none; }
+.k-gx-tabs button[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--brass); }
+.k-gx-tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.k-gx-drawer { position: absolute; top: 0; right: 0; z-index: 6; display: flex; flex-direction: column; width: min(calc(var(--size-list) + var(--size-agent-step) * 6), 100%); height: 100%; background: var(--raised); border-left: 1px solid var(--line); box-shadow: var(--shadow-pop); }
+.k-gx-drawer[hidden] { display: none; }
+.k-gx-drawer-head { display: flex; flex: none; align-items: center; gap: var(--space-2); height: calc(var(--size-control-lg) + var(--space-4)); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--line); font: var(--type-title); color: var(--ink); }
+.k-gx-drawer-head > svg, .k-gx-drawer-foot .k-btn svg, .k-gx-drawer-head .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-gx-drawer-body { display: grid; flex: 1; align-content: start; gap: var(--space-3); min-height: 0; padding: var(--space-4); overflow: auto; }
+.k-gx-drawer-foot { display: flex; flex: none; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
+.k-gx-exportopts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.k-gx-rolesel.k-gx-exportbook { flex: 1; min-width: 0; font: var(--type-caption); }
+.k-gx-exportchecks { display: grid; gap: var(--space-2); }
+.k-gx-check { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--type-caption); color: var(--ink-muted); }
+.k-gx-dryrun { font: var(--type-address); color: var(--ink-muted); overflow-wrap: anywhere; }
+.k-gx-dryrun:empty { display: none; }
+
+/* The group approve dialog when filled-in values differ per host. */
+.k-gx-approve-row { flex-wrap: wrap; }
+.k-gx-approve-bytes[hidden] { display: none; }
+.k-bytes.k-gx-approve-rowbytes { flex-basis: 100%; margin: 0; }
+.k-gx-approve-used, .k-gx-approve-err { flex-basis: 100%; margin: 0 0 var(--space-2); font: var(--type-caption); }
+.k-gx-approve-row.is-blocked .k-gx-approve-host { color: var(--ink-muted); }
+
+/* A step's captures (the Runbooks editor). */
+.k-rb-caps { display: grid; justify-items: start; gap: var(--space-2); }
+.k-rb-cap { display: flex; align-items: center; gap: var(--space-2); width: 100%; }
+.k-input.k-rb-cap-name { width: calc(var(--size-control) * 5); font: var(--type-address); }
+.k-input.k-rb-cap-pattern { flex: 1; min-width: 0; font: var(--type-address); }
+.k-rb-cap-help { margin: 0; }

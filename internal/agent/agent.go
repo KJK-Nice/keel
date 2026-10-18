@@ -157,7 +157,11 @@ type SecretSource interface {
 // NewRedactor builds the Redactor for one request: secrets always, with
 // the vault's values as exact matches; IPs and hostnames (including the
 // saved host addresses) when the settings ask for them.
-func NewRedactor(src SecretSource, opts store.AgentRedaction, hosts []Host) (*redact.Redactor, error) {
+//
+// named are values replaced by their {{name}} (captured values and group
+// variables, docs/ui-redesign.md §17 part 2): the agent service passes
+// them on every request, so the model can name them but never see them.
+func NewRedactor(src SecretSource, opts store.AgentRedaction, hosts []Host, named ...redact.Named) (*redact.Redactor, error) {
 	known, err := src.KnownSecretValues()
 	if err != nil {
 		return nil, err
@@ -173,6 +177,7 @@ func NewRedactor(src SecretSource, opts store.AgentRedaction, hosts []Host) (*re
 		Hostnames: opts.Hostnames,
 		Known:     known,
 		Hosts:     addrs,
+		Named:     named,
 	}), nil
 }
 

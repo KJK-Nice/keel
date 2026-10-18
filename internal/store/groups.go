@@ -42,9 +42,10 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	if err := s.validateNestLocked(g.ID, g.ParentID); err != nil {
 		return Group{}, err
 	}
-	// Roles change only through SetGroupRole: a rename or move from a form
-	// keeps them, and a new group starts with none.
-	g.Roles = nil
+	// Roles change only through SetGroupRole and variables only through
+	// SetGroupVar: a rename or move from a form keeps them, and a new
+	// group starts with none.
+	g.Roles, g.Vars = nil, nil
 	if g.ID == "" {
 		g.ID = newID()
 		g.CreatedAt = now
@@ -55,7 +56,7 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	for i, existing := range s.data.Groups {
 		if existing.ID == g.ID {
 			g.CreatedAt = existing.CreatedAt
-			g.Roles = existing.Roles
+			g.Roles, g.Vars = existing.Roles, existing.Vars
 			g.UpdatedAt = now
 			s.data.Groups[i] = g
 			return g, s.saveLocked()

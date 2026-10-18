@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
 )
@@ -158,6 +159,11 @@ type GroupRunStep struct {
 	// Candidates are the hosts a OneHost step may go to, in order; the
 	// first with a pane open is picked when it is proposed.
 	Candidates []GroupRunHost `json:"candidates,omitempty"`
+	// Captures are the values this step takes from its output on each
+	// host (groupvars.go); Vars the variables its command names, filled in
+	// only at Type time. Names and patterns only, never a value.
+	Captures []store.StepCapture `json:"captures,omitempty"`
+	Vars     []runvars.Ref       `json:"vars,omitempty"`
 }
 
 // GroupRunCell is one host × step.
@@ -183,14 +189,24 @@ type GroupRunCell struct {
 	ProposedAt *time.Time `json:"proposedAt,omitempty"`
 	TypedAt    *time.Time `json:"typedAt,omitempty"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-	mark       uint64
-	hasMark    bool
+	// Captures are this host's captures for the step: their state and
+	// length, never the value (groupvars.go).
+	Captures []CaptureView `json:"captures,omitempty"`
+	mark     uint64
+	hasMark  bool
+	// filled is how many variables the authorized bytes filled in, for
+	// the log line once they are typed.
+	filled int
 }
 
 // groupRun is a run in memory (under s.mu).
 type groupRun struct {
 	GroupRun
 	used time.Time
+	// captures are the values captured in this run, by host id then name
+	// (groupvars.go). Dropped when the run ends, on a retry of the step
+	// that captured them, and after captureTTL.
+	captures map[string]map[string]*capturedValue
 }
 
 func (r *groupRun) view() GroupRun {
@@ -202,8 +218,11 @@ func (r *groupRun) view() GroupRun {
 	out.Steps = make([]GroupRunStep, len(r.Steps))
 	for i, st := range r.Steps {
 		st.Candidates = append([]GroupRunHost(nil), st.Candidates...)
+		st.Captures = append([]store.StepCapture(nil), st.Captures...)
+		st.Vars = append([]runvars.Ref(nil), st.Vars...)
 		cells := make([]GroupRunCell, len(st.Cells))
 		for j, c := range st.Cells {
+			c.Captures = append([]CaptureView(nil), c.Captures...)
 			if c.Proposal != nil {
 				p := *c.Proposal
 				c.Proposal = &p
@@ -253,6 +272,8 @@ func (r *groupRun) advanceLocked() {
 			r.Status = runFinished
 		}
 		r.NeedPane = nil
+		// Captured values live only as long as the run.
+		r.wipeCapturesLocked()
 		return
 	}
 	if r.Mode == ModeRolling {
@@ -330,7 +351,10 @@ func (s *Service) StartGroupRun(req GroupRunRequest) (GroupRun, error) {
 		return GroupRun{}, badRequest(fmt.Sprintf("a group run goes to at most %d hosts", maxGroupRunHosts))
 	}
 	for _, st := range b.Steps {
-		rs := GroupRunStep{ID: st.ID, Title: st.Title, Description: st.Description, Command: st.Command, Expect: st.Expect, Role: st.Role, OneHost: st.OneHost, Cells: []GroupRunCell{}}
+		rs := GroupRunStep{ID: st.ID, Title: st.Title, Description: st.Description, Command: st.Command, Expect: st.Expect, Role: st.Role, OneHost: st.OneHost, Cells: []GroupRunCell{}, Vars: varRefs(st.Command)}
+		if st.Command != "" {
+			rs.Captures = append([]store.StepCapture(nil), st.Captures...)
+		}
 		if st.Command != "" {
 			rs.Risk = string(agent.Classify(st.Command))
 			var hosts []GroupRunHost
@@ -396,6 +420,7 @@ func (s *Service) GroupRunState(id string) (GroupRun, error) {
 	if run == nil {
 		return GroupRun{}, ErrNoGroupRun
 	}
+	run.pruneCapturesLocked(s.now())
 	return run.view(), nil
 }
 
@@ -446,6 +471,7 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 		return GroupRun{}, ErrNoGroupRun
 	}
 	run.used = now
+	run.pruneCapturesLocked(now)
 	run.advanceLocked()
 	run.NeedPane = nil
 	stepNo, of := run.Current+1, len(run.Steps)
@@ -541,6 +567,9 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 			}
 			p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
 			p.Placeholders = hasPlaceholder(p.Command)
+			// The proposal keeps {{name}}: values go in only at Type
+			// (fillProposal), never into a stored proposal.
+			p.Vars = varRefs(p.Command)
 			c.State, c.SessionID, c.Proposal, c.ProposedAt = cellProposed, pane.SessionID, p, &now
 			c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark = nil, "", false, nil, nil, false
 			proposed = append(proposed, made{pane: agent.Pane{SessionID: pane.SessionID, HostID: c.HostID, HostName: h.Name}, risk: p.Risk})
@@ -611,10 +640,24 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 	if snap.SessionID != req.SessionID {
 		return ErrWrongPane
 	}
-	if req.Bytes != snap.Bytes {
+	// The exact bytes: for a step that names variables, the command with
+	// the values filled in now (fillProposal), which is what the approve
+	// dialog showed; the stored proposal keeps {{name}}. A missing or
+	// unsafe value, a vault value or a placeholder refuses it.
+	want, risk, filled := snap.Bytes, snap.Risk, 0
+	if runvars.HasRefs(snap.Command) {
+		f, err := s.fillProposal(req.GroupRunID, req.ProposalID)
+		if err != nil {
+			return err
+		}
+		want, risk, filled = f.Bytes, f.Risk, len(f.Used)
+	} else if hasPlaceholder(snap.Command) {
+		return ErrPlaceholder
+	}
+	if req.Bytes != want {
 		return ErrChanged
 	}
-	if hasPlaceholder(snap.Command) {
+	if hasPlaceholder(want) {
 		return ErrPlaceholder
 	}
 	_, members, byID, err := s.groupMembers(groupID)
@@ -629,7 +672,7 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 	if !member || !found || !h.AgentReadable {
 		return ErrNotTarget
 	}
-	if agent.NeedsShift(snap.Risk, snap.Production || h.Production) && !req.Shift {
+	if agent.NeedsShift(risk, snap.Production || h.Production) && !req.Shift {
 		return ErrNeedsShift
 	}
 	if err := agent.CanInsert(req.Role); err != nil {
@@ -644,9 +687,10 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 		s.mu.Unlock()
 		return ErrNotProposed
 	}
-	c.State = cellTyping
+	c.State, c.filled = cellTyping, filled
 	s.mu.Unlock()
-	if err := s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes); err != nil {
+	// agent.type logs the byte and line counts, never the bytes.
+	if err := s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, want); err != nil {
 		s.GroupTypeFailed(req.GroupRunID, req.ProposalID)
 		return err
 	}
@@ -668,14 +712,27 @@ func (s *Service) GroupTypeFailed(runID, proposalID string) {
 func (s *Service) GroupTypeDoneAt(runID, proposalID string, mark uint64) {
 	now := s.now()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	run, c := s.groupProposalLocked(runID, proposalID)
 	if run == nil || c == nil || c.State != cellTyping {
+		s.mu.Unlock()
 		return
 	}
 	c.Proposal.TypedAt = &now
 	c.State, c.TypedAt, c.mark, c.hasMark = cellTyped, &now, mark, true
 	run.used = now
+	filled, host, rb, stepNo := c.filled, c.HostID, run.RunbookID, 0
+	for i := range run.Steps {
+		for j := range run.Steps[i].Cells {
+			if &run.Steps[i].Cells[j] == c {
+				stepNo = i + 1
+			}
+		}
+	}
+	of := len(run.Steps)
+	s.mu.Unlock()
+	if filled > 0 {
+		s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · %s filled in at Type (values not logged)", runID, stepNo, of, noteCountWord(filled, "variable", "variables")), rb, host, redact.Report{})
+	}
 }
 
 // cmdResult reads a step's result from the commands a shell reported after
@@ -723,6 +780,10 @@ func (s *Service) refreshGroupRun(id string) {
 		production  bool
 		hasMarks    bool
 		stepNo, ofN int
+		stepID      string
+		host        string
+		caps        []store.StepCapture
+		captured    []captureResult
 	}
 	var pend []pending
 	s.mu.Lock()
@@ -734,7 +795,7 @@ func (s *Service) refreshGroupRun(id string) {
 	for i, st := range run.Steps {
 		for j, c := range st.Cells {
 			if c.State == cellTyped && c.Result == "" && c.hasMark && c.Proposal != nil {
-				pend = append(pend, pending{step: i, cell: j, sessionID: c.SessionID, hostID: c.HostID, mark: c.mark, want: stepCommands(st.Command), proposalID: c.Proposal.ID, stepNo: i + 1, ofN: len(run.Steps)})
+				pend = append(pend, pending{step: i, cell: j, sessionID: c.SessionID, hostID: c.HostID, mark: c.mark, want: stepCommands(st.Command), proposalID: c.Proposal.ID, stepNo: i + 1, ofN: len(run.Steps), stepID: st.ID, host: c.Host, caps: append([]store.StepCapture(nil), st.Captures...)})
 			}
 		}
 	}
@@ -750,6 +811,11 @@ func (s *Service) refreshGroupRun(id string) {
 		p.hasMarks = len(src.CommandsAfter(p.sessionID, 0)) > 0
 		if p.gotResult {
 			p.production, _ = s.hostProduction(p.hostID)
+		}
+		// Captures run on a reported exit 0 only, on that host's output
+		// between the marks (groupvars.go).
+		if p.gotResult && !p.noStatus && p.exit == 0 && len(p.caps) > 0 {
+			p.captured = s.runCaptures(p.sessionID, p.mark, p.want, p.caps)
 		}
 	}
 	now := s.now()
@@ -774,6 +840,30 @@ func (s *Service) refreshGroupRun(id string) {
 			continue
 		}
 		runID, rb, host, n, of := run.ID, run.RunbookID, p.hostID, p.stepNo, p.ofN
+		if len(p.captured) > 0 {
+			kept, other := 0, 0
+			for _, cr := range p.captured {
+				var exp *time.Time
+				if cr.state == CaptureCaptured {
+					if run.captures == nil {
+						run.captures = map[string]map[string]*capturedValue{}
+					}
+					if run.captures[p.hostID] == nil {
+						run.captures[p.hostID] = map[string]*capturedValue{}
+					}
+					run.captures[p.hostID][cr.name] = &capturedValue{value: cr.value, stepID: p.stepID, stepNo: p.stepNo, host: p.host, at: now}
+					t := now.Add(captureTTL)
+					exp = &t
+					kept++
+				} else {
+					other++
+				}
+				run.setCaptureStateLocked(p.stepID, p.hostID, cr.name, cr.state, len(cr.value), exp)
+			}
+			logs = append(logs, func() {
+				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · %s captured from the step's output, %d not (values not logged)", runID, n, of, noteCountWord(kept, "value", "values"), other), rb, host, redact.Report{})
+			})
+		}
 		switch {
 		case p.noStatus:
 			c.Result = "unreported"
@@ -887,6 +977,10 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("only a proposed, typed or failed host can be retried")
 			}
+			// What the step captured on this host goes: the retry captures
+			// again.
+			run.dropStepCapturesLocked(st.ID, c.HostID)
+			c.Captures = nil
 			c.State, c.Proposal, c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark, c.Pending = cellWaiting, nil, nil, "", false, nil, nil, false, false
 			if st.OneHost {
 				c.HostID, c.Host, c.SessionID = "", "", ""
@@ -1008,6 +1102,7 @@ func (s *Service) StopGroupRun(id string) (GroupRun, error) {
 		}
 	}
 	run.NeedPane = nil
+	run.wipeCapturesLocked()
 	out := run.view()
 	rb := run.RunbookID
 	s.mu.Unlock()

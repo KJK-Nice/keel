@@ -4,6 +4,7 @@
 
 import { stampLabel } from "./agent.js";
 import { dayLabel } from "./notes.js";
+import { checkCaptures, cleanCaptures } from "./groupvars.js";
 
 export const MAX_STEPS = 30;
 
@@ -134,6 +135,8 @@ export function toInput(ed) {
       // Where it runs in a group run (§17): a role, one host of it.
       role: String(s.role || "").trim().toLowerCase(),
       oneHost: !!s.oneHost,
+      // Values Keel captures from its output in a group run (§17 part 2).
+      captures: cleanCaptures(s.captures),
     }))
     .filter((s) => s.title || s.command);
   return {
@@ -157,7 +160,7 @@ export function checkInput(input) {
   if (untitled >= 0) return `Step ${untitled + 1} needs a title.`;
   const badRole = input.steps.findIndex((s) => s.role && !/^[a-z0-9][a-z0-9_.-]{0,31}$/.test(s.role));
   if (badRole >= 0) return `Step ${badRole + 1}: a role is one word of letters, digits, -, _ or .`;
-  return "";
+  return checkCaptures(input.steps);
 }
 
 // addHost adds a folder or tag chip (no duplicates, any case).

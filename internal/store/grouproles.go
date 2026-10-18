@@ -100,6 +100,10 @@ func (s *Store) GroupMembers(groupID string) (Group, []GroupMember, error) {
 
 // copyGroup copies g with only the roles of hosts in its subtree.
 func copyGroup(g Group, tree map[string]bool, hosts []persistHost) Group {
+	g.Vars = append([]GroupVar(nil), g.Vars...)
+	if len(g.Vars) == 0 {
+		g.Vars = nil
+	}
 	if len(g.Roles) == 0 {
 		g.Roles = nil
 		return g

@@ -147,6 +147,9 @@ func trimValue(s string, st, en int) (int, int) {
 	return st, en
 }
 
+// varRefRe is a whole value that is one runbook variable reference.
+var varRefRe = regexp.MustCompile(`^\{\{[A-Za-z_][A-Za-z0-9_]{0,31}(\|q)?\}\}$`)
+
 // skipValue keeps values that carry no secret: empty, booleans, nulls,
 // masks, an existing placeholder, and short numbers (counts, ports).
 func skipValue(v string) bool {
@@ -161,7 +164,9 @@ func skipValue(v string) bool {
 	if strings.Trim(v, "*•x") == "" {
 		return true
 	}
-	if strings.HasPrefix(v, "[secret:") || strings.HasPrefix(v, "${") || strings.HasPrefix(v, "$(") {
+	// A runbook variable ({{join_token}}), which is also how a captured
+	// value is shown to the model, names a value; it is not one.
+	if strings.HasPrefix(v, "[secret:") || strings.HasPrefix(v, "${") || strings.HasPrefix(v, "$(") || varRefRe.MatchString(v) {
 		return true
 	}
 	if len(v) <= 4 && strings.Trim(v, "0123456789") == "" {

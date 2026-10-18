@@ -6638,7 +6638,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // one pane with a server nonce, and keel serve checks the proposal (host
   // still in the group and readable, bytes, driver, ⇧ rule) before it
   // writes them.
-  async function typeGroupProposal({ runId, proposal, shift }) {
+  //
+  // bytes are the exact bytes the dialog showed: for a step that names
+  // variables, the command with keel serve's values filled in (§17 part
+  // 2), which keel serve fills again and compares before it writes.
+  async function typeGroupProposal({ runId, proposal, bytes, shift }) {
+    const send = typeof bytes === "string" && bytes ? bytes : proposal.bytes;
     const pane = findPaneByRuntime(proposal.sessionId);
     if (!pane || !isTermPane(pane) || pane.remote) return { ok: false, message: "that pane is not open in this window" };
     if (!isDriving(pane)) return { ok: false, message: "you follow this pane" };
@@ -6655,7 +6660,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         resolve(r);
       };
     });
-    const sent = await sendApprovedInject(proposal.bytes, pane, {
+    const sent = await sendApprovedInject(send, pane, {
       agent: { groupRunId: runId, proposalId: proposal.id, shift: !!shift },
     });
     if (!sent) settleAgentType(pane, { ok: false, message: "the session is not connected, or you do not drive it" });

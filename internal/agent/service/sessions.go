@@ -344,7 +344,7 @@ func (s *Service) redactor() (*redact.Redactor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts))
+	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts), s.namedValues(false)...)
 }
 
 // snapshotLocked copies the conversation's record for saving. Call with
