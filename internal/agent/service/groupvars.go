@@ -274,7 +274,6 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 		}
 		readable = readable && n > 0
 	}
-	var values []string
 	for _, c := range caps {
 		if !readable {
 			out = append(out, captureResult{name: c.Name, state: CaptureNoOutput})
@@ -293,7 +292,6 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 			out = append(out, captureResult{name: c.Name, state: CaptureRefused})
 		default:
 			out = append(out, captureResult{name: c.Name, value: v, state: CaptureCaptured})
-			values = append(values, v)
 		}
 	}
 	// A value that holds a vault value is never kept: Keel will not carry

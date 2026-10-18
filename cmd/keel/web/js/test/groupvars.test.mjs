@@ -18,7 +18,7 @@ test("refs: like internal/runvars, never Go templates, Jinja or reserved words",
 test("cleanVar: names and one-line values as keel serve keeps them", () => {
   assert.deepEqual(V.cleanVar(" API_VIP ", " 10.20.0.10 "), { ok: true, name: "api_vip", value: "10.20.0.10" });
   assert.equal(V.cleanVar("9x", "a").ok, false);
-  for (const bad of ["a\nb", "a\tb", "a​b", "a b", "a‮b", "a﻿b", "x".repeat(257)]) assert.equal(V.cleanVar("v", bad).ok, false, JSON.stringify(bad));
+  for (const bad of ["a\nb", "a\tb", "a\u200bb", "a\u2028b", "a\u202eb", "a\ufeffb", "x".repeat(257)]) assert.equal(V.cleanVar("v", bad).ok, false, JSON.stringify(bad));
 });
 
 test("bytesWithVars: chips for {{name}}, every other byte escaped as bytesHTML draws it", () => {

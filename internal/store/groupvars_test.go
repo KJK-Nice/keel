@@ -56,7 +56,7 @@ func TestGroupVarsSetAndKept(t *testing.T) {
 
 func TestGroupVarsValidated(t *testing.T) {
 	st, k8s, _, _, _, _ := roleFixture(t)
-	for _, c := range [][2]string{{"9x", "v"}, {"a-b", "v"}, {"end", "v"}, {"", "v"}, {"a", "x\ny"}, {"a", "x\x1by"}, {"a", "x​y"}, {"a", strings.Repeat("v", 257)}} {
+	for _, c := range [][2]string{{"9x", "v"}, {"a-b", "v"}, {"end", "v"}, {"", "v"}, {"a", "x\ny"}, {"a", "x\x1by"}, {"a", "x\u200by"}, {"a", strings.Repeat("v", 257)}} {
 		if _, err := st.SetGroupVar(k8s.ID, c[0], c[1]); !errors.Is(err, ErrGroupVar) {
 			t.Errorf("%q=%q: %v", c[0], c[1], err)
 		}
