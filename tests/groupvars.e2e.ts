@@ -97,7 +97,7 @@ test('a captured value and a group variable are filled in at Type, shown first, 
     const vars = page(screen).getByRole('region', 'Group variables');
     await vars.getByRole('textbox', 'Variable name').fill('gv_version');
     await vars.getByRole('textbox', 'Variable value').fill('1.31.2');
-    await vars.getByRole('button', 'Add').tap();
+    await vars.getByRole('button', 'Add variable').tap();
     await expect(vars).toContainText('gv_version');
     await expect(vars).toContainText('1.31.2');
     await app.screenshot('group-vars');
