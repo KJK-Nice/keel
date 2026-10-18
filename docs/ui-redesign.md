@@ -159,7 +159,7 @@ Board names refer to the canvas.
 
 **Limit of these gates.** The ⇧ rule, the no-newline rule for inserts and the driver check are enforced in keel serve, so they hold against model output and against a UI bug that sends the wrong bytes or skips a key. They do not hold against hostile script running inside the app page itself: the pre-existing unlabelled inject path (palette snippets, the notebook's CLI input) accepts any bytes from the driving client with a fresh ticket, and script in the page can ask for a ticket like the page does. Keeping the page free of untrusted script (no remote scripts, escaped HTML) is what protects that path, not the agent gates.
 
-**Limit of "From this pane's scrollback" (6c+).** Scrollback is untrusted output, and nothing proves a shell drew a line or that its command ran. So a candidate counts only when its prompt is exactly the pane's current prompt (the line being edited); with no readable current prompt there are none. Lines abandoned with ^C (or showing ^Z, ^D, ^[), lines touched by cursor moves, backspaces or erases, and commands with invisible format characters are dropped. Still, any program that writes that exact prompt string followed by text can pose as a command: a file printed with cat, a login banner, a REPL, a remote program, or a shell-like prompt that happens to match. The label says only where the line was seen, and the risk rating and the ⇥ / ⇧⇥ gates apply to it as to any suggestion. OSC 133 shell-integration marks are not used yet; they would let Keel tell prompts and commands from output.
+**Limit of "From this pane's scrollback" (6c+).** Scrollback is untrusted output, and nothing proves a shell drew a line or that its command ran. So a candidate counts only when its prompt is exactly the pane's current prompt (the line being edited); with no readable current prompt there are none. Lines abandoned with ^C (or showing ^Z, ^D, ^[), lines touched by cursor moves, backspaces or erases, and commands with invisible format characters are dropped. Still, any program that writes that exact prompt string followed by text can pose as a command: a file printed with cat, a login banner, a REPL, a remote program, or a shell-like prompt that happens to match. The label says only where the line was seen, and the risk rating and the ⇥ / ⇧⇥ gates apply to it as to any suggestion. These suggestions do not use OSC 133 shell-integration marks yet; agent panel excerpts do (§14).
 
 ## 7. Plain-language detection
 
@@ -195,6 +195,7 @@ Board names refer to the canvas.
 - Snippet: `kind` (`readonly` | `changes-state`), `vars` with defaults, `offerOnTags[]`, `agentUsable` (bool, default false; 6c+).
 - Settings: agent provider ref (secret in vault), detection mode, default scope, scrollback lines, redaction toggles, history retention, `historySuggestions` (on|off, default on; 6c+: suggest from the pane's scrollback).
 - Log events: `agent.read`, `agent.suggest`, `agent.insert`, `agent.type`, `share.request`, `share.pass`.
+- Command records per pane, in keel serve memory only (§14): stream offsets of the OSC 133 marks, exit status, cwd, times. Agent trace steps and saved `AgentChatStep`s gain `command` ("exit 2", "still running"), never the command text.
 - Saved agent conversations: `keel.chats` (age, X25519) with the key in the vault as `agentchats:key`; schema `store.AgentChat` (`internal/store/agentchats.go`, §5.4.1).
 
 ## 10. Build plan
@@ -211,6 +212,7 @@ One phase per branch and PR.
 | 5 · Unlock + First run | ssh config import, key copy | New backend for import |
 | 6 · Agent | Provider, scope, redaction, audit log, panel, proposals, then in-pane suggestions | Invariants in §6 are acceptance criteria |
 | Polish · Sidebar Panes | Panes segment and section in the Vault sidebar (§5.1, board `Panes`) | Post-plan polish PR; UI only, no backend data |
+| Shell integration · OSC 133 | Parse OSC 133 A/B/C/D and OSC 7 from PTY output in keel serve (command records per pane, bounded), agent excerpts of the last command with its exit status through the Auditor, gutter marks and an exit chip in xterm, Previous / Next command in the palette, opt-in shell snippets in the README (§14) | Foundation for the error chip, runbook results and per-host results; no rc file is ever edited |
 | Agent sessions | Conversations saved encrypted in the vault, `historyDays` retention, the Recent conversations list in the panel (search, resume, rename, delete), Expired proposals with Copy / Propose again (§5.4.1, board `AgentSessions`) | The Agent tab page (board `AgentPage`) is the next PR |
 
 ## 11. Open questions
@@ -256,3 +258,38 @@ The notebook pane is a document you read beside a terminal, not a form. Code: `p
 - **Callout:** a blockquote is a box on `stage` (`line`, `radius-md`) with an info icon in `ink-muted`, `role="note"`. No side bar.
 - **Not built (proposed on the boards):** the warning callout (`> [!WARNING]` on `signal-soft`), checklists and GFM tables. The editor parses CommonMark with prosemirror-markdown's default schema, which has none of them; each needs a schema node, a markdown-it plugin and a serializer rule, so they wait for their own change.
 - Tests: `tests/notebook.e2e.ts` (one H1, the target pane in the meta line and on the button, Copy on every fence and Type only on shell fences, the callout, no wrapping, Type stops at the approve dialog, rename), and the `notebook pane` shots in `tests/visual.e2e.ts`.
+
+## 14. Shell integration marks (OSC 133)
+
+Status: foundation built · 2026-10-18 · no board (the UI is two small marks inside the terminal). Groundwork for later features: an error chip with actions, runbook results per step and per host by exit code, and agent excerpts that follow commands.
+
+**What is read.** A shell with integration wraps its prompt and each command in OSC sequences (FinalTerm semantic prompts): `ESC ] 133;A` the prompt starts, `133;B` the prompt is drawn and the typed command follows, `133;C` the command was accepted and its output follows, `133;D[;<exit>]` the command ended. Each ends with BEL or ST (`ESC \`). Keel also reads `ESC ] 7;file://host/path` (the working directory). Every other OSC (titles, hyperlinks, clipboard) is ignored by this code.
+
+**Where.** Two readers of the same byte stream, neither of which changes it:
+
+- **keel serve** (`internal/shellmark`): a streaming parser fed from `Session.output`, under the session lock, with the scrollback ring's write counter as the stream offset (`ring.Mark`). A tracker turns marks into **command records** per pane: `Seq`, `PromptStart`, `CommandStart` / `CommandTextEnd` (the typed command, when the shell sent B), `OutputStart`, `OutputEnd`, `Done`, `Exit` / `HasExit`, `Cwd` (the last OSC 7), `Started`, `Finished`. Records hold offsets, not text: the text is read from the ring (`ring.Range`) while it still holds it. At most 64 records per pane (the oldest go); not saved anywhere, gone with the session. A reconnect resets the parser and the open prompt (a half sequence from the old shell must not join the new one); records stay.
+- **The terminal** (`js/lib/cmdmarks.js`): an xterm OSC 133 handler draws the marks (below). It parses with the same rules, so both sides agree on what a mark is. A pane re-attached later replays the ring, so its marks come back with its text.
+
+**Rules.** A command exists once its output starts (C). A prompt with no C (Enter on an empty line) leaves no record. D closes the latest command only if it is still open, so a stray or repeated D changes nothing; D with no C draws nothing. Marks are flat: with nested shells (ssh from a shell with integration into one that has it too) the inner commands are recorded and the outer one stays open with no exit status.
+
+**Security.** OSC data is untrusted remote output.
+
+- Strict parsing: payloads are printable ASCII; a control byte inside an OSC skips it; CAN/SUB cancel it; `ESC ]` inside an OSC abandons it and starts the new one. An exit status is 1–10 digits within int32 and nothing else (no sign, no spaces); anything else is "not reported". A cwd must be `file://host/path`, decode to valid UTF-8 with no control characters, and be at most 1024 bytes.
+- Caps: an OSC longer than 2048 bytes is consumed and dropped, so the parser holds at most that much whatever it is fed; 64 records per pane in keel serve, 1000 prompt markers per terminal in the UI; the command text read for the agent is cut at 4 KiB, its output to the scrollback-lines setting.
+- Marks authorize nothing and trigger nothing: no write, no prompt, no network. They only draw a mark and choose which part of a pane's scrollback the agent reads. A program can print fake marks (or hide its output behind a fake D); the excerpt says it comes from shell-integration marks and the risk rating and ⇥ / ⇧⇥ gates apply to every suggestion as before.
+- Fuzzed (`FuzzParser`) and tested split at every byte.
+
+**Agent (§6.2, §6.4, §6.7).** When the agent reads a pane in scope (`Auditor.ReadPane`) and keel serve knows a last command for it (`agent.CommandSource`, satisfied by the runtime), the excerpt is that command instead of the tail: `(in <cwd>)`, `$ <command>`, the last N lines of its output (N = Scrollback lines per pane; "(earlier output not included)" when cut), and `[exit 2]`, `[exit status not reported]` or `[still running]`. Scope is checked before anything is asked. The text goes through `scrollback.Read`, `Normalize` and the request's Redactor like any pane read, and the read is written to `keel.log` as `agent.read` ("agent read web-1 · last command, exit 2 · 12 lines of output · 1 redaction"). The request header names it "last command (from shell integration marks), exit 2". The trace shows "Read web-1 · last command, exit 2 · 12 lines of output"; saved conversations keep that label (`command`), never the command. Without marks, or once the command's output has left the ring, the agent reads the last lines as before. History-first suggestions (§5.5) do not use the marks yet.
+
+**UI.**
+
+- A **gutter mark** per finished command: a `space-1` dot in the terminal's left inset (`space-2`), on the prompt line, never over text. `tide` when the command exited 0 (or did not report), `flare` otherwise. Its tooltip says "Command finished · exit N". No coloured side bar (§3).
+- A failed command also gets an **exit chip**, `k-badge k-badge--flare k-badge--mono` reading "exit N", at the right end of its prompt line: the word that keeps state from being colour alone.
+- **Previous command / Next command** in the palette (Terminal group) scroll the focused terminal to the prompt before or after the top of the view. No shortcut (none is planned in §8). With no marks in the pane a toast says to turn on shell integration.
+- Classes `k-cmdmark`, `k-cmdmark-dot`, `k-cmdmark--ok`, `k-cmdmark--failed`, `k-cmdchip` (reference in `docs/design/components.css`, app in `keel.css`). xterm's decorations are a proposed API in xterm 6, so terminals are created with `allowProposedApi`.
+
+**Turning it on.** Keel never edits a remote host's rc files and does not inject anything into the Local Shell: doing that safely means a temporary `ZDOTDIR` or `--rcfile` that changes the order startup files load in, which is not trivial across bash, zsh and fish and would differ from how the user's own terminal starts. fish 4.0 and later send the marks by themselves. For bash (4.4+, which has `PS0`), zsh and fish 3, the README (Shell integration) has a snippet to paste into the shell's own rc file, per host, by the user. Checked in a PTY: bash 5 and zsh 5.9 produce A B C D;n per command and nothing for an empty line; fish 4 sends `A;click_events=1` and B natively. A copyable snippet in the Edit host dialog is a follow-up.
+
+**Not built yet.** Actions on the chip (copy the output, ask the agent about this command), runbook and per-host results by exit code, history suggestions from marked commands, the cwd anywhere in the UI, more than the last command in an agent excerpt, an API for the records.
+
+Tests: `internal/shellmark` (each mark, every split, malformed, huge, nested, strict exit codes, bounded tracker, reset, fuzz), `internal/runtime/marks_test.go` (ring ranges, `LastCommand` from split chunks, the scrollback mask, a running command, output out of the ring, the command cap), `internal/agent/service/lastcommand_test.go` (excerpt, redaction, trace and `agent.read`; scope first; fallback to the tail; running and long output), `js/test/cmdmarks.test.mjs`, and `tests/cmdmarks.e2e.ts` (a Local Shell printing marks gets one ok mark, one failed mark with "exit 3" in the inset and at the line's end; the agent's trace and `keel.log` show the last command).

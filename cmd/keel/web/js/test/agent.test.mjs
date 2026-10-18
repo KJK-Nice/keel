@@ -58,6 +58,8 @@ test("risk badges", () => {
 test("trace lines say what was read", () => {
   assert.equal(A.traceText({ status: "read", host: "prod-db-01", lines: 120 }), "Read prod-db-01 · last 120 lines");
   assert.equal(A.traceText({ status: "read", host: "web", lines: 1, redactions: { password_prompt: 1, aws_key: 2 } }), "Read web · last 1 line · 3 redacted");
+  assert.equal(A.traceText({ status: "read", host: "web", lines: 2, command: "exit 2" }), "Read web · last command, exit 2 · 2 lines of output");
+  assert.equal(A.traceText({ status: "read", host: "web", lines: 1, command: "still running", redactions: { secret: 1 } }), "Read web · last command, still running · 1 line of output · 1 redacted");
   assert.equal(A.traceText({ status: "skipped", reason: "not-readable", host: "box" }), "Skipped box · the agent can't read this host");
   assert.equal(A.traceText({ status: "skipped", reason: "not-open" }), "Skipped a pane · it is closed");
 });

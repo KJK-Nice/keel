@@ -12,6 +12,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/runtime"
+	"keel/internal/shellmark"
 	"keel/internal/store"
 )
 
@@ -48,6 +49,10 @@ func (a agentPanes) Pane(id string) (agent.Pane, bool) {
 }
 
 func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.ReadScrollback(id) }
+
+// LastCommand passes on the pane's last command from its shell's OSC 133
+// marks (agent.CommandSource), with the same mask as ReadScrollback.
+func (a agentPanes) LastCommand(id string) (shellmark.Block, bool) { return a.rt.LastCommand(id) }
 
 func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {

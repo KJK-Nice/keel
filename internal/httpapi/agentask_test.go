@@ -412,7 +412,8 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 
 // §6.1 at the source: the agent routes cannot write to a session. The file
 // that holds them calls no write, inject, spawn or resize method, and
-// touches the runtime only through Get and ReadScrollback.
+// touches the runtime only through Get, ReadScrollback and LastCommand
+// (reads).
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "agentask.go", nil, 0)
@@ -428,7 +429,7 @@ func TestAgentRoutesHaveNoWritePath(t *testing.T) {
 		if banned[sel.Sel.Name] {
 			t.Errorf("agentask.go uses .%s", sel.Sel.Name)
 		}
-		if inner, ok := sel.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "rt" && sel.Sel.Name != "Get" && sel.Sel.Name != "ReadScrollback" {
+		if inner, ok := sel.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "rt" && sel.Sel.Name != "Get" && sel.Sel.Name != "ReadScrollback" && sel.Sel.Name != "LastCommand" {
 			t.Errorf("agentask.go calls rt.%s", sel.Sel.Name)
 		}
 		return true

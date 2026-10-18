@@ -90,6 +90,9 @@ type AgentChatStep struct {
 	Reason     string         `json:"reason,omitempty"`
 	Lines      int            `json:"lines,omitempty"`
 	Redactions map[string]int `json:"redactions,omitempty"`
+	// Command is how the pane's last command ended ("exit 1") when it was
+	// read from shell-integration marks; never the command itself.
+	Command string `json:"command,omitempty"`
 }
 
 // AgentChatProposal is a command the agent proposed, as it was last shown.

@@ -9,6 +9,7 @@ import (
 
 	"keel/internal/agent/redact"
 	"keel/internal/applog"
+	"keel/internal/shellmark"
 )
 
 // Logger is where audit entries go. *applog.Book (keel.log) satisfies it.
@@ -22,9 +23,19 @@ type ScrollbackSource interface {
 	ReadScrollback(sessionID string) ([]byte, error)
 }
 
+// CommandSource is a ScrollbackSource that also knows a pane's last
+// command from its shell-integration marks (OSC 133). keel serve's pane
+// source satisfies it; a source without it reads the tail as before.
+type CommandSource interface {
+	LastCommand(sessionID string) (shellmark.Block, bool)
+}
+
 // maxExcerptBytes caps one pane's excerpt after redaction (1000 lines of
 // a wide terminal).
 const maxExcerptBytes = 256 * 1024
+
+// maxCommandLines caps the command line(s) shown above a block's output.
+const maxCommandLines = 20
 
 // Auditor runs every agent read and insert, and writes each one to
 // keel.log (§6.7). There is no way to read a pane or authorize an insert
@@ -48,14 +59,111 @@ type Excerpt struct {
 	Lines  int
 	Text   redact.Safe
 	Report redact.Report
+	// LastCommand is set when the excerpt is the pane's last command (from
+	// OSC 133 marks) rather than its tail; Command says how it ended.
+	LastCommand bool
+	Command     CommandEnd
 }
 
-// ReadPane reads the last lines of a pane in scope, redacts them with r
-// (shared across the request), and logs agent.read with the pane, host,
-// line count and redaction counts. A pane out of scope is refused before
-// anything is read.
+// CommandEnd is how a command read from shell-integration marks ended, as
+// the shell reported it. It is untrusted output like the text itself.
+type CommandEnd struct {
+	Running bool
+	Exit    int
+	HasExit bool
+}
+
+// Label is the short form used in the excerpt header, keel.log and the
+// trace: "exit 1", "exit status not reported", "still running".
+func (c CommandEnd) Label() string {
+	switch {
+	case c.Running:
+		return "still running"
+	case c.HasExit:
+		return fmt.Sprintf("exit %d", c.Exit)
+	default:
+		return "exit status not reported"
+	}
+}
+
+// ReadPane reads a pane in scope, redacts it with r (shared across the
+// request), and logs agent.read with the pane, host, line count and
+// redaction counts. A pane out of scope is refused before anything is
+// read. When the pane's shell reports its commands (OSC 133, src is a
+// CommandSource), it reads the last command, its output (at most lines
+// lines) and its exit status; otherwise the last lines of the scrollback.
 func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
+	if !scope.Allows(p) {
+		return Excerpt{}, ErrNotReadable
+	}
+	if r == nil {
+		return Excerpt{}, fmt.Errorf("agent: no redactor")
+	}
+	if cs, ok := src.(CommandSource); ok {
+		if blk, ok := cs.LastCommand(p.SessionID); ok {
+			return a.readCommand(p, blk, lines, r), nil
+		}
+	}
 	return a.readPane(src, scope, p, lines, r, false)
+}
+
+// readCommand turns a command block into an excerpt: "$ <command>", its
+// output (the last lines of it) and how it ended, as one plain text that
+// goes through r like any pane text. Logged as agent.read.
+func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.Redactor) Excerpt {
+	end := CommandEnd{Running: !blk.Done, Exit: blk.Exit, HasExit: blk.HasExit}
+	var b strings.Builder
+	if blk.Cwd != "" {
+		fmt.Fprintf(&b, "(in %s)\n", oneLine(blk.Cwd))
+	}
+	cmd := commandText(blk.Command)
+	if cmd != "" {
+		for _, ln := range strings.Split(cmd, "\n") {
+			b.WriteString("$ " + ln + "\n")
+		}
+	} else {
+		b.WriteString("$ (command not shown)\n")
+	}
+	norm := strings.TrimRight(redact.Normalize(blk.Output), "\n")
+	out, n := LastLines(norm, ClampLines(lines))
+	if blk.Truncated || (norm != "" && n < strings.Count(norm, "\n")+1) {
+		b.WriteString("(earlier output not included)\n")
+	}
+	if out != "" {
+		b.WriteString(out + "\n")
+	}
+	fmt.Fprintf(&b, "[%s]", end.Label())
+	before := r.Report()
+	safe := r.Text(b.String()).Tail(maxExcerptBytes)
+	rep := diff(before, r.Report())
+	a.log.Append(applog.Entry{
+		Kind:       EventRead,
+		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output · %s", hostLabel(p), end.Label(), n, redactionNote(rep)),
+		HostID:     p.HostID,
+		SessionID:  p.SessionID,
+		Lines:      n,
+		Redactions: rep.Strings(),
+	})
+	return Excerpt{Pane: p, Lines: n, Text: safe, Report: rep, LastCommand: true, Command: end}
+}
+
+// commandText is the typed command from the region between the B and C
+// marks: plain text, blank lines dropped, at most maxCommandLines lines.
+func commandText(raw string) string {
+	var out []string
+	for _, ln := range strings.Split(redact.Normalize(raw), "\n") {
+		if ln = strings.TrimSpace(ln); ln != "" {
+			out = append(out, ln)
+		}
+		if len(out) == maxCommandLines {
+			break
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func oneLine(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 }
 
 // ReadPaneScreen is ReadPane for reading the commands typed in a pane

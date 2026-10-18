@@ -51,6 +51,7 @@ import { keysFor } from "./lib/shortcutmap.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
+import { attachCommandMarks } from "./lib/cmdmarks.js";
 
 (() => {
   if (window.__keelTermBound) return;
@@ -656,6 +657,9 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       allowTransparency: false,
       overviewRuler: { width: 0 },
       theme: xtermTheme(),
+      // registerDecoration is a proposed API in xterm 6; the command marks
+      // (OSC 133, lib/cmdmarks.js) draw with it.
+      allowProposedApi: true,
     };
   }
 
@@ -3086,6 +3090,19 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
   }
 
+  // jumpCommand scrolls the focused terminal to its previous or next
+  // command prompt, from the shell's OSC 133 marks (lib/cmdmarks.js).
+  function jumpCommand(dir) {
+    const pane = focusedPane();
+    if (!isTermPane(pane) || !pane.cmdMarks) return;
+    if (!pane.cmdMarks.count()) {
+      toast("This pane's shell sends no command marks. Turn on shell integration (README) to jump between commands.");
+      return;
+    }
+    if (!pane.cmdMarks.jump(dir)) toast(dir < 0 ? "No earlier command" : "No later command");
+    pane.term?.focus();
+  }
+
   function paletteCatalog() {
     const items = [];
     // Commands are the Actions group; the section they used to be filed under
@@ -3202,6 +3219,8 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       run: () => runShortcut("focus-pane"),
     });
     add({ id: "find-term", group: "Panes", title: "Find in terminal", keys: keysFor("find-term", isMac), run: () => runShortcut("find-term") });
+    add({ id: "prev-command", group: "Terminal", title: "Previous command", run: () => jumpCommand(-1) });
+    add({ id: "next-command", group: "Terminal", title: "Next command", run: () => jumpCommand(1) });
     add({
       id: "sync-panes",
       group: "Panes",
@@ -4003,13 +4022,14 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
     const search = loadTermAddon(term, SearchAddonCtor);
     loadTermAddon(term, WebLinksAddonCtor, openTermLink);
     const progress = loadTermAddon(term, ProgressAddonCtor);
+    const marks = attachCommandMarks(term);
     progress?.onChange?.((st) => paintPaneProgress(progressEl, st));
     search?.onDidChangeResults?.((ev) => paintFindCount(findEl.querySelector(".term-find-count"), ev));
     body.appendChild(findEl);
     body.appendChild(failEl);
     wireFindEl(findEl, paneId);
     wireTermInputEl(inputEl, paneId);
-    return { wrap, banner, body, term, fit, search, findEl, failEl, host, inputEl };
+    return { wrap, banner, body, term, fit, search, findEl, failEl, host, inputEl, marks };
   }
 
   function createTab(paneSeed) {
@@ -4066,6 +4086,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       wrap: shell.wrap,
       banner: shell.banner,
       search: shell.search,
+      cmdMarks: shell.marks,
       findEl: shell.findEl,
       failEl: shell.failEl,
       inputEl: shell.inputEl,
@@ -6231,6 +6252,7 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
       wrap: shell.wrap,
       banner: shell.banner,
       search: shell.search,
+      cmdMarks: shell.marks,
       findEl: shell.findEl,
       inputEl: shell.inputEl,
       ws: null,
