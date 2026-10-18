@@ -54,7 +54,10 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await browser.addInitScript(themeScript(theme));
       await openKeel(app);
       const vault = screen.getByRole('complementary', 'Vault');
-      await expect(vault.getByRole('button', 'New host')).toBeVisible();
+      // The segment is a window preference: the dark run's later tests
+      // leave Snippets selected for the light run.
+      await vault.getByRole('button', 'Hosts').tap();
+      await expect(vault.getByRole('searchbox', 'Search hosts')).toBeVisible();
       await app.screenshot(`${theme}-hosts`);
 
       await vault.getByRole('button', 'New host').tap();
@@ -73,6 +76,9 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
         await openKeel(app);
         await vault.getByRole('searchbox', 'Search hosts').fill(editName);
         await expect(vault.getByRole('button', new RegExp(`^${editName}\\b`))).toBeVisible();
+        // The filter is a debounced server round trip: wait for the
+        // filtered tree, so this host's "Actions" is the only one left.
+        await expect(vault.getByRole('button', /^Local Shell\b/)).toBeHidden();
         await vault.getByRole('button', 'Actions', { visible: true }).tap();
         await screen.getByRole('menuitem', 'Edit').tap();
         const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });

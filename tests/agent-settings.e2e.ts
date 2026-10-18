@@ -249,6 +249,10 @@ describe('agent settings', { tags: ['agent', 'settings'], serial: true }, () => 
 
       // Edit mode: Delete host is there, asks first, and removes the host.
       await vault.getByRole('searchbox', 'Search hosts').fill(names.off);
+      // The filter is a debounced server round trip: wait for the
+      // filtered tree, so this host's "Actions" is the only one left.
+      await expect(vault.getByRole('button', new RegExp(`^${names.off}\\b`))).toBeVisible();
+      await expect(vault.getByRole('button', /^Local Shell\b/)).toBeHidden();
       await vault.getByRole('button', 'Actions', { visible: true }).tap();
       await screen.getByRole('menuitem', 'Edit').tap();
       const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
