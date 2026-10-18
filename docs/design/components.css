@@ -450,6 +450,131 @@ body {
 .k-note-done svg { display: block; flex: none; width: 14px; height: 14px; }
 .k-note-done-ok { display: contents; color: var(--tide); }
 
+/* ---------- Runbooks (docs/ui-redesign.md §16, boards Runbooks and RunbookInUse;
+   reference in docs/design/components.css). The Runbooks tab page
+   (js/ui/runbooks.js) reuses the list and detail split; a runbook in use
+   is a .k-rb-pick card in the agent thread with a .k-rp progress list, and
+   a runbook the agent proposes is a .k-prop card (js/ui/agentthread.js).
+   Progress marks are words and glyphs, never colour alone; no side bars. */
+.k-rb-sources { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: calc(-1 * var(--space-1)) 0 0 calc(-1 * var(--space-2)); }
+.k-rb-sources .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-rb-source-menu {
+  display: grid; gap: var(--space-0\.5); max-height: calc(var(--size-row) * 6); overflow: auto; padding: var(--space-1);
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-pop);
+}
+.k-rb-source-menu[hidden] { display: none; }
+.k-rb-menu-head, .k-rb-menu-empty { margin: 0; padding: var(--space-1) var(--space-2); }
+button.k-rb-menu-item, button.k-rb-other {
+  display: grid; gap: var(--space-0\.5); width: 100%; min-height: var(--size-control-lg); padding: var(--space-1\.5) var(--space-2);
+  text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); cursor: pointer;
+}
+button.k-rb-menu-item:hover, button.k-rb-menu-item:focus-visible, button.k-rb-other:hover:not([disabled]), button.k-rb-other:focus-visible { background: var(--hover); }
+button.k-rb-other[disabled] { cursor: default; }
+button.k-rb-other[disabled] .k-rb-other-name { color: var(--ink-muted); }
+.k-rb-other-name { font: var(--type-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-rb-other-sub { font: var(--type-caption); color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-rb-listfoot { flex: none; padding: var(--space-2) var(--space-4); border-top: 1px solid var(--line); }
+.k-rb-listfoot .k-help { font: var(--type-meta); color: var(--ink-faint); }
+.k-rb-empty { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-6) var(--space-4); }
+.k-rb-empty-title { margin: 0; font: var(--type-body-strong); color: var(--ink); }
+.k-rb-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2); border-bottom: 1px solid var(--line);
+}
+.k-rb-row:hover, .k-rb-row[aria-selected="true"] { background: var(--hover); }
+.k-rb-row .k-switch { margin-top: var(--space-1); }
+button.k-rb-row-pick {
+  display: grid; grid-template-columns: var(--size-control) minmax(0, 1fr); column-gap: calc(var(--space-2) + var(--space-0\.5)); align-items: start;
+  min-width: 0; padding: var(--space-0\.5) var(--space-2); text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); cursor: pointer;
+}
+button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.k-rb-row-pick .k-tile { width: var(--size-control); height: var(--size-control); margin-top: var(--space-0\.5); }
+.k-rb-row-main { display: grid; gap: var(--space-1); min-width: 0; }
+.k-rb-row-head { display: flex; align-items: center; gap: var(--space-1\.5); min-width: 0; }
+.k-rb-row-head .k-item-name { min-width: 0; }
+.k-rb-src, .k-rb-chips .k-badge { flex: none; height: var(--space-4); padding: 0 var(--space-1); font-size: 0.769rem; }
+.k-rb-row-when { font: var(--type-caption); color: var(--ink-muted); overflow-wrap: anywhere; }
+.k-rb-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+.k-rb-editor { max-width: calc(var(--size-reading) + var(--size-list)); }
+.k-rb-editor .k-editor-head .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-input.k-rb-name { font: var(--type-heading); }
+.k-rb-review {
+  display: flex; align-items: flex-start; gap: calc(var(--space-2) + var(--space-0\.5)); padding: calc(var(--space-2) + var(--space-0\.5)) var(--space-3);
+  border-radius: var(--radius-md); background: var(--signal-soft); color: var(--signal); font: var(--type-caption);
+}
+.k-rb-review svg { display: block; flex: none; width: 1.231rem; height: 1.231rem; }
+.k-rb-review b { color: var(--ink); font-weight: 500; }
+.k-rb-review .k-btn { flex: none; margin-left: auto; }
+.k-rb-grid { display: grid; grid-template-columns: minmax(0, 1fr) var(--size-agentpage-context); gap: calc(var(--space-4) + var(--space-1)); align-items: start; }
+.k-rb-main { display: grid; gap: var(--space-4); min-width: 0; }
+.k-rb-steps-label { padding: 0; }
+.k-rb-steps { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.k-rb-step { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); gap: var(--space-1\.5) var(--space-3); align-items: start; }
+.k-rb-n, .k-rp-mark {
+  display: grid; place-items: center; flex: none; border: 1px solid var(--line-strong); border-radius: var(--radius-full);
+  font: 500 0.846rem/1 var(--font-mono); color: var(--ink-muted);
+}
+.k-rb-n { width: calc(var(--space-4) + var(--space-1) + var(--space-0\.5)); height: calc(var(--space-4) + var(--space-1) + var(--space-0\.5)); margin-top: var(--space-1); }
+.k-rb-body { display: grid; gap: var(--space-1\.5); min-width: 0; }
+.k-rb-step-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.k-input.k-rb-step-title { flex: 1; min-width: 0; font: var(--type-body-strong); }
+.k-rb-step-tools { display: flex; gap: var(--space-0\.5); flex: none; }
+.k-rb-step-tools .k-btn--icon svg { display: block; width: 1rem; height: 1rem; }
+.k-input.k-rb-step-desc, .k-input.k-rb-step-expect { font: var(--type-caption); color: var(--ink-muted); }
+.k-textarea.k-rb-cmd { min-height: var(--size-control); background: var(--surface); }
+.k-rb-main > div > .k-btn svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; }
+.k-rb-box { display: grid; gap: calc(var(--space-3) + var(--space-0\.5)); padding: var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-inputgroup.k-rb-hosts { height: auto; min-height: var(--size-control); flex-wrap: wrap; gap: var(--space-1); padding: var(--space-0\.5) var(--space-1\.5); background: var(--stage); }
+.k-rb-hosts .k-input { flex: 1; min-width: calc(var(--size-control) * 3); height: var(--space-6); padding: 0; }
+.k-rb-hostchip { gap: var(--space-0\.5); padding-right: var(--space-0\.5); }
+.k-rb-hostchip button { display: grid; place-items: center; width: var(--space-4); height: var(--space-4); padding: 0; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); cursor: pointer; }
+.k-rb-hostchip button:hover { background: var(--hover); color: var(--ink); }
+.k-rb-hostchip svg { width: 0.769rem; height: 0.769rem; }
+.k-rb-meta { display: grid; grid-template-columns: calc(var(--size-control) * 3) minmax(0, 1fr); gap: var(--space-1\.5) var(--space-2); margin: 0; font: var(--type-caption); }
+.k-rb-meta dt { color: var(--ink-muted); }
+.k-rb-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+/* In the app the settings box goes under the steps when the detail is
+   narrower than 900px (a container query on #runbooks-detail). */
+
+/* A runbook in use, in the agent thread. */
+.k-rb-pick { display: grid; gap: var(--space-2); padding: calc(var(--space-2) + var(--space-0\.5)) var(--space-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-rb-pick-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font: var(--type-body-strong); color: var(--ink); }
+.k-rb-pick-name > svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--brass-ink); }
+.k-rb-pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-rb-pick-name .k-badge { flex: none; height: var(--space-4); padding: 0 var(--space-1); font-size: 0.769rem; }
+.k-rb-pick--done { padding-block: var(--space-2); }
+.k-rb-pick--done .k-rb-pick-name { color: var(--ink-muted); }
+.k-rb-pick--done .k-rb-pick-name > svg { color: var(--ink-faint); }
+.k-rb-why, .k-rb-now { margin: 0; font: var(--type-caption); color: var(--ink-muted); }
+.k-rb-now { color: var(--ink); }
+.k-rb-now--flare { color: var(--flare); }
+.k-rp { display: grid; gap: var(--space-0\.5); margin: 0; padding: 0; list-style: none; }
+.k-rp-row { display: flex; align-items: center; gap: var(--space-2); min-height: calc(var(--space-4) + var(--space-1\.5)); font: var(--type-caption); color: var(--ink-faint); }
+.k-rp-mark { width: var(--space-4); height: var(--space-4); font-size: 0.769rem; }
+.k-rp-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.k-rp-note { flex: none; font: 400 0.846rem/1 var(--font-mono); color: var(--ink-faint); }
+.k-rp-row[data-state="done"] { color: var(--ink-muted); }
+.k-rp-row[data-state="done"] .k-rp-mark { border-color: transparent; background: var(--tide-soft); color: var(--tide); }
+.k-rp-row[data-state="now"] { color: var(--ink); font-weight: 500; }
+.k-rp-row[data-state="now"] .k-rp-mark { border-color: var(--brass-ink); color: var(--brass-ink); }
+.k-rp-row[data-state="failed"] { color: var(--ink); }
+.k-rp-row[data-state="failed"] .k-rp-mark { border-color: transparent; background: var(--flare-soft); color: var(--flare); }
+.k-rp-row[data-state="failed"] .k-rp-note { color: var(--flare); }
+.k-rp-row[data-state="skipped"] .k-rp-title { text-decoration: line-through; }
+.k-rb-actions { display: flex; flex-wrap: wrap; gap: var(--space-1\.5); }
+.k-rb-others { display: grid; gap: var(--space-0\.5); }
+.k-rb-safe { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; }
+.k-rb-safe svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; margin-top: var(--space-0\.5); color: var(--ink-faint); }
+
+/* A runbook the agent proposes. */
+.k-rbp-name { margin: 0; font: var(--type-body-strong); color: var(--ink); }
+.k-rbp-steps { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.k-rbp-step { display: flex; align-items: flex-start; gap: var(--space-2); font: var(--type-caption); color: var(--ink); }
+.k-rbp-step .k-rp-mark { margin-top: var(--space-0\.5); }
+.k-rbp-step-main { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
+.k-rbp-step .k-bytes { max-height: calc(var(--size-row) * 2); }
+
 /* ---------- Empty ---------- */
 .k-empty { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-8) var(--space-4); text-align: center; }
 .k-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--hover); color: var(--ink-muted); }

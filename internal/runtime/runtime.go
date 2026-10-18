@@ -676,6 +676,39 @@ func (s *Session) LastCommand() (shellmark.Block, bool) {
 	return blk, true
 }
 
+// StreamMark is the pane's output stream offset now (the scrollback ring's
+// write counter). Taken right before a runbook step is typed, it lets
+// CommandAfter find the command that step started.
+func (s *Session) StreamMark() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Mark()
+}
+
+// CommandAfter returns the first command record whose output started at
+// or after from (a StreamMark). ok is false when the shell reported none
+// yet. Like every mark it is untrusted output: a runbook step shows its
+// exit status as reported, never as proof.
+func (s *Session) CommandAfter(from uint64) (shellmark.Command, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.marks.Commands() {
+		if c.OutputStart >= from {
+			return c, true
+		}
+	}
+	return shellmark.Command{}, false
+}
+
+// CommandAfter is Session.CommandAfter by session id.
+func (r *Runtime) CommandAfter(id string, from uint64) (shellmark.Command, bool) {
+	s, err := r.Get(id)
+	if err != nil {
+		return shellmark.Command{}, false
+	}
+	return s.CommandAfter(from)
+}
+
 // LastCommand is Session.LastCommand by session id.
 func (r *Runtime) LastCommand(id string) (shellmark.Block, bool) {
 	s, err := r.Get(id)

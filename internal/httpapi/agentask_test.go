@@ -410,34 +410,37 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 	}
 }
 
-// §6.1 at the source: the agent routes cannot write to a session. The file
-// that holds them calls no write, inject, spawn or resize method, and
-// touches the runtime only through Get, ReadScrollback and LastCommand
-// (reads).
+// §6.1 at the source: the agent routes cannot write to a session. The
+// files that hold them (the ask, and the runbooks of §16) call no write,
+// inject, spawn or resize method, and touch the runtime only through Get,
+// ReadScrollback, LastCommand and CommandAfter (reads).
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "agentask.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	banned := map[string]bool{"Write": true, "Inject": true, "InjectTicket": true, "IssueInjectTicket": true, "Keystroke": true, "Spawn": true, "Resize": true, "SetFocus": true, "Kill": true}
-	ast.Inspect(f, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok {
+	for _, file := range []string{"agentask.go", "agentrunbooks.go"} {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, file, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		banned := map[string]bool{"Write": true, "Inject": true, "InjectTicket": true, "IssueInjectTicket": true, "Keystroke": true, "Spawn": true, "Resize": true, "SetFocus": true, "Kill": true}
+		reads := map[string]bool{"Get": true, "ReadScrollback": true, "LastCommand": true, "CommandAfter": true}
+		ast.Inspect(f, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if banned[sel.Sel.Name] {
+				t.Errorf("%s uses .%s", file, sel.Sel.Name)
+			}
+			if inner, ok := sel.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "rt" && !reads[sel.Sel.Name] {
+				t.Errorf("%s calls rt.%s", file, sel.Sel.Name)
+			}
 			return true
+		})
+		// And the handlers do not reach the session socket path.
+		src, _ := os.ReadFile(file)
+		if strings.Contains(string(src), "inject.") {
+			t.Errorf("%s uses the inject package", file)
 		}
-		if banned[sel.Sel.Name] {
-			t.Errorf("agentask.go uses .%s", sel.Sel.Name)
-		}
-		if inner, ok := sel.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "rt" && sel.Sel.Name != "Get" && sel.Sel.Name != "ReadScrollback" && sel.Sel.Name != "LastCommand" {
-			t.Errorf("agentask.go calls rt.%s", sel.Sel.Name)
-		}
-		return true
-	})
-	// And the ask handler does not reach the session socket path.
-	src, _ := os.ReadFile("agentask.go")
-	if strings.Contains(string(src), "inject.") {
-		t.Error("agentask.go uses the inject package")
 	}
 }
 

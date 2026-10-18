@@ -1,0 +1,57 @@
+package ui
+
+import "keel/components/icon"
+
+// RunbooksPage is the Runbooks tab page (docs/ui-redesign.md §16, board
+// Runbooks): the saved runbooks on the left, the one picked on the right.
+// This is the static shell; js/ui/runbooks.js fills it from
+// GET /api/agent/runbooks (the runbooks live in keel.memory, so only while
+// the vault is open) and saves through the agent service, which redacts
+// every text for secrets before it is kept.
+//
+// Nothing here writes to a pane: Use in agent asks the agent panel to
+// start the runbook, and every step is then a proposal typed only through
+// the approve-before-type dialog (§6).
+templ RunbooksPage() {
+	<section class="k-page k-page--split" id="page-runbooks" data-page="runbooks" aria-label="Runbooks">
+		<div class="k-split">
+			<div class="k-split-list">
+				<div class="k-split-head">
+					<div class="k-split-titlerow">
+						<h1 class="k-split-title">Runbooks</h1>
+						<button type="button" class="k-btn k-btn--sm" id="runbooks-new" data-kbd="N">
+							@icon.Add01()
+							New
+						</button>
+					</div>
+					<div class="k-rb-sources">
+						<button type="button" class="k-btn k-btn--ghost k-btn--sm" id="runbooks-from-notebook" aria-haspopup="menu" aria-expanded="false">
+							@icon.NotebookPen()
+							From a notebook…
+						</button>
+						<button type="button" class="k-btn k-btn--ghost k-btn--sm" id="runbooks-from-chat" aria-haspopup="menu" aria-expanded="false">
+							@icon.Clock01()
+							From a conversation…
+						</button>
+					</div>
+					<div class="k-rb-source-menu" id="runbooks-source-menu" role="menu" hidden></div>
+					<div class="k-inputgroup k-filter">
+						<span class="k-addon" aria-hidden="true">
+							@icon.Search01()
+						</span>
+						<input class="k-input" type="search" id="runbooks-filter" placeholder="Filter runbooks" aria-label="Filter runbooks" autocomplete="off" spellcheck="false"/>
+					</div>
+				</div>
+				<div class="k-split-items" id="runbooks-list" aria-label="Runbooks list"></div>
+				<div class="k-rb-listfoot">
+					<span class="k-help" id="runbooks-count"></span>
+				</div>
+			</div>
+			<div class="k-split-detail" id="runbooks-detail">
+				<div class="k-detail-empty">
+					<p class="k-help">Select a runbook to edit it, or add one with New.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+}

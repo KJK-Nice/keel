@@ -16,6 +16,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
+import * as R from "../lib/runbooks.js";
 import { setText } from "../lib/dom.js";
 import { ICON, createThreadView, sessionGroupsHTML } from "./agentthread.js";
 
@@ -33,6 +34,7 @@ export const AGENT_ALERT_ICON = ICON.alert;
 //   onResize()                the panel width changed; refit the terminals
 //   confirm(msg, opts)        → Promise<boolean> (the alertdialog), for Delete all
 //   openPage()                opens the Agent tab page ("Open all in a tab")
+//   openRunbooks()            opens the Runbooks tab page (§16)
 //
 // Saved conversations (§5.4.1): the title button in the header opens the
 // session list (GET /api/agent/conversations). Picking one loads its
@@ -96,7 +98,21 @@ export function createAgentPanel(deps) {
     model: { createdAt: "", updatedAt: "", turns: [] },
     props: new Map(), // proposal id → { p, status }
     notes: new Map(), // note proposal id → { n, busy, error } (§15)
+    // A runbook in use (§16): the latest use, the user's Don't use, the
+    // names of earlier uses (their cards say Stopped), the step action in
+    // flight, the "Use a different runbook" list, and the runbooks the
+    // agent proposed.
+    run: null,
+    noRunbook: false,
+    runNames: new Map(),
+    runBusy: false,
+    runError: "",
+    choosing: false,
+    others: null,
+    bookProps: new Map(), // runbook proposal id → { b, busy, error }
   };
+  let pollTimer = null;
+  let pollLeft = 0;
 
   if (el.toggleKbd) el.toggleKbd.textContent = deps.isMac ? "⌘I" : "Ctrl+⇧I";
   if (el.toggle) el.toggle.title = deps.isMac ? "Agent (⌘I)" : "Agent (Ctrl+Shift+I)";
@@ -129,6 +145,25 @@ export function createAgentPanel(deps) {
     saveNote,
     dismissNote: (id) => noteAction(id, "DELETE", ""),
     undoNote: (id) => noteAction(id, "POST", "/undo"),
+    // runbooks (§16)
+    runbook: () => ({
+      run: state.run,
+      noRunbook: state.noRunbook,
+      names: state.runNames,
+      busy: !!state.busy || state.runBusy,
+      error: state.runError,
+      choosing: state.choosing,
+      others: state.others,
+    }),
+    proposeStep,
+    stepAction,
+    stopRunbook,
+    useRunbook,
+    toggleChoose,
+    bookProp: (id) => state.bookProps.get(id) || null,
+    saveBookProp,
+    bookPropAction,
+    openRunbooks: () => deps.openRunbooks?.(),
   };
 
   const views = [];
@@ -363,7 +398,7 @@ export function createAgentPanel(deps) {
 
   // ask sends a question in the current conversation. Every view shows it.
   // Returns false when nothing was sent.
-  async function ask(question) {
+  async function ask(question, opts = {}) {
     const q = String(question || "").trim();
     if (!q || state.busy) return false;
     if (state.keyConfigured === false) {
@@ -388,7 +423,7 @@ export function createAgentPanel(deps) {
     try {
       const res = await deps.api("/api/agent/ask", {
         method: "POST",
-        body: JSON.stringify({ conversationId: conv, question: q, panes: inScope.map((p) => p.sessionId) }),
+        body: JSON.stringify({ conversationId: conv, question: q, panes: inScope.map((p) => p.sessionId), runbookId: opts.runbookId || undefined }),
         signal: ctlr.signal,
       });
       if (res.conversationId !== state.conv) return true; // a new conversation started meanwhile
@@ -398,10 +433,14 @@ export function createAgentPanel(deps) {
       turnModel.trace = res.trace || [];
       for (const p of res.proposals || []) registerProposal(p);
       for (const n of res.notes || []) registerNote(n);
+      for (const b of res.runbooks || []) registerBookProp(b);
+      if (opts.runbookId) state.noRunbook = false;
+      if (res.runbook) setRun(res.runbook, { paint: false });
       turnModel.proposals = (res.proposals || []).slice();
       turnModel.notes = (res.notes || []).slice();
       state.model.updatedAt = new Date().toISOString();
       for (const [v, t] of turns) v.askDone(t, res);
+      eachView((v) => v.paintRuns());
     } catch (err) {
       if (conv !== state.conv) return true;
       if (err?.name === "AbortError") {
@@ -517,6 +556,7 @@ export function createAgentPanel(deps) {
     }
     const res = await deps.typeProposal({ proposal: rec.p, conversationId: state.conv, shift: !!shift });
     if (!res) return null;
+    if (res.ok && rec.p.runbook) schedulePoll(true);
     if (res.ok) rec.status = { ok: true, text: `Typed into ${rec.p.host || "the pane"}.` };
     else if (res.cancelled) rec.status = null;
     else rec.status = { ok: false, text: res.message || "Not typed." };
@@ -567,6 +607,189 @@ export function createAgentPanel(deps) {
     }
   }
 
+  // --- a runbook in use (§16) ---
+  //
+  // keel serve owns the run: which step is current, what each step's
+  // result was. The panel shows it, asks for the next step (an ordinary
+  // ask; keel serve attaches the step's proposal), marks a step done,
+  // skipped or to retry, and polls while a typed step waits for the exit
+  // status its pane's shell reports (OSC 133; reported, not proof).
+
+  function setRun(run, { paint = true } = {}) {
+    state.run = run || null;
+    if (run?.id) state.runNames.set(run.id, run.name);
+    if (paint) eachView((v) => v.paintRuns());
+    schedulePoll();
+    emit("runbook");
+  }
+
+  function schedulePoll(force = false) {
+    if (pollTimer) return;
+    if (!force && !R.waitingForShell(state.run)) return;
+    if (force || pollLeft <= 0) pollLeft = 400; // about 10 minutes
+    const conv = state.conv;
+    pollTimer = setTimeout(async () => {
+      pollTimer = null;
+      if (conv !== state.conv || pollLeft-- <= 0) return;
+      try {
+        const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbook`);
+        if (conv !== state.conv) return;
+        if (res?.runbook) setRun(res.runbook);
+      } catch {
+        // a locked vault or a restart: try again on the next change
+      }
+      if (R.waitingForShell(state.run)) schedulePoll();
+    }, 1500);
+  }
+
+  function runError(text) {
+    state.runError = text || "";
+    eachView((v) => v.paintRuns());
+  }
+
+  async function proposeStep() {
+    const act = R.nextAction(state.run, (pid) => !!state.props.get(pid) && !state.props.get(pid).p.expired);
+    if (act.kind !== "propose" && act.kind !== "failed") return;
+    if (!scopePanes().some((p) => p.readable !== false)) {
+      runError("Put a pane in scope first: a step is proposed only for a pane the agent reads.");
+      return;
+    }
+    runError("");
+    await ask(R.continueQuestion(act.step));
+  }
+
+  async function stepAction(stepId, action) {
+    if (state.runBusy) return;
+    const conv = state.conv;
+    state.runBusy = true;
+    runError("");
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbook/steps/${encodeURIComponent(stepId)}`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      if (conv !== state.conv) return;
+      state.runBusy = false;
+      setRun(res.runbook);
+      if (action === "retry") await proposeStep();
+    } catch (err) {
+      if (conv === state.conv) runError(err?.message || String(err));
+    } finally {
+      state.runBusy = false;
+      if (conv === state.conv) eachView((v) => v.paintRuns());
+    }
+  }
+
+  async function stopRunbook() {
+    const conv = state.conv;
+    state.runBusy = true;
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbook`, { method: "DELETE" });
+      if (conv !== state.conv) return;
+      state.noRunbook = true;
+      state.choosing = false;
+      state.runError = "";
+      setRun(res.runbook);
+    } catch (err) {
+      if (conv === state.conv) runError(err?.message || String(err));
+    } finally {
+      state.runBusy = false;
+      if (conv === state.conv) eachView((v) => v.paintRuns());
+    }
+  }
+
+  async function useRunbook(id, name) {
+    const label = name || state.others?.find((o) => o.id === id)?.name || (state.run?.runbookId === id ? state.run.name : "");
+    state.choosing = false;
+    state.runError = "";
+    if (!state.open) setOpen(true, { focus: false });
+    // The scope comes from the settings: read them first, so a panel
+    // opened just now asks with its panes in scope.
+    if (!state.settings) await loadSettings();
+    refresh();
+    return ask(R.startQuestion({ name: label || "this runbook" }), { runbookId: id });
+  }
+
+  async function toggleChoose() {
+    state.choosing = !state.choosing;
+    state.others = null;
+    eachView((v) => v.paintRuns());
+    if (!state.choosing) return;
+    try {
+      const res = await deps.api("/api/agent/runbooks");
+      const inScope = scopePanes();
+      state.others = (res?.runbooks || [])
+        .filter((rb) => rb.id !== state.run?.runbookId || state.noRunbook)
+        .map((rb) => ({ id: rb.id, name: rb.name, when: rb.when || "", ...R.offerFor(rb, inScope) }));
+    } catch (err) {
+      state.others = [];
+      state.runError = err?.message || String(err);
+    }
+    eachView((v) => v.paintRuns());
+  }
+
+  // --- runbooks the agent proposes (§16) ---
+
+  function registerBookProp(b) {
+    state.bookProps.set(b.id, { b, busy: false, error: "" });
+  }
+
+  function repaintBookProp(id) {
+    eachView((v) => v.paintBookProp(id));
+  }
+
+  async function saveBookProp(id) {
+    const rec = state.bookProps.get(id);
+    if (!rec || rec.busy) return;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintBookProp(id);
+    try {
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbooks/${encodeURIComponent(id)}`, { method: "POST" });
+      if (conv !== state.conv) return;
+      rec.b = res.proposal || { ...rec.b, status: "saved", runbookId: res.runbook?.id };
+      if (res.redacted) deps.toast(`Saved. ${res.redacted === 1 ? "1 secret-looking value was" : `${res.redacted} secret-looking values were`} replaced first.`);
+    } catch (err) {
+      rec.error = err?.message || String(err);
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintBookProp(id);
+    }
+  }
+
+  async function bookPropAction(id, method, suffix) {
+    const rec = state.bookProps.get(id);
+    if (!rec || rec.busy) return;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintBookProp(id);
+    try {
+      const b = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/runbooks/${encodeURIComponent(id)}${suffix}`, { method });
+      if (conv !== state.conv) return;
+      rec.b = b;
+    } catch (err) {
+      rec.error = err?.message || String(err);
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintBookProp(id);
+    }
+  }
+
+  function resetRun() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+    state.run = null;
+    state.noRunbook = false;
+    state.runNames = new Map();
+    state.runBusy = false;
+    state.runError = "";
+    state.choosing = false;
+    state.others = null;
+    state.bookProps.clear();
+  }
+
   // --- new conversation ---
 
   // newConversation starts a fresh thread. The old one stays: it is saved
@@ -578,6 +801,7 @@ export function createAgentPanel(deps) {
     state.title = "";
     state.props.clear();
     state.notes.clear();
+    resetRun();
     state.model = { createdAt: "", updatedAt: "", turns: [] };
     state.scopeAuto = true;
     if (state.settings) state.scope = A.defaultScope(state.settings.defaultScope, panes());
@@ -689,6 +913,7 @@ export function createAgentPanel(deps) {
     state.title = t.title || "";
     state.props.clear();
     state.notes.clear();
+    resetRun();
     state.model = {
       createdAt: t.createdAt || "",
       updatedAt: t.updatedAt || "",
@@ -696,6 +921,9 @@ export function createAgentPanel(deps) {
     };
     for (const turn of t.turns || []) for (const p of turn.proposals || []) registerProposal(p);
     for (const turn of t.turns || []) for (const n of turn.notes || []) registerNote(n);
+    for (const turn of t.turns || []) for (const b of turn.runbooks || []) registerBookProp(b);
+    state.noRunbook = !!t.noRunbook;
+    if (t.runbook) setRun(t.runbook, { paint: false });
     eachView((v) => v.renderTranscript(t));
     state.turns = Math.max(1, state.model.turns.filter((x) => !x.again).length);
     if (el.input) el.input.placeholder = "Continue this conversation…";
@@ -1053,6 +1281,9 @@ export function createAgentPanel(deps) {
     ask,
     resume,
     conversation,
+    // useRunbook starts a runbook in the window's conversation (the
+    // Runbooks page's Use in agent): an ask with its id, never a type.
+    useRunbook: (rb) => useRunbook(rb.id, rb.name),
     // test seam for node: the current scope ids
     scope: () => state.scope.slice(),
   };

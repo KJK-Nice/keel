@@ -81,9 +81,13 @@ type AgentNote struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// memoryFileData is keel.memory decrypted: the notes and the runbooks
+// (runbooks.go), under one key. Both lists are written on every save, so a
+// change to one never drops the other.
 type memoryFileData struct {
-	Version int         `json:"version"`
-	Notes   []AgentNote `json:"notes"`
+	Version  int         `json:"version"`
+	Notes    []AgentNote `json:"notes"`
+	Runbooks []Runbook   `json:"runbooks,omitempty"`
 }
 
 // memoryState is keel.memory decrypted, loaded on first use (under memMu).
@@ -92,6 +96,7 @@ type memoryState struct {
 	loaded bool
 	ident  *age.X25519Identity
 	notes  []AgentNote
+	books  []Runbook
 }
 
 func (s *Store) forgetMemory() {
@@ -146,7 +151,10 @@ func (s *Store) memoryLocked() ([]AgentNote, error) {
 	if err != nil {
 		return nil, err
 	}
-	var notes []AgentNote
+	var (
+		notes []AgentNote
+		books []Runbook
+	)
 	if ident != nil {
 		blob, err := os.ReadFile(s.memoryPath())
 		switch {
@@ -168,18 +176,30 @@ func (s *Store) memoryLocked() ([]AgentNote, error) {
 					notes = append(notes, n)
 				}
 			}
+			for _, b := range f.Runbooks {
+				if b.ID != "" {
+					books = append(books, b)
+				}
+			}
 		case !os.IsNotExist(err):
 			return nil, err
 		}
 	}
-	s.mem = memoryState{loaded: true, ident: ident, notes: notes}
+	s.mem = memoryState{loaded: true, ident: ident, notes: notes, books: books}
 	return notes, nil
 }
 
-// writeMemoryLocked writes keel.memory with notes, making the key first if
-// there is none, and keeps notes in memory once it is written. Call with
-// memMu held.
+// writeMemoryLocked writes keel.memory with notes and the runbooks held
+// now, making the key first if there is none, and keeps notes in memory
+// once it is written. Call with memMu held, after memoryLocked.
 func (s *Store) writeMemoryLocked(notes []AgentNote) error {
+	return s.writeMemoryAllLocked(notes, s.mem.books)
+}
+
+// writeMemoryAllLocked writes keel.memory with notes and books and keeps
+// both in memory once it is written. Call with memMu held, after
+// memoryLocked.
+func (s *Store) writeMemoryAllLocked(notes []AgentNote, books []Runbook) error {
 	if s.mem.ident == nil {
 		ident, err := s.memoryKey(true)
 		if err != nil {
@@ -187,7 +207,7 @@ func (s *Store) writeMemoryLocked(notes []AgentNote) error {
 		}
 		s.mem.ident = ident
 	}
-	plain, err := json.Marshal(memoryFileData{Version: 1, Notes: notes})
+	plain, err := json.Marshal(memoryFileData{Version: 1, Notes: notes, Runbooks: books})
 	if err != nil {
 		return err
 	}
@@ -206,7 +226,7 @@ func (s *Store) writeMemoryLocked(notes []AgentNote) error {
 	if err := writePrivate(s.memoryPath(), buf.Bytes()); err != nil {
 		return err
 	}
-	s.mem.notes = notes
+	s.mem.notes, s.mem.books = notes, books
 	return nil
 }
 
@@ -351,8 +371,10 @@ func (s *Store) deleteHostNotes(hostID string) error {
 }
 
 // DeleteAllAgentNotes removes every note and returns how many there were
-// (0 when keel.memory was unreadable). It removes keel.memory and its key
-// from the vault, which is also how an unreadable file is replaced.
+// (0 when keel.memory was unreadable). With no runbooks saved it removes
+// keel.memory and its key from the vault, which is also how an unreadable
+// file is replaced (its runbooks, unreadable too, go with it); with
+// runbooks it writes the file again without notes, so the runbooks stay.
 func (s *Store) DeleteAllAgentNotes() (int, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()
@@ -361,6 +383,9 @@ func (s *Store) DeleteAllAgentNotes() (int, error) {
 	switch {
 	case err == nil:
 		n = len(notes)
+		if len(s.mem.books) > 0 {
+			return n, s.writeMemoryAllLocked(nil, s.mem.books)
+		}
 	case !errors.Is(err, ErrMemoryUnreadable):
 		return 0, err
 	}

@@ -14,6 +14,7 @@
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
 import * as N from "../lib/notes.js";
+import * as R from "../lib/runbooks.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -59,6 +60,9 @@ export const ICON = {
   note: svg(
     '<path d="M15.5 21H9.5C6.2 21 4.6 21 3.5 20C2.5 18.9 2.5 17.3 2.5 14V10C2.5 6.7 2.5 5.1 3.5 4C4.6 3 6.2 3 9.5 3H14.5C17.8 3 19.4 3 20.5 4C21.5 5.1 21.5 6.7 21.5 10V15L15.5 21Z"/><path d="M15 21V18.5C15 17.1 15 16.4 15.4 16C15.9 15.5 16.6 15.5 18 15.5H21.5"/><path d="M7 8H17M7 12H12"/>',
   ),
+  book: svg(
+    '<path d="M20.5 16.9V11C20.5 7.2 20.5 5.3 19.3 4.2C18.2 3 16.3 3 12.5 3H11.5C7.7 3 5.8 3 4.7 4.2C3.5 5.3 3.5 7.2 3.5 11V19.5"/><path d="M20.5 17H6C4.6 17 3.5 18.1 3.5 19.5C3.5 20.9 4.6 22 6 22H20.5"/><path d="M20.5 22C19.1 22 18 20.9 18 19.5C18 18.1 19.1 17 20.5 17"/><path d="M9 8H15M9 12H13"/>',
+  ),
   eye: svg(
     '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
   ),
@@ -66,6 +70,7 @@ export const ICON = {
 
 export function stepHTML(step) {
   if (step.status === "notes") return `<div class="k-agent-step k-agent-step--note">${ICON.note}<span>${escapeHtml(A.traceText(step))}</span></div>`;
+  if (step.status === "runbook") return `<div class="k-agent-step k-agent-step--note">${ICON.book}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   const cls = step.status === "read" ? "k-agent-step--read" : "k-agent-step--skip";
   const icon = step.status === "read" ? ICON.tick : ICON.skip;
   return `<div class="k-agent-step ${cls}">${icon}<span>${escapeHtml(A.traceText(step))}</span></div>`;
@@ -88,7 +93,7 @@ export function savedTurnHTML(t) {
   const who = t.at ? ` · ${escapeHtml(A.stampLabel(t.at))}` : "";
   const trace = (t.trace || []).map(stepHTML).join("");
   return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
-      <div class="k-agent-turn"><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
+      <div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
         t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
       }</div>`;
 }
@@ -149,6 +154,8 @@ export function createThreadView(opts) {
   const typeLabel = opts.typeLabel || (() => "Type into pane");
   const recs = new Map(); // proposal id → { el, editing }
   const noteRecs = new Map(); // note proposal id → { el, editing }
+  const runRecs = new Map(); // runbook use id → el (§16)
+  const bookRecs = new Map(); // runbook proposal id → el (§16)
   let turns = 0;
 
   function scrollDown() {
@@ -167,6 +174,8 @@ export function createThreadView(opts) {
     el.innerHTML = "";
     recs.clear();
     noteRecs.clear();
+    runRecs.clear();
+    bookRecs.clear();
     turns = 0;
   }
 
@@ -181,7 +190,7 @@ export function createThreadView(opts) {
     if (turns === 0) el.innerHTML = "";
     turns++;
     appendHTML(`<div class="k-agent-turn"><div class="k-agent-who">You</div><p class="k-agent-msg">${escapeHtml(question)}</p></div>`);
-    const turn = appendHTML(`<div class="k-agent-turn"><div class="k-agent-who">${ICON.ai}Agent</div>
+    const turn = appendHTML(`<div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>
       <div class="k-agent-trace"><div class="k-agent-step k-agent-step--busy">${ICON.busy}<span>${
         panes ? `Reading ${panes} ${panes === 1 ? "pane" : "panes"} and asking` : "Asking without reading a pane"
       }</span></div></div></div>`);
@@ -197,8 +206,10 @@ export function createThreadView(opts) {
       trace.insertAdjacentHTML("beforeend", `<div class="k-agent-step k-agent-step--skip">${ICON.info}<span>Test provider · nothing left this machine</span></div>`);
     }
     if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
+    if (res.runbook) placeRun(res.runbook.id, turn);
     for (const p of res.proposals || []) addProposal(p.id);
     for (const n of res.notes || []) addNote(n.id);
+    for (const b of res.runbooks || []) addBookProp(b.id);
     scrollDown();
   }
 
@@ -225,6 +236,11 @@ export function createThreadView(opts) {
       }
       for (const p of turn.proposals || []) addProposal(p.id);
       for (const n of turn.notes || []) addNote(n.id);
+      for (const b of turn.runbooks || []) addBookProp(b.id);
+    }
+    if (t.runbook) {
+      const agentTurns = [...el.querySelectorAll("[data-agent-turn]")];
+      placeRun(t.runbook.id, agentTurns[(t.runbook.turn || 1) - 1] || agentTurns[agentTurns.length - 1] || null);
     }
     const anyExpired = (t.turns || []).some((turn) => (turn.proposals || []).some((p) => p.expired));
     if (anyExpired || turns) {
@@ -253,6 +269,11 @@ export function createThreadView(opts) {
     return node;
   }
 
+  // A runbook step's card says which step it is (§16).
+  function stepLabel(p) {
+    return p.runbook?.step ? `Step ${p.runbook.step} · Run on` : "Run on";
+  }
+
   function noteHTML(kind, icon, text) {
     return `<p class="k-prop-note k-prop-note--${kind}">${icon}<span>${text}</span></p>`;
   }
@@ -266,7 +287,7 @@ export function createThreadView(opts) {
     node.dataset.risk = p.risk;
     const when = p.proposedAt ? A.stampLabel(p.proposedAt) : "";
     const typed = p.typedAt ? `typed ${A.stampLabel(p.typedAt)}` : "not typed";
-    node.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>Run on</span><span class="k-mono">${escapeHtml(p.host || "no pane")}</span>${
+    node.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span class="k-mono">${escapeHtml(p.host || "no pane")}</span>${
       p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
     }<span class="k-badge ${badge.cls} k-prop-risk">${badge.label}</span><span class="k-badge">Expired</span></div>
       <div class="k-prop-body"><pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>${p.why ? `<p class="k-prop-why">${escapeHtml(p.why)}</p>` : ""}${noteHTML(
@@ -315,7 +336,7 @@ export function createThreadView(opts) {
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-edit-btn aria-label="Edit command" title="Edit">${ICON.edit}</button>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-copy aria-label="Copy command" title="Copy">${ICON.copy}</button>
          ${canType ? `<button type="button" class="k-btn k-btn--primary k-btn--sm" data-prop-type>${escapeHtml(typeLabel(p, pane))}<span class="k-kbd">${typeKbd}</span></button>` : ""}`;
-    rec.el.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>Run on</span><span class="k-mono">${escapeHtml(p.host || pane?.label || "no pane")}</span>${
+    rec.el.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span class="k-mono">${escapeHtml(p.host || pane?.label || "no pane")}</span>${
       p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
     }<span class="k-badge ${badge.cls} k-prop-risk">${badge.label}</span></div>
       <div class="k-prop-body">${body}${p.why ? `<p class="k-prop-why">${escapeHtml(p.why)}</p>` : ""}${notes.join("")}</div>
@@ -328,6 +349,165 @@ export function createThreadView(opts) {
   function repaint() {
     for (const [id, rec] of recs) if (!rec.editing) paintCard(id);
     for (const [id, rec] of noteRecs) if (!rec.editing) paintNote(id);
+    paintRuns();
+    for (const id of bookRecs.keys()) paintBookProp(id);
+  }
+
+  // --- a runbook in use (§16, board RunbookInUse) ---
+  //
+  // One card per use, at the top of the agent turn that started it: the
+  // runbook, why it was picked, every step's progress, and what the user
+  // can do now. Every step is still a proposal card of its own, typed
+  // through approve-before-type; the card only asks (Propose step N),
+  // marks (done, skip, retry) or stops.
+
+  function placeRun(runId, turnEl) {
+    if (!runId || runRecs.has(runId)) {
+      paintRuns();
+      return;
+    }
+    const node = doc.createElement("div");
+    node.className = "k-rb-pick";
+    node.setAttribute("role", "group");
+    node.dataset.runId = runId;
+    const who = turnEl?.querySelector(".k-agent-who");
+    if (who) who.insertAdjacentElement("afterend", node);
+    else el.appendChild(node);
+    runRecs.set(runId, node);
+    paintRuns();
+  }
+
+  function paintRuns() {
+    for (const [runId, node] of runRecs) paintRun(runId, node);
+  }
+
+  function runActionsHTML(act, busy) {
+    const dis = busy ? " disabled" : "";
+    const b = (attr, label, primary = false) => `<button type="button" class="k-btn ${primary ? "k-btn--primary" : "k-btn--ghost"} k-btn--sm" ${attr}${dis}>${escapeHtml(label)}</button>`;
+    const sid = act.step ? ` data-rb-step="${escapeHtml(act.step.id)}"` : "";
+    switch (act.kind) {
+      case "propose":
+        return `<p class="k-rb-now">${escapeHtml(`Next: step ${act.step.n} · ${act.step.title}`)}</p><div class="k-rb-actions">${b(`data-rb-propose${sid}`, `Propose step ${act.step.n}`, true)}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "proposed":
+        return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} is proposed below. Nothing is typed until you press Type.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "waiting":
+        return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} was typed. Its exit status shows here when the pane's shell reports it; otherwise mark it yourself.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done", true)}${b(`data-rb-retry${sid}`, "Retry")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "noexit":
+        return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} ended with no exit status reported. Check the pane, then mark it.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done", true)}${b(`data-rb-retry${sid}`, "Retry")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "failed":
+        return `<p class="k-rb-now k-rb-now--flare">${escapeHtml(`Step ${act.step.n} failed${act.exit != null ? ` · exit ${act.exit}, reported by the shell` : ""}. The runbook waits for you.`)}</p><div class="k-rb-actions">${b(`data-rb-retry${sid}`, `Retry step ${act.step.n}`, true)}${b(`data-rb-done${sid}`, "Mark done")}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "check":
+        return `<p class="k-rb-now">${escapeHtml(`Step ${act.step.n} has no command. Check it yourself, then mark it done.`)}</p><div class="k-rb-actions">${b(`data-rb-done${sid}`, "Mark done", true)}${b(`data-rb-skip${sid}`, "Skip")}</div>`;
+      case "finished":
+        return `<p class="k-rb-now">All steps are done or skipped.</p>`;
+      default:
+        return "";
+    }
+  }
+
+  function paintRun(runId, node) {
+    const cur = ctl.runbook?.() || {};
+    const run = cur.run && cur.run.id === runId ? cur.run : null;
+    const name = run?.name || cur.names?.get(runId) || "a runbook";
+    node.setAttribute("aria-label", `Runbook ${name}`);
+    if (!run || (run.status === "stopped" && !cur.noRunbook)) {
+      node.classList.add("k-rb-pick--done");
+      node.innerHTML = `<div class="k-rb-pick-name">${ICON.book}<span class="k-rb-pick-title">${escapeHtml(name)}</span><span class="k-badge">Stopped</span></div>`;
+      return;
+    }
+    node.classList.remove("k-rb-pick--done");
+    if (cur.noRunbook) {
+      node.innerHTML = `<p class="k-rb-why">No runbook for this conversation. The agent answers from the panes in scope and your notes only.</p>
+        <div class="k-rb-actions"><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-use="${escapeHtml(run.runbookId)}"${cur.busy ? " disabled" : ""}>${escapeHtml(`Use ${name}`)}</button></div>`;
+      return;
+    }
+    const rows = run.steps
+      .map((_, i) => {
+        const r = R.stepRow(run, i);
+        return `<li class="k-rp-row" data-state="${r.state}"><span class="k-rp-mark" aria-hidden="true">${escapeHtml(r.mark)}</span><span class="k-rp-title">${escapeHtml(run.steps[i].title)}</span>${
+          r.note ? `<span class="k-rp-note">${escapeHtml(r.note)}</span>` : ""
+        }</li>`;
+      })
+      .join("");
+    const act = R.nextAction(run, (pid) => !!ctl.proposal(pid) && !ctl.proposal(pid).p.expired);
+    const others = cur.choosing
+      ? `<div class="k-rb-others" role="group" aria-label="Other runbooks">${
+          cur.others == null
+            ? `<p class="k-help">Loading…</p>`
+            : cur.others.length
+              ? cur.others
+                  .map(
+                    (o) =>
+                      `<button type="button" class="k-rb-other" data-rb-use="${escapeHtml(o.id)}"${o.ok && !cur.busy ? "" : " disabled"}><span class="k-rb-other-name">${escapeHtml(o.name)}</span><span class="k-rb-other-sub">${escapeHtml(o.ok ? o.when || "" : o.reason)}</span></button>`,
+                  )
+                  .join("")
+              : `<p class="k-help">No other runbooks. Add one on the Runbooks page.</p>`
+        }</div>`
+      : "";
+    const err = cur.error ? `<p class="k-prop-note k-prop-note--flare">${ICON.alert}<span>${escapeHtml(cur.error)}</span></p>` : "";
+    node.innerHTML = `<div class="k-rb-pick-name">${ICON.book}<span class="k-rb-pick-title">${escapeHtml(name)}</span><span class="k-badge">Runbook</span></div>
+      <p class="k-rb-why">${escapeHtml(R.whyLine(run))}</p>
+      <ol class="k-rp" aria-label="Steps">${rows}</ol>
+      ${runActionsHTML(act, cur.busy)}${err}
+      <div class="k-rb-actions">
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-choose aria-expanded="${cur.choosing ? "true" : "false"}">Use a different runbook</button>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rb-stop${cur.busy ? " disabled" : ""}>Don't use</button>
+      </div>${others}
+      <p class="k-rb-safe">${ICON.shield}<span class="k-help">Runbook steps are proposals. Each one waits for you. The agent cannot skip ahead or type for you.</span></p>`;
+  }
+
+  // --- a runbook the agent proposes (§16) ---
+
+  function addBookProp(id) {
+    if (bookRecs.has(id)) return bookRecs.get(id);
+    const node = doc.createElement("div");
+    node.className = "k-prop k-prop--note k-prop--runbook";
+    node.setAttribute("role", "group");
+    node.setAttribute("aria-label", "Proposed runbook");
+    node.dataset.bookId = id;
+    el.appendChild(node);
+    bookRecs.set(id, node);
+    paintBookProp(id);
+    return node;
+  }
+
+  function paintBookProp(id) {
+    const node = bookRecs.get(id);
+    const cur = ctl.bookProp?.(id);
+    if (!node || !cur) return;
+    const { b, busy, error } = cur;
+    const warn = R.proposalWarn(b);
+    node.classList.toggle("k-prop--warn", warn && b.status === "open");
+    if (b.status !== "open" || b.expired) {
+      const text = b.status === "open" ? "Not saved. This proposal expired; add the runbook yourself on the Runbooks page." : R.proposalDone(b);
+      const undo = !b.expired ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rbp-undo${busy ? " disabled" : ""}>Undo</button>` : "";
+      const open = b.status === "saved" ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rbp-open>Open Runbooks</button>` : "";
+      const icon = b.status === "saved" ? `<span class="k-note-done-ok">${ICON.tick}</span>` : ICON.info;
+      node.classList.add("k-prop--done");
+      node.innerHTML = `<div class="k-note-done" role="status">${icon}<span>${escapeHtml(text)}</span>${open}${undo}</div>`;
+      return;
+    }
+    node.classList.remove("k-prop--done");
+    const badges = `${b.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}<span class="k-badge">${escapeHtml(`${b.steps.length} ${b.steps.length === 1 ? "step" : "steps"}`)}</span>`;
+    const steps = b.steps
+      .map(
+        (st, i) =>
+          `<li class="k-rbp-step"><span class="k-rp-mark" aria-hidden="true">${i + 1}</span><span class="k-rbp-step-main"><span class="k-rp-title">${escapeHtml(st.title)}</span>${
+            st.command ? `<pre class="k-bytes" aria-label="Command">${escapeHtml(st.command)}</pre>` : ""
+          }</span></li>`,
+      )
+      .join("");
+    const notes = [];
+    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(R.proposalWarning(b))}</span></div>`);
+    if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
+    notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you press Save. A saved runbook starts with Agent may pick off; review it on the Runbooks page."));
+    const save = warn
+      ? `<button type="button" class="k-btn k-btn--sm" data-rbp-save${busy ? " disabled" : ""}>Save anyway</button>`
+      : `<button type="button" class="k-btn k-btn--primary k-btn--sm" data-rbp-save${busy ? " disabled" : ""}>Save</button>`;
+    node.innerHTML = `<div class="k-prop-head">${ICON.book}<span>Save as a runbook?</span><span class="k-prop-badges">${badges}</span></div>
+      <div class="k-prop-body"><p class="k-rbp-name">${escapeHtml(b.name)}</p>${b.when ? `<p class="k-note-src">${escapeHtml(`Use when: ${b.when}`)}</p>` : ""}<ol class="k-rbp-steps">${steps}</ol>${notes.join("")}</div>
+      <div class="k-prop-foot"><span class="k-spacer"></span>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rbp-dismiss${busy ? " disabled" : ""}>Dismiss</button>${save}</div>`;
   }
 
   // --- notes the agent proposes (§15) ---
@@ -446,6 +626,28 @@ export function createThreadView(opts) {
   }
 
   el.addEventListener("click", (ev) => {
+    const runCard = ev.target.closest(".k-rb-pick");
+    if (runCard) {
+      const btn = ev.target.closest("button");
+      if (!btn || btn.disabled) return;
+      const step = btn.dataset.rbStep || "";
+      if (btn.hasAttribute("data-rb-propose")) ctl.proposeStep?.();
+      else if (btn.hasAttribute("data-rb-done")) ctl.stepAction?.(step, "done");
+      else if (btn.hasAttribute("data-rb-skip")) ctl.stepAction?.(step, "skip");
+      else if (btn.hasAttribute("data-rb-retry")) ctl.stepAction?.(step, "retry");
+      else if (btn.hasAttribute("data-rb-choose")) ctl.toggleChoose?.();
+      else if (btn.hasAttribute("data-rb-stop")) ctl.stopRunbook?.();
+      else if (btn.dataset.rbUse) ctl.useRunbook?.(btn.dataset.rbUse);
+      return;
+    }
+    const bid = ev.target.closest(".k-prop--runbook")?.dataset.bookId;
+    if (bid && bookRecs.has(bid)) {
+      if (ev.target.closest("[data-rbp-save]")) ctl.saveBookProp?.(bid);
+      else if (ev.target.closest("[data-rbp-dismiss]")) ctl.bookPropAction?.(bid, "DELETE", "");
+      else if (ev.target.closest("[data-rbp-undo]")) ctl.bookPropAction?.(bid, "POST", "/undo");
+      else if (ev.target.closest("[data-rbp-open]")) ctl.openRunbooks?.();
+      return;
+    }
     const nid = ev.target.closest(".k-prop--note")?.dataset.noteId;
     if (nid && noteRecs.has(nid)) {
       if (ev.target.closest("[data-note-save]")) saveNote(nid);
@@ -512,6 +714,9 @@ export function createThreadView(opts) {
     paintCard,
     addNote,
     paintNote,
+    addBookProp,
+    paintBookProp,
+    paintRuns,
     repaint,
     scrollDown,
   };

@@ -28,6 +28,11 @@ import (
 //   - when the question says "remember", it proposes a note: one of the
 //     user's own for "remember my preference", one taken from pane output
 //     for "remember from the pane", else a note about the host of pane 1;
+//   - runbooks (docs/ui-redesign.md §16): with a runbook in use it says
+//     which step is current and proposes no command of its own (Keel
+//     proposes the step); offered runbooks and a question that says
+//     "runbook" or "walk me" make it pick the first one; "save this as a
+//     runbook" makes it propose a two-step runbook;
 //   - when the question says "long", it adds a tall answer with **bold**
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
@@ -96,6 +101,28 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		}
 		b.WriteString(" This looks worth remembering:\n\n```keel-note\n" + note + "\n```\n")
 	}
+	inUse := strings.Contains(last, "--- runbook in use")
+	if inUse {
+		cur := 0
+		for _, ln := range strings.Split(last, "\n") {
+			if strings.HasPrefix(ln, "step ") && strings.Contains(ln, "current step") {
+				fmt.Sscanf(ln, "step %d", &cur)
+			}
+		}
+		fmt.Fprintf(&b, " I was given the runbook in use; step %d is current.", cur)
+	}
+	picked := false
+	if strings.Contains(last, "--- runbooks you may pick from") && !strings.Contains(question, "save") &&
+		(strings.Contains(question, "runbook") || strings.Contains(question, "walk me")) {
+		picked = true
+		b.WriteString(" A saved runbook fits:\n\n```keel-runbook-use\n{\"runbook\": 1, \"why\": \"Test provider: the first runbook offered fits.\"}\n```\n")
+	}
+	if strings.Contains(question, "save this as a runbook") {
+		b.WriteString(" Here it is as a runbook:\n\n```keel-runbook\n" +
+			`{"name": "keel-runbook-e2e proposed", "when": "The e2e marker needs checking", "steps": [` +
+			`{"title": "Print the marker", "description": "Shows the command reached the pane.", "command": "echo keel-runbook-proposed", "expect": "keel-runbook-proposed"},` +
+			`{"title": "Check the clock", "command": "date"}]}` + "\n```\n")
+	}
 	long := strings.Contains(question, "long")
 	if long {
 		b.WriteString("\n\n**Add your user to the docker group**")
@@ -103,7 +130,7 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 			fmt.Fprintf(&b, "\n\nStep %d: this line of the long answer exists so the thread has to scroll.", i)
 		}
 	}
-	if panes > 0 && !strings.Contains(question, "no command") {
+	if panes > 0 && !strings.Contains(question, "no command") && !inUse && !picked {
 		cmd, why, risk := "echo keel-agent-ok", "Prints a marker to show the command reached the pane.", "readonly"
 		switch {
 		case strings.Contains(question, "delete"):

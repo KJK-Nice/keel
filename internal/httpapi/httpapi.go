@@ -179,6 +179,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/agent/notes/{id}", s.agentEditNote)
 	mux.HandleFunc("DELETE /api/agent/notes/{id}", s.agentDeleteNote)
 	mux.HandleFunc("DELETE /api/agent/notes", s.agentDeleteAllNotes)
+	mux.HandleFunc("GET /api/agent/runbooks", s.agentRunbooks)
+	mux.HandleFunc("POST /api/agent/runbooks", s.agentAddRunbook)
+	mux.HandleFunc("POST /api/agent/runbooks/draft", s.agentRunbookDraft)
+	mux.HandleFunc("PUT /api/agent/runbooks/{id}", s.agentUpdateRunbook)
+	mux.HandleFunc("PUT /api/agent/runbooks/{id}/pick", s.agentRunbookPick)
+	mux.HandleFunc("DELETE /api/agent/runbooks/{id}", s.agentDeleteRunbook)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
+	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
+	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
+	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/sessions", s.spawnSession)
@@ -1114,12 +1126,15 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": aerr.Error()})
 					break
 				}
+				// The stream offset before the write: a runbook step's
+				// result is the first command the shell reports after it.
+				mark := sess.StreamMark()
 				if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
 					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
 					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
 					break
 				}
-				s.agent.TypeDone(ctl.Agent.ConversationID, ctl.Agent.ProposalID)
+				s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
 				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
 			}
 			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {

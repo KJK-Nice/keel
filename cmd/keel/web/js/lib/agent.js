@@ -113,6 +113,8 @@ function redactedNote(counts) {
 // traceText is one line of the agent trace: what it read, or why not.
 export function traceText(step) {
   if (step?.status === "notes") return noteStepText(step);
+  // A runbook in use (§16): sent with the question, or picked by the agent.
+  if (step?.status === "runbook") return `Used runbook · ${step.runbook || "a runbook"}`;
   const host = step?.host || "a pane";
   if (step?.status === "read" && step.command) {
     // From the shell's OSC 133 marks: the last command, its output and how it ended.

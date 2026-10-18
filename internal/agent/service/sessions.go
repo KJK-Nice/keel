@@ -59,17 +59,22 @@ type Transcript struct {
 	UpdatedAt time.Time        `json:"updatedAt"`
 	Saved     bool             `json:"saved"`
 	Turns     []TranscriptTurn `json:"turns"`
+	// Runbook is the runbook used last in the conversation and how far it
+	// got; NoRunbook is the user's "Don't use" (runbooks.go).
+	Runbook   *store.AgentChatRunbook `json:"runbook,omitempty"`
+	NoRunbook bool                    `json:"noRunbook,omitempty"`
 }
 
 // TranscriptTurn is one saved turn.
 type TranscriptTurn struct {
-	At        time.Time      `json:"at"`
-	Question  string         `json:"question,omitempty"`
-	Answer    string         `json:"answer,omitempty"`
-	Trace     []TraceStep    `json:"trace"`
-	Proposals []Proposal     `json:"proposals"`
-	Notes     []NoteProposal `json:"notes"`
-	Again     bool           `json:"again,omitempty"`
+	At        time.Time         `json:"at"`
+	Question  string            `json:"question,omitempty"`
+	Answer    string            `json:"answer,omitempty"`
+	Trace     []TraceStep       `json:"trace"`
+	Proposals []Proposal        `json:"proposals"`
+	Notes     []NoteProposal    `json:"notes"`
+	Runbooks  []RunbookProposal `json:"runbooks"`
+	Again     bool              `json:"again,omitempty"`
 }
 
 // Sessions is the session list: the saved conversations, after removing
@@ -192,6 +197,7 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 		chat      store.AgentChat
 		live      map[string]*Proposal
 		liveNotes map[string]NoteProposal
+		liveBooks map[string]RunbookProposal
 	)
 	if c != nil && len(c.record) > 0 {
 		chat = c.snapshotLocked(s.now())
@@ -205,6 +211,10 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 		for _, n := range c.notes {
 			liveNotes[n.ID] = *n
 		}
+		liveBooks = make(map[string]RunbookProposal, len(c.bookProps))
+		for _, b := range c.bookProps {
+			liveBooks[b.ID] = *b
+		}
 	}
 	s.mu.Unlock()
 	_, saved := s.saving()
@@ -214,12 +224,19 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 			return Transcript{}, err
 		}
 	}
-	out := Transcript{ID: chat.ID, Title: chat.Title, CreatedAt: chat.CreatedAt, UpdatedAt: chat.UpdatedAt, Saved: saved, Turns: make([]TranscriptTurn, 0, len(chat.Turns))}
+	out := Transcript{ID: chat.ID, Title: chat.Title, CreatedAt: chat.CreatedAt, UpdatedAt: chat.UpdatedAt, Saved: saved, Turns: make([]TranscriptTurn, 0, len(chat.Turns)), Runbook: chat.Runbook.Copy(), NoRunbook: chat.NoRunbook}
 	prodCache := map[string]bool{}
 	for _, t := range chat.Turns {
-		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes))}
+		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks))}
 		for _, st := range t.Trace {
-			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes})
+			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook})
+		}
+		for _, sb := range t.Runbooks {
+			if b, ok := liveBooks[sb.ID]; ok {
+				tt.Runbooks = append(tt.Runbooks, b)
+				continue
+			}
+			tt.Runbooks = append(tt.Runbooks, runbookProposalFromRecord(sb))
 		}
 		for _, sn := range t.Notes {
 			if n, ok := liveNotes[sn.ID]; ok {
@@ -250,12 +267,16 @@ func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]b
 	}
 	prod = prod || sp.Production
 	at := sp.ProposedAt
-	return Proposal{
+	out := Proposal{
 		ID: sp.ID, SessionID: sp.SessionID, HostID: sp.HostID, Host: sp.Host, Production: prod,
 		Command: sp.Command, Bytes: typedBytes(sp.Command), Why: sp.Why, Risk: risk,
 		NeedsShift: agent.NeedsShift(risk, prod), Placeholders: hasPlaceholder(sp.Command), Edited: sp.Edited,
 		ProposedAt: &at, TypedAt: sp.TypedAt, Expired: true,
 	}
+	if sp.Step > 0 {
+		out.Runbook = &ProposalStep{Step: sp.Step, Of: sp.Steps}
+	}
+	return out
 }
 
 // hydrate loads a saved conversation into memory when keel serve does not
@@ -292,7 +313,7 @@ func (s *Service) hydrate(id string) error {
 	if err != nil {
 		return err
 	}
-	c := &conversation{id: chat.ID, title: chat.Title, created: chat.CreatedAt, updated: chat.UpdatedAt, record: chat.Turns, used: s.now()}
+	c := &conversation{id: chat.ID, title: chat.Title, created: chat.CreatedAt, updated: chat.UpdatedAt, record: chat.Turns, used: s.now(), run: chat.Runbook.Copy(), noRunbook: chat.NoRunbook, runMarks: map[string]uint64{}}
 	for _, t := range chat.Turns {
 		if t.Again {
 			continue
@@ -333,13 +354,14 @@ func (c *conversation) snapshotLocked(now time.Time) store.AgentChat {
 	for i, t := range c.record {
 		t.Proposals = append([]store.AgentChatProposal(nil), t.Proposals...)
 		t.Notes = append([]store.AgentChatNote(nil), t.Notes...)
+		t.Runbooks = append([]store.AgentChatRunbookProposal(nil), t.Runbooks...)
 		turns[i] = t
 	}
 	created := c.created
 	if created.IsZero() {
 		created = now
 	}
-	return store.AgentChat{ID: c.id, Title: c.title, CreatedAt: created, UpdatedAt: now, Turns: turns}
+	return store.AgentChat{ID: c.id, Title: c.title, CreatedAt: created, UpdatedAt: now, Turns: turns, Runbook: c.run.Copy(), NoRunbook: c.noRunbook}
 }
 
 // persist queues c to be saved when history is on, and returns at once:
@@ -601,15 +623,30 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 // recordOf is a proposal as saved; command and why are passed in already
 // redacted.
 func recordOf(p *Proposal, command, why string, at time.Time) store.AgentChatProposal {
-	return store.AgentChatProposal{
+	out := store.AgentChatProposal{
 		ID: p.ID, SessionID: p.SessionID, HostID: p.HostID, Host: p.Host, Production: p.Production,
 		Command: command, Why: why, Risk: string(p.Risk), Edited: p.Edited, ProposedAt: at,
 	}
+	if p.Runbook != nil {
+		out.Step, out.Steps = p.Runbook.Step, p.Runbook.Of
+	}
+	return out
 }
 
 // TypeDone records that a proposal was typed (keel serve calls it after the
 // approved bytes were written), so the transcript shows it as typed.
 func (s *Service) TypeDone(convID, proposalID string) {
+	s.typeDone(convID, proposalID, 0, false)
+}
+
+// TypeDoneAt is TypeDone with the pane's stream offset taken right before
+// the write: a runbook step's result is the first command the pane's
+// shell reports after it (runbooks.go).
+func (s *Service) TypeDoneAt(convID, proposalID string, mark uint64) {
+	s.typeDone(convID, proposalID, mark, true)
+}
+
+func (s *Service) typeDone(convID, proposalID string, mark uint64, hasMark bool) {
 	s.mu.Lock()
 	c := s.convs[convID]
 	if c == nil {
@@ -626,8 +663,9 @@ func (s *Service) TypeDone(convID, proposalID string) {
 	if sp != nil {
 		sp.TypedAt = &now
 	}
+	step := c.stepTypedLocked(proposalID, mark, hasMark, now)
 	s.mu.Unlock()
-	if sp != nil {
+	if sp != nil || step {
 		s.persist(c)
 	}
 }

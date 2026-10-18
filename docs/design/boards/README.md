@@ -10,6 +10,7 @@ Versioned snapshot of the Keel redesign canvas, so phase work uses a fixed desig
 - `AgentSessions.dc.html`, `AgentPage.dc.html` and the "Agent sessions" section of `workspace.css` were copied from the approved canvas on 2026-10-18 (agent sessions phase). `canvas.json` was not updated: the canvas now holds further boards (notes, runbooks, groups, notebook) that are not in this folder.
 - `Notebook.dc.html`, `NotebookTypes.dc.html` and their `notebook.css` (the `nb-*` styles) were copied on 2026-10-18 from the canvas as approved on 2026-10-16. `canvas.json` and `workspace.css` were not refreshed with them.
 - `HostNotes.dc.html`, `MemoryPropose.dc.html` and the "Memory and skills" section of `workspace.css` (the `kw-note*`, `kw-mem*` and `kw-review` rules, plus the `kw-rb-*` / `kw-rp-*` rules the next phase's runbook boards use) were copied on 2026-10-18 from the canvas as approved (host notes phase, §15). `canvas.json` was not updated.
+- `Runbooks.dc.html` and `RunbookInUse.dc.html` were copied on 2026-10-18 from the canvas as approved (runbooks phase, §16). Their `kw-rb-*` / `kw-rp-*` rules were already in `workspace.css`. The next phase's boards (`GroupRoles`, `GroupRunbook`, `CaptureVars`, `AnsibleExport`) are not copied yet; `canvas.json` was not updated.
 
 The boards are reference markup, not app code. They reference `./support.js` from the canvas runtime and use `<x-dc>` / `dc-import`, so they will not run standalone. Read them for structure, copy and state; build in templ with the `k-*` classes from `docs/design/components.css`. Tokens come only from `docs/design/tokens.json`. Fonts are loaded from Google Fonts in the boards for preview only; the app ships woff2 locally.
 
@@ -42,6 +43,8 @@ The boards are reference markup, not app code. They reference `./support.js` fro
 | `NotebookTypes.dc.html` | §13 notebook type specimen (each block and its tokens) | post-plan polish |
 | `HostNotes.dc.html` | §15 notes for the agent in Edit host | Host notes |
 | `MemoryPropose.dc.html` | §15 a note the agent proposes (host note, user note, from pane output) | Host notes |
+| `Runbooks.dc.html` | §16 the Runbooks tab page (list, editor, review banner) | Runbooks |
+| `RunbookInUse.dc.html` | §16 a runbook in use in the agent panel (picked, progress, step proposal) | Runbooks |
 
 ## Drift from repo tokens
 
@@ -65,3 +68,5 @@ The Panes board's `kw-seg-n`, `kw-map` / `kw-map-cell` and `kw-pane-row` rules s
 The Notebook boards' `nb-*` rules ship in `keel.css` as `notebook-*` (the class names the editor bundle already used). Two tokens were added for them: the `reading` type style (14/22, sans 400) and `size-reading` (68ch, the `nb-col` measure). The generator now also writes every type style to `tokens.css` as `--type-<name>` (a font shorthand in rem), so `nb-*`'s `font: 600 28px/32px var(--font-display)` becomes `font: var(--type-display)`. Pixel paddings in `notebook.css` (28 / 32 / 48, 10, 22) are `space-*` sums or the nearest step; the host chip's 20px height comes from `space-0.5` padding around the `meta` line height. The proposed blocks (checklist, table, `> [!WARNING]`) are not built: see `docs/ui-redesign.md` §13.
 
 The HostNotes and MemoryPropose boards' `kw-note*`, `kw-mem*` and `kw-review` rules ship in `keel.css` (reference in `docs/design/components.css`) as `k-notes-block`, `k-notes`, `k-note*`, `k-review`, and, for the proposal, the `k-prop` card with `k-prop--note`, `k-prop--warn`, `k-prop-badges`, `k-note-warn` and `k-note-done`, with no new token. The board's 36px host tile and `deploy@… · via bastion` line are left out: the app's Edit host dialog keeps its own title row, and the notes sit under its Agent switches in the right column.
+
+The Runbooks and RunbookInUse boards' `kw-rb-*`, `kw-rp-*` and `kw-review` rules ship in `keel.css` (reference in `docs/design/components.css`) as `k-rb-*`, `k-rp*` and `k-rb-review`, with no new token: the list column is `size-list` (360px; the board has 380px), the settings box `size-agentpage-context` (300px; the board has 260px), the 22px step number `space-4 + space-1 + space-0.5`. The board's "Import .md" is "From a notebook…" (notebooks are the app's markdown) and "From a session…" is "From a conversation…"; the editor edits every field in place where the board shows a read view. A failed step, a skipped step and a step with no command get their own row states and actions, which the board does not draw.
