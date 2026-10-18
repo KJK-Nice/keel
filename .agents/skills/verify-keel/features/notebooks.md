@@ -30,7 +30,7 @@ notebook')` and `getByRole('textbox', 'Markdown document')`.
 
 ## Proof
 
-On screen: the tab opens with `# Notebook` starter text. Store:
+On screen: the tab opens with the name `Notebook` as its title (the H1, `Rename notebook`) and "Write a runbook here." starter text. Store:
 `/api/notebooks` holds the notebook and its markdown after an edit.
 
 ## Charters

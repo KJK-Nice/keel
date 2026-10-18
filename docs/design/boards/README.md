@@ -7,6 +7,7 @@ Versioned snapshot of the Keel redesign canvas, so phase work uses a fixed desig
 - Date: 2026-10-13
 - Design system the canvas was copied from: Keel, https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1 (version `1791859965-affb`)
 - `Panes.dc.html`, `workspace.css` (the `kw-map` / `kw-pane-row` rules at its end) and `canvas.json` were taken from artifact version `1792114738-a1e8` on 2026-10-16; the other boards stay at the snapshot above.
+- `Notebook.dc.html`, `NotebookTypes.dc.html` and their `notebook.css` (the `nb-*` styles) were copied on 2026-10-18 from the canvas as approved on 2026-10-16. `canvas.json` and `workspace.css` were not refreshed with them.
 
 The boards are reference markup, not app code. They reference `./support.js` from the canvas runtime and use `<x-dc>` / `dc-import`, so they will not run standalone. Read them for structure, copy and state; build in templ with the `k-*` classes from `docs/design/components.css`. Tokens come only from `docs/design/tokens.json`. Fonts are loaded from Google Fonts in the boards for preview only; the app ships woff2 locally.
 
@@ -33,6 +34,8 @@ The boards are reference markup, not app code. They reference `./support.js` fro
 | `Onboard2.dc.html` | §5.15 first run, bring your hosts | 5 |
 | `Onboard3.dc.html` | §5.15 first run, agent | 5 (agent step wired in 6) |
 | `Panes.dc.html` | §5.1 Panes in the sidebar | post-plan polish |
+| `Notebook.dc.html` | §13 notebook reading spec (the pane beside a session) | post-plan polish |
+| `NotebookTypes.dc.html` | §13 notebook type specimen (each block and its tokens) | post-plan polish |
 
 ## Drift from repo tokens
 
@@ -50,3 +53,5 @@ No token name, token value or component rule differs. The boards do use classes 
 Phase 6b added `size-agent` (380px, the `kw-agent` width in `Main`). Phase 2 (Vault sidebar and tab pages) added two tokens to the repo, `size-sidebar` (252px, the `kw-side` width in `Main`) and `size-list` (360px, the `kw-split` list column), and updated the product words and fixed-chrome lines in `docs/design/README.md`. The canvas copy predates them.
 
 The Panes board's `kw-seg-n`, `kw-map` / `kw-map-cell` and `kw-pane-row` rules ship in `keel.css` as `k-seg-n`, `k-panemap` / `k-panemap-cell` and `k-pane-row`, with no new token: the 76px map is `size-row + size-control-lg`, the 40px row `size-control-lg + space-2`, and the cell radius is `radius-xs` (3px; the board has 2px). The map places cells from the tab's real split tree instead of the board's fixed grid.
+
+The Notebook boards' `nb-*` rules ship in `keel.css` as `notebook-*` (the class names the editor bundle already used). Two tokens were added for them: the `reading` type style (14/22, sans 400) and `size-reading` (68ch, the `nb-col` measure). The generator now also writes every type style to `tokens.css` as `--type-<name>` (a font shorthand in rem), so `nb-*`'s `font: 600 28px/32px var(--font-display)` becomes `font: var(--type-display)`. Pixel paddings in `notebook.css` (28 / 32 / 48, 10, 22) are `space-*` sums or the nearest step; the host chip's 20px height comes from `space-0.5` padding around the `meta` line height. The proposed blocks (checklist, table, `> [!WARNING]`) are not built: see `docs/ui-redesign.md` §13.

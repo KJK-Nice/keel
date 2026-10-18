@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,12 +36,23 @@ type tokens struct {
 			Display string `json:"display"`
 			Mono    string `json:"mono"`
 		} `json:"families"`
+		Groups []struct {
+			Family string      `json:"family"`
+			Styles []typeStyle `json:"styles"`
+		} `json:"groups"`
 	} `json:"type"`
 	Spacing  group `json:"spacing"`
 	Radius   group `json:"radius"`
 	Size     group `json:"size"`
 	Shadow   group `json:"shadow"`
 	Duration group `json:"duration"`
+}
+
+type typeStyle struct {
+	Name       string `json:"name"`
+	FontSize   string `json:"fontSize"`
+	LineHeight string `json:"lineHeight"`
+	FontWeight int    `json:"fontWeight"`
 }
 
 func main() {
@@ -99,6 +111,15 @@ func generate(src []byte) (string, error) {
 			fmt.Fprintf(&b, "--%s:%s;", strings.ReplaceAll(tok.Name, ".", `\.`), v)
 		}
 	}
+	for _, g := range t.Type.Groups {
+		for _, st := range g.Styles {
+			v, err := typeFont(st, g.Family)
+			if err != nil {
+				return "", err
+			}
+			fmt.Fprintf(&b, "--type-%s:%s;", st.Name, v)
+		}
+	}
 	b.WriteString("}\n")
 	for _, th := range t.Color.Themes {
 		b.WriteString(selector(th.ID) + "{")
@@ -135,4 +156,33 @@ func themeValue(tok themed, theme string) (string, error) {
 		return "var(--" + v[1:len(v)-1] + ")", nil
 	}
 	return v, nil
+}
+
+// typeFont renders a type style as a font shorthand for --type-<name>.
+// Sizes are rem (px ÷ 13, the default UI size) so they follow the user's UI
+// size, as docs/design/README.md asks; letter spacing and case stay with the
+// rule that uses the style.
+func typeFont(st typeStyle, family string) (string, error) {
+	size, err := pxToRem(st.FontSize)
+	if err != nil {
+		return "", fmt.Errorf("type %s: %w", st.Name, err)
+	}
+	lh, err := pxToRem(st.LineHeight)
+	if err != nil {
+		return "", fmt.Errorf("type %s: %w", st.Name, err)
+	}
+	if family == "" {
+		family = "sans"
+	}
+	return fmt.Sprintf("%d %s/%s var(--font-%s)", st.FontWeight, size, lh, family), nil
+}
+
+func pxToRem(px string) (string, error) {
+	n, err := strconv.ParseFloat(strings.TrimSuffix(px, "px"), 64)
+	if err != nil || !strings.HasSuffix(px, "px") {
+		return "", fmt.Errorf("%q is not a px value", px)
+	}
+	rem := strconv.FormatFloat(n/13, 'f', 3, 64)
+	rem = strings.TrimRight(strings.TrimRight(rem, "0"), ".")
+	return rem + "rem", nil
 }
