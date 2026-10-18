@@ -406,7 +406,7 @@ func TestHistoryNeverRunsWhenOffOrUnreadable(t *testing.T) {
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-sec", Role: agent.RoleDriver, Line: "show it"}); !errors.Is(err, agent.ErrNotReadable) {
 		t.Fatalf("unreadable → %v", err)
 	}
-	f.st.settings.Suggestions = "off"
+	f.st.setSettings(func(s *store.AgentSettings) { s.Suggestions = "off" })
 	if _, _, err := f.svc.Suggest(context.Background(), SuggestRequest{SessionID: "s-web", Role: agent.RoleDriver, Line: "print the marker"}); !errors.Is(err, ErrSuggestOff) {
 		t.Fatalf("off → %v", err)
 	}
@@ -504,7 +504,7 @@ func TestHistoryRedactsBeforeEgress(t *testing.T) {
 		"$ git status",
 		"$ deploy with " + vaultPass,
 	}, "\n"))
-	f.st.settings.Redact.Hostnames = true
+	f.st.setSettings(func(s *store.AgentSettings) { s.Redact.Hostnames = true })
 	f.suggest(t, "s-web", "deploy with "+vaultPass)
 	reqs := f.historyRequests()
 	if len(reqs) != 1 {
@@ -639,7 +639,7 @@ func TestCandidatesRejectInvisibleFormatCharacters(t *testing.T) {
 // and no scrollback command is sent; snippets still are.
 func TestHistorySuggestionsOffKeepsSnippetsOnly(t *testing.T) {
 	f := newSuggestFixture(t, block("echo from-the-model", "Model.", "readonly"))
-	f.st.settings.HistorySuggestions = store.SuggestionsOff
+	f.st.setSettings(func(s *store.AgentSettings) { s.HistorySuggestions = store.SuggestionsOff })
 	f.setPane("s-web", "web", "$ uptime\n$ show disk space")
 	f.st.snippets = []store.Snippet{{ID: "5", Name: "disk", Command: "df -h\n", AgentUsable: true}}
 	f.confident("c0")

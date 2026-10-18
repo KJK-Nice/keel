@@ -115,12 +115,14 @@ func (s *Service) Prune() (int, error) {
 	if s.chats == nil {
 		return 0, nil
 	}
+	// Settings are read under saveMu: a prune that read "off" before
+	// history was turned back on must not wipe saves made after it.
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	set, err := s.st.AgentSettings()
 	if err != nil {
 		return 0, err
 	}
-	s.saveMu.Lock()
-	defer s.saveMu.Unlock()
 	if set.HistoryDays <= 0 {
 		return s.chats.DeleteAllAgentChats()
 	}
@@ -250,6 +252,11 @@ func (s *Service) hydrate(id string) error {
 	if s.chats == nil {
 		return nil
 	}
+	// Under saveMu, like Delete and DeleteAll: a delete that finished
+	// between reading the saved copy and putting it in memory would
+	// otherwise bring it back, and the next save would write it again.
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	s.mu.Lock()
 	_, ok := s.convs[id]
 	s.mu.Unlock()

@@ -33,7 +33,17 @@ type fakeStore struct {
 
 func (f *fakeStore) KnownSecretValues() ([]string, error) { return f.secrets, nil }
 func (f *fakeStore) AgentSettings() (store.AgentSettings, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.settings, nil
+}
+
+// setSettings changes the settings under the lock: the service's save
+// worker reads them from another goroutine.
+func (f *fakeStore) setSettings(fn func(*store.AgentSettings)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fn(&f.settings)
 }
 func (f *fakeStore) ListHosts() ([]store.Host, error) {
 	f.mu.Lock()

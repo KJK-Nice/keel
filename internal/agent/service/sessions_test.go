@@ -31,6 +31,10 @@ type fakeChats struct {
 	failPut error
 	// gate, when set, holds every save until it is closed.
 	gate chan struct{}
+	// getGate, when set, holds a read (GetAgentChat) until it is closed;
+	// getStarted says the read began.
+	getGate    chan struct{}
+	getStarted chan struct{}
 }
 
 func newFakeChats() *fakeChats { return &fakeChats{chats: map[string]store.AgentChat{}} }
@@ -50,6 +54,10 @@ func (f *fakeChats) ListAgentChats() ([]store.AgentChatSummary, error) {
 }
 
 func (f *fakeChats) GetAgentChat(id string) (store.AgentChat, error) {
+	if g := f.getGate; g != nil {
+		f.getStarted <- struct{}{}
+		<-g // the read waits until the test lets it go
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.broken {
@@ -392,7 +400,7 @@ func TestRetention(t *testing.T) {
 		t.Fatalf("after prune %+v", list)
 	}
 
-	f.st.settings.HistoryDays = 0
+	f.st.setSettings(func(s *store.AgentSettings) { s.HistoryDays = 0 })
 	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: "conv-open-001", Question: "temporary"}); err != nil {
 		t.Fatal(err)
 	}
@@ -564,6 +572,50 @@ func TestTypeDoneDoesNotWaitForTheSave(t *testing.T) {
 	saved, _ := chats.GetAgentChat(conv)
 	if saved.Turns[0].Proposals[0].TypedAt == nil {
 		t.Fatal("typed time not saved")
+	}
+}
+
+// A delete that lands while an ask is loading the saved conversation must
+// not be undone: the old turns never come back into memory or the vault.
+func TestDeleteDuringResume(t *testing.T) {
+	f := newFixture(t, "ok")
+	chats, _, build := withChats(t, f)
+	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "old-turn-marker"}); err != nil {
+		t.Fatal(err)
+	}
+	f.svc = build() // not in memory any more: the next ask resumes it
+	chats.getGate, chats.getStarted = make(chan struct{}), make(chan struct{}, 1)
+	askDone := make(chan error, 1)
+	go func() {
+		_, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "new question"})
+		askDone <- err
+	}()
+	<-chats.getStarted // the resume is reading the saved copy
+	delDone := make(chan error, 1)
+	go func() { delDone <- f.svc.Delete(conv) }()
+	select {
+	case <-delDone:
+		t.Fatal("Delete finished while a resume was half done")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(chats.getGate)
+	if err := <-askDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-delDone; err != nil {
+		t.Fatal(err)
+	}
+	chats.getGate = nil
+	f.svc.FlushSaves()
+	if strings.Contains(chats.all(t), "old-turn-marker") {
+		t.Fatal("a deleted conversation was saved again")
+	}
+	if tr, err := f.svc.Transcript(conv); err == nil {
+		for _, turn := range tr.Turns {
+			if strings.Contains(turn.Question, "old-turn-marker") {
+				t.Fatal("a deleted conversation came back into memory")
+			}
+		}
 	}
 }
 
