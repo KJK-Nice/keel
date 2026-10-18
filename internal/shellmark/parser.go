@@ -98,16 +98,30 @@ func (p *Parser) begin(at uint64) {
 // Feed scans b, whose first byte is at stream offset base, and calls emit
 // for every complete, valid mark in order.
 func (p *Parser) Feed(b []byte, base uint64, emit func(Mark)) {
+	// esc caches the index of the next ESC at or after i (len(b) when
+	// none), so text full of 0xC2 (°, ·, NBSP, ±, « ») is scanned once,
+	// not once per 0xC2: each search below starts at i and stops at the
+	// first hit, so Feed is linear in len(b).
+	esc := -1
 	for i := 0; i < len(b); i++ {
 		c := b[i]
 		at := base + uint64(i)
 		switch p.state {
 		case stGround:
-			j := nextIntroducer(b[i:])
-			if j < 0 {
+			if esc < i {
+				esc = i + bytes.IndexByte(b[i:], 0x1b)
+				if esc < i {
+					esc = len(b)
+				}
+			}
+			j := i + bytes.IndexByte(b[i:esc], 0xc2)
+			if j < i {
+				j = esc
+			}
+			if j == len(b) {
 				return
 			}
-			i += j
+			i = j
 			p.escAt = base + uint64(i)
 			if b[i] == 0x1b {
 				p.state = stEsc
@@ -176,23 +190,6 @@ func (p *Parser) Feed(b []byte, base uint64, emit func(Mark)) {
 			}
 		}
 	}
-}
-
-// nextIntroducer is the index of the next ESC or 0xC2 (the first byte of
-// the C1 OSC introducer) in b, or -1.
-func nextIntroducer(b []byte) int {
-	e := bytes.IndexByte(b, 0x1b)
-	if e < 0 {
-		e = len(b)
-	}
-	c := bytes.IndexByte(b[:e], 0xc2)
-	if c >= 0 {
-		return c
-	}
-	if e == len(b) {
-		return -1
-	}
-	return e
 }
 
 func (p *Parser) put(c byte) {

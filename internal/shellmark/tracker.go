@@ -163,4 +163,10 @@ type Block struct {
 	// while the command runs. AfterTruncated: only its end is kept.
 	After          string
 	AfterTruncated bool
+	// Before is the scrollback before the command's own text (its B mark,
+	// or its C mark when there is no B), as far back as the ring holds.
+	// The agent shows the end of it, so the excerpt always covers at
+	// least the pane's plain tail: marks printed by a program (a fake end
+	// and a fake command after it) cannot push real text out of view.
+	Before string
 }

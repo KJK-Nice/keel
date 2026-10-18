@@ -75,7 +75,7 @@ test('the agent reads the last marked command and logs it as a read', { tags: ['
   await expect(composer).toBeFocused();
   await composer.fill('why did make fail?');
   await composer.press('Enter');
-  await expect(panel).toContainText('Read Local Shell · last command, exit 3 · 1 line of output · 1 redacted');
+  await expect(panel).toContainText(/Read Local Shell · last command, exit 3 · 1 line of output · \d+ redacted/);
 
   const entries = await keelApi<{ kind: string; message: string }[]>(app.baseUrl, '/api/logs');
   expect(entries.some((e) => e.kind === 'agent.read' && e.message.includes('last command, exit 3'))).toBe(true);

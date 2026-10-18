@@ -133,49 +133,73 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 // exit status, the cwd and where the output starts and ends come from the
 // remote's own output, and a program (cat of a crafted file) can print
 // fake ones. So the excerpt never uses a prompt-like "$ " that would read
-// as Keel's own statement, and it always carries what the pane printed
-// after the command's end, so a fake end cannot hide the latest text.
+// as Keel's own statement. And the excerpt always covers at least the
+// pane's plain tail (the last lines setting): what the marked parts do not
+// show of it is shown first, as the pane's earlier text, raw. So marks a
+// program printed (a fake end, then a fake command and output) cannot
+// push real text out of what the agent reads; at worst they change how
+// it is labelled. In the normal case that earlier part is just the
+// context before the command, and nothing is sent twice.
 func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.Redactor) Excerpt {
 	end := CommandEnd{Running: !blk.Done, Abandoned: blk.Abandoned, Exit: blk.Exit, HasExit: blk.HasExit}
 	budget := ClampLines(lines)
-	var b strings.Builder
+	var marked strings.Builder
 	if blk.Cwd != "" {
-		fmt.Fprintf(&b, "reported cwd: %s\n", oneLine(blk.Cwd))
+		fmt.Fprintf(&marked, "reported cwd: %s\n", oneLine(blk.Cwd))
 	}
 	cmd := commandText(blk.Command)
+	cmdLines := 0
 	if cmd == "" {
-		b.WriteString("reported command: (not reported)\n")
+		marked.WriteString("reported command: (not reported)\n")
 	} else {
 		for _, ln := range strings.Split(cmd, "\n") {
-			b.WriteString("reported command: " + ln + "\n")
+			marked.WriteString("reported command: " + ln + "\n")
+			cmdLines++
 		}
 	}
-	b.WriteString("reported output:\n")
-	out, n := tailPart(blk.Output, budget, blk.Truncated, &b)
+	marked.WriteString("reported output:\n")
+	out, n := tailPart(blk.Output, budget, blk.Truncated, &marked)
 	if out != "" {
-		b.WriteString(out + "\n")
+		marked.WriteString(out + "\n")
 	}
-	fmt.Fprintf(&b, "reported exit: %s\n", end.reported())
+	fmt.Fprintf(&marked, "reported exit: %s\n", end.reported())
 	afterLines := 0
 	if strings.TrimSpace(redact.Normalize(blk.After)) != "" {
-		b.WriteString("output after that command (the pane's latest text):\n")
+		marked.WriteString("output after that command (the pane's latest text):\n")
 		var after string
-		after, afterLines = tailPart(blk.After, budget, blk.AfterTruncated, &b)
-		b.WriteString(after + "\n")
+		after, afterLines = tailPart(blk.After, budget, blk.AfterTruncated, &marked)
+		marked.WriteString(after + "\n")
 	}
+	// The lines of the plain tail the marked parts do not cover.
+	var b strings.Builder
+	earlierLines := 0
+	if k := budget - cmdLines - n - afterLines; k > 0 && !blk.Truncated {
+		var earlier string
+		earlier, earlierLines = LastLines(redact.Normalize(blk.Before), k)
+		if strings.TrimSpace(earlier) != "" {
+			b.WriteString("pane text before the reported command (raw, as printed):\n")
+			b.WriteString(earlier + "\n")
+		} else {
+			earlierLines = 0
+		}
+	}
+	b.WriteString(marked.String())
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n")).Tail(maxExcerptBytes)
 	rep := diff(before, r.Report())
-	afterNote := ""
+	extra := ""
+	if earlierLines > 0 {
+		extra += fmt.Sprintf(" · %d before it", earlierLines)
+	}
 	if afterLines > 0 {
-		afterNote = fmt.Sprintf(" · %d after it", afterLines)
+		extra += fmt.Sprintf(" · %d after it", afterLines)
 	}
 	a.log.Append(applog.Entry{
 		Kind:       EventRead,
-		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output%s · %s", hostLabel(p), end.Label(), n, afterNote, redactionNote(rep)),
+		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output%s · %s", hostLabel(p), end.Label(), n, extra, redactionNote(rep)),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
-		Lines:      n + afterLines,
+		Lines:      earlierLines + n + afterLines,
 		Redactions: rep.Strings(),
 	})
 	return Excerpt{Pane: p, Lines: n, Text: safe, Report: rep, LastCommand: true, Command: end}

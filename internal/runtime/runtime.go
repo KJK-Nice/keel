@@ -610,8 +610,10 @@ func (s *Session) ReadScrollback() []byte {
 // between the B and C marks (a huge paste is cut, not read whole).
 const maxCommandText = 4096
 
-// maxAfterText caps what LastCommand reads after a finished command.
-const maxAfterText = 64 * 1024
+// maxAfterText caps what LastCommand reads after a finished command: the
+// whole ring, so the part after the command is never cut shorter than the
+// scrollback the agent would otherwise read.
+const maxAfterText = 256 * 1024
 
 // LastCommand returns the pane's latest command from its shell-integration
 // marks (OSC 133), with its text read from the scrollback under the same
@@ -656,6 +658,12 @@ func (s *Session) LastCommand() (shellmark.Block, bool) {
 		blk.After = string(scrollback.Read(after))
 		blk.AfterTruncated = blk.AfterTruncated || cut
 	}
+	regionStart := c.CommandTextEnd
+	if c.HasCommandStart {
+		regionStart = c.CommandStart
+	}
+	before, _ := s.buf.Range(0, regionStart)
+	blk.Before = string(scrollback.Read(before))
 	if c.HasCommandStart {
 		cmd, cut := s.buf.Range(c.CommandStart, c.CommandTextEnd)
 		if !cut {
