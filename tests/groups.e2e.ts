@@ -1,8 +1,9 @@
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { keelApi, keelSend, openKeel, retire } from './keel.ts';
+import { keelApi, keelData, keelSend, openKeel, retire } from './keel.ts';
 
 // Groups, part 1 (docs/ui-redesign.md §17, boards GroupRoles and
 // GroupRunbook). Three Local Shell hosts stand in for a folder of servers:
@@ -78,8 +79,9 @@ async function backToRun(screen: any) {
 }
 
 test('roles on the group page, then a rolling run: one host at a time, a failure stops the next host', { tags: ['agent', 'runbooks'] }, async ({ app, screen }) => {
+  // The marker lives in the scratch data dir (gitignored) and goes at the end.
+  const marker = join(keelData, `gx-marker-${randomBytes(4).toString('hex')}`);
   try {
-  const marker = join(process.cwd(), '.e2e', `gx-marker-${randomBytes(4).toString('hex')}`);
   const step = `if [ -e ${marker} ]; then c=1; else c=0; : > ${marker}; fi; printf '\\033]133;C\\007gx-step\\n\\033]133;D;%s\\007' "$c"`;
   const { wk1, wk2, off, group } = await setup(app, step);
   await openKeel(app);
@@ -149,6 +151,7 @@ test('roles on the group page, then a rolling run: one host at a time, a failure
   } finally {
     await closeTabs(app, screen);
     await retire(app, /^wx-/, 'gx-e2e');
+    rmSync(marker, { force: true });
   }
 });
 
