@@ -197,8 +197,8 @@ test('a notebook draft closed without Save is not kept', { tags: ['agent', 'note
 // A remote image in a draft (an exfiltration path: the URL is the model's
 // choice) is never fetched: keel serve turns it into text, and every page
 // carries img-src 'self' data: blob:, so even an <img> put in the page
-// directly does not reach another origin. LEAK_PORT matches
-// providertest.LeakImageURL.
+// directly does not reach another origin (a listener on LEAK_PORT counts
+// any request). The draft's image is providertest.LeakImageURL.
 const LEAK_PORT = 47199;
 
 test('a remote image in a draft, or anywhere in the page, is never fetched', { tags: ['agent', 'notebook'] }, async ({ app, screen, browser }) => {

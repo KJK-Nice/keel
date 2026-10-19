@@ -226,9 +226,9 @@ func (s *Scripted) Requests() []provider.Request {
 }
 
 // LeakImageURL is the remote image "write this up with an image" puts in
-// a draft. tests/agent-notebooks.e2e.ts listens on that port and checks
-// that nothing ever asks for it.
-const LeakImageURL = "http://127.0.0.1:47199/keel-notebook-leak.png"
+// a draft (.invalid never resolves). tests/agent-notebooks.e2e.ts checks
+// that it shows as text, never as an <img>.
+const LeakImageURL = "https://keel-e2e-leak.invalid/keel-notebook-leak.png"
 
 func boolInt(b bool) int {
 	if b {
