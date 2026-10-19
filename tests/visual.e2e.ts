@@ -648,6 +648,58 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
   }
 });
 
+// Notebooks and the agent (§18): a notebook attached to the question, the
+// agent's notebook draft card, and the draft open for review in the
+// notebook editor with its banner.
+describe('notebook drafts', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`notebook drafts (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      const nb = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', {
+        name: 'Patroni failover',
+        cells: [{ body: NOTEBOOK_MD }],
+      });
+      await openKeel(app);
+      await openLocalShell(screen);
+      const input = screen.getByRole('textbox', 'Terminal input');
+      await expect(input).toBeFocused();
+      await input.press('Meta+i');
+      const panel = screen.getByRole('complementary', 'Agent');
+      await panel.getByRole('button', 'Attach notebook').tap();
+      await panel.getByRole('dialog', 'Notebooks to send with your question').getByRole('menuitemcheckbox', /Patroni failover/).tap();
+      await app.screenshot(`${theme}-agent-attach-notebook`);
+      await panel.getByRole('dialog', 'Notebooks to send with your question').press('Escape');
+      const ask = panel.getByRole('textbox', 'Message the agent');
+      await ask.fill('write this up with a placeholder');
+      await ask.press('Enter');
+      const card = panel.getByRole('group', 'Notebook draft');
+      await expect(card).toContainText('Placeholders');
+      await expect(panel).toContainText('Sent notebook Patroni failover');
+      await browser.evaluate("document.querySelector('#agent-thread .k-prop--notebook')?.scrollIntoView({ block: 'end' })");
+      await app.screenshot(`${theme}-notebook-draft-card`);
+
+      await card.getByRole('button', 'Open draft').tap();
+      await expect(screen.getByRole('note', 'Review this draft')).toBeVisible();
+      await app.screenshot(`${theme}-notebook-draft-review`);
+
+      await panel.getByRole('button', 'Close agent').tap();
+      for (let i = 0; i < 4; i++) {
+        const pane = screen.getByRole('button', 'Close pane', { visible: true });
+        const tab = screen.getByRole('button', 'Close tab', { visible: true });
+        if (await pane.count()) await pane.last().tap();
+        else if (await tab.count()) await tab.first().tap();
+        else break;
+      }
+      await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
+      await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
+      for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
+    });
+  }
+});
+
 // Groups, part 1 (§17, boards GroupRoles and GroupRunbook): the group page
 // with roles and a note, a run across two Local Shell hosts with one host
 // done and the other waiting, and the group approve dialog with one row

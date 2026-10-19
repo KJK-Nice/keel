@@ -104,20 +104,28 @@ func AgentPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<span class=\"k-help\">Nothing reaches a pane until you press Type. The agent cannot type into panes you follow, and never sees the vault.</span></div><form class=\"k-agent-composer\" id=\"agent-composer\" autocomplete=\"off\"><div class=\"k-agent-chips\" id=\"agent-chips\"></div><textarea id=\"agent-input\" rows=\"2\" aria-label=\"Message the agent\" placeholder=\"Ask about these sessions…\"></textarea><div class=\"k-agent-composer-foot\"><span class=\"k-agent-hint\" id=\"agent-hint\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<span class=\"k-help\">Nothing reaches a pane until you press Type. The agent cannot type into panes you follow, and never sees the vault.</span></div><form class=\"k-agent-composer\" id=\"agent-composer\" autocomplete=\"off\"><div class=\"k-agent-chips\" id=\"agent-chips\"></div><textarea id=\"agent-input\" rows=\"2\" aria-label=\"Message the agent\" placeholder=\"Ask about these sessions…\"></textarea><div class=\"k-agent-picker k-agent-nb-picker\" id=\"agent-nb-picker\" role=\"dialog\" aria-label=\"Notebooks to send with your question\" tabindex=\"-1\" hidden></div><div class=\"k-agent-composer-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" id=\"agent-attach\" aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"agent-nb-picker\" aria-label=\"Attach notebook\" title=\"Attach notebook\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.NotebookPen().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</button> <span class=\"k-agent-hint\" id=\"agent-hint\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("@ add a pane · ↵ send")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 85, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agent.templ`, Line: 98, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"agent-stop\" hidden>Stop</button> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--sm k-btn--icon\" id=\"agent-send\" aria-label=\"Send\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"agent-stop\" hidden>Stop</button> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--sm k-btn--icon\" id=\"agent-send\" aria-label=\"Send\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -125,7 +133,7 @@ func AgentPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</button></div></form></aside>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</button></div></form></aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -155,7 +163,7 @@ func agentToggle() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-agent-toggle\" id=\"btn-agent\" aria-pressed=\"false\" aria-expanded=\"false\" aria-controls=\"agent-panel\" title=\"Agent\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-agent-toggle\" id=\"btn-agent\" aria-pressed=\"false\" aria-expanded=\"false\" aria-controls=\"agent-panel\" title=\"Agent\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -163,7 +171,7 @@ func agentToggle() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "Agent <span class=\"k-kbd\" id=\"btn-agent-kbd\">⌘I</span></button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "Agent <span class=\"k-kbd\" id=\"btn-agent-kbd\">⌘I</span></button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

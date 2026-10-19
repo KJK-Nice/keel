@@ -581,6 +581,25 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rbp-step-main { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
 .k-rbp-step .k-bytes { max-height: calc(var(--size-row) * 2); }
 
+/* Notebooks and the agent (docs/ui-redesign.md §18). A notebook attached
+   to the question is a brass chip beside the pane chips; Attach notebook
+   opens a k-agent-picker above the composer. A notebook draft the agent
+   proposes is a k-prop--note card with the first lines of the markdown as
+   plain text (k-nbp-preview); in the notebook editor the draft has the
+   runbook review banner (k-rb-review) with Discard and Save notebook. */
+.k-agent-chip--notebook { background: var(--brass-soft); color: var(--brass-ink); font-family: var(--font-sans); }
+.k-agent-picker.k-agent-nb-picker { top: auto; bottom: calc(100% + var(--space-1)); left: 0; right: 0; max-height: calc(var(--size-row) * 8); }
+.k-agent-picker-note { padding: var(--space-1) var(--space-2) var(--space-0\.5); border-top: 1px solid var(--line); margin-top: var(--space-1); font: var(--type-caption); color: var(--ink-faint); }
+.k-nbp-preview {
+  margin: 0; padding: var(--space-2) var(--space-3); max-height: calc(var(--size-row) * 5); overflow: hidden;
+  font: var(--type-caption); color: var(--ink-muted); white-space: pre-wrap; word-break: break-word;
+  background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.k-nbp-more { color: var(--ink-faint); }
+.notebook-draft { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.notebook-draft .k-rb-review { flex-wrap: wrap; align-items: center; }
+.notebook-draft .k-rb-review > span { flex: 1 1 calc(var(--size-control-lg) * 6); min-width: 0; }
+
 /* ---------- Empty ---------- */
 .k-empty { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-8) var(--space-4); text-align: center; }
 .k-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--hover); color: var(--ink-muted); }

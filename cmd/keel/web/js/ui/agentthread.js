@@ -15,6 +15,7 @@ import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
 import * as N from "../lib/notes.js";
 import * as R from "../lib/runbooks.js";
+import * as NB from "../lib/notebooks.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -63,6 +64,9 @@ export const ICON = {
   book: svg(
     '<path d="M20.5 16.9V11C20.5 7.2 20.5 5.3 19.3 4.2C18.2 3 16.3 3 12.5 3H11.5C7.7 3 5.8 3 4.7 4.2C3.5 5.3 3.5 7.2 3.5 11V19.5"/><path d="M20.5 17H6C4.6 17 3.5 18.1 3.5 19.5C3.5 20.9 4.6 22 6 22H20.5"/><path d="M20.5 22C19.1 22 18 20.9 18 19.5C18 18.1 19.1 17 20.5 17"/><path d="M9 8H15M9 12H13"/>',
   ),
+  notebook: svg(
+    '<path d="M9.99219 11H13.4922M9.99219 7H16.9922"/><path d="M5.99219 6H2.99219M5.99219 12H2.99219M5.99219 18H2.99219"/><path d="M8.99219 21.9388C7.41097 21.8363 6.39738 21.562 5.66376 20.8284C4.49219 19.6569 4.49219 17.7712 4.49219 14V10C4.49219 6.22877 4.49219 4.34315 5.66376 3.17158C6.83533 2 8.72096 2 12.4922 2H12.9922C16.7634 2 18.649 2 19.8206 3.17157C20.9922 4.34315 20.9922 6.22877 20.9922 10V10.5"/>',
+  ),
   eye: svg(
     '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
   ),
@@ -71,6 +75,7 @@ export const ICON = {
 export function stepHTML(step) {
   if (step.status === "notes") return `<div class="k-agent-step k-agent-step--note">${ICON.note}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   if (step.status === "runbook") return `<div class="k-agent-step k-agent-step--note">${ICON.book}<span>${escapeHtml(A.traceText(step))}</span></div>`;
+  if (step.status === "notebook") return `<div class="k-agent-step k-agent-step--note" data-trace-notebook>${ICON.notebook}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   const cls = step.status === "read" ? "k-agent-step--read" : "k-agent-step--skip";
   const icon = step.status === "read" ? ICON.tick : ICON.skip;
   return `<div class="k-agent-step ${cls}">${icon}<span>${escapeHtml(A.traceText(step))}</span></div>`;
@@ -156,6 +161,7 @@ export function createThreadView(opts) {
   const noteRecs = new Map(); // note proposal id → { el, editing }
   const runRecs = new Map(); // runbook use id → el (§16)
   const bookRecs = new Map(); // runbook proposal id → el (§16)
+  const nbRecs = new Map(); // notebook draft id → el (§18)
   let turns = 0;
 
   function scrollDown() {
@@ -176,6 +182,7 @@ export function createThreadView(opts) {
     noteRecs.clear();
     runRecs.clear();
     bookRecs.clear();
+    nbRecs.clear();
     turns = 0;
   }
 
@@ -210,6 +217,7 @@ export function createThreadView(opts) {
     for (const p of res.proposals || []) addProposal(p.id);
     for (const n of res.notes || []) addNote(n.id);
     for (const b of res.runbooks || []) addBookProp(b.id);
+    for (const nb of res.notebooks || []) addNbProp(nb.id);
     scrollDown();
   }
 
@@ -237,6 +245,7 @@ export function createThreadView(opts) {
       for (const p of turn.proposals || []) addProposal(p.id);
       for (const n of turn.notes || []) addNote(n.id);
       for (const b of turn.runbooks || []) addBookProp(b.id);
+      for (const nb of turn.notebooks || []) addNbProp(nb.id);
     }
     if (t.runbook) {
       const agentTurns = [...el.querySelectorAll("[data-agent-turn]")];
@@ -351,6 +360,7 @@ export function createThreadView(opts) {
     for (const [id, rec] of noteRecs) if (!rec.editing) paintNote(id);
     paintRuns();
     for (const id of bookRecs.keys()) paintBookProp(id);
+    for (const id of nbRecs.keys()) paintNbProp(id);
   }
 
   // --- a runbook in use (§16, board RunbookInUse) ---
@@ -522,6 +532,61 @@ export function createThreadView(opts) {
         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rbp-dismiss${busy ? " disabled" : ""}>Dismiss</button>${save}</div>`;
   }
 
+  // --- notebook drafts the agent proposes (§18) ---
+  //
+  // Nothing is saved from the card: Open draft asks keel serve for the
+  // draft (and its draftId) and opens it in the notebook editor as an
+  // unsaved draft with a review banner. Only Save there keeps it.
+
+  function addNbProp(id) {
+    if (nbRecs.has(id)) return nbRecs.get(id);
+    const node = doc.createElement("div");
+    node.className = "k-prop k-prop--note k-prop--notebook";
+    node.setAttribute("role", "group");
+    node.setAttribute("aria-label", "Notebook draft");
+    node.dataset.nbpId = id;
+    el.appendChild(node);
+    nbRecs.set(id, node);
+    paintNbProp(id);
+    return node;
+  }
+
+  function paintNbProp(id) {
+    const node = nbRecs.get(id);
+    const cur = ctl.nbProp?.(id);
+    if (!node || !cur) return;
+    const { p, busy, error } = cur;
+    const warn = NB.proposalWarn(p);
+    node.classList.toggle("k-prop--warn", warn && p.status === "open" && !p.expired);
+    if (p.status !== "open" || p.expired) {
+      const text = p.status === "open" ? "Not saved. This draft expired with the conversation; ask the agent again, or write the notebook yourself." : NB.proposalDone(p);
+      const undo = !p.expired && p.status === "dismissed" ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-undo${busy ? " disabled" : ""}>Undo</button>` : "";
+      const open = p.status === "saved" && p.notebookId ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-notebook="${escapeHtml(p.notebookId)}">Open notebook</button>` : "";
+      const icon = p.status === "saved" ? `<span class="k-note-done-ok">${ICON.tick}</span>` : ICON.info;
+      node.classList.add("k-prop--done");
+      node.innerHTML = `<div class="k-note-done" role="status">${icon}<span>${escapeHtml(text)}</span>${open}${undo}</div>`;
+      return;
+    }
+    node.classList.remove("k-prop--done");
+    const badges = `${p.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}${
+      p.placeholders ? '<span class="k-badge k-badge--signal">Placeholders</span>' : ""
+    }<span class="k-badge">New notebook</span>`;
+    const pv = NB.preview(p.body);
+    const lines = pv.lines.map((l) => escapeHtml(l)).join("\n");
+    const notes = [];
+    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(NB.proposalWarning(p))}</span></div>`);
+    if (p.placeholders) notes.push(noteHTML("signal", ICON.info, escapeHtml("It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")));
+    if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
+    notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you open the draft, review it in the notebook editor and press Save notebook. The agent cannot change your notebooks."));
+    node.innerHTML = `<div class="k-prop-head">${ICON.notebook}<span>Notebook draft</span><span class="k-prop-badges">${badges}</span></div>
+      <div class="k-prop-body"><p class="k-rbp-name">${escapeHtml(p.title)}</p><pre class="k-nbp-preview" aria-label="Draft preview">${lines}${
+        pv.more ? `\n<span class="k-nbp-more">${escapeHtml(`… ${pv.more} more ${pv.more === 1 ? "line" : "lines"}`)}</span>` : ""
+      }</pre>${notes.join("")}</div>
+      <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(NB.sizeLabel(p))}</span><span class="k-spacer"></span>
+        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-dismiss${busy ? " disabled" : ""}>Dismiss</button>
+        <button type="button" class="k-btn k-btn--primary k-btn--sm" data-nbp-open${busy ? " disabled" : ""}>Open draft</button></div>`;
+  }
+
   // --- notes the agent proposes (§15) ---
   //
   // Nothing is saved until the user presses Save (or Save anyway, on a note
@@ -653,6 +718,15 @@ export function createThreadView(opts) {
       else if (btn.dataset.rbUse) ctl.useRunbook?.(btn.dataset.rbUse);
       return;
     }
+    const nbp = ev.target.closest(".k-prop--notebook")?.dataset.nbpId;
+    if (nbp && nbRecs.has(nbp)) {
+      const nbBtn = ev.target.closest("[data-nbp-notebook]");
+      if (ev.target.closest("[data-nbp-open]")) ctl.openNbDraft?.(nbp);
+      else if (ev.target.closest("[data-nbp-dismiss]")) ctl.nbPropAction?.(nbp, "DELETE", "");
+      else if (ev.target.closest("[data-nbp-undo]")) ctl.nbPropAction?.(nbp, "POST", "/undo");
+      else if (nbBtn) ctl.openNotebook?.(nbBtn.dataset.nbpNotebook);
+      return;
+    }
     const bid = ev.target.closest(".k-prop--runbook")?.dataset.bookId;
     if (bid && bookRecs.has(bid)) {
       if (ev.target.closest("[data-rbp-save]")) ctl.saveBookProp?.(bid);
@@ -729,6 +803,8 @@ export function createThreadView(opts) {
     paintNote,
     addBookProp,
     paintBookProp,
+    addNbProp,
+    paintNbProp,
     paintRuns,
     repaint,
     scrollDown,
