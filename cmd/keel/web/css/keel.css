@@ -31,10 +31,14 @@ body {
    the OS dark vibrancy leak into light UI. data-vibrancy (page.templ) is
    set only while the backdrop matches the theme: macOS gives the window
    the theme's appearance; elsewhere a theme that differs from the OS
-   leaves it off, and the page keeps the opaque browser rendering (#59). */
+   leaves it off, and the page keeps the opaque browser rendering (#59).
+   Every area paints its tint once, straight over the backdrop: the root,
+   body, app shell and the boxes that only hold other areas stay clear.
+   Tints stacked on a tinted root multiply (66% over 66% over 66% is 96%),
+   which left the window looking opaque (#75). */
 html[data-vibrancy],
 html[data-vibrancy] body {
-  background: color-mix(in srgb, var(--stage) 66%, transparent) !important;
+  background: transparent !important;
 }
 html[data-vibrancy] .app,
 html[data-vibrancy] .main {
@@ -61,7 +65,11 @@ html[data-vibrancy] .term-tab,
 html[data-vibrancy] .term-wrap {
   background: transparent;
 }
-html[data-vibrancy] .term-tab:not(.is-split) .term-body,
+/* A solo pane's glass is its body; xterm paints a clear background over it
+   (term.js xtermTheme), so the terminal is tinted once like the chrome. */
+html[data-vibrancy] .term-tab:not(.is-split) .term-body {
+  background: color-mix(in srgb, var(--term-bg) 66%, transparent);
+}
 html[data-vibrancy] .term-tab:not(.is-split) .term-host,
 html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm,
 html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen,
@@ -75,6 +83,10 @@ html[data-vibrancy] .term-tab.is-split .term-body .xterm,
 html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen,
 html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen canvas {
   background: var(--stage);
+}
+/* Behind split tiles: whatever the opaque tiles leave uncovered. */
+html[data-vibrancy] .term-tab.is-split {
+  background: color-mix(in srgb, var(--stage) 66%, transparent);
 }
 html[data-vibrancy] .start-page {
   background: color-mix(in srgb, var(--stage) 66%, transparent);

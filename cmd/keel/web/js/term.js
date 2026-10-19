@@ -614,9 +614,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
     "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
   ];
-  // Native windows let the OS vibrancy show through a solo pane, matching
-  // the 66% tint keel.css gives the chrome behind it.
-  const NATIVE_TERM_ALPHA = 0.66;
+  // Under native vibrancy keel.css tints a solo pane's body (66% --term-bg)
+  // once, like the chrome; xterm paints a clear background over it. A
+  // second tint here (or an opaque WebGL cell) would hide the backdrop (#75).
+  const NATIVE_TERM_ALPHA = 0;
   let termThemeCache = { key: "", theme: null };
 
   // Resolve any CSS colour (var(), hex, color-mix) to #rrggbb[aa] by letting
@@ -690,7 +691,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       lineHeight: 1,
       letterSpacing: 0,
       customGlyphs: true,
-      allowTransparency: false,
+      allowTransparency: isVibrant(),
       overviewRuler: { width: 0 },
       theme: xtermTheme(),
       // registerDecoration is a proposed API in xterm 6; the command marks
@@ -703,7 +704,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
-    const glass = false;
+    const glass = isVibrant();
     for (const p of state.panes.values()) {
       if (!p.term) continue;
       p.term.options.allowTransparency = glass;

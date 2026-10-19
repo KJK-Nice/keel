@@ -53,6 +53,65 @@ test('native window that takes the theme keeps translucency for every choice', a
   }
 });
 
+// #75: each area paints its tint once, straight over the backdrop. A tint
+// on html and body under the chrome multiplied (66% over 66% over 66% is
+// 96%), so the native window looked opaque. For every area, the area and
+// its ancestors up to html together must leave a visible share of the
+// backdrop, and none of them may be opaque. (The WebGL canvas is not in
+// the DOM; xterm's clear background shows on .xterm-scrollable-element.)
+const cover = (browser: any, selectors: string[]) =>
+  browser.evaluate(`(() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const alpha = (c) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillStyle = c;
+      ctx.fillRect(0, 0, 1, 1);
+      return ctx.getImageData(0, 0, 1, 1).data[3] / 255;
+    };
+    const name = (e) => e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : '');
+    const bad = [];
+    for (const sel of ${JSON.stringify(selectors)}) {
+      const el = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length && getComputedStyle(e).visibility === 'visible');
+      if (!el) { bad.push(sel + ': missing'); continue; }
+      let clear = 1;
+      for (let e = el; e; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        const a = alpha(cs.backgroundColor) * Number(cs.opacity);
+        if (a >= 1) bad.push(sel + ': opaque ' + name(e));
+        clear *= 1 - a;
+      }
+      // One tint is a 58–86% token mix; a second one under it passes 90%.
+      const cover = 1 - clear;
+      if (cover > 0.9 || cover < 0.5) bad.push(sel + ': covers ' + Math.round(cover * 100) + '% of the backdrop');
+    }
+    return bad;
+  })()`) as Promise<string[]>;
+
+test('native vibrancy tints each area once, so the backdrop shows through', async ({ app, browser, screen }) => {
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  for (const choice of ['dark', 'light'] as const) {
+    await apply(browser, choice);
+    expect((await state(browser)).vibrancy).toBe('1');
+    // The New tab the window opens with, under the chrome.
+    expect(await cover(browser, ['.workspace-bar', '.k-sidebar', '.k-status', '.start-page'])).toEqual([]);
+  }
+  // A solo terminal pane: its bar, its body and xterm's own layers.
+  const vault = screen.getByRole('complementary', 'Vault');
+  await vault.getByRole('button', 'Hosts').tap();
+  await vault.getByRole('button', /^Local Shell\b/).tap();
+  await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+  expect(
+    await cover(browser, [
+      '.term-tab.is-active .pane-bar',
+      '.term-tab.is-active .term-body',
+      '.term-tab.is-active .xterm-scrollable-element',
+      '.term-tab.is-active .xterm-screen',
+    ]),
+  ).toEqual([]);
+  await screen.getByRole('button', 'Close tab').tap();
+});
+
 test('a browser tab never sets vibrancy', async ({ app, browser }) => {
   await open(app, '&appearance=native');
   for (const choice of ['light', 'dark', 'system'] as const) {
