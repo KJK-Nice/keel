@@ -2443,6 +2443,12 @@ button.k-choice-card[aria-disabled="true"]:hover { border-color: var(--line); }
 .k-imp-table .k-table th:first-child, .k-imp-table .k-table td:first-child { width: calc(var(--space-6) + var(--space-4)); padding-left: var(--space-3); }
 .k-imp-table .k-table th:last-child, .k-imp-table .k-table td:last-child { width: 100%; padding-right: var(--space-3); }
 .k-imp-table td .k-badge--haze { margin-left: var(--space-2); }
+/* Via: the proxy flag, then "Without the jump" for a ProxyJump host. The
+   cell wraps (k-table cells do not) so the box never runs past the table. */
+.k-imp-table .k-table td:last-child { white-space: normal; }
+.k-imp-via { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); padding: var(--space-1) 0; }
+.k-imp-table .k-imp-via .k-badge { margin-left: 0; white-space: nowrap; }
+.k-imp-nojump { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .k-imp-foot {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--line); font-size: 0.923rem; color: var(--ink-muted);

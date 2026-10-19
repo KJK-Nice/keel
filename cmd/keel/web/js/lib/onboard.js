@@ -90,11 +90,13 @@ function viaCell(h, sel) {
     const why = h.jumpProblem ? `Keel cannot keep it: ${h.jumpProblem}` : "Keel does not support it";
     flag = `<span class="k-badge k-badge--signal" title="${escapeHtml(`${what}: ${why}`)}">${icon("alert", 1.8)}${escapeHtml(what)}, not used</span>`;
   }
-  if (h.proxy !== "ProxyJump") return flag;
+  if (h.proxy !== "ProxyJump") return `<span class="k-imp-via">${flag}</span>`;
   // Adding a ProxyJump host without its jump host connects to it directly:
-  // only when the user ticks that.
+  // only when the user ticks that. The flag and the box wrap onto two lines
+  // when the Via column is narrow, so the row stays inside the table.
   const direct = sel?.noJump?.has(h.alias);
-  return `${flag} ${checkbox(!!direct, `Add ${h.alias} without the jump`, `data-imp-nojump="${escapeHtml(h.alias)}"`)}<span class="k-help" aria-hidden="true">Without the jump</span>`;
+  const box = checkbox(!!direct, `Add ${h.alias} without the jump`, `data-imp-nojump="${escapeHtml(h.alias)}"`);
+  return `<span class="k-imp-via">${flag}<span class="k-imp-nojump">${box}<span class="k-help" aria-hidden="true">Without the jump</span></span></span>`;
 }
 
 function keyCell(h) {
