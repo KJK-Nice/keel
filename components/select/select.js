@@ -119,13 +119,18 @@
     );
   }
 
-  function portal(content) {
+  function sweepOrphans(keep) {
     portaledContents().forEach((c) => {
-      if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
+      if (c !== keep && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
         c.remove();
       }
     });
+  }
+
+  // sweep is false from init, which sweeps once for all triggers.
+  function portal(content, sweep = true) {
+    if (sweep) sweepOrphans(content);
     const host = portalHost(content);
     if (content.parentElement !== host) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
@@ -695,10 +700,11 @@
 
   function init() {
     liftTemplates();
+    sweepOrphans(null);
     document.querySelectorAll("[data-tui-select-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
       if (!content) return;
-      portal(content); // portal up front, like React does on mount
+      portal(content, false); // portal up front, like React does on mount
       const checked = content.querySelector('[data-tui-select-item][data-selected]');
       if (checked) {
         const label =
@@ -728,12 +734,13 @@
   // ownership sweep.
   // Skip mutations that cannot hold component markup: xterm's own DOM
   // (rows, measure elements, helpers), which changes on every frame of
-  // terminal output, and nodes already detached. Each of these used to
+  // terminal output, the notebook's ProseMirror document (.notebook-prose),
+  // which changes on every keystroke, and nodes already detached. Each of these used to
   // re-run init(), which queries the whole document.
   function touchesComponents(records) {
     for (const r of records) {
       const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
-      if (t && t.isConnected && !t.closest(".xterm")) return true;
+      if (t && t.isConnected && !t.closest(".xterm, .notebook-prose")) return true;
     }
     return false;
   }
