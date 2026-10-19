@@ -83,13 +83,19 @@
   // as long as its SSR declaration site (_tuiPortalOwner) stays in the
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
-  function portal(content) {
+  function sweepOrphans(keep) {
     document.querySelectorAll("body > [data-tui-dropdownmenu-content]").forEach((c) => {
-      if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
+      if (c !== keep && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
         c.remove();
       }
     });
+  }
+
+  // sweep is false from init, which sweeps once for all triggers: one sweep
+  // per trigger queried the whole document once per menu on the page.
+  function portal(content, sweep = true) {
+    if (sweep) sweepOrphans(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
       document.body.appendChild(content);
@@ -493,8 +499,30 @@
 
   // Lift SSR'd contents out of their inert <template> wrappers into <body>,
   // replacing a stale portaled copy on re-swaps (e.g. htmx).
+  // A re-render that morphs in place (Datastar) keeps the owner element
+  // connected but gives the menu a fresh random id, so neither the id
+  // lookup nor the orphan sweep finds the previous copy: drop a portaled
+  // content of the same owner that no trigger points at any more and that
+  // is not open. Without this every list push added one content per menu
+  // to <body>.
   function liftTemplates() {
-    document.querySelectorAll("template[data-tui-dropdownmenu-portal]").forEach((tpl) => {
+    const tpls = document.querySelectorAll("template[data-tui-dropdownmenu-portal]");
+    if (!tpls.length) return;
+    const controlled = new Set();
+    document.querySelectorAll("[data-tui-dropdownmenu-trigger][aria-controls]").forEach((t) => {
+      controlled.add(t.getAttribute("aria-controls"));
+    });
+    const byOwner = new Map();
+    document.querySelectorAll("body > [data-tui-dropdownmenu-content]").forEach((c) => {
+      // An open menu stays until it closes: a push landing while it is
+      // open must not pull it from under the pointer. The next lift
+      // drops it.
+      if (!c._tuiPortalOwner || controlled.has(c.id) || isOpen(c)) return;
+      const list = byOwner.get(c._tuiPortalOwner);
+      if (list) list.push(c);
+      else byOwner.set(c._tuiPortalOwner, [c]);
+    });
+    tpls.forEach((tpl) => {
       const content = tpl.content.querySelector("[data-tui-dropdownmenu-content]");
       if (content) {
         const stale = document.getElementById(content.id);
@@ -502,7 +530,13 @@
           stopAutoPositioning(stale);
           stale.remove();
         }
-        content._tuiPortalOwner = tpl.parentElement;
+        const owner = tpl.parentElement;
+        for (const c of byOwner.get(owner) || []) {
+          stopAutoPositioning(c);
+          c.remove();
+        }
+        byOwner.delete(owner);
+        content._tuiPortalOwner = owner;
         document.body.appendChild(content);
       }
       tpl.remove();
@@ -511,10 +545,11 @@
 
   function init() {
     liftTemplates();
+    sweepOrphans(null);
     document.querySelectorAll("[data-tui-dropdownmenu-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
       if (!content) return;
-      portal(content);
+      portal(content, false);
       if (content.getAttribute("data-tui-dropdownmenu-initial-open") === "true") {
         content.removeAttribute("data-tui-dropdownmenu-initial-open");
         open(content, trigger, false);
@@ -533,12 +568,13 @@
   // ownership sweep.
   // Skip mutations that cannot hold component markup: xterm's own DOM
   // (rows, measure elements, helpers), which changes on every frame of
-  // terminal output, and nodes already detached. Each of these used to
+  // terminal output, the notebook's ProseMirror document (.notebook-prose),
+  // which changes on every keystroke, and nodes already detached. Each of these used to
   // re-run init(), which queries the whole document.
   function touchesComponents(records) {
     for (const r of records) {
       const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
-      if (t && t.isConnected && !t.closest(".xterm")) return true;
+      if (t && t.isConnected && !t.closest(".xterm, .notebook-prose")) return true;
     }
     return false;
   }
