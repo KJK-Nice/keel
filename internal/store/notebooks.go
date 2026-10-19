@@ -44,6 +44,8 @@ var (
 	ErrNotebookPrivate = errors.New("this notebook is private: the agent cannot read or change it")
 	// ErrNotebookConflict refuses a change made against an older revision.
 	ErrNotebookConflict = errors.New("the notebook changed since it was read")
+	// ErrNotebookName refuses a rename longer than MaxNotebookNameBytes.
+	ErrNotebookName = errors.New("a notebook name is at most 120 bytes")
 	// ErrNotebookTooLarge refuses an agent write over the size limits.
 	ErrNotebookTooLarge = errors.New("the notebook would be larger than Keel allows")
 )
@@ -166,7 +168,12 @@ func (s *Store) UpdateNotebookMeta(id string, name *string, pinned *bool) (Noteb
 	}
 	nb := s.data.Notebooks[i]
 	if name != nil {
-		n := strings.TrimSpace(*name)
+		// One line, no control, separator or invisible characters, at most
+		// MaxNotebookNameBytes (as the agent's names are held to).
+		n, ok := CleanLine(strings.ToValidUTF8(*name, ""), MaxNotebookNameBytes)
+		if !ok {
+			return Notebook{}, ErrNotebookName
+		}
 		if n == "" {
 			n = "Notebook"
 		}

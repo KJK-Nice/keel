@@ -207,6 +207,10 @@ func (s *Server) patchNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nb, err := s.store.UpdateNotebookMeta(r.PathValue("id"), in.Name, in.Pinned)
+	if errors.Is(err, store.ErrNotebookName) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeStoreErr(w, err)
 		return

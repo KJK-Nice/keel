@@ -412,3 +412,27 @@ func TestNotebookReviewFixes(t *testing.T) {
 		t.Fatalf("after the fix → %v", err)
 	}
 }
+
+// A rename is one clean line of at most MaxNotebookNameBytes: control,
+// separator and invisible characters become spaces; a longer name is
+// refused and the notebook keeps its name.
+func TestNotebookRenameIsCleaned(t *testing.T) {
+	st := testStore(t)
+	nb, _ := st.UpsertNotebook(Notebook{Name: "n", Cells: []NotebookCell{{Body: "x"}}})
+	name := "  Ops\nrunbook\u202e\x1b[31m  two\u2028lines  "
+	got, err := st.UpdateNotebookMeta(nb.ID, &name, nil)
+	if err != nil || got.Name != "Ops runbook [31m two lines" {
+		t.Fatalf("rename → %q %v", got.Name, err)
+	}
+	long := strings.Repeat("n", MaxNotebookNameBytes+1)
+	if _, err := st.UpdateNotebookMeta(nb.ID, &long, nil); !errors.Is(err, ErrNotebookName) {
+		t.Fatalf("long rename → %v", err)
+	}
+	blank := " \t "
+	if got, err := st.UpdateNotebookMeta(nb.ID, &blank, nil); err != nil || got.Name != "Notebook" {
+		t.Fatalf("blank rename → %q %v", got.Name, err)
+	}
+	if cur, _ := st.GetNotebook(nb.ID); nbText(cur) != "x" {
+		t.Fatalf("text changed: %+v", cur)
+	}
+}

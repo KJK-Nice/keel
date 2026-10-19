@@ -348,6 +348,12 @@ func TestNotebookMetaPreviewAndPurgeRoutes(t *testing.T) {
 	if got := f.notebookText(t, id); got != "keel-edited-by-agent" {
 		t.Fatalf("text after pin and rename = %q", got)
 	}
+	if code, _ := f.callJSON(t, "PATCH", "/api/notebooks/"+id, map[string]any{"name": strings.Repeat("n", store.MaxNotebookNameBytes+1)}); code != http.StatusBadRequest {
+		t.Fatalf("long rename → %d", code)
+	}
+	if code, out := f.callJSON(t, "PATCH", "/api/notebooks/"+id, map[string]any{"name": "a\nb\u200bc"}); code != http.StatusOK || out["name"] != "a b c" {
+		t.Fatalf("rename with control characters → %d %v", code, out)
+	}
 	// Recently deleted: the preview has the text; Delete forever removes it.
 	if code, _ := f.call(t, "DELETE", "/api/notebooks/"+id, nil); code != http.StatusNoContent {
 		t.Fatalf("delete → %d", code)
