@@ -121,6 +121,24 @@ func TestAgentNotebookAttachAndDraftRoutes(t *testing.T) {
 	}
 }
 
+// Every response restricts images to keel serve itself and data:/blob:
+// URLs, so a markdown image in a notebook cannot make the webview fetch a
+// URL of its author's choosing (§18). Only img-src: Datastar evaluates its
+// expressions, so scripts are not restricted here.
+func TestImagePolicyHeader(t *testing.T) {
+	f := newAskFixture(t, true)
+	for _, path := range []string{"/", "/api/health", "/api/notebooks", "/js/term.js"} {
+		res, err := http.Get(f.srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if got := res.Header.Get("Content-Security-Policy"); got != "img-src 'self' data: blob:" {
+			t.Errorf("GET %s: Content-Security-Policy = %q", path, got)
+		}
+	}
+}
+
 // A notebook fence holding a redaction placeholder is never typed: the
 // session socket refuses a notebook-labelled inject that holds one, before
 // the ticket writes anything.

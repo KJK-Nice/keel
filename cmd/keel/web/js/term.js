@@ -4863,6 +4863,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   async function persistNotebook(pane) {
     if (!isNotebookPane(pane)) return;
+    // A draft from the agent (§18) is kept only by Save notebook, through
+    // keel serve's draft route: no other save (autosave, a tab rename,
+    // a pin) may make it the user's own notebook. Its title and text stay
+    // in memory until then.
+    if (pane.draft) return;
     const payload = {
       name: (pane.title || "Notebook").trim() || "Notebook",
       cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
@@ -5085,7 +5090,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Review this draft">${AGENT_ICON}<span><b>${escapeHtml(NB.REVIEW_TITLE)}</b><br />${escapeHtml(NB.REVIEW_TEXT)}${
       d.error ? `<br />${escapeHtml(d.error)}` : ""
     }</span><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-draft-discard="${pane.id}"${busy}>Discard</button><button type="button" class="k-btn k-btn--primary k-btn--sm" data-notebook-draft-save="${pane.id}"${busy}>Save notebook</button></div>${
-      d.placeholders ? `<div class="k-review" role="note" data-notebook-placeholders>${AGENT_ALERT_ICON}<span>${escapeHtml(NB.PLACEHOLDER_TEXT)}</span></div>` : ""
+      NB.draftNote(d) ? `<div class="k-review" role="note" data-notebook-placeholders>${AGENT_ALERT_ICON}<span>${escapeHtml(NB.draftNote(d))}</span></div>` : ""
     }`;
   }
 
@@ -5115,7 +5120,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       }
     }
     if (!pane) pane = createNotebookTab(rec).pane;
-    pane.draft = { draftId: d.draftId, placeholders: !!d.placeholders, onSaved: opts.onSaved, busy: false, error: "" };
+    pane.draft = { draftId: d.draftId, placeholders: !!d.placeholders, withheld: !!d.withheld, onSaved: opts.onSaved, busy: false, error: "" };
     syncNotebookDraft(pane);
     renderTabs();
     markFocusedPane(pane);

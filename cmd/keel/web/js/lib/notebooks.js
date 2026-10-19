@@ -110,6 +110,18 @@ export const REVIEW_TITLE = "Draft from the agent. Not saved yet.";
 export const REVIEW_TEXT = "Review it, edit what you need, then press Save notebook. Closing this pane discards it.";
 export const PLACEHOLDER_TEXT =
   "This draft holds placeholders such as [secret:1] where Keel removed a value before the agent saw it. Fill them in (an environment variable, or a read -s prompt) before you use a command: Keel will not type a block that holds one.";
+export const WITHHELD_TEXT =
+  "It also names values Keel keeps from the agent as {{name}} (a value captured in a group run, or a group variable). Keel does not fill them in here: replace each with the real value before you use a command.";
+
+// draftNote is the review banner's second note: placeholders such as
+// [secret:1], {{name}} values Keel withheld, or both. "" when neither.
+export function draftNote(d) {
+  const parts = [];
+  if (d?.placeholders) parts.push(PLACEHOLDER_TEXT);
+  if (d?.withheld) parts.push(d?.placeholders ? WITHHELD_TEXT : WITHHELD_TEXT.replace(/^It also names/, "This draft names"));
+  return parts.join(" ");
+}
+
 export const PLACEHOLDER_REFUSED =
   "Not typed: this block holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Edit it to the real value or an environment variable first.";
 

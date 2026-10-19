@@ -84,15 +84,18 @@ type NotebookProposal struct {
 	// Placeholders is set when the body holds a redaction placeholder
 	// such as [secret:1]: the review banner says to fill them in, and a
 	// fence holding one is never typed.
-	Placeholders bool       `json:"placeholders"`
-	Bytes        int        `json:"bytes"`
-	FromPane     bool       `json:"fromPane"`
-	SeenIn       string     `json:"seenIn,omitempty"`
-	PanesRead    []string   `json:"panesRead,omitempty"`
-	Status       string     `json:"status"`
-	NotebookID   string     `json:"notebookId,omitempty"`
-	ProposedAt   *time.Time `json:"proposedAt,omitempty"`
-	Expired      bool       `json:"expired,omitempty"`
+	Placeholders bool `json:"placeholders"`
+	// Withheld is set when the body names a value Keel withheld from the
+	// model ({{name}}: a captured value or a group variable).
+	Withheld   bool       `json:"withheld,omitempty"`
+	Bytes      int        `json:"bytes"`
+	FromPane   bool       `json:"fromPane"`
+	SeenIn     string     `json:"seenIn,omitempty"`
+	PanesRead  []string   `json:"panesRead,omitempty"`
+	Status     string     `json:"status"`
+	NotebookID string     `json:"notebookId,omitempty"`
+	ProposedAt *time.Time `json:"proposedAt,omitempty"`
+	Expired    bool       `json:"expired,omitempty"`
 }
 
 type nbProposal struct {
@@ -111,6 +114,7 @@ type NotebookDraft struct {
 	Name           string           `json:"name"`
 	Body           string           `json:"body"`
 	Placeholders   bool             `json:"placeholders"`
+	Withheld       bool             `json:"withheld,omitempty"`
 }
 
 // NotebookSaveRequest is the body of a draft's Save: what the user has in
@@ -223,6 +227,102 @@ func cleanDraftText(s string) string {
 	}, s)
 }
 
+// namedRe matches a {{name}} that stands for a value Keel withholds from
+// the model (a captured value or a group variable).
+var namedRe = regexp.MustCompile(`\{\{[a-z_][a-z0-9_]{0,31}(\|q)?\}\}`)
+
+// inlineImageRe matches a markdown inline image at the start of the text:
+// ![alt](url) or ![alt](<url> "title").
+var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]*)>?(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)`)
+
+// defuseImages turns every markdown image in a draft into text, except a
+// data: image. The notebook editor renders an image as <img src>, and the
+// webview would fetch its URL when the draft opens: a model steered by
+// pane text could put what it read into that URL. An inline image becomes
+// its alt text and its URL as inline code; any other "![" (a reference
+// image) is escaped so it reads as text. Fenced code and code spans are
+// left as they are (they render as text already). keel serve also sends
+// img-src 'self' data: blob: on every page (httpapi), so a remote image
+// that slips through is not fetched either.
+func defuseImages(md string) string {
+	lines := strings.Split(md, "\n")
+	fence := ""
+	for i, ln := range lines {
+		t := strings.TrimLeft(ln, " ")
+		if fence != "" {
+			if strings.HasPrefix(t, fence) && strings.Trim(t, string(fence[0])+" \t") == "" {
+				fence = ""
+			}
+			continue
+		}
+		if len(ln)-len(t) <= 3 && (strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~")) {
+			n := 0
+			for n < len(t) && t[n] == t[0] {
+				n++
+			}
+			fence = t[:n]
+			continue
+		}
+		lines[i] = defuseLine(ln)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// defuseLine rewrites the images of one line outside its code spans.
+func defuseLine(ln string) string {
+	if !strings.Contains(ln, "![") {
+		return ln
+	}
+	var b strings.Builder
+	for i := 0; i < len(ln); {
+		if ln[i] == '`' {
+			// A code span: copy it up to the matching run of backticks.
+			n := 0
+			for i+n < len(ln) && ln[i+n] == '`' {
+				n++
+			}
+			run := ln[i : i+n]
+			if end := strings.Index(ln[i+n:], run); end >= 0 {
+				b.WriteString(ln[i : i+n+end+n])
+				i += n + end + n
+				continue
+			}
+			b.WriteString(run)
+			i += n
+			continue
+		}
+		if ln[i] == '\\' && i+1 < len(ln) {
+			b.WriteString(ln[i : i+2])
+			i += 2
+			continue
+		}
+		if strings.HasPrefix(ln[i:], "![") {
+			if m := inlineImageRe.FindStringSubmatch(ln[i:]); m != nil {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m[2])), "data:") {
+					b.WriteString(m[0])
+				} else {
+					alt := strings.ReplaceAll(strings.TrimSpace(m[1]), "![", `!\[`)
+					url := strings.ReplaceAll(m[2], "`", "")
+					if alt != "" {
+						b.WriteString(alt + " ")
+					}
+					if url != "" {
+						b.WriteString("`" + url + "`")
+					}
+				}
+				i += len(m[0])
+				continue
+			}
+			b.WriteString(`!\[`)
+			i += 2
+			continue
+		}
+		b.WriteByte(ln[i])
+		i++
+	}
+	return b.String()
+}
+
 // notebookProposal turns the model's notebook block into a proposal,
 // redacted with the request's Redactor (vault values, captured values,
 // group variables, secret-looking values, and IPs or hosts when the user
@@ -236,12 +336,12 @@ func (s *Service) notebookProposal(raw *rawNotebook, excerpts []agent.Excerpt, r
 	if title == "" {
 		title = "Notes from the agent"
 	}
-	body := cleanDraftText(r.Text(truncate(raw.Body, 2*maxNotebookDraftBytes)).String())
+	body := defuseImages(cleanDraftText(r.Text(truncate(raw.Body, 2*maxNotebookDraftBytes)).String()))
 	body = strings.TrimSpace(truncate(body, maxNotebookDraftBytes))
 	if body == "" {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbp_"), Title: title, Body: body, Bytes: len(body), Placeholders: hasPlaceholder(body) || hasPlaceholder(title), Status: "open", ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbp_"), Title: title, Body: body, Bytes: len(body), Placeholders: hasPlaceholder(body) || hasPlaceholder(title), Withheld: namedRe.MatchString(body), Status: "open", ProposedAt: &now}}
 	seen := map[string]bool{}
 	for _, ex := range excerpts {
 		if !seen[ex.Pane.HostName] {
@@ -275,7 +375,7 @@ func notebookProposalFromRecord(r store.AgentChatNotebook) NotebookProposal {
 	if !notebookStatus[st] {
 		st = "open"
 	}
-	return NotebookProposal{ID: r.ID, Title: r.Title, Body: r.Body, Bytes: len(r.Body), Placeholders: r.Placeholders, FromPane: r.FromPane, SeenIn: r.SeenIn, PanesRead: r.PanesRead, Status: st, NotebookID: r.NotebookID, ProposedAt: &at, Expired: true}
+	return NotebookProposal{ID: r.ID, Title: r.Title, Body: r.Body, Bytes: len(r.Body), Placeholders: r.Placeholders, Withheld: namedRe.MatchString(r.Body), FromPane: r.FromPane, SeenIn: r.SeenIn, PanesRead: r.PanesRead, Status: st, NotebookID: r.NotebookID, ProposedAt: &at, Expired: true}
 }
 
 func (c *conversation) nbPropLocked(id string) *nbProposal {
@@ -363,7 +463,7 @@ func (s *Service) OpenNotebookDraft(convID, id string) (NotebookDraft, error) {
 	view := p.view()
 	s.mu.Unlock()
 	s.audit.NotebookEvent(fmt.Sprintf("notebook draft opened for review by you (%d bytes)", view.Bytes), []string{view.ID, draftID}, redact.Report{})
-	return NotebookDraft{DraftID: draftID, ConversationID: convID, Proposal: view, Name: view.Title, Body: view.Body, Placeholders: view.Placeholders}, nil
+	return NotebookDraft{DraftID: draftID, ConversationID: convID, Proposal: view, Name: view.Title, Body: view.Body, Placeholders: view.Placeholders, Withheld: view.Withheld}, nil
 }
 
 // SaveNotebookDraft is the editor's Save on a draft: it creates a new
@@ -420,7 +520,14 @@ func (s *Service) SaveNotebookDraft(draftID string, in NotebookSaveRequest) (Sav
 		s.mu.Unlock()
 		return SavedNotebook{}, ErrNotebookClosed
 	}
-	delete(s.nbDrafts, draftID)
+	// Every draft opened from this proposal goes with this one: a proposal
+	// makes one notebook, also once keel serve no longer holds the
+	// proposal itself (its conversation evicted or deleted).
+	for k, od := range s.nbDrafts {
+		if od.convID == d.convID && od.propID == d.propID {
+			delete(s.nbDrafts, k)
+		}
+	}
 	if p != nil {
 		p.busy = true
 	}

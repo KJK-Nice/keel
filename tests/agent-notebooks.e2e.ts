@@ -1,5 +1,6 @@
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
+import { createServer } from 'node:http';
 import { keelApi, keelSend, openKeel } from './keel.ts';
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). keel serve
@@ -187,6 +188,97 @@ test('a notebook draft closed without Save is not kept', { tags: ['agent', 'note
   expect((await notebooks(app)).length).toBe(before);
   // The card still offers the draft.
   await expect(card.getByRole('button', 'Open draft')).toBeVisible();
+
+  await panel(screen).getByRole('button', 'Close agent').tap().catch(() => {});
+  await closeTabs(app, screen);
+  await reset(app);
+});
+
+// A remote image in a draft (an exfiltration path: the URL is the model's
+// choice) is never fetched: keel serve turns it into text, and every page
+// carries img-src 'self' data: blob:, so even an <img> put in the page
+// directly does not reach another origin. LEAK_PORT matches
+// providertest.LeakImageURL.
+const LEAK_PORT = 47199;
+
+test('a remote image in a draft, or anywhere in the page, is never fetched', { tags: ['agent', 'notebook'] }, async ({ app, screen, browser }) => {
+  const hits: string[] = [];
+  const server = createServer((req, res) => {
+    hits.push(req.url || '');
+    res.writeHead(204);
+    res.end();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(LEAK_PORT, '127.0.0.1', () => resolve());
+  });
+  try {
+    await reset(app);
+    await openKeel(app);
+    await openLocalShell(app, screen);
+    await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Meta+i');
+    await composer(screen).fill('write this up with an image');
+    await composer(screen).press('Enter');
+    const card = panel(screen).getByRole('group', 'Notebook draft');
+    await expect(card).toBeVisible();
+    await card.getByRole('button', 'Open draft').tap();
+    await expect(screen.getByRole('note', 'Review this draft')).toBeVisible();
+    // The image is text in the draft: its alt text and URL, no <img>.
+    await expect(screen.getByText(/keel-notebook-leak\.png/).first()).toBeVisible();
+    expect(await browser.evaluate(`document.querySelectorAll('.notebook-pane img').length`)).toBe(0);
+    // And the page refuses a remote image outright.
+    const blocked = await browser.evaluate(`new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve('loaded');
+      img.onerror = () => resolve('blocked');
+      img.src = 'http://127.0.0.1:${LEAK_PORT}/csp-check.png';
+      document.body.appendChild(img);
+      setTimeout(() => resolve('timeout'), 3000);
+    })`);
+    expect(blocked).toBe('blocked');
+    await new Promise((r) => setTimeout(r, 500));
+    expect(hits).toEqual([]);
+  } finally {
+    server.close();
+    await panel(screen).getByRole('button', 'Close agent').tap().catch(() => {});
+    await closeTabs(app, screen);
+    await reset(app);
+  }
+});
+
+// Renaming the tab that holds an open draft renames the draft in memory; it
+// does not save it as the user's own notebook. Only Save notebook keeps it.
+test('renaming the tab of an open draft does not save it', { tags: ['agent', 'notebook'] }, async ({ app, screen, browser }) => {
+  await reset(app);
+  const before = (await notebooks(app)).length;
+  await openKeel(app);
+  await openLocalShell(app, screen);
+  await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Meta+i');
+  await composer(screen).fill('write this up');
+  await composer(screen).press('Enter');
+  const card = panel(screen).getByRole('group', 'Notebook draft');
+  await card.getByRole('button', 'Open draft').tap();
+  await expect(screen.getByRole('textbox', 'Rename notebook')).toHaveValue(DRAFT_NAME);
+
+  await browser.evaluate(`(() => {
+    const tab = document.querySelector('.tab.is-active');
+    const r = tab.getBoundingClientRect();
+    tab.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + 8, button: 2, view: window }));
+  })()`);
+  await screen.getByRole('menuitem', 'Rename tab').tap();
+  const rename = screen.getByRole('textbox', 'Rename tab');
+  await rename.fill('keel-notebook-e2e renamed');
+  await rename.press('Enter');
+  await expect(screen.getByRole('textbox', 'Rename notebook')).toHaveValue('keel-notebook-e2e renamed');
+  await new Promise((r) => setTimeout(r, 800));
+  expect((await notebooks(app)).length).toBe(before);
+  await expect(screen.getByRole('note', 'Review this draft')).toBeVisible();
+
+  // Save notebook still keeps it, under the new name, marked from the agent.
+  await screen.getByRole('note', 'Review this draft').getByRole('button', 'Save notebook').tap();
+  let list: Notebook[] = [];
+  await expect.poll(async () => (list = await notebooks(app)).length).toBe(before + 1);
+  expect(list.find((n) => n.name === 'keel-notebook-e2e renamed')?.source).toBe('agent');
 
   await panel(screen).getByRole('button', 'Close agent').tap().catch(() => {});
   await closeTabs(app, screen);

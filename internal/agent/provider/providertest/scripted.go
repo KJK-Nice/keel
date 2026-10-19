@@ -36,7 +36,8 @@ import (
 //     runbook" makes it propose a two-step runbook;
 //   - notebooks (§18): it states how many attached notebooks arrived, and
 //     "write this up" makes it propose a notebook draft with a shell
-//     fence (and, for "placeholder", a second fence holding [secret:1]);
+//     fence (and, for "placeholder", a second fence holding [secret:1];
+//     for "image", a remote markdown image, LeakImageURL);
 //   - when the question says "long", it adds a tall answer with **bold**
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
@@ -100,6 +101,11 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	}
 	if strings.Contains(question, "write this up") {
 		body := "## What we did\nPrinted the e2e marker in the pane.\n\n```sh\necho keel-notebook-draft\n```"
+		if strings.Contains(question, "image") {
+			// A remote image (§18): keel serve turns it into text, and the
+			// page's img-src policy would not fetch it anyway.
+			body += "\n\n![chart](" + LeakImageURL + ")"
+		}
 		if strings.Contains(question, "placeholder") {
 			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport KEEL_TOKEN=[secret:1]\n```"
 		}
@@ -218,6 +224,11 @@ func (s *Scripted) Requests() []provider.Request {
 	defer s.mu.Unlock()
 	return append([]provider.Request(nil), s.requests...)
 }
+
+// LeakImageURL is the remote image "write this up with an image" puts in
+// a draft. tests/agent-notebooks.e2e.ts listens on that port and checks
+// that nothing ever asks for it.
+const LeakImageURL = "http://127.0.0.1:47199/keel-notebook-leak.png"
 
 func boolInt(b bool) int {
 	if b {

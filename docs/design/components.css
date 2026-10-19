@@ -587,6 +587,14 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
    proposes is a k-prop--note card with the first lines of the markdown as
    plain text (k-nbp-preview); in the notebook editor the draft has the
    runbook review banner (k-rb-review) with Discard and Save notebook. */
+.k-agent-composer { position: relative; }
+/* A picker row is the menuitemcheckbox: its box shows the row's state. */
+button.k-agent-pick[aria-checked="true"] .k-check { background: var(--brass); border-color: var(--brass); }
+button.k-agent-pick[aria-checked="true"] .k-check .k-i { visibility: visible; }
+.k-agent-chip--notebook button:hover { background: var(--brass-soft); }
+.k-agent-nb-picker .k-agent-pick-name { font-family: var(--font-sans); }
+.notebook-draft[hidden] { display: none; }
+.notebook-draft .k-rb-review .k-btn + .k-btn { margin-left: 0; }
 .k-agent-chip--notebook { background: var(--brass-soft); color: var(--brass-ink); font-family: var(--font-sans); }
 .k-agent-picker.k-agent-nb-picker { top: auto; bottom: calc(100% + var(--space-1)); left: 0; right: 0; max-height: calc(var(--size-row) * 8); }
 .k-agent-picker-note { padding: var(--space-1) var(--space-2) var(--space-0\.5); border-top: 1px solid var(--line); margin-top: var(--space-1); font: var(--type-caption); color: var(--ink-faint); }

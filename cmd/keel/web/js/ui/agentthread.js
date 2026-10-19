@@ -575,6 +575,7 @@ export function createThreadView(opts) {
     const lines = pv.lines.map((l) => escapeHtml(l)).join("\n");
     const notes = [];
     if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(NB.proposalWarning(p))}</span></div>`);
+    if (p.withheld) notes.push(noteHTML("signal", ICON.info, escapeHtml("It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.")));
     if (p.placeholders) notes.push(noteHTML("signal", ICON.info, escapeHtml("It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")));
     if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
     notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you open the draft, review it in the notebook editor and press Save notebook. The agent cannot change your notebooks."));

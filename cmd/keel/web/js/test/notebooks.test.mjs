@@ -46,6 +46,15 @@ test("draft card words: warning after a pane read, done states, preview", () => 
   assert.match(NB.savedText({ redacted: 2 }), /2 secret-looking values were replaced/);
 });
 
+test("the draft banner names [secret:1] placeholders and {{name}} values Keel withheld", () => {
+  assert.equal(NB.draftNote({}), "");
+  assert.match(NB.draftNote({ placeholders: true }), /\[secret:1\]/);
+  assert.doesNotMatch(NB.draftNote({ placeholders: true }), /\{\{name\}\}/);
+  assert.match(NB.draftNote({ withheld: true }), /^This draft names values Keel keeps from the agent as \{\{name\}\}/);
+  const both = NB.draftNote({ placeholders: true, withheld: true });
+  assert.match(both, /\[secret:1\].*It also names values Keel keeps from the agent as \{\{name\}\}/);
+});
+
 globalThis.requestAnimationFrame ??= (fn) => setTimeout(fn, 0);
 
 // --- the panel: only attached notebooks are named in an ask, and a draft
