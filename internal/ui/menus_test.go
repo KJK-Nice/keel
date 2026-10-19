@@ -10,7 +10,12 @@ import (
 
 func TestSSHCommand(t *testing.T) {
 	jump := store.Host{ID: "j", Name: "bastion", Address: "bastion.example", Port: 2200, Username: "ed", AuthType: "password", Password: "jump-secret"}
-	hosts := []store.Host{jump}
+	hosts := []store.Host{
+		jump,
+		{ID: "jd", Address: "bastion", Username: "-oProxyCommand=id", AuthType: "password"},
+		{ID: "ja", Address: "-oProxyCommand=id", Username: "ed", AuthType: "password"},
+		{ID: "js", Address: "bastion x", Username: "ed", AuthType: "password"},
+	}
 	cases := []struct {
 		name string
 		h    store.Host
@@ -21,7 +26,20 @@ func TestSSHCommand(t *testing.T) {
 		{"no user", store.Host{Address: "db.lan", AuthType: "password"}, "ssh db.lan"},
 		{"jump", store.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "j"}, "ssh -J ed@bastion.example:2200 app@10.1.0.9"},
 		{"ipv6", store.Host{Address: "fe80::1", Username: "root", AuthType: "password"}, "ssh root@[fe80::1]"},
-		{"quoted", store.Host{Address: "web", Username: "o'neil x", AuthType: "password"}, `ssh 'o'\''neil x@web'`},
+		{"quoted", store.Host{Address: "web", Username: "o'neil", AuthType: "password"}, `ssh 'o'\''neil@web'`},
+		// Anything ssh could read as an option, or that splits into words,
+		// gets no command: quoting does not stop "-oProxyCommand=…".
+		{"dash user", store.Host{Address: "web", Username: "-oProxyCommand=touch /tmp/x", AuthType: "password"}, ""},
+		{"dash user no space", store.Host{Address: "web", Username: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"dash address", store.Host{Address: "-oProxyCommand=id", Username: "ops", AuthType: "password"}, ""},
+		{"dash address no user", store.Host{Address: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"space user", store.Host{Address: "web", Username: "o neil", AuthType: "password"}, ""},
+		{"newline address", store.Host{Address: "web\nid", Username: "ops", AuthType: "password"}, ""},
+		{"control user", store.Host{Address: "web", Username: "ops\x1b", AuthType: "password"}, ""},
+		{"format char address", store.Host{Address: "web\u200b", Username: "ops", AuthType: "password"}, ""},
+		{"dash jump user", store.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "jd"}, ""},
+		{"dash jump address", store.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "ja"}, ""},
+		{"space jump address", store.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "js"}, ""},
 		{"local", store.Host{Name: "Local Shell", AuthType: "local"}, ""},
 	}
 	for _, c := range cases {

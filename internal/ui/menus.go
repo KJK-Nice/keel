@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"keel/internal/store"
 	"keel/internal/tunnel"
@@ -13,8 +14,17 @@ import (
 // is not 22, the saved jump host as -J, and user@address. It is built from
 // the address fields only, never from a password, key, passphrase or any
 // other vault value. The Local Shell has none ("").
+//
+// A user name or address that ssh could read as an option (a leading "-",
+// as in "-oProxyCommand=…", which quoting does not stop) or that holds
+// whitespace or a control character gets no command at all: hosts can come
+// from an imported ~/.ssh/config, and a pasted command must never run
+// anything but ssh to that host. The same holds for the jump host.
 func sshCommand(h store.Host, hosts []store.Host) string {
 	if h.AuthType == "local" || strings.TrimSpace(h.Address) == "" {
+		return ""
+	}
+	if !sshSafe(h.Username) || !sshSafe(h.Address) {
 		return ""
 	}
 	parts := []string{"ssh"}
@@ -24,6 +34,9 @@ func sshCommand(h store.Host, hosts []store.Host) string {
 	if h.JumpHost != "" {
 		for _, j := range hosts {
 			if j.ID == h.JumpHost && j.AuthType != "local" && strings.TrimSpace(j.Address) != "" {
+				if !sshSafe(j.Username) || !sshSafe(j.Address) {
+					return ""
+				}
 				jump := userAt(j.Username, j.Address)
 				if j.Port != 0 && j.Port != 22 {
 					jump += ":" + strconv.Itoa(j.Port)
@@ -35,6 +48,21 @@ func sshCommand(h store.Host, hosts []store.Host) string {
 	}
 	parts = append(parts, shellWord(userAt(h.Username, h.Address)))
 	return strings.Join(parts, " ")
+}
+
+// sshSafe reports a user name or address that ssh reads only as what it
+// is: no leading "-", no whitespace, no control or invisible format
+// character. An empty user name is safe (ssh then uses its default).
+func sshSafe(s string) bool {
+	if strings.HasPrefix(s, "-") {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return false
+		}
+	}
+	return true
 }
 
 func userAt(user, addr string) string {
