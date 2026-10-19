@@ -1121,7 +1121,11 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					s.agent.InsertDone(grant, ierr)
 					if ierr != nil {
 						s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
-						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": "the insert expired; press ⇥ again"})
+						reason := "the insert expired; press ⇥ again"
+						if errors.Is(ierr, runtime.ErrNotReady) {
+							reason = notReadyTypeMessage
+						}
+						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": reason})
 						break
 					}
 					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
@@ -1148,7 +1152,11 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 						s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
 					}
 					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
-					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": "the approval expired; press Type again"})
+					reason := "the approval expired; press Type again"
+					if errors.Is(ierr, runtime.ErrNotReady) {
+						reason = notReadyTypeMessage
+					}
+					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": reason})
 					break
 				}
 				if ctl.Agent.GroupRunID != "" {
@@ -1166,7 +1174,10 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		// Live keystrokes stay on Write (ungated). Palette/chrome must not
 		// send binary here; they use type=inject → InjectTicket (server nonce).
 		if err := sess.Write(cl.ID, msg); err != nil {
-			if errors.Is(err, runtime.ErrReadOnly) {
+			// ErrNotReady: still connecting or reconnecting. The keystroke
+			// is dropped (not buffered, see ErrNotReady) and the socket
+			// stays open. Any other error still closes it.
+			if errors.Is(err, runtime.ErrReadOnly) || errors.Is(err, runtime.ErrNotReady) {
 				continue
 			}
 			_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
@@ -1174,6 +1185,10 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+// notReadyTypeMessage reports an approved Type or insert refused because
+// the session was still connecting or reconnecting: nothing was typed.
+const notReadyTypeMessage = "the session is not connected; nothing was typed"
 
 func sessionPayload(kind, message string, info runtime.Info, you runtime.Client, fromID, targetID uint64) map[string]any {
 	you.Role = runtime.RoleFollower

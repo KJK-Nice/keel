@@ -102,6 +102,12 @@ var (
 	ErrNotOwner   = errors.New("only the session owner can do that")
 	ErrNoClient   = errors.New("client is not attached")
 	ErrNotAllowed = errors.New("not allowed to pass control")
+	// ErrNotReady is Write while the session has no bridge (connecting,
+	// reconnecting, failed). Live keystrokes then are dropped, not buffered:
+	// buffered input would land in whatever prompt comes up first (a
+	// password or host key prompt). Inject still fails with it, so an
+	// approved Type is reported as not typed (fail closed).
+	ErrNotReady = errors.New("session is not ready")
 )
 
 type Runtime struct {
@@ -513,7 +519,7 @@ func (s *Session) Write(clientID uint64, p []byte) error {
 	br := s.br
 	s.mu.Unlock()
 	if br == nil {
-		return errors.New("session is not ready")
+		return ErrNotReady
 	}
 	_, err := br.Write(p)
 	return err
