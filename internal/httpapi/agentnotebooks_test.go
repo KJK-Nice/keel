@@ -12,8 +12,8 @@ import (
 	"keel/internal/store"
 )
 
-// Notebooks and the agent (docs/ui-redesign.md §18) over the routes, with
-// the scripted provider.
+// Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12) over the
+// routes, with the scripted provider.
 
 func (f *askFixture) callJSON(t *testing.T, method, path string, body any) (int, map[string]any) {
 	t.Helper()
@@ -23,19 +23,102 @@ func (f *askFixture) callJSON(t *testing.T, method, path string, body any) (int,
 	return code, out
 }
 
-func TestAgentNotebookAttachAndDraftRoutes(t *testing.T) {
+func (f *askFixture) notebookText(t *testing.T, id string) string {
+	t.Helper()
+	nb, err := f.st.GetNotebook(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parts []string
+	for _, c := range nb.Cells {
+		parts = append(parts, c.Body)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func cards(t *testing.T, resp map[string]any) []map[string]any {
+	t.Helper()
+	var out []map[string]any
+	list, _ := resp["notebooks"].([]any)
+	for _, c := range list {
+		out = append(out, c.(map[string]any))
+	}
+	return out
+}
+
+// Private is the user's switch: a client's notebook body cannot set or
+// clear it, only PUT …/private can; the agent never sees a private
+// notebook (not in the index, not read, not attached, not edited).
+func TestNotebookPrivateRoutes(t *testing.T) {
 	f := newAskFixture(t, true)
-	// A client cannot mark its own notebook as the agent's.
-	code, nb := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "Ops NB-NAME-ROUTE", "source": "agent", "cells": []map[string]any{{"body": "NB-BODY-ROUTE ssh with " + askHostPass + "\n" + askPaneToken}}})
-	if code != http.StatusCreated || nb["source"] != nil {
+	code, nb := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "keel-private PRIV-NAME-ROUTE", "private": true, "cells": []map[string]any{{"body": "PRIV-BODY-ROUTE keel-edit-me"}}})
+	if code != http.StatusCreated || nb["private"] != nil {
 		t.Fatalf("create → %d %v", code, nb)
 	}
-	nbID := nb["id"].(string)
+	id := nb["id"].(string)
+	if code, out := f.callJSON(t, "PUT", "/api/notebooks/"+id+"/private", map[string]any{"private": true}); code != http.StatusOK || out["private"] != true {
+		t.Fatalf("private → %d %v", code, out)
+	}
+	// A stale editor's autosave (no private in the body) keeps it private.
+	if code, out := f.callJSON(t, "PUT", "/api/notebooks/"+id, map[string]any{"name": "keel-private PRIV-NAME-ROUTE", "private": false, "rev": 1, "cells": []map[string]any{{"body": "PRIV-BODY-ROUTE keel-edit-me"}}}); code != http.StatusOK || out["private"] != true {
+		t.Fatalf("save → %d %v", code, out)
+	}
+	for _, q := range []string{"read the notebook keel-private priv-name-route", "edit the notebook keel-private priv-name-route"} {
+		code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": q, "notebooks": []string{id}})
+		if code != http.StatusOK {
+			t.Fatalf("ask → %d %v", code, resp)
+		}
+		if len(cards(t, resp)) != 0 {
+			t.Fatalf("cards = %v", resp["notebooks"])
+		}
+		trace := resp["trace"].([]any)
+		if st := trace[0].(map[string]any); st["reason"] != "notebook-private" {
+			t.Fatalf("trace = %v", trace)
+		}
+	}
+	body := f.requests(t)
+	if strings.Contains(body, "PRIV-NAME-ROUTE") || strings.Contains(body, "PRIV-BODY-ROUTE") {
+		t.Fatal("a private notebook reached the provider")
+	}
+	if !strings.Contains(f.notebookText(t, id), "keel-edit-me") {
+		t.Fatal("a private notebook was changed")
+	}
+	// The user's own routes log a notebook's name as before; nothing the
+	// agent logged names it, and no entry holds its text.
+	raw, _ := os.ReadFile(f.logPath)
+	if strings.Contains(string(raw), "PRIV-BODY") {
+		t.Error("keel.log holds a private notebook's text")
+	}
+	for _, kind := range []string{agent.EventRead, agent.EventNotebook} {
+		for _, e := range f.logEntries(kind) {
+			if strings.Contains(e.Message, id) || strings.Contains(e.Message, "PRIV-") {
+				t.Errorf("%s entry names the private notebook: %s", kind, e.Message)
+			}
+		}
+	}
+}
 
-	// Attached: sent redacted, traced, logged with the id and bytes only.
-	code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "explain this notebook", "notebooks": []string{nbID}})
+// The agent reads a notebook on its own (no attachment), edits it at once
+// with history, the card's Undo restores it, History lists and restores
+// versions, a user save from an older revision keeps the user's text and
+// says the agent's edit is in History; a delete waits for the user's
+// confirm, goes to Recently deleted and comes back. keel.log holds ids and
+// counts only.
+func TestAgentNotebookReadEditDeleteRoutes(t *testing.T) {
+	f := newAskFixture(t, true)
+	code, nb := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "keel-ops NB-NAME-ROUTE", "source": "agent", "cells": []map[string]any{{"body": "NB-BODY-ROUTE keel-edit-me ssh with " + askHostPass + "\n" + askPaneToken}}})
+	if code != http.StatusCreated || nb["source"] != nil || nb["rev"].(float64) != 1 {
+		t.Fatalf("create → %d %v", code, nb)
+	}
+	id := nb["id"].(string)
+
+	// Read on its own: two provider calls, the trace says the agent asked.
+	code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "read the notebook keel-ops nb-name-route"})
 	if code != http.StatusOK {
 		t.Fatalf("ask → %d %v", code, resp)
+	}
+	if !strings.Contains(resp["answer"].(string), "I read 1 notebook I asked for") {
+		t.Fatalf("answer = %v", resp["answer"])
 	}
 	body := f.requests(t)
 	for _, bad := range []string{askHostPass, "Zx81Kq0LmN4pR7tV2wY5bC9dF3gH6jK"} {
@@ -43,68 +126,128 @@ func TestAgentNotebookAttachAndDraftRoutes(t *testing.T) {
 			t.Errorf("provider request holds %q", bad)
 		}
 	}
-	if !strings.Contains(body, "| NB-BODY-ROUTE") || !strings.Contains(resp["answer"].(string), "1 attached notebook") {
-		t.Fatalf("the notebook was not sent: %v", resp["answer"])
+	asked := false
+	for _, s := range resp["trace"].([]any) {
+		st := s.(map[string]any)
+		if st["status"] == "notebook" && st["asked"] == true && st["notebookId"] == id {
+			asked = true
+		}
 	}
-	trace := resp["trace"].([]any)
-	st := trace[0].(map[string]any)
-	if st["status"] != "notebook" || st["notebookId"] != nbID || st["notebook"] != "Ops NB-NAME-ROUTE" || st["bytes"].(float64) <= 0 {
-		t.Fatalf("trace = %v", trace)
-	}
-	reads := f.logEntries(agent.EventRead)
-	if len(reads) != 1 || reads[0].Source != "notebook" || !strings.Contains(reads[0].Message, nbID) {
-		t.Fatalf("agent.read = %+v", reads)
+	if !asked {
+		t.Fatalf("trace = %v", resp["trace"])
 	}
 
-	// A draft: proposed, opened, saved by the user, marked from the agent.
-	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "write this up with a placeholder"})
-	if code != http.StatusOK {
+	// Edit: applied at once, the card can undo it.
+	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "edit the notebook keel-ops nb-name-route"})
+	if code != http.StatusOK || len(cards(t, resp)) != 1 {
 		t.Fatalf("ask → %d %v", code, resp)
 	}
-	props := resp["notebooks"].([]any)
-	if len(props) != 1 {
-		t.Fatalf("notebook proposals = %v", resp["notebooks"])
+	c := cards(t, resp)[0]
+	if c["status"] != "edited" || c["record"] == nil {
+		t.Fatalf("card = %v", c)
 	}
-	p := props[0].(map[string]any)
-	if p["placeholders"] != true || !strings.Contains(p["body"].(string), "[secret:1]") {
-		t.Fatalf("proposal = %v", p)
+	if got := f.notebookText(t, id); !strings.Contains(got, "keel-edited-by-agent") || !strings.Contains(got, askHostPass) {
+		t.Fatalf("notebook = %q", got)
 	}
-	before, _ := f.st.ListNotebooks()
-	code, d := f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+p["id"].(string)+"/draft", nil)
-	if code != http.StatusOK || d["draftId"] == "" {
-		t.Fatalf("open draft → %d %v", code, d)
+	code, act := f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+c["id"].(string)+"/undo", nil)
+	if code != http.StatusOK || act["proposal"].(map[string]any)["status"] != "undone" {
+		t.Fatalf("undo → %d %v", code, act)
 	}
-	if after, _ := f.st.ListNotebooks(); len(after) != len(before) {
-		t.Fatal("opening a draft saved a notebook")
+	if got := f.notebookText(t, id); strings.Contains(got, "keel-edited-by-agent") || !strings.Contains(got, "keel-edit-me") {
+		t.Fatalf("after undo %q", got)
 	}
-	draft := d["draftId"].(string)
-	code, saved := f.callJSON(t, "POST", "/api/agent/notebooks/drafts/"+draft, map[string]any{"name": d["name"], "cells": []map[string]any{{"body": d["body"]}}})
-	if code != http.StatusOK {
-		t.Fatalf("save → %d %v", code, saved)
+	if code, _ := f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+c["id"].(string)+"/undo", nil); code != http.StatusConflict {
+		t.Fatalf("undo twice → %d", code)
 	}
-	snb := saved["notebook"].(map[string]any)
-	if snb["source"] != store.NotebookSourceAgent || saved["proposal"].(map[string]any)["status"] != "saved" {
-		t.Fatalf("saved = %v", saved)
+
+	// History: the version before the edit, and before the undo.
+	code, hist := f.callJSON(t, "GET", "/api/notebooks/"+id+"/history", nil)
+	vs, _ := hist["versions"].([]any)
+	if code != http.StatusOK || len(vs) != 2 {
+		t.Fatalf("history → %d %v", code, hist)
 	}
-	if code, _ := f.callJSON(t, "POST", "/api/agent/notebooks/drafts/"+draft, map[string]any{"name": "again"}); code != http.StatusGone {
-		t.Fatalf("second save → %d, want 410", code)
+	agentV := vs[0].(map[string]any)
+	if agentV["by"] != "agent" || agentV["cells"] != nil {
+		t.Fatalf("newest version = %v", agentV)
 	}
-	if code, _ := f.callJSON(t, "POST", "/api/agent/notebooks/drafts/nbd_madeup", map[string]any{"name": "x"}); code != http.StatusGone {
-		t.Fatalf("made-up draft → %d, want 410", code)
+	code, v := f.callJSON(t, "GET", "/api/notebooks/"+id+"/history/"+agentV["id"].(string), nil)
+	if code != http.StatusOK || !strings.Contains(v["cells"].([]any)[0].(map[string]any)["body"].(string), "keel-edited-by-agent") {
+		t.Fatalf("version → %d %v", code, v)
 	}
-	if code, _ := f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+p["id"].(string)+"/draft", nil); code != http.StatusConflict {
-		t.Fatalf("open a saved draft → %d, want 409", code)
+	cur, _ := f.st.GetNotebook(id)
+	if code, _ := f.callJSON(t, "POST", "/api/notebooks/"+id+"/history/"+agentV["id"].(string)+"/restore", map[string]any{"rev": cur.Rev - 1}); code != http.StatusConflict {
+		t.Fatalf("restore at a stale rev → %d", code)
 	}
-	// The user edits it with the plain notebook route: the mark stays.
-	code, up := f.callJSON(t, "PUT", "/api/notebooks/"+snb["id"].(string), map[string]any{"name": "edited", "source": "", "cells": snb["cells"]})
-	if code != http.StatusOK || up["source"] != store.NotebookSourceAgent {
-		t.Fatalf("edit → %d %v", code, up)
+	if code, out := f.callJSON(t, "POST", "/api/notebooks/"+id+"/history/"+agentV["id"].(string)+"/restore", map[string]any{"rev": cur.Rev}); code != http.StatusOK || out["lastBy"] != nil {
+		t.Fatalf("restore → %d %v", code, out)
 	}
-	// keel.log: the agent's entries hold ids and counts, never names or
-	// text (the plain notebook routes' own "notebook created: <name>" is
-	// the user's, as before); no entry holds a notebook's text.
+
+	// The agent edits again while the editor still shows an older rev: the
+	// user's save wins, and says so.
+	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "edit the notebook keel-ops nb-name-route"})
+	if code != http.StatusOK || cards(t, resp)[0]["status"] != "refused" { // the text holds no keel-edit-me now
+		t.Fatalf("ask → %d %v", code, resp["notebooks"])
+	}
+	cur, _ = f.st.GetNotebook(id)
+	cur.Cells = []store.NotebookCell{{Body: "keel-edit-me again"}}
+	if _, err := f.st.UpsertNotebook(cur); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ = f.st.GetNotebook(id)
+	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "edit the notebook keel-ops nb-name-route"})
+	if code != http.StatusOK || cards(t, resp)[0]["status"] != "edited" {
+		t.Fatalf("ask → %d %v", code, resp["notebooks"])
+	}
+	code, saved := f.callJSON(t, "PUT", "/api/notebooks/"+id, map[string]any{"name": "keel-ops NB-NAME-ROUTE", "rev": cur.Rev, "cells": []map[string]any{{"body": "keel-edit-me again, typed"}}})
+	if code != http.StatusOK || saved["replacedAgentEdit"] != true || saved["lastBy"] != nil {
+		t.Fatalf("stale save → %d %v", code, saved)
+	}
+	if got := f.notebookText(t, id); got != "keel-edit-me again, typed" {
+		t.Fatalf("the user's typing was lost: %q", got)
+	}
+
+	// Delete: proposed, nothing deleted until the confirm route.
+	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "drop the notebook keel-ops nb-name-route"})
+	if code != http.StatusOK || len(cards(t, resp)) != 1 {
+		t.Fatalf("ask → %d %v", code, resp)
+	}
+	d := cards(t, resp)[0]
+	if d["kind"] != "delete" || d["status"] != "proposed" {
+		t.Fatalf("card = %v", d)
+	}
+	if _, err := f.st.GetNotebook(id); err != nil {
+		t.Fatalf("deleted without the user: %v", err)
+	}
+	code, act = f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+d["id"].(string)+"/delete", nil)
+	if code != http.StatusOK || act["proposal"].(map[string]any)["status"] != "deleted" {
+		t.Fatalf("confirm → %d %v", code, act)
+	}
+	if _, err := f.st.GetNotebook(id); err == nil {
+		t.Fatal("not deleted")
+	}
+	code, trash := f.callJSON(t, "GET", "/api/notebooks/trash", nil)
+	if tv, _ := trash["versions"].([]any); code != http.StatusOK || len(tv) != 1 {
+		t.Fatalf("trash → %d %v", code, trash)
+	}
+	code, act = f.callJSON(t, "POST", "/api/agent/conversations/"+askConv+"/notebooks/"+d["id"].(string)+"/restore", nil)
+	if code != http.StatusOK || act["notebook"].(map[string]any)["id"] != id {
+		t.Fatalf("restore → %d %v", code, act)
+	}
+
+	// The create route (write this up) still makes a notebook marked from
+	// the agent, at once.
+	code, resp = f.ask(t, map[string]any{"conversationId": askConv, "question": "write this up with a placeholder"})
+	if code != http.StatusOK || len(cards(t, resp)) != 1 || cards(t, resp)[0]["status"] != "created" {
+		t.Fatalf("ask → %d %v", code, resp["notebooks"])
+	}
+	created, _ := f.st.GetNotebook(cards(t, resp)[0]["notebookId"].(string))
+	if created.Source != store.NotebookSourceAgent {
+		t.Fatalf("created = %+v", created)
+	}
+
+	// keel.log: ids and counts, never names or text.
 	raw, _ := os.ReadFile(f.logPath)
-	for _, bad := range []string{"NB-BODY-ROUTE", "What we did", askHostPass} {
+	for _, bad := range []string{"NB-BODY-ROUTE", "What we did", askHostPass, "keel-edit"} {
 		if strings.Contains(string(raw), bad) {
 			t.Errorf("keel.log holds %q", bad)
 		}
@@ -116,9 +259,26 @@ func TestAgentNotebookAttachAndDraftRoutes(t *testing.T) {
 			}
 		}
 	}
-	if n := len(f.logEntries(agent.EventNotebook)); n != 3 {
-		t.Fatalf("agent.notebook entries = %d, want 3 (proposed, opened, saved)", n)
+}
+
+// Recently deleted lists a notebook the user deleted, and restores it.
+func TestNotebookTrashRoutes(t *testing.T) {
+	f := newAskFixture(t, true)
+	_, nb := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "keel-trash", "cells": []map[string]any{{"body": "x"}}})
+	id := nb["id"].(string)
+	if code, _ := f.call(t, "DELETE", "/api/notebooks/"+id, nil); code != http.StatusNoContent {
+		t.Fatalf("delete → %d", code)
 	}
+	_, trash := f.callJSON(t, "GET", "/api/notebooks/trash", nil)
+	tv := trash["versions"].([]any)
+	vid := tv[0].(map[string]any)["id"].(string)
+	if code, out := f.callJSON(t, "POST", "/api/notebooks/trash/"+vid+"/restore", nil); code != http.StatusOK || out["id"] != id {
+		t.Fatalf("restore → %d %v", code, out)
+	}
+	if code, _ := f.callJSON(t, "POST", "/api/notebooks/trash/"+vid+"/restore", nil); code != http.StatusNotFound {
+		t.Fatalf("restore twice → %d", code)
+	}
+	_ = time.Second
 }
 
 // Every response restricts images to keel serve itself and data:/blob:

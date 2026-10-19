@@ -9,7 +9,7 @@ import (
 )
 
 // A notebook's source (docs/ui-redesign.md §18) is never taken from the
-// caller of UpsertNotebook: only AddAgentNotebook marks one "agent", it
+// caller of UpsertNotebook: only AgentCreateNotebook marks one "agent", it
 // always makes a new notebook, and every later save keeps the mark. Files
 // written before the field existed read back as the user's own.
 func TestNotebookSourceIsNeverFromTheClient(t *testing.T) {
@@ -31,8 +31,8 @@ func TestNotebookSourceIsNeverFromTheClient(t *testing.T) {
 		t.Fatalf("unknown id → %+v %v", ghost, err)
 	}
 
-	// AddAgentNotebook always creates a new one, whatever id it is given.
-	agentNb, err := st.AddAgentNotebook(Notebook{ID: mine.ID, Name: "draft", Cells: []NotebookCell{{Body: "## from the agent"}}})
+	// AgentCreateNotebook always creates a new one, whatever id it is given.
+	agentNb, err := st.AgentCreateNotebook(Notebook{ID: mine.ID, Name: "draft", Cells: []NotebookCell{{Body: "## from the agent"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

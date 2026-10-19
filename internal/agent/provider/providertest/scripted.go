@@ -77,6 +77,11 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	for i := len(req.Messages) - 1; i >= 0; i-- {
 		if req.Messages[i].Role == provider.RoleUser {
 			last = req.Messages[i].Text.String()
+			// A follow-up with the notebooks the model asked to read: the
+			// question is in the message before it.
+			if strings.HasPrefix(last, NotebookReadsPrefix) && i >= 2 && req.Messages[i-2].Role == provider.RoleUser {
+				last = req.Messages[i-2].Text.String() + "\n" + last
+			}
 			break
 		}
 	}
@@ -96,8 +101,27 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	if hostNotes, userNotes := countNotes(last); hostNotes+userNotes > 0 {
 		fmt.Fprintf(&b, " I was also given %d host note%s and %d of your notes.", hostNotes, plural(hostNotes), userNotes)
 	}
-	if nbs := strings.Count(last, "\n--- notebook ") + boolInt(strings.HasPrefix(last, "--- notebook ")); nbs > 0 {
-		fmt.Fprintf(&b, " I was also given %d attached notebook%s.", nbs, plural(nbs))
+	index, frames := notebookFrames(last)
+	attached, asked := 0, 0
+	for _, f := range frames {
+		if f.asked {
+			asked++
+		} else {
+			attached++
+		}
+	}
+	if attached > 0 {
+		fmt.Fprintf(&b, " I was also given %d attached notebook%s.", attached, plural(attached))
+	}
+	if asked > 0 {
+		fmt.Fprintf(&b, " I read %d notebook%s I asked for.", asked, plural(asked))
+	}
+	if reply, ok := notebookReply(question, index, frames); ok {
+		if strings.HasPrefix(reply, readFence) {
+			// Only the read request: Keel answers with the notebooks.
+			return provider.Response{Text: reply, InputTokens: len(last) / 4, OutputTokens: len(reply) / 4}, nil
+		}
+		b.WriteString(reply)
 	}
 	if strings.Contains(question, "write this up") {
 		body := "## What we did\nPrinted the e2e marker in the pane.\n\n```sh\necho keel-notebook-draft\n```"
@@ -216,6 +240,142 @@ func suggestReply(words string) provider.Response {
 		fmt.Fprintf(&b, "```keel-proposal\n{\"command\": %q, \"why\": %q, \"risk\": %q}\n```\n", o.cmd, o.why, o.risk)
 	}
 	return provider.Response{Text: b.String(), InputTokens: len(words) / 4, OutputTokens: b.Len() / 4}
+}
+
+// NotebookReadsPrefix must match the start of the message the agent
+// service sends with the notebooks the model asked to read.
+const NotebookReadsPrefix = "Keel read the notebooks you asked for."
+
+const readFence = "```keel-notebook-read"
+
+type nbIndexLine struct {
+	n, rev int
+	title  string
+}
+
+type nbFrame struct {
+	n, rev int
+	title  string
+	asked  bool
+	body   string
+}
+
+// notebookFrames reads the notebook index and the notebook frames out of
+// a message.
+func notebookFrames(msg string) ([]nbIndexLine, []nbFrame) {
+	var (
+		index  []nbIndexLine
+		frames []nbFrame
+		cur    = -1
+		inIdx  bool
+	)
+	for _, ln := range strings.Split(msg, "\n") {
+		switch {
+		case strings.HasPrefix(ln, "--- notebooks you may read"):
+			inIdx = true
+		case inIdx && strings.HasPrefix(ln, "--- end notebooks"):
+			inIdx = false
+		case inIdx && strings.HasPrefix(ln, "notebook "):
+			var l nbIndexLine
+			parts := strings.Split(ln, " · ")
+			if len(parts) >= 3 {
+				fmt.Sscanf(parts[0], "notebook %d", &l.n)
+				l.title = strings.Trim(parts[1], "\"")
+				fmt.Sscanf(parts[2], "rev %d", &l.rev)
+				index = append(index, l)
+			}
+		case strings.HasPrefix(ln, "--- notebook "):
+			parts := strings.Split(ln, " · ")
+			f := nbFrame{}
+			if len(parts) >= 4 {
+				fmt.Sscanf(parts[0], "--- notebook %d", &f.n)
+				f.title = strings.Trim(parts[1], "\"")
+				f.asked = parts[2] == "read at your request"
+				fmt.Sscanf(parts[3], "rev %d", &f.rev)
+			}
+			frames = append(frames, f)
+			cur = len(frames) - 1
+		case strings.HasPrefix(ln, "--- end notebook "):
+			cur = -1
+		case cur >= 0 && strings.HasPrefix(ln, "| "):
+			frames[cur].body += ln[2:] + "\n"
+		}
+	}
+	return index, frames
+}
+
+// notebookReply is the fake's notebook behaviour (docs/ui-redesign.md
+// §18), from the question:
+//   - "read the notebook T": asks to read the notebook titled T (lower
+//     case match) unless it was sent, then says what it read;
+//   - "edit the notebook T": asks to read it first, then replaces the
+//     text keel-edit-me with keel-edited-by-agent at the revision sent;
+//     "edit the notebook T whole" sends a whole body instead;
+//   - "drop the notebook T": proposes deleting it.
+func notebookReply(question string, index []nbIndexLine, frames []nbFrame) (string, bool) {
+	find := func(verb string) (string, bool) {
+		i := strings.Index(question, verb)
+		if i < 0 {
+			return "", false
+		}
+		t := strings.TrimSpace(question[i+len(verb):])
+		if j := strings.IndexByte(t, '\n'); j >= 0 {
+			t = t[:j]
+		}
+		return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(t), " whole")), true
+	}
+	byTitle := func(t string) *nbIndexLine {
+		for i := range index {
+			if strings.ToLower(index[i].title) == t {
+				return &index[i]
+			}
+		}
+		return nil
+	}
+	frameFor := func(n int) *nbFrame {
+		for i := range frames {
+			if frames[i].n == n {
+				return &frames[i]
+			}
+		}
+		return nil
+	}
+	readReq := func(n int) string {
+		return fmt.Sprintf(readFence+"\n{\"notebooks\": [%d]}\n```\n", n)
+	}
+	if t, ok := find("drop the notebook "); ok {
+		e := byTitle(t)
+		if e == nil {
+			return " I found no such notebook.", true
+		}
+		return fmt.Sprintf(" I can only propose that:\n\n```keel-notebook-delete\n{\"notebook\": %d, \"why\": \"Test provider: you asked to drop it.\"}\n```\n", e.n), true
+	}
+	if t, ok := find("edit the notebook "); ok {
+		e := byTitle(t)
+		if e == nil {
+			return " I found no such notebook to edit.", true
+		}
+		f := frameFor(e.n)
+		if f == nil {
+			return readReq(e.n), true
+		}
+		if strings.Contains(question, t+" whole") {
+			body, _ := json.Marshal(strings.ReplaceAll(strings.TrimSuffix(f.body, "\n"), "keel-edit-me", "keel-edited-by-agent"))
+			return fmt.Sprintf(" I rewrote it:\n\n```keel-notebook-edit\n{\"notebook\": %d, \"rev\": %d, \"summary\": \"Test provider: whole text\", \"body\": %s}\n```\n", f.n, f.rev, body), true
+		}
+		return fmt.Sprintf(" I marked it:\n\n```keel-notebook-edit\n{\"notebook\": %d, \"rev\": %d, \"summary\": \"Test provider: marks the step\", \"edits\": [{\"find\": \"keel-edit-me\", \"replace\": \"keel-edited-by-agent\"}]}\n```\n", f.n, f.rev), true
+	}
+	if t, ok := find("read the notebook "); ok {
+		e := byTitle(t)
+		if e == nil {
+			return fmt.Sprintf(" I was given the titles of %d notebooks and found no such notebook.", len(index)), true
+		}
+		if f := frameFor(e.n); f != nil {
+			return fmt.Sprintf(" Notebook %q holds %d bytes.", f.title, len(f.body)), true
+		}
+		return readReq(e.n), true
+	}
+	return "", false
 }
 
 // Requests returns the last requests Generate received, oldest first.

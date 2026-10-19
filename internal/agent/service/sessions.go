@@ -74,7 +74,7 @@ type TranscriptTurn struct {
 	Proposals []Proposal        `json:"proposals"`
 	Notes     []NoteProposal    `json:"notes"`
 	Runbooks  []RunbookProposal `json:"runbooks"`
-	// Notebooks are the notebook drafts the agent proposed (notebooks.go).
+	// Notebooks are the notebook cards of the turn (notebooks.go).
 	Notebooks []NotebookProposal `json:"notebooks"`
 	Again     bool               `json:"again,omitempty"`
 }
@@ -236,7 +236,7 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	for _, t := range chat.Turns {
 		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks)), Notebooks: make([]NotebookProposal, 0, len(t.Notebooks))}
 		for _, st := range t.Trace {
-			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated})
+			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated, Asked: st.Asked, Count: st.Count})
 		}
 		for _, sn := range t.Notebooks {
 			if nb, ok := liveNbs[sn.ID]; ok {

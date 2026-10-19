@@ -245,12 +245,29 @@ type Notebook struct {
 	Cells  []NotebookCell `json:"cells"`
 	Pinned bool           `json:"pinned,omitempty"`
 	// Source is "" for a notebook the user made and NotebookSourceAgent
-	// for one saved from a draft the agent proposed (docs/ui-redesign.md
-	// §18). Only AddAgentNotebook sets it and every later save keeps it;
-	// a client never sets it (older keel.json files have none).
-	Source    string    `json:"source,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	// for one the agent created (docs/ui-redesign.md §18). Only
+	// AgentCreateNotebook sets it and every later save keeps it; a client
+	// never sets it (older keel.json files have none).
+	Source string `json:"source,omitempty"`
+	// Private hides the notebook from the agent: it is never listed, read,
+	// attached, edited or deleted by the agent. Only SetNotebookPrivate
+	// changes it (the user's route); files written before it existed have
+	// none, so every older notebook starts not private.
+	Private bool `json:"private,omitempty"`
+	// Rev goes up by one on every save of the name or text: the agent
+	// edits only the revision it read, and the editor sends the revision
+	// it started from. Older files have 0.
+	Rev int `json:"rev,omitempty"`
+	// LastBy is NotebookByAgent when the agent made the latest change, ""
+	// for the user.
+	LastBy string `json:"lastBy,omitempty"`
+	// AgentEditedAt is when the agent last edited the notebook, and
+	// AgentUnreviewed stays set until the user marks that edit reviewed
+	// (or restores a version): the notebook pane says so.
+	AgentEditedAt   *time.Time `json:"agentEditedAt,omitempty"`
+	AgentUnreviewed bool       `json:"agentUnreviewed,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
 type persistHost struct {
@@ -349,6 +366,10 @@ type Store struct {
 	vaultGen      uint64
 	diskSum       [32]byte
 	diskRecipient age.Recipient
+
+	// nbHist is the notebook history (notebookhistory.go), loaded on first
+	// use, under mu.
+	nbHist *nbHistory
 
 	// chatMu guards chat, the saved agent conversations (agentchats.go).
 	// It is taken before mu, never while holding it.
