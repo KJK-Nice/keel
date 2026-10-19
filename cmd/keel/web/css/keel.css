@@ -28,52 +28,55 @@ body {
 
 /* Desktop webview: NSVisualEffect / Acrylic shows through tinted chrome.
    Mix is theme tokens so light stays light; fully-clear --background made
-   the OS dark vibrancy leak into light UI. */
-html[data-native],
-html[data-native] body {
+   the OS dark vibrancy leak into light UI. data-vibrancy (page.templ) is
+   set only while the backdrop matches the theme: macOS gives the window
+   the theme's appearance; elsewhere a theme that differs from the OS
+   leaves it off, and the page keeps the opaque browser rendering (#59). */
+html[data-vibrancy],
+html[data-vibrancy] body {
   background: color-mix(in srgb, var(--stage) 66%, transparent) !important;
 }
-html[data-native] .app,
-html[data-native] .main {
+html[data-vibrancy] .app,
+html[data-vibrancy] .main {
   background: transparent;
 }
-html[data-native] .workspace-bar,
-html[data-native] .pane-bar {
+html[data-vibrancy] .workspace-bar,
+html[data-vibrancy] .pane-bar {
   background: color-mix(in srgb, var(--chrome) 66%, transparent);
 }
-html[data-native] .term-wrap.is-focused .pane-bar {
+html[data-vibrancy] .term-wrap.is-focused .pane-bar {
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
-html[data-native] .tab.is-active {
+html[data-vibrancy] .tab.is-active {
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
-html[data-native] .tabs-scroller::before {
+html[data-vibrancy] .tabs-scroller::before {
   background: linear-gradient(to right, color-mix(in srgb, var(--chrome) 66%, transparent), transparent);
 }
-html[data-native] .tabs-scroller::after {
+html[data-vibrancy] .tabs-scroller::after {
   background: linear-gradient(to left, color-mix(in srgb, var(--chrome) 66%, transparent), transparent);
 }
-html[data-native] .terminals,
-html[data-native] .term-tab,
-html[data-native] .term-wrap {
+html[data-vibrancy] .terminals,
+html[data-vibrancy] .term-tab,
+html[data-vibrancy] .term-wrap {
   background: transparent;
 }
-html[data-native] .term-tab:not(.is-split) .term-body,
-html[data-native] .term-tab:not(.is-split) .term-host,
-html[data-native] .term-tab:not(.is-split) .term-body .xterm,
-html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen,
-html[data-native] .term-tab:not(.is-split) .term-body .xterm-screen canvas {
+html[data-vibrancy] .term-tab:not(.is-split) .term-body,
+html[data-vibrancy] .term-tab:not(.is-split) .term-host,
+html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm,
+html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen,
+html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen canvas {
   background: transparent;
 }
-html[data-native] .term-tab.is-split .term-wrap,
-html[data-native] .term-tab.is-split .term-body,
-html[data-native] .term-tab.is-split .term-host,
-html[data-native] .term-tab.is-split .term-body .xterm,
-html[data-native] .term-tab.is-split .term-body .xterm-screen,
-html[data-native] .term-tab.is-split .term-body .xterm-screen canvas {
+html[data-vibrancy] .term-tab.is-split .term-wrap,
+html[data-vibrancy] .term-tab.is-split .term-body,
+html[data-vibrancy] .term-tab.is-split .term-host,
+html[data-vibrancy] .term-tab.is-split .term-body .xterm,
+html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen,
+html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen canvas {
   background: var(--stage);
 }
-html[data-native] .start-page {
+html[data-vibrancy] .start-page {
   background: color-mix(in srgb, var(--stage) 66%, transparent);
 }
 
@@ -1700,11 +1703,11 @@ button.k-palette-item[data-highlighted] .k-i { color: var(--brass-ink); }
   max-height: 10rem;
   overflow: auto;
 }
-html[data-native] .cmd-palette {
+html[data-vibrancy] .cmd-palette {
   background: color-mix(in srgb, var(--raised) 86%, transparent);
 }
-html[data-native] .cmd-palette .k-palette-search,
-html[data-native] .cmd-palette .k-palette-foot {
+html[data-vibrancy] .cmd-palette .k-palette-search,
+html[data-vibrancy] .cmd-palette .k-palette-foot {
   background: color-mix(in srgb, var(--chrome) 70%, transparent);
 }
 
@@ -1876,7 +1879,7 @@ html[data-joined] #btn-sidebar { display: none; }
 .k-status .k-status-gap { flex: 1; }
 .k-status svg { display: block; width: 0.923rem; height: 0.923rem; flex: none; }
 .k-status .k-dot { width: 0.462rem; height: 0.462rem; box-shadow: none; }
-html[data-native] .k-status {
+html[data-vibrancy] .k-status {
   background: color-mix(in srgb, var(--chrome) 66%, transparent);
 }
 
@@ -2028,7 +2031,7 @@ button.k-switch[aria-checked="true"]::after { transform: translateX(0.923rem); b
   outline: none;
 }
 html[data-sidebar="closed"] .k-sidebar { display: none; }
-html[data-native] .k-sidebar { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
+html[data-vibrancy] .k-sidebar { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
 .k-sidebar-head { display: grid; gap: var(--space-2); flex: none; padding: var(--space-3) var(--space-2) var(--space-2); }
 .k-sidebar-tools { display: flex; align-items: center; gap: var(--space-0\.5); }
 .k-sidebar-filter { flex: 1; margin-right: var(--space-1); }
@@ -2180,7 +2183,7 @@ button.k-side-item {
   display: flex; flex-direction: column; min-width: 0; min-height: 0;
   overflow: auto; background: var(--surface);
 }
-html[data-native] .k-page { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+html[data-vibrancy] .k-page { background: color-mix(in srgb, var(--surface) 86%, transparent); }
 .k-page-head { display: flex; align-items: flex-end; gap: var(--space-3); padding: var(--space-6) var(--space-8) var(--space-4); }
 .k-page-intro { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
 .k-page-title {
@@ -2292,7 +2295,7 @@ button.k-item[hidden] { display: none; }
   width: var(--size-rail); padding: var(--space-3) var(--space-2); overflow: auto;
   background: var(--chrome); border-right: 1px solid var(--line);
 }
-html[data-native] .k-rail { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
+html[data-vibrancy] .k-rail { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
 .k-rail-label {
   padding: var(--space-1) var(--space-2);
   font: 500 0.846rem/1.077 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
@@ -2483,7 +2486,7 @@ button.k-switch:disabled { opacity: .45; cursor: default; }
 html[data-agent="closed"] .k-agent,
 html[data-joined] .k-agent,
 html[data-joined] #btn-agent { display: none; }
-html[data-native] .k-agent { background: color-mix(in srgb, var(--surface) 82%, transparent); }
+html[data-vibrancy] .k-agent { background: color-mix(in srgb, var(--surface) 82%, transparent); }
 button.k-agent-toggle[aria-pressed="true"] { background: var(--hover); color: var(--ink); }
 .k-agent-toggle svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-agent-toggle .k-kbd { height: var(--space-4); min-width: var(--space-4); font-size: 0.769rem; }
@@ -2818,14 +2821,14 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 @container (max-width: 660px) {
   .k-agentpage { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 }
-html[data-native] .k-agentpage { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+html[data-vibrancy] .k-agentpage { background: color-mix(in srgb, var(--surface) 86%, transparent); }
 .k-agentpage-col { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--chrome); }
 .k-agentpage-list-col { border-right: 1px solid var(--line); }
 .k-agentpage-ctx-col {
   gap: calc(var(--space-4) + var(--space-1)); padding: var(--space-4) calc(var(--space-3) + var(--space-0\.5));
   border-left: 1px solid var(--line);
 }
-html[data-native] .k-agentpage-col { background: color-mix(in srgb, var(--chrome) 86%, transparent); }
+html[data-vibrancy] .k-agentpage-col { background: color-mix(in srgb, var(--chrome) 86%, transparent); }
 
 /* Left: the conversation list */
 .k-agentpage-list-head { display: grid; gap: var(--space-2); flex: none; padding: var(--space-3) calc(var(--space-2) + var(--space-0\.5)) var(--space-2); }

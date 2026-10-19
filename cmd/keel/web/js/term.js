@@ -600,6 +600,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return document.documentElement.dataset.native === "1";
   }
 
+  // The native backdrop shows through the chrome: set by the inline theme
+  // script in page.templ, off when the window cannot match the theme (#59).
+  function isVibrant() {
+    return isNativeWindow() && document.documentElement.dataset.vibrancy === "1";
+  }
+
   // The terminal palette is the Keel token set (docs/design/tokens.json):
   // --term-bg, --term-fg, --term-cursor, --term-selection and --ansi-0..15,
   // read from the page at apply time so light/dark and any token edit reach
@@ -670,7 +676,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function xtermTheme() {
     const theme = tokenTermTheme();
-    if (isNativeWindow()) {
+    if (isVibrant()) {
       theme.background = `${theme.background.slice(0, 7)}${Math.round(NATIVE_TERM_ALPHA * 255).toString(16).padStart(2, "0")}`;
     }
     return theme;
@@ -6880,7 +6886,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       new ResizeObserver(syncTabOverflow).observe(els.tabs);
     }
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-      if (themeChoice() === "system") {
+      // A native window re-checks a fixed Light or Dark too: whether the
+      // backdrop can stay translucent depends on the OS appearance.
+      if (themeChoice() === "system" || isNativeWindow()) {
         applyThemeClass();
         applyTerminalPrefs();
       }
