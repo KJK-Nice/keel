@@ -209,13 +209,21 @@ const live = (browser: any, choice: string, step: string) =>
 
 const PANE_LAYERS = ['.term-body', '.xterm-scrollable-element', '.xterm-screen'];
 
-// Which xterm renderer each visible pane of the active tab runs: the native
-// window drops WebGL while a tab is split (paneWantsWebgl), so split panes
-// paint with the DOM renderer (.xterm-rows) and a solo pane gets WebGL back.
+// Which xterm renderer each visible pane of the active tab runs: every
+// pane, solo or split, draws with WebGL in the native window too (#80).
+// The WebGL renderer adds its link-layer canvas; the DOM one has rows.
 const renderers = (browser: any) =>
   browser.evaluate(`[...document.querySelectorAll('.term-tab.is-active .term-wrap')]
     .filter((w) => w.getClientRects().length && getComputedStyle(w).visibility === 'visible')
-    .map((w) => (w.querySelector('.xterm-screen canvas') ? 'webgl' : w.querySelector('.xterm-rows') ? 'dom' : 'none'))`) as Promise<string[]>;
+    .map((w) => (w.querySelector('.xterm-screen canvas.xterm-link-layer') ? 'webgl' : w.querySelector('.xterm-rows') ? 'dom' : 'none'))`) as Promise<string[]>;
+
+// xterm's canvases (the WebGL one and the link layer above it) must stay
+// clear: a background on the upper one hid every glyph of a native split
+// pane (#80).
+const canvasBackgrounds = (browser: any) =>
+  browser.evaluate(`[...document.querySelectorAll('.term-tab.is-active .xterm-screen canvas')]
+    .map((c) => getComputedStyle(c).backgroundColor)
+    .filter((bg) => !/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(bg))`) as Promise<string[]>;
 
 // Every pane's body, solo or split, carries the step's vibrancy-term-*
 // share of --term-bg once (denser in light, where the blurred desktop
@@ -260,11 +268,12 @@ test('solo and split panes are translucent at every step; light tints the termin
     for (const step of ['low', 'medium', 'high'] as const) await expectPanesAt(browser, 1, theme, step);
   }
 
-  // Split: both panes move to the DOM renderer and keep the clear theme.
+  // Split: both panes keep WebGL and the clear theme.
   await terms.first().press('Meta+Shift+D');
   await expect(terms).toHaveCount(2);
-  await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
-  for (const layer of ['.xterm-rows', '.xterm-viewport']) {
+  await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl']);
+  expect(await canvasBackgrounds(browser)).toEqual([]);
+  for (const layer of ['.xterm-viewport']) {
     for (const c of await covers(browser, `.term-tab.is-active ${layer}`)) expect(c.opaque, `split ${layer} opaque by${c.by}`).toBe(false);
   }
   for (const theme of ['dark', 'light'] as const) {
@@ -277,14 +286,15 @@ test('solo and split panes are translucent at every step; light tints the termin
     }
   }
 
-  // Back to one pane: WebGL again, still clear; then split once more.
+  // Back to one pane: still WebGL, still clear; then split once more.
   await screen.getByRole('button', 'Close pane', { visible: true }).nth(1).tap();
   await expect(terms).toHaveCount(1);
   await expect.poll(() => renderers(browser)).toEqual(['webgl']);
   await expectPanesAt(browser, 1, 'dark', 'medium');
   await terms.first().press('Meta+Shift+D');
   await expect(terms).toHaveCount(2);
-  await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
+  await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl']);
+  expect(await canvasBackgrounds(browser)).toEqual([]);
   await expectPanesAt(browser, 2, 'light', 'high');
 
   // Text over a loud stand-in backdrop (the page has no OS backdrop): the
@@ -294,14 +304,14 @@ test('solo and split panes are translucent at every step; light tints the termin
     await terms.nth(t).press('Enter');
   }
   // Each theme through a reload (keel-theme, as Settings stores it), so
-  // xterm takes the theme's colours; the split comes back restored, on the
-  // DOM renderer and clear like a new pane.
+  // xterm takes the theme's colours; the split comes back restored, on
+  // WebGL and clear like a new pane.
   for (const theme of ['dark', 'light'] as const) {
     await browser.evaluate(`localStorage.setItem('keel-theme', ${JSON.stringify(theme)})`);
     await open(app, '&native=1&appearance=native&chrome=titlebar');
     await expect(terms).toHaveCount(2);
-    await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
-    await expect(screen.getByText(/pane 2 {2}user@host/).first()).toBeVisible();
+    await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl']);
+    expect(await canvasBackgrounds(browser)).toEqual([]);
     await expectPanesAt(browser, 2, theme, 'medium');
     await browser.evaluate(`(() => {
       const s = document.createElement('style');

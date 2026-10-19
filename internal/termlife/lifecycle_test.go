@@ -24,7 +24,7 @@ func TestSoloNativeAttachesWebGLOnce(t *testing.T) {
 	}
 }
 
-func TestNativeSplitDropsWebGLWithoutRemountingTerm(t *testing.T) {
+func TestNativeSplitKeepsWebGLWithoutRemountingTerm(t *testing.T) {
 	a := NewPane("a")
 	tab := NewTab(true, a)
 	PaintLayout(tab)
@@ -46,47 +46,96 @@ func TestNativeSplitDropsWebGLWithoutRemountingTerm(t *testing.T) {
 	if a.Term.OpenCount != 1 || b.Term.OpenCount != 1 {
 		t.Fatalf("open counts a=%d b=%d (term.open must not run again on remount)", a.Term.OpenCount, b.Term.OpenCount)
 	}
-	if a.Term.WebGL != nil || b.Term.WebGL != nil {
-		t.Fatal("native split must drop WebGL so dead GPU canvases cannot eat clicks")
+	if a.Term.WebGL != addon || addon.Disposed != 0 {
+		t.Fatal("native split must keep pane a's WebGL addon")
 	}
-	AttachWebGL(tab, a)
-	if a.Term.WebGL != nil {
-		t.Fatal("split must refuse a new attach")
+	if b.Term.WebGL == nil || b.Term.Loads != 1 {
+		t.Fatal("the new split pane must attach WebGL once")
 	}
-	if addon.Disposed != 1 {
-		t.Fatalf("addon disposed = %d", addon.Disposed)
+	if tab.Contexts() != 2 {
+		t.Fatalf("contexts = %d, want one per visible pane", tab.Contexts())
 	}
 	if a.Wrap.Parent != tab.Stage || b.Wrap.Parent != tab.Stage {
 		t.Fatal("both wraps must stay on the same stage")
 	}
-	if slices.Contains(splitLog, "open:a") || slices.Contains(splitLog, "reparent:a") {
-		t.Fatalf("pane a remounted during split: %v", splitLog)
-	}
-	if !orderOK(splitLog, "drop:a", "layout") {
-		t.Fatalf("drop must happen before layout/reparent work: %v", splitLog)
+	if slices.Contains(splitLog, "open:a") || slices.Contains(splitLog, "reparent:a") || slices.Contains(splitLog, "drop:a") {
+		t.Fatalf("pane a remounted or dropped during split: %v", splitLog)
 	}
 }
 
-func TestNativeUnsplitReattachesSameTerm(t *testing.T) {
-	a := NewPane("a")
-	b := NewPane("b")
+func TestZoomReleasesHiddenPanesAndUnzoomReattaches(t *testing.T) {
+	a, b, c := NewPane("a"), NewPane("b"), NewPane("c")
+	tab := NewTab(true, a, b, c)
+	PaintLayout(tab)
+	if tab.Contexts() != 3 {
+		t.Fatalf("contexts = %d", tab.Contexts())
+	}
+	for cycle := 0; cycle < 4; cycle++ {
+		tab.SetVisible("a")
+		PaintLayout(tab)
+		if tab.Contexts() != 1 || a.Term.WebGL == nil {
+			t.Fatalf("zoomed: contexts = %d, want only the zoomed pane", tab.Contexts())
+		}
+		tab.SetVisible("a", "b", "c")
+		PaintLayout(tab)
+		if tab.Contexts() != 3 {
+			t.Fatalf("unzoomed: contexts = %d", tab.Contexts())
+		}
+	}
+	for _, p := range tab.Panes {
+		if p.Term.OpenCount != 1 {
+			t.Fatalf("pane %s opened %d times", p.ID, p.Term.OpenCount)
+		}
+	}
+	// Every addon but the live ones was disposed: none leaked.
+	if a.Term.Loads != 1 || b.Term.Loads != 5 || c.Term.Loads != 5 {
+		t.Fatalf("loads a=%d b=%d c=%d", a.Term.Loads, b.Term.Loads, c.Term.Loads)
+	}
+}
+
+func TestContextLossReattachesWhileSplit(t *testing.T) {
+	a, b := NewPane("a"), NewPane("b")
 	tab := NewTab(true, a, b)
 	PaintLayout(tab)
-	if a.Term.WebGL != nil {
-		t.Fatal("split should start without WebGL")
+	old := a.Term.WebGL
+	ContextLost(tab, a)
+	if old.Disposed != 1 || a.Term.WebGL == nil || a.Term.WebGL == old {
+		t.Fatal("split pane must attach a new addon after a context loss")
 	}
-
-	tab.SetVisible("a")
-	PaintLayout(tab)
-
 	if a.Term.OpenCount != 1 {
-		t.Fatalf("unsplit remounted term, open = %d", a.Term.OpenCount)
+		t.Fatalf("open = %d", a.Term.OpenCount)
 	}
-	if a.Term.WebGL == nil {
-		t.Fatal("solo pane must reattach WebGL")
+}
+
+func TestRepeatedContextLossFallsBackToDOM(t *testing.T) {
+	a, b := NewPane("a"), NewPane("b")
+	tab := NewTab(true, a, b)
+	PaintLayout(tab)
+	for i := 0; i < MaxLosses; i++ {
+		ContextLost(tab, a)
 	}
-	if a.Wrap.Parent != tab.Stage {
-		t.Fatal("wrap left the stage")
+	if a.Term.WebGL != nil || a.Fallback == "" {
+		t.Fatal("a pane that keeps losing its context must stay on the DOM renderer")
+	}
+	PaintLayout(tab)
+	if a.Term.WebGL != nil {
+		t.Fatal("a fallen-back pane must not attach again on the next layout")
+	}
+	if b.Term.WebGL == nil {
+		t.Fatal("the other pane keeps WebGL")
+	}
+	if !slices.Contains(tab.Log, "fallback:a") {
+		t.Fatalf("fallback must be noted: %v", tab.Log)
+	}
+}
+
+func TestCreateFailureFallsBackToDOM(t *testing.T) {
+	a := NewPane("a")
+	a.FailCreate = true
+	tab := NewTab(true, a)
+	PaintLayout(tab)
+	if a.Term.WebGL != nil || a.Fallback == "" || a.Term.Element != true {
+		t.Fatal("a pane whose context cannot be created opens on the DOM renderer")
 	}
 }
 
@@ -141,28 +190,6 @@ func TestContextLossReattachesWhenSolo(t *testing.T) {
 	}
 	if a.Term.OpenCount != 1 {
 		t.Fatalf("context loss remounted term, open = %d", a.Term.OpenCount)
-	}
-}
-
-func TestContextLossDoesNotReattachWhileSplit(t *testing.T) {
-	a := NewPane("a")
-	b := NewPane("b")
-	tab := NewTab(true, a, b)
-	PaintLayout(tab)
-	if a.Term.WebGL != nil {
-		t.Fatal("native split must start without WebGL")
-	}
-	stuck := &Addon{ID: 99}
-	a.Term.WebGL = stuck
-	ContextLost(tab, a)
-	if stuck.Disposed != 1 {
-		t.Fatal("lost context must dispose the leftover addon")
-	}
-	if a.Term.WebGL != nil {
-		t.Fatal("split must not reattach after context loss")
-	}
-	if a.Term.OpenCount != 1 {
-		t.Fatalf("open = %d", a.Term.OpenCount)
 	}
 }
 

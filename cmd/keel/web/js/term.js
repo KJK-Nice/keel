@@ -46,6 +46,7 @@ import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { createStateFollow } from "./lib/statefollow.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
+import { createWebglGuard, webglPlan } from "./lib/webglguard.js";
 import { setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
 import { createAgentPanel } from "./ui/agentpanel.js";
@@ -2111,8 +2112,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   // The invalidate redraws every row and rebuilds the canvas layer, so the
   // write path runs it at most once per PANE_INVALIDATE_MS (framethrottle.js).
-  // Panes on the DOM renderer (native splits) have no WebGL layer to go stale
-  // and skip it here; layout changes still refresh them (refreshPaneRender).
+  // Panes on the DOM renderer (off screen, or fallen back after WebGL
+  // failed) have no WebGL layer to go stale and skip it here; layout
+  // changes still refresh them (refreshPaneRender).
   const PANE_INVALIDATE_MS = 50;
 
   function schedulePaneInvalidate(pane) {
@@ -2151,8 +2153,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function syncNativeSplitTheme(pane) {
     if (!isNativeWindow() || !pane?.term) return;
-    // Split panes run on the DOM renderer here (paneWantsWebgl) but take the
-    // same theme as a solo pane: under vibrancy a clear background over the
+    // Split panes draw with WebGL like a solo pane and take the same
+    // theme: under vibrancy a clear background over the
     // tinted .term-body (keel.css), otherwise the opaque --term-bg.
     const theme = { ...xtermTheme() };
     const glass = isVibrant();
@@ -2486,9 +2488,6 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function paintLayout(tab) {
     ensureTabStage(tab);
-    if (isNativeWindow() && visiblePanes(tab).length > 1) {
-      for (const pane of tabPanes(tab)) dropWebgl(pane);
-    }
     for (const pane of tabPanes(tab)) {
       syncPaneChrome(tab, pane);
       if (pane.wrap && pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
@@ -2617,6 +2616,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       });
       syncJoinBanner(tab);
     }
+    // Panes of the tab just left (or behind a zoom) give their WebGL context
+    // back now; the shown ones attach on the next fit (fitVisiblePanes).
+    releaseOffscreenWebgl();
     // A joined tab shows no Vault sidebar (§5.7): the joiner sees only the
     // shared terminal. CSS hides the sidebar and its toggle.
     document.documentElement.toggleAttribute("data-joined", !!activeTab?.remote);
@@ -2666,6 +2668,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       layoutTabPanes(tab);
       syncSashElements(tab);
       for (const p of visiblePanes(tab)) ensurePaneTerm(p);
+      releaseOffscreenWebgl();
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
   }
@@ -3781,11 +3784,26 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     });
   }
 
+  // Every pane on screen draws with WebGL, solo or split, in the browser
+  // and the native window (lib/webglguard.js). Split panes in WKWebView once
+  // looked dead on WebGL: an opaque split-only CSS background on
+  // `.xterm-screen canvas` also painted xterm's link-layer canvas, which
+  // sits above the WebGL canvas and hid the text (#80). keel.css keeps every
+  // xterm canvas clear. The DOM renderer is the fallback for a pane whose
+  // WebGL context fails (webglGuard).
+  function webglGuard(pane) {
+    if (!pane.webglGuard) pane.webglGuard = createWebglGuard();
+    return pane.webglGuard;
+  }
+
   function paneWantsWebgl(pane) {
     if (!pane?.term) return false;
-    if (!isNativeWindow()) return true;
-    const tab = state.tabs.get(pane.tabId);
-    return visiblePanes(tab).length <= 1;
+    return webglGuard(pane).allowed();
+  }
+
+  function fallBackToDom(pane, reason) {
+    if (!reason) return;
+    console.warn(`keel: pane ${pane.id} uses the DOM renderer: ${reason}`);
   }
 
   function attachWebgl(pane) {
@@ -3793,32 +3811,75 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!term || term._keelWebgl || !paneWantsWebgl(pane)) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
+    let addon = null;
     try {
-      const addon = new Ctor();
+      addon = new Ctor();
       addon.onContextLoss?.(() => {
+        // A context Keel freed itself (dropWebgl) is not a failure.
+        if (addon._keelDropped) return;
         try {
           addon.dispose();
         } catch {
           /* DOM renderer */
         }
-        term._keelWebgl = null;
-        if (paneWantsWebgl(pane)) requestAnimationFrame(() => attachWebgl(pane));
+        if (term._keelWebgl === addon) term._keelWebgl = null;
+        const reason = webglGuard(pane).lost();
+        if (reason) {
+          fallBackToDom(pane, reason);
+          return;
+        }
+        requestAnimationFrame(() => {
+          if (pane.closing || !pane.wrap?.isConnected) return;
+          attachWebgl(pane);
+          invalidatePaneRender(pane);
+        });
       });
       term.loadAddon(addon);
       term._keelWebgl = addon;
-    } catch {
-      /* xterm 6 default DOM renderer */
+    } catch (err) {
+      try {
+        addon?.dispose();
+      } catch {
+        /* never loaded */
+      }
+      // xterm 6 keeps drawing with its default DOM renderer.
+      fallBackToDom(pane, webglGuard(pane).failed(err));
     }
   }
 
+  // releaseOffscreenWebgl gives back the WebGL context of every pane that is
+  // not on screen (another tab, or behind a zoomed pane), so the page holds
+  // one context per visible pane; ensurePaneTerm attaches it again when the
+  // pane is shown.
+  function releaseOffscreenWebgl() {
+    const active = state.tabs.get(state.activeId);
+    const shown = new Set(active && !active.page ? visiblePanes(active).map((p) => p.id) : []);
+    const panes = [...state.panes.values()].filter((p) => p.term);
+    const { drop } = webglPlan(
+      panes.map((p) => ({ id: p.id, visible: shown.has(p.id), allowed: paneWantsWebgl(p), attached: !!p.term._keelWebgl })),
+    );
+    for (const id of drop) dropWebgl(state.panes.get(id));
+  }
+
+  // dropWebgl puts the pane on the DOM renderer and frees its context now:
+  // the addon's dispose only removes the canvas, and WebKit would count the
+  // context against its cap until garbage collection.
   function dropWebgl(pane) {
-    if (!pane?.term?._keelWebgl) return;
+    const addon = pane?.term?._keelWebgl;
+    if (!addon) return;
+    addon._keelDropped = true;
+    pane.term._keelWebgl = null;
+    const gl = addon._renderer?._gl;
     try {
-      pane.term._keelWebgl.dispose();
+      addon.dispose();
     } catch {
       /* ignore */
     }
-    pane.term._keelWebgl = null;
+    try {
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    } catch {
+      /* already lost */
+    }
   }
 
   function loadTermAddon(term, Ctor, ...args) {
@@ -4715,9 +4776,6 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
     tab.focusedPaneId = pane.id;
     tab.zoomedPaneId = "";
-    if (isNativeWindow()) {
-      for (const p of tabPanes(tab)) dropWebgl(p);
-    }
     try {
       const info = await spawnHost(hostId);
       attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
