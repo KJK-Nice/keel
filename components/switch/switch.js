@@ -170,12 +170,13 @@
   // wires itself.
   // Skip mutations that cannot hold component markup: xterm's own DOM
   // (rows, measure elements, helpers), which changes on every frame of
-  // terminal output, and nodes already detached. Each of these used to
+  // terminal output, the notebook's ProseMirror document (.notebook-prose),
+  // which changes on every keystroke, and nodes already detached. Each of these used to
   // re-run init(), which queries the whole document.
   function touchesComponents(records) {
     for (const r of records) {
       const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
-      if (t && t.isConnected && !t.closest(".xterm")) return true;
+      if (t && t.isConnected && !t.closest(".xterm, .notebook-prose")) return true;
     }
     return false;
   }

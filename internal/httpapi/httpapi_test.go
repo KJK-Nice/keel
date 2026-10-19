@@ -3235,8 +3235,8 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if !strings.Contains(disposePane, "disposeNotebookEditor(pane)") {
 		t.Fatal("closing a pane must tear down the markdown editor")
 	}
-	if !strings.Contains(disposeEd, "clearTimeout(pane._saveTimer)") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
-		t.Fatal("disposeNotebookEditor must destroy ProseMirror and drop the save timer")
+	if !strings.Contains(disposeEd, "pane._autosave?.flush()") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
+		t.Fatal("disposeNotebookEditor must destroy ProseMirror and save a pending edit, not drop it")
 	}
 	if !strings.Contains(paint, "pane.mdEditor && pane._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
 		t.Fatal("paintNotebook must keep a live editor and destroy before remount")
