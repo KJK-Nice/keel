@@ -9,18 +9,25 @@ import (
 )
 
 func TestDesktopURLMarksNativeWindow(t *testing.T) {
-	got := desktopURL("http://127.0.0.1:47241/?name=ada", false)
-	if !strings.Contains(got, "native=1") || !strings.Contains(got, "name=ada") {
-		t.Fatalf("js url = %s", got)
-	}
-	if strings.Contains(got, "chrome=titlebar") {
-		t.Fatalf("non-mac url should not overlay tabs: %s", got)
+	for _, goos := range []string{"windows", "linux"} {
+		got := desktopURL("http://127.0.0.1:47241/?name=ada&appearance=native", goos)
+		if !strings.Contains(got, "native=1") || !strings.Contains(got, "name=ada") {
+			t.Fatalf("%s url = %s", goos, got)
+		}
+		if strings.Contains(got, "chrome=titlebar") {
+			t.Fatalf("non-mac url should not overlay tabs: %s", got)
+		}
+		// No runtime appearance setter here: the page drops translucency
+		// itself when the theme differs from the OS.
+		if strings.Contains(got, "appearance=") {
+			t.Fatalf("%s window cannot take the theme as its appearance: %s", goos, got)
+		}
 	}
 }
 
 func TestDesktopURLOverlaysTabsOnMac(t *testing.T) {
-	got := desktopURL("http://127.0.0.1:47241/?name=ada", true)
-	if !strings.Contains(got, "native=1") || !strings.Contains(got, "chrome=titlebar") {
+	got := desktopURL("http://127.0.0.1:47241/?name=ada", "darwin")
+	if !strings.Contains(got, "native=1") || !strings.Contains(got, "chrome=titlebar") || !strings.Contains(got, "appearance=native") {
 		t.Fatalf("mac url = %s", got)
 	}
 }

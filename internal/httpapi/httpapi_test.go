@@ -2231,6 +2231,13 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), "colorScheme") {
 		t.Fatal("index missing color-scheme sync for native vibrancy")
 	}
+	// #59: the native window takes the theme as its appearance (macOS), or
+	// the page drops translucency when the theme differs from the OS.
+	if !strings.Contains(string(body), `postNative("keel:appearance:" + t)`) ||
+		!strings.Contains(string(body), `q.get("appearance") === "native"`) ||
+		!strings.Contains(string(body), `dataset.vibrancy`) {
+		t.Fatal("index missing native appearance / vibrancy bootstrap")
+	}
 	// Full screen comes from the native window (desktop chromeJS), not a
 	// window-size guess that also fires for a screen-sized window.
 	if strings.Contains(string(body), "syncFullscreen") || strings.Contains(string(body), "screen.width") {
@@ -2247,7 +2254,7 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "--wails-draggable") {
 		t.Fatal("keel.css missing titlebar tab overlay")
 	}
-	if !strings.Contains(string(cssBody), `html[data-native]`) ||
+	if !strings.Contains(string(cssBody), `html[data-vibrancy]`) ||
 		!strings.Contains(string(cssBody), "background: transparent") {
 		t.Fatal("keel.css missing native translucent chrome")
 	}
@@ -2320,8 +2327,8 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("split panes must not inset the terminal; the canvas should fill the pane")
 	}
 	if !strings.Contains(string(cssBody), ".term-host") ||
-		!strings.Contains(string(cssBody), `html[data-native] .term-tab.is-split .term-host`) ||
-		!strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-host`) ||
+		!strings.Contains(string(cssBody), `html[data-vibrancy] .term-tab.is-split .term-host`) ||
+		!strings.Contains(string(cssBody), `html[data-vibrancy] .term-tab:not(.is-split) .term-host`) ||
 		!strings.Contains(string(cssBody), `.term-host {
   flex: 1 1 0%;`) {
 		t.Fatal("split panes must fill with the terminal surface; solo native panes keep glass")
@@ -2624,7 +2631,7 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
 		t.Fatal("term.js must not drive a session snippet footer")
 	}
-	if !strings.Contains(string(cssBody), `html[data-native] .term-tab:not(.is-split) .term-body`) {
+	if !strings.Contains(string(cssBody), `html[data-vibrancy] .term-tab:not(.is-split) .term-body`) {
 		t.Fatal("keel.css missing native terminal glass")
 	}
 	if strings.Contains(string(cssBody), `#live-section[hidden]`) {

@@ -28,7 +28,7 @@ func Run(url, _ string) error {
 	if err != nil {
 		return err
 	}
-	w := &nativeWindow{url: desktopURL(url, stdruntime.GOOS == "darwin")}
+	w := &nativeWindow{url: desktopURL(url, stdruntime.GOOS)}
 	app := application.New(application.Options{
 		Name:        "Keel",
 		Description: "Local SSH workspace",
@@ -43,6 +43,8 @@ func Run(url, _ string) error {
 		Linux: application.LinuxOptions{
 			ProgramName: "Keel",
 		},
+		// The page's theme choice, for the window appearance (appearance.go).
+		RawMessageHandler: w.rawMessage,
 	})
 	w.app = app
 	app.Menu.Set(w.appMenu())
@@ -201,17 +203,25 @@ func overlayTitleBar() application.MacTitleBar {
 	return application.MacTitleBarHiddenInset
 }
 
-func desktopURL(raw string, titlebarTabs bool) string {
+// desktopURL marks the page as the native window on goos: native=1, the
+// titlebar tab strip on macOS, and appearance=native where the window
+// takes the page's theme as its own appearance (appearance.go).
+func desktopURL(raw, goos string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return raw
 	}
 	q := u.Query()
 	q.Set("native", "1")
-	if titlebarTabs {
+	if goos == "darwin" {
 		q.Set("chrome", "titlebar")
 	} else {
 		q.Del("chrome")
+	}
+	if followsThemeNatively(goos) {
+		q.Set(nativeAppearanceParam, "native")
+	} else {
+		q.Del(nativeAppearanceParam)
 	}
 	u.RawQuery = q.Encode()
 	return u.String()

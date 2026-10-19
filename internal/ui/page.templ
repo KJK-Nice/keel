@@ -28,15 +28,33 @@ templ Page(p PageProps) {
 			<title>Keel — SSH workspace</title>
 			<script>
 				(function () {
+					var q = new URLSearchParams(location.search);
+					var native = q.get("native") === "1";
+					// The window takes the theme as its own appearance (macOS;
+					// internal/desktop/appearance.go), so its backdrop follows it.
+					var nativeAppearance = native && q.get("appearance") === "native";
+					function postNative(msg) {
+						var w = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.external;
+						if (w && w.postMessage) w.postMessage(msg);
+					}
 					function applyTheme(t) {
 						if (t !== "light" && t !== "dark" && t !== "system") t = "system";
-						var dark = t === "dark" || (t === "system" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+						var osDark = !window.matchMedia("(prefers-color-scheme: light)").matches;
+						var dark = t === "dark" || (t === "system" && osDark);
 						// CSS sees only the resolved theme; the choice is kept beside it.
 						document.documentElement.dataset.themeChoice = t;
 						document.documentElement.dataset.theme = dark ? "dark" : "light";
 						document.documentElement.classList.toggle("dark", dark);
 						document.documentElement.style.colorScheme = dark ? "dark" : "light";
 						document.body && document.body.classList.remove("dark");
+						if (!native) return;
+						// The native backdrop is tinted by the window's appearance.
+						// Where the window cannot take the theme, a theme that
+						// differs from the OS drops translucency (opaque --stage)
+						// instead of showing the opposite vibrancy (#59).
+						if (nativeAppearance) postNative("keel:appearance:" + t);
+						if (nativeAppearance || dark === osDark) document.documentElement.dataset.vibrancy = "1";
+						else delete document.documentElement.dataset.vibrancy;
 					}
 					window.__keelApplyTheme = applyTheme;
 					applyTheme(localStorage.getItem("keel-theme") || "system");
@@ -53,8 +71,7 @@ templ Page(p PageProps) {
 					document.documentElement.dataset.smooth = smooth;
 					document.documentElement.dataset.sidebar = sidebar;
 					document.documentElement.dataset.agent = agent;
-					var q = new URLSearchParams(location.search);
-					if (q.get("native") === "1") document.documentElement.dataset.native = "1";
+					if (native) document.documentElement.dataset.native = "1";
 					if (q.get("chrome") === "titlebar") {
 						// data-fullscreen, data-titlebar-revealed and --titlebar-overlay
 						// come from the native window (internal/desktop/titlebar.go).
