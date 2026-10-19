@@ -40,7 +40,7 @@ test('a host is added, found, and removed from the Vault sidebar', { tags: ['hos
   // Every row's menu button is named just "Actions", so remove the host
   // while the filter leaves its row the only one in the tree.
   await vault.getByRole('button', 'Actions', { visible: true }).tap();
-  await screen.getByRole('menuitem', 'Remove').tap();
+  await screen.getByRole('menuitem', 'Delete').tap();
   await expect(screen.getByRole('alertdialog')).toContainText(`Remove ${name}?`);
   await screen.getByRole('button', 'Remove').tap();
   await expect(row).toBeHidden();

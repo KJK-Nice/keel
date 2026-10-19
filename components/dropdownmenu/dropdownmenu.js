@@ -1,6 +1,6 @@
 // Uses window.FloatingUIDOM from components/floatingui (loaded in the same bundle).
 (function () {
-  const EXIT_MS = 120; // exit animation (duration-100) + slack
+  const EXIT_MS = 180; // exit motion (.k-menu, duration-base 160ms) + slack
   const COLLISION_PADDING = 5;
   // Submenu hover intent, like Base UI: open fast, close with a grace delay so
   // moving the mouse diagonally into the submenu does not flicker.
@@ -105,18 +105,25 @@
   function positionMenu(content, trigger) {
     const { computePosition, offset, flip, shift, size } = window.FloatingUIDOM;
     const mobile = window.matchMedia("(max-width: 767px)").matches;
+    // Keel: a menu opened at a point or below a row (open-at) opens below
+    // it from its start edge, whatever the trigger's own placement is.
+    const at = content._tuiAt && content._tuiAt.anchor ? content._tuiAt : null;
     const side =
+      (at && "bottom") ||
       (mobile && content.getAttribute("data-tui-dropdownmenu-mobile-side")) ||
       content.getAttribute("data-tui-dropdownmenu-side") ||
       "bottom";
     const align =
+      (at && "start") ||
       (mobile && content.getAttribute("data-tui-dropdownmenu-mobile-align")) ||
       content.getAttribute("data-tui-dropdownmenu-align") ||
       "start";
-    const sideOffset =
-      parseInt(content.getAttribute("data-tui-dropdownmenu-side-offset"), 10) || 4;
-    const alignOffset =
-      parseInt(content.getAttribute("data-tui-dropdownmenu-align-offset"), 10) || 0;
+    const sideOffset = at
+      ? at.point ? 2 : 4
+      : parseInt(content.getAttribute("data-tui-dropdownmenu-side-offset"), 10) || 4;
+    const alignOffset = at
+      ? 0
+      : parseInt(content.getAttribute("data-tui-dropdownmenu-align-offset"), 10) || 0;
     const placement = align === "center" ? side : side + "-" + align;
 
     return computePosition(trigger, content, {
@@ -164,6 +171,8 @@
   // while its opening transform is still settling.
   function startAutoPositioning(content, trigger) {
     if (content._tuiPositionCleanup) content._tuiPositionCleanup();
+    // Keel: a point (right-click) is not an element to follow; place once.
+    if (content._tuiAt && content._tuiAt.point) return positionMenu(content, trigger);
     let resolveFirst;
     const firstPosition = new Promise((resolve) => {
       resolveFirst = resolve;
@@ -197,6 +206,7 @@
       (item) =>
         containerOf(item) === container &&
         !item.disabled &&
+        !item.hidden &&
         item.getAttribute("aria-disabled") !== "true",
     );
   }
@@ -272,7 +282,8 @@
         popup.focus({ preventScroll: true });
       }
     };
-    startAutoPositioning(content, trigger).then(finish, finish);
+    const at = content._tuiAt;
+    startAutoPositioning(content, (at && at.anchor) || trigger).then(finish, finish);
   }
 
   function close(content, refocusTrigger) {
@@ -283,12 +294,18 @@
     setTransitionAttribute(content, "data-ending-style", true);
     content.querySelectorAll("[data-tui-dropdownmenu-sub]").forEach(closeSubNow);
     const trigger = triggerFor(content);
+    // Keel: a menu opened with open-at gives focus back to the row it was
+    // opened on, not to the row's "…" button.
+    const back = content._tuiAt && content._tuiAt.returnFocus;
+    const backOK = !!(back && back.isConnected);
+    content._tuiAt = null;
     if (trigger) {
       trigger.setAttribute("aria-expanded", "false");
       trigger.removeAttribute("data-popup-open");
       trigger.removeAttribute("data-pressed");
-      if (refocusTrigger) trigger.focus({ preventScroll: true });
+      if (refocusTrigger && !backOK) trigger.focus({ preventScroll: true });
     }
+    if (refocusTrigger && backOK) back.focus({ preventScroll: true });
     clearTimeout(content._tuiHide);
     content._tuiHide = setTimeout(() => {
       if (content.hasAttribute("data-closed") && !content.hidden) {
@@ -594,7 +611,13 @@
   }
 
   document.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || !(e.target instanceof Element)) return;
+    if (!(e.target instanceof Element)) return;
+    // Keel: another button outside a menu closes it too (a right-click
+    // elsewhere; a row's right-click then opens its own menu).
+    if (e.button !== 0) {
+      if (!e.target.closest("[data-tui-dropdownmenu-content]")) requestCloseAll(false);
+      return;
+    }
     const trigger = e.target.closest("[data-tui-dropdownmenu-trigger]");
     if (trigger) {
       if (!trigger.disabled) toggle(trigger, false);
@@ -675,6 +698,35 @@
       }
       return;
     }
+  });
+
+  // ----- open at a point or below an element (Keel) ------------------------
+  // Opens a trigger's menu, the same content its "…" button opens, at the
+  // pointer (detail.x / detail.y: a right-click) or below an element
+  // (detail.anchor: ⇧F10 on a focused row). When it closes with Escape or
+  // an item, focus goes back to detail.returnFocus. lib/rowmenu.js
+  // dispatches it on the trigger: one menu per row kind, two ways to open.
+  document.addEventListener("tui-dropdownmenu-open-at", (e) => {
+    const trigger = e.target instanceof Element ? e.target.closest("[data-tui-dropdownmenu-trigger]") : null;
+    const content = trigger && contentFor(trigger);
+    if (!content) return;
+    const d = e.detail || {};
+    let anchor = d.anchor instanceof Element ? d.anchor : null;
+    const point = !anchor && Number.isFinite(d.x) && Number.isFinite(d.y);
+    if (point) {
+      const x = d.x;
+      const y = d.y;
+      anchor = { getBoundingClientRect: () => ({ x, y, left: x, top: y, right: x, bottom: y, width: 0, height: 0 }) };
+    }
+    if (isOpen(content)) close(content, false);
+    clearTimeout(content._tuiHide);
+    content.hidden = true;
+    const accepted = content.dispatchEvent(
+      new CustomEvent("dropdownmenu-open-change", { bubbles: true, cancelable: true, detail: { open: true } }),
+    );
+    if (!accepted) return;
+    content._tuiAt = { anchor, point, returnFocus: d.returnFocus || null };
+    open(content, trigger, !!d.focusFirst);
   });
 
   document.addEventListener("keydown", (e) => {

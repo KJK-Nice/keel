@@ -145,7 +145,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = icon.Login01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = icon.Login01(icon.Props{Class: "k-i"}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -171,7 +171,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = dropdownmenu.Shortcut().Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = dropdownmenu.Shortcut(dropdownmenu.ShortcutProps{Attributes: templ.Attributes{"data-keys": "quick-connect"}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -197,7 +197,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = icon.Link01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = icon.Link01(icon.Props{Class: "k-i"}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -223,7 +223,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = dropdownmenu.Shortcut().Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = dropdownmenu.Shortcut(dropdownmenu.ShortcutProps{Attributes: templ.Attributes{"data-keys": "join"}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -249,7 +249,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = icon.Folder01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = icon.Folder01(icon.Props{Class: "k-i"}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -279,7 +279,7 @@ func VaultSidebar(p PageProps) templ.Component {
 							}()
 						}
 						ctx = templ.InitializeContext(ctx)
-						templ_7745c5c3_Err = icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = icon.ComputerTerminal01(icon.Props{Class: "k-i"}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -301,7 +301,7 @@ func VaultSidebar(p PageProps) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -319,7 +319,23 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"panes\" id=\"sidebar-panes\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"snippets\" id=\"sidebar-snippets\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"forwards\" id=\"sidebar-forwards\" hidden></div></div><div class=\"k-sidebar-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"keychain\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"panes\" id=\"sidebar-panes\" hidden></div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"snippets\" id=\"sidebar-snippets\" hidden>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = SidebarSnippets(p).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div><div class=\"k-sidebar-panel\" data-sidebar-panel=\"forwards\" id=\"sidebar-forwards\" hidden>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = SidebarForwards(p).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div></div><div class=\"k-sidebar-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"keychain\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -327,7 +343,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "Keychain</button> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"logs\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "Keychain</button> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" data-open-page=\"logs\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -335,7 +351,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "Logs</button> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" data-open-page=\"settings\" data-kbd=\",\" aria-label=\"Settings\" title=\"Settings\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "Logs</button> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" data-open-page=\"settings\" data-kbd=\",\" aria-label=\"Settings\" title=\"Settings\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -347,7 +363,7 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</button></div></aside>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</button></div></aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

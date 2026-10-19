@@ -2,12 +2,10 @@ package ui
 
 import (
 	"keel/components/contextmenu"
-	"keel/components/dropdownmenu"
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/components/kbd"
 	selectcomp "keel/components/select"
-	"keel/internal/store"
 )
 
 templ tabContextMenu() {
@@ -15,22 +13,27 @@ templ tabContextMenu() {
 		@contextmenu.Trigger(contextmenu.TriggerProps{ID: "tab-ctx-trigger", Class: "tabs-scroller"}) {
 			<div class="tabs" id="tabs"></div>
 		}
-		@contextmenu.Content(contextmenu.ContentProps{Class: "min-w-44"}) {
+		@contextmenu.Content() {
 			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "rename"}}) {
+				@icon.TextFont(icon.Props{Class: "k-i"})
 				Rename tab
 			}
 			@contextmenu.Separator(contextmenu.SeparatorProps{Attributes: templ.Attributes{"data-tab-menu-sep": "rename"}})
 			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close"}}) {
+				@icon.Cancel01(icon.Props{Class: "k-i"})
 				Close
 			}
 			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-others"}}) {
-				Close Others
+				@icon.CancelSquare(icon.Props{Class: "k-i"})
+				Close others
 			}
 			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-right"}}) {
-				Close to the Right
+				@icon.ArrowRight02(icon.Props{Class: "k-i"})
+				Close to the right
 			}
 			@contextmenu.Item(contextmenu.ItemProps{Attributes: templ.Attributes{"data-tab-action": "close-all"}}) {
-				Close All
+				@icon.Delete02(icon.Props{Class: "k-i"})
+				Close all
 			}
 		}
 	}
@@ -50,63 +53,6 @@ templ emptyBox(id, title, desc string) {
 			}
 			@empty.Description() {
 				{ desc }
-			}
-		}
-	}
-}
-
-templ hostRowMenu(h store.Host) {
-	@dropdownmenu.DropdownMenu() {
-		<button
-			type="button"
-			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
-			aria-label="Actions"
-			{ dropdownmenu.Trigger(ctx)... }
-		>
-			@icon.MoreHorizontal()
-		</button>
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-edit": h.ID}}) {
-				Edit
-			}
-			if h.AuthType != "local" {
-				@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-duplicate": h.ID}}) {
-					Duplicate
-				}
-				@dropdownmenu.Separator()
-				@dropdownmenu.Item(dropdownmenu.ItemProps{
-					Variant:    dropdownmenu.ItemVariantDestructive,
-					Attributes: templ.Attributes{"data-delete": h.ID},
-				}) {
-					Remove
-				}
-			}
-		}
-	}
-}
-
-templ rowMenu(editKey, editID, delKey, delID string) {
-	@dropdownmenu.DropdownMenu() {
-		<button
-			type="button"
-			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
-			aria-label="Actions"
-			{ dropdownmenu.Trigger(ctx)... }
-		>
-			@icon.MoreHorizontal()
-		</button>
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{editKey: editID}}) {
-				Edit
-			}
-			if delKey != "" {
-				@dropdownmenu.Separator()
-				@dropdownmenu.Item(dropdownmenu.ItemProps{
-					Variant:    dropdownmenu.ItemVariantDestructive,
-					Attributes: templ.Attributes{delKey: delID},
-				}) {
-					Remove
-				}
 			}
 		}
 	}

@@ -1,0 +1,181 @@
+package ui
+
+import (
+	"keel/components/dropdownmenu"
+	"keel/components/icon"
+	"keel/internal/store"
+	"keel/internal/tunnel"
+)
+
+// Row menus (k-menu, docs/design/components.css). Each row kind has one
+// menu, rendered here once per row: its "…" button opens it, and a
+// right-click on the row, ⇧F10 or the ContextMenu key opens the same
+// content at the pointer or below the row (lib/rowmenu.js, open-at in
+// components/dropdownmenu). The row carries data-row-menu. Items reuse
+// the data-* actions term.js already handles.
+
+type iconFn = func(...icon.Props) templ.Component
+
+// menuItem is one k-menu-item: a leading icon, a sentence-case label and,
+// when keysID is set, the shortcut term.js localises off macOS
+// (data-keys, lib/rowmenu.js shortcutLabel).
+templ menuItem(ic iconFn, label, keysID, keys string, attrs templ.Attributes) {
+	@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: attrs}) {
+		@ic(icon.Props{Class: "k-i"})
+		{ label }
+		if keysID != "" {
+			@dropdownmenu.Shortcut(dropdownmenu.ShortcutProps{Attributes: templ.Attributes{"data-keys": keysID}}) {
+				{ keys }
+			}
+		}
+	}
+}
+
+templ menuDanger(label string, attrs templ.Attributes) {
+	@dropdownmenu.Item(dropdownmenu.ItemProps{Variant: dropdownmenu.ItemVariantDestructive, Attributes: attrs}) {
+		@icon.Delete02(icon.Props{Class: "k-i"})
+		{ label }
+	}
+}
+
+// rowMenu is the "…" trigger and its content for one row.
+templ rowMenu(label string) {
+	@dropdownmenu.DropdownMenu() {
+		<button
+			type="button"
+			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+			aria-label={ label }
+			{ dropdownmenu.Trigger(ctx)... }
+		>
+			@icon.MoreHorizontal()
+		</button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}) {
+			{ children... }
+		}
+	}
+}
+
+templ hostRowMenu(h store.Host, hosts []store.Host) {
+	@rowMenu("Actions") {
+		@menuItem(icon.Plug01, "Connect", "connect", "↵", templ.Attributes{"data-connect": h.ID})
+		@menuItem(icon.LayoutTwoColumn, "Open in split", "open-split", "⌥↵", templ.Attributes{"data-connect-split": h.ID})
+		@dropdownmenu.Separator()
+		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit": h.ID})
+		if h.AuthType != "local" {
+			@menuItem(icon.Copy01, "Duplicate", "", "", templ.Attributes{"data-duplicate": h.ID})
+		}
+		if cmd := sshCommand(h, hosts); cmd != "" {
+			@menuItem(icon.CommandLine, "Copy SSH command", "", "", templ.Attributes{"data-copy": cmd, "data-copy-what": "SSH command"})
+		}
+		@menuItem(icon.FolderTransfer, "Move to folder…", "", "", templ.Attributes{"data-host-move": h.ID})
+		@dropdownmenu.Item(dropdownmenu.ItemProps{Role: "menuitemcheckbox", Attributes: templ.Attributes{
+			"data-host-agent": h.ID,
+			"data-agent-on":   hostAgentReadable(h),
+			"aria-checked":    hostAgentReadable(h),
+		}}) {
+			@icon.AiMagic(icon.Props{Class: "k-i"})
+			Agent can read
+			if h.ReadableByAgent() {
+				<span class="k-shortcut" aria-hidden="true">
+					@icon.Check(icon.Props{Class: "k-i"})
+				</span>
+			}
+		}
+		if h.AuthType != "local" {
+			@dropdownmenu.Separator()
+			@menuDanger("Delete", templ.Attributes{"data-delete": h.ID})
+		}
+	}
+}
+
+templ groupRowMenu(n groupNode) {
+	@rowMenu("Folder actions") {
+		@menuItem(icon.FolderOpen, "Roles and runbooks", "", "", templ.Attributes{"data-group-open": n.Group.ID})
+		@menuItem(icon.Play, "Run a runbook…", "", "", templ.Attributes{"data-group-run": n.Group.ID})
+		@dropdownmenu.Separator()
+		@menuItem(icon.Add01, "New host", "", "", templ.Attributes{"data-group-new-host": n.Group.ID})
+		@menuItem(icon.FolderAdd, "New subgroup", "", "", templ.Attributes{"data-group-new": n.Group.ID})
+		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-group-edit": n.Group.ID})
+		@menuItem(icon.TextFont, "Rename", "", "", templ.Attributes{"data-group-rename": n.Group.ID})
+		@menuItem(icon.FolderTransfer, "Move into…", "", "", templ.Attributes{"data-group-move": n.Group.ID})
+		@dropdownmenu.Separator()
+		@menuDanger("Delete", templ.Attributes{"data-group-delete": n.Group.ID})
+	}
+}
+
+// snippetRowMenu: typing goes through paletteRunSnippet, which asks
+// Approve before type (§6); nothing here writes a PTY.
+templ snippetRowMenu(s store.Snippet) {
+	@rowMenu("Actions") {
+		@menuItem(icon.Keyboard, "Type into pane…", "", "", templ.Attributes{"data-snippet-run": s.ID})
+		@menuItem(icon.Copy01, "Copy", "", "", templ.Attributes{"data-copy": s.Command, "data-copy-what": "snippet"})
+		@dropdownmenu.Separator()
+		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-snippet": s.ID})
+		@dropdownmenu.Separator()
+		@menuDanger("Delete", templ.Attributes{"data-delete-snippet": s.ID})
+	}
+}
+
+templ tunnelRowMenu(t tunnel.Info) {
+	@rowMenu("Actions") {
+		if tunnelState(t).On {
+			@menuItem(icon.Stop, "Stop", "", "", templ.Attributes{"data-tunnel-stop": t.ID})
+		} else {
+			@menuItem(icon.Play, "Start", "", "", templ.Attributes{"data-tunnel-start": t.ID})
+		}
+		if addr := tunnelLocalAddress(t); addr != "" {
+			@menuItem(icon.Link01, "Copy local address", "", "", templ.Attributes{"data-copy": addr, "data-copy-what": "local address"})
+		}
+		@dropdownmenu.Separator()
+		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-tunnel": t.ID})
+		@dropdownmenu.Separator()
+		@menuDanger("Delete", templ.Attributes{"data-delete-tunnel": t.ID})
+	}
+}
+
+templ notebookCardMenu(nb store.Notebook) {
+	@rowMenu("Actions") {
+		@menuItem(icon.NotebookPen, "Open", "", "", templ.Attributes{"data-notebook-open": nb.ID})
+		@menuItem(icon.TextFont, "Rename", "", "", templ.Attributes{"data-notebook-rename": nb.ID})
+		if nb.Pinned {
+			@menuItem(icon.PinOff, "Unpin", "", "", templ.Attributes{"data-notebook-pin": nb.ID})
+		} else {
+			@menuItem(icon.Pin, "Pin", "", "", templ.Attributes{"data-notebook-pin": nb.ID})
+		}
+		if nb.Private {
+			@menuItem(icon.SquareUnlock02, "Let the agent read it", "", "", templ.Attributes{"data-notebook-private": nb.ID, "data-private": privateAttr(nb.Private)})
+		} else {
+			@menuItem(icon.SquareLock02, "Make private", "", "", templ.Attributes{"data-notebook-private": nb.ID, "data-private": privateAttr(nb.Private)})
+		}
+		@menuItem(icon.Clock01, "History", "", "", templ.Attributes{"data-notebook-history": nb.ID})
+		if !nb.Private {
+			// §6 rule 12: a private notebook does not exist for the agent,
+			// so it is never offered to it.
+			@dropdownmenu.Separator()
+			@menuItem(icon.AiMagic, "Ask the agent about this notebook", "", "", templ.Attributes{"data-notebook-ask-id": nb.ID})
+		}
+		@dropdownmenu.Separator()
+		@menuDanger("Delete", templ.Attributes{"data-delete-notebook": nb.ID})
+	}
+}
+
+// PaneMenu is the one menu for every pane: the pane bar's "More pane
+// actions" button, a right-click on a pane bar and a row of the sidebar's
+// Panes section open it (term.js sets the pane and which items show:
+// data-pane-only="bar" or "row", Reconnect only for an ended pane, Share
+// only for a live terminal). Terminal right-click is unchanged.
+templ PaneMenu() {
+	@dropdownmenu.DropdownMenu(dropdownmenu.Props{ID: "pane-menu"}) {
+		<button type="button" id="pane-menu-trigger" hidden tabindex="-1" aria-label="Pane actions" { dropdownmenu.Trigger(ctx)... }></button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}) {
+			@menuItem(icon.CenterFocus, "Focus", "", "", templ.Attributes{"data-pane-act": "focus", "data-pane-only": "row"})
+			@menuItem(icon.LayoutTwoColumn, "Split right", "split-right", "⌘⇧D", templ.Attributes{"data-pane-act": "split-h"})
+			@menuItem(icon.LayoutTwoRow, "Split down", "split-down", "⌘⇧E", templ.Attributes{"data-pane-act": "split-v"})
+			@menuItem(icon.ArrowExpand01, "Focus view", "focus-pane-zoom", "⌘⇧↵", templ.Attributes{"data-pane-act": "zoom", "data-pane-only": "bar"})
+			@menuItem(icon.Share01, "Share", "", "", templ.Attributes{"data-pane-act": "share"})
+			@menuItem(icon.Refresh, "Reconnect", "", "", templ.Attributes{"data-pane-act": "reconnect"})
+			@dropdownmenu.Separator()
+			@menuItem(icon.Cancel01, "Close pane", "close-tab", "⌘W", templ.Attributes{"data-pane-act": "close"})
+		}
+	}
+}

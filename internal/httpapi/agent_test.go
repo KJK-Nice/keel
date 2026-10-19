@@ -313,6 +313,35 @@ func TestHostAgentFlagsAPI(t *testing.T) {
 	}
 }
 
+// The host menu's "Agent can read" changes that switch only: the password
+// and the other flags stay as saved.
+func TestHostAgentReadableToggle(t *testing.T) {
+	f := newAgentFixture(t, testToken)
+	code, b := f.do(t, "POST", "/api/hosts", map[string]any{"name": "web", "address": "web", "username": "u", "authType": "password", "password": "pw-123456", "production": true})
+	if code != 201 {
+		t.Fatalf("%d %s", code, b)
+	}
+	var h store.Host
+	_ = json.Unmarshal(b, &h)
+	code, b = f.do(t, "PUT", "/api/hosts/"+h.ID+"/agent-readable", map[string]any{"readable": false})
+	if code != 200 || !bytes.Contains(b, []byte(`"agentReadable":false`)) || !bytes.Contains(b, []byte(`"production":true`)) || bytes.Contains(b, []byte("pw-123456")) {
+		t.Fatalf("%d %s", code, b)
+	}
+	got, err := f.st.GetHost(h.ID)
+	if err != nil || got.ReadableByAgent() || got.Password != "pw-123456" || !got.IsProduction() {
+		t.Fatalf("stored host = %+v, %v", got, err)
+	}
+	if code, b = f.do(t, "PUT", "/api/hosts/"+h.ID+"/agent-readable", map[string]any{"readable": true}); code != 200 || !bytes.Contains(b, []byte(`"agentReadable":true`)) {
+		t.Fatalf("%d %s", code, b)
+	}
+	if code, _ = f.do(t, "PUT", "/api/hosts/"+h.ID+"/agent-readable", map[string]any{}); code != 400 {
+		t.Fatalf("missing readable: %d", code)
+	}
+	if code, _ = f.do(t, "PUT", "/api/hosts/nope/agent-readable", map[string]any{"readable": true}); code != 404 {
+		t.Fatalf("unknown host: %d", code)
+	}
+}
+
 func TestAgentLogEntriesListed(t *testing.T) {
 	f := newAgentFixture(t, testToken)
 	f.logs.Append(applog.Entry{Kind: "agent.read", Message: "agent read web · last 120 lines · 2 redactions", HostID: "h1", SessionID: "s1", Lines: 120, Redactions: map[string]int{"jwt": 2}})

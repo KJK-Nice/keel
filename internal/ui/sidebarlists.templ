@@ -1,0 +1,112 @@
+package ui
+
+import "keel/components/icon"
+
+// SidebarSnippets is the sidebar's Snippets segment: snippets, then
+// notebooks (pinned first). The stream pushes it like the other lists
+// (docs/ui-redesign.md §12); term.js filters the rows by the sidebar search
+// (data-side-filter) and applies it again after each push. Typing a
+// snippet asks Approve before type.
+templ SidebarSnippets(p PageProps) {
+	<div id="sidebar-snippets-list" class="k-side-lists">
+		<div class="k-side-section" data-side-group>
+			for _, s := range p.Snippets {
+				<div class="k-side-row" data-side-filter={ s.Name + " " + s.Command } data-row-menu>
+					<button type="button" class="k-side-item" data-snippet-run={ s.ID } title="Type into the focused pane after you approve">
+						<span class="k-tile k-tile--sm">
+							@icon.SourceCode()
+						</span>
+						<span class="k-side-main"><span class="k-side-name">{ sideSnippetName(s) }</span><span class="k-side-sub">{ snippetFirstLine(s) }</span></span>
+					</button>
+					<div class="k-side-menu">
+						@snippetRowMenu(s)
+					</div>
+				</div>
+			}
+			if len(p.Snippets) == 0 {
+				<p class="k-side-note">No snippets yet.</p>
+			} else {
+				<p class="k-side-note" data-side-nomatch hidden>No snippets match.</p>
+			}
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="snippets">Manage snippets</button>
+		</div>
+		<div class="k-side-label">Notebooks</div>
+		<div class="k-side-section" data-side-group>
+			for _, nb := range vaultNotebooks(p.Notebooks) {
+				<div class="k-side-row" data-side-filter={ nb.Name } data-row-menu>
+					<button type="button" class="k-side-item" data-notebook-open={ nb.ID }>
+						<span class="k-tile k-tile--sm">
+							@icon.NotebookPen()
+						</span>
+						<span class="k-side-main"><span class="k-side-name">{ sideNotebookName(nb) }</span></span>
+					</button>
+					<button
+						type="button"
+						class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-side-pin"
+						data-notebook-pin={ nb.ID }
+						aria-label={ pinLabel(nb) + " " + sideNotebookName(nb) }
+						aria-pressed={ boolAttr(nb.Pinned) }
+						title={ pinLabel(nb) }
+					>
+						@icon.Pin()
+					</button>
+					<div class="k-side-menu">
+						@notebookCardMenu(nb)
+					</div>
+				</div>
+			}
+			if len(p.Notebooks) == 0 {
+				<p class="k-side-note">No notebooks yet.</p>
+			} else {
+				<p class="k-side-note" data-side-nomatch hidden>No notebooks match.</p>
+			}
+			<div class="k-side-actions">
+				<button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-notebook-new>New notebook</button>
+				<button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="notebooks">All notebooks</button>
+			</div>
+		</div>
+	</div>
+}
+
+// SidebarForwards is the sidebar's Forwards segment, pushed by the stream
+// whenever a forward is saved or changes state.
+templ SidebarForwards(p PageProps) {
+	<div id="sidebar-forwards-list" class="k-side-lists">
+		<div class="k-side-section" data-side-group>
+			for _, t := range p.Tunnels {
+				{{ st := tunnelState(t) }}
+				<div class="k-side-row" data-side-filter={ t.Name + " " + hostNameByID(p.Hosts, t.HostID) + " " + t.DestHost } data-row-menu>
+					<button type="button" class="k-side-item" data-open-page="forwards" title={ st.Label }>
+						<span class={ "k-dot", st.DotClass } aria-hidden="true"></span>
+						<span class="k-side-main"><span class="k-side-name">{ t.Name }</span><span class="k-side-sub">{ tunnelListen(t) + " → " + tunnelDest(t) }</span></span>
+					</button>
+					<button
+						type="button"
+						class="k-switch"
+						role="switch"
+						aria-label={ t.Name + " on" }
+						if st.On {
+							aria-checked="true"
+							data-tunnel-stop={ t.ID }
+						} else {
+							aria-checked="false"
+							data-tunnel-start={ t.ID }
+						}
+					></button>
+					<div class="k-side-menu">
+						@tunnelRowMenu(t)
+					</div>
+				</div>
+			}
+			if len(p.Tunnels) == 0 {
+				<p class="k-side-note">No forwards yet.</p>
+			} else {
+				<p class="k-side-note" data-side-nomatch hidden>No forwards match.</p>
+			}
+			<div class="k-side-actions">
+				<button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-new-tunnel>New forward</button>
+				<button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="forwards">Manage forwards</button>
+			</div>
+		</div>
+	</div>
+}

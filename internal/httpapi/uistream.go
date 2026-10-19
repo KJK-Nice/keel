@@ -218,6 +218,8 @@ func (s *Server) pushLists(sse *datastar.ServerSentEventGenerator, r *http.Reque
 		ui.IdentityList(p),
 		ui.TunnelList(p),
 		ui.SnippetList(p),
+		ui.SidebarSnippets(p),
+		ui.SidebarForwards(p),
 		ui.NotebookList(p),
 		ui.LogList(p),
 	} {

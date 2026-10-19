@@ -53,28 +53,28 @@ templ VaultSidebar(p PageProps) {
 					>
 						@icon.MoreHorizontal()
 					</button>
-					@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
+					@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom}) {
 						@dropdownmenu.Group() {
 							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-quick"}) {
-								@icon.Login01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								@icon.Login01(icon.Props{Class: "k-i"})
 								Quick connect
-								@dropdownmenu.Shortcut() {
+								@dropdownmenu.Shortcut(dropdownmenu.ShortcutProps{Attributes: templ.Attributes{"data-keys": "quick-connect"}}) {
 									⌘⇧O
 								}
 							}
 							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-join"}) {
-								@icon.Link01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								@icon.Link01(icon.Props{Class: "k-i"})
 								Join session
-								@dropdownmenu.Shortcut() {
+								@dropdownmenu.Shortcut(dropdownmenu.ShortcutProps{Attributes: templ.Attributes{"data-keys": "join"}}) {
 									⌘J
 								}
 							}
 							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-new-group", Attributes: templ.Attributes{"data-group-new": ""}}) {
-								@icon.Folder01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								@icon.Folder01(icon.Props{Class: "k-i"})
 								New group
 							}
 							@dropdownmenu.Item(dropdownmenu.ItemProps{ID: "btn-welcome-local"}) {
-								@icon.ComputerTerminal01(icon.Props{Attributes: templ.Attributes{"data-icon": "inline-start"}})
+								@icon.ComputerTerminal01(icon.Props{Class: "k-i"})
 								Local terminal
 							}
 						}
@@ -93,8 +93,12 @@ templ VaultSidebar(p PageProps) {
 				@HostList(p)
 			</div>
 			<div class="k-sidebar-panel" data-sidebar-panel="panes" id="sidebar-panes" hidden></div>
-			<div class="k-sidebar-panel" data-sidebar-panel="snippets" id="sidebar-snippets" hidden></div>
-			<div class="k-sidebar-panel" data-sidebar-panel="forwards" id="sidebar-forwards" hidden></div>
+			<div class="k-sidebar-panel" data-sidebar-panel="snippets" id="sidebar-snippets" hidden>
+				@SidebarSnippets(p)
+			</div>
+			<div class="k-sidebar-panel" data-sidebar-panel="forwards" id="sidebar-forwards" hidden>
+				@SidebarForwards(p)
+			</div>
 		</div>
 		<div class="k-sidebar-foot">
 			<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-open-page="keychain">

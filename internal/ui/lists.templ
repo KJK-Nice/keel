@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"keel/components/dropdownmenu"
 	"keel/components/icon"
 	"keel/internal/applog"
 	"keel/internal/store"
@@ -31,10 +30,10 @@ templ HostList(p PageProps) {
 				@sideEmpty("No hosts match", "Add a host or clear the filter.")
 			} else {
 				for _, h := range loose {
-					@treeHost(h)
+					@treeHost(h, p.Hosts)
 				}
 				for _, n := range tree {
-					@treeGroup(n)
+					@treeGroup(n, p.Hosts)
 				}
 			}
 		}
@@ -48,7 +47,7 @@ templ sideEmpty(title, desc string) {
 	</div>
 }
 
-templ treeGroup(n groupNode) {
+templ treeGroup(n groupNode, hosts []store.Host) {
 	<div
 		class="group-tree-node k-tree-group"
 		data-group-id={ n.Group.ID }
@@ -57,7 +56,7 @@ templ treeGroup(n groupNode) {
 		data-group-depth={ nestDepthAttr(n.Depth) }
 		data-group-name={ n.Group.Name }
 	>
-		<div class="group-tree-heading k-tree-row" draggable="true" data-drag-group={ n.Group.ID }>
+		<div class="group-tree-heading k-tree-row" draggable="true" data-drag-group={ n.Group.ID } data-row-menu>
 			<button
 				type="button"
 				class="k-tree-grp"
@@ -74,24 +73,24 @@ templ treeGroup(n groupNode) {
 		</div>
 		<div class="group-tree-children">
 			for _, h := range n.Hosts {
-				@treeHost(h)
+				@treeHost(h, hosts)
 			}
 			for _, k := range n.Kids {
-				@treeGroup(k)
+				@treeGroup(k, hosts)
 			}
 		</div>
 	</div>
 }
 
-templ treeHost(h store.Host) {
-	<div class="k-tree-row k-tree-hostrow" data-id={ h.ID } draggable="true" data-drag-host={ h.ID }>
+templ treeHost(h store.Host, hosts []store.Host) {
+	<div class="k-tree-row k-tree-hostrow" data-id={ h.ID } draggable="true" data-drag-host={ h.ID } data-row-menu>
 		<button type="button" class="k-tree-host" data-connect={ h.ID } title={ hostSubtitle(h) }>
 			@hostTile(h)
 			<span class="k-tree-name">{ h.Name }</span>
 			<span class="k-tree-live" data-host-live={ h.ID } hidden></span>
 		</button>
 		<div class="k-tree-menu">
-			@hostRowMenu(h)
+			@hostRowMenu(h, hosts)
 		</div>
 	</div>
 }
@@ -114,43 +113,6 @@ templ hostIcon(h store.Host) {
 		@icon.ComputerTerminal01()
 	} else {
 		@icon.Server()
-	}
-}
-
-templ groupRowMenu(n groupNode) {
-	@dropdownmenu.DropdownMenu() {
-		<button
-			type="button"
-			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
-			aria-label="Folder actions"
-			{ dropdownmenu.Trigger(ctx)... }
-		>
-			@icon.MoreHorizontal()
-		</button>
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-open": n.Group.ID}}) {
-				Roles and runbooks
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-edit": n.Group.ID}}) {
-				Edit
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-new": n.Group.ID}}) {
-				New subgroup
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-rename": n.Group.ID}}) {
-				Rename
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-group-move": n.Group.ID}}) {
-				Move into…
-			}
-			@dropdownmenu.Separator()
-			@dropdownmenu.Item(dropdownmenu.ItemProps{
-				Variant:    dropdownmenu.ItemVariantDestructive,
-				Attributes: templ.Attributes{"data-group-delete": n.Group.ID},
-			}) {
-				Remove
-			}
-		}
 	}
 }
 
@@ -231,6 +193,7 @@ templ tunnelRow(hosts []store.Host, t tunnel.Info) {
 		data-status={ st.Filter }
 		data-filter-text={ t.Name + " " + hostNameByID(hosts, t.HostID) + " " + tunnelListen(t) + " " + tunnelDest(t) }
 		data-show={ "(" + filterShow("_tunnelFilter") + ") && ($_tunnelState === 'all' || el.dataset.status === $_tunnelState)" }
+		data-row-menu
 	>
 		<td><span class="k-cell-name">{ t.Name }</span></td>
 		<td><span class="k-badge k-badge--mono">{ tunnelFlag(t.Kind) }</span></td>
@@ -269,7 +232,7 @@ templ tunnelRow(hosts []store.Host, t tunnel.Info) {
 			></button>
 		</td>
 		<td class="k-cell-end">
-			@rowMenu("data-edit-tunnel", t.ID, "data-delete-tunnel", t.ID)
+			@tunnelRowMenu(t)
 		</td>
 	</tr>
 }
@@ -311,7 +274,7 @@ templ NotebookList(p PageProps) {
 			@sideEmpty("No notebooks yet", "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.")
 		} else {
 			for _, nb := range vaultNotebooks(p.Notebooks) {
-				<div class="k-rowitem" data-id={ nb.ID } data-filter-text={ nb.Name + " " + notebookPreview(nb) } data-show={ filterShow("_notebookFilter") }>
+				<div class="k-rowitem" data-id={ nb.ID } data-filter-text={ nb.Name + " " + notebookPreview(nb) } data-show={ filterShow("_notebookFilter") } data-row-menu>
 					<button type="button" class="k-rowitem-main" data-notebook-open={ nb.ID }>
 						<span class="k-tile">
 							@icon.NotebookPen()
@@ -341,51 +304,6 @@ templ NotebookList(p PageProps) {
 			}
 		}
 	</div>
-}
-
-templ notebookCardMenu(nb store.Notebook) {
-	@dropdownmenu.DropdownMenu() {
-		<button
-			type="button"
-			class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
-			aria-label="Actions"
-			{ dropdownmenu.Trigger(ctx)... }
-		>
-			@icon.MoreHorizontal()
-		</button>
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Side: dropdownmenu.SideBottom, Class: "w-auto min-w-max"}) {
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-open": nb.ID}}) {
-				Open
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-rename": nb.ID}}) {
-				Rename
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-pin": nb.ID}}) {
-				if nb.Pinned {
-					Unpin
-				} else {
-					Pin
-				}
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-private": nb.ID, "data-private": privateAttr(nb.Private)}}) {
-				if nb.Private {
-					Let the agent read it
-				} else {
-					Make private
-				}
-			}
-			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-history": nb.ID}}) {
-				History
-			}
-			@dropdownmenu.Separator()
-			@dropdownmenu.Item(dropdownmenu.ItemProps{
-				Variant:    dropdownmenu.ItemVariantDestructive,
-				Attributes: templ.Attributes{"data-delete-notebook": nb.ID},
-			}) {
-				Remove
-			}
-		}
-	}
 }
 
 // LogList is the Logs table body: newest first, filtered by the search
