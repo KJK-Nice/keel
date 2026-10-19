@@ -101,13 +101,15 @@ test('native vibrancy tints each area once, so the backdrop shows through', asyn
   await vault.getByRole('button', 'Hosts').tap();
   await vault.getByRole('button', /^Local Shell\b/).tap();
   await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
+  expect(await cover(browser, ['.term-tab.is-active .pane-bar'])).toEqual([]);
+  // The body has its own vibrancy-term-* step (light Medium is 90%); the
+  // per-step and per-theme bands are checked below.
   expect(
-    await cover(browser, [
-      '.term-tab.is-active .pane-bar',
-      '.term-tab.is-active .term-body',
-      '.term-tab.is-active .xterm-scrollable-element',
-      '.term-tab.is-active .xterm-screen',
-    ]),
+    await cover(
+      browser,
+      ['.term-tab.is-active .term-body', '.term-tab.is-active .xterm-scrollable-element', '.term-tab.is-active .xterm-screen'],
+      [0.5, 0.95],
+    ),
   ).toEqual([]);
   await screen.getByRole('button', 'Close tab').tap();
 });
@@ -154,4 +156,180 @@ test('a browser tab never sets vibrancy', async ({ app, browser }) => {
     await apply(browser, choice);
     expect((await state(browser)).vibrancy).toBe(null);
   }
+});
+
+// Every visible match of each selector: how much of the backdrop the match
+// and its ancestors up to html cover, and whether any of them is opaque.
+const covers = (browser: any, selector: string) =>
+  browser.evaluate(`(() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const alpha = (c) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillStyle = c;
+      ctx.fillRect(0, 0, 1, 1);
+      return ctx.getImageData(0, 0, 1, 1).data[3] / 255;
+    };
+    return [...document.querySelectorAll(${JSON.stringify(selector)})]
+      .filter((e) => e.getClientRects().length && getComputedStyle(e).visibility === 'visible')
+      .map((el) => {
+        let clear = 1, opaque = false, by = '';
+        for (let e = el; e; e = e.parentElement) {
+          const cs = getComputedStyle(e);
+          const a = alpha(cs.backgroundColor) * Number(cs.opacity);
+          if (a >= 1) { opaque = true; by += ' ' + e.tagName.toLowerCase() + '.' + String(e.className).trim().split(/\\s+/).join('.'); }
+          clear *= 1 - a;
+        }
+        return { cover: Math.round((1 - clear) * 1000) / 1000, opaque, by };
+      });
+  })()`) as Promise<{ cover: number; opaque: boolean; by: string }[]>;
+
+// The split gutters: each sash is a visible, opaque --line hairline, so
+// translucent tiles still read as separate panes, not as one hole.
+const sashes = (browser: any) =>
+  browser.evaluate(`(() => {
+    const probe = document.createElement('span');
+    document.body.appendChild(probe);
+    probe.style.color = 'var(--line)';
+    const line = getComputedStyle(probe).color;
+    probe.remove();
+    return [...document.querySelectorAll('.term-tab.is-active .split-sash')].map((s) => {
+      const r = s.getBoundingClientRect();
+      const bg = getComputedStyle(s).backgroundColor;
+      return { size: Math.min(r.width, r.height), line: bg === line };
+    });
+  })()`) as Promise<{ size: number; line: boolean }[]>;
+
+// Live: the inline theme script reads data-translucency, as a reload would.
+const live = (browser: any, choice: string, step: string) =>
+  browser.evaluate(`(() => {
+    document.documentElement.dataset.translucency = ${JSON.stringify(step)};
+    window.__keelApplyTheme(${JSON.stringify(choice)});
+  })()`);
+
+const PANE_LAYERS = ['.term-body', '.xterm-scrollable-element', '.xterm-screen'];
+
+// Which xterm renderer each visible pane of the active tab runs: the native
+// window drops WebGL while a tab is split (paneWantsWebgl), so split panes
+// paint with the DOM renderer (.xterm-rows) and a solo pane gets WebGL back.
+const renderers = (browser: any) =>
+  browser.evaluate(`[...document.querySelectorAll('.term-tab.is-active .term-wrap')]
+    .filter((w) => w.getClientRects().length && getComputedStyle(w).visibility === 'visible')
+    .map((w) => (w.querySelector('.xterm-screen canvas') ? 'webgl' : w.querySelector('.xterm-rows') ? 'dom' : 'none'))`) as Promise<string[]>;
+
+// Every pane's body, solo or split, carries the step's vibrancy-term-*
+// share of --term-bg once (denser in light, where the blurred desktop
+// otherwise shows as dark shapes); xterm's own layers add nothing.
+async function expectPanesAt(browser: any, panes: number, theme: string, step: string) {
+  await live(browser, theme, step);
+  expect((await state(browser)).vibrancy).toBe('1');
+  const want = await token(browser, `vibrancy-term-${step}`);
+  for (const layer of PANE_LAYERS) {
+    const got = await covers(browser, `.term-tab.is-active ${layer}`);
+    expect(got.length, `${theme} ${step} ${layer} count`).toBe(panes);
+    for (const c of got) {
+      expect(c.opaque, `${theme} ${step} ${layer} opaque by${c.by}`).toBe(false);
+      expect(Math.abs(c.cover - want), `${theme} ${step} ${layer} covers ${c.cover}, want ${want}`).toBeLessThan(0.02);
+    }
+  }
+  // The pane bars stay chrome-tinted, the focused one on surface.
+  const bars = await covers(browser, '.term-tab.is-active .pane-bar');
+  expect(bars.length).toBe(panes);
+  for (const c of bars) expect(c.opaque, `${theme} ${step} pane bar opaque`).toBe(false);
+  expect(await browser.evaluate(`document.querySelectorAll('.term-tab.is-active .term-wrap.is-focused .pane-bar').length`)).toBe(1);
+}
+
+test('solo and split panes are translucent at every step; light tints the terminal denser', async ({ app, browser, screen }) => {
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await setStep(browser, 'medium');
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  for (const step of ['low', 'medium', 'high'] as const) {
+    await live(browser, 'dark', step);
+    const dark = await token(browser, `vibrancy-term-${step}`);
+    expect(dark).toBeCloseTo(await token(browser, `vibrancy-tint-${step}`), 3);
+    await live(browser, 'light', step);
+    expect(await token(browser, `vibrancy-term-${step}`)).toBeGreaterThan(dark);
+  }
+
+  const vault = screen.getByRole('complementary', 'Vault');
+  await vault.getByRole('button', 'Hosts').tap();
+  await vault.getByRole('button', /^Local Shell\b/).tap();
+  const terms = screen.getByRole('textbox', 'Terminal input');
+  await expect(terms.first()).toBeFocused();
+  for (const theme of ['dark', 'light'] as const) {
+    for (const step of ['low', 'medium', 'high'] as const) await expectPanesAt(browser, 1, theme, step);
+  }
+
+  // Split: both panes move to the DOM renderer and keep the clear theme.
+  await terms.first().press('Meta+Shift+D');
+  await expect(terms).toHaveCount(2);
+  await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
+  for (const layer of ['.xterm-rows', '.xterm-viewport']) {
+    for (const c of await covers(browser, `.term-tab.is-active ${layer}`)) expect(c.opaque, `split ${layer} opaque by${c.by}`).toBe(false);
+  }
+  for (const theme of ['dark', 'light'] as const) {
+    for (const step of ['low', 'medium', 'high'] as const) {
+      await expectPanesAt(browser, 2, theme, step);
+      const gutters = await sashes(browser);
+      expect(gutters.length).toBe(1);
+      expect(gutters[0].size).toBeGreaterThanOrEqual(1);
+      expect(gutters[0].line).toBe(true);
+    }
+  }
+
+  // Back to one pane: WebGL again, still clear; then split once more.
+  await screen.getByRole('button', 'Close pane', { visible: true }).nth(1).tap();
+  await expect(terms).toHaveCount(1);
+  await expect.poll(() => renderers(browser)).toEqual(['webgl']);
+  await expectPanesAt(browser, 1, 'dark', 'medium');
+  await terms.first().press('Meta+Shift+D');
+  await expect(terms).toHaveCount(2);
+  await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
+  await expectPanesAt(browser, 2, 'light', 'high');
+
+  // Text over a loud stand-in backdrop (the page has no OS backdrop): the
+  // glyphs must stay crisp on the tinted, clear-backed panes.
+  for (const t of [0, 1]) {
+    await terms.nth(t).pressSequentially(`printf 'pane ${t + 1}  user@host:~$ ls -la  \\342\\226\\210\\342\\226\\210 0123456789\\n'`);
+    await terms.nth(t).press('Enter');
+  }
+  // Each theme through a reload (keel-theme, as Settings stores it), so
+  // xterm takes the theme's colours; the split comes back restored, on the
+  // DOM renderer and clear like a new pane.
+  for (const theme of ['dark', 'light'] as const) {
+    await browser.evaluate(`localStorage.setItem('keel-theme', ${JSON.stringify(theme)})`);
+    await open(app, '&native=1&appearance=native&chrome=titlebar');
+    await expect(terms).toHaveCount(2);
+    await expect.poll(() => renderers(browser)).toEqual(['dom', 'dom']);
+    await expect(screen.getByText(/pane 2 {2}user@host/).first()).toBeVisible();
+    await expectPanesAt(browser, 2, theme, 'medium');
+    await browser.evaluate(`(() => {
+      const s = document.createElement('style');
+      s.id = 'e2e-backdrop';
+      s.textContent = 'html[data-vibrancy]{background:repeating-linear-gradient(35deg,#ff2d6f 0 60px,#1fd1ff 60px 120px,#ffe14d 120px 180px,#111 180px 240px) !important}';
+      document.head.appendChild(s);
+    })()`);
+    await app.screenshot(`vibrancy-split-backdrop-${theme}`);
+    await browser.evaluate(`document.getElementById('e2e-backdrop')?.remove()`);
+  }
+  await browser.evaluate(`localStorage.removeItem('keel-theme')`);
+
+  // Off: every pane is opaque again, in both themes.
+  await setStep(browser, 'off');
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await expect(terms).toHaveCount(2);
+  for (const theme of ['dark', 'light'] as const) {
+    await apply(browser, theme);
+    expect((await state(browser)).vibrancy).toBe(null);
+    for (const layer of PANE_LAYERS) {
+      const got = await covers(browser, `.term-tab.is-active ${layer}`);
+      expect(got.length).toBe(2);
+      for (const c of got) expect(c.opaque, `off ${theme} ${layer}`).toBe(true);
+    }
+  }
+  await setStep(browser, 'medium');
+  await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
+  await expect(terms).toHaveCount(1);
+  await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+  await expect(terms).toBeHidden();
 });

@@ -634,8 +634,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
     "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
   ];
-  // Under native vibrancy keel.css tints a solo pane's body once (--term-bg
-  // at the Window translucency step), like the chrome; xterm paints a clear
+  // Under native vibrancy keel.css tints every pane's body once, solo or
+  // split (--term-bg at the step's vibrancy-term-* share; termOpts and
+  // applyTerminalPrefs give every pane, new or restored, the same clear
+  // theme and allowTransparency), like the chrome; xterm paints a clear
   // background over it. A second tint here (or an opaque WebGL cell) would
   // hide the backdrop (#75). Off drops data-vibrancy: opaque, as before.
   const NATIVE_TERM_ALPHA = 0;
@@ -2149,10 +2151,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function syncNativeSplitTheme(pane) {
     if (!isNativeWindow() || !pane?.term) return;
-    const tab = state.tabs.get(pane.tabId);
-    const split = tab && leafCount(tab.layout) > 1 && !tab.zoomedPaneId;
+    // Split panes run on the DOM renderer here (paneWantsWebgl) but take the
+    // same theme as a solo pane: under vibrancy a clear background over the
+    // tinted .term-body (keel.css), otherwise the opaque --term-bg.
     const theme = { ...xtermTheme() };
-    if (split) theme.background = tokenTermTheme().background;
+    const glass = isVibrant();
+    if (pane.term.options.allowTransparency !== glass) pane.term.options.allowTransparency = glass;
     // renderTabs calls this for every pane on every render. A new theme
     // object, even with the same colors, makes xterm clear and re-upload the
     // WebGL glyph atlas, so only assign when a color actually changes.

@@ -42,10 +42,11 @@ html[data-vibrancy] body {
 }
 /* Settings · Appearance · Window translucency picks the tint step
    (data-translucency, set before first paint by page.templ); Off drops
-   data-vibrancy instead. Values are the vibrancy-tint-* tokens. */
-html[data-vibrancy] { --vibrancy-tint: var(--vibrancy-tint-medium); }
-html[data-vibrancy][data-translucency="low"] { --vibrancy-tint: var(--vibrancy-tint-low); }
-html[data-vibrancy][data-translucency="high"] { --vibrancy-tint: var(--vibrancy-tint-high); }
+   data-vibrancy instead. Values are the vibrancy-tint-* tokens, and the
+   themed vibrancy-term-* tokens for the terminal body. */
+html[data-vibrancy] { --vibrancy-tint: var(--vibrancy-tint-medium); --vibrancy-term: var(--vibrancy-term-medium); }
+html[data-vibrancy][data-translucency="low"] { --vibrancy-tint: var(--vibrancy-tint-low); --vibrancy-term: var(--vibrancy-term-low); }
+html[data-vibrancy][data-translucency="high"] { --vibrancy-tint: var(--vibrancy-tint-high); --vibrancy-term: var(--vibrancy-term-high); }
 html[data-vibrancy] .app,
 html[data-vibrancy] .main {
   background: transparent;
@@ -71,28 +72,21 @@ html[data-vibrancy] .term-tab,
 html[data-vibrancy] .term-wrap {
   background: transparent;
 }
-/* A solo pane's glass is its body; xterm paints a clear background over it
-   (term.js xtermTheme), so the terminal is tinted once like the chrome. */
-html[data-vibrancy] .term-tab:not(.is-split) .term-body {
-  background: color-mix(in srgb, var(--term-bg) var(--vibrancy-tint), transparent);
+/* Every pane's glass is its body, solo or split: --term-bg at the step's
+   vibrancy-term-* share, denser in light (a large empty light surface
+   shows the blurred desktop as dark blotches; dark matches the chrome).
+   xterm paints a clear background over it (term.js xtermTheme), so the
+   terminal is tinted once like the chrome. Split tiles stay apart by the
+   opaque 1px --line sash and each pane bar's --line rule; nothing behind
+   the tiles is tinted, so a tile never stacks on a second layer. */
+html[data-vibrancy] .term-body {
+  background: color-mix(in srgb, var(--term-bg) var(--vibrancy-term), transparent);
 }
-html[data-vibrancy] .term-tab:not(.is-split) .term-host,
-html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm,
-html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen,
-html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen canvas {
+html[data-vibrancy] .term-host,
+html[data-vibrancy] .term-body .xterm,
+html[data-vibrancy] .term-body .xterm-screen,
+html[data-vibrancy] .term-body .xterm-screen canvas {
   background: transparent;
-}
-html[data-vibrancy] .term-tab.is-split .term-wrap,
-html[data-vibrancy] .term-tab.is-split .term-body,
-html[data-vibrancy] .term-tab.is-split .term-host,
-html[data-vibrancy] .term-tab.is-split .term-body .xterm,
-html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen,
-html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen canvas {
-  background: var(--stage);
-}
-/* Behind split tiles: whatever the opaque tiles leave uncovered. */
-html[data-vibrancy] .term-tab.is-split {
-  background: color-mix(in srgb, var(--stage) var(--vibrancy-tint), transparent);
 }
 html[data-vibrancy] .start-page {
   background: color-mix(in srgb, var(--stage) var(--vibrancy-tint), transparent);
