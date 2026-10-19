@@ -4952,6 +4952,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       pane.title = rec.name;
       pane.pinned = !!rec.pinned;
       pane.rev = rec.rev || 0;
+      pane._saveFailed = false;
       if (rec.replacedAgentEdit) toast("Saved your typing over an agent edit this pane had not loaded. The agent's version is in History.");
       if (Array.isArray(rec.cells) && rec.cells.length === pane.cells.length) {
         rec.cells.forEach((cell, i) => {
@@ -4966,6 +4967,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       persistWorkspace();
       paintSidebar();
     } catch (err) {
+      pane._saveFailed = true;
       toast(err.message || "Could not save notebook", true);
     }
   }
@@ -5194,7 +5196,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // edits to those are refused.
 
   function notebookDirty(pane) {
-    return !!pane?._autosave?.pending;
+    // A save that failed leaves typing that is only in the page.
+    return !!(pane?._autosave?.pending || pane?._saveFailed);
   }
 
   function editingNotebooks() {

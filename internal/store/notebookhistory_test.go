@@ -214,7 +214,7 @@ func TestNotebookHistoryBounds(t *testing.T) {
 	if got := pruneVersions(old, now); len(got) != 1 || got[0].ID != "b" {
 		t.Fatalf("ttl prune = %+v", got)
 	}
-	big := []NotebookVersion{{ID: "a", NotebookID: "x", Bytes: 10 << 20, KeptAt: now}, {ID: "b", NotebookID: "y", Bytes: 10 << 20, KeptAt: now}}
+	big := []NotebookVersion{{ID: "a", NotebookID: "x", Bytes: 5 << 20, KeptAt: now}, {ID: "b", NotebookID: "y", Bytes: 5 << 20, KeptAt: now}}
 	if got := pruneVersions(big, now); len(got) != 1 || got[0].ID != "b" {
 		t.Fatalf("size prune = %+v", got)
 	}

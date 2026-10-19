@@ -948,6 +948,9 @@ export function createAgentPanel(deps) {
     rec.error = "";
     repaintNbProp(id);
     try {
+      // Typing saves first, so Undo or Delete acts on what the user has and
+      // a pending save cannot write the old text back afterwards.
+      await deps.flushNotebooks?.();
       const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}${how.suffix}`, { method: how.method });
       if (conv !== state.conv) return;
       const gone = (action === "delete" || (action === "undo" && rec.p.kind === "create")) && rec.p.notebookId;

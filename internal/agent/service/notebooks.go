@@ -772,6 +772,13 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		if ed.Find == "" || len(ed.Find) > maxNotebookFindBytes {
 			return refuse("no-match", e.ID)
 		}
+		// A find the Redactor would change holds a vault value or a
+		// secret-looking value: the model never saw one, so it is a guess.
+		// Refused before matching, so "applied" or "no match" never tells
+		// the model whether its guess is in the notebook.
+		if r.Text(ed.Find).String() != ed.Find {
+			return refuse("redacted", e.ID)
+		}
 		rep := agentText(ed.Replace, r, store.MaxNotebookBytes+1)
 		subs = append(subs, fr{ed.Find, rep})
 		added += rep + "\n"
@@ -974,7 +981,9 @@ func (s *Service) ConfirmNotebookDelete(convID, id string) (NotebookAction, erro
 	if err != nil {
 		return NotebookAction{}, err
 	}
-	vid, err := s.nbs.DeleteNotebookAgentProposed(v.NotebookID, -1)
+	// At the revision the agent proposed it: a notebook changed since is
+	// refused (the user can delete it from Notebooks).
+	vid, err := s.nbs.DeleteNotebookAgentProposed(v.NotebookID, v.Rev)
 	if err != nil {
 		s.releaseNbProp(p)
 		return NotebookAction{}, err

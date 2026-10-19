@@ -525,6 +525,16 @@ func TestAgentWholeBodyEditOnlyOfCleanNotebooks(t *testing.T) {
 	if !strings.Contains(f.text(t, nbName), vaultPass) {
 		t.Fatal("the user's notebook was rewritten")
 	}
+	// A find holding a vault value is a guess at text Keel redacted: refused
+	// before it is matched, so the answer says nothing about the guess.
+	f.fake.Script(readBlock(n), editBlock(n, 1, "the password is "+vaultPass, "gone"))
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
+	if c := resp.Notebooks[0]; c.Reason != "redacted" {
+		t.Fatalf("probe card = %+v", c)
+	}
+	if !strings.Contains(f.text(t, nbName), vaultPass) {
+		t.Fatal("a probe changed the notebook")
+	}
 	m := f.num(t, "Third")
 	f.fake.Script(readBlock(m), editBlock(m, 1, "NOT-THERE", "x"))
 	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
@@ -689,6 +699,18 @@ func TestAgentDeleteNeedsTheUser(t *testing.T) {
 	if act, err := f.svc.DismissNotebookProposal(conv, keep.ID); err != nil || act.Proposal.Status != "dismissed" {
 		t.Fatalf("keep → %+v %v", act, err)
 	}
+	// A notebook the user changed after the proposal is not deleted.
+	nb2, _ := f.st.GetNotebook(f.ids["Second"])
+	nb2.Cells = []store.NotebookCell{{Body: "changed since"}}
+	if _, err := f.st.UpsertNotebook(nb2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ConfirmNotebookDelete(conv, priv.ID); !errors.Is(err, store.ErrNotebookConflict) {
+		t.Fatalf("confirm on a changed notebook → %v", err)
+	}
+	f.fake.Script("```keel-notebook-delete\n{\"notebook\": " + fmt.Sprint(f.num(t, "Second")) + "}\n```")
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "drop it"})
+	priv = resp.Notebooks[0]
 	_, _ = f.st.SetNotebookPrivate(f.ids["Second"], true)
 	if _, err := f.svc.ConfirmNotebookDelete(conv, priv.ID); !errors.Is(err, store.ErrNotebookPrivate) {
 		t.Fatalf("confirm on a private notebook → %v", err)

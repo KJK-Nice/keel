@@ -21,14 +21,15 @@ import (
 //
 // Bounds: per notebook the newest maxVersionsPerNotebook versions; nothing
 // older than versionTTL; at most maxDeletedNotebooks in Recently deleted;
-// and at most maxHistoryBytes of text in all (the oldest go first).
+// and at most maxHistoryBytes of text in all (the oldest go first). The
+// file is written under the store lock; it is small and written rarely.
 
 const (
 	notebookHistoryFile    = "keel.notebook-history.json"
 	maxVersionsPerNotebook = 20
 	maxDeletedNotebooks    = 50
 	versionTTL             = 30 * 24 * time.Hour
-	maxHistoryBytes        = 16 << 20
+	maxHistoryBytes        = 8 << 20
 )
 
 // ErrHistoryUnavailable refuses a change that must keep a version first

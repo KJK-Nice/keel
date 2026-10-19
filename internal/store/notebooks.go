@@ -313,7 +313,15 @@ func (s *Store) AgentEditNotebook(id string, baseRev int, summary string, edit f
 	out.AgentUnreviewed = true
 	out.UpdatedAt = now
 	s.data.Notebooks[i] = out
-	return out, vid, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// Not on disk: put the notebook back as it was (unless something
+		// changed it meanwhile), so the card's "refused" is true.
+		if j := s.notebookIndexLocked(id); j >= 0 && s.data.Notebooks[j].Rev == out.Rev && s.data.Notebooks[j].LastBy == NotebookByAgent {
+			s.data.Notebooks[j] = ex
+		}
+		return Notebook{}, "", err
+	}
+	return out, vid, nil
 }
 
 // DeleteNotebookAgentProposed deletes a notebook the agent proposed to
@@ -343,7 +351,13 @@ func (s *Store) DeleteNotebookAgentProposed(id string, rev int) (string, error) 
 		return "", err
 	}
 	s.removeNotebookLocked(i)
-	return vid, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		if s.notebookIndexLocked(id) < 0 {
+			s.data.Notebooks = append(s.data.Notebooks, ex)
+		}
+		return "", err
+	}
+	return vid, nil
 }
 
 func checkAgentSize(nb Notebook) error {
