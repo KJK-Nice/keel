@@ -5377,7 +5377,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       .map((v) => {
         const l = NB.versionLabel(v);
         const title = nbHist.mode === "trash" ? v.name || "Notebook" : l.what;
-        const who = nbHist.mode === "trash" ? `Deleted ${NB.whenText(v.keptAt)}` : `${l.who} · ${l.when}`;
+        const who = nbHist.mode === "trash" ? `Deleted ${NB.whenText(v.keptAt)}` : l.when;
         return `<button type="button" class="notebook-history-row" role="option" aria-selected="${v.id === nbHist.selected}" data-notebook-version="${escapeHtml(v.id)}">
           <span class="notebook-history-who"><span class="k-badge${v.by === "agent" ? " k-badge--outline" : ""}">${escapeHtml(nbHist.mode === "trash" ? "Deleted" : l.who)}</span><span class="notebook-history-what">${escapeHtml(title)}</span></span>
           <span class="notebook-history-when">${escapeHtml(who)}</span>${l.summary ? `<span class="notebook-history-summary">${escapeHtml(l.summary)}</span>` : ""}

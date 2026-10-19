@@ -390,13 +390,6 @@ func (s *Scripted) Requests() []provider.Request {
 // that it shows as text, never as an <img>.
 const LeakImageURL = "https://keel-e2e-leak.invalid/keel-notebook-leak.png"
 
-func boolInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
 func plural(n int) string {
 	if n == 1 {
 		return ""

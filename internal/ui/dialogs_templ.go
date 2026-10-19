@@ -2207,7 +2207,7 @@ func notebookHistoryDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<div class=\"notebook-history-body\"><div class=\"notebook-history-list\" id=\"notebook-history-list\" role=\"listbox\" aria-label=\"Versions\" tabindex=\"0\"></div><div class=\"notebook-history-diff\" id=\"notebook-history-diff\" aria-live=\"polite\"></div></div><div class=\"modal-actions\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<div class=\"notebook-history-body\"><div class=\"notebook-history-list\" id=\"notebook-history-list\" role=\"listbox\" aria-label=\"Versions\"></div><div class=\"notebook-history-diff\" id=\"notebook-history-diff\" aria-live=\"polite\"></div></div><div class=\"modal-actions\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -621,7 +621,7 @@ func TestAgentNotebookTextCleaning(t *testing.T) {
 		t.Fatalf("cards = %+v", resp.Notebooks)
 	}
 	nb, _ := f.st.GetNotebook(resp.Notebooks[0].NotebookID)
-	if b := notebookText(nb); strings.ContainsAny(b, "​\u0007‮") || !strings.Contains(b, "rm -rf /tmp/x") {
+	if b := notebookText(nb); strings.ContainsAny(b, "\u200b\u0007\u202e") || !strings.Contains(b, "rm -rf /tmp/x") {
 		t.Fatalf("body = %q", b)
 	}
 	g := newNbFixture(t, "```keel-notebook\n{not json\n```")
