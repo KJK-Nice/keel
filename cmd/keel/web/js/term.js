@@ -50,7 +50,8 @@ import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createWebglGuard, webglPlan } from "./lib/webglguard.js";
 import { setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
-import { AGENT_ALERT_ICON, AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
+import { AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
+import { ICON as THREAD_ICON } from "./ui/agentthread.js";
 import * as NB from "./lib/notebooks.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
@@ -841,6 +842,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     snippetModal: document.getElementById("snippet-modal"),
     snippetForm: document.getElementById("snippet-form"),
     notebookRenameModal: document.getElementById("notebook-rename-modal"),
+    notebookHistoryModal: document.getElementById("notebook-history-modal"),
     notebookRenameForm: document.getElementById("notebook-rename-form"),
     hostKeyModal: document.getElementById("hostkey-modal"),
     hostKeyForm: document.getElementById("hostkey-form"),
@@ -3488,10 +3490,15 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   // approve-before-type: palette (and any chrome) must resolve true before PTY writes.
-  function approveBeforeType(command, sessionLabel) {
+  function approveBeforeType(command, sessionLabel, agentNote = "") {
     const modal = els.ptyInjectModal;
     const preview = document.getElementById("pty-inject-preview");
     const sess = document.getElementById("pty-inject-session");
+    const note = document.getElementById("pty-inject-agent");
+    if (note) {
+      note.textContent = agentNote;
+      note.hidden = !agentNote;
+    }
     if (!modal || typeof modal.showModal !== "function") {
       return Promise.resolve(window.confirm(`Type into ${sessionLabel || "the terminal"}?\n\n${command}`));
     }
@@ -4906,6 +4913,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       tabId: tab.id,
       kind: "notebook",
       notebookId: saved?.id || "",
+      rev: saved?.rev || 0,
       hostId: sibling?.hostId || tab.hostId || "",
       title,
       subtitle: sibling?.subtitle || "notebook",
@@ -4923,15 +4931,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   async function persistNotebook(pane) {
     if (!isNotebookPane(pane)) return;
-    // A draft from the agent (§18) is kept only by Save notebook, through
-    // keel serve's draft route: no other save (autosave, a tab rename,
-    // a pin) may make it the user's own notebook. Its title and text stay
-    // in memory until then.
-    if (pane.draft) return;
+    // rev is the revision this pane started from (§18): a save over an
+    // agent edit the pane had not loaded keeps this text, and keel serve
+    // keeps the agent's version in History.
     const payload = {
       name: (pane.title || "Notebook").trim() || "Notebook",
       cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
       pinned: !!pane.pinned,
+      rev: pane.rev || 0,
     };
     const body = JSON.stringify(payload);
     // A save from pagehide must outlive the page; keepalive bodies are
@@ -4944,6 +4951,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       pane.notebookId = rec.id;
       pane.title = rec.name;
       pane.pinned = !!rec.pinned;
+      pane.rev = rec.rev || 0;
+      if (rec.replacedAgentEdit) toast("Saved your typing over an agent edit this pane had not loaded. The agent's version is in History.");
       if (Array.isArray(rec.cells) && rec.cells.length === pane.cells.length) {
         rec.cells.forEach((cell, i) => {
           if (pane.cells[i]) pane.cells[i].id = cell.id || pane.cells[i].id;
@@ -4972,13 +4981,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function scheduleNotebookSave(pane) {
     if (!isNotebookPane(pane)) return;
-    // A draft from the agent (§18) is kept only by Save notebook.
-    if (pane.draft) return;
     notebookAutosave(pane).schedule();
   }
 
   function saveNotebookNow(pane) {
-    if (!isNotebookPane(pane) || pane.draft) return Promise.resolve();
+    if (!isNotebookPane(pane)) return Promise.resolve();
     const auto = notebookAutosave(pane);
     auto.schedule();
     return auto.flush();
@@ -4986,10 +4993,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   // flushNotebookSaves saves pending edits: of the panes showing notebook
   // id, or of every notebook pane. Rename and pin send the stored cells, so
-  // they flush first. A draft never has a pending save (scheduleNotebookSave
-  // and persistNotebook both refuse it), so a flush never keeps one.
+  // they flush first; so does an ask, so the agent reads what was typed.
   function flushNotebookSaves(id) {
-    const panes = [...state.panes.values()].filter((p) => isNotebookPane(p) && !p.draft && p._autosave && (!id || p.notebookId === id));
+    const panes = [...state.panes.values()].filter((p) => isNotebookPane(p) && p._autosave && (!id || p.notebookId === id));
     return Promise.all(panes.map((p) => p._autosave.flush()));
   }
 
@@ -5080,12 +5086,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     try {
       const saved = await api(`/api/notebooks/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ name, cells: rec.cells, pinned: !!rec.pinned }),
+        body: JSON.stringify({ name, cells: rec.cells, pinned: !!rec.pinned, rev: rec.rev || 0 }),
       });
       rememberNotebook(saved);
       for (const pane of state.panes.values()) {
         if (isNotebookPane(pane) && pane.notebookId === id) {
           pane.title = saved.name;
+          pane.rev = saved.rev || 0;
           const tab = state.tabs.get(pane.tabId);
           if (tab) {
             tab.customTitle = saved.name;
@@ -5110,12 +5117,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     try {
       const saved = await api(`/api/notebooks/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ name: rec.name, cells: rec.cells, pinned: !rec.pinned }),
+        body: JSON.stringify({ name: rec.name, cells: rec.cells, pinned: !rec.pinned, rev: rec.rev || 0 }),
       });
       rememberNotebook(saved);
       for (const pane of state.panes.values()) {
         if (isNotebookPane(pane) && pane.notebookId === id) {
           pane.pinned = !!saved.pinned;
+          pane.rev = saved.rev || 0;
           paintNotebook(pane);
         }
       }
@@ -5160,7 +5168,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // One title: the notebook's name is the H1 (and stays editable); the
     // meta line under it names the pane shell fences type into.
     body.innerHTML = `<article class="notebook-col">
-      <div class="notebook-draft" data-notebook-draft hidden></div>
+      <div class="notebook-review" data-notebook-review hidden></div>
       <h1 class="notebook-title"><input class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
       <div class="notebook-meta" data-notebook-meta></div>
       <hr class="notebook-rule" />
@@ -5170,104 +5178,274 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     pane._metaKey = null;
     mountNotebookEditor(pane);
     syncNotebookMeta(pane);
-    syncNotebookDraft(pane);
+    syncNotebookReview(pane);
   }
 
-  // --- notebook drafts from the agent (§18) ---
+  // --- notebooks and the agent (§18) ---
   //
-  // A draft is a notebook pane with no id and pane.draft set: nothing is
-  // saved while it is open (scheduleNotebookSave skips it), closing it
-  // discards it, and only Save notebook keeps it, through keel serve with
-  // the draftId keel serve handed out. The saved notebook is a new one.
+  // keel serve applies the agent's creates and edits of notebooks that are
+  // not private at once, and keeps the version before each edit. The page
+  // shows a notebook as keel serve has it: an open pane with no pending or
+  // in-flight save loads the new text; a pane with typing keeps it (its
+  // next save carries the revision it started from, so keel serve keeps
+  // the user's text and the agent's version in History). Before an ask the
+  // panel flushes pending saves, so the agent reads what the user typed,
+  // and names any notebook still saving (AskRequest.editing): the agent's
+  // edits to those are refused.
 
-  function syncNotebookDraft(pane) {
-    const box = pane.body?.querySelector("[data-notebook-draft]");
+  function notebookDirty(pane) {
+    return !!pane?._autosave?.pending;
+  }
+
+  function editingNotebooks() {
+    const ids = [];
+    for (const p of state.panes.values()) {
+      if (isNotebookPane(p) && p.notebookId && notebookDirty(p) && !ids.includes(p.notebookId)) ids.push(p.notebookId);
+    }
+    return ids;
+  }
+
+  function notebookChanged(rec, opts = {}) {
+    if (!rec?.id) return;
+    rememberNotebook(rec);
+    for (const pane of state.panes.values()) {
+      if (!isNotebookPane(pane) || pane.notebookId !== rec.id || pane.closing) continue;
+      if (notebookDirty(pane)) {
+        if (opts.byAgent) toast("The agent edited a notebook you are typing in. Your typing is kept; the agent's version is in History.");
+        pane._metaKey = null;
+        syncNotebookMeta(pane);
+        syncNotebookReview(pane);
+        continue;
+      }
+      pane.rev = rec.rev || 0;
+      pane.title = rec.name || "Notebook";
+      pane.pinned = !!rec.pinned;
+      pane.cells = copyNotebookCells(rec.cells);
+      disposeNotebookEditor(pane);
+      paintNotebook(pane);
+      const tab = state.tabs.get(pane.tabId);
+      if (tab) syncPaneChrome(tab, pane);
+    }
+    paintSidebar();
+  }
+
+  function notebookRemoved(id) {
+    if (!id) return;
+    state.notebooks = (state.notebooks || []).filter((n) => n.id !== id);
+    for (const p of [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id)) closePane(p.id);
+    paintSidebar();
+    agentPanel?.notebooksChanged?.();
+  }
+
+  // syncNotebookReview is the banner on a notebook the agent edited that
+  // the user has not reviewed yet.
+  function syncNotebookReview(pane) {
+    const box = pane.body?.querySelector("[data-notebook-review]");
     if (!box) return;
-    const d = pane.draft;
-    box.hidden = !d;
-    if (!d) {
+    const nb = notebookById(pane.notebookId);
+    if (!nb?.agentUnreviewed) {
+      box.hidden = true;
       box.innerHTML = "";
       return;
     }
-    const busy = d.busy ? " disabled" : "";
-    box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Review this draft">${AGENT_ICON}<span><b>${escapeHtml(NB.REVIEW_TITLE)}</b><br />${escapeHtml(NB.REVIEW_TEXT)}${
-      d.error ? `<br />${escapeHtml(d.error)}` : ""
-    }</span><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-draft-discard="${pane.id}"${busy}>Discard</button><button type="button" class="k-btn k-btn--primary k-btn--sm" data-notebook-draft-save="${pane.id}"${busy}>Save notebook</button></div>${
-      NB.draftNote(d) ? `<div class="k-review" role="note" data-notebook-placeholders>${AGENT_ALERT_ICON}<span>${escapeHtml(NB.draftNote(d))}</span></div>` : ""
-    }`;
+    box.hidden = false;
+    const when = NB.whenText(nb.agentEditedAt);
+    box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Agent edit to review">${AGENT_ICON}<span><b>${escapeHtml(`Edited by the agent${when ? ` · ${when}` : ""}`)}</b><br />${escapeHtml(
+      NB.AGENT_EDIT_REVIEW,
+    )}</span><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-review-changes="${escapeHtml(nb.id)}">View changes</button><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-review-undo="${escapeHtml(
+      nb.id,
+    )}">Undo</button><button type="button" class="k-btn k-btn--primary k-btn--sm" data-notebook-reviewed="${escapeHtml(nb.id)}">Mark reviewed</button></div>`;
   }
 
-  // openNotebookDraft opens the agent's draft for review: a new tab, or a
-  // split beside the focused terminal, like openNotebook.
-  function openNotebookDraft(d, opts = {}) {
-    if (!d?.draftId) return;
-    const existing = [...state.panes.values()].find((p) => isNotebookPane(p) && p.draft?.draftId === d.draftId);
-    if (existing) {
-      state.activeId = existing.tabId;
-      markFocusedPane(existing);
-      renderTabs();
+  async function markNotebookReviewed(id) {
+    try {
+      const saved = await api(`/api/notebooks/${encodeURIComponent(id)}/reviewed`, { method: "PUT" });
+      notebookMarksChanged(saved);
+    } catch (err) {
+      toast(err.message || "Could not mark the notebook reviewed", true);
+    }
+  }
+
+  // notebookMarksChanged repaints what shows a notebook's flags (Private,
+  // Edited by agent) without touching its text.
+  function notebookMarksChanged(rec) {
+    if (!rec?.id) return;
+    const cur = notebookById(rec.id);
+    rememberNotebook(cur ? { ...cur, private: rec.private, agentUnreviewed: rec.agentUnreviewed, agentEditedAt: rec.agentEditedAt } : rec);
+    for (const pane of state.panes.values()) {
+      if (!isNotebookPane(pane) || pane.notebookId !== rec.id) continue;
+      pane._metaKey = null;
+      syncNotebookMeta(pane);
+      syncNotebookReview(pane);
+    }
+  }
+
+  async function toggleNotebookPrivate(id) {
+    const rec = notebookById(id);
+    if (!rec) return;
+    const next = !rec.private;
+    try {
+      const saved = await api(`/api/notebooks/${encodeURIComponent(id)}/private`, { method: "PUT", body: JSON.stringify({ private: next }) });
+      notebookMarksChanged(saved);
+      toast(next ? "Private: the agent cannot see, read or change this notebook." : "The agent may read and change this notebook again.");
+    } catch (err) {
+      toast(err.message || "Could not change Private", true);
+    }
+  }
+
+  // Undo on the banner: restore the version kept before the newest agent
+  // edit. Typing since then is kept in History too (keel serve keeps the
+  // version a restore replaces), but it asks first.
+  async function undoAgentEdit(id) {
+    await flushNotebookSaves(id);
+    const rec = notebookById(id);
+    if (!rec) return;
+    try {
+      const res = await api(`/api/notebooks/${encodeURIComponent(id)}/history`);
+      const v = (res?.versions || []).find((x) => x.event === "before-agent-edit");
+      if (!v) {
+        toast("Keel has no version from before the agent's edit. Open History to choose one.", true);
+        return;
+      }
+      if (rec.lastBy !== "agent" && !(await askConfirm("You changed this notebook after the agent's edit. Undo puts back the version from before the agent's edit; your later changes stay in History.", { title: "Undo the agent's edit", action: "Undo" }))) return;
+      const saved = await api(`/api/notebooks/${encodeURIComponent(id)}/history/${encodeURIComponent(v.id)}/restore`, { method: "POST", body: JSON.stringify({ rev: rec.rev || 0 }) });
+      notebookChanged(saved);
+      toast("Undone. The agent's version is in History.");
+    } catch (err) {
+      toast(err.message || "Could not undo", true);
+    }
+  }
+
+  // --- History and Recently deleted (one dialog) ---
+
+  const nbHist = { mode: "history", id: "", versions: [], selected: "", texts: new Map(), busy: false };
+
+  async function openNotebookHistory(id, opts = {}) {
+    await flushNotebookSaves(id);
+    const rec = notebookById(id);
+    if (!rec) return;
+    Object.assign(nbHist, { mode: "history", id, versions: [], selected: "", texts: new Map(), busy: false });
+    setText(document.getElementById("notebook-history-title"), `History · ${rec.name || "Notebook"}`);
+    setText(
+      document.getElementById("notebook-history-desc"),
+      "Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days.",
+    );
+    paintNotebookHistory("Loading…");
+    openModal(els.notebookHistoryModal);
+    try {
+      const res = await api(`/api/notebooks/${encodeURIComponent(id)}/history`);
+      nbHist.versions = res?.versions || [];
+      const pick = opts.agentEdit ? nbHist.versions.find((v) => v.event === "before-agent-edit") : nbHist.versions[0];
+      paintNotebookHistory(nbHist.versions.length ? "" : "No earlier versions yet. Keel keeps one before every agent edit and restore, and when you start editing again.");
+      if (pick) await selectNotebookVersion(pick.id);
+    } catch (err) {
+      paintNotebookHistory(err.message || "Could not load History");
+    }
+  }
+
+  async function openNotebookTrash() {
+    Object.assign(nbHist, { mode: "trash", id: "", versions: [], selected: "", texts: new Map(), busy: false });
+    setText(document.getElementById("notebook-history-title"), "Recently deleted");
+    setText(document.getElementById("notebook-history-desc"), "Deleted notebooks stay here for 30 days (at most 50). Restore puts one back in Notebooks.");
+    paintNotebookHistory("Loading…");
+    openModal(els.notebookHistoryModal);
+    try {
+      const res = await api("/api/notebooks/trash");
+      nbHist.versions = res?.versions || [];
+      paintNotebookHistory(nbHist.versions.length ? "" : "Nothing was deleted in the last 30 days.");
+      if (nbHist.versions[0]) await selectNotebookVersion(nbHist.versions[0].id);
+    } catch (err) {
+      paintNotebookHistory(err.message || "Could not load Recently deleted");
+    }
+  }
+
+  function paintNotebookHistory(empty) {
+    const list = document.getElementById("notebook-history-list");
+    const restore = document.getElementById("notebook-history-restore");
+    if (restore) {
+      restore.disabled = !nbHist.selected || nbHist.busy;
+      restore.textContent = nbHist.mode === "trash" ? "Restore notebook" : "Restore this version";
+    }
+    if (!list) return;
+    if (empty) {
+      list.innerHTML = `<p class="k-help notebook-history-empty">${escapeHtml(empty)}</p>`;
+      const diff = document.getElementById("notebook-history-diff");
+      if (diff) diff.innerHTML = "";
       return;
     }
-    const rec = { name: d.name || "Notebook", cells: [{ body: String(d.body || "") }] };
-    const tab = state.tabs.get(state.activeId);
-    let pane = null;
-    if (tab && !tab.start && !tab.page && tab.layout) {
-      const focused = focusedPane();
-      const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
-      if (sibling) {
-        pane = createNotebookPane(tab, sibling, rec);
-        tab.layout = replaceLeaf(tab.layout, sibling.id, { type: "split", dir: "h", sizes: [50, 50], a: { type: "leaf", paneId: sibling.id }, b: { type: "leaf", paneId: pane.id } });
-        tab.zoomedPaneId = "";
-        tab.focusedPaneId = pane.id;
-        tab.dirty = true;
-      }
-    }
-    if (!pane) pane = createNotebookTab(rec).pane;
-    pane.draft = { draftId: d.draftId, placeholders: !!d.placeholders, withheld: !!d.withheld, onSaved: opts.onSaved, busy: false, error: "" };
-    syncNotebookDraft(pane);
-    renderTabs();
-    markFocusedPane(pane);
+    list.innerHTML = nbHist.versions
+      .map((v) => {
+        const l = NB.versionLabel(v);
+        const title = nbHist.mode === "trash" ? v.name || "Notebook" : l.what;
+        const who = nbHist.mode === "trash" ? `Deleted ${NB.whenText(v.keptAt)}` : `${l.who} · ${l.when}`;
+        return `<button type="button" class="notebook-history-row" role="option" aria-selected="${v.id === nbHist.selected}" data-notebook-version="${escapeHtml(v.id)}">
+          <span class="notebook-history-who"><span class="k-badge${v.by === "agent" ? " k-badge--outline" : ""}">${escapeHtml(nbHist.mode === "trash" ? "Deleted" : l.who)}</span><span class="notebook-history-what">${escapeHtml(title)}</span></span>
+          <span class="notebook-history-when">${escapeHtml(who)}</span>${l.summary ? `<span class="notebook-history-summary">${escapeHtml(l.summary)}</span>` : ""}
+        </button>`;
+      })
+      .join("");
   }
 
-  async function saveNotebookDraft(pane) {
-    const d = pane?.draft;
-    if (!d || d.busy) return;
-    d.busy = true;
-    d.error = "";
-    syncNotebookDraft(pane);
-    const payload = {
-      name: (pane.title || "Notebook").trim() || "Notebook",
-      cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
-    };
+  async function selectNotebookVersion(vid) {
+    nbHist.selected = vid;
+    paintNotebookHistory("");
+    const diff = document.getElementById("notebook-history-diff");
+    if (!diff) return;
+    let text = nbHist.texts.get(vid);
+    if (text == null) {
+      const v = nbHist.versions.find((x) => x.id === vid);
+      try {
+        const full = await api(nbHist.mode === "trash" ? `/api/notebooks/trash` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`);
+        text = nbHist.mode === "trash" ? NB.versionText((full?.versions || []).find((x) => x.id === vid) || v) : NB.versionText(full);
+      } catch (err) {
+        diff.innerHTML = `<p class="k-help">${escapeHtml(err.message || "Could not load this version")}</p>`;
+        return;
+      }
+      nbHist.texts.set(vid, text);
+    }
+    if (nbHist.selected !== vid) return;
+    if (nbHist.mode === "trash") {
+      diff.innerHTML = `<pre class="notebook-diff notebook-diff--plain">${escapeHtml(text)}</pre>`;
+      return;
+    }
+    const cur = notebookById(nbHist.id);
+    const now = (cur?.cells || []).map((c) => String(c.body || "")).join("\n\n");
+    const d = NB.diffLines(text, now);
+    const rows = NB.diffView(d)
+      .map((l) =>
+        l.op === "gap"
+          ? `<div class="notebook-diff-gap">${escapeHtml(`${l.count} unchanged ${l.count === 1 ? "line" : "lines"}`)}</div>`
+          : `<div class="notebook-diff-line notebook-diff-line--${l.op}"><span class="notebook-diff-mark" aria-hidden="true">${l.op === "add" ? "+" : l.op === "del" ? "−" : " "}</span><span class="notebook-diff-text">${escapeHtml(l.text) || " "}</span></div>`,
+      )
+      .join("");
+    diff.innerHTML = `<p class="notebook-diff-head">${escapeHtml(`From this version to now: ${NB.diffSummary(d)}`)}</p><div class="notebook-diff" role="region" aria-label="Changes from this version to now">${rows}</div>`;
+  }
+
+  async function restoreNotebookVersion() {
+    const vid = nbHist.selected;
+    if (!vid || nbHist.busy) return;
+    nbHist.busy = true;
+    paintNotebookHistory("");
     try {
-      const res = await api(`/api/agent/notebooks/drafts/${encodeURIComponent(d.draftId)}`, { method: "POST", body: JSON.stringify(payload) });
-      const rec = res.notebook;
-      pane.draft = null;
-      pane.notebookId = rec.id;
-      pane.title = rec.name;
-      rememberNotebook(rec);
-      if (res.redacted && Array.isArray(rec.cells)) {
-        // keel serve replaced secret-looking values: show what was kept.
-        pane.cells = copyNotebookCells(rec.cells);
-        disposeNotebookEditor(pane);
-        paintNotebook(pane);
+      if (nbHist.mode === "trash") {
+        const saved = await api(`/api/notebooks/trash/${encodeURIComponent(vid)}/restore`, { method: "POST" });
+        rememberNotebook(saved);
+        closeModal(els.notebookHistoryModal);
+        toast(`Restored “${saved.name || "Notebook"}” to Notebooks.`);
+        return;
       }
-      syncNotebookDraft(pane);
-      const tab = state.tabs.get(pane.tabId);
-      if (tab) syncPaneChrome(tab, pane);
-      persistWorkspace();
-      toast(NB.savedText(res));
-      d.onSaved?.(res);
+      await flushNotebookSaves(nbHist.id);
+      const rec = notebookById(nbHist.id);
+      const saved = await api(`/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}/restore`, { method: "POST", body: JSON.stringify({ rev: rec?.rev || 0 }) });
+      notebookChanged(saved);
+      closeModal(els.notebookHistoryModal);
+      toast("Restored. The version it replaced is in History.");
     } catch (err) {
-      d.busy = false;
-      d.error = err?.code === 410 ? "Keel no longer holds this draft. Copy what you need, then open the draft again from the agent's card." : err?.message || "Could not save the draft";
-      syncNotebookDraft(pane);
+      toast(err.message || "Could not restore", true);
+    } finally {
+      nbHist.busy = false;
+      paintNotebookHistory("");
     }
-  }
-
-  function discardNotebookDraft(pane) {
-    if (!pane?.draft) return;
-    closePane(pane.id);
   }
 
   // askAboutNotebook is the notebook pane's Ask the agent about this
@@ -5275,8 +5453,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // until the user asks.
   function askAboutNotebook(pane) {
     if (!agentPanel || !isNotebookPane(pane)) return;
-    if (pane.draft || !pane.notebookId) {
+    if (!pane.notebookId) {
       toast("Save the notebook first, then ask the agent about it");
+      return;
+    }
+    if (notebookById(pane.notebookId)?.private) {
+      toast(NB.PRIVATE_REFUSED, true);
       return;
     }
     if (state.tabs.get(pane.tabId)?.remote) {
@@ -5310,7 +5492,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!isNotebookPane(pane) || pane.closing) return;
     const target = notebookTarget(pane);
     const updated = notebookUpdated(pane);
-    const key = `${target?.name || ""}\n${target?.color || ""}\n${updated}`;
+    const rec = notebookById(pane.notebookId);
+    const key = `${target?.name || ""}\n${target?.color || ""}\n${updated}\n${rec ? `${!!rec.private}${!!rec.agentUnreviewed}` : ""}`;
     if (pane._metaKey === key) return;
     pane._metaKey = key;
     pane.mdEditor?.setTarget?.(target?.name || "");
@@ -5325,6 +5508,17 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       );
     } else {
       parts.push("<span>No terminal in this tab</span>");
+    }
+    if (rec) {
+      // Private is the user's switch (§18): the agent never sees a private
+      // notebook. History lists the versions Keel kept.
+      parts.push(
+        `<button type="button" class="notebook-meta-btn${rec.private ? " is-private" : ""}" data-notebook-private-toggle="${escapeHtml(rec.id)}" aria-pressed="${rec.private ? "true" : "false"}" title="${
+          rec.private ? "Private: the agent cannot see, read or change it. Click to let the agent read it." : "The agent may read and change this notebook. Click to make it private."
+        }">${THREAD_ICON.lock}<span>${escapeHtml(NB.privateLabel(rec))}</span></button>`,
+      );
+      parts.push(`<button type="button" class="notebook-meta-btn" data-notebook-history-open="${escapeHtml(rec.id)}">${THREAD_ICON.history}<span>History</span></button>`);
+      if (rec.agentUnreviewed) parts.push('<span class="k-badge k-badge--signal">Edited by agent</span>');
     }
     meta.innerHTML = parts.join('<span class="notebook-meta-sep" aria-hidden="true">·</span>');
   }
@@ -5405,6 +5599,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const area = pane.inputEl.querySelector("[data-term-input]");
     if (area) area.value = "";
     pane._inputFromNotebook = false;
+    pane._inputAgentNote = "";
     pane.inputEl.hidden = true;
     pane.wrap?.classList.remove("has-term-input");
     syncSessionSurface();
@@ -5443,6 +5638,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
     showTermInput(term, line);
     term._inputFromNotebook = true;
+    // An agent edit the user has not reviewed (§6 rule 12): the approve
+    // dialog says so above the exact bytes.
+    term._inputAgentNote = notebookById(nbPane?.notebookId)?.agentUnreviewed
+      ? "The agent edited this notebook and you have not reviewed that edit. Read this command before you approve it: it may be the agent's."
+      : "";
     markFocusedPane(term);
   }
 
@@ -5485,7 +5685,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       toast(NB.PLACEHOLDER_REFUSED, true);
       return;
     }
-    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
+    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session", pane._inputFromNotebook ? pane._inputAgentNote || "" : "");
     if (!ok) return;
     holdPtyFromChrome();
     await sendApprovedInject(command, pane, pane._inputFromNotebook ? { notebook: true } : {});
@@ -6828,7 +7028,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // Notebooks (§18): the list the Attach notebook menu offers, the
     // review tab for a draft, and Open notebook on a saved draft's card.
     listNotebooks: () => state.notebooks || [],
-    openNotebookDraft: (d, opts) => openNotebookDraft(d, opts),
+    // Before an ask: save what was typed, then name what is still saving
+    // (the agent's edits to those are refused). After: show what the agent
+    // created or edited, and drop what a card deleted.
+    flushNotebooks: () => flushNotebookSaves(),
+    editingNotebooks: () => editingNotebooks(),
+    notebookChanged: (rec, opts) => notebookChanged(rec, opts),
+    notebookRemoved: (id) => notebookRemoved(id),
     openNotebook: (id) => openNotebook(id),
   });
 
@@ -7435,16 +7641,34 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         askAboutNotebook(state.panes.get(nbAsk.dataset.notebookAsk));
         return;
       }
-      const draftSave = ev.target.closest("[data-notebook-draft-save]");
-      if (draftSave && !draftSave.disabled) {
+      const nbPriv = ev.target.closest("[data-notebook-private-toggle]");
+      if (nbPriv) {
         ev.preventDefault();
-        saveNotebookDraft(state.panes.get(draftSave.dataset.notebookDraftSave));
+        toggleNotebookPrivate(nbPriv.dataset.notebookPrivateToggle);
         return;
       }
-      const draftDiscard = ev.target.closest("[data-notebook-draft-discard]");
-      if (draftDiscard && !draftDiscard.disabled) {
+      const nbHistory = ev.target.closest("[data-notebook-history-open]");
+      if (nbHistory) {
         ev.preventDefault();
-        discardNotebookDraft(state.panes.get(draftDiscard.dataset.notebookDraftDiscard));
+        openNotebookHistory(nbHistory.dataset.notebookHistoryOpen);
+        return;
+      }
+      const nbChanges = ev.target.closest("[data-notebook-review-changes]");
+      if (nbChanges) {
+        ev.preventDefault();
+        openNotebookHistory(nbChanges.dataset.notebookReviewChanges, { agentEdit: true });
+        return;
+      }
+      const nbUndo = ev.target.closest("[data-notebook-review-undo]");
+      if (nbUndo) {
+        ev.preventDefault();
+        undoAgentEdit(nbUndo.dataset.notebookReviewUndo);
+        return;
+      }
+      const nbReviewed = ev.target.closest("[data-notebook-reviewed]");
+      if (nbReviewed) {
+        ev.preventDefault();
+        markNotebookReviewed(nbReviewed.dataset.notebookReviewed);
         return;
       }
       const note = ev.target.closest("[data-pane-notebook]");
@@ -7802,6 +8026,18 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         toggleNotebookPin(pinNb.dataset.notebookPin);
         return;
       }
+      const privNb = ev.target.closest("[data-notebook-private]");
+      if (privNb) {
+        ev.preventDefault();
+        toggleNotebookPrivate(privNb.dataset.notebookPrivate);
+        return;
+      }
+      const histNb = ev.target.closest("[data-notebook-history]");
+      if (histNb) {
+        ev.preventDefault();
+        openNotebookHistory(histNb.dataset.notebookHistory);
+        return;
+      }
       const delNb = ev.target.closest("[data-delete-notebook]");
       if (delNb) {
         ev.preventDefault();
@@ -7988,6 +8224,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       openModal(els.snippetModal);
     });
     on(document.getElementById("btn-new-notebook"), "click", () => newNotebook());
+    on(document.getElementById("btn-notebook-trash"), "click", () => openNotebookTrash());
+    on(document.getElementById("notebook-history-close"), "click", () => closeModal(els.notebookHistoryModal));
+    on(document.getElementById("notebook-history-restore"), "click", () => restoreNotebookVersion());
+    on(document.getElementById("notebook-history-list"), "click", (ev) => {
+      const row = ev.target.closest("[data-notebook-version]");
+      if (row) selectNotebookVersion(row.dataset.notebookVersion);
+    });
     on(document.getElementById("btn-new-identity"), "click", () => {
       fillIdentityForm(null);
       openModal(els.identityModal);

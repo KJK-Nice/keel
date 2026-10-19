@@ -523,6 +523,8 @@ export function createAgentPanel(deps) {
     setBusy(true);
     emit("turn");
     try {
+      // Typing in a notebook saves first, so the agent reads it (§18).
+      await deps.flushNotebooks?.();
       const res = await deps.api("/api/agent/ask", {
         method: "POST",
         body: JSON.stringify({
@@ -1471,6 +1473,8 @@ export function createAgentPanel(deps) {
     attachNotebook,
     detachNotebook: (id) => setAttached(state.attached.filter((x) => x !== id)),
     toggleNotebook: (id) => setAttached(NB.toggleAttached(state.attached, id, notebooks())),
+    // nbPropAction is a notebook card's Undo, Delete…, Keep or Restore.
+    nbPropAction,
     attachedChipsHTML,
     nbPickerHTML,
     sessionsEmptyText,

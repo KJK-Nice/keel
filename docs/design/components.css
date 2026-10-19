@@ -583,30 +583,73 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 
 /* Notebooks and the agent (docs/ui-redesign.md §18). A notebook attached
    to the question is a brass chip beside the pane chips; Attach notebook
-   opens a k-agent-picker above the composer. A notebook draft the agent
-   proposes is a k-prop--note card with the first lines of the markdown as
-   plain text (k-nbp-preview); in the notebook editor the draft has the
-   runbook review banner (k-rb-review) with Discard and Save notebook. */
+   opens a k-agent-picker above the composer (a private notebook is listed
+   with a Private badge and cannot be ticked). What the agent did to a
+   notebook is a k-prop--note card (Created / Edited / Delete notebook?).
+   A notebook the agent edited has the runbook review banner (k-rb-review)
+   until the user marks it reviewed; History is a modal with the versions
+   and a line diff. */
 .k-agent-composer { position: relative; }
 /* A picker row is the menuitemcheckbox: its box shows the row's state. */
 button.k-agent-pick[aria-checked="true"] .k-check { background: var(--brass); border-color: var(--brass); }
 button.k-agent-pick[aria-checked="true"] .k-check .k-i { visibility: visible; }
 .k-agent-chip--notebook button:hover { background: var(--brass-soft); }
 .k-agent-nb-picker .k-agent-pick-name { font-family: var(--font-sans); }
-.notebook-draft[hidden] { display: none; }
-.notebook-draft .k-rb-review .k-btn + .k-btn { margin-left: 0; }
 .k-agent-chip--notebook { background: var(--brass-soft); color: var(--brass-ink); font-family: var(--font-sans); }
 .k-agent-picker.k-agent-nb-picker { top: auto; bottom: calc(100% + var(--space-1)); left: 0; right: 0; max-height: calc(var(--size-row) * 8); }
 .k-agent-picker-note { padding: var(--space-1) var(--space-2) var(--space-0\.5); border-top: 1px solid var(--line); margin-top: var(--space-1); font: var(--type-caption); color: var(--ink-faint); }
-.k-nbp-preview {
-  margin: 0; padding: var(--space-2) var(--space-3); max-height: calc(var(--size-row) * 5); overflow: hidden;
-  font: var(--type-caption); color: var(--ink-muted); white-space: pre-wrap; word-break: break-word;
-  background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
+/* Notebooks and the agent (§18). The banner on a notebook the agent
+   edited that the user has not reviewed: the runbook review banner's look,
+   with View changes, Undo and Mark reviewed. */
+.notebook-review { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.notebook-review[hidden] { display: none; }
+.notebook-review .k-rb-review { flex-wrap: wrap; align-items: center; }
+.notebook-review .k-rb-review > span { flex: 1 1 calc(var(--size-control-lg) * 6); min-width: 0; }
+.notebook-review .k-rb-review .k-btn + .k-btn { margin-left: 0; }
+/* Private and History on the meta line: quiet text buttons. */
+.notebook-meta-btn {
+  display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1); height: var(--size-control-sm);
+  font: inherit; color: var(--ink-muted); background: transparent; border: 1px solid transparent; border-radius: var(--radius-xs); cursor: pointer;
 }
-.k-nbp-more { color: var(--ink-faint); }
-.notebook-draft { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
-.notebook-draft .k-rb-review { flex-wrap: wrap; align-items: center; }
-.notebook-draft .k-rb-review > span { flex: 1 1 calc(var(--size-control-lg) * 6); min-width: 0; }
+.notebook-meta-btn:hover { background: var(--hover); color: var(--ink); }
+.notebook-meta-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.notebook-meta-btn svg { display: block; flex: none; width: 0.923rem; height: 0.923rem; }
+.notebook-meta-btn.is-private { color: var(--brass-ink); background: var(--brass-soft); }
+.k-nb-private { display: inline-flex; align-items: center; gap: var(--space-1); }
+.k-nb-private svg { display: block; flex: none; width: 0.846rem; height: 0.846rem; }
+.k-nbp-summary { margin: 0; font: var(--type-caption); color: var(--ink-muted); }
+/* The approve dialog's line about an agent edit not reviewed yet. */
+.pty-inject-agent { margin: var(--space-2) 0 0; }
+.pty-inject-agent[hidden] { display: none; }
+/* History and Recently deleted: versions on the left, the diff from the
+   selected version to now on the right. */
+.notebook-history-modal { width: min(calc(var(--size-reading) + var(--size-list)), calc(100vw - var(--space-8))); }
+.notebook-history { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.notebook-history-body { display: grid; grid-template-columns: minmax(0, var(--size-list)) minmax(0, 1fr); gap: var(--space-3); min-height: calc(var(--size-row) * 8); max-height: calc(var(--size-row) * 12); }
+.notebook-history-list { display: grid; align-content: start; gap: var(--space-1); overflow: auto; }
+.notebook-history-row {
+  display: grid; gap: var(--space-0\.5); padding: var(--space-2); text-align: left; font: var(--type-body); color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer;
+}
+.notebook-history-row:hover { background: var(--hover); }
+.notebook-history-row[aria-selected="true"] { background: var(--brass-soft); border-color: var(--brass); }
+.notebook-history-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.notebook-history-who { display: flex; align-items: center; gap: var(--space-1\.5); min-width: 0; }
+.notebook-history-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notebook-history-when, .notebook-history-summary { font: var(--type-caption); color: var(--ink-muted); }
+.notebook-history-empty { padding: var(--space-2); }
+.notebook-history-diff { display: grid; align-content: start; gap: var(--space-2); overflow: auto; min-width: 0; }
+.notebook-diff-head { margin: 0; font: var(--type-caption); color: var(--ink-muted); }
+.notebook-diff { margin: 0; padding: var(--space-2) 0; font: var(--type-code); background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-md); overflow-x: auto; }
+.notebook-diff--plain { padding: var(--space-2) var(--space-3); white-space: pre-wrap; word-break: break-word; }
+.notebook-diff-line { display: flex; gap: var(--space-2); padding: 0 var(--space-3); white-space: pre; }
+.notebook-diff-line--add { background: var(--tide-soft); }
+.notebook-diff-line--del { background: var(--flare-soft); }
+.notebook-diff-mark { flex: none; width: 1ch; color: var(--ink-faint); }
+.notebook-diff-gap { padding: var(--space-0\.5) var(--space-3); font: var(--type-caption); color: var(--ink-faint); }
+@media (max-width: 860px) {
+  .notebook-history-body { grid-template-columns: minmax(0, 1fr); max-height: none; }
+}
 
 /* ---------- Empty ---------- */
 .k-empty { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-8) var(--space-4); text-align: center; }
