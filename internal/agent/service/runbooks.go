@@ -156,6 +156,9 @@ type RunbookInput struct {
 	Source    string `json:"source,omitempty"`
 	SourceRef string `json:"sourceRef,omitempty"`
 	DraftID   string `json:"draftId,omitempty"`
+	// FromPrivate is set on a draft made from a private notebook: the page
+	// says a saved runbook is not private (the agent can be sent it).
+	FromPrivate bool `json:"fromPrivate,omitempty"`
 }
 
 // draftOrigin is where a draft came from, kept by keel serve so a save
@@ -501,6 +504,7 @@ func (s *Service) RunbookDraft(req DraftRequest) (RunbookInput, error) {
 		}
 		in = draftFromMarkdown(nb.Name, strings.Join(md, "\n\n"))
 		in.Source, in.SourceRef = store.RunbookSourceNotebook, nb.Name
+		in.FromPrivate = nb.Private
 	case req.ConversationID != "":
 		chat, err := s.chatForDraft(req.ConversationID)
 		if err != nil {

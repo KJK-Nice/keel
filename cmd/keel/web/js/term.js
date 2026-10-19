@@ -5086,10 +5086,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const rec = notebookById(id);
     if (!rec) return;
     try {
-      const saved = await api(`/api/notebooks/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ name, cells: rec.cells, pinned: !!rec.pinned, rev: rec.rev || 0 }),
-      });
+      // Name only: a window with an old copy never writes old text back.
+      const saved = await api(`/api/notebooks/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });
       rememberNotebook(saved);
       for (const pane of state.panes.values()) {
         if (isNotebookPane(pane) && pane.notebookId === id) {
@@ -5117,10 +5115,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const rec = notebookById(id);
     if (!rec) return;
     try {
-      const saved = await api(`/api/notebooks/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ name: rec.name, cells: rec.cells, pinned: !rec.pinned, rev: rec.rev || 0 }),
-      });
+      const saved = await api(`/api/notebooks/${id}`, { method: "PATCH", body: JSON.stringify({ pinned: !rec.pinned }) });
       rememberNotebook(saved);
       for (const pane of state.panes.values()) {
         if (isNotebookPane(pane) && pane.notebookId === id) {
@@ -5144,7 +5139,15 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     await flushNotebookSaves(id);
     const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
     try {
-      await api(`/api/notebooks/${id}`, { method: "DELETE" });
+      try {
+        await api(`/api/notebooks/${id}`, { method: "DELETE" });
+      } catch (err) {
+        // Keel cannot keep it in Recently deleted: ask before deleting it
+        // for good.
+        if (err?.data?.reason !== "history") throw err;
+        if (!(await askConfirm(`Keel cannot keep “${rec.name || "Notebook"}” in Recently deleted right now, so it cannot be restored. Delete it permanently?`, { title: "Delete permanently", action: "Delete permanently" }))) return;
+        await api(`/api/notebooks/${id}?permanent=1`, { method: "DELETE" });
+      }
       state.notebooks = (state.notebooks || []).filter((n) => n.id !== id);
       for (const pane of open) closePane(pane.id);
       paintSidebar();
@@ -5253,7 +5256,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
     box.hidden = false;
     const when = NB.whenText(nb.agentEditedAt);
-    box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Agent edit to review">${AGENT_ICON}<span><b>${escapeHtml(`Edited by the agent${when ? ` · ${when}` : ""}`)}</b><br />${escapeHtml(
+    const head = nb.source === "agent" && nb.lastBy === "agent" ? "Written by the agent" : "Edited by the agent";
+    box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Agent edit to review">${AGENT_ICON}<span><b>${escapeHtml(`${head}${when ? ` · ${when}` : ""}`)}</b><br />${escapeHtml(
       NB.AGENT_EDIT_REVIEW,
     )}</span><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-review-changes="${escapeHtml(nb.id)}">View changes</button><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-review-undo="${escapeHtml(
       nb.id,
@@ -5353,7 +5357,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     paintNotebookHistory("Loading…");
     openModal(els.notebookHistoryModal);
     try {
-      const res = await api("/api/notebooks/trash");
+      const res = await api("/api/notebook-trash");
       nbHist.versions = res?.versions || [];
       paintNotebookHistory(nbHist.versions.length ? "" : "Nothing was deleted in the last 30 days.");
       if (nbHist.versions[0]) await selectNotebookVersion(nbHist.versions[0].id);
@@ -5368,6 +5372,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (restore) {
       restore.disabled = !nbHist.selected || nbHist.busy;
       restore.textContent = nbHist.mode === "trash" ? "Restore notebook" : "Restore this version";
+    }
+    const purge = document.getElementById("notebook-history-purge");
+    if (purge) {
+      purge.disabled = !nbHist.selected || nbHist.busy;
+      purge.textContent = nbHist.mode === "trash" ? "Delete forever" : "Delete this version";
     }
     if (!list) return;
     if (empty) {
@@ -5398,8 +5407,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (text == null) {
       const v = nbHist.versions.find((x) => x.id === vid);
       try {
-        const full = await api(nbHist.mode === "trash" ? `/api/notebooks/trash` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`);
-        text = nbHist.mode === "trash" ? NB.versionText((full?.versions || []).find((x) => x.id === vid) || v) : NB.versionText(full);
+        const full = await api(nbHist.mode === "trash" ? `/api/notebook-trash/${encodeURIComponent(vid)}` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`);
+        text = NB.versionText(full || v);
       } catch (err) {
         diff.innerHTML = `<p class="k-help">${escapeHtml(err.message || "Could not load this version")}</p>`;
         return;
@@ -5424,6 +5433,34 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     diff.innerHTML = `<p class="notebook-diff-head">${escapeHtml(`From this version to now: ${NB.diffSummary(d)}`)}</p><div class="notebook-diff" role="region" aria-label="Changes from this version to now">${rows}</div>`;
   }
 
+  // purgeNotebookVersion removes the selected version (or deleted
+  // notebook) for good: History is plain text on disk like the notebooks.
+  async function purgeNotebookVersion() {
+    const vid = nbHist.selected;
+    if (!vid || nbHist.busy) return;
+    const trash = nbHist.mode === "trash";
+    const ok = await askConfirm(trash ? "Delete this notebook for good? It cannot be restored." : "Delete this version for good? It cannot be restored.", {
+      title: trash ? "Delete forever" : "Delete version",
+      action: "Delete",
+    });
+    if (!ok) return;
+    nbHist.busy = true;
+    try {
+      await api(trash ? `/api/notebook-trash/${encodeURIComponent(vid)}` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`, { method: "DELETE" });
+      nbHist.versions = nbHist.versions.filter((v) => v.id !== vid);
+      nbHist.texts.delete(vid);
+      nbHist.selected = "";
+      nbHist.busy = false;
+      paintNotebookHistory(nbHist.versions.length ? "" : trash ? "Nothing was deleted in the last 30 days." : "No earlier versions left.");
+      if (nbHist.versions[0]) await selectNotebookVersion(nbHist.versions[0].id);
+    } catch (err) {
+      toast(err.message || "Could not delete", true);
+    } finally {
+      nbHist.busy = false;
+      paintNotebookHistory(nbHist.versions.length ? "" : trash ? "Nothing was deleted in the last 30 days." : "No earlier versions left.");
+    }
+  }
+
   async function restoreNotebookVersion() {
     const vid = nbHist.selected;
     if (!vid || nbHist.busy) return;
@@ -5431,7 +5468,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     paintNotebookHistory("");
     try {
       if (nbHist.mode === "trash") {
-        const saved = await api(`/api/notebooks/trash/${encodeURIComponent(vid)}/restore`, { method: "POST" });
+        const saved = await api(`/api/notebook-trash/${encodeURIComponent(vid)}/restore`, { method: "POST" });
         rememberNotebook(saved);
         closeModal(els.notebookHistoryModal);
         toast(`Restored “${saved.name || "Notebook"}” to Notebooks.`);
@@ -8230,6 +8267,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     on(document.getElementById("btn-notebook-trash"), "click", () => openNotebookTrash());
     on(document.getElementById("notebook-history-close"), "click", () => closeModal(els.notebookHistoryModal));
     on(document.getElementById("notebook-history-restore"), "click", () => restoreNotebookVersion());
+    on(document.getElementById("notebook-history-purge"), "click", () => purgeNotebookVersion());
     on(document.getElementById("notebook-history-list"), "click", (ev) => {
       const row = ev.target.closest("[data-notebook-version]");
       if (row) selectNotebookVersion(row.dataset.notebookVersion);

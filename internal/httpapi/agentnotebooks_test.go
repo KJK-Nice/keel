@@ -225,7 +225,7 @@ func TestAgentNotebookReadEditDeleteRoutes(t *testing.T) {
 	if _, err := f.st.GetNotebook(id); err == nil {
 		t.Fatal("not deleted")
 	}
-	code, trash := f.callJSON(t, "GET", "/api/notebooks/trash", nil)
+	code, trash := f.callJSON(t, "GET", "/api/notebook-trash", nil)
 	if tv, _ := trash["versions"].([]any); code != http.StatusOK || len(tv) != 1 {
 		t.Fatalf("trash → %d %v", code, trash)
 	}
@@ -269,13 +269,13 @@ func TestNotebookTrashRoutes(t *testing.T) {
 	if code, _ := f.call(t, "DELETE", "/api/notebooks/"+id, nil); code != http.StatusNoContent {
 		t.Fatalf("delete → %d", code)
 	}
-	_, trash := f.callJSON(t, "GET", "/api/notebooks/trash", nil)
+	_, trash := f.callJSON(t, "GET", "/api/notebook-trash", nil)
 	tv := trash["versions"].([]any)
 	vid := tv[0].(map[string]any)["id"].(string)
-	if code, out := f.callJSON(t, "POST", "/api/notebooks/trash/"+vid+"/restore", nil); code != http.StatusOK || out["id"] != id {
+	if code, out := f.callJSON(t, "POST", "/api/notebook-trash/"+vid+"/restore", nil); code != http.StatusOK || out["id"] != id {
 		t.Fatalf("restore → %d %v", code, out)
 	}
-	if code, _ := f.callJSON(t, "POST", "/api/notebooks/trash/"+vid+"/restore", nil); code != http.StatusNotFound {
+	if code, _ := f.callJSON(t, "POST", "/api/notebook-trash/"+vid+"/restore", nil); code != http.StatusNotFound {
 		t.Fatalf("restore twice → %d", code)
 	}
 	_ = time.Second
@@ -325,5 +325,55 @@ func TestNotebookPlaceholderFenceRefused(t *testing.T) {
 	case leak := <-got:
 		t.Fatalf("a placeholder reached the PTY: %q", leak)
 	case <-time.After(150 * time.Millisecond):
+	}
+}
+
+// Rename and pin are metadata only, so a stale window cannot write old
+// text back over an agent edit; Recently deleted shows a deleted notebook's
+// text, and versions and deleted notebooks can be removed for good.
+func TestNotebookMetaPreviewAndPurgeRoutes(t *testing.T) {
+	f := newAskFixture(t, true)
+	_, nb := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "keel-meta", "cells": []map[string]any{{"body": "keel-edit-me"}}})
+	id := nb["id"].(string)
+	code, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "edit the notebook keel-meta"})
+	if code != http.StatusOK || cards(t, resp)[0]["status"] != "edited" {
+		t.Fatalf("ask → %d %v", code, resp["notebooks"])
+	}
+	if code, out := f.callJSON(t, "PATCH", "/api/notebooks/"+id, map[string]any{"pinned": true, "cells": []map[string]any{{"body": "OLD"}}}); code != http.StatusOK || out["pinned"] != true {
+		t.Fatalf("pin → %d %v", code, out)
+	}
+	if code, out := f.callJSON(t, "PATCH", "/api/notebooks/"+id, map[string]any{"name": "keel-meta renamed"}); code != http.StatusOK || out["name"] != "keel-meta renamed" {
+		t.Fatalf("rename → %d %v", code, out)
+	}
+	if got := f.notebookText(t, id); got != "keel-edited-by-agent" {
+		t.Fatalf("text after pin and rename = %q", got)
+	}
+	// Recently deleted: the preview has the text; Delete forever removes it.
+	if code, _ := f.call(t, "DELETE", "/api/notebooks/"+id, nil); code != http.StatusNoContent {
+		t.Fatalf("delete → %d", code)
+	}
+	_, trash := f.callJSON(t, "GET", "/api/notebook-trash", nil)
+	vid := trash["versions"].([]any)[0].(map[string]any)["id"].(string)
+	code, v := f.callJSON(t, "GET", "/api/notebook-trash/"+vid, nil)
+	if code != http.StatusOK || v["cells"].([]any)[0].(map[string]any)["body"] != "keel-edited-by-agent" {
+		t.Fatalf("preview → %d %v", code, v)
+	}
+	if code, _ := f.call(t, "DELETE", "/api/notebook-trash/"+vid, nil); code != http.StatusNoContent {
+		t.Fatalf("delete forever → %d", code)
+	}
+	if code, _ := f.callJSON(t, "POST", "/api/notebook-trash/"+vid+"/restore", nil); code != http.StatusNotFound {
+		t.Fatalf("restore after delete forever → %d", code)
+	}
+	// History: delete one version for good.
+	_, nb2 := f.callJSON(t, "POST", "/api/notebooks", map[string]any{"name": "keel-meta two", "cells": []map[string]any{{"body": "keel-edit-me"}}})
+	id2 := nb2["id"].(string)
+	f.ask(t, map[string]any{"conversationId": askConv, "question": "edit the notebook keel-meta two"})
+	_, hist := f.callJSON(t, "GET", "/api/notebooks/"+id2+"/history", nil)
+	hv := hist["versions"].([]any)[0].(map[string]any)["id"].(string)
+	if code, _ := f.call(t, "DELETE", "/api/notebooks/"+id2+"/history/"+hv, nil); code != http.StatusNoContent {
+		t.Fatalf("delete version → %d", code)
+	}
+	if _, hist = f.callJSON(t, "GET", "/api/notebooks/"+id2+"/history", nil); len(hist["versions"].([]any)) != 0 {
+		t.Fatalf("history after delete = %v", hist)
 	}
 }

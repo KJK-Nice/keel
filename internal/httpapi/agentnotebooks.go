@@ -194,3 +194,52 @@ func (s *Server) restoreDeletedNotebook(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, nb)
 	s.note("notebook", "deleted notebook restored by you · "+nb.ID, "", "", "")
 }
+
+// patchNotebook renames or pins a notebook without its text: a window with
+// an old copy cannot write old cells back (store.UpdateNotebookMeta).
+func (s *Server) patchNotebook(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name   *string `json:"name"`
+		Pinned *bool   `json:"pinned"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	nb, err := s.store.UpdateNotebookMeta(r.PathValue("id"), in.Name, in.Pinned)
+	if err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, nb)
+}
+
+// deletedNotebook is one entry of Recently deleted with its text.
+func (s *Server) deletedNotebook(w http.ResponseWriter, r *http.Request) {
+	v, err := s.store.DeletedNotebookByID(r.PathValue("vid"))
+	if err != nil {
+		writeHistoryErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+// purgeDeletedNotebook is Delete forever in Recently deleted.
+func (s *Server) purgeDeletedNotebook(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.PurgeNotebookVersion("", r.PathValue("vid")); err != nil {
+		writeHistoryErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+	s.note("notebook", "deleted notebook removed for good by you · "+r.PathValue("vid"), "", "", "")
+}
+
+// purgeNotebookVersion is Delete this version in History.
+func (s *Server) purgeNotebookVersion(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.PurgeNotebookVersion(r.PathValue("id"), r.PathValue("vid")); err != nil {
+		writeHistoryErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+	s.note("notebook", "notebook version removed by you · "+r.PathValue("id")+" · "+r.PathValue("vid"), "", "", "")
+}

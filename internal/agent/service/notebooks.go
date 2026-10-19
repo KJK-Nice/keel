@@ -274,6 +274,8 @@ func parseNotebookDelete(text string) (string, *rawNbDelete) {
 // redacted or cut anything (an edit may only be made at that revision,
 // and a whole-body edit only of a notebook sent whole and unredacted).
 type nbAsk struct {
+	// own is the revision this answer's own edit left a notebook at.
+	own        map[string]int
 	entries    []agent.NotebookIndexEntry
 	byNum      map[int]*agent.NotebookIndexEntry
 	read       map[string]nbSent
@@ -286,6 +288,8 @@ type nbSent struct {
 	rev       int
 	redacted  int
 	truncated bool
+	// nameRedacted: the notebook's name held a value Keel redacts.
+	nameRedacted bool
 }
 
 // notebookIndexOrder sorts the notebooks as the index lists them: pinned
@@ -361,7 +365,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		if err != nil {
 			return nil, "", nil, err
 		}
-		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated}
+		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
 		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
@@ -422,7 +426,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		n++
 		a.asked++
 		a.askedBytes += ex.Bytes
-		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated}
+		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
 		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
@@ -651,7 +655,7 @@ func refusalForModel(reason string) string {
 	case "not-read":
 		return "you had not read it in this question. Ask to read it first, then edit it at the revision Keel sent"
 	case "no-match":
-		return "a \"find\" text did not occur exactly once in the notebook"
+		return "a \"find\" text did not occur exactly once in one part of the notebook, or the edit would touch a value Keel redacted"
 	case "redacted", "truncated":
 		return "Keel removed or cut part of it before you saw it, so it may be changed only with find-and-replace edits"
 	case "private", "not-found", "deleted":
@@ -756,6 +760,10 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	case len(raw.Edits) > maxNotebookFindReplace:
 		return refuse("invalid", e.ID)
 	}
+	if strings.TrimSpace(raw.Title) != "" && sent.nameRedacted {
+		// A name that held a redacted value is not the agent's to replace.
+		return refuse("redacted", e.ID)
+	}
 	title := ""
 	if strings.TrimSpace(raw.Title) != "" {
 		title = agentLine(raw.Title, r, maxNotebookTitleBytes)
@@ -765,22 +773,14 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		b := strings.TrimSpace(agentText(*raw.Body, r, store.MaxNotebookBytes+1))
 		body = &b
 	}
-	type fr struct{ find, replace string }
-	var subs []fr
+	var subs []findReplace
 	added := ""
 	for _, ed := range raw.Edits {
 		if ed.Find == "" || len(ed.Find) > maxNotebookFindBytes {
 			return refuse("no-match", e.ID)
 		}
-		// A find the Redactor would change holds a vault value or a
-		// secret-looking value: the model never saw one, so it is a guess.
-		// Refused before matching, so "applied" or "no match" never tells
-		// the model whether its guess is in the notebook.
-		if r.Text(ed.Find).String() != ed.Find {
-			return refuse("redacted", e.ID)
-		}
 		rep := agentText(ed.Replace, r, store.MaxNotebookBytes+1)
-		subs = append(subs, fr{ed.Find, rep})
+		subs = append(subs, findReplace{ed.Find, rep})
 		added += rep + "\n"
 	}
 	if body != nil {
@@ -790,38 +790,113 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	if summary == "" {
 		summary = "Edited by the agent"
 	}
-	updated, vid, err := s.nbs.AgentEditNotebook(e.ID, sent.rev, summary, func(nb store.Notebook) (store.Notebook, error) {
-		md := notebookText(nb)
-		if body != nil {
-			md = *body
-		}
-		for _, sub := range subs {
-			if strings.Count(md, sub.find) != 1 {
-				return nb, errNoMatch
-			}
-			md = strings.Replace(md, sub.find, sub.replace, 1)
-		}
-		if title != "" {
-			nb.Name = title
-		}
-		cellID := ""
-		if len(nb.Cells) > 0 {
-			cellID = nb.Cells[0].ID
-		}
-		nb.Cells = []store.NotebookCell{{ID: cellID, Body: md}}
-		return nb, nil
+	// Two edits of one notebook in one answer: the second applies on top
+	// of the first (the model named the revision it read).
+	base := sent.rev
+	if own, ok := a.own[e.ID]; ok {
+		base = own
+	}
+	updated, vid, err := s.nbs.AgentEditNotebook(e.ID, base, summary, func(nb store.Notebook) (store.Notebook, error) {
+		return applyAgentEdit(nb, subs, body, title, r)
 	})
 	if err != nil {
 		return refuse(storeReason(err), e.ID)
 	}
+	if a.own == nil {
+		a.own = map[string]int{}
+	}
+	a.own[e.ID] = updated.Rev
 	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = "edited", "", updated.Rev, vid, &updated
 	p.Title = agent.SafeNotebookName(updated.Name, r)
 	p.Bytes = len(notebookText(updated))
 	p.Placeholders = hasPlaceholder(added) || hasPlaceholder(title)
 	p.Withheld = namedRe.MatchString(added)
 	fromPanes(&p.NotebookProposal, added, excerpts)
-	s.audit.NotebookEvent(fmt.Sprintf("notebook edited by the agent (rev %d to %d, %d bytes, %d replacements, whole text: %t); the version before it is kept", sent.rev, updated.Rev, p.Bytes, len(subs), body != nil), []string{e.ID, vid, p.ID, conv.id}, redact.Report{})
+	s.audit.NotebookEvent(fmt.Sprintf("notebook edited by the agent (rev %d to %d, %d bytes, %d replacements, whole text: %t); the version before it is kept", base, updated.Rev, p.Bytes, len(subs), body != nil), []string{e.ID, vid, p.ID, conv.id}, redact.Report{})
 	return p
+}
+
+type findReplace struct{ find, replace string }
+
+// applyAgentEdit applies an agent's edit to the stored notebook, never to
+// a value Keel redacts (docs/ui-redesign.md §6 rule 12). The model saw the
+// notebook with every such value replaced, so:
+//
+//   - each find must occur exactly once in the notebook, inside one cell
+//     (cells and their ids are kept);
+//   - a find whose match overlaps or touches a redacted value, or that lies
+//     in a cell Keel cannot map exactly (control characters, ANSI), is
+//     refused as errNoMatch, the same answer as a find that is not there,
+//     so an edit can neither change a secret nor tell the model whether a
+//     guess at one is in the notebook;
+//   - after the edit every value that was redacted before is still in the
+//     notebook and still redacted (context the edit removed could have
+//     stopped a detector from seeing it); otherwise the whole edit is
+//     refused with the same answer.
+//
+// r is the request's Redactor (the same options as what was sent).
+func applyAgentEdit(nb store.Notebook, subs []findReplace, body *string, title string, r *redact.Redactor) (store.Notebook, error) {
+	before := redactedValues(nb, r)
+	if body != nil {
+		cellID := ""
+		if len(nb.Cells) > 0 {
+			cellID = nb.Cells[0].ID
+		}
+		nb.Cells = []store.NotebookCell{{ID: cellID, Body: *body}}
+	}
+	cells := append([]store.NotebookCell(nil), nb.Cells...)
+	for _, sub := range subs {
+		hit, at := -1, -1
+		count := 0
+		for i, c := range cells {
+			n := strings.Count(c.Body, sub.find)
+			count += n
+			if n == 1 {
+				hit, at = i, strings.Index(c.Body, sub.find)
+			}
+		}
+		if count != 1 || hit < 0 {
+			return nb, errNoMatch
+		}
+		cell := cells[hit].Body
+		spans, exact := r.Spans(cell)
+		if !exact {
+			return nb, errNoMatch
+		}
+		end := at + len(sub.find)
+		for _, sp := range spans {
+			if at <= sp[1] && sp[0] <= end {
+				return nb, errNoMatch
+			}
+		}
+		cells[hit].Body = cell[:at] + sub.replace + cell[end:]
+	}
+	nb.Cells = cells
+	if title != "" {
+		nb.Name = title
+	}
+	after := redactedValues(nb, r)
+	for v, n := range before {
+		if after[v] < n {
+			return nb, errNoMatch
+		}
+	}
+	return nb, nil
+}
+
+// redactedValues counts the values the Redactor replaces in a notebook's
+// name and cells.
+func redactedValues(nb store.Notebook, r *redact.Redactor) map[string]int {
+	out := map[string]int{}
+	for _, v := range r.Matches(nb.Name) {
+		out[v]++
+	}
+	for _, c := range nb.Cells {
+		for _, v := range r.Matches(c.Body) {
+			out[v]++
+		}
+	}
+	return out
 }
 
 // notebookDeleteProposal makes a delete card: nothing is deleted until the

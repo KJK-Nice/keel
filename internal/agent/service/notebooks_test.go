@@ -529,7 +529,7 @@ func TestAgentWholeBodyEditOnlyOfCleanNotebooks(t *testing.T) {
 	// before it is matched, so the answer says nothing about the guess.
 	f.fake.Script(readBlock(n), editBlock(n, 1, "the password is "+vaultPass, "gone"))
 	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
-	if c := resp.Notebooks[0]; c.Reason != "redacted" {
+	if c := resp.Notebooks[0]; c.Reason != "no-match" {
 		t.Fatalf("probe card = %+v", c)
 	}
 	if !strings.Contains(f.text(t, nbName), vaultPass) {
@@ -801,5 +801,33 @@ func TestHasPlaceholderForNotebookFences(t *testing.T) {
 		if HasPlaceholder(cmd) != want {
 			t.Errorf("HasPlaceholder(%q) = %v", cmd, !want)
 		}
+	}
+}
+
+// Two edits of one notebook in one answer apply one after the other; a
+// title holding a redacted value is not the agent's to replace.
+func TestAgentTwoEditsAndRedactedTitle(t *testing.T) {
+	f := newNbFixture(t, "")
+	n := f.num(t, "Second")
+	f.fake.Script(readBlock(n), editBlock(n, 1, "SECOND-BODY", "FIRST-EDIT")+"\n"+editBlock(n, 1, "keel-edit-me", "SECOND-EDIT"))
+	resp, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Notebooks) != 2 || resp.Notebooks[0].Status != "edited" || resp.Notebooks[1].Status != "edited" {
+		t.Fatalf("cards = %+v", resp.Notebooks)
+	}
+	if got := f.text(t, "Second"); got != "FIRST-EDIT SECOND-EDIT" {
+		t.Fatalf("notebook = %q", got)
+	}
+	id := f.add(t, "Token "+nbGitHub, "body", false)
+	m := f.num(t, "Token "+nbGitHub)
+	f.fake.Script(readBlock(m), "```keel-notebook-edit\n{\"notebook\": "+fmt.Sprint(m)+", \"rev\": 1, \"title\": \"Renamed\"}\n```")
+	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
+	if c := resp.Notebooks[0]; c.Reason != "redacted" {
+		t.Fatalf("card = %+v", c)
+	}
+	if nb, _ := f.st.GetNotebook(id); nb.Name != "Token "+nbGitHub {
+		t.Fatalf("name = %q", nb.Name)
 	}
 }

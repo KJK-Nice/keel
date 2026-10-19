@@ -98,6 +98,10 @@ func (s *Store) UpsertNotebook(nb Notebook) (Notebook, error) {
 // whether the user's save was made from an older revision (the user typed
 // over an agent edit they had not loaded): nothing the user typed is
 // lost, and the agent's edit can be restored from History.
+//
+// When the agent's version cannot be kept (the history cannot be written),
+// the save is refused with ErrHistoryUnavailable: the page keeps the typing
+// as unsaved rather than drop the agent's edit without a copy.
 func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -112,8 +116,11 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 		ex := s.data.Notebooks[i]
 		switch {
 		case ex.LastBy == NotebookByAgent && !sameNotebookContent(ex, nb):
-			// The agent's version is about to be replaced: keep it.
-			s.keepVersionLocked(ex, "agent-version", "", now)
+			// The agent's version is about to be replaced: keep it, or do
+			// not save.
+			if _, err := s.keepVersionStrictLocked(ex, "agent-version", "", now); err != nil {
+				return Notebook{}, false, err
+			}
 			replacedAgent = base != ex.Rev
 		case now.Sub(ex.UpdatedAt) >= sessionGap && !sameNotebookContent(ex, nb):
 			// A new editing session: keep the version it starts from.
@@ -141,6 +148,39 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 	nb.Rev = 1
 	s.data.Notebooks = append(s.data.Notebooks, nb)
 	return nb, false, s.saveLocked()
+}
+
+// UpdateNotebookMeta renames or pins a notebook without touching its
+// text, so a window with an old copy cannot write old cells back over a
+// newer edit (the agent's included). A rename bumps the revision; a pin
+// does not.
+func (s *Store) UpdateNotebookMeta(id string, name *string, pinned *bool) (Notebook, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked.Load() {
+		return Notebook{}, ErrLocked
+	}
+	i := s.notebookIndexLocked(id)
+	if i < 0 {
+		return Notebook{}, ErrNotFound
+	}
+	nb := s.data.Notebooks[i]
+	if name != nil {
+		n := strings.TrimSpace(*name)
+		if n == "" {
+			n = "Notebook"
+		}
+		if n != nb.Name {
+			nb.Name = n
+			nb.Rev++
+			nb.UpdatedAt = time.Now().UTC()
+		}
+	}
+	if pinned != nil {
+		nb.Pinned = *pinned
+	}
+	s.data.Notebooks[i] = nb
+	return nb, s.saveLocked()
 }
 
 // SetNotebookPrivate turns a notebook's Private flag on or off. Only the
@@ -179,9 +219,10 @@ func (s *Store) MarkNotebookReviewed(id string) (Notebook, error) {
 }
 
 // DeleteNotebook deletes a notebook the user chose to delete. Its last
-// version goes to Recently deleted (notebookhistory.go) when the history
-// can be written; the delete happens either way.
-func (s *Store) DeleteNotebook(id string) error {
+// version goes to Recently deleted (notebookhistory.go); when it cannot
+// (the history cannot be written) the delete is refused with
+// ErrHistoryUnavailable unless permanent, the user's "delete it anyway".
+func (s *Store) DeleteNotebook(id string, permanent bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
@@ -191,7 +232,9 @@ func (s *Store) DeleteNotebook(id string) error {
 	if i < 0 {
 		return ErrNotFound
 	}
-	s.keepVersionLocked(s.data.Notebooks[i], "deleted", "", time.Now().UTC())
+	if _, err := s.keepVersionStrictLocked(s.data.Notebooks[i], "deleted", "", time.Now().UTC()); err != nil && !permanent {
+		return err
+	}
 	s.removeNotebookLocked(i)
 	return s.saveLocked()
 }
@@ -258,7 +301,10 @@ func (s *Store) AgentCreateNotebook(nb Notebook) (Notebook, error) {
 	nb.Source = NotebookSourceAgent
 	nb.Private, nb.Pinned = false, false
 	nb.LastBy = NotebookByAgent
-	nb.AgentEditedAt, nb.AgentUnreviewed = nil, false
+	// The agent wrote all of it: unreviewed until the user says so, so the
+	// approve dialog warns on its commands too.
+	at := now
+	nb.AgentEditedAt, nb.AgentUnreviewed = &at, true
 	nb.Rev = 1
 	nb.CreatedAt, nb.UpdatedAt = now, now
 	s.data.Notebooks = append(s.data.Notebooks, nb)

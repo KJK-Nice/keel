@@ -63,6 +63,9 @@ type NotebookVersion struct {
 	Pinned    bool      `json:"pinned,omitempty"`
 	Private   bool      `json:"private,omitempty"`
 	CreatedAt time.Time `json:"createdAt,omitempty"`
+	// Unreviewed: a deleted notebook held agent text the user had not
+	// reviewed; restoring it keeps the mark.
+	Unreviewed bool `json:"unreviewed,omitempty"`
 }
 
 type nbHistory struct {
@@ -79,9 +82,11 @@ func (s *Store) historyPath() string {
 	return filepath.Join(filepath.Dir(s.path), notebookHistoryFile)
 }
 
-// historyLocked loads the history on first use. Call with mu held.
+// historyLocked loads the history on first use, and again on the next use
+// while it could not be read (a fixed file is picked up without a
+// restart). Call with mu held.
 func (s *Store) historyLocked() *nbHistory {
-	if s.nbHist != nil {
+	if s.nbHist != nil && s.nbHist.err == nil {
 		return s.nbHist
 	}
 	h := &nbHistory{}
@@ -150,7 +155,7 @@ func (s *Store) addVersionLocked(h *nbHistory, nb Notebook, event, summary strin
 		Event: event, Summary: summary, At: nb.UpdatedAt, KeptAt: now, Bytes: versionBytes(nb),
 	}
 	if event == "deleted" {
-		v.Source, v.Pinned, v.Private, v.CreatedAt = nb.Source, nb.Pinned, nb.Private, nb.CreatedAt
+		v.Source, v.Pinned, v.Private, v.CreatedAt, v.Unreviewed = nb.Source, nb.Pinned, nb.Private, nb.CreatedAt, nb.AgentUnreviewed
 	}
 	// The same text kept twice in a row (an undo of an undo) is one entry.
 	if event != "deleted" {
@@ -190,29 +195,39 @@ func pruneVersions(vs []NotebookVersion, now time.Time) []NotebookVersion {
 			out = append(out, v)
 		}
 	}
-	// Newest first, count per notebook and deleted ones.
+	// Newest first. Each notebook keeps maxVersionsPerNotebook of the
+	// user's versions and as many of the agent's, so agent edits never
+	// push out the user's own; the byte budget goes to the user's
+	// versions and deleted notebooks first, then the agent's.
 	keep := make([]bool, len(out))
 	per := map[string]int{}
 	deleted := 0
 	total := 0
-	for i := len(out) - 1; i >= 0; i-- {
-		v := out[i]
-		if v.Event == "deleted" {
-			if deleted >= maxDeletedNotebooks {
+	for pass := 0; pass < 2; pass++ {
+		for i := len(out) - 1; i >= 0; i-- {
+			v := out[i]
+			agentV := v.Event != "deleted" && v.By == "agent"
+			if agentV != (pass == 1) {
 				continue
 			}
-			deleted++
-		} else {
-			if per[v.NotebookID] >= maxVersionsPerNotebook {
+			if v.Event == "deleted" {
+				if deleted >= maxDeletedNotebooks {
+					continue
+				}
+				deleted++
+			} else {
+				key := v.NotebookID + "\x00" + v.By
+				if per[key] >= maxVersionsPerNotebook {
+					continue
+				}
+				per[key]++
+			}
+			if total+v.Bytes > maxHistoryBytes {
 				continue
 			}
-			per[v.NotebookID]++
+			total += v.Bytes
+			keep[i] = true
 		}
-		if total+v.Bytes > maxHistoryBytes {
-			continue
-		}
-		total += v.Bytes
-		keep[i] = true
 	}
 	res := out[:0]
 	for i, v := range out {
@@ -316,7 +331,12 @@ func (s *Store) RestoreNotebookVersion(id, vid string, expectRev int) (Notebook,
 	nb = normalizeNotebook(nb, now)
 	nb.Rev = ex.Rev + 1
 	nb.LastBy = ""
-	nb.AgentUnreviewed = false
+	// Restoring the agent's text brings back its "not reviewed" mark.
+	nb.AgentUnreviewed = v.By == "agent"
+	if nb.AgentUnreviewed {
+		at := now
+		nb.AgentEditedAt = &at
+	}
 	nb.UpdatedAt = now
 	s.data.Notebooks[i] = nb
 	return nb, s.saveLocked()
@@ -361,7 +381,7 @@ func (s *Store) RestoreDeletedNotebook(vid string) (Notebook, error) {
 		return Notebook{}, ErrNotFound
 	}
 	now := time.Now().UTC()
-	nb := Notebook{ID: v.NotebookID, Name: v.Name, Cells: v.Cells, Pinned: v.Pinned, Source: v.Source, Private: v.Private, CreatedAt: v.CreatedAt, Rev: v.Rev + 1}
+	nb := Notebook{ID: v.NotebookID, Name: v.Name, Cells: v.Cells, Pinned: v.Pinned, Source: v.Source, Private: v.Private, CreatedAt: v.CreatedAt, Rev: v.Rev + 1, AgentUnreviewed: v.Unreviewed}
 	if s.notebookIndexLocked(nb.ID) >= 0 {
 		nb.ID = newID()
 	}
@@ -379,4 +399,48 @@ func (s *Store) RestoreDeletedNotebook(vid string) (Notebook, error) {
 	}
 	s.data.Notebooks = append(s.data.Notebooks, nb)
 	return nb, s.saveLocked()
+}
+
+// DeletedNotebookByID is one entry of Recently deleted, with its text, for
+// the preview.
+func (s *Store) DeletedNotebookByID(vid string) (NotebookVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked.Load() {
+		return NotebookVersion{}, ErrLocked
+	}
+	v, _, err := s.versionLocked("", vid)
+	if err != nil {
+		return NotebookVersion{}, err
+	}
+	if v.Event != "deleted" {
+		return NotebookVersion{}, ErrNotFound
+	}
+	return v, nil
+}
+
+// PurgeNotebookVersion removes a kept version for good: one of notebook
+// id's versions, or (id "") an entry of Recently deleted. The history is
+// plain text like keel.json; the user can remove text before 30 days.
+func (s *Store) PurgeNotebookVersion(id, vid string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locked.Load() {
+		return ErrLocked
+	}
+	v, idx, err := s.versionLocked(id, vid)
+	if err != nil {
+		return err
+	}
+	if (id == "") != (v.Event == "deleted") {
+		return ErrNotFound
+	}
+	h := s.historyLocked()
+	prev := h.versions
+	h.versions = append(append([]NotebookVersion(nil), h.versions[:idx]...), h.versions[idx+1:]...)
+	if err := s.writeHistoryLocked(h); err != nil {
+		h.versions = prev
+		return fmt.Errorf("%w: %v", ErrHistoryUnavailable, err)
+	}
+	return nil
 }

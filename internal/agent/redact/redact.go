@@ -264,6 +264,31 @@ func (r *Redactor) InsideKnown(s string) bool {
 	return false
 }
 
+// Spans returns the byte ranges of s that Text would replace, in order,
+// without replacing or counting anything. s is taken as it is; exact is
+// false when Normalize would change s (control characters, ANSI, CR), in
+// which case the ranges may not line up with s and a caller that must not
+// touch a redacted value should treat all of s as redacted.
+func (r *Redactor) Spans(s string) (spans [][2]int, exact bool) {
+	for _, sp := range r.find(s) {
+		spans = append(spans, [2]int{sp.start, sp.end})
+	}
+	return spans, Normalize(s) == s
+}
+
+// Matches returns the values in s that Text would replace (each matched
+// text, in order), without replacing or counting anything. A caller
+// compares two versions of a text with it; it must never log or send
+// them.
+func (r *Redactor) Matches(s string) []string {
+	s = Normalize(s)
+	var out []string
+	for _, sp := range r.find(s) {
+		out = append(out, s[sp.start:sp.end])
+	}
+	return out
+}
+
 // Report returns the counts so far.
 func (r *Redactor) Report() Report {
 	out := Report{Counts: make(map[Kind]int, len(r.report.Counts))}

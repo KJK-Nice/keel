@@ -536,7 +536,7 @@ func TestNotebookRoundTripAndPin(t *testing.T) {
 		t.Fatalf("reloaded = %+v", again)
 	}
 
-	if err := st2.DeleteNotebook(updated.ID); err != nil {
+	if err := st2.DeleteNotebook(updated.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st2.GetNotebook(updated.ID); !errors.Is(err, ErrNotFound) {

@@ -507,6 +507,9 @@ templ notebookHistoryDialog() {
 				<div class="notebook-history-diff" id="notebook-history-diff" aria-live="polite"></div>
 			</div>
 			<div class="modal-actions">
+				@button.Button(button.Props{ID: "notebook-history-purge", Type: button.TypeButton, Variant: button.VariantGhost, Class: "notebook-history-purge", Attributes: templ.Attributes{"disabled": true}}) {
+					Delete this version
+				}
 				@button.Button(button.Props{ID: "notebook-history-close", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Close
 				}

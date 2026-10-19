@@ -211,7 +211,9 @@ export function createRunbooksPage(deps) {
     const hosts = ed.hosts
       .map((h, i) => `<span class="k-badge k-badge--mono k-rb-hostchip">${escapeHtml(h)}<button type="button" data-host-remove="${i}" aria-label="Remove ${escapeHtml(h)}">${ICON.x}</button></span>`)
       .join("");
-    const draftNote = !saved && ed.source !== "user" ? `<div class="k-review" role="note">${ICON.info}<span>A draft ${ed.source === "notebook" ? "from the notebook" : "from the conversation"}${ed.sourceRef ? ` “${escapeHtml(ed.sourceRef)}”` : ""}. Nothing is saved until you press Save, and the agent may not pick it until you turn that on.</span></div>` : "";
+    const draftNote = !saved && ed.source !== "user" ? `<div class="k-review" role="note">${ICON.info}<span>A draft ${ed.source === "notebook" ? "from the notebook" : "from the conversation"}${ed.sourceRef ? ` “${escapeHtml(ed.sourceRef)}”` : ""}. Nothing is saved until you press Save, and the agent may not pick it until you turn that on.${
+      ed.fromPrivate ? " The notebook is private, but a runbook is not: once saved, the agent can be sent this runbook when you use it." : ""
+    }</span></div>` : "";
     el.detail.innerHTML = `<form class="k-editor k-rb-editor" id="runbook-editor" autocomplete="off" aria-label="Runbook">
       <div class="k-editor-head">
         <input class="k-input k-editor-title k-rb-name" id="runbook-name" data-field="name" value="${escapeHtml(ed.name)}" aria-label="Runbook name" placeholder="Name this runbook" maxlength="120" />
@@ -412,6 +414,7 @@ export function createRunbooksPage(deps) {
     try {
       const d = await deps.api("/api/agent/runbooks/draft", { method: "POST", body: JSON.stringify(body) });
       setEditor({ ...d, agentMayPick: false }, { dirty: true });
+      if (state.ed) state.ed.fromPrivate = !!d.fromPrivate;
       paintEditor({ focus: "#runbook-name" });
     } catch (err) {
       deps.toast(err?.code === 422 ? "Nothing to make steps from: no headings or shell blocks, or no proposals." : err?.message || String(err), true);

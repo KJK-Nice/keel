@@ -201,9 +201,11 @@ func TestNotebookHistoryBounds(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// 20 of the agent's versions, and the user's own one (the text before
+	// the first agent edit) is never pushed out by agent edits.
 	hist, _ := st.NotebookHistory(nb.ID)
-	if len(hist) != maxVersionsPerNotebook {
-		t.Fatalf("%d versions kept, want %d", len(hist), maxVersionsPerNotebook)
+	if len(hist) != maxVersionsPerNotebook+1 || hist[len(hist)-1].By != "user" || hist[len(hist)-1].Rev != 1 {
+		t.Fatalf("%d versions kept, oldest %+v", len(hist), hist[len(hist)-1])
 	}
 	if hist[0].Rev != nb.Rev-1 {
 		t.Fatalf("newest kept is rev %d, want %d", hist[0].Rev, nb.Rev-1)
@@ -256,7 +258,7 @@ func TestNotebookTrashAndRestore(t *testing.T) {
 	}
 	// A user delete goes to the trash too, private flag and all.
 	_, _ = st.SetNotebookPrivate(nb.ID, true)
-	if err := st.DeleteNotebook(nb.ID); err != nil {
+	if err := st.DeleteNotebook(nb.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	del, _ = st.DeletedNotebooks()
@@ -281,7 +283,12 @@ func TestNotebookHistoryUnreadable(t *testing.T) {
 	if _, err := st.UpsertNotebook(nb); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.DeleteNotebook(nb.ID); err != nil {
+	// A delete that cannot go to Recently deleted asks first: refused,
+	// unless the user says permanent.
+	if err := st.DeleteNotebook(nb.ID, false); !errors.Is(err, ErrHistoryUnavailable) {
+		t.Fatalf("delete → %v", err)
+	}
+	if err := st.DeleteNotebook(nb.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(st.historyPath())
@@ -302,5 +309,106 @@ func TestAgentNotebookSizeLimits(t *testing.T) {
 	}
 	if got, _ := st.GetNotebook(nb.ID); nbText(got) != "a" || got.Rev != nb.Rev {
 		t.Fatalf("notebook changed: %+v", got)
+	}
+}
+
+// Review fixes (§18): agent text is unreviewed when created and when
+// restored; rename and pin never write text; a user save over an agent
+// edit needs the agent's version kept; a broken history is read again;
+// versions and deleted notebooks can be removed for good.
+func TestNotebookReviewFixes(t *testing.T) {
+	st := testStore(t)
+	created, err := st.AgentCreateNotebook(Notebook{Name: "agent", Cells: []NotebookCell{{Body: "echo hi"}}})
+	if err != nil || !created.AgentUnreviewed || created.AgentEditedAt == nil {
+		t.Fatalf("agent create → %+v %v", created, err)
+	}
+	nb, _ := st.UpsertNotebook(Notebook{Name: "n", Cells: []NotebookCell{{Body: "user"}}})
+	edited, _, err := st.AgentEditNotebook(nb.ID, nb.Rev, "", appendEdit(" agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The user restores their version, then the agent's again: unreviewed.
+	hist, _ := st.NotebookHistory(nb.ID)
+	back, err := st.RestoreNotebookVersion(nb.ID, hist[0].ID, edited.Rev)
+	if err != nil || back.AgentUnreviewed {
+		t.Fatalf("restore the user's → %+v %v", back, err)
+	}
+	hist, _ = st.NotebookHistory(nb.ID)
+	if hist[0].By != "agent" {
+		t.Fatalf("history = %+v", hist)
+	}
+	again, err := st.RestoreNotebookVersion(nb.ID, hist[0].ID, back.Rev)
+	if err != nil || !again.AgentUnreviewed || nbText(again) != "user agent" {
+		t.Fatalf("restore the agent's → %+v %v", again, err)
+	}
+	// A deleted unreviewed notebook comes back unreviewed.
+	if err := st.DeleteNotebook(created.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	del, _ := st.DeletedNotebooks()
+	full, err := st.DeletedNotebookByID(del[0].ID)
+	if err != nil || nbText(Notebook{Cells: full.Cells}) != "echo hi" {
+		t.Fatalf("preview → %+v %v", full, err)
+	}
+	if r, err := st.RestoreDeletedNotebook(del[0].ID); err != nil || !r.AgentUnreviewed {
+		t.Fatalf("restore deleted → %+v %v", r, err)
+	}
+
+	// Rename and pin keep the text, whatever an old window holds.
+	name, pin := "renamed", true
+	meta, err := st.UpdateNotebookMeta(nb.ID, &name, &pin)
+	if err != nil || meta.Name != "renamed" || !meta.Pinned || nbText(meta) != "user agent" || meta.Rev != again.Rev+1 {
+		t.Fatalf("meta → %+v %v", meta, err)
+	}
+
+	// Purge a version and a deleted notebook.
+	hist, _ = st.NotebookHistory(nb.ID)
+	if err := st.PurgeNotebookVersion(nb.ID, hist[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if h2, _ := st.NotebookHistory(nb.ID); len(h2) != len(hist)-1 {
+		t.Fatalf("after purge %d versions, want %d", len(h2), len(hist)-1)
+	}
+	if err := st.PurgeNotebookVersion("", hist[1].ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("purge a version as a deleted one → %v", err)
+	}
+	_ = st.DeleteNotebook(created.ID, false)
+	del, _ = st.DeletedNotebooks()
+	if err := st.PurgeNotebookVersion("", del[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := st.DeletedNotebooks(); len(d) != 0 {
+		t.Fatalf("still deleted: %+v", d)
+	}
+
+	// The history breaks: a user save over an agent edit is refused (the
+	// page keeps the typing), a save of the user's own text is not; once
+	// the file is fixed it is read again without a restart.
+	cur, _ := st.GetNotebook(nb.ID)
+	cur2, _, err := st.AgentEditNotebook(nb.ID, cur.Rev, "", appendEdit(" more"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	good, _ := os.ReadFile(st.historyPath())
+	if err := os.WriteFile(st.historyPath(), []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st.mu.Lock()
+	st.nbHist = nil
+	st.mu.Unlock()
+	cur2.Cells = []NotebookCell{{Body: "typed over the agent"}}
+	if _, _, err := st.SaveUserNotebook(cur2); !errors.Is(err, ErrHistoryUnavailable) {
+		t.Fatalf("save over an agent edit without history → %v", err)
+	}
+	other, _ := st.UpsertNotebook(Notebook{Name: "plain", Cells: []NotebookCell{{Body: "x"}}})
+	other.Cells = []NotebookCell{{Body: "y"}}
+	if _, _, err := st.SaveUserNotebook(other); err != nil {
+		t.Fatalf("a plain save → %v", err)
+	}
+	if err := os.WriteFile(st.historyPath(), good, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.SaveUserNotebook(cur2); err != nil {
+		t.Fatalf("after the fix → %v", err)
 	}
 }
