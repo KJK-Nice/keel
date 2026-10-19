@@ -3079,7 +3079,7 @@ func waitJSON(t *testing.T, conn *websocket.Conn, typ string) map[string]any {
 // waitBridgeReady waits until the session's bridge is connected. The
 // "ready" message only means the socket attached: the runtime dials the
 // bridge on its own goroutine, and until it lands Session.Write fails with
-// "session is not ready" (which closes the socket) and nothing can reach the
+// runtime.ErrNotReady (live keystrokes are dropped) and nothing can reach the
 // PTY, so a "nothing was written" check would pass for the wrong reason.
 // ready is the attach message; if it already reports StatusReady there is no
 // later status event to wait for.
