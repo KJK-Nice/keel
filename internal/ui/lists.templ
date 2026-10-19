@@ -321,6 +321,9 @@ templ NotebookList(p PageProps) {
 							<span class="k-item-sub">{ notebookPreview(nb) }</span>
 						</span>
 					</button>
+					if nb.Source == store.NotebookSourceAgent {
+						<span class="k-badge k-badge--outline" title="Saved by you from a draft the agent proposed">From agent</span>
+					}
 					if nb.Pinned {
 						<span class="k-badge">Pinned</span>
 					}

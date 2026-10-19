@@ -1,8 +1,15 @@
-// Package termlife is the attach/detach/remount contract for native WebGL
-// panes. It mirrors cmd/keel/web/js/term.js (paneWantsWebgl, attachWebgl,
-// dropWebgl, ensurePaneTerm, paintLayout, disposePane) so tests can catch
-// remount bugs without scanning source strings.
+// Package termlife is the attach/detach/remount contract for WebGL panes.
+// It mirrors cmd/keel/web/js/term.js (paneWantsWebgl, attachWebgl,
+// dropWebgl, releaseOffscreenWebgl, ensurePaneTerm, paintLayout,
+// disposePane) and lib/webglguard.js so tests can catch remount bugs
+// without scanning source strings.
+//
+// Every visible pane holds one WebGL addon, solo or split, native or not;
+// a pane off screen holds none. A pane falls back to the DOM renderer only
+// when its context cannot be created or is lost MaxLosses times.
 package termlife
+
+import "slices"
 
 type Node struct {
 	Kind   string
@@ -70,11 +77,19 @@ func (t *Term) Dispose() {
 	t.Disposed++
 }
 
+// MaxLosses is lib/webglguard.js WEBGL_MAX_LOSSES (within its window).
+const MaxLosses = 3
+
 type Pane struct {
 	ID   string
 	Term *Term
 	Host *Node
 	Wrap *Node
+	// FailCreate makes the next WebGL attach fail, like a context that
+	// cannot be created.
+	FailCreate bool
+	Losses     int
+	Fallback   string
 }
 
 type Tab struct {
@@ -126,15 +141,17 @@ func WantsWebGL(tab *Tab, pane *Pane) bool {
 	if pane == nil || pane.Term == nil {
 		return false
 	}
-	if !tab.Native {
-		return true
-	}
-	return len(tab.Visible) <= 1
+	return pane.Fallback == ""
 }
 
 func AttachWebGL(tab *Tab, pane *Pane) {
 	term := pane.Term
 	if term == nil || term.WebGL != nil || !WantsWebGL(tab, pane) {
+		return
+	}
+	if pane.FailCreate {
+		pane.Fallback = "create failed"
+		tab.note("fallback:" + pane.ID)
 		return
 	}
 	tab.addons++
@@ -175,11 +192,6 @@ func PaintLayout(tab *Tab) {
 		tab.Stage = &Node{Kind: "stage", ID: "stage"}
 		tab.note("ensure-stage")
 	}
-	if tab.Native && len(tab.Visible) > 1 {
-		for _, pane := range tab.Panes {
-			DropWebGL(tab, pane)
-		}
-	}
 	for _, pane := range tab.Panes {
 		if pane.Wrap != nil && pane.Wrap.Parent != tab.Stage {
 			tab.Stage.Append(pane.Wrap)
@@ -190,6 +202,28 @@ func PaintLayout(tab *Tab) {
 	for _, pane := range tab.Visible {
 		EnsurePaneTerm(tab, pane)
 	}
+	ReleaseOffscreen(tab)
+}
+
+// ReleaseOffscreen drops the addon of every pane that is not visible
+// (behind a zoomed pane), so the tab holds one context per visible pane.
+func ReleaseOffscreen(tab *Tab) {
+	for _, pane := range tab.Panes {
+		if !slices.Contains(tab.Visible, pane) {
+			DropWebGL(tab, pane)
+		}
+	}
+}
+
+// Contexts counts the live WebGL addons in the tab.
+func (t *Tab) Contexts() int {
+	n := 0
+	for _, p := range t.Panes {
+		if p.Term != nil && p.Term.WebGL != nil {
+			n++
+		}
+	}
+	return n
 }
 
 // RefreshPaneRender is the resize observer path: reflow (PTY resize) then the
@@ -243,7 +277,11 @@ func ContextLost(tab *Tab, pane *Pane) {
 	pane.Term.WebGL.Dispose()
 	pane.Term.WebGL = nil
 	tab.note("context-lost:" + pane.ID)
-	if WantsWebGL(tab, pane) {
-		AttachWebGL(tab, pane)
+	pane.Losses++
+	if pane.Losses >= MaxLosses {
+		pane.Fallback = "context lost"
+		tab.note("fallback:" + pane.ID)
+		return
 	}
+	AttachWebGL(tab, pane)
 }

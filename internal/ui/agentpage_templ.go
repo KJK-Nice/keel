@@ -73,20 +73,28 @@ func AgentPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</button></div><div class=\"k-agent-thread k-agentpage-thread\" id=\"agentpage-thread\" aria-live=\"polite\"></div><form class=\"k-agent-composer k-agentpage-composer\" id=\"agentpage-composer\" autocomplete=\"off\"><textarea id=\"agentpage-input\" rows=\"2\" aria-label=\"Message the agent\" placeholder=\"Ask about your sessions…\"></textarea><div class=\"k-agent-composer-foot\"><span class=\"k-agent-hint\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</button></div><div class=\"k-agent-thread k-agentpage-thread\" id=\"agentpage-thread\" aria-live=\"polite\"></div><form class=\"k-agent-composer k-agentpage-composer\" id=\"agentpage-composer\" autocomplete=\"off\"><div class=\"k-agent-chips\" id=\"agentpage-chips\"></div><textarea id=\"agentpage-input\" rows=\"2\" aria-label=\"Message the agent\" placeholder=\"Ask about your sessions…\"></textarea><div class=\"k-agent-picker k-agent-nb-picker\" id=\"agentpage-nb-picker\" role=\"dialog\" aria-label=\"Notebooks to send with your question\" tabindex=\"-1\" hidden></div><div class=\"k-agent-composer-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" id=\"agentpage-attach\" aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"agentpage-nb-picker\" aria-label=\"Attach notebook\" title=\"Attach notebook\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.NotebookPen().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</button> <span class=\"k-agent-hint\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("Reads only panes in scope now · ↵ send")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agentpage.templ`, Line: 64, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/agentpage.templ`, Line: 78, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"agentpage-stop\" hidden>Stop</button> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--sm k-btn--icon\" id=\"agentpage-send\" aria-label=\"Send\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</span> <span class=\"k-spacer\"></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"agentpage-stop\" hidden>Stop</button> <button type=\"submit\" class=\"k-btn k-btn--primary k-btn--sm k-btn--icon\" id=\"agentpage-send\" aria-label=\"Send\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -94,7 +102,7 @@ func AgentPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</button></div></form></section><aside class=\"k-agentpage-col k-agentpage-ctx-col\" aria-label=\"Conversation context\"><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>In scope</span><span id=\"agentpage-scope-count\">0</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-scope\"></div></div><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>Read so far</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-reads\"></div></div><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>Proposals</span><span id=\"agentpage-props-count\">0</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-props\"></div></div><p class=\"k-help k-agentpage-ctx-note\">Every read and every typed proposal is also in Logs, under Agent.</p></aside></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</button></div></form></section><aside class=\"k-agentpage-col k-agentpage-ctx-col\" aria-label=\"Conversation context\"><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>In scope</span><span id=\"agentpage-scope-count\">0</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-scope\"></div></div><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>Read so far</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-reads\"></div></div><div class=\"k-agentpage-ctx\"><div class=\"k-agentpage-section\"><span>Proposals</span><span id=\"agentpage-props-count\">0</span></div><div class=\"k-agentpage-ctx-rows\" id=\"agentpage-props\"></div></div><p class=\"k-help k-agentpage-ctx-note\">Every read and every typed proposal is also in Logs, under Agent.</p></aside></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

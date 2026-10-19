@@ -192,6 +192,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/draft", s.agentOpenNotebookDraft)
+	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookProposal)
+	mux.HandleFunc("POST /api/agent/notebooks/drafts/{draft}", s.agentSaveNotebookDraft)
 	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
@@ -219,7 +223,23 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/logs", s.uiLogs)
 	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
 	mux.Handle("/", newStaticHandler(s.web))
-	return withLogging(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux)))))
+	return withLogging(withImagePolicy(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux))))))
+}
+
+// imagePolicy is the Content-Security-Policy every response carries. It
+// restricts images only: a page loads images from keel serve itself or
+// from data: and blob: URLs, never from the network. A markdown image in a
+// notebook (an agent's draft, text pasted from anywhere) would otherwise
+// make the webview fetch a URL of the author's choosing, which could carry
+// what the page shows (docs/ui-redesign.md §18). Scripts and styles are not
+// restricted here: Datastar evaluates its expressions.
+const imagePolicy = "img-src 'self' data: blob:"
+
+func withImagePolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", imagePolicy)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // allowLocalOrigin blocks cross-site use of the privileged loopback API.
@@ -1075,8 +1095,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				// Suggestion marks an inject as the user's ⇥ / ⇧⇥ on an
 				// in-pane suggestion (agentsuggest.go).
 				Suggestion *agentInsertMsg `json:"suggestion"`
-				Seq        int             `json:"seq"`
-				Line       string          `json:"line"`
+				// Notebook marks an inject as a notebook fence's Type
+				// (§13, §18): one holding a redaction placeholder such as
+				// [secret:1] is refused, as an agent proposal is.
+				Notebook bool   `json:"notebook"`
+				Seq      int    `json:"seq"`
+				Line     string `json:"line"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
 				continue
@@ -1129,6 +1153,14 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
+					break
+				}
+				if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
+					// A notebook fence (an agent's draft, or text pasted
+					// from an answer) that still holds a placeholder is a
+					// shell glob, never the value: not typed.
+					s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
+					_ = ws.writeJSON(map[string]any{"type": "error", "message": service.ErrPlaceholder.Error()})
 					break
 				}
 				if ctl.Agent == nil {

@@ -30,7 +30,28 @@ func (s *Store) GetNotebook(id string) (Notebook, error) {
 	return Notebook{}, ErrNotFound
 }
 
+// NotebookSourceAgent marks a notebook saved from an agent's draft (§18).
+const NotebookSourceAgent = "agent"
+
+// UpsertNotebook creates or replaces a notebook the user wrote. Its Source
+// is never taken from nb: a new notebook is the user's own, and an
+// existing one keeps the source it had (a notebook saved from an agent's
+// draft stays "From agent" after the user edits it).
 func (s *Store) UpsertNotebook(nb Notebook) (Notebook, error) {
+	nb.Source = ""
+	return s.putNotebook(nb)
+}
+
+// AddAgentNotebook creates a new notebook from an agent's draft that the
+// user reviewed and saved (agent service, §18). It always creates one: the
+// agent cannot replace or edit an existing notebook.
+func (s *Store) AddAgentNotebook(nb Notebook) (Notebook, error) {
+	nb.ID = ""
+	nb.Source = NotebookSourceAgent
+	return s.putNotebook(nb)
+}
+
+func (s *Store) putNotebook(nb Notebook) (Notebook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
@@ -48,6 +69,7 @@ func (s *Store) UpsertNotebook(nb Notebook) (Notebook, error) {
 	for i, existing := range s.data.Notebooks {
 		if existing.ID == nb.ID {
 			nb.CreatedAt = existing.CreatedAt
+			nb.Source = existing.Source
 			nb.UpdatedAt = now
 			s.data.Notebooks[i] = nb
 			return nb, s.saveLocked()
@@ -98,6 +120,9 @@ func normalizeNotebook(nb Notebook, now time.Time) Notebook {
 		cells = []NotebookCell{{ID: newID(), Body: ""}}
 	}
 	nb.Cells = cells
+	if nb.Source != NotebookSourceAgent {
+		nb.Source = ""
+	}
 	if nb.UpdatedAt.IsZero() {
 		nb.UpdatedAt = now
 	}

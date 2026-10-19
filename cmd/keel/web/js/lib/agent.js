@@ -8,6 +8,7 @@
 
 import { escapeHtml } from "./html.js";
 import { noteStepText } from "./notes.js";
+import { notebookStepText } from "./notebooks.js";
 
 // A pane as the panel sees it (built by term.js from its pane state):
 //   { sessionId, label, sub, tabId, focused, inActiveTab, readable,
@@ -120,6 +121,8 @@ function redactedNote(counts) {
 // traceText is one line of the agent trace: what it read, or why not.
 export function traceText(step) {
   if (step?.status === "notes") return noteStepText(step);
+  // A notebook the user attached (§18): its name, bytes and redactions.
+  if (step?.status === "notebook" || step?.reason === "notebook-missing") return notebookStepText(step);
   // A runbook in use (§16): sent with the question, or picked by the agent.
   if (step?.status === "runbook") return `Used runbook · ${step.runbook || "a runbook"}`;
   const host = step?.host || "a pane";

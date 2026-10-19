@@ -17,6 +17,7 @@
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
 import * as R from "../lib/runbooks.js";
+import * as NB from "../lib/notebooks.js";
 import { setText } from "../lib/dom.js";
 import { ICON, createThreadView, sessionGroupsHTML } from "./agentthread.js";
 
@@ -54,6 +55,8 @@ export function createAgentPanel(deps) {
     thread: $("agent-thread"),
     composer: $("agent-composer"),
     chips: $("agent-chips"),
+    attach: $("agent-attach"),
+    nbPicker: $("agent-nb-picker"),
     input: $("agent-input"),
     send: $("agent-send"),
     stop: $("agent-stop"),
@@ -110,6 +113,10 @@ export function createAgentPanel(deps) {
     choosing: false,
     others: null,
     bookProps: new Map(), // runbook proposal id → { b, busy, error }
+    // Notebooks (§18): the ids the user attached (sent with each question
+    // until removed), and the notebook drafts the agent proposed.
+    attached: [],
+    nbProps: new Map(), // notebook draft id → { p, busy, error }
   };
   let pollTimer = null;
   let pollLeft = 0;
@@ -165,6 +172,10 @@ export function createAgentPanel(deps) {
     saveBookProp,
     bookPropAction,
     openRunbooks: () => deps.openRunbooks?.(),
+    nbProp: (id) => state.nbProps.get(id) || null,
+    openNbDraft,
+    nbPropAction,
+    openNotebook: (id) => deps.openNotebook?.(id),
   };
 
   const views = [];
@@ -337,14 +348,95 @@ export function createAgentPanel(deps) {
   }
 
   function paintChips() {
-    el.chips.innerHTML = scopePanes()
+    el.chips.innerHTML =
+      scopePanes()
+        .map(
+          (p) =>
+            `<span class="k-agent-chip" data-session="${escapeHtml(p.sessionId)}">${ICON.at}<span>${escapeHtml(p.label)}</span><button type="button" data-agent-unscope="${escapeHtml(
+              p.sessionId,
+            )}" aria-label="Stop reading ${escapeHtml(p.label)}">${ICON.x}</button></span>`,
+        )
+        .join("") + attachedChipsHTML();
+  }
+
+  // --- notebooks the user attaches (§18) ---
+
+  function notebooks() {
+    return deps.listNotebooks?.() || [];
+  }
+
+  function attachedNotebooks() {
+    const all = notebooks();
+    return state.attached.map((id) => all.find((n) => n.id === id)).filter(Boolean);
+  }
+
+  // attachedChipsHTML is one chip per attached notebook, for any composer.
+  function attachedChipsHTML() {
+    return attachedNotebooks()
       .map(
-        (p) =>
-          `<span class="k-agent-chip" data-session="${escapeHtml(p.sessionId)}">${ICON.at}<span>${escapeHtml(p.label)}</span><button type="button" data-agent-unscope="${escapeHtml(
-            p.sessionId,
-          )}" aria-label="Stop reading ${escapeHtml(p.label)}">${ICON.x}</button></span>`,
+        (nb) =>
+          `<span class="k-agent-chip k-agent-chip--notebook" data-notebook-chip="${escapeHtml(nb.id)}">${ICON.notebook}<span>${escapeHtml(nb.name || "Notebook")}</span><button type="button" data-agent-detach="${escapeHtml(
+            nb.id,
+          )}" aria-label="Stop sending ${escapeHtml(nb.name || "Notebook")}">${ICON.x}</button></span>`,
       )
       .join("");
+  }
+
+  // nbPickerHTML is the Attach notebook menu: every saved notebook, at
+  // most MAX_ATTACHED ticked. Nothing is read until the user asks.
+  function nbPickerHTML() {
+    const all = NB.attachable(notebooks());
+    if (!all.length) return `<p class="k-help k-agent-picker-empty">No notebooks yet. Write one first; then attach it here.</p>`;
+    const full = state.attached.length >= NB.MAX_ATTACHED;
+    const rows = all.map((nb) => {
+      const on = state.attached.includes(nb.id);
+      const off = !on && full;
+      return `<button type="button" class="k-agent-pick" role="menuitemcheckbox" aria-checked="${on}"${off ? ' aria-disabled="true"' : ""} data-agent-attach-pick="${escapeHtml(nb.id)}">
+        <span class="k-check" aria-hidden="true"><span class="k-i">${ICON.tick}</span></span>
+        <span class="k-agent-pick-main"><span class="k-agent-pick-name">${escapeHtml(nb.name || "Notebook")}</span></span>${
+          nb.source === "agent" ? '<span class="k-badge k-badge--outline">From agent</span>' : ""
+        }</button>`;
+    });
+    return `<div class="k-menu-label">Notebooks to send with your question</div>${rows.join("")}<p class="k-help k-agent-picker-note">${escapeHtml(
+      `At most ${NB.MAX_ATTACHED}. The agent sees only what you attach, redacted, and cannot open any notebook itself.`,
+    )}</p>`;
+  }
+
+  function paintNbPicker() {
+    if (el.nbPicker && !el.nbPicker.hidden) el.nbPicker.innerHTML = nbPickerHTML();
+  }
+
+  function openNbPicker() {
+    if (!el.nbPicker) return;
+    closePicker();
+    closeSessions();
+    el.nbPicker.innerHTML = nbPickerHTML();
+    el.nbPicker.hidden = false;
+    el.attach?.setAttribute("aria-expanded", "true");
+    (el.nbPicker.querySelector('[aria-checked]:not([aria-disabled="true"])') || el.nbPicker).focus({ preventScroll: true });
+  }
+
+  function closeNbPicker({ refocus = false } = {}) {
+    if (!el.nbPicker || el.nbPicker.hidden) return;
+    el.nbPicker.hidden = true;
+    el.attach?.setAttribute("aria-expanded", "false");
+    if (refocus) el.input?.focus({ preventScroll: true });
+  }
+
+  function setAttached(ids) {
+    state.attached = NB.reconcileAttached(ids, notebooks());
+    paintChips();
+    paintNbPicker();
+    emit("attached");
+  }
+
+  function attachNotebook(id) {
+    if (!id || state.attached.includes(id)) return;
+    if (state.attached.length >= NB.MAX_ATTACHED) {
+      deps.toast(`Attach at most ${NB.MAX_ATTACHED} notebooks to a question`, true);
+      return;
+    }
+    setAttached([...state.attached, id]);
   }
 
   function paintPicker() {
@@ -376,6 +468,7 @@ export function createAgentPanel(deps) {
 
   function openPicker() {
     closeSessions();
+    closeNbPicker();
     paintPicker();
     el.picker.hidden = false;
     el.scope.setAttribute("aria-expanded", "true");
@@ -413,6 +506,9 @@ export function createAgentPanel(deps) {
     state.turns++;
     const conv = state.conv;
     const inScope = scopePanes();
+    closeNbPicker();
+    state.attached = NB.reconcileAttached(state.attached, notebooks());
+    const sentNotebooks = state.attached.slice();
     const turns = views.map((v) => [v, v.askStart(q, inScope.length)]);
     const turnModel = { at: new Date().toISOString(), question: q, trace: [], proposals: [], pending: true };
     state.model.turns.push(turnModel);
@@ -424,7 +520,13 @@ export function createAgentPanel(deps) {
     try {
       const res = await deps.api("/api/agent/ask", {
         method: "POST",
-        body: JSON.stringify({ conversationId: conv, question: q, panes: inScope.map((p) => p.sessionId), runbookId: opts.runbookId || undefined }),
+        body: JSON.stringify({
+          conversationId: conv,
+          question: q,
+          panes: inScope.map((p) => p.sessionId),
+          notebooks: sentNotebooks.length ? sentNotebooks : undefined,
+          runbookId: opts.runbookId || undefined,
+        }),
         signal: ctlr.signal,
       });
       if (res.conversationId !== state.conv) return true; // a new conversation started meanwhile
@@ -435,6 +537,7 @@ export function createAgentPanel(deps) {
       for (const p of res.proposals || []) registerProposal(p);
       for (const n of res.notes || []) registerNote(n);
       for (const b of res.runbooks || []) registerBookProp(b);
+      for (const nb of res.notebooks || []) registerNbProp(nb);
       if (opts.runbookId) state.noRunbook = false;
       if (res.runbook) setRun(res.runbook, { paint: false });
       turnModel.proposals = (res.proposals || []).slice();
@@ -797,6 +900,64 @@ export function createAgentPanel(deps) {
     }
   }
 
+  // --- notebook drafts the agent proposes (§18) ---
+
+  function registerNbProp(p) {
+    state.nbProps.set(p.id, { p, busy: false, error: "" });
+  }
+
+  function repaintNbProp(id) {
+    eachView((v) => v.paintNbProp(id));
+  }
+
+  // openNbDraft asks keel serve for the draft and its draftId, and opens
+  // it in the notebook editor as an unsaved draft. Nothing is saved here:
+  // the editor's Save notebook does that, with the draftId.
+  async function openNbDraft(id) {
+    const rec = state.nbProps.get(id);
+    if (!rec || rec.busy) return;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintNbProp(id);
+    try {
+      const d = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}/draft`, { method: "POST" });
+      if (conv !== state.conv) return;
+      deps.openNotebookDraft?.(d, {
+        onSaved: (res) => {
+          const cur = state.nbProps.get(id);
+          if (!cur || conv !== state.conv) return;
+          cur.p = res?.proposal || { ...cur.p, status: "saved", notebookId: res?.notebook?.id };
+          repaintNbProp(id);
+        },
+      });
+    } catch (err) {
+      rec.error = err?.code === 410 ? "This draft expired with the conversation; ask the agent again." : err?.message || String(err);
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintNbProp(id);
+    }
+  }
+
+  async function nbPropAction(id, method, suffix) {
+    const rec = state.nbProps.get(id);
+    if (!rec || rec.busy) return;
+    const conv = state.conv;
+    rec.busy = true;
+    rec.error = "";
+    repaintNbProp(id);
+    try {
+      const p = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}${suffix}`, { method });
+      if (conv !== state.conv) return;
+      rec.p = p;
+    } catch (err) {
+      rec.error = err?.message || String(err);
+    } finally {
+      rec.busy = false;
+      if (conv === state.conv) repaintNbProp(id);
+    }
+  }
+
   function resetRun() {
     clearTimeout(pollTimer);
     pollTimer = null;
@@ -808,6 +969,8 @@ export function createAgentPanel(deps) {
     state.choosing = false;
     state.others = null;
     state.bookProps.clear();
+    state.nbProps.clear();
+    state.attached = [];
   }
 
   // --- new conversation ---
@@ -942,6 +1105,7 @@ export function createAgentPanel(deps) {
     for (const turn of t.turns || []) for (const p of turn.proposals || []) registerProposal(p);
     for (const turn of t.turns || []) for (const n of turn.notes || []) registerNote(n);
     for (const turn of t.turns || []) for (const b of turn.runbooks || []) registerBookProp(b);
+    for (const turn of t.turns || []) for (const nb of turn.notebooks || []) registerNbProp(nb);
     state.noRunbook = !!t.noRunbook;
     if (t.runbook) setRun(t.runbook, { paint: false });
     eachView((v) => v.renderTranscript(t));
@@ -1115,6 +1279,38 @@ export function createAgentPanel(deps) {
   el.chips.addEventListener("click", (ev) => {
     const id = ev.target.closest("[data-agent-unscope]")?.dataset.agentUnscope;
     if (id) setScope(state.scope.filter((s) => s !== id));
+    const nb = ev.target.closest("[data-agent-detach]")?.dataset.agentDetach;
+    if (nb) setAttached(state.attached.filter((x) => x !== nb));
+  });
+
+  // Attach notebook (§18): a menu of saved notebooks; the ticked ones go
+  // with each question until removed.
+  el.attach?.addEventListener("click", () => (el.nbPicker?.hidden ? openNbPicker() : closeNbPicker({ refocus: true })));
+  el.nbPicker?.addEventListener("click", (ev) => {
+    const pick = ev.target.closest("[data-agent-attach-pick]");
+    if (!pick || pick.getAttribute("aria-disabled") === "true") return;
+    setAttached(NB.toggleAttached(state.attached, pick.dataset.agentAttachPick));
+    el.nbPicker.querySelector(`[data-agent-attach-pick="${CSS.escape(pick.dataset.agentAttachPick)}"]`)?.focus({ preventScroll: true });
+  });
+  el.nbPicker?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeNbPicker({ refocus: true });
+      return;
+    }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      const items = [...el.nbPicker.querySelectorAll("button")];
+      const i = items.indexOf(doc.activeElement);
+      const next = items[(i + (ev.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
+      next?.focus({ preventScroll: true });
+      ev.preventDefault();
+    }
+  });
+  doc.addEventListener("pointerdown", (ev) => {
+    if (!el.nbPicker || el.nbPicker.hidden) return;
+    if (el.nbPicker.contains(ev.target) || el.attach?.contains(ev.target)) return;
+    closeNbPicker();
   });
 
   el.composer.addEventListener("submit", (ev) => {
@@ -1268,6 +1464,15 @@ export function createAgentPanel(deps) {
     }),
     proposal: ctl.proposal,
     again: proposeAgain,
+    // Notebooks attached to the next questions (§18).
+    attached: () => attachedNotebooks(),
+    attachNotebook,
+    detachNotebook: (id) => setAttached(state.attached.filter((x) => x !== id)),
+    toggleNotebook: (id) => setAttached(NB.toggleAttached(state.attached, id)),
+    attachedChipsHTML,
+    nbPickerHTML,
+    // openNbDraft is a card's Open draft (also from the page's view).
+    openNbDraft,
     sessionsEmptyText,
     ask,
     stop: () => state.busy?.abort(),
@@ -1304,6 +1509,23 @@ export function createAgentPanel(deps) {
     // useRunbook starts a runbook in the window's conversation (the
     // Runbooks page's Use in agent): an ask with its id, never a type.
     useRunbook: (rb) => useRunbook(rb.id, rb.name),
+    // attachNotebook opens the panel with a notebook attached (a notebook
+    // pane's Ask the agent about this notebook). Nothing is sent until the
+    // user asks.
+    attachNotebook(id) {
+      setOpen(true, { focus: false });
+      attachNotebook(id);
+      requestAnimationFrame(() => el.input?.focus({ preventScroll: true }));
+    },
+    // notebooksChanged reconciles the attached ids when the list changes.
+    notebooksChanged() {
+      const before = state.attached.join(",");
+      state.attached = NB.reconcileAttached(state.attached, notebooks());
+      if (before !== state.attached.join(",")) emit("attached");
+      paintChips();
+      paintNbPicker();
+    },
+    attached: () => state.attached.slice(),
     // test seam for node: the current scope ids
     scope: () => state.scope.slice(),
   };

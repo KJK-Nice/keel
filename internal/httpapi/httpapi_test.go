@@ -844,6 +844,22 @@ func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
 	}
 }
 
+// cssRulesMatching returns every "selectors { body }" rule in css whose
+// selector list contains sel.
+func cssRulesMatching(css, sel string) []string {
+	var out []string
+	for _, chunk := range strings.Split(css, "}") {
+		open := strings.Index(chunk, "{")
+		if open < 0 {
+			continue
+		}
+		if strings.Contains(chunk[:open], sel) {
+			out = append(out, strings.TrimSpace(chunk)+" }")
+		}
+	}
+	return out
+}
+
 func sliceJSFunc(src, sig string) string {
 	start := strings.Index(src, sig)
 	if start < 0 {
@@ -2443,12 +2459,21 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
 		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
 	}
-	if !strings.Contains(string(termBody), "function paneWantsWebgl") ||
-		!strings.Contains(string(termBody), "visiblePanes(tab).length <= 1") {
-		t.Fatal("native WKWebView must keep WebGL on a solo pane and drop it while split")
+	// Split panes keep WebGL in the native window too (#80): the renderer
+	// choice is per pane (lib/webglguard.js), not by how many panes show.
+	wantsFn := sliceJSFunc(string(termBody), "function paneWantsWebgl")
+	if wantsFn == "" || strings.Contains(wantsFn, "visiblePanes") || strings.Contains(wantsFn, "isNativeWindow") {
+		t.Fatal("paneWantsWebgl must keep WebGL on split panes in the native window too")
 	}
-	if !strings.Contains(string(termBody), "for (const pane of tabPanes(tab)) dropWebgl(pane)") {
-		t.Fatal("paintLayout must dispose WebGL on native splits so dead GPU canvases cannot eat clicks")
+	if strings.Contains(sliceJSFunc(string(termBody), "function paintLayout"), "dropWebgl") {
+		t.Fatal("paintLayout must not drop WebGL when a tab splits")
+	}
+	// xterm's link layer is a canvas above the WebGL canvas: any background
+	// on `.xterm-screen canvas` covers the terminal text (#80).
+	for _, rule := range cssRulesMatching(string(cssBody), "xterm-screen canvas") {
+		if !strings.Contains(rule, "background: transparent") || strings.Count(rule, "background") != 1 {
+			t.Fatalf("keel.css must keep xterm canvases clear; a background there hides WebGL text: %s", rule)
+		}
 	}
 	if !strings.Contains(string(termBody), "ensureTabStage") ||
 		!strings.Contains(string(termBody), "layoutTabPanes") ||

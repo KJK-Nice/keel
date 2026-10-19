@@ -104,6 +104,10 @@ type Options struct {
 	// Runbooks keeps the runbooks (runbooks.go). nil means none: none are
 	// offered or used and none can be saved.
 	Runbooks RunbookStore
+	// Notebooks reads the notebooks the user attaches to a question and
+	// keeps the agent's drafts the user saves (notebooks.go). nil means
+	// none can be attached or saved.
+	Notebooks NotebookStore
 }
 
 type Service struct {
@@ -122,6 +126,10 @@ type Service struct {
 	chats   ChatStore
 	notesSt NoteStore
 	books   RunbookStore
+	nbs     NotebookStore
+	// nbDrafts are the notebook drafts the user opened for review, by
+	// draftId: a save takes its origin from here (under mu).
+	nbDrafts map[string]nbDraft
 	// drafts are the runbook drafts made by RunbookDraft, by id: a save
 	// takes its source from here (under mu).
 	drafts map[string]draftOrigin
@@ -169,7 +177,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, nbs: opts.Notebooks, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -215,7 +223,10 @@ type conversation struct {
 	runMarks  map[string]uint64
 	noRunbook bool
 	bookProps []*RunbookProposal
-	used      time.Time
+	// nbProps are the notebook drafts the agent proposed (notebooks.go),
+	// under mu.
+	nbProps []*nbProposal
+	used    time.Time
 
 	// title, created, updated and record are what is saved (sessions.go):
 	// record holds every turn as the panel showed it, redacted.
@@ -236,6 +247,9 @@ type AskRequest struct {
 	// RunbookID starts that runbook in this conversation (the user picked
 	// it), from this ask on (runbooks.go).
 	RunbookID string `json:"runbookId,omitempty"`
+	// Notebooks are the notebooks the user attached to this question
+	// (notebooks.go): only these are read, redacted and sent.
+	Notebooks []string `json:"notebooks,omitempty"`
 }
 
 // TraceStep says what the agent did with one pane in scope.
@@ -261,6 +275,13 @@ type TraceStep struct {
 	// or picked by the agent); RunbookID is its id.
 	Runbook   string `json:"runbook,omitempty"`
 	RunbookID string `json:"runbookId,omitempty"`
+	// Notebook (its name, redacted) and NotebookID are set on a step with
+	// Status "notebook": an attached notebook sent with the question,
+	// Bytes long after redaction (Truncated when Keel cut it).
+	Notebook   string `json:"notebook,omitempty"`
+	NotebookID string `json:"notebookId,omitempty"`
+	Bytes      int    `json:"bytes,omitempty"`
+	Truncated  bool   `json:"truncated,omitempty"`
 }
 
 // Proposal is a command the agent suggests. It is kept in the conversation
@@ -319,7 +340,10 @@ type AskResponse struct {
 	// runbooks the agent proposes to save (runbooks.go).
 	Runbook  *store.AgentChatRunbook `json:"runbook,omitempty"`
 	Runbooks []RunbookProposal       `json:"runbooks"`
-	Usage    Usage                   `json:"usage"`
+	// Notebooks are notebook drafts the agent proposes; nothing is saved
+	// until the user opens one, reviews it and saves it (notebooks.go).
+	Notebooks []NotebookProposal `json:"notebooks"`
+	Usage     Usage              `json:"usage"`
 }
 
 var convIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
@@ -341,6 +365,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	ids := uniq(req.Panes)
 	if len(ids) > maxPanesPerAsk {
 		return AskResponse{}, badRequest(fmt.Sprintf("at most %d panes per question", maxPanesPerAsk))
+	}
+	nbIDs := uniq(req.Notebooks)
+	if len(nbIDs) > maxNotebooksPerAsk {
+		return AskResponse{}, badRequest(fmt.Sprintf("attach at most %d notebooks to a question", maxNotebooksPerAsk))
 	}
 
 	set, err := s.st.AgentSettings()
@@ -435,6 +463,13 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		return AskResponse{}, err
 	}
 	trace = append(rbTurn.trace, trace...)
+	// Notebooks the user attached to this question, and only those
+	// (notebooks.go): redacted, capped, framed as untrusted data, logged.
+	nbText, nbSteps, err := s.notebookContext(nbIDs, r)
+	if err != nil {
+		return AskResponse{}, err
+	}
+	trace = append(nbSteps, trace...)
 
 	// One message: the notes, the excerpts, then the question. Everything
 	// in it goes through the same Redactor (notes and excerpts are already
@@ -445,6 +480,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		msg.WriteString(rbTurn.text)
 		msg.WriteString("\n\n")
 	}
+	msg.WriteString(nbText)
 	fmt.Fprintf(&msg, "Panes in scope: %d\n\n", len(excerpts))
 	for i, ex := range excerpts {
 		if ex.LastCommand {
@@ -479,7 +515,8 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		return AskResponse{}, s.providerErr(ctx, cctx, err)
 	}
 
-	rest, rawNotes := parseNotes(resp.Text)
+	rest, rawNb := parseNotebookBlock(resp.Text)
+	rest, rawNotes := parseNotes(rest)
 	rest, rbUse, rbRaw := parseRunbookBlocks(rest)
 	answer, raws := parseResponse(rest)
 	out := AskResponse{
@@ -493,6 +530,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		Proposals:          []Proposal{},
 		Notes:              []NoteProposal{},
 		Runbooks:           []RunbookProposal{},
+		Notebooks:          []NotebookProposal{},
 		Usage:              Usage{InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens},
 	}
 	now := s.now()
@@ -539,6 +577,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	if bookProp != nil {
 		out.Runbooks = append(out.Runbooks, *bookProp)
 	}
+	nbProp := s.notebookProposal(rawNb, excerpts, r, now)
+	if nbProp != nil {
+		out.Notebooks = append(out.Notebooks, nbProp.view())
+	}
 
 	// History keeps the question and the reply, not the excerpts: the next
 	// ask reads the panes again.
@@ -556,7 +598,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	// and is redacted again before it is kept.
 	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Model: conv.turns[len(conv.turns)-1].model.String()}
 	for _, st := range trace {
-		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook})
+		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated})
 	}
 	for _, p := range made {
 		rec.Proposals = append(rec.Proposals, recordOf(p, r.Text(p.Command).String(), r.Text(p.Why).String(), now))
@@ -566,6 +608,9 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	if bookProp != nil {
 		rec.Runbooks = append(rec.Runbooks, runbookProposalRecord(bookProp))
+	}
+	if nbProp != nil {
+		rec.Notebooks = append(rec.Notebooks, notebookRecord(nbProp))
 	}
 
 	s.mu.Lock()
@@ -586,11 +631,20 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 			conv.bookProps = conv.bookProps[n-maxRunbookProposalsKept:]
 		}
 	}
+	if nbProp != nil {
+		conv.nbProps = append(conv.nbProps, nbProp)
+		if n := len(conv.nbProps); n > maxNotebookProposalsKept {
+			conv.nbProps = conv.nbProps[n-maxNotebookProposalsKept:]
+		}
+	}
 	out.Runbook = conv.run.Copy()
 	conv.addRecordLocked(rec)
 	out.Title = conv.title
 	out.SaveError = s.saveErr
 	s.mu.Unlock()
+	if nbProp != nil {
+		s.audit.NotebookEvent(fmt.Sprintf("notebook draft proposed by the agent (%d bytes, placeholders: %t); nothing is saved until you open, review and save it", nbProp.Bytes, nbProp.Placeholders), []string{nbProp.ID, conv.id}, redact.Report{})
+	}
 	s.persist(conv)
 	return out, nil
 }
