@@ -59,8 +59,22 @@ templ AgentPage() {
 			</div>
 			<div class="k-agent-thread k-agentpage-thread" id="agentpage-thread" aria-live="polite"></div>
 			<form class="k-agent-composer k-agentpage-composer" id="agentpage-composer" autocomplete="off">
+				<div class="k-agent-chips" id="agentpage-chips"></div>
 				<textarea id="agentpage-input" rows="2" aria-label="Message the agent" placeholder="Ask about your sessions…"></textarea>
+				<div class="k-agent-picker k-agent-nb-picker" id="agentpage-nb-picker" role="dialog" aria-label="Notebooks to send with your question" tabindex="-1" hidden></div>
 				<div class="k-agent-composer-foot">
+					<button
+						type="button"
+						class="k-btn k-btn--ghost k-btn--sm k-btn--icon"
+						id="agentpage-attach"
+						aria-haspopup="dialog"
+						aria-expanded="false"
+						aria-controls="agentpage-nb-picker"
+						aria-label="Attach notebook"
+						title="Attach notebook"
+					>
+						@icon.NotebookPen()
+					</button>
 					<span class="k-agent-hint">{ "Reads only panes in scope now · ↵ send" }</span>
 					<span class="k-spacer"></span>
 					<button type="button" class="k-btn k-btn--ghost k-btn--sm" id="agentpage-stop" hidden>Stop</button>

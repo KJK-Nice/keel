@@ -240,12 +240,17 @@ type NotebookCell struct {
 }
 
 type Notebook struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Cells     []NotebookCell `json:"cells"`
-	Pinned    bool           `json:"pinned,omitempty"`
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Cells  []NotebookCell `json:"cells"`
+	Pinned bool           `json:"pinned,omitempty"`
+	// Source is "" for a notebook the user made and NotebookSourceAgent
+	// for one saved from a draft the agent proposed (docs/ui-redesign.md
+	// §18). Only AddAgentNotebook sets it and every later save keeps it;
+	// a client never sets it (older keel.json files have none).
+	Source    string    `json:"source,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type persistHost struct {

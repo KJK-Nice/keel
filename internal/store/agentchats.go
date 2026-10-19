@@ -171,7 +171,26 @@ type AgentChatTurn struct {
 	// Runbooks are the runbooks the agent proposed to save in this turn
 	// (runbooks.go) and what the user did with them.
 	Runbooks []AgentChatRunbookProposal `json:"runbooks,omitempty"`
-	Again    bool                       `json:"again,omitempty"`
+	// Notebooks are the notebook drafts the agent proposed in this turn
+	// (docs/ui-redesign.md §18) and what the user did with them.
+	Notebooks []AgentChatNotebook `json:"notebooks,omitempty"`
+	Again     bool                `json:"again,omitempty"`
+}
+
+// AgentChatNotebook is a notebook draft the agent proposed, redacted, and
+// its state: "open", "saved" (NotebookID names the notebook the user
+// saved from it) or "dismissed".
+type AgentChatNotebook struct {
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	Body         string    `json:"body"`
+	Placeholders bool      `json:"placeholders,omitempty"`
+	FromPane     bool      `json:"fromPane,omitempty"`
+	SeenIn       string    `json:"seenIn,omitempty"`
+	PanesRead    []string  `json:"panesRead,omitempty"`
+	Status       string    `json:"status"`
+	NotebookID   string    `json:"notebookId,omitempty"`
+	ProposedAt   time.Time `json:"proposedAt"`
 }
 
 // AgentChatRunbookProposal is a runbook the agent proposed, redacted, and
@@ -208,6 +227,13 @@ type AgentChatStep struct {
 	Notes    int    `json:"notes,omitempty"`
 	// Runbook names the runbook a step with Status "runbook" sent.
 	Runbook string `json:"runbook,omitempty"`
+	// Notebook (its name, redacted) and NotebookID are set on a step with
+	// Status "notebook": a notebook the user attached was sent, Bytes long
+	// (Truncated when Keel cut it). Never its text.
+	Notebook   string `json:"notebook,omitempty"`
+	NotebookID string `json:"notebookId,omitempty"`
+	Bytes      int    `json:"bytes,omitempty"`
+	Truncated  bool   `json:"truncated,omitempty"`
 }
 
 // AgentChatNote is a note the agent proposed, redacted, and its state:

@@ -2567,6 +2567,9 @@ button.k-agent-pick[aria-disabled="true"]:hover { background: transparent; }
 .k-agent-pick-name { font: 400 0.923rem/1.25 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k-agent-pick-sub { font-size: 0.846rem; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k-agent-pick .k-badge { flex: none; }
+/* The row is the menuitemcheckbox: its box shows the row's state. */
+button.k-agent-pick[aria-checked="true"] .k-check { background: var(--brass); border-color: var(--brass); }
+button.k-agent-pick[aria-checked="true"] .k-check .k-i { visibility: visible; }
 .k-agent-picker-empty { padding: var(--space-2); }
 .k-agent-picker-foot { display: flex; gap: var(--space-1); margin-top: var(--space-1); padding: var(--space-1) var(--space-1) 0; border-top: 1px solid var(--line); }
 
@@ -2801,6 +2804,14 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 }
 .k-agent-chip button:hover { background: var(--haze-soft); }
 .k-agent-chip button svg { display: block; width: 0.769rem; height: 0.769rem; }
+/* Notebooks attached to the question (§18): brass chips, and the Attach
+   notebook menu above the composer. */
+.k-agent-composer { position: relative; }
+.k-agent-chip--notebook { background: var(--brass-soft); color: var(--brass-ink); font-family: var(--font-sans); }
+.k-agent-chip--notebook button:hover { background: var(--brass-soft); }
+.k-agent-picker.k-agent-nb-picker { top: auto; bottom: calc(100% + var(--space-1)); left: 0; right: 0; max-height: calc(var(--size-row) * 8); }
+.k-agent-nb-picker .k-agent-pick-name { font-family: var(--font-sans); }
+.k-agent-picker-note { padding: var(--space-1) var(--space-2) var(--space-0\.5); border-top: 1px solid var(--line); margin-top: var(--space-1); font-size: 0.846rem; color: var(--ink-faint); }
 .k-agent-composer-foot { display: flex; align-items: center; gap: var(--space-2); }
 .k-agent-hint { font: 400 0.846rem/1 var(--font-mono); letter-spacing: 0; color: var(--ink-faint); }
 .k-agent-composer-foot .k-btn--icon svg { display: block; width: 1.077rem; height: 1.077rem; }
@@ -3200,6 +3211,23 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-rbp-step .k-rp-mark { margin-top: var(--space-0\.5); }
 .k-rbp-step-main { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
 .k-rbp-step .k-bytes { max-height: calc(var(--size-row) * 2); }
+
+/* A notebook draft the agent proposes (§18): the first lines of the
+   markdown as plain text; the editor shows the whole draft. */
+.k-nbp-preview {
+  margin: 0; padding: var(--space-2) var(--space-3); max-height: calc(var(--size-row) * 5); overflow: hidden;
+  font: var(--type-caption); color: var(--ink-muted); white-space: pre-wrap; word-break: break-word;
+  background: var(--stage); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.k-nbp-more { color: var(--ink-faint); }
+
+/* The review banner on a notebook draft in the editor (§18): the runbook
+   review banner's look, with Discard and Save notebook. */
+.notebook-draft { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.notebook-draft[hidden] { display: none; }
+.notebook-draft .k-rb-review { flex-wrap: wrap; align-items: center; }
+.notebook-draft .k-rb-review > span { flex: 1 1 calc(var(--size-control-lg) * 6); min-width: 0; }
+.notebook-draft .k-rb-review .k-btn + .k-btn { margin-left: 0; }
 
 .k-rb-target { display: flex; align-items: center; gap: var(--space-1\.5); margin: 0; font: var(--type-label); color: var(--ink); }
 .k-rb-target svg { display: block; flex: none; width: 1.077rem; height: 1.077rem; color: var(--ink-muted); }

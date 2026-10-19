@@ -415,7 +415,7 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 // inject, spawn or resize method, and touch the runtime only through Get,
 // ReadScrollback, LastCommand, CommandsAfter and CommandOutput (reads).
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
-	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go"} {
+	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go"} {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, file, nil, 0)
 		if err != nil {

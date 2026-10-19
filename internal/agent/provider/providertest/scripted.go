@@ -2,6 +2,7 @@ package providertest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -33,6 +34,10 @@ import (
 //     proposes the step); offered runbooks and a question that says
 //     "runbook" or "walk me" make it pick the first one; "save this as a
 //     runbook" makes it propose a two-step runbook;
+//   - notebooks (§18): it states how many attached notebooks arrived, and
+//     "write this up" makes it propose a notebook draft with a shell
+//     fence (and, for "placeholder", a second fence holding [secret:1];
+//     for "image", a remote markdown image, LeakImageURL);
 //   - when the question says "long", it adds a tall answer with **bold**
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
@@ -90,6 +95,22 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		panes, plural(panes), placeholders, plural(placeholders))
 	if hostNotes, userNotes := countNotes(last); hostNotes+userNotes > 0 {
 		fmt.Fprintf(&b, " I was also given %d host note%s and %d of your notes.", hostNotes, plural(hostNotes), userNotes)
+	}
+	if nbs := strings.Count(last, "\n--- notebook ") + boolInt(strings.HasPrefix(last, "--- notebook ")); nbs > 0 {
+		fmt.Fprintf(&b, " I was also given %d attached notebook%s.", nbs, plural(nbs))
+	}
+	if strings.Contains(question, "write this up") {
+		body := "## What we did\nPrinted the e2e marker in the pane.\n\n```sh\necho keel-notebook-draft\n```"
+		if strings.Contains(question, "image") {
+			// A remote image (§18): keel serve turns it into text, and the
+			// page's img-src policy would not fetch it anyway.
+			body += "\n\n![chart](" + LeakImageURL + ")"
+		}
+		if strings.Contains(question, "placeholder") {
+			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport KEEL_TOKEN=[secret:1]\n```"
+		}
+		raw, _ := json.Marshal(map[string]string{"title": "keel-notebook-e2e draft", "body": body})
+		b.WriteString(" Here is a write-up as a notebook draft:\n\n```keel-notebook\n" + string(raw) + "\n```\n")
 	}
 	if strings.Contains(question, "remember") {
 		note := `{"for": "host", "pane": 1, "text": "keel-note-e2e: backups run at 02:00 from pgbackrest", "from": "conversation"}`
@@ -202,6 +223,18 @@ func (s *Scripted) Requests() []provider.Request {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]provider.Request(nil), s.requests...)
+}
+
+// LeakImageURL is the remote image "write this up with an image" puts in
+// a draft (.invalid never resolves). tests/agent-notebooks.e2e.ts checks
+// that it shows as text, never as an <img>.
+const LeakImageURL = "https://keel-e2e-leak.invalid/keel-notebook-leak.png"
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func plural(n int) string {

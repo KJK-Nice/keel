@@ -49,6 +49,9 @@ export function createAgentPage(deps) {
     thread: $("agentpage-thread"),
     composer: $("agentpage-composer"),
     input: $("agentpage-input"),
+    chips: $("agentpage-chips"),
+    attach: $("agentpage-attach"),
+    nbPicker: $("agentpage-nb-picker"),
     send: $("agentpage-send"),
     stop: $("agentpage-stop"),
     scope: $("agentpage-scope"),
@@ -237,8 +240,33 @@ export function createAgentPage(deps) {
     paintAll();
   }
 
+  // --- notebooks attached to the question (§18), the panel's ---
+
+  function paintAttached() {
+    if (el.chips) el.chips.innerHTML = conv.attachedChipsHTML?.() || "";
+    if (el.nbPicker && !el.nbPicker.hidden) el.nbPicker.innerHTML = conv.nbPickerHTML?.() || "";
+  }
+
+  function openNbPicker() {
+    if (!el.nbPicker) return;
+    el.nbPicker.innerHTML = conv.nbPickerHTML?.() || "";
+    el.nbPicker.hidden = false;
+    el.attach?.setAttribute("aria-expanded", "true");
+    (el.nbPicker.querySelector('[aria-checked]:not([aria-disabled="true"])') || el.nbPicker).focus({ preventScroll: true });
+  }
+
+  function closeNbPicker({ refocus = false } = {}) {
+    if (!el.nbPicker || el.nbPicker.hidden) return;
+    el.nbPicker.hidden = true;
+    el.attach?.setAttribute("aria-expanded", "false");
+    if (refocus) el.input?.focus({ preventScroll: true });
+  }
+
   conv.subscribe((type) => {
     switch (type) {
+      case "attached":
+        paintAttached();
+        break;
       case "sessions":
       case "settings":
         paintList();
@@ -247,6 +275,7 @@ export function createAgentPage(deps) {
       case "reset":
         state.renaming = false;
         paintAll();
+        paintAttached();
         break;
       case "title":
         paintHead();
@@ -337,11 +366,35 @@ export function createAgentPage(deps) {
     }
   });
   el.stop?.addEventListener("click", () => conv.stop());
+  el.attach?.addEventListener("click", () => (el.nbPicker?.hidden ? openNbPicker() : closeNbPicker({ refocus: true })));
+  el.nbPicker?.addEventListener("click", (ev) => {
+    const pick = ev.target.closest("[data-agent-attach-pick]");
+    if (!pick || pick.getAttribute("aria-disabled") === "true") return;
+    conv.toggleNotebook?.(pick.dataset.agentAttachPick);
+    el.nbPicker.querySelector(`[data-agent-attach-pick="${CSS.escape(pick.dataset.agentAttachPick)}"]`)?.focus({ preventScroll: true });
+  });
+  el.nbPicker?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeNbPicker({ refocus: true });
+    }
+  });
+  doc.addEventListener("pointerdown", (ev) => {
+    if (!el.nbPicker || el.nbPicker.hidden) return;
+    if (el.nbPicker.contains(ev.target) || el.attach?.contains(ev.target)) return;
+    closeNbPicker();
+  });
+  el.chips?.addEventListener("click", (ev) => {
+    const id = ev.target.closest("[data-agent-detach]")?.dataset.agentDetach;
+    if (id) conv.detachNotebook?.(id);
+  });
   el.thread?.addEventListener("click", (ev) => {
     if (ev.target.closest("[data-agentpage-open-panel]")) deps.openPanel?.();
   });
 
   paintAll();
+  paintAttached();
 
   return {
     show,

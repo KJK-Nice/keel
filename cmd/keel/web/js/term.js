@@ -49,7 +49,8 @@ import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createWebglGuard, webglPlan } from "./lib/webglguard.js";
 import { setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
-import { createAgentPanel } from "./ui/agentpanel.js";
+import { AGENT_ALERT_ICON, AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
+import * as NB from "./lib/notebooks.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
@@ -2747,6 +2748,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     refreshStartTabs();
     paintSidebar();
     agentPanel?.refresh();
+    agentPanel?.notebooksChanged?.();
   }
 
   // The stream dispatches keel-vault-changed with every list push (a store
@@ -4797,6 +4799,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       <span class="pane-title" title="Drag to rearrange">${escapeHtml(title || "Notebook")}</span>
       <span class="pane-addr">Notebook</span>
       <div class="pane-actions">
+        <button type="button" class="${PANE_BTN}" data-notebook-ask="${paneId}" title="Ask the agent about this notebook" aria-label="Ask the agent about this notebook">${AGENT_ICON}</button>
         <button type="button" class="${PANE_BTN} pane-sync" data-pane-sync="${paneId}" aria-pressed="false" title="Sync input" hidden>${paneGlyph("sync")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
@@ -4865,6 +4868,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (i >= 0) state.notebooks[i] = rec;
     else state.notebooks.unshift(rec);
     paintSidebar();
+    agentPanel?.notebooksChanged?.();
   }
 
   function createNotebookTab(saved, opts = {}) {
@@ -4917,6 +4921,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   async function persistNotebook(pane) {
     if (!isNotebookPane(pane)) return;
+    // A draft from the agent (§18) is kept only by Save notebook, through
+    // keel serve's draft route: no other save (autosave, a tab rename,
+    // a pin) may make it the user's own notebook. Its title and text stay
+    // in memory until then.
+    if (pane.draft) return;
     const payload = {
       name: (pane.title || "Notebook").trim() || "Notebook",
       cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
@@ -4946,6 +4955,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function scheduleNotebookSave(pane) {
     if (!isNotebookPane(pane)) return;
+    // A draft from the agent (§18) is kept only by Save notebook.
+    if (pane.draft) return;
     clearTimeout(pane._saveTimer);
     pane._saveTimer = setTimeout(() => persistNotebook(pane), 400);
   }
@@ -5082,6 +5093,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
       for (const pane of open) closePane(pane.id);
       paintSidebar();
+      agentPanel?.notebooksChanged?.();
     } catch (err) {
       toast(err.message || "Could not delete notebook", true);
     }
@@ -5103,6 +5115,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // One title: the notebook's name is the H1 (and stays editable); the
     // meta line under it names the pane shell fences type into.
     body.innerHTML = `<article class="notebook-col">
+      <div class="notebook-draft" data-notebook-draft hidden></div>
       <h1 class="notebook-title"><input class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
       <div class="notebook-meta" data-notebook-meta></div>
       <hr class="notebook-rule" />
@@ -5112,6 +5125,120 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     pane._metaKey = null;
     mountNotebookEditor(pane);
     syncNotebookMeta(pane);
+    syncNotebookDraft(pane);
+  }
+
+  // --- notebook drafts from the agent (§18) ---
+  //
+  // A draft is a notebook pane with no id and pane.draft set: nothing is
+  // saved while it is open (scheduleNotebookSave skips it), closing it
+  // discards it, and only Save notebook keeps it, through keel serve with
+  // the draftId keel serve handed out. The saved notebook is a new one.
+
+  function syncNotebookDraft(pane) {
+    const box = pane.body?.querySelector("[data-notebook-draft]");
+    if (!box) return;
+    const d = pane.draft;
+    box.hidden = !d;
+    if (!d) {
+      box.innerHTML = "";
+      return;
+    }
+    const busy = d.busy ? " disabled" : "";
+    box.innerHTML = `<div class="k-rb-review" role="note" aria-label="Review this draft">${AGENT_ICON}<span><b>${escapeHtml(NB.REVIEW_TITLE)}</b><br />${escapeHtml(NB.REVIEW_TEXT)}${
+      d.error ? `<br />${escapeHtml(d.error)}` : ""
+    }</span><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-notebook-draft-discard="${pane.id}"${busy}>Discard</button><button type="button" class="k-btn k-btn--primary k-btn--sm" data-notebook-draft-save="${pane.id}"${busy}>Save notebook</button></div>${
+      NB.draftNote(d) ? `<div class="k-review" role="note" data-notebook-placeholders>${AGENT_ALERT_ICON}<span>${escapeHtml(NB.draftNote(d))}</span></div>` : ""
+    }`;
+  }
+
+  // openNotebookDraft opens the agent's draft for review: a new tab, or a
+  // split beside the focused terminal, like openNotebook.
+  function openNotebookDraft(d, opts = {}) {
+    if (!d?.draftId) return;
+    const existing = [...state.panes.values()].find((p) => isNotebookPane(p) && p.draft?.draftId === d.draftId);
+    if (existing) {
+      state.activeId = existing.tabId;
+      markFocusedPane(existing);
+      renderTabs();
+      return;
+    }
+    const rec = { name: d.name || "Notebook", cells: [{ body: String(d.body || "") }] };
+    const tab = state.tabs.get(state.activeId);
+    let pane = null;
+    if (tab && !tab.start && !tab.page && tab.layout) {
+      const focused = focusedPane();
+      const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
+      if (sibling) {
+        pane = createNotebookPane(tab, sibling, rec);
+        tab.layout = replaceLeaf(tab.layout, sibling.id, { type: "split", dir: "h", sizes: [50, 50], a: { type: "leaf", paneId: sibling.id }, b: { type: "leaf", paneId: pane.id } });
+        tab.zoomedPaneId = "";
+        tab.focusedPaneId = pane.id;
+        tab.dirty = true;
+      }
+    }
+    if (!pane) pane = createNotebookTab(rec).pane;
+    pane.draft = { draftId: d.draftId, placeholders: !!d.placeholders, withheld: !!d.withheld, onSaved: opts.onSaved, busy: false, error: "" };
+    syncNotebookDraft(pane);
+    renderTabs();
+    markFocusedPane(pane);
+  }
+
+  async function saveNotebookDraft(pane) {
+    const d = pane?.draft;
+    if (!d || d.busy) return;
+    d.busy = true;
+    d.error = "";
+    syncNotebookDraft(pane);
+    const payload = {
+      name: (pane.title || "Notebook").trim() || "Notebook",
+      cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
+    };
+    try {
+      const res = await api(`/api/agent/notebooks/drafts/${encodeURIComponent(d.draftId)}`, { method: "POST", body: JSON.stringify(payload) });
+      const rec = res.notebook;
+      pane.draft = null;
+      pane.notebookId = rec.id;
+      pane.title = rec.name;
+      rememberNotebook(rec);
+      if (res.redacted && Array.isArray(rec.cells)) {
+        // keel serve replaced secret-looking values: show what was kept.
+        pane.cells = copyNotebookCells(rec.cells);
+        disposeNotebookEditor(pane);
+        paintNotebook(pane);
+      }
+      syncNotebookDraft(pane);
+      const tab = state.tabs.get(pane.tabId);
+      if (tab) syncPaneChrome(tab, pane);
+      persistWorkspace();
+      toast(NB.savedText(res));
+      d.onSaved?.(res);
+    } catch (err) {
+      d.busy = false;
+      d.error = err?.code === 410 ? "Keel no longer holds this draft. Copy what you need, then open the draft again from the agent's card." : err?.message || "Could not save the draft";
+      syncNotebookDraft(pane);
+    }
+  }
+
+  function discardNotebookDraft(pane) {
+    if (!pane?.draft) return;
+    closePane(pane.id);
+  }
+
+  // askAboutNotebook is the notebook pane's Ask the agent about this
+  // notebook: the panel opens with the notebook attached. Nothing is sent
+  // until the user asks.
+  function askAboutNotebook(pane) {
+    if (!agentPanel || !isNotebookPane(pane)) return;
+    if (pane.draft || !pane.notebookId) {
+      toast("Save the notebook first, then ask the agent about it");
+      return;
+    }
+    if (state.tabs.get(pane.tabId)?.remote) {
+      toast("The agent is off in joined sessions");
+      return;
+    }
+    agentPanel.attachNotebook(pane.notebookId);
   }
 
   // notebookTarget is the terminal a notebook's shell fences type into (the
@@ -5232,6 +5359,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!isTermPane(pane) || !pane.inputEl) return;
     const area = pane.inputEl.querySelector("[data-term-input]");
     if (area) area.value = "";
+    pane._inputFromNotebook = false;
     pane.inputEl.hidden = true;
     pane.wrap?.classList.remove("has-term-input");
     syncSessionSurface();
@@ -5256,12 +5384,20 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       toast("Write a command first");
       return;
     }
+    // A redaction placeholder such as [secret:1] is a shell glob, never
+    // the value (§18): such a block is not typed. keel serve refuses it
+    // too (the notebook-labelled inject).
+    if (NB.hasPlaceholder(line)) {
+      toast(NB.PLACEHOLDER_REFUSED, true);
+      return;
+    }
     const term = termTarget(nbPane) || termTarget(focusedPane());
     if (!term) {
       toast("Split a terminal beside this notebook first");
       return;
     }
     showTermInput(term, line);
+    term._inputFromNotebook = true;
     markFocusedPane(term);
   }
 
@@ -5300,10 +5436,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       return;
     }
     const command = line.endsWith("\n") ? line : line + "\n";
+    if (pane._inputFromNotebook && NB.hasPlaceholder(command)) {
+      toast(NB.PLACEHOLDER_REFUSED, true);
+      return;
+    }
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    await sendApprovedInject(command, pane);
+    await sendApprovedInject(command, pane, pane._inputFromNotebook ? { notebook: true } : {});
     closeTermInput(pane);
   }
 
@@ -5424,6 +5564,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       const msg = { type: "inject", command, nonce };
       if (opts.agent) msg.agent = opts.agent;
       if (opts.suggestion) msg.suggestion = opts.suggestion;
+      if (opts.notebook) msg.notebook = true;
       sendSessionJSON(p, msg);
       sent = true;
     }
@@ -6639,6 +6780,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     },
     openPage: () => openAgentPage(),
     openRunbooks: () => openPage("runbooks"),
+    // Notebooks (§18): the list the Attach notebook menu offers, the
+    // review tab for a draft, and Open notebook on a saved draft's card.
+    listNotebooks: () => state.notebooks || [],
+    openNotebookDraft: (d, opts) => openNotebookDraft(d, opts),
+    openNotebook: (id) => openNotebook(id),
   });
 
   // The Runbooks page (§16). Use in agent starts the runbook in the panel's
@@ -7236,6 +7382,24 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (zoom && !zoom.disabled) {
         ev.preventDefault();
         togglePaneZoom(zoom.dataset.paneZoom);
+        return;
+      }
+      const nbAsk = ev.target.closest("[data-notebook-ask]");
+      if (nbAsk) {
+        ev.preventDefault();
+        askAboutNotebook(state.panes.get(nbAsk.dataset.notebookAsk));
+        return;
+      }
+      const draftSave = ev.target.closest("[data-notebook-draft-save]");
+      if (draftSave && !draftSave.disabled) {
+        ev.preventDefault();
+        saveNotebookDraft(state.panes.get(draftSave.dataset.notebookDraftSave));
+        return;
+      }
+      const draftDiscard = ev.target.closest("[data-notebook-draft-discard]");
+      if (draftDiscard && !draftDiscard.disabled) {
+        ev.preventDefault();
+        discardNotebookDraft(state.panes.get(draftDiscard.dataset.notebookDraftDiscard));
         return;
       }
       const note = ev.target.closest("[data-pane-notebook]");
