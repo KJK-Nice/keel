@@ -114,9 +114,9 @@ export function createAgentPanel(deps) {
     others: null,
     bookProps: new Map(), // runbook proposal id → { b, busy, error }
     // Notebooks (§18): the ids the user attached (sent with each question
-    // until removed), and the notebook drafts the agent proposed.
+    // until removed), and the cards of what the agent did to notebooks.
     attached: [],
-    nbProps: new Map(), // notebook draft id → { p, busy, error }
+    nbProps: new Map(), // notebook card id → { p, busy, error }
   };
   let pollTimer = null;
   let pollLeft = 0;
@@ -173,7 +173,6 @@ export function createAgentPanel(deps) {
     bookPropAction,
     openRunbooks: () => deps.openRunbooks?.(),
     nbProp: (id) => state.nbProps.get(id) || null,
-    openNbDraft,
     nbPropAction,
     openNotebook: (id) => deps.openNotebook?.(id),
   };
@@ -390,15 +389,17 @@ export function createAgentPanel(deps) {
     const full = state.attached.length >= NB.MAX_ATTACHED;
     const rows = all.map((nb) => {
       const on = state.attached.includes(nb.id);
-      const off = !on && full;
-      return `<button type="button" class="k-agent-pick" role="menuitemcheckbox" aria-checked="${on}"${off ? ' aria-disabled="true"' : ""} data-agent-attach-pick="${escapeHtml(nb.id)}">
+      const off = (!on && full) || nb.private;
+      return `<button type="button" class="k-agent-pick" role="menuitemcheckbox" aria-checked="${on}"${off ? ' aria-disabled="true"' : ""} data-agent-attach-pick="${escapeHtml(nb.id)}"${
+        nb.private ? ' title="Private: the agent cannot read it"' : ""
+      }>
         <span class="k-check" aria-hidden="true"><span class="k-i">${ICON.tick}</span></span>
         <span class="k-agent-pick-main"><span class="k-agent-pick-name">${escapeHtml(nb.name || "Notebook")}</span></span>${
-          nb.source === "agent" ? '<span class="k-badge k-badge--outline">From agent</span>' : ""
+          nb.private ? `<span class="k-badge k-badge--outline k-nb-private">${ICON.lock}Private</span>` : nb.source === "agent" ? '<span class="k-badge k-badge--outline">From agent</span>' : ""
         }</button>`;
     });
     return `<div class="k-menu-label">Notebooks to send with your question</div>${rows.join("")}<p class="k-help k-agent-picker-note">${escapeHtml(
-      `At most ${NB.MAX_ATTACHED}. The agent sees only what you attach, redacted, and cannot open any notebook itself.`,
+      `At most ${NB.MAX_ATTACHED}, sent in full. The agent also sees the titles of your notebooks that are not private and may read them; it never sees a private one.`,
     )}</p>`;
   }
 
@@ -432,6 +433,10 @@ export function createAgentPanel(deps) {
 
   function attachNotebook(id) {
     if (!id || state.attached.includes(id)) return;
+    if (notebooks().find((n) => n.id === id)?.private) {
+      deps.toast(NB.PRIVATE_REFUSED, true);
+      return;
+    }
     if (state.attached.length >= NB.MAX_ATTACHED) {
       deps.toast(`Attach at most ${NB.MAX_ATTACHED} notebooks to a question`, true);
       return;
@@ -525,6 +530,9 @@ export function createAgentPanel(deps) {
           question: q,
           panes: inScope.map((p) => p.sessionId),
           notebooks: sentNotebooks.length ? sentNotebooks : undefined,
+          // Notebooks with typing not saved yet: the agent's edits to them
+          // are refused (§18), so no keystroke is lost.
+          editing: deps.editingNotebooks?.() || undefined,
           runbookId: opts.runbookId || undefined,
         }),
         signal: ctlr.signal,
@@ -537,7 +545,11 @@ export function createAgentPanel(deps) {
       for (const p of res.proposals || []) registerProposal(p);
       for (const n of res.notes || []) registerNote(n);
       for (const b of res.runbooks || []) registerBookProp(b);
-      for (const nb of res.notebooks || []) registerNbProp(nb);
+      for (const nb of res.notebooks || []) {
+        registerNbProp(nb);
+        // A notebook the agent created or edited: the page shows it now.
+        if (nb.record) deps.notebookChanged?.(nb.record, { byAgent: true });
+      }
       if (opts.runbookId) state.noRunbook = false;
       if (res.runbook) setRun(res.runbook, { paint: false });
       turnModel.proposals = (res.proposals || []).slice();
@@ -900,58 +912,48 @@ export function createAgentPanel(deps) {
     }
   }
 
-  // --- notebook drafts the agent proposes (§18) ---
+  // --- what the agent did to notebooks (§18) ---
 
   function registerNbProp(p) {
-    state.nbProps.set(p.id, { p, busy: false, error: "" });
+    const { record, ...card } = p || {};
+    state.nbProps.set(card.id, { p: card, busy: false, error: "" });
   }
 
   function repaintNbProp(id) {
     eachView((v) => v.paintNbProp(id));
   }
 
-  // openNbDraft asks keel serve for the draft and its draftId, and opens
-  // it in the notebook editor as an unsaved draft. Nothing is saved here:
-  // the editor's Save notebook does that, with the draftId.
-  async function openNbDraft(id) {
-    const rec = state.nbProps.get(id);
-    if (!rec || rec.busy) return;
-    const conv = state.conv;
-    rec.busy = true;
-    rec.error = "";
-    repaintNbProp(id);
-    try {
-      const d = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}/draft`, { method: "POST" });
-      if (conv !== state.conv) return;
-      deps.openNotebookDraft?.(d, {
-        onSaved: (res) => {
-          const cur = state.nbProps.get(id);
-          if (!cur || conv !== state.conv) return;
-          cur.p = res?.proposal || { ...cur.p, status: "saved", notebookId: res?.notebook?.id };
-          repaintNbProp(id);
-        },
-      });
-    } catch (err) {
-      rec.error = err?.code === 410 ? "This draft expired with the conversation; ask the agent again." : err?.message || String(err);
-    } finally {
-      rec.busy = false;
-      if (conv === state.conv) repaintNbProp(id);
-    }
-  }
+  const NB_ACTIONS = {
+    undo: { method: "POST", suffix: "/undo" },
+    delete: { method: "POST", suffix: "/delete" },
+    keep: { method: "DELETE", suffix: "" },
+    restore: { method: "POST", suffix: "/restore" },
+  };
 
-  async function nbPropAction(id, method, suffix) {
+  // nbPropAction is a card's Undo, Delete (only after the user confirms),
+  // Keep or Restore. Each is the user's route; the page then shows the
+  // notebook as keel serve has it.
+  async function nbPropAction(id, action) {
     const rec = state.nbProps.get(id);
-    if (!rec || rec.busy) return;
+    const how = NB_ACTIONS[action];
+    if (!rec || rec.busy || !how) return;
+    if (action === "delete" && deps.confirm) {
+      const ok = await deps.confirm(NB.deleteConfirmText(rec.p), { title: "Delete notebook", action: "Delete" });
+      if (!ok) return;
+    }
     const conv = state.conv;
     rec.busy = true;
     rec.error = "";
     repaintNbProp(id);
     try {
-      const p = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}${suffix}`, { method });
+      const res = await deps.api(`/api/agent/conversations/${encodeURIComponent(conv)}/notebooks/${encodeURIComponent(id)}${how.suffix}`, { method: how.method });
       if (conv !== state.conv) return;
-      rec.p = p;
+      const gone = (action === "delete" || (action === "undo" && rec.p.kind === "create")) && rec.p.notebookId;
+      rec.p = res?.proposal || rec.p;
+      if (res?.notebook) deps.notebookChanged?.(res.notebook, { byAgent: false });
+      if (gone) deps.notebookRemoved?.(gone);
     } catch (err) {
-      rec.error = err?.message || String(err);
+      rec.error = err?.code === 410 ? "Keel no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted." : err?.message || String(err);
     } finally {
       rec.busy = false;
       if (conv === state.conv) repaintNbProp(id);
@@ -1289,7 +1291,7 @@ export function createAgentPanel(deps) {
   el.nbPicker?.addEventListener("click", (ev) => {
     const pick = ev.target.closest("[data-agent-attach-pick]");
     if (!pick || pick.getAttribute("aria-disabled") === "true") return;
-    setAttached(NB.toggleAttached(state.attached, pick.dataset.agentAttachPick));
+    setAttached(NB.toggleAttached(state.attached, pick.dataset.agentAttachPick, notebooks()));
     el.nbPicker.querySelector(`[data-agent-attach-pick="${CSS.escape(pick.dataset.agentAttachPick)}"]`)?.focus({ preventScroll: true });
   });
   el.nbPicker?.addEventListener("keydown", (ev) => {
@@ -1468,11 +1470,9 @@ export function createAgentPanel(deps) {
     attached: () => attachedNotebooks(),
     attachNotebook,
     detachNotebook: (id) => setAttached(state.attached.filter((x) => x !== id)),
-    toggleNotebook: (id) => setAttached(NB.toggleAttached(state.attached, id)),
+    toggleNotebook: (id) => setAttached(NB.toggleAttached(state.attached, id, notebooks())),
     attachedChipsHTML,
     nbPickerHTML,
-    // openNbDraft is a card's Open draft (also from the page's view).
-    openNbDraft,
     sessionsEmptyText,
     ask,
     stop: () => state.busy?.abort(),

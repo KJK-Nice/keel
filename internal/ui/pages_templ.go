@@ -590,6 +590,18 @@ func NotebooksPage(p PageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"btn-notebook-trash\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = icon.RestoreBin().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "Recently deleted</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = newItemButton("btn-new-notebook", "New notebook").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -600,7 +612,7 @@ func NotebooksPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div class=\"k-toolbar\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"k-toolbar\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -608,7 +620,7 @@ func NotebooksPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -616,7 +628,7 @@ func NotebooksPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -645,7 +657,7 @@ func LogsPage(p PageProps) templ.Component {
 			templ_7745c5c3_Var24 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<section class=\"k-page\" id=\"page-logs\" data-page=\"logs\" aria-label=\"Logs\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<section class=\"k-page\" id=\"page-logs\" data-page=\"logs\" aria-label=\"Logs\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -661,7 +673,7 @@ func LogsPage(p PageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<button type=\"button\" class=\"k-btn\" id=\"btn-refresh-logs\" data-on:click=\"@get('/ui/logs')\">Refresh</button>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<button type=\"button\" class=\"k-btn\" id=\"btn-refresh-logs\" data-on:click=\"@get('/ui/logs')\">Refresh</button>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -671,7 +683,7 @@ func LogsPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"k-toolbar\"><div class=\"k-inputgroup k-filter\"><span class=\"k-addon\" aria-hidden=\"true\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div class=\"k-toolbar\"><div class=\"k-inputgroup k-filter\"><span class=\"k-addon\" aria-hidden=\"true\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -679,20 +691,20 @@ func LogsPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</span> <input id=\"log-filter\" class=\"k-input\" type=\"search\" placeholder=\"Search events\" aria-label=\"Search events\" autocomplete=\"off\" spellcheck=\"false\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</span> <input id=\"log-filter\" class=\"k-input\" type=\"search\" placeholder=\"Search events\" aria-label=\"Search events\" autocomplete=\"off\" spellcheck=\"false\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.LogFilter)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 220, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 224, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\" data-bind=\"logFilter\" data-on:input__debounce.120ms=\"@get('/ui/logs')\"></div><div class=\"k-chips\" role=\"group\" aria-label=\"Show events\"><button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'all'\" data-attr:aria-pressed=\"String($_logKind === 'all')\">All</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'sessions'\" data-attr:aria-pressed=\"String($_logKind === 'sessions')\">Sessions</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'forwards'\" data-attr:aria-pressed=\"String($_logKind === 'forwards')\">Forwards</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'vault'\" data-attr:aria-pressed=\"String($_logKind === 'vault')\">Vault</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'agent'\" data-attr:aria-pressed=\"String($_logKind === 'agent')\">Agent</button></div></div><table class=\"k-table k-table--log\"><thead><tr><th>Time</th><th>Kind</th><th>Target</th><th>Event</th></tr></thead>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" data-bind=\"logFilter\" data-on:input__debounce.120ms=\"@get('/ui/logs')\"></div><div class=\"k-chips\" role=\"group\" aria-label=\"Show events\"><button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'all'\" data-attr:aria-pressed=\"String($_logKind === 'all')\">All</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'sessions'\" data-attr:aria-pressed=\"String($_logKind === 'sessions')\">Sessions</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'forwards'\" data-attr:aria-pressed=\"String($_logKind === 'forwards')\">Forwards</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'vault'\" data-attr:aria-pressed=\"String($_logKind === 'vault')\">Vault</button> <button type=\"button\" class=\"k-chip\" data-on:click=\"$_logKind = 'agent'\" data-attr:aria-pressed=\"String($_logKind === 'agent')\">Agent</button></div></div><table class=\"k-table k-table--log\"><thead><tr><th>Time</th><th>Kind</th><th>Target</th><th>Event</th></tr></thead>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -700,7 +712,7 @@ func LogsPage(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</table></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</table></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -729,7 +741,7 @@ func SettingsPage() templ.Component {
 			templ_7745c5c3_Var27 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<section class=\"k-page k-page--settings\" id=\"page-settings\" data-page=\"settings\" aria-label=\"Settings\"><nav class=\"k-rail settings-rail\" aria-label=\"Settings sections\"><div class=\"k-rail-label\">Settings</div><div class=\"k-inputgroup k-rail-search\"><span class=\"k-addon\" aria-hidden=\"true\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<section class=\"k-page k-page--settings\" id=\"page-settings\" data-page=\"settings\" aria-label=\"Settings\"><nav class=\"k-rail settings-rail\" aria-label=\"Settings sections\"><div class=\"k-rail-label\">Settings</div><div class=\"k-inputgroup k-rail-search\"><span class=\"k-addon\" aria-hidden=\"true\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -737,7 +749,7 @@ func SettingsPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</span> <input id=\"settings-search\" class=\"k-input\" type=\"search\" placeholder=\"Search settings\" aria-label=\"Search settings\" autocomplete=\"off\" spellcheck=\"false\"></div><div class=\"settings-nav-list\" role=\"tablist\" aria-orientation=\"vertical\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</span> <input id=\"settings-search\" class=\"k-input\" type=\"search\" placeholder=\"Search settings\" aria-label=\"Search settings\" autocomplete=\"off\" spellcheck=\"false\"></div><div class=\"settings-nav-list\" role=\"tablist\" aria-orientation=\"vertical\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -769,7 +781,7 @@ func SettingsPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div><div class=\"k-rail-spacer\"></div><button type=\"button\" class=\"k-rail-item settings-nav\" data-settings-section=\"about\" role=\"tab\" aria-selected=\"false\" id=\"settings-nav-about\">About Keel <span class=\"k-rail-count\" id=\"settings-about-count\"></span></button></nav><div class=\"k-settings-main\"><form class=\"k-settings-form\" id=\"settings-form\"><div class=\"settings-panel is-active\" data-settings-panel=\"appearance\" role=\"tabpanel\"><h1 class=\"k-page-title\">Appearance</h1>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div><div class=\"k-rail-spacer\"></div><button type=\"button\" class=\"k-rail-item settings-nav\" data-settings-section=\"about\" role=\"tab\" aria-selected=\"false\" id=\"settings-nav-about\">About Keel <span class=\"k-rail-count\" id=\"settings-about-count\"></span></button></nav><div class=\"k-settings-main\"><form class=\"k-settings-form\" id=\"settings-form\"><div class=\"settings-panel is-active\" data-settings-panel=\"appearance\" role=\"tabpanel\"><h1 class=\"k-page-title\">Appearance</h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -785,7 +797,7 @@ func SettingsPage() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Theme</div><p class=\"pref-desc\">Light, dark, or follow the system.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Theme</div><p class=\"pref-desc\">Light, dark, or follow the system.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -793,56 +805,56 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div><div class=\"pref-row\" data-native-only><div class=\"pref-copy\"><div class=\"pref-title\" id=\"set-translucency-title\">Window translucency</div><p class=\"pref-desc\" id=\"set-translucency-help\">How much of the desktop shows through the window. Off is opaque. <span class=\"pref-desc-os\">When the theme differs from the system's, the window stays opaque.</span></p></div><div class=\"k-seg pref-seg\" id=\"set-translucency\" role=\"group\" aria-labelledby=\"set-translucency-title\" aria-describedby=\"set-translucency-help\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</div><div class=\"pref-row\" data-native-only><div class=\"pref-copy\"><div class=\"pref-title\" id=\"set-translucency-title\">Window translucency</div><p class=\"pref-desc\" id=\"set-translucency-help\">How much of the desktop shows through the window. Off is opaque. <span class=\"pref-desc-os\">When the theme differs from the system's, the window stays opaque.</span></p></div><div class=\"k-seg pref-seg\" id=\"set-translucency\" role=\"group\" aria-labelledby=\"set-translucency-title\" aria-describedby=\"set-translucency-help\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for i, v := range []string{"off", "low", "medium", "high"} {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<button type=\"button\" data-translucency-step=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<button type=\"button\" data-translucency-step=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(v)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 302, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 306, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\" aria-pressed=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "\" aria-pressed=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatBool(v == "medium"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 302, Col: 108}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 306, Col: 108}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs([]string{"Off", "Low", "Medium", "High"}[i])
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 302, Col: 156}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 306, Col: 156}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</button>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</button>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">UI size</div><p class=\"pref-desc\">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p></div><div class=\"pref-slider\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">UI size</div><p class=\"pref-desc\">Tabs, settings, and chrome. 11–16px. Terminal size is separate.</p></div><div class=\"pref-slider\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -857,7 +869,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<output id=\"set-ui-size-out\">12</output></div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Font smoothing</div><p class=\"pref-desc\">How chrome text is drawn. Antialiased is thinner on dark UI.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<output id=\"set-ui-size-out\">12</output></div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Font smoothing</div><p class=\"pref-desc\">How chrome text is drawn. Antialiased is thinner on dark UI.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -865,7 +877,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -875,7 +887,7 @@ func SettingsPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</div><div class=\"settings-panel\" data-settings-panel=\"terminal\" role=\"tabpanel\" hidden><h1 class=\"k-page-title\">Terminal</h1>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</div><div class=\"settings-panel\" data-settings-panel=\"terminal\" role=\"tabpanel\" hidden><h1 class=\"k-page-title\">Terminal</h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -891,7 +903,7 @@ func SettingsPage() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Font</div><p class=\"pref-desc\">Monospace face used in every pane.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Font</div><p class=\"pref-desc\">Monospace face used in every pane.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -899,7 +911,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Text size</div><p class=\"pref-desc\">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p></div><div class=\"pref-slider\" data-kbd=\"+\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Text size</div><p class=\"pref-desc\">10–22px. ⌘+ / ⌘− / ⌘0 also change size.</p></div><div class=\"pref-slider\" data-kbd=\"+\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -914,7 +926,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<output id=\"set-size-out\">12</output>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<output id=\"set-size-out\">12</output>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -922,7 +934,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</div></div><div class=\"pref-row pref-row-preview\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</div></div><div class=\"pref-row pref-row-preview\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -938,7 +950,7 @@ func SettingsPage() templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<pre id=\"term-preview\" class=\"absolute inset-0 m-0 flex items-center px-3\">guest@keel:~ $ ssh prod-api</pre>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<pre id=\"term-preview\" class=\"absolute inset-0 m-0 flex items-center px-3\">guest@keel:~ $ ssh prod-api</pre>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -948,7 +960,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -970,7 +982,7 @@ func SettingsPage() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Copy on select</div><p class=\"pref-desc\">Copy terminal selection to the clipboard.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Copy on select</div><p class=\"pref-desc\">Copy terminal selection to the clipboard.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -978,7 +990,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Right-click to paste</div><p class=\"pref-desc\">Paste clipboard into the focused pane.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Right-click to paste</div><p class=\"pref-desc\">Paste clipboard into the focused pane.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -986,7 +998,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -996,7 +1008,7 @@ func SettingsPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1024,7 +1036,7 @@ func SettingsPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<p class=\"k-help k-settings-empty\" id=\"settings-empty\" role=\"status\" hidden>No settings match.</p></form></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<p class=\"k-help k-settings-empty\" id=\"settings-empty\" role=\"status\" hidden>No settings match.</p></form></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1058,7 +1070,7 @@ func agentSettingsPanel() templ.Component {
 			templ_7745c5c3_Var35 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<div class=\"settings-panel\" id=\"agent-settings\" data-settings-panel=\"agent\" role=\"tabpanel\" hidden><h1 class=\"k-page-title\">Agent</h1><p class=\"k-muted k-settings-lead\">The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"settings-panel\" id=\"agent-settings\" data-settings-panel=\"agent\" role=\"tabpanel\" hidden><h1 class=\"k-page-title\">Agent</h1><p class=\"k-muted k-settings-lead\">The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1074,7 +1086,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<div class=\"pref-row pref-row-preview\"><div class=\"k-agent-cards\" id=\"agent-set-providers\" aria-live=\"polite\"></div></div><div class=\"pref-row\" id=\"agent-set-model-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Model</div><p class=\"pref-desc\">Used by the agent panel. Suggestions in panes use the provider's small, fast model.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<div class=\"pref-row pref-row-preview\"><div class=\"k-agent-cards\" id=\"agent-set-providers\" aria-live=\"polite\"></div></div><div class=\"pref-row\" id=\"agent-set-model-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Model</div><p class=\"pref-desc\">Used by the agent panel. Suggestions in panes use the provider's small, fast model.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1082,7 +1094,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1104,7 +1116,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Suggest a command when I type plain language</div><p class=\"pref-desc\">Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Suggest a command when I type plain language</div><p class=\"pref-desc\">Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1112,7 +1124,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Suggest from this pane's scrollback</div><p class=\"pref-desc\">Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Suggest from this pane's scrollback</div><p class=\"pref-desc\">Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1120,7 +1132,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</div><div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\" id=\"agent-set-detection-label\">How to notice plain language</div></div><div class=\"k-radios\" id=\"agent-set-detection\" role=\"radiogroup\" aria-labelledby=\"agent-set-detection-label\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</div><div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\" id=\"agent-set-detection-label\">How to notice plain language</div></div><div class=\"k-radios\" id=\"agent-set-detection\" role=\"radiogroup\" aria-labelledby=\"agent-set-detection-label\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1132,7 +1144,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</div><p class=\"k-help k-agent-note\" id=\"agent-set-detection-note\" hidden></p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</div><p class=\"k-help k-agent-note\" id=\"agent-set-detection-note\" hidden></p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1154,7 +1166,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\" id=\"agent-set-scope-label\">Default panes per conversation</div><p class=\"pref-desc\">Which panes the agent may read when you start a conversation.</p></div><div class=\"k-radios\" id=\"agent-set-scope\" role=\"radiogroup\" aria-labelledby=\"agent-set-scope-label\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\" id=\"agent-set-scope-label\">Default panes per conversation</div><p class=\"pref-desc\">Which panes the agent may read when you start a conversation.</p></div><div class=\"k-radios\" id=\"agent-set-scope\" role=\"radiogroup\" aria-labelledby=\"agent-set-scope-label\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1170,7 +1182,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Scrollback lines per pane</div><p class=\"pref-desc\">50–1000. How much of each pane the agent reads. Default 200.</p></div><div class=\"pref-slider\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</div></div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Scrollback lines per pane</div><p class=\"pref-desc\">50–1000. How much of each pane the agent reads. Default 200.</p></div><div class=\"pref-slider\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1185,7 +1197,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<output id=\"agent-set-lines-out\" aria-label=\"Scrollback lines\">200</output></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<output id=\"agent-set-lines-out\" aria-label=\"Scrollback lines\">200</output></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1207,7 +1219,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\">Your notes</div><p class=\"pref-desc\">How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><div class=\"pref-title\">Your notes</div><p class=\"pref-desc\">How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1215,7 +1227,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Delete all notes</div><p class=\"pref-desc\">Forget every host note and every note about you. Conversations stay.</p></div><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"agent-set-delete-notes\">Delete all notes</button></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Delete all notes</div><p class=\"pref-desc\">Forget every host note and every note about you. Conversations stay.</p></div><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"agent-set-delete-notes\">Delete all notes</button></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1237,7 +1249,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">The agent never types into a pane</div><p class=\"pref-desc\">Only you do, with Type, ⇥ or ⇧⇥. Nothing runs until you press ↵.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">The agent never types into a pane</div><p class=\"pref-desc\">Only you do, with Type, ⇥ or ⇧⇥. Nothing runs until you press ↵.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1245,7 +1257,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Secrets are always redacted</div><p class=\"pref-desc\">Values that look like tokens, keys and passwords are replaced before anything is sent. The vault is never sent.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Secrets are always redacted</div><p class=\"pref-desc\">Values that look like tokens, keys and passwords are replaced before anything is sent. The vault is never sent.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1253,7 +1265,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Risky commands need ⇧⇥</div><p class=\"pref-desc\">Plain ⇥ never inserts a destructive command. On production hosts a command that changes state needs ⇧⇥ too. Read-only commands insert with ⇥ everywhere.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Risky commands need ⇧⇥</div><p class=\"pref-desc\">Plain ⇥ never inserts a destructive command. On production hosts a command that changes state needs ⇧⇥ too. Read-only commands insert with ⇥ everywhere.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1261,7 +1273,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Redact IP addresses</div><p class=\"pref-desc\">Replace IPv4 and IPv6 addresses before sending.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Redact IP addresses</div><p class=\"pref-desc\">Replace IPv4 and IPv6 addresses before sending.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1269,7 +1281,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Redact hostnames</div><p class=\"pref-desc\">Replace host names and domains before sending.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Redact hostnames</div><p class=\"pref-desc\">Replace host names and domains before sending.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1277,7 +1289,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1299,7 +1311,7 @@ func agentSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Keep conversations</div><p class=\"pref-desc\">Saved encrypted in the vault, redacted as sent, and deleted when older than this. Only while open never writes them to disk.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Keep conversations</div><p class=\"pref-desc\">Saved encrypted in the vault, redacted as sent, and deleted when older than this. Only while open never writes them to disk.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1307,7 +1319,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Delete all history</div><p class=\"pref-desc\">Forget every conversation now. The Agent log keeps what was read.</p></div><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"agent-set-delete-history\">Delete all history</button></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "</div><div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Delete all history</div><p class=\"pref-desc\">Forget every conversation now. The Agent log keeps what was read.</p></div><button type=\"button\" class=\"k-btn k-btn--danger k-btn--sm\" id=\"agent-set-delete-history\">Delete all history</button></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1317,7 +1329,7 @@ func agentSettingsPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1346,33 +1358,33 @@ func agentSwitch(id, label string) templ.Component {
 			templ_7745c5c3_Var42 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<button type=\"button\" class=\"k-switch\" role=\"switch\" id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 545, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 549, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "\" aria-checked=\"false\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "\" aria-checked=\"false\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 545, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 549, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "\"></button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "\"></button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1403,69 +1415,69 @@ func agentRadio(attr, value, label, badge string) templ.Component {
 			templ_7745c5c3_Var45 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<button type=\"button\" class=\"k-choice k-choice--btn\" role=\"radio\" aria-checked=\"false\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<button type=\"button\" class=\"k-choice k-choice--btn\" role=\"radio\" aria-checked=\"false\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(attr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 551, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 555, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(` ` + templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 551, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 555, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "\"><span class=\"k-radio\" aria-hidden=\"true\"></span> <span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 553, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 557, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if badge != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<span class=\"k-badge k-badge--outline\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "<span class=\"k-badge k-badge--outline\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(badge)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 555, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 559, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1494,7 +1506,7 @@ func alwaysOn() templ.Component {
 			templ_7745c5c3_Var50 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "<span class=\"k-badge k-badge--outline\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<span class=\"k-badge k-badge--outline\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1502,7 +1514,7 @@ func alwaysOn() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "Always on</span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "Always on</span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1536,7 +1548,7 @@ func settingsNav(id, label string, active bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<button type=\"button\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "<button type=\"button\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1549,48 +1561,48 @@ func settingsNav(id, label string, active bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "\" data-settings-section=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "\" data-settings-section=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 571, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 575, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "\" role=\"tab\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "\" role=\"tab\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if active {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, " aria-selected=\"true\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, " aria-selected=\"true\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, " aria-selected=\"false\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, " aria-selected=\"false\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, ">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, ">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 579, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 583, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1619,30 +1631,30 @@ func settingsGroup(title string) templ.Component {
 			templ_7745c5c3_Var56 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "<section class=\"settings-group\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<section class=\"settings-group\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if title != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "<h2 class=\"settings-group-title\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "<h2 class=\"settings-group-title\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 586, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/pages.templ`, Line: 590, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, "</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "<div class=\"settings-group-body\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "<div class=\"settings-group-body\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1650,7 +1662,7 @@ func settingsGroup(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, "</div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "</div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
