@@ -358,8 +358,8 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 			})
 		}
 	}
-	if seen["gemini.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 3 || seen["Judge"] != 4 {
-		t.Errorf("calls found: %v; want gemini.New and jev.New once, Generate 3 times (Ask, modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
+	if seen["gemini.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 4 || seen["Judge"] != 4 {
+		t.Errorf("calls found: %v; want gemini.New and jev.New once, Generate 4 times (Ask twice: the question and the notebook read rounds; modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
 	}
 }
 

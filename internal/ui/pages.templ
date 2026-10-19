@@ -190,6 +190,10 @@ templ SnippetsPage(p PageProps) {
 templ NotebooksPage(p PageProps) {
 	<section class="k-page" id="page-notebooks" data-page="notebooks" aria-label="Notebooks">
 		@pageHead("Notebooks", "Markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.") {
+			<button type="button" class="k-btn k-btn--ghost" id="btn-notebook-trash">
+				@icon.RestoreBin()
+				Recently deleted
+			</button>
 			@newItemButton("btn-new-notebook", "New notebook")
 		}
 		<div class="k-toolbar">

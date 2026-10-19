@@ -177,13 +177,22 @@ type AgentChatTurn struct {
 	Again     bool                `json:"again,omitempty"`
 }
 
-// AgentChatNotebook is a notebook draft the agent proposed, redacted, and
-// its state: "open", "saved" (NotebookID names the notebook the user
-// saved from it) or "dismissed".
+// AgentChatNotebook is what the agent did to a notebook in a turn
+// (docs/ui-redesign.md §18), redacted, never the notebook's text: Kind
+// "create", "edit" or "delete" (a delete the agent proposed and only the
+// user confirms), and its state. Turns saved before Kind existed hold a
+// notebook draft (Kind "", with Title and Body; Status "open", "saved" or
+// "dismissed").
 type AgentChatNotebook struct {
 	ID           string    `json:"id"`
+	Kind         string    `json:"kind,omitempty"`
 	Title        string    `json:"title"`
-	Body         string    `json:"body"`
+	Body         string    `json:"body,omitempty"`
+	Summary      string    `json:"summary,omitempty"`
+	Reason       string    `json:"reason,omitempty"`
+	Rev          int       `json:"rev,omitempty"`
+	VersionID    string    `json:"versionId,omitempty"`
+	Bytes        int       `json:"bytes,omitempty"`
 	Placeholders bool      `json:"placeholders,omitempty"`
 	FromPane     bool      `json:"fromPane,omitempty"`
 	SeenIn       string    `json:"seenIn,omitempty"`
@@ -234,6 +243,10 @@ type AgentChatStep struct {
 	NotebookID string `json:"notebookId,omitempty"`
 	Bytes      int    `json:"bytes,omitempty"`
 	Truncated  bool   `json:"truncated,omitempty"`
+	// Asked is set on a notebook the agent asked to read (not attached);
+	// Count on the step that sent the notebook titles ("notebook-index").
+	Asked bool `json:"asked,omitempty"`
+	Count int  `json:"count,omitempty"`
 }
 
 // AgentChatNote is a note the agent proposed, redacted, and its state:

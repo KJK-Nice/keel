@@ -321,8 +321,17 @@ templ NotebookList(p PageProps) {
 							<span class="k-item-sub">{ notebookPreview(nb) }</span>
 						</span>
 					</button>
+					if nb.Private {
+						<span class="k-badge k-badge--outline k-nb-private" title="Private: the agent cannot read or change it">
+							@icon.SquareLock02()
+							Private
+						</span>
+					}
+					if nb.AgentUnreviewed {
+						<span class="k-badge k-badge--signal" title="The agent edited this notebook; open it to review the change">Edited by agent</span>
+					}
 					if nb.Source == store.NotebookSourceAgent {
-						<span class="k-badge k-badge--outline" title="Saved by you from a draft the agent proposed">From agent</span>
+						<span class="k-badge k-badge--outline" title="Created by the agent">From agent</span>
 					}
 					if nb.Pinned {
 						<span class="k-badge">Pinned</span>
@@ -357,6 +366,16 @@ templ notebookCardMenu(nb store.Notebook) {
 				} else {
 					Pin
 				}
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-private": nb.ID, "data-private": privateAttr(nb.Private)}}) {
+				if nb.Private {
+					Let the agent read it
+				} else {
+					Make private
+				}
+			}
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-notebook-history": nb.ID}}) {
+				History
 			}
 			@dropdownmenu.Separator()
 			@dropdownmenu.Item(dropdownmenu.ItemProps{

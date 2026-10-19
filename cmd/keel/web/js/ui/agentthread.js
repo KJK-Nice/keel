@@ -67,6 +67,7 @@ export const ICON = {
   notebook: svg(
     '<path d="M9.99219 11H13.4922M9.99219 7H16.9922"/><path d="M5.99219 6H2.99219M5.99219 12H2.99219M5.99219 18H2.99219"/><path d="M8.99219 21.9388C7.41097 21.8363 6.39738 21.562 5.66376 20.8284C4.49219 19.6569 4.49219 17.7712 4.49219 14V10C4.49219 6.22877 4.49219 4.34315 5.66376 3.17158C6.83533 2 8.72096 2 12.4922 2H12.9922C16.7634 2 18.649 2 19.8206 3.17157C20.9922 4.34315 20.9922 6.22877 20.9922 10V10.5"/>',
   ),
+  lock: svg('<path d="M4.5 13.5C4.5 11.6 4.5 10.7 5.1 10.1C5.7 9.5 6.6 9.5 8.5 9.5H15.5C17.4 9.5 18.3 9.5 18.9 10.1C19.5 10.7 19.5 11.6 19.5 13.5V16C19.5 18.4 19.5 19.6 18.7 20.3C18 21 16.8 21 14.5 21H9.5C7.2 21 6 21 5.3 20.3C4.5 19.6 4.5 18.4 4.5 16V13.5Z"/><path d="M8 9.5V7C8 4.8 9.8 3 12 3C14.2 3 16 4.8 16 7V9.5"/>'),
   eye: svg(
     '<path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"/><path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"/>',
   ),
@@ -75,7 +76,7 @@ export const ICON = {
 export function stepHTML(step) {
   if (step.status === "notes") return `<div class="k-agent-step k-agent-step--note">${ICON.note}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   if (step.status === "runbook") return `<div class="k-agent-step k-agent-step--note">${ICON.book}<span>${escapeHtml(A.traceText(step))}</span></div>`;
-  if (step.status === "notebook") return `<div class="k-agent-step k-agent-step--note" data-trace-notebook>${ICON.notebook}<span>${escapeHtml(A.traceText(step))}</span></div>`;
+  if (step.status === "notebook" || step.status === "notebook-index") return `<div class="k-agent-step k-agent-step--note" data-trace-notebook>${ICON.notebook}<span>${escapeHtml(A.traceText(step))}</span></div>`;
   const cls = step.status === "read" ? "k-agent-step--read" : "k-agent-step--skip";
   const icon = step.status === "read" ? ICON.tick : ICON.skip;
   return `<div class="k-agent-step ${cls}">${icon}<span>${escapeHtml(A.traceText(step))}</span></div>`;
@@ -161,7 +162,7 @@ export function createThreadView(opts) {
   const noteRecs = new Map(); // note proposal id → { el, editing }
   const runRecs = new Map(); // runbook use id → el (§16)
   const bookRecs = new Map(); // runbook proposal id → el (§16)
-  const nbRecs = new Map(); // notebook draft id → el (§18)
+  const nbRecs = new Map(); // notebook card id → el (§18)
   let turns = 0;
 
   function scrollDown() {
@@ -532,18 +533,18 @@ export function createThreadView(opts) {
         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-rbp-dismiss${busy ? " disabled" : ""}>Dismiss</button>${save}</div>`;
   }
 
-  // --- notebook drafts the agent proposes (§18) ---
+  // --- what the agent did to a notebook (§18) ---
   //
-  // Nothing is saved from the card: Open draft asks keel serve for the
-  // draft (and its draftId) and opens it in the notebook editor as an
-  // unsaved draft with a review banner. Only Save there keeps it.
+  // keel serve already applied a create or an edit (the store kept the
+  // version before it): the card says so, with Open and Undo. A delete the
+  // agent proposes waits here: Delete asks first, Keep leaves it. Nothing
+  // on the card types anything.
 
   function addNbProp(id) {
     if (nbRecs.has(id)) return nbRecs.get(id);
     const node = doc.createElement("div");
     node.className = "k-prop k-prop--note k-prop--notebook";
     node.setAttribute("role", "group");
-    node.setAttribute("aria-label", "Notebook draft");
     node.dataset.nbpId = id;
     el.appendChild(node);
     nbRecs.set(id, node);
@@ -551,41 +552,48 @@ export function createThreadView(opts) {
     return node;
   }
 
+  const NB_BUTTONS = {
+    open: (p, busy) => `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-notebook="${escapeHtml(p.notebookId || "")}"${busy}>Open</button>`,
+    undo: (p, busy) => `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-undo${busy}>Undo</button>`,
+    restore: (p, busy) => `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-restore${busy}>Restore</button>`,
+    keep: (p, busy) => `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-keep${busy}>Keep</button>`,
+    delete: (p, busy) => `<button type="button" class="k-btn k-btn--danger k-btn--sm" data-nbp-delete${busy}>Delete…</button>`,
+  };
+
   function paintNbProp(id) {
     const node = nbRecs.get(id);
     const cur = ctl.nbProp?.(id);
     if (!node || !cur) return;
     const { p, busy, error } = cur;
-    const warn = NB.proposalWarn(p);
-    node.classList.toggle("k-prop--warn", warn && p.status === "open" && !p.expired);
-    if (p.status !== "open" || p.expired) {
-      const text = p.status === "open" ? "Not saved. This draft expired with the conversation; ask the agent again, or write the notebook yourself." : NB.proposalDone(p);
-      const undo = !p.expired && p.status === "dismissed" ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-undo${busy ? " disabled" : ""}>Undo</button>` : "";
-      const open = p.status === "saved" && p.notebookId ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-notebook="${escapeHtml(p.notebookId)}">Open notebook</button>` : "";
-      const icon = p.status === "saved" ? `<span class="k-note-done-ok">${ICON.tick}</span>` : ICON.info;
-      node.classList.add("k-prop--done");
-      node.innerHTML = `<div class="k-note-done" role="status">${icon}<span>${escapeHtml(text)}</span>${open}${undo}</div>`;
-      return;
-    }
-    node.classList.remove("k-prop--done");
-    const badges = `${p.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}${
-      p.placeholders ? '<span class="k-badge k-badge--signal">Placeholders</span>' : ""
-    }<span class="k-badge">New notebook</span>`;
-    const pv = NB.preview(p.body);
-    const lines = pv.lines.map((l) => escapeHtml(l)).join("\n");
+    const dis = busy ? " disabled" : "";
+    const head = NB.cardHead(p);
+    node.setAttribute("aria-label", head);
+    const live = p.status === "created" || p.status === "edited" || p.status === "proposed";
+    const warn = NB.warned(p) && live && !p.expired;
+    node.classList.toggle("k-prop--warn", warn || (p.kind === "delete" && p.status === "proposed" && !p.expired));
+    node.classList.toggle("k-prop--done", !live || !!p.expired);
+    const badges = [];
+    if (p.kind === "create" && p.status === "created") badges.push('<span class="k-badge k-badge--outline">From agent</span>');
+    if (p.kind === "edit" && p.status === "edited") badges.push('<span class="k-badge k-badge--outline">Edited by agent</span>');
+    if (warn) badges.push(p.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : '<span class="k-badge k-badge--flare">After reading panes</span>');
+    if (live && p.placeholders) badges.push('<span class="k-badge k-badge--signal">Placeholders</span>');
     const notes = [];
-    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(NB.proposalWarning(p))}</span></div>`);
-    if (p.withheld) notes.push(noteHTML("signal", ICON.info, escapeHtml("It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.")));
-    if (p.placeholders) notes.push(noteHTML("signal", ICON.info, escapeHtml("It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")));
+    const status = NB.cardStatus(p);
+    if (p.expired && live) notes.push(noteHTML("muted", ICON.info, escapeHtml("Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")));
+    else if (status) notes.push(noteHTML(p.status === "refused" ? "signal" : "muted", p.status === "refused" ? ICON.alert : ICON.info, escapeHtml(status)));
+    if (p.summary && p.kind !== "delete") notes.push(`<p class="k-nbp-summary">${escapeHtml(p.summary)}</p>`);
+    if (p.summary && p.kind === "delete") notes.push(`<p class="k-nbp-summary">${escapeHtml(`Why: ${p.summary}`)}</p>`);
+    if (warn) notes.push(`<div class="k-note-warn" role="note">${ICON.alert}<span>${escapeHtml(NB.paneWarning(p))}</span></div>`);
+    if (live && p.withheld) notes.push(noteHTML("signal", ICON.info, escapeHtml("It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.")));
+    if (live && p.placeholders) notes.push(noteHTML("signal", ICON.info, escapeHtml("It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")));
     if (error) notes.push(noteHTML("flare", ICON.alert, escapeHtml(error)));
-    notes.push(noteHTML("muted", ICON.shield, "Nothing is saved until you open the draft, review it in the notebook editor and press Save notebook. The agent cannot change your notebooks."));
-    node.innerHTML = `<div class="k-prop-head">${ICON.notebook}<span>Notebook draft</span><span class="k-prop-badges">${badges}</span></div>
-      <div class="k-prop-body"><p class="k-rbp-name">${escapeHtml(p.title)}</p><pre class="k-nbp-preview" aria-label="Draft preview">${lines}${
-        pv.more ? `\n<span class="k-nbp-more">${escapeHtml(`… ${pv.more} more ${pv.more === 1 ? "line" : "lines"}`)}</span>` : ""
-      }</pre>${notes.join("")}</div>
-      <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(NB.sizeLabel(p))}</span><span class="k-spacer"></span>
-        <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-nbp-dismiss${busy ? " disabled" : ""}>Dismiss</button>
-        <button type="button" class="k-btn k-btn--primary k-btn--sm" data-nbp-open${busy ? " disabled" : ""}>Open draft</button></div>`;
+    const actions = NB.cardActions(p)
+      .map((a) => NB_BUTTONS[a](p, dis))
+      .join("");
+    const size = p.kind === "delete" || !p.bytes ? "" : `<span class="k-prop-count">${escapeHtml(`${p.bytes} ${p.bytes === 1 ? "byte" : "bytes"}${p.rev ? ` · rev ${p.rev}` : ""}`)}</span>`;
+    node.innerHTML = `<div class="k-prop-head">${p.kind === "delete" ? ICON.trash : ICON.notebook}<span>${escapeHtml(head)}</span><span class="k-prop-badges">${badges.join("")}</span></div>
+      <div class="k-prop-body"><p class="k-rbp-name">${escapeHtml(p.title || "Notebook")}</p>${notes.join("")}</div>
+      <div class="k-prop-foot">${size}<span class="k-spacer"></span>${actions}</div>`;
   }
 
   // --- notes the agent proposes (§15) ---
@@ -722,9 +730,10 @@ export function createThreadView(opts) {
     const nbp = ev.target.closest(".k-prop--notebook")?.dataset.nbpId;
     if (nbp && nbRecs.has(nbp)) {
       const nbBtn = ev.target.closest("[data-nbp-notebook]");
-      if (ev.target.closest("[data-nbp-open]")) ctl.openNbDraft?.(nbp);
-      else if (ev.target.closest("[data-nbp-dismiss]")) ctl.nbPropAction?.(nbp, "DELETE", "");
-      else if (ev.target.closest("[data-nbp-undo]")) ctl.nbPropAction?.(nbp, "POST", "/undo");
+      if (ev.target.closest("[data-nbp-undo]")) ctl.nbPropAction?.(nbp, "undo");
+      else if (ev.target.closest("[data-nbp-delete]")) ctl.nbPropAction?.(nbp, "delete");
+      else if (ev.target.closest("[data-nbp-keep]")) ctl.nbPropAction?.(nbp, "keep");
+      else if (ev.target.closest("[data-nbp-restore]")) ctl.nbPropAction?.(nbp, "restore");
       else if (nbBtn) ctl.openNotebook?.(nbBtn.dataset.nbpNotebook);
       return;
     }

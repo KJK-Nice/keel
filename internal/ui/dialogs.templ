@@ -25,6 +25,7 @@ templ Dialogs(p PageProps) {
 	@hostKeyDialog()
 	@snippetDialog()
 	@notebookRenameDialog()
+	@notebookHistoryDialog()
 	@confirmDialog()
 	@commandPalette()
 	@ptyInjectDialog()
@@ -75,6 +76,7 @@ templ ptyInjectDialog() {
 			}
 			<p class="hint">Session: <span id="pty-inject-session"></span></p>
 			<pre class="pty-inject-preview" id="pty-inject-preview"></pre>
+			<p class="k-review pty-inject-agent" id="pty-inject-agent" role="note" hidden></p>
 			<div class="modal-actions">
 				@button.Button(button.Props{ID: "pty-inject-cancel", Type: button.TypeButton, Variant: button.VariantGhost}) {
 					Cancel
@@ -482,6 +484,40 @@ templ notebookRenameDialog() {
 				}
 			</div>
 		</form>
+	</dialog>
+}
+
+// notebookHistoryDialog is a notebook's History (versions kept before
+// agent edits, restores and at the start of an editing session) and
+// Notebooks · Recently deleted (docs/ui-redesign.md §18). term.js fills the
+// list and the diff; Restore is the user's.
+templ notebookHistoryDialog() {
+	<dialog class="modal notebook-history-modal" id="notebook-history-modal" aria-labelledby="notebook-history-title">
+		<div class="notebook-history">
+			@dialog.Header() {
+				@dialog.Title(dialog.TitleProps{ID: "notebook-history-title"}) {
+					History
+				}
+				@dialog.Description(dialog.DescriptionProps{ID: "notebook-history-desc"}) {
+					Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days.
+				}
+			}
+			<div class="notebook-history-body">
+				<div class="notebook-history-list" id="notebook-history-list" role="listbox" aria-label="Versions"></div>
+				<div class="notebook-history-diff" id="notebook-history-diff" aria-live="polite"></div>
+			</div>
+			<div class="modal-actions">
+				@button.Button(button.Props{ID: "notebook-history-purge", Type: button.TypeButton, Variant: button.VariantGhost, Class: "notebook-history-purge", Attributes: templ.Attributes{"disabled": true}}) {
+					Delete this version
+				}
+				@button.Button(button.Props{ID: "notebook-history-close", Type: button.TypeButton, Variant: button.VariantGhost}) {
+					Close
+				}
+				@button.Button(button.Props{ID: "notebook-history-restore", Type: button.TypeButton, Attributes: templ.Attributes{"disabled": true}}) {
+					Restore this version
+				}
+			</div>
+		</div>
 	</dialog>
 }
 

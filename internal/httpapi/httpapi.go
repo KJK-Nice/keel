@@ -151,6 +151,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/notebooks", s.upsertNotebook)
 	mux.HandleFunc("PUT /api/notebooks/{id}", s.updateNotebook)
 	mux.HandleFunc("DELETE /api/notebooks/{id}", s.deleteNotebook)
+	mux.HandleFunc("PATCH /api/notebooks/{id}", s.patchNotebook)
+	mux.HandleFunc("PUT /api/notebooks/{id}/private", s.setNotebookPrivate)
+	mux.HandleFunc("DELETE /api/notebooks/{id}/history/{vid}", s.purgeNotebookVersion)
+	mux.HandleFunc("GET /api/notebook-trash/{vid}", s.deletedNotebook)
+	mux.HandleFunc("DELETE /api/notebook-trash/{vid}", s.purgeDeletedNotebook)
+	mux.HandleFunc("PUT /api/notebooks/{id}/reviewed", s.markNotebookReviewed)
+	mux.HandleFunc("GET /api/notebooks/{id}/history", s.notebookHistory)
+	mux.HandleFunc("GET /api/notebooks/{id}/history/{vid}", s.notebookVersion)
+	mux.HandleFunc("POST /api/notebooks/{id}/history/{vid}/restore", s.restoreNotebookVersion)
+	mux.HandleFunc("GET /api/notebook-trash", s.deletedNotebooks)
+	mux.HandleFunc("POST /api/notebook-trash/{vid}/restore", s.restoreDeletedNotebook)
 	mux.HandleFunc("GET /api/identities", s.listIdentities)
 	mux.HandleFunc("POST /api/identities", s.upsertIdentity)
 	mux.HandleFunc("PUT /api/identities/{id}", s.updateIdentity)
@@ -192,10 +203,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/draft", s.agentOpenNotebookDraft)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookChange)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/delete", s.agentConfirmNotebookDelete)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookProposal)
-	mux.HandleFunc("POST /api/agent/notebooks/drafts/{draft}", s.agentSaveNotebookDraft)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/restore", s.agentRestoreNotebookChange)
 	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
@@ -773,19 +784,31 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nb.ID = r.PathValue("id")
-	saved, err := s.store.UpsertNotebook(nb)
+	// nb.Rev is the revision the editor started from: a save over an agent
+	// edit it had not loaded keeps the user's text and puts the agent's
+	// version in History (store.SaveUserNotebook).
+	saved, replaced, err := s.store.SaveUserNotebook(nb)
 	if err != nil {
+		if errors.Is(err, store.ErrHistoryUnavailable) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page.", "reason": "history"})
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, saved)
+	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
 	s.note("notebook", "notebook updated: "+saved.Name, "", "", "")
 }
 
 func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteNotebook(r.PathValue("id")); err != nil {
+	permanent := r.URL.Query().Get("permanent") == "1"
+	if err := s.store.DeleteNotebook(r.PathValue("id"), permanent); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "notebook not found")
+			return
+		}
+		if errors.Is(err, store.ErrHistoryUnavailable) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?", "reason": "history"})
 			return
 		}
 		writeError(w, http.StatusInternalServerError, err.Error())

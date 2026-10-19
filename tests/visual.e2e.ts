@@ -648,19 +648,23 @@ describe('runbooks', { tags: ['visual'], serial: true }, () => {
   }
 });
 
-// Notebooks and the agent (§18): a notebook attached to the question, the
-// agent's notebook draft card, and the draft open for review in the
-// notebook editor with its banner.
-describe('notebook drafts', { tags: ['visual'], serial: true }, () => {
+// Notebooks and the agent (§18): a notebook attached to the question; the
+// agent's edit card and the edited notebook with its review banner; History
+// with the diff; a private notebook (meta line, Notebooks list); and the
+// delete card the user must confirm.
+describe('agent notebooks', { tags: ['visual'], serial: true }, () => {
   for (const theme of ['dark', 'light'] as const) {
-    test(`notebook drafts (${theme})`, async ({ app, screen, browser }) => {
+    test(`agent notebooks (${theme})`, async ({ app, screen, browser }) => {
       await browser.addInitScript(themeScript(theme));
       await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: 'e2e-not-a-real-gemini-key-0000' });
       await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
       const nb = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', {
         name: 'Patroni failover',
-        cells: [{ body: NOTEBOOK_MD }],
+        cells: [{ body: NOTEBOOK_MD + '\n\nStatus: keel-edit-me\n' }],
       });
+      const priv = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', { name: 'Break-glass keys', cells: [{ body: 'Kept from the agent.' }] });
+      await keelSend(app.baseUrl, 'PUT', `/api/notebooks/${priv.id}/private`, { private: true });
+      const old = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/notebooks', { name: 'Old failover notes', cells: [{ body: 'Replaced.' }] });
       await openKeel(app);
       await openLocalShell(screen);
       const input = screen.getByRole('textbox', 'Terminal input');
@@ -671,28 +675,55 @@ describe('notebook drafts', { tags: ['visual'], serial: true }, () => {
       await panel.getByRole('dialog', 'Notebooks to send with your question').getByRole('menuitemcheckbox', /Patroni failover/).tap();
       await app.screenshot(`${theme}-agent-attach-notebook`);
       await panel.getByRole('dialog', 'Notebooks to send with your question').press('Escape');
+
+      // The agent edits the attached notebook: the card, and the pane.
       const ask = panel.getByRole('textbox', 'Message the agent');
-      await ask.fill('write this up with a placeholder');
+      await ask.fill('edit the notebook patroni failover');
       await ask.press('Enter');
-      const card = panel.getByRole('group', 'Notebook draft');
-      await expect(card).toContainText('Placeholders');
-      await expect(panel).toContainText('Sent notebook Patroni failover');
+      const card = panel.getByRole('group', 'Edited notebook');
+      await expect(card).toContainText('Keel kept the version before it');
       await browser.evaluate("document.querySelector('#agent-thread .k-prop--notebook')?.scrollIntoView({ block: 'end' })");
-      await app.screenshot(`${theme}-notebook-draft-card`);
+      await app.screenshot(`${theme}-notebook-edit-card`);
+      await card.getByRole('button', 'Open').tap();
+      await expect(screen.getByRole('note', 'Agent edit to review')).toBeVisible();
+      await app.screenshot(`${theme}-notebook-agent-edited`);
 
-      await card.getByRole('button', 'Open draft').tap();
-      await expect(screen.getByRole('note', 'Review this draft')).toBeVisible();
-      await app.screenshot(`${theme}-notebook-draft-review`);
+      // History with the diff from the version before the edit.
+      await screen.getByRole('note', 'Agent edit to review').getByRole('button', 'View changes').tap();
+      const hist = screen.getByRole('dialog', /History · Patroni failover/);
+      await expect(hist).toContainText(/lines? added/);
+      await app.screenshot(`${theme}-notebook-history`);
+      await hist.getByRole('button', 'Close').tap();
 
+      // A delete the agent proposes.
+      await ask.fill('drop the notebook old failover notes');
+      await ask.press('Enter');
+      await expect(panel.getByRole('group', 'Delete notebook?')).toContainText('Nothing is deleted unless you confirm');
+      await browser.evaluate("[...document.querySelectorAll('#agent-thread .k-prop--notebook')].at(-1)?.scrollIntoView({ block: 'end' })");
+      await app.screenshot(`${theme}-notebook-delete-card`);
       await panel.getByRole('button', 'Close agent').tap();
-      for (let i = 0; i < 4; i++) {
+
+      // A private notebook: the meta line and the Notebooks list.
+      const vault = screen.getByRole('complementary', 'Vault');
+      await vault.getByRole('button', 'Snippets').tap();
+      await vault.getByRole('button', /^Break-glass keys$/).tap();
+      await expect(screen.getByRole('button', 'Private')).toHaveAttribute('aria-pressed', 'true');
+      await app.screenshot(`${theme}-notebook-private`);
+      await screen.getByRole('textbox', 'Rename notebook').last().press('Meta+k');
+      const palette = screen.getByRole('dialog', 'Command palette');
+      await palette.getByRole('combobox').fill('Notebooks');
+      await palette.getByRole('option').filter({ hasText: 'Notebooks' }).first().tap();
+      await expect(screen.getByRole('region', 'Notebooks')).toContainText('Private');
+      await app.screenshot(`${theme}-notebooks-private-list`);
+
+      for (let i = 0; i < 6; i++) {
         const pane = screen.getByRole('button', 'Close pane', { visible: true });
         const tab = screen.getByRole('button', 'Close tab', { visible: true });
         if (await pane.count()) await pane.last().tap();
         else if (await tab.count()) await tab.first().tap();
         else break;
       }
-      await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`);
+      for (const id of [nb.id, priv.id, old.id]) await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${id}`).catch(() => {});
       await keelSend(app.baseUrl, 'DELETE', '/api/agent/conversations');
       await keelSend(app.baseUrl, 'DELETE', '/api/agent/keys/gemini');
       for (const s of await keelApi<{ id: string }[]>(app.baseUrl, '/api/sessions')) await keelSend(app.baseUrl, 'DELETE', `/api/sessions/${s.id}`).catch(() => {});
