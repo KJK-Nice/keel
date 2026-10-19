@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strconv"
+
 	"keel/components/aspectratio"
 	"keel/components/icon"
 	"keel/components/slider"
@@ -286,6 +288,20 @@ templ SettingsPage() {
 								<p class="pref-desc">Light, dark, or follow the system.</p>
 							</div>
 							@settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"})
+						</div>
+						<div class="pref-row" data-native-only>
+							<div class="pref-copy">
+								<div class="pref-title" id="set-translucency-title">Window translucency</div>
+								<p class="pref-desc" id="set-translucency-help">
+									How much of the desktop shows through the window. Off is opaque.
+									<span class="pref-desc-os">When the theme differs from the system's, the window stays opaque.</span>
+								</p>
+							</div>
+							<div class="k-seg pref-seg" id="set-translucency" role="group" aria-labelledby="set-translucency-title" aria-describedby="set-translucency-help">
+								for i, v := range []string{"off", "low", "medium", "high"} {
+									<button type="button" data-translucency-step={ v } aria-pressed={ strconv.FormatBool(v == "medium") }>{ []string{"Off", "Low", "Medium", "High"}[i] }</button>
+								}
+							</div>
 						</div>
 						<div class="pref-row">
 							<div class="pref-copy">

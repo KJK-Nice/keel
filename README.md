@@ -103,6 +103,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 - **⌘⇧W** closes the window (UI quits; sessions stay in `keel serve`). File → **Stop Keel runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
 - **Sync** broadcasts keystrokes (and approved snippet typing) to every driving pane in that tab.
 - Settings: font, text size, copy-on-select, right-click paste (stored in `localStorage`).
+- Settings · Appearance · **Window translucency** (desktop window only): Off, Low, Medium (default) or High, how much of the desktop shows through the window. Off is opaque. On Windows and Linux the window stays opaque while the theme differs from the system's. Stored in `localStorage` with the other window preferences and applied before the first paint.
 
 ## Shell integration (command marks)
 

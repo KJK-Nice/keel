@@ -59,7 +59,7 @@ test('native window that takes the theme keeps translucency for every choice', a
 // its ancestors up to html together must leave a visible share of the
 // backdrop, and none of them may be opaque. (The WebGL canvas is not in
 // the DOM; xterm's clear background shows on .xterm-scrollable-element.)
-const cover = (browser: any, selectors: string[]) =>
+const cover = (browser: any, selectors: string[], band: [number, number] = [0.5, 0.9]) =>
   browser.evaluate(`(() => {
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     const alpha = (c) => {
@@ -81,9 +81,9 @@ const cover = (browser: any, selectors: string[]) =>
         if (a >= 1) bad.push(sel + ': opaque ' + name(e));
         clear *= 1 - a;
       }
-      // One tint is a 58–86% token mix; a second one under it passes 90%.
+      // One tint is a 42–86% token mix; a second one under it passes 90%.
       const cover = 1 - clear;
-      if (cover > 0.9 || cover < 0.5) bad.push(sel + ': covers ' + Math.round(cover * 100) + '% of the backdrop');
+      if (cover > ${band[1]} || cover < ${band[0]}) bad.push(sel + ': covers ' + Math.round(cover * 100) + '% of the backdrop');
     }
     return bad;
   })()`) as Promise<string[]>;
@@ -110,6 +110,42 @@ test('native vibrancy tints each area once, so the backdrop shows through', asyn
     ]),
   ).toEqual([]);
   await screen.getByRole('button', 'Close tab').tap();
+});
+
+// Settings · Appearance · Window translucency: each step tints the chrome
+// and the stage with its vibrancy-tint-* token, once; Off is opaque.
+const setStep = (browser: any, step: string) =>
+  browser.evaluate(`(() => {
+    const ui = JSON.parse(localStorage.getItem('keel-ui') || '{}');
+    ui.translucency = ${JSON.stringify(step)};
+    localStorage.setItem('keel-ui', JSON.stringify(ui));
+  })()`);
+
+const token = (browser: any, name: string) =>
+  browser.evaluate(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--${name}')) / 100`) as Promise<number>;
+
+test('each translucency step tints the window by its token; Off is opaque', async ({ app, browser }) => {
+  for (const step of ['low', 'medium', 'high'] as const) {
+    await open(app, '&native=1&appearance=native&chrome=titlebar');
+    await setStep(browser, step);
+    await open(app, '&native=1&appearance=native&chrome=titlebar');
+    const s = await state(browser);
+    expect(s.vibrancy).toBe('1');
+    expect(s.opaque).toBe(false);
+    const tint = await token(browser, `vibrancy-tint-${step}`);
+    expect(tint).toBeGreaterThan(0);
+    // The tab strip, status bar and New tab carry the step's tint, once.
+    expect(await cover(browser, ['.workspace-bar', '.k-status', '.start-page'], [tint - 0.02, tint + 0.02])).toEqual([]);
+  }
+  await setStep(browser, 'off');
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  for (const choice of ['dark', 'light'] as const) {
+    await apply(browser, choice);
+    const s = await state(browser);
+    expect(s.vibrancy).toBe(null);
+    expect(s.opaque).toBe(true);
+  }
+  await setStep(browser, 'medium');
 });
 
 test('a browser tab never sets vibrancy', async ({ app, browser }) => {

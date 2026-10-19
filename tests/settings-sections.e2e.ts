@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, openKeel } from './keel.ts';
+import { keelApi, keelToken, openKeel } from './keel.ts';
 
 // Settings sections beyond Agent (docs/ui-redesign.md §5.9): Keyboard,
 // Sharing, Vault & security, Runtime and About Keel. Each shows only what
@@ -114,5 +114,43 @@ describe('settings sections', { tags: ['settings'], serial: true }, () => {
     await again.getByLabel('Display name').fill('');
     await again.getByLabel('Display name').press('Enter');
     await expect(again.getByLabel('Display name')).toHaveValue('');
+  });
+
+  // Window translucency is a native-window setting: a browser tab has no
+  // backdrop and never shows it. The step is kept and applied before first
+  // paint on the next load.
+  test('window translucency shows only in the native window and persists', async ({ app, screen, browser }) => {
+    await openKeel(app);
+    let page = await openSettings(screen);
+    await expect(page.getByRole('heading', 'Appearance')).toBeVisible();
+    await expect(page.getByRole('group', 'Window translucency')).toBeHidden();
+    await page.getByRole('searchbox', 'Search settings').fill('translucency');
+    await expect(page).toContainText('No settings match.');
+    await page.getByRole('searchbox', 'Search settings').fill('');
+
+    const native = `/?keel_token=${keelToken()}&name=e2e&native=1&appearance=native&chrome=titlebar`;
+    await app.open(native);
+    page = await openSettings(screen);
+    const steps = page.getByRole('group', 'Window translucency');
+    await expect(steps).toBeVisible();
+    await expect(steps.getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'true');
+    await steps.getByRole('button', 'High').tap();
+    await expect(steps.getByRole('button', 'High')).toHaveAttribute('aria-pressed', 'true');
+    await expect(steps.getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'false');
+    expect(await browser.evaluate('document.documentElement.dataset.translucency')).toBe('high');
+    await app.screenshot('settings-translucency-native');
+
+    // Off is applied live: the opaque rendering, no data-vibrancy.
+    await steps.getByRole('button', 'Off').tap();
+    expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe(null);
+
+    await app.open(native);
+    expect(await browser.evaluate('document.documentElement.dataset.translucency')).toBe('off');
+    expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe(null);
+    page = await openSettings(screen);
+    await expect(page.getByRole('group', 'Window translucency').getByRole('button', 'Off')).toHaveAttribute('aria-pressed', 'true');
+    // Back to the default for the tests after this one.
+    await page.getByRole('group', 'Window translucency').getByRole('button', 'Medium').tap();
+    expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe('1');
   });
 });
