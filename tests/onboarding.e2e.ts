@@ -194,3 +194,68 @@ test('first run: passphrase vault, host import with one key copied, then Unlock 
     await keel.stop();
   }
 });
+
+// The Via cell of a ProxyJump host whose jump is not kept holds a flag, a
+// checkbox and "Without the jump". k-table cells do not wrap, so that cell
+// once ran the row past the table (812px in 754px at the default window):
+// the table scrolled sideways and the label was cut at the card's edge.
+const VIA_LAYOUT = `(() => {
+  const box = (e) => { const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; };
+  const row = document.querySelector('#onb-import [data-imp-row="e2e-jump"]');
+  const table = row.closest('.k-table');
+  const check = row.querySelector('[data-imp-nojump]');
+  return {
+    card: box(row.closest('.k-imp-table')),
+    scrollWidth: table.scrollWidth,
+    clientWidth: table.clientWidth,
+    parts: [...row.querySelectorAll('td > *, td .k-imp-via > *, td .k-imp-nojump > *')].map((e) => ({ what: e.className || e.tagName, ...box(e) })),
+    check: box(check),
+    label: box(check.nextElementSibling),
+  };
+})()`;
+
+type Box = { left: number; right: number; top: number; bottom: number };
+type ViaLayout = { card: Box; scrollWidth: number; clientWidth: number; parts: (Box & { what: string })[]; check: Box; label: Box };
+
+test('first run: the Without the jump box stays inside the host table', { tags: ['vault', 'first-run', 'visual'], timeout: 120_000 }, async ({ app, screen, browser }) => {
+  const keel = await startScratchKeel('via-layout');
+  try {
+    await app.open(keel.openUrl);
+    const first = screen.getByRole('region', 'Welcome to Keel');
+    await first.getByLabel('Passphrase', { exact: true }).fill('e2e-vault-pass');
+    await first.getByLabel('Repeat passphrase').fill('e2e-vault-pass');
+    await first.getByRole('button', 'Create vault').tap();
+    const hosts = screen.getByRole('region', 'Bring your hosts');
+    const noJump = hosts.getByRole('checkbox', 'Add e2e-jump without the jump');
+    await expect(noJump).toBeVisible();
+
+    // The desktop window's default size (internal/desktop), then its
+    // minimum width.
+    for (const [width, height] of [[1280, 840], [800, 600]]) {
+      await browser.setViewport({ width, height });
+      const g = (await browser.evaluate(VIA_LAYOUT)) as ViaLayout;
+      expect(g.scrollWidth, `${width}px: the host table scrolls sideways`).toBeLessThanOrEqual(g.clientWidth);
+      expect(g.parts.length).toBeGreaterThan(6);
+      for (const p of g.parts) {
+        expect(p.left, `${width}px: ${p.what} starts left of the card`).toBeGreaterThanOrEqual(g.card.left);
+        expect(p.right, `${width}px: ${p.what} runs past the card`).toBeLessThanOrEqual(g.card.right);
+      }
+      // The label sits beside its box, after a gap, on the same line.
+      expect(g.label.left - g.check.right).toBeGreaterThan(0);
+      expect(g.label.top).toBeLessThan(g.check.bottom);
+      expect(g.label.bottom).toBeGreaterThan(g.check.top);
+      for (const theme of ['dark', 'light']) {
+        await browser.evaluate(`window.__keelApplyTheme(${JSON.stringify(theme)})`);
+        await app.screenshot(`${theme}-${width}-first-run-hosts-via`);
+      }
+      await browser.evaluate('window.__keelApplyTheme("dark")');
+    }
+
+    // Still a working box.
+    await noJump.tap();
+    await expect(noJump).toHaveAttribute('aria-checked', 'true');
+  } finally {
+    await browser.setViewport({ width: 1280, height: 720 });
+    await keel.stop();
+  }
+});
