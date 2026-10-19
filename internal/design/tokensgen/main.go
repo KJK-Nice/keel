@@ -105,6 +105,9 @@ func generate(src []byte) (string, error) {
 	fmt.Fprintf(&b, "--font-sans:%s;--font-display:%s;--font-mono:%s;", t.Type.Families.Sans, t.Type.Families.Display, t.Type.Families.Mono)
 	for _, g := range []group{t.Spacing, t.Radius, t.Size, t.Duration, t.Vibrancy} {
 		for _, tok := range g.Tokens {
+			if isThemed(tok) {
+				continue // per theme, with the shadows below
+			}
 			var v string
 			if err := json.Unmarshal(tok.Value, &v); err != nil {
 				return "", fmt.Errorf("%s: %w", tok.Name, err)
@@ -124,7 +127,13 @@ func generate(src []byte) (string, error) {
 	b.WriteString("}\n")
 	for _, th := range t.Color.Themes {
 		b.WriteString(selector(th.ID) + "{")
-		for _, tok := range t.Shadow.Tokens {
+		themedTokens := append([]themed{}, t.Shadow.Tokens...)
+		for _, tok := range t.Vibrancy.Tokens {
+			if isThemed(tok) {
+				themedTokens = append(themedTokens, tok)
+			}
+		}
+		for _, tok := range themedTokens {
 			v, err := themeValue(tok, th.ID)
 			if err != nil {
 				return "", err
@@ -134,6 +143,13 @@ func generate(src []byte) (string, error) {
 		b.WriteString("}")
 	}
 	return b.String(), nil
+}
+
+// isThemed reports a token whose value is a {theme: value} map rather than
+// one string (a vibrancy step that differs between light and dark).
+func isThemed(tok themed) bool {
+	v := strings.TrimSpace(string(tok.Value))
+	return strings.HasPrefix(v, "{")
 }
 
 func selector(theme string) string {

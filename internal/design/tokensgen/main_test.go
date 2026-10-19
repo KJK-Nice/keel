@@ -80,3 +80,23 @@ func TestGenerateVibrancyTints(t *testing.T) {
 		t.Errorf("missing vibrancy tint in:\n%s", got)
 	}
 }
+
+// A vibrancy step may differ per theme (the terminal body tints light
+// denser); it is written with the themed blocks, not on :root.
+func TestGenerateThemedVibrancy(t *testing.T) {
+	got, err := generate([]byte(`{"color":{"themes":[{"id":"dark"},{"id":"light"}]},"vibrancy":{"tokens":[
+		{"name":"vibrancy-tint-medium","value":"66%"},
+		{"name":"vibrancy-term-medium","value":{"dark":"{vibrancy-tint-medium}","light":"90%"}}]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"--vibrancy-tint-medium:66%;",
+		":root,[data-theme=dark]{--vibrancy-term-medium:var(--vibrancy-tint-medium);}",
+		"[data-theme=light]{--vibrancy-term-medium:90%;}",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
