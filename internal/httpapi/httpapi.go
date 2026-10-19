@@ -192,6 +192,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/draft", s.agentOpenNotebookDraft)
+	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
+	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookProposal)
+	mux.HandleFunc("POST /api/agent/notebooks/drafts/{draft}", s.agentSaveNotebookDraft)
 	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
@@ -1075,8 +1079,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				// Suggestion marks an inject as the user's ⇥ / ⇧⇥ on an
 				// in-pane suggestion (agentsuggest.go).
 				Suggestion *agentInsertMsg `json:"suggestion"`
-				Seq        int             `json:"seq"`
-				Line       string          `json:"line"`
+				// Notebook marks an inject as a notebook fence's Type
+				// (§13, §18): one holding a redaction placeholder such as
+				// [secret:1] is refused, as an agent proposal is.
+				Notebook bool   `json:"notebook"`
+				Seq      int    `json:"seq"`
+				Line     string `json:"line"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
 				continue
@@ -1129,6 +1137,14 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
+					break
+				}
+				if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
+					// A notebook fence (an agent's draft, or text pasted
+					// from an answer) that still holds a placeholder is a
+					// shell glob, never the value: not typed.
+					s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
+					_ = ws.writeJSON(map[string]any{"type": "error", "message": service.ErrPlaceholder.Error()})
 					break
 				}
 				if ctl.Agent == nil {

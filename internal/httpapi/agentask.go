@@ -71,7 +71,7 @@ func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
 		return
 	}
-	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, Chats: s.store, Notes: s.store, Runbooks: s.store})
+	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, Chats: s.store, Notes: s.store, Runbooks: s.store, Notebooks: s.store})
 	if err == nil {
 		s.agent = svc
 		go s.agentRetention()

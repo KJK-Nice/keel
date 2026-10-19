@@ -74,7 +74,9 @@ type TranscriptTurn struct {
 	Proposals []Proposal        `json:"proposals"`
 	Notes     []NoteProposal    `json:"notes"`
 	Runbooks  []RunbookProposal `json:"runbooks"`
-	Again     bool              `json:"again,omitempty"`
+	// Notebooks are the notebook drafts the agent proposed (notebooks.go).
+	Notebooks []NotebookProposal `json:"notebooks"`
+	Again     bool               `json:"again,omitempty"`
 }
 
 // Sessions is the session list: the saved conversations, after removing
@@ -198,6 +200,7 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 		live      map[string]*Proposal
 		liveNotes map[string]NoteProposal
 		liveBooks map[string]RunbookProposal
+		liveNbs   map[string]NotebookProposal
 	)
 	if c != nil && len(c.record) > 0 {
 		chat = c.snapshotLocked(s.now())
@@ -215,6 +218,10 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 		for _, b := range c.bookProps {
 			liveBooks[b.ID] = *b
 		}
+		liveNbs = make(map[string]NotebookProposal, len(c.nbProps))
+		for _, nb := range c.nbProps {
+			liveNbs[nb.ID] = nb.view()
+		}
 	}
 	s.mu.Unlock()
 	_, saved := s.saving()
@@ -227,9 +234,16 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	out := Transcript{ID: chat.ID, Title: chat.Title, CreatedAt: chat.CreatedAt, UpdatedAt: chat.UpdatedAt, Saved: saved, Turns: make([]TranscriptTurn, 0, len(chat.Turns)), Runbook: chat.Runbook.Copy(), NoRunbook: chat.NoRunbook}
 	prodCache := map[string]bool{}
 	for _, t := range chat.Turns {
-		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks))}
+		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks)), Notebooks: make([]NotebookProposal, 0, len(t.Notebooks))}
 		for _, st := range t.Trace {
-			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook})
+			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated})
+		}
+		for _, sn := range t.Notebooks {
+			if nb, ok := liveNbs[sn.ID]; ok {
+				tt.Notebooks = append(tt.Notebooks, nb)
+				continue
+			}
+			tt.Notebooks = append(tt.Notebooks, notebookProposalFromRecord(sn))
 		}
 		for _, sb := range t.Runbooks {
 			if b, ok := liveBooks[sb.ID]; ok {
@@ -373,6 +387,7 @@ func (c *conversation) snapshotLocked(now time.Time) store.AgentChat {
 		t.Proposals = append([]store.AgentChatProposal(nil), t.Proposals...)
 		t.Notes = append([]store.AgentChatNote(nil), t.Notes...)
 		t.Runbooks = append([]store.AgentChatRunbookProposal(nil), t.Runbooks...)
+		t.Notebooks = append([]store.AgentChatNotebook(nil), t.Notebooks...)
 		turns[i] = t
 	}
 	created := c.created
