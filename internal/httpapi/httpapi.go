@@ -130,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
 	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
+	mux.HandleFunc("PUT /api/hosts/{id}/agent-readable", s.setHostAgentReadable)
 	mux.HandleFunc("POST /api/hosts/move", s.moveHosts)
 	mux.HandleFunc("POST /api/hosts/test", s.testHost)
 	mux.HandleFunc("GET /api/hosts/{id}/host-key", s.getHostKey)
@@ -575,6 +576,41 @@ func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, redactHost(saved))
 	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
+}
+
+// setHostAgentReadable is a host menu's "Agent can read" (the Edit host
+// switch of the same name, §5.8): it changes that one switch and keeps
+// everything else of the saved host. Only the user's page calls it.
+func (s *Server) setHostAgentReadable(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Readable *bool `json:"readable"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Readable == nil {
+		writeError(w, http.StatusBadRequest, "readable is required")
+		return
+	}
+	h, err := s.store.GetHost(r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "host not found")
+			return
+		}
+		writeStoreErr(w, err)
+		return
+	}
+	v := *req.Readable
+	h.AgentReadable = &v
+	saved, err := s.store.UpsertHost(h)
+	if err != nil {
+		writeSaveErr(w, err)
+		return
+	}
+	state := "off"
+	if v {
+		state = "on"
+	}
+	s.note("host", "agent can read "+state+": "+saved.Name, saved.ID, "", "")
+	writeJSON(w, http.StatusOK, redactHost(saved))
 }
 
 type moveHostsReq struct {

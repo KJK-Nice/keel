@@ -55,6 +55,7 @@ import { ICON as THREAD_ICON } from "./ui/agentthread.js";
 import * as NB from "./lib/notebooks.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
+import { bindRowMenus } from "./lib/rowmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
@@ -428,7 +429,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
           const meta =
             (r.driving ? `<span class="k-pane-row-driving" role="img" aria-label="You are driving" title="You are driving">${paneGlyph("steering")}</span>` : "") +
             (r.agent ? `<span class="k-pane-row-agent" role="img" aria-label="The agent can read this pane" title="The agent can read this pane">${PANE_ICONS.agent}</span>` : "");
-          return `<button type="button" class="k-pane-row" data-pane-pick="${escapeHtml(r.id)}"${cur}><span class="k-tile k-tile--sm"${color}>${r.icon}</span><span class="k-pane-row-text"><span class="k-pane-row-name">${escapeHtml(r.name)}</span><span class="k-pane-row-sub">${escapeHtml(r.sub)}</span></span>${meta ? `<span class="k-pane-row-meta">${meta}</span>` : ""}</button>`;
+          return `<button type="button" class="k-pane-row" data-pane-pick="${escapeHtml(r.id)}" data-row-menu="pane" data-pane-row="${escapeHtml(r.id)}"${cur}><span class="k-tile k-tile--sm"${color}>${r.icon}</span><span class="k-pane-row-text"><span class="k-pane-row-name">${escapeHtml(r.name)}</span><span class="k-pane-row-sub">${escapeHtml(r.sub)}</span></span>${meta ? `<span class="k-pane-row-meta">${meta}</span>` : ""}</button>`;
         })
         .join("");
       html = `<div class="k-panemap" role="group" aria-label="Layout of this tab"><div class="k-panemap-grid">${cells}</div></div>
@@ -454,9 +455,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   const SIDE_ICON_TERMINAL = V.glyphSVG("local");
   const SIDE_ICONS = {
-    snippet: hugeicon('<path d="M15 4L9 20"/><path d="M5.99997 16C5.99997 16 2.00001 13.054 2 12C1.99999 10.9459 6 8 6 8"/><path d="M18 8C18 8 22 10.946 22 12C22 13.0541 18 16 18 16"/>'),
     notebook: hugeicon(PAGES.notebooks.glyph),
-    pin: hugeicon('<path d="M3 21L8 16"/><path d="M13.2585 18.8714C9.51516 18.0215 5.97844 14.4848 5.12853 10.7415C4.99399 10.1489 4.92672 9.85266 5.12161 9.37197C5.3165 8.89129 5.55457 8.74255 6.03071 8.44509C7.10705 7.77265 8.27254 7.55888 9.48209 7.66586C11.1793 7.81598 12.0279 7.89104 12.4512 7.67048C12.8746 7.44991 13.1622 6.93417 13.7376 5.90269L14.4664 4.59604C14.9465 3.73528 15.1866 3.3049 15.7513 3.10202C16.316 2.89913 16.6558 3.02199 17.3355 3.26771C18.9249 3.84236 20.1576 5.07505 20.7323 6.66449C20.978 7.34417 21.1009 7.68401 20.898 8.2487C20.6951 8.8134 20.2647 9.05346 19.4039 9.53358L18.0672 10.2792C17.0376 10.8534 16.5229 11.1406 16.3024 11.568C16.0819 11.9955 16.162 12.8256 16.3221 14.4859C16.4399 15.7068 16.2369 16.88 15.5555 17.9697C15.2577 18.4458 15.1088 18.6839 14.6283 18.8786C14.1477 19.0733 13.8513 19.006 13.2585 18.8714Z"/>'),
   };
 
   function sideMatches(text, q) {
@@ -464,75 +463,34 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return !needle || String(text || "").toLowerCase().includes(needle);
   }
 
-  // paintSidebar fills the Snippets (snippets, then notebooks) and Forwards
-  // panels. Running a snippet goes through paletteRunSnippet, which asks
-  // Approve before type; nothing here writes a PTY.
+  // paintSidebar shows the selected segment and filters the Snippets
+  // (snippets, then notebooks) and Forwards panels. Their rows come from
+  // the stream (SidebarSnippets, SidebarForwards in internal/ui), each with
+  // its row menu; running a snippet goes through paletteRunSnippet, which
+  // asks Approve before type; nothing here writes a PTY.
   function paintSidebar() {
     applySidebarSeg();
-    const snips = document.getElementById("sidebar-snippets");
-    if (snips) {
-      const q = state.sidebarQuery.snippets;
-      const snRows = (state.snippets || [])
-        .filter((sn) => sideMatches(`${sn.name} ${sn.command}`, q))
-        .map(
-          (sn) => `<button type="button" class="k-side-item" data-snippet-run="${escapeHtml(sn.id)}" title="Type into the focused pane after you approve">
-            <span class="k-tile k-tile--sm">${SIDE_ICONS.snippet}</span>
-            <span class="k-side-main"><span class="k-side-name">${escapeHtml(sn.name || "Snippet")}</span><span class="k-side-sub">${escapeHtml(String(sn.command || "").trim().split("\n")[0])}</span></span>
-          </button>`
-        )
-        .join("");
-      const nbRows = V.sortedNotebooks(state.notebooks)
-        .filter((nb) => sideMatches(nb.name, q))
-        .map((nb) => {
-          const pinLabel = nb.pinned ? "Unpin" : "Pin";
-          return `<div class="k-side-row">
-            <button type="button" class="k-side-item" data-notebook-open="${escapeHtml(nb.id)}">
-              <span class="k-tile k-tile--sm">${SIDE_ICONS.notebook}</span>
-              <span class="k-side-main"><span class="k-side-name">${escapeHtml(nb.name || "Notebook")}</span></span>
-            </button>
-            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon k-side-pin" data-notebook-pin="${escapeHtml(nb.id)}" aria-label="${pinLabel} ${escapeHtml(nb.name || "Notebook")}" aria-pressed="${nb.pinned ? "true" : "false"}" title="${pinLabel}">${SIDE_ICONS.pin}</button>
-          </div>`;
-        })
-        .join("");
-      setHTML(snips, `<div class="k-side-section">
-          ${snRows || `<p class="k-side-note">${q ? "No snippets match." : "No snippets yet."}</p>`}
-          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="snippets">Manage snippets</button>
-        </div>
-        <div class="k-side-label">Notebooks</div>
-        <div class="k-side-section">
-          ${nbRows || `<p class="k-side-note">${q ? "No notebooks match." : "No notebooks yet."}</p>`}
-          <div class="k-side-actions">
-            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-notebook-new>New notebook</button>
-            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="notebooks">All notebooks</button>
-          </div>
-        </div>`);
-    }
-    const fwd = document.getElementById("sidebar-forwards");
-    if (fwd) {
-      const q = state.sidebarQuery.forwards;
-      const hostName = (id) => state.hosts.find((h) => h.id === id)?.name || "";
-      const rows = (state.tunnels || [])
-        .filter((t) => sideMatches(`${t.name} ${hostName(t.hostId)} ${t.destHost || ""}`, q))
-        .map((t) => {
-          const st = V.tunnelState(t);
-          return `<div class="k-side-row">
-            <button type="button" class="k-side-item" data-open-page="forwards" title="${escapeHtml(st.label)}">
-              <span class="k-dot ${st.dot}" aria-hidden="true"></span>
-              <span class="k-side-main"><span class="k-side-name">${escapeHtml(t.name)}</span><span class="k-side-sub">${escapeHtml(V.tunnelRoute(t))}</span></span>
-            </button>
-            <button type="button" class="k-switch" role="switch" aria-checked="${st.on ? "true" : "false"}" aria-label="${escapeHtml(t.name)} on" ${st.on ? `data-tunnel-stop="${escapeHtml(t.id)}"` : `data-tunnel-start="${escapeHtml(t.id)}"`}></button>
-          </div>`;
-        })
-        .join("");
-      setHTML(fwd, `<div class="k-side-section">
-          ${rows || `<p class="k-side-note">${q ? "No forwards match." : "No forwards yet."}</p>`}
-          <div class="k-side-actions">
-            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-new-tunnel>New forward</button>
-            <button type="button" class="k-btn k-btn--ghost k-btn--sm k-side-link" data-open-page="forwards">Manage forwards</button>
-          </div>
-        </div>`);
-    }
+    filterSidePanel("sidebar-snippets-list", state.sidebarQuery.snippets);
+    filterSidePanel("sidebar-forwards-list", state.sidebarQuery.forwards);
     syncHostLive();
+  }
+
+  // filterSidePanel hides the rows that do not match q (data-side-filter)
+  // and says so when a group has rows but none match.
+  function filterSidePanel(id, q) {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.querySelectorAll("[data-side-group]").forEach((group) => {
+      const rows = group.querySelectorAll("[data-side-filter]");
+      let shown = 0;
+      rows.forEach((row) => {
+        const hit = sideMatches(row.getAttribute("data-side-filter"), q);
+        if (row.hidden === hit) row.hidden = !hit;
+        if (hit) shown += 1;
+      });
+      const none = group.querySelector("[data-side-nomatch]");
+      if (none) none.hidden = !(rows.length && !shown);
+    });
   }
 
   // syncHostLive puts each host's running session count (and its worst
@@ -1344,7 +1302,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // re-apply what term.js layers on top (selection, collapsed groups, live
   // badges, page filters) once per frame after a list changed. Mutations
   // made by afterListPaint itself are dropped.
-  const STREAMED_LISTS = ["host-list", "identity-list", "tunnel-list", "snippet-list", "notebook-list", "log-list"];
+  const STREAMED_LISTS = ["host-list", "identity-list", "tunnel-list", "snippet-list", "notebook-list", "log-list", "sidebar-snippets-list", "sidebar-forwards-list"];
   function watchStreamedLists() {
     if (typeof MutationObserver === "undefined") return;
     for (const id of STREAMED_LISTS) {
@@ -1378,6 +1336,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       syncTunnelPage();
       renderStatusBar();
     } else if (id === "notebook-list") {
+    } else if (id === "sidebar-snippets-list") {
+      filterSidePanel(id, state.sidebarQuery.snippets);
+    } else if (id === "sidebar-forwards-list") {
+      filterSidePanel(id, state.sidebarQuery.forwards);
     }
   }
 
@@ -1820,6 +1782,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       splitV: '<path d="M20.9922 11.9993L2.99219 11.9993" /><path d="M19.9917 15.9993C19.8621 17.2994 19.5694 18.1745 18.9079 18.8277C17.7213 19.9993 15.8115 19.9993 11.9919 19.9993C8.17235 19.9993 6.26257 19.9993 5.07598 18.8277C4.41443 18.1745 4.12171 17.2994 3.99219 15.9993" /><path d="M19.992 7.99927C19.8625 6.69915 19.5697 5.82402 18.9082 5.17084C17.7216 3.99927 15.8118 3.99927 11.9923 3.99927C8.17269 3.99927 6.26291 3.99927 5.07632 5.17084C4.4396 5.7995 4.14454 6.63376 4.00781 7.85464" />',
       sync: '<circle cx="12" cy="12" r="2" /><path d="M7.5 8C6.5 9 6 10.5 6 12C6 13.5 6.5 15 7.5 16" /><path d="M4.5 6C3 7.5 2 9.5 2 12C2 14.5 3 16.5 4.5 18" /><path d="M16.5 16C17.5 15 18 13.5 18 12C18 10.5 17.5 9 16.5 8" /><path d="M19.5 18C21 16.5 22 14.5 22 12C22 9.5 21 7.5 19.5 6" />',
       zoom: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+      more: '<path d="M12 5H12.01M12 12H12.01M12 19H12.01" stroke-width="3"/>',
       unzoom: '<path d="M4 14h6v6M20 10h-6V4M14 10 21 3M3 21l7-7"/>',
       unplug: '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M8 6h8"/><path d="M10 6v4M14 6v4"/><path d="M9 10h6v2a3 3 0 0 1-6 0z"/><path d="M12 15v3"/><path d="M5 5l14 14"/>',
       prompt: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10l3 2.5L8 15"/><path d="M13 15h3"/>',
@@ -3774,6 +3737,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (sel) copyText(sel);
     });
     pane.wrap.addEventListener("contextmenu", async (ev) => {
+      // The pane bar has its own menu (lib/rowmenu.js); the terminal keeps
+      // right-click paste.
+      if (ev.target.closest?.(".pane-bar")) return;
       if (!state.prefs.rightClickPaste) return;
       ev.preventDefault();
       if (!isDriving(pane)) {
@@ -4108,6 +4074,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     wrap.dataset.paneId = paneId;
     const bar = document.createElement("div");
     bar.className = "pane-bar";
+    bar.dataset.rowMenu = "pane";
     const startDot = dotFor(info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "");
     bar.innerHTML = `<span class="k-dot pane-dot ${startDot.cls}" title="${startDot.label}" aria-hidden="true"></span>
       <span class="pane-title" title="Drag to rearrange">${escapeHtml(info.title || "session")}</span>
@@ -4119,6 +4086,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="${PANE_BTN}" data-pane-more="${paneId}" aria-haspopup="menu" aria-label="More pane actions" title="More pane actions">${paneGlyph("more")}</button>
         <button type="button" class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
     const progressEl = document.createElement("div");
@@ -4804,6 +4772,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     wrap.dataset.paneKind = "notebook";
     const bar = document.createElement("div");
     bar.className = "pane-bar";
+    bar.dataset.rowMenu = "pane";
     bar.innerHTML = `<span class="k-dot pane-dot k-dot--idle" aria-hidden="true"></span>
       <span class="pane-title" title="Drag to rearrange">${escapeHtml(title || "Notebook")}</span>
       <span class="pane-addr">Notebook</span>
@@ -4813,6 +4782,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         <button type="button" class="${PANE_BTN}" data-pane-split="h" data-pane-id="${paneId}" data-kbd="⇧D" title="Split right">${kbdHint("⇧D")}${paneGlyph("splitH")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-split="v" data-pane-id="${paneId}" data-kbd="⇧E" title="Split down">${kbdHint("⇧E")}${paneGlyph("splitV")}</button>
         <button type="button" class="${PANE_BTN}" data-pane-zoom="${paneId}" data-kbd="⇧↵" title="Focus view" disabled>${kbdHint("⇧↵")}<span class="pane-zoom-in">${paneGlyph("zoom")}</span><span class="pane-zoom-out">${paneGlyph("unzoom")}</span></button>
+        <button type="button" class="${PANE_BTN}" data-pane-more="${paneId}" aria-haspopup="menu" aria-label="More pane actions" title="More pane actions">${paneGlyph("more")}</button>
         <button type="button" class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}</button>
       </div>`;
     const body = document.createElement("div");
@@ -5497,15 +5467,92 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       toast("Save the notebook first, then ask the agent about it");
       return;
     }
-    if (notebookById(pane.notebookId)?.private) {
-      toast(NB.PRIVATE_REFUSED, true);
-      return;
-    }
     if (state.tabs.get(pane.tabId)?.remote) {
       toast("The agent is off in joined sessions");
       return;
     }
-    agentPanel.attachNotebook(pane.notebookId);
+    askAboutNotebookId(pane.notebookId);
+  }
+
+  // askAboutNotebookId attaches a saved notebook to the agent panel (a row
+  // menu's "Ask the agent about this notebook"). A private notebook does
+  // not exist for the agent (§6 rule 12): the menu never offers it, and
+  // keel serve refuses it anyway.
+  function askAboutNotebookId(id) {
+    if (!agentPanel || !id) return;
+    if (notebookById(id)?.private) {
+      toast(NB.PRIVATE_REFUSED, true);
+      return;
+    }
+    agentPanel.attachNotebook(id);
+  }
+
+  // The pane menu (PaneMenu in internal/ui/rowmenus.templ): one menu for
+  // every pane, opened from a pane bar (its More button, a right-click,
+  // ⇧F10) or a row of the sidebar's Panes section. paneMenu.paneId is the
+  // pane it acts on; which items show depends on where it opened and on
+  // the pane.
+  const paneMenu = { paneId: "" };
+
+  function preparePaneMenu(paneId, where) {
+    const pane = state.panes.get(paneId);
+    const tab = pane && state.tabs.get(pane.tabId);
+    const trigger = document.getElementById("pane-menu-trigger");
+    const content = trigger && document.getElementById(trigger.getAttribute("aria-controls"));
+    if (!pane || !tab || !content) return null;
+    paneMenu.paneId = paneId;
+    const term = isTermPane(pane);
+    const live = term && !!pane.runtimeId && !pane.remote && !tab.remote;
+    const show = {
+      focus: where === "row",
+      "split-h": !tab.remote && !pane.remote,
+      "split-v": !tab.remote && !pane.remote,
+      zoom: where === "bar" && (leafCount(tab.layout) > 1 || tab.zoomedPaneId === paneId),
+      share: live,
+      reconnect: live && pane.status === "is-error",
+      close: true,
+    };
+    content.querySelectorAll("[data-pane-act]").forEach((item) => {
+      item.hidden = !show[item.dataset.paneAct];
+    });
+    return trigger;
+  }
+
+  function openPaneMenu(paneId, where, detail) {
+    const trigger = preparePaneMenu(paneId, where);
+    if (!trigger) return;
+    trigger.dispatchEvent(new CustomEvent("tui-dropdownmenu-open-at", { bubbles: true, detail }));
+  }
+
+  function runPaneMenuAction(act) {
+    const pane = state.panes.get(paneMenu.paneId);
+    if (!pane) return;
+    if (act === "focus") pickPane(pane.id);
+    else if (act === "split-h") splitPane(pane.id, "h");
+    else if (act === "split-v") splitPane(pane.id, "v");
+    else if (act === "zoom") togglePaneZoom(pane.id);
+    else if (act === "share") {
+      markFocusedPane(pane);
+      openSharePop();
+    } else if (act === "reconnect") reconnectPane(pane);
+    else if (act === "close") closePane(pane.id);
+  }
+
+  // newHostIn opens New host with the folder already picked (a folder
+  // menu's New host).
+  function newHostIn(groupId) {
+    fillHostForm({ groupId: groupId || "" });
+    openModal(els.hostModal);
+  }
+
+  // moveHostToFolder (a host menu's Move to folder…) opens Edit host on its
+  // Folder field, the same field and save as editing the host.
+  function moveHostToFolder(id) {
+    const host = state.hosts.find((h) => h.id === id);
+    if (!host) return;
+    fillHostForm(host);
+    openModal(els.hostModal);
+    requestAnimationFrame(() => document.getElementById("host-parent-group")?.focus({ preventScroll: false }));
   }
 
   // notebookTarget is the terminal a notebook's shell fences type into (the
@@ -7135,7 +7182,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     renderTabs();
   }
 
-  function openGroupPage(groupId) {
+  // openGroupPage opens a folder's page; runMenu also opens its "Run a
+  // runbook on this group" menu (a folder menu's Run a runbook…).
+  function openGroupPage(groupId, { runMenu = false } = {}) {
     if (!groupId) return;
     savePageRef("group", groupId);
     const g = (state.groups || []).find((x) => x.id === groupId);
@@ -7143,7 +7192,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (tab && g) tab.pageTitle = g.name;
     state.shownPage = "";
     renderTabs();
-    groupPage?.show(groupId);
+    const shown = groupPage?.show(groupId);
+    if (runMenu) Promise.resolve(shown).then(() => groupPage?.openRunMenu?.());
   }
 
   function openGroupRun(run) {
@@ -7681,6 +7731,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         askAboutNotebook(state.panes.get(nbAsk.dataset.notebookAsk));
         return;
       }
+      const more = ev.target.closest("[data-pane-more]");
+      if (more) {
+        ev.preventDefault();
+        // Keyboard activation (Enter / Space) puts focus on the first item.
+        openPaneMenu(more.dataset.paneMore, "bar", { anchor: more, returnFocus: more, focusFirst: ev.detail === 0 });
+        return;
+      }
       const nbPriv = ev.target.closest("[data-notebook-private-toggle]");
       if (nbPriv) {
         ev.preventDefault();
@@ -7927,6 +7984,15 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     });
   }
 
+  // knownHost is a host of the JSON state. A row the stream just pushed
+  // (a duplicate, another window's save) can be on screen before the state
+  // refresh that follows the push has landed: wait for it once.
+  async function knownHost(id) {
+    const find = () => state.hosts.find((h) => h.id === id);
+    if (!find() && id) await refreshState();
+    return find();
+  }
+
   function bindLists() {
     document.body.addEventListener("click", async (ev) => {
       if (ev.target.closest("#btn-quick")) {
@@ -7967,6 +8033,62 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         openGroupPage(groupOpen.getAttribute("data-group-open"));
         return;
       }
+      const groupRun = ev.target.closest("[data-group-run]");
+      if (groupRun) {
+        ev.preventDefault();
+        openGroupPage(groupRun.getAttribute("data-group-run"), { runMenu: true });
+        return;
+      }
+      const groupNewHost = ev.target.closest("[data-group-new-host]");
+      if (groupNewHost) {
+        ev.preventDefault();
+        newHostIn(groupNewHost.getAttribute("data-group-new-host"));
+        return;
+      }
+      const copy = ev.target.closest("[data-copy]");
+      if (copy) {
+        ev.preventDefault();
+        const what = copy.getAttribute("data-copy-what") || "text";
+        copyText(copy.getAttribute("data-copy") || "").then((ok) => toast(ok ? `Copied ${what}` : `Could not copy the ${what}`, !ok));
+        return;
+      }
+      const connectSplit = ev.target.closest("[data-connect-split]");
+      if (connectSplit) {
+        const host = state.hosts.find((h) => h.id === connectSplit.dataset.connectSplit);
+        if (host) openHostInSplit(host).catch((err) => toast(err.message, true));
+        return;
+      }
+      const hostMove = ev.target.closest("[data-host-move]");
+      if (hostMove) {
+        moveHostToFolder(hostMove.dataset.hostMove);
+        return;
+      }
+      const hostAgent = ev.target.closest("[data-host-agent]");
+      if (hostAgent) {
+        const on = hostAgent.dataset.agentOn !== "true";
+        api(`/api/hosts/${encodeURIComponent(hostAgent.dataset.hostAgent)}/agent-readable`, { method: "PUT", body: JSON.stringify({ readable: on }) })
+          .then((h) => toast(on ? `The agent can read ${h?.name || "this host"}` : `The agent cannot read ${h?.name || "this host"}`))
+          .catch((err) => toast(err.message, true));
+        return;
+      }
+      const runSnippet = ev.target.closest("[data-snippet-run]");
+      if (runSnippet) {
+        ev.preventDefault();
+        await paletteRunSnippet(runSnippet.dataset.snippetRun);
+        return;
+      }
+      const askNb = ev.target.closest("[data-notebook-ask-id]");
+      if (askNb) {
+        ev.preventDefault();
+        askAboutNotebookId(askNb.dataset.notebookAskId);
+        return;
+      }
+      const paneAct = ev.target.closest("[data-pane-act]");
+      if (paneAct) {
+        ev.preventDefault();
+        runPaneMenuAction(paneAct.dataset.paneAct);
+        return;
+      }
       const groupRename = ev.target.closest("[data-group-rename]");
       if (groupRename) {
         ev.preventDefault();
@@ -7993,7 +8115,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       }
       const edit = ev.target.closest("[data-edit]");
       if (edit) {
-        const host = state.hosts.find((h) => h.id === edit.dataset.edit);
+        const host = await knownHost(edit.dataset.edit);
         if (host) {
           fillHostForm(host);
           openModal(els.hostModal);
@@ -8002,7 +8124,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       }
       const dup = ev.target.closest("[data-duplicate]");
       if (dup) {
-        const host = state.hosts.find((h) => h.id === dup.dataset.duplicate);
+        const host = await knownHost(dup.dataset.duplicate);
         if (!host) return;
         if (host.authType === "local") {
           toast("Local Shell cannot be duplicated");
@@ -8014,7 +8136,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       }
       const del = ev.target.closest("[data-delete]");
       if (del) {
-        const host = state.hosts.find((h) => h.id === del.dataset.delete);
+        const host = await knownHost(del.dataset.delete);
         if (!host) return;
         if (host.authType === "local") {
           toast("Local Shell is part of the workspace and cannot be removed");
@@ -8396,6 +8518,26 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   bindChrome();
   bindLists();
+  // Right-click, ⇧F10 and the ContextMenu key on a row open the row's own
+  // menu (lib/rowmenu.js); pane bars and Panes rows share the pane menu.
+  bindRowMenus(document, {
+    mac: isMac,
+    resolve: (row) => {
+      if (row.dataset.rowMenu !== "pane") return undefined;
+      const paneId = row.dataset.paneRow || row.closest(".term-wrap")?.dataset.paneId || "";
+      return preparePaneMenu(paneId, row.dataset.paneRow ? "row" : "bar") || false;
+    },
+  });
+  // ⌥↵ on a host row opens it in a split of the focused pane, as in the
+  // palette and the host menu's Open in split.
+  document.getElementById("host-list")?.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" || !ev.altKey || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+    const btn = ev.target.closest?.("[data-connect]");
+    const host = btn && state.hosts.find((h) => h.id === btn.dataset.connect);
+    if (!host) return;
+    ev.preventDefault();
+    openHostInSplit(host).catch((err) => toast(err.message, true));
+  });
   bindModals();
   window.addEventListener("pagehide", persistWorkspace);
   window.addEventListener("pagehide", flushNotebooksOnHide);

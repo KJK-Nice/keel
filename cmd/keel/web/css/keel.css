@@ -390,11 +390,35 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
   --wails-draggable: none;
   -webkit-app-region: no-drag;
 }
-/* Unlayered button { background: transparent } beats Tailwind focus:bg-accent. */
-[data-slot="context-menu-item"]:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, :active),
-[data-tui-contextmenu-item]:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, :active) {
-  background-color: color-mix(in srgb, var(--ink) 12%, transparent);
-  color: var(--ink);
+/* ---------- Menus (components.css .k-menu) ----------
+   Every menu: the "…" dropdowns, the row context menus that open the same
+   content at the pointer, the pane menu and the tab menu. shadcn-templ's
+   dropdownmenu and contextmenu render these classes (no second style).
+   Items take real focus (Base UI), so focus is the highlight. */
+.k-menu {
+  min-width: 16.923rem; padding: var(--space-1);
+  background: var(--raised); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+.k-menu-item {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 2rem; padding: 0 var(--space-2); border-radius: var(--radius-xs);
+  font: 400 1rem/1 var(--font-sans); color: var(--ink); cursor: default; white-space: nowrap;
+  background: transparent; border: 0;
+}
+.k-menu-item svg.k-i, .k-menu-item .k-i svg { display: block; flex: none; width: 1.154rem; height: 1.154rem; }
+.k-menu-item .k-i, .k-menu-item svg.k-i { color: var(--ink-muted); }
+.k-menu-item .k-shortcut { margin-left: auto; padding-left: var(--space-4); font: 400 0.846rem/1 var(--font-mono); color: var(--ink-faint); }
+.k-menu-item:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, [data-highlighted]) { background: var(--hover); color: var(--ink); outline: none; }
+.k-menu-item--danger, .k-menu-item--danger:is(:hover, :focus, :focus-visible), .k-menu-item--danger .k-i, .k-menu-item--danger svg.k-i { color: var(--flare); }
+.k-menu-item[hidden], .k-menu-sep[hidden] { display: none; }
+.k-menu-sep { height: 1px; margin: var(--space-1) calc(var(--space-1) * -1); background: var(--line); }
+.k-menu > .k-menu-label:first-child { padding-top: var(--space-1); }
+@media (prefers-reduced-motion: no-preference) {
+  .k-menu { transition: opacity var(--duration-base) ease-out, transform var(--duration-base) ease-out; }
+  .k-menu[data-starting-style], .k-menu[data-ending-style] { opacity: 0; transform: scale(0.97); }
+  .k-menu[data-ending-style] { transition-timing-function: ease-in; }
 }
 html.is-window-dragging,
 html.is-window-dragging * {
@@ -2171,6 +2195,14 @@ button.k-tree-grp:hover { color: var(--ink-muted); }
 }
 .k-side-row { display: flex; align-items: center; gap: var(--space-1); padding-right: var(--space-1); border-radius: var(--radius-sm); }
 .k-side-row:hover, .k-side-row:focus-within { background: var(--hover); }
+.k-side-row[hidden] { display: none; }
+/* A right-click opens the row's menu; it must not select the row's text. */
+[data-row-menu] { -webkit-user-select: none; user-select: none; }
+/* A row's "…" (its row menu), shown on hover and focus like the host tree's. */
+.k-side-menu { display: flex; flex: none; opacity: 0; transition: opacity var(--duration-fast); }
+.k-side-row:hover > .k-side-menu,
+.k-side-row:focus-within > .k-side-menu,
+.k-side-menu:has([aria-expanded="true"]) { opacity: 1; }
 button.k-side-item {
   display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0;
   min-height: var(--size-control-lg); padding: var(--space-1) var(--space-2);

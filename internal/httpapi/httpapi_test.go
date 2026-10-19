@@ -1061,13 +1061,15 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(open, `toast("Open a session first")`) || !strings.Contains(open, "createNotebookTab") {
 		t.Fatal("opening a notebook must work with no live session")
 	}
-	if !strings.Contains(paint, "data-notebook-open") || !strings.Contains(paint, "data-notebook-pin") || !strings.Contains(paint, "New notebook") {
+	// The Snippets segment is templ, pushed by the stream (SidebarSnippets).
+	sideTempl, _ := os.ReadFile("../ui/sidebarlists.templ")
+	if side := string(sideTempl); !strings.Contains(side, "data-notebook-open") || !strings.Contains(side, "data-notebook-pin") || !strings.Contains(side, "New notebook") || !strings.Contains(paint, "filterSidePanel") {
 		t.Fatal("vault sidebar (Snippets segment) must pin and open notebooks")
 	}
 	if !strings.Contains(saveRename, `[name="id"]`) || !strings.Contains(saveRename, "/api/notebooks/") {
 		t.Fatal("vault card Rename must persist the title through PUT /api/notebooks")
 	}
-	if !strings.Contains(paint, "data-snippet-run") || !strings.Contains(term, "data-sidebar-seg") {
+	if !strings.Contains(string(sideTempl), "data-snippet-run") || !strings.Contains(term, "data-sidebar-seg") {
 		t.Fatal("vault sidebar must offer Snippets (with notebooks) as a segment")
 	}
 	if strings.Contains(paint, "No session") {
@@ -1231,7 +1233,7 @@ func TestNotebookOpensWithoutSession(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), `id="page-notebooks"`) || !strings.Contains(term, `data-open-page="notebooks"`) ||
+	if !strings.Contains(string(body), `id="page-notebooks"`) || !strings.Contains(string(body), `data-open-page="notebooks"`) ||
 		!strings.Contains(string(body), `id="notebook-list"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) {
 		t.Fatal("notebooks must be a tab page reachable from the vault sidebar")
 	}
@@ -2167,8 +2169,8 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("index missing settings theme select or tab strip")
 	}
 	if !strings.Contains(string(body), `data-tab-action="rename"`) ||
-		!strings.Contains(string(body), "Close Others") ||
-		!strings.Contains(string(body), "Close to the Right") {
+		!strings.Contains(string(body), "Close others") ||
+		!strings.Contains(string(body), "Close to the right") {
 		t.Fatal("index missing tab context menu")
 	}
 	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
@@ -2198,8 +2200,13 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `k-page--settings`) {
 		t.Fatal("index missing settings slider or the Settings tab page")
 	}
-	if !strings.Contains(string(body), "min-w-max") {
-		t.Fatal("host action dropdown must size to content, not the trigger")
+	// Every menu is a k-menu (docs/design/components.css): it sizes to its
+	// content, never to the trigger's width.
+	if !strings.Contains(string(body), `data-slot="dropdown-menu-content"`) || !strings.Contains(string(body), "k-menu ") {
+		t.Fatal("host action dropdown must be a k-menu sized to content, not the trigger")
+	}
+	if !strings.Contains(string(body), `class="k-menu-item`) || !strings.Contains(string(body), `id="pane-menu-trigger"`) {
+		t.Fatal("index missing k-menu items or the pane menu")
 	}
 	// The sidebar filter is the host search (Enter still connects or parses
 	// user@host); its controls are k-* components sized by tokens.
@@ -2278,9 +2285,9 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "-webkit-app-region: no-drag") {
 		t.Fatal("keel.css titlebar tabs must be no-drag so WKWebView delivers right-click")
 	}
-	if !strings.Contains(string(cssBody), `[data-tui-contextmenu-item]:not(:disabled)`) ||
-		!strings.Contains(string(cssBody), "color-mix(in srgb, var(--ink) 12%, transparent)") {
-		t.Fatal("context menu items must highlight on hover")
+	if !strings.Contains(string(cssBody), `.k-menu-item:not(:disabled)`) ||
+		!strings.Contains(string(cssBody), "{ background: var(--hover); color: var(--ink); outline: none; }") {
+		t.Fatal("menu items (k-menu-item) must highlight on hover and focus")
 	}
 	// The titlebar is the size-titlebar token (38px), not a 42px literal.
 	if !strings.Contains(string(cssBody), "height: var(--size-titlebar)") || strings.Contains(string(cssBody), "min-height: 42px") {

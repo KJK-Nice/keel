@@ -48,6 +48,43 @@ const NOTEBOOK_MD = [
 ].join('\n');
 
 describe('screens', { tags: ['visual'], serial: true }, () => {
+  // Context menus (k-menu): a host row's right-click and the pane bar's
+  // More pane actions, the same items as their "…" buttons.
+  for (const theme of ['dark', 'light'] as const) {
+    test(`context menus (${theme})`, async ({ app, screen, browser }) => {
+      const name = `visual-menu-${theme}`;
+      const host = await keelSend<{ id: string }>(app.baseUrl, 'POST', '/api/hosts', { name, address: '10.0.4.21', port: 22, username: 'deploy', authType: 'password', password: 'visual-scratch' });
+      try {
+        await browser.addInitScript(themeScript(theme));
+        await openKeel(app);
+        const vault = screen.getByRole('complementary', 'Vault');
+        const menu = screen.getByRole('menu');
+        await vault.getByRole('button', 'Hosts').tap();
+        await vault.getByRole('button', new RegExp(`^${name}\\b`)).secondaryTap();
+        await expect(menu.getByRole('menuitem', 'Copy SSH command')).toBeVisible();
+        await app.screenshot(`${theme}-host-context-menu`);
+        await browser.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+
+        await openLocalShell(screen);
+        await screen.getByRole('textbox', 'Terminal input').press('Meta+Shift+D');
+        await expect(screen.getByRole('textbox', 'Terminal input')).toHaveCount(2);
+        await screen.getByRole('button', 'More pane actions', { visible: true }).first().tap();
+        await expect(menu.getByRole('menuitem', 'Focus view')).toBeVisible();
+        await app.screenshot(`${theme}-pane-bar-menu`);
+        await browser.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+        const terms = screen.getByRole('textbox', 'Terminal input');
+        await terms.nth(1).press('Meta+w');
+        await expect(terms).toHaveCount(1);
+        await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+        await expect(terms).toHaveCount(0);
+      } finally {
+        await keelSend(app.baseUrl, 'DELETE', `/api/hosts/${host.id}`);
+      }
+    });
+  }
+
   for (const theme of ['dark', 'light'] as const) {
     // The Vault sidebar (expanded, then collapsed) and each tab page.
     test(`vault sidebar and tab pages (${theme})`, async ({ app, screen, browser }) => {

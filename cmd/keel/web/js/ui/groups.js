@@ -497,5 +497,7 @@ export function createGroupPage(deps) {
     show: (id) => load(id || state.id),
     refresh: () => (state.id ? load(state.id) : null),
     groupId: () => state.id,
+    // A folder menu's Run a runbook…: the page's own menu, opened for it.
+    openRunMenu: () => (state.menuOpen ? null : openMenu()),
   };
 }
