@@ -105,9 +105,16 @@ export function riskBadge(risk) {
 }
 
 function redactedNote(counts) {
-  const n = Object.values(counts || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  if (!n) return "";
-  return ` · ${n} redacted`;
+  // Captured values and group variables (§17 part 2) went as {{name}}.
+  let held = 0;
+  let n = 0;
+  for (const [kind, c] of Object.entries(counts || {})) {
+    if (kind === "captured" || kind === "variable") held += Number(c) || 0;
+    else n += Number(c) || 0;
+  }
+  let out = n ? ` · ${n} redacted` : "";
+  if (held) out += ` · ${held} ${held === 1 ? "value" : "values"} withheld by Keel`;
+  return out;
 }
 
 // traceText is one line of the agent trace: what it read, or why not.

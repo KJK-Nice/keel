@@ -10,6 +10,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as G from "../lib/grouprun.js";
+import * as V from "../lib/groupvars.js";
 import { createNotesEditor } from "./notes.js";
 
 const SERVER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8C2 6.1 2 5.2 2.6 4.6C3.2 4 4.1 4 6 4H18C19.9 4 20.8 4 21.4 4.6C22 5.2 22 6.1 22 8C22 9.9 22 10.8 21.4 11.4C20.8 12 19.9 12 18 12H6C4.1 12 3.2 12 2.6 11.4C2 10.8 2 9.9 2 8Z"/><path d="M2 16C2 14.1 2 13.2 2.6 12.6C3.2 12 4.1 12 6 12H18C19.9 12 20.8 12 21.4 12.6C22 13.2 22 14.1 22 16C22 17.9 22 18.8 21.4 19.4C20.8 20 19.9 20 18 20H6C4.1 20 3.2 20 2.6 19.4C2 18.8 2 17.9 2 16Z"/><path d="M6 8H6.01M6 16H6.01M10 8H10.01M10 16H10.01" stroke-width="2.2"/></svg>';
@@ -64,6 +65,7 @@ export function createGroupPage(deps) {
       setError(err?.code === 423 ? "Unlock the vault to see this group." : err?.message || String(err));
     }
     paint();
+    exportRefresh();
   }
 
   function roleSelect(m, roles) {
@@ -113,6 +115,7 @@ export function createGroupPage(deps) {
     }
     const input = state.newRoleFor ? el.hosts?.querySelector(`[data-role-new="${CSS.escape(state.newRoleFor)}"]`) : null;
     input?.focus();
+    paintVars();
   }
 
   async function setRole(hostId, role) {
@@ -126,6 +129,7 @@ export function createGroupPage(deps) {
       const m = state.members.find((x) => x.hostId === hostId);
       if (m) m.role = r;
       setError("");
+      exportRefresh();
     } catch (err) {
       setError(err?.message || String(err));
     }
@@ -238,6 +242,255 @@ export function createGroupPage(deps) {
   });
   doc.addEventListener("click", (ev) => {
     if (state.menuOpen && !ev.target.closest?.("#group-run, #group-run-menu")) closeMenu();
+  });
+
+  // --- Group variables (§17 part 2) ---
+
+  const vars = {
+    list: $("group-vars-list"),
+    count: $("group-vars-count"),
+    name: $("group-var-name"),
+    value: $("group-var-value"),
+    add: $("group-var-add"),
+    error: $("group-vars-error"),
+    editing: "",
+  };
+
+  function setVarsError(msg) {
+    if (!vars.error) return;
+    vars.error.textContent = msg || "";
+    vars.error.hidden = !msg;
+  }
+
+  function paintVars() {
+    const list = state.group?.vars || [];
+    if (vars.count) vars.count.textContent = String(list.length);
+    if (!vars.list) return;
+    vars.list.innerHTML = list.length
+      ? list
+          .map((v) =>
+            vars.editing === v.name
+              ? `<dt class="k-mono">${escapeHtml(v.name)}</dt><dd><input class="k-input k-gx-varvalue" data-var-edit="${escapeHtml(v.name)}" value="${escapeHtml(v.value)}" aria-label="Value of ${escapeHtml(v.name)}" maxlength="256" autocomplete="off" spellcheck="false" /></dd>`
+              : `<dt class="k-mono">${escapeHtml(v.name)}</dt><dd><span class="k-mono k-gx-varval">${escapeHtml(v.value)}</span><span class="k-gx-varact"><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-var-editbtn="${escapeHtml(v.name)}" aria-label="Edit ${escapeHtml(v.name)}">Edit</button><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-var-remove="${escapeHtml(v.name)}" aria-label="Remove ${escapeHtml(v.name)}">Remove</button></span></dd>`,
+          )
+          .join("")
+      : `<p class="k-help k-gx-novars">No variables yet. Add one a runbook step can use, such as k8s_version.</p>`;
+    if (vars.editing) vars.list.querySelector("[data-var-edit]")?.focus();
+  }
+
+  async function setVar(name, value) {
+    const c = V.cleanVar(name, value);
+    if (!c.ok) {
+      setVarsError(c.error);
+      return false;
+    }
+    try {
+      const g = await deps.api(`/api/groups/${encodeURIComponent(state.id)}/vars`, { method: "PUT", body: JSON.stringify({ name: c.name, value: c.value }) });
+      if (state.group) state.group.vars = g?.vars || [];
+      setVarsError("");
+      vars.editing = "";
+      paintVars();
+      exportRefresh();
+      return true;
+    } catch (err) {
+      setVarsError(err?.message || String(err));
+      return false;
+    }
+  }
+
+  vars.add?.addEventListener("click", async () => {
+    if (await setVar(vars.name?.value, vars.value?.value)) {
+      if (vars.name) vars.name.value = "";
+      if (vars.value) vars.value.value = "";
+      vars.name?.focus();
+    }
+  });
+  for (const input of [vars.name, vars.value]) {
+    input?.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        vars.add?.click();
+      }
+    });
+  }
+  vars.list?.addEventListener("click", (ev) => {
+    const ed = ev.target.closest("[data-var-editbtn]");
+    if (ed) {
+      vars.editing = ed.dataset.varEditbtn;
+      paintVars();
+      return;
+    }
+    const rm = ev.target.closest("[data-var-remove]");
+    if (rm) setVar(rm.dataset.varRemove, "");
+  });
+  vars.list?.addEventListener("keydown", (ev) => {
+    const input = ev.target.closest("[data-var-edit]");
+    if (!input) return;
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      if (!input.value.trim()) return setVarsError("Remove the variable instead of saving it empty.");
+      setVar(input.dataset.varEdit, input.value);
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      vars.editing = "";
+      paintVars();
+    }
+  });
+
+  // --- Export to Ansible (boards GroupRoles drawer, AnsibleExport) ---
+
+  const ex = {
+    open: false,
+    format: "ini",
+    runbookId: "",
+    mode: "rolling",
+    user: true,
+    jump: false,
+    files: [],
+    file: 0,
+    gen: 0,
+    btn: $("group-export"),
+    drawer: $("group-export-drawer"),
+    close: $("group-export-close"),
+    book: $("group-export-runbook"),
+    modeRow: $("group-export-mode"),
+    tabs: $("group-export-tabs"),
+    code: $("group-export-code"),
+    meta: $("group-export-meta"),
+    dry: $("group-export-dryrun"),
+    error: $("group-export-error"),
+    copy: $("group-export-copy"),
+    download: $("group-export-download"),
+    userBox: $("group-export-user"),
+    jumpBox: $("group-export-jump"),
+  };
+
+  function paintExport() {
+    if (!ex.drawer) return;
+    ex.drawer.hidden = !ex.open;
+    ex.btn?.setAttribute("aria-expanded", String(ex.open));
+    for (const b of ex.drawer.querySelectorAll("[data-export-format]")) b.setAttribute("aria-pressed", String(b.dataset.exportFormat === ex.format));
+    for (const b of ex.drawer.querySelectorAll("[data-export-mode]")) b.setAttribute("aria-pressed", String(b.dataset.exportMode === ex.mode));
+    if (ex.modeRow) ex.modeRow.hidden = !ex.runbookId;
+    ex.userBox?.setAttribute("aria-checked", String(ex.user));
+    ex.jumpBox?.setAttribute("aria-checked", String(ex.jump));
+    const f = ex.files[ex.file] || ex.files[0];
+    if (ex.tabs) ex.tabs.innerHTML = ex.files.map((x, k) => `<button type="button" aria-pressed="${k === ex.file}" data-export-file="${k}">${escapeHtml(x.name)}</button>`).join("");
+    if (ex.code) ex.code.textContent = f?.content || "";
+    if (ex.meta) ex.meta.textContent = f ? V.fileMeta(f) : "";
+    if (ex.dry) {
+      const d = V.dryRun(ex.files);
+      ex.dry.textContent = d ? `Try it first: ${d}` : "";
+    }
+    if (ex.copy) ex.copy.disabled = !f;
+    if (ex.download) ex.download.disabled = !f;
+  }
+
+  async function exportRefresh() {
+    if (!ex.open || !state.id) return;
+    const gen = ++ex.gen;
+    try {
+      const res = await deps.api(`/api/groups/${encodeURIComponent(state.id)}/ansible?${V.exportQuery(ex)}`);
+      if (gen !== ex.gen) return;
+      ex.files = res?.files || [];
+      if (ex.file >= ex.files.length) ex.file = 0;
+      if (ex.error) ex.error.hidden = true;
+    } catch (err) {
+      if (gen !== ex.gen) return;
+      ex.files = [];
+      if (ex.error) {
+        ex.error.textContent = err?.message || String(err);
+        ex.error.hidden = false;
+      }
+    }
+    paintExport();
+  }
+
+  async function openExport() {
+    ex.open = true;
+    paintExport();
+    try {
+      const res = await deps.api("/api/agent/runbooks");
+      const books = (res?.runbooks || []).filter((b) => (b.steps || []).length);
+      if (ex.book) {
+        ex.book.innerHTML = `<option value="">Inventory only</option>` + books.map((b) => `<option value="${escapeHtml(b.id)}"${b.id === ex.runbookId ? " selected" : ""}>${escapeHtml(`Playbook: ${b.name}`)}</option>`).join("");
+      }
+    } catch {
+      /* runbooks need the vault; the inventory alone still works */
+    }
+    await exportRefresh();
+    ex.close?.focus();
+  }
+
+  function closeExport() {
+    ex.open = false;
+    paintExport();
+    ex.btn?.focus();
+  }
+
+  ex.btn?.addEventListener("click", () => (ex.open ? closeExport() : openExport()));
+  ex.close?.addEventListener("click", closeExport);
+  ex.drawer?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeExport();
+    }
+  });
+  ex.drawer?.addEventListener("click", (ev) => {
+    const t = ev.target;
+    const fmt = t.closest("[data-export-format]");
+    if (fmt) {
+      ex.format = fmt.dataset.exportFormat;
+      ex.file = 0;
+      return void exportRefresh();
+    }
+    const md = t.closest("[data-export-mode]");
+    if (md) {
+      ex.mode = md.dataset.exportMode;
+      return void exportRefresh();
+    }
+    const file = t.closest("[data-export-file]");
+    if (file) {
+      ex.file = Number(file.dataset.exportFile);
+      return void paintExport();
+    }
+    if (t.closest("#group-export-user")) {
+      ex.user = !ex.user;
+      return void exportRefresh();
+    }
+    if (t.closest("#group-export-jump")) {
+      ex.jump = !ex.jump;
+      return void exportRefresh();
+    }
+  });
+  ex.book?.addEventListener("change", () => {
+    ex.runbookId = ex.book.value;
+    ex.file = ex.runbookId ? 1 : 0;
+    exportRefresh();
+  });
+  ex.copy?.addEventListener("click", () => {
+    const f = ex.files[ex.file];
+    if (!f) return;
+    navigator.clipboard?.writeText(f.content).then(
+      () => deps.toast?.(`Copied ${f.name}.`),
+      () => deps.toast?.("Could not copy.", true),
+    );
+  });
+  ex.download?.addEventListener("click", () => {
+    const f = ex.files[ex.file];
+    if (!f) return;
+    // The page hands the text to the browser as a file; nothing is written
+    // by keel serve and nothing runs.
+    const url = URL.createObjectURL(new Blob([f.content], { type: f.name.endsWith(".ini") ? "text/plain" : "application/yaml" }));
+    const a = doc.createElement("a");
+    a.href = url;
+    a.download = f.name.split("/").pop();
+    doc.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
 
   return {

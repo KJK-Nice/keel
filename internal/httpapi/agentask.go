@@ -60,6 +60,13 @@ func (a agentPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
 	return a.rt.CommandsAfter(id, from)
 }
 
+// CommandOutput passes on a finished command's raw output
+// (service.CaptureSource), read only by keel serve's capture code for a
+// group run's step: never sent to a provider or logged.
+func (a agentPanes) CommandOutput(id string, c shellmark.Command) ([]byte, bool) {
+	return a.rt.CommandOutput(id, c)
+}
+
 func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
 		return

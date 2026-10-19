@@ -701,6 +701,36 @@ func (s *Session) CommandsAfter(from uint64) []shellmark.Command {
 	return out
 }
 
+// maxCaptureOutput caps the output CommandOutput returns for a capture.
+const maxCaptureOutput = 256 * 1024
+
+// CommandOutput returns a finished command's output as written to the
+// pane, raw (escape sequences included, no mask), between its C and D
+// marks. It is read only by keel serve's own capture code for a group
+// run's step (agent/service/groupvars.go), which takes one value from it
+// with the step's pattern and never sends or logs the text. ok is false
+// for a command still running, or one whose output left the ring or is
+// longer than 256 KiB.
+func (s *Session) CommandOutput(c shellmark.Command) ([]byte, bool) {
+	if !c.Done || c.OutputEnd < c.OutputStart || c.OutputEnd-c.OutputStart > maxCaptureOutput {
+		return nil, false
+	}
+	out, truncated := s.buf.Range(c.OutputStart, c.OutputEnd)
+	if truncated {
+		return nil, false
+	}
+	return out, true
+}
+
+// CommandOutput is Session.CommandOutput by session id.
+func (r *Runtime) CommandOutput(id string, c shellmark.Command) ([]byte, bool) {
+	s, err := r.Get(id)
+	if err != nil {
+		return nil, false
+	}
+	return s.CommandOutput(c)
+}
+
 // CommandsAfter is Session.CommandsAfter by session id.
 func (r *Runtime) CommandsAfter(id string, from uint64) []shellmark.Command {
 	s, err := r.Get(id)

@@ -293,7 +293,7 @@ func (s *Service) Detect(ctx context.Context, req DetectRequest) (DetectResult, 
 	if err != nil {
 		return DetectResult{Source: DetectFallback}, nil
 	}
-	r, err := agent.NewRedactor(s.st, set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
 		return DetectResult{Source: DetectOff}, err
 	}
@@ -407,7 +407,7 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 	if err != nil {
 		return Suggestion{}, nil, err
 	}
-	r, err := agent.NewRedactor(s.st, set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
 		return Suggestion{}, nil, err
 	}

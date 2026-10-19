@@ -45,7 +45,15 @@ func GroupPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "Run a runbook on this group</button><div class=\"k-rb-source-menu k-gx-runmenu\" id=\"group-run-menu\" role=\"menu\" hidden></div></div></div><div class=\"k-toolbar k-gx-toolbar\"><div class=\"k-gx-roles\" id=\"group-roles\" role=\"list\" aria-label=\"Hosts per role\"></div><span class=\"k-help\" id=\"group-roles-help\">Roles tell runbooks and the agent what each host is. A step for a role runs on every host with it.</span></div><p class=\"k-error k-gx-error\" id=\"group-error\" role=\"alert\" hidden></p><table class=\"k-table k-gx-table\" aria-label=\"Hosts in this group\"><thead><tr><th>Host</th><th>Address</th><th>Role</th><th>Tags</th><th>Agent</th></tr></thead> <tbody id=\"group-hosts\"></tbody></table><div class=\"k-gx-grid\"><div class=\"k-box k-gx-notes\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "Run a runbook on this group</button><div class=\"k-rb-source-menu k-gx-runmenu\" id=\"group-run-menu\" role=\"menu\" hidden></div></div><button type=\"button\" class=\"k-btn k-btn--primary\" id=\"group-export\" aria-expanded=\"false\" aria-controls=\"group-export-drawer\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.FileCode().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "Export to Ansible</button></div><div class=\"k-toolbar k-gx-toolbar\"><div class=\"k-gx-roles\" id=\"group-roles\" role=\"list\" aria-label=\"Hosts per role\"></div><span class=\"k-help\" id=\"group-roles-help\">Roles tell runbooks and the agent what each host is. A step for a role runs on every host with it.</span></div><p class=\"k-error k-gx-error\" id=\"group-error\" role=\"alert\" hidden></p><table class=\"k-table k-gx-table\" aria-label=\"Hosts in this group\"><thead><tr><th>Host</th><th>Address</th><th>Role</th><th>Tags</th><th>Agent</th></tr></thead> <tbody id=\"group-hosts\"></tbody></table><div class=\"k-gx-grid\"><div class=\"k-box k-gx-notes\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -53,7 +61,142 @@ func GroupPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = groupVarsBox().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = groupExportDrawer().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// groupVarsBox is the group's variables (§17 part 2, board GroupRoles):
+// name = value pairs a runbook step uses as {{name}}, filled in by keel
+// serve only at Type in a group run. js/ui/groups.js fills the list and
+// saves each change with PUT /api/groups/{id}/vars.
+func groupVarsBox() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<section class=\"k-box k-gx-vars\" id=\"group-vars\" aria-labelledby=\"group-vars-h\"><div class=\"k-gx-boxhead k-gx-boxhead--flat\"><h2 class=\"k-gx-h3\" id=\"group-vars-h\">Group variables</h2><span class=\"k-badge\" id=\"group-vars-count\">0</span></div><dl class=\"k-gx-kv\" id=\"group-vars-list\"></dl><div class=\"k-gx-varadd\"><input class=\"k-input k-gx-varname\" id=\"group-var-name\" type=\"text\" aria-label=\"Variable name\" placeholder=\"api_vip\" maxlength=\"32\" autocomplete=\"off\" spellcheck=\"false\"> <input class=\"k-input k-gx-varvalue\" id=\"group-var-value\" type=\"text\" aria-label=\"Variable value\" placeholder=\"10.20.0.10\" maxlength=\"256\" autocomplete=\"off\" spellcheck=\"false\"> <button type=\"button\" class=\"k-btn k-btn--sm\" id=\"group-var-add\" aria-label=\"Add variable\">Add</button></div><p class=\"k-error\" id=\"group-vars-error\" role=\"alert\" hidden></p><span class=\"k-help\">Runbook steps use these as <span class=\"k-gx-var\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("{{name}}")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groupspage.templ`, Line: 68, Col: 84}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span>, filled in only when you press Type in a group run. Not secret: they are shown, typed and exported. Keep secrets in the vault.</span></section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// groupExportDrawer is the Ansible export (boards GroupRoles and
+// AnsibleExport): the group's inventory and, for a runbook, a playbook,
+// built by keel serve (GET /api/groups/{id}/ansible) to copy or download.
+// Keel never runs Ansible.
+func groupExportDrawer() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<aside class=\"k-gx-drawer\" id=\"group-export-drawer\" aria-label=\"Export to Ansible\" hidden><div class=\"k-gx-drawer-head\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.FileCode().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<span class=\"k-gx-grow\">Export to Ansible</span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm k-btn--icon\" id=\"group-export-close\" aria-label=\"Close\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.X().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</button></div><div class=\"k-gx-drawer-body\"><span class=\"k-help\">Built from this folder's hosts, roles and group variables. Change a role or a variable and this updates.</span><div class=\"k-gx-exportopts\"><div class=\"k-gx-mode\" role=\"group\" aria-label=\"Inventory format\"><button type=\"button\" aria-pressed=\"true\" data-export-format=\"ini\">INI</button> <button type=\"button\" aria-pressed=\"false\" data-export-format=\"yaml\">YAML</button></div><select class=\"k-gx-rolesel k-gx-exportbook\" id=\"group-export-runbook\" aria-label=\"Playbook from a runbook\"><option value=\"\">Inventory only</option></select><div class=\"k-gx-mode\" role=\"group\" aria-label=\"Playbook mode\" id=\"group-export-mode\" hidden><button type=\"button\" aria-pressed=\"true\" data-export-mode=\"rolling\">Rolling</button> <button type=\"button\" aria-pressed=\"false\" data-export-mode=\"parallel\">Parallel</button></div></div><div class=\"k-gx-tabs\" role=\"group\" aria-label=\"Files\" id=\"group-export-tabs\"></div><pre class=\"k-gx-code\" id=\"group-export-code\" tabindex=\"0\" aria-label=\"File contents\"></pre><span class=\"k-help\" id=\"group-export-meta\"></span><div class=\"k-gx-exportchecks\"><span class=\"k-gx-check\"><button type=\"button\" class=\"k-check\" role=\"checkbox\" aria-checked=\"true\" id=\"group-export-user\" aria-labelledby=\"group-export-user-l\"><span class=\"k-i\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.Check().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span></button><span id=\"group-export-user-l\">Use ansible_user from each host's saved user</span></span> <span class=\"k-gx-check\"><button type=\"button\" class=\"k-check\" role=\"checkbox\" aria-checked=\"false\" id=\"group-export-jump\" aria-labelledby=\"group-export-jump-l\"><span class=\"k-i\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.Check().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span></button><span id=\"group-export-jump-l\">Include the jump host as ansible_ssh_common_args</span></span></div><p class=\"k-error\" id=\"group-export-error\" role=\"alert\" hidden></p><span class=\"k-help\">Keel does not run Ansible. Save the files and run ansible-playbook yourself. No passwords, keys or tokens are written into them; a host whose key or password is in the vault gets a comment instead.</span> <code class=\"k-mono k-gx-dryrun\" id=\"group-export-dryrun\"></code></div><div class=\"k-gx-drawer-foot\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"group-export-copy\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icon.Copy().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "Copy</button> <button type=\"button\" class=\"k-btn k-btn--primary\" id=\"group-export-download\">Download</button></div></aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -84,12 +227,12 @@ func GroupRunPage() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var2 == nil {
-			templ_7745c5c3_Var2 = templ.NopComponent
+		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var5 == nil {
+			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<section class=\"k-page k-page--split k-gx-runpage\" id=\"page-grouprun\" data-page=\"grouprun\" aria-label=\"Group run\"><div class=\"k-split k-gx-split\"><div class=\"k-split-list k-gx-steps\" id=\"grouprun-steps\"></div><div class=\"k-split-detail k-gx-detail\" id=\"grouprun-detail\"><div class=\"k-detail-empty\"><p class=\"k-help\">Start a runbook from a group's page: Run a runbook on this group.</p></div></div></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<section class=\"k-page k-page--split k-gx-runpage\" id=\"page-grouprun\" data-page=\"grouprun\" aria-label=\"Group run\"><div class=\"k-split k-gx-split\"><div class=\"k-split-list k-gx-steps\" id=\"grouprun-steps\"></div><div class=\"k-split-detail k-gx-detail\" id=\"grouprun-detail\"><div class=\"k-detail-empty\"><p class=\"k-help\">Start a runbook from a group's page: Run a runbook on this group.</p></div></div></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -118,12 +261,12 @@ func groupApproveDialog() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<dialog class=\"modal k-gx-approve\" id=\"group-approve-modal\" aria-labelledby=\"group-approve-title\"><form id=\"group-approve-form\"><div class=\"k-gx-approve-head\"><h2 class=\"k-gx-approve-title\" id=\"group-approve-title\">Type into these panes?</h2><p class=\"k-help\" id=\"group-approve-hint\">Tick each host to type into. Each one is checked and typed on its own. The current line in each pane is cleared first.</p></div><pre class=\"k-bytes k-gx-approve-bytes\" id=\"group-approve-bytes\" aria-label=\"Exact bytes\"></pre><p class=\"k-help k-gx-approve-count\" id=\"group-approve-count\"></p><div class=\"k-gx-approve-rows\" id=\"group-approve-rows\" role=\"group\" aria-label=\"Hosts to type into\"></div><p class=\"k-gx-approve-shift\" id=\"group-approve-shift\" hidden></p><div class=\"modal-actions\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"group-approve-cancel\">Cancel</button> <button type=\"submit\" class=\"k-btn k-btn--primary\" id=\"group-approve-ok\" disabled>Type</button></div></form></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<dialog class=\"modal k-gx-approve\" id=\"group-approve-modal\" aria-labelledby=\"group-approve-title\"><form id=\"group-approve-form\"><div class=\"k-gx-approve-head\"><h2 class=\"k-gx-approve-title\" id=\"group-approve-title\">Type into these panes?</h2><p class=\"k-help\" id=\"group-approve-hint\">Tick each host to type into. Each one is checked and typed on its own. The current line in each pane is cleared first.</p></div><pre class=\"k-bytes k-gx-approve-bytes\" id=\"group-approve-bytes\" aria-label=\"Exact bytes\"></pre><p class=\"k-help k-gx-approve-count\" id=\"group-approve-count\"></p><div class=\"k-gx-approve-rows\" id=\"group-approve-rows\" role=\"group\" aria-label=\"Hosts to type into\"></div><p class=\"k-gx-approve-shift\" id=\"group-approve-shift\" hidden></p><div class=\"modal-actions\"><button type=\"button\" class=\"k-btn k-btn--ghost\" id=\"group-approve-cancel\">Cancel</button> <button type=\"submit\" class=\"k-btn k-btn--primary\" id=\"group-approve-ok\" disabled>Type</button></div></form></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

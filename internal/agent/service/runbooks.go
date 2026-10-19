@@ -10,6 +10,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
 )
@@ -292,6 +293,12 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
+	// Commands are checked without the group variables (a command may
+	// hold a variable's value as the user wrote it).
+	cr, err := s.saveCommandRedactor()
+	if err != nil {
+		return store.Runbook{}, redact.Report{}, err
+	}
 	line := func(t string, max int) (string, error) {
 		if len(t) > 4*max+64 {
 			return "", badRequest(fmt.Sprintf("a field is at most %d bytes", max))
@@ -352,10 +359,24 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 		// A command is never kept redacted: a placeholder such as
 		// [secret:1] is a shell glob that could be typed. One the Redactor
 		// would change (as typed, or cleaned) is refused instead.
-		if !commandKeepable(r, st.Command) || !commandKeepable(r, cmd) {
+		if !commandKeepable(cr, st.Command) || !commandKeepable(cr, cmd) {
 			return store.Runbook{}, redact.Report{}, fmt.Errorf("%w: step %d: %v", ErrBadRequest, len(b.Steps)+1, ErrSecretInCommand)
 		}
 		out.Command = cmd
+		// A capture's pattern is a regular expression, which secret
+		// detectors would flag for its shape (--token\s+(\S+)); only a vault
+		// value in it is refused. Names are checked by the store.
+		for _, c := range st.Captures {
+			if len(c.Pattern) > 4*runvars.MaxPatternBytes || len(c.Name) > 4*runvars.MaxNameBytes {
+				return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("step %d: a capture pattern is at most %d bytes", len(b.Steps)+1, runvars.MaxPatternBytes))
+			}
+			if bad, err := s.holdsVaultValue(c.Name, c.Pattern); err != nil {
+				return store.Runbook{}, redact.Report{}, err
+			} else if bad {
+				return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("step %d: a capture pattern holds a value from the vault", len(b.Steps)+1))
+			}
+			out.Captures = append(out.Captures, c)
+		}
 		b.Steps = append(b.Steps, out)
 	}
 	return b, r.Report(), nil
@@ -500,8 +521,12 @@ func (s *Service) RunbookDraft(req DraftRequest) (RunbookInput, error) {
 	if err != nil {
 		return RunbookInput{}, err
 	}
+	cr, err := s.saveCommandRedactor()
+	if err != nil {
+		return RunbookInput{}, err
+	}
 	for i := range in.Steps {
-		if c := in.Steps[i].Command; c != "" && !commandKeepable(sr, c) {
+		if c := in.Steps[i].Command; c != "" && !commandKeepable(cr, c) {
 			in.Steps[i].Command = ""
 			in.Steps[i].Description = truncate(strings.TrimSpace(in.Steps[i].Description+" "+secretLeftOut), store.MaxRunbookTextBytes-4)
 		}

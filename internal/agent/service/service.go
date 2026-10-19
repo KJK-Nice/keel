@@ -34,6 +34,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/runvars"
 	"keel/internal/store"
 )
 
@@ -127,7 +128,12 @@ type Service struct {
 	// groupRuns are the runbook runs across a group (grouprun.go), by id
 	// (under mu).
 	groupRuns map[string]*groupRun
-	log       agent.Logger
+	// withheld are every value a group run ever captured (groupvars.go),
+	// by value, with its name: redacted out of everything sent to the
+	// model for the life of this keel serve, never used to fill a command
+	// (under mu). The value outlives its run in the panes' scrollback.
+	withheld map[string]string
+	log      agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -280,6 +286,10 @@ type Proposal struct {
 	// Runbook is set on a proposal Keel made from a runbook step
 	// (runbooks.go): typed like any other, through approve-before-type.
 	Runbook *ProposalStep `json:"runbook,omitempty"`
+	// Vars are the variables a group run's step names ({{name}}): Command
+	// and Bytes keep the names; keel serve fills the values in only at
+	// Type time (groupvars.go).
+	Vars []runvars.Ref `json:"vars,omitempty"`
 }
 
 type Usage struct {
@@ -370,7 +380,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		byID[h.ID] = h
 	}
 	scope := agent.NewScope(hosts)
-	r, err := agent.NewRedactor(s.st, set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
 		return AskResponse{}, err
 	}
@@ -717,7 +727,7 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	// Build the Redactor first: the edit is kept redacted, and without one
 	// the edit is refused rather than shown in the panel and saved
 	// differently (or as typed).
-	r, err := s.redactor()
+	r, err := s.commandRedactor()
 	if err != nil {
 		return Proposal{}, err
 	}
@@ -792,6 +802,11 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 	}
 	if hasPlaceholder(snap.Command) {
 		return ErrPlaceholder
+	}
+	// Only a group run's step has its variables filled in (groupvars.go);
+	// anywhere else {{name}} would be typed as text.
+	if runvars.HasRefs(snap.Command) {
+		return ErrVarsOutsideRun
 	}
 	current, err := s.hostProduction(snap.HostID)
 	if err != nil {

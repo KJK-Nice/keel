@@ -21,8 +21,15 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 		"authorizeGroupType": {"Service.AuthorizeType"},
 		"GroupTypeDoneAt":    {},
 		"groupProposalLocked": {
-			"Service.authorizeGroupType", "Service.GroupTypeDoneAt", "Service.GroupTypeFailed",
+			"Service.authorizeGroupType", "Service.GroupTypeDoneAt", "Service.GroupTypeFailed", "Service.fillProposal",
 		},
+		// Part 2 (groupvars.go): values are filled in only for the approve
+		// dialog (FillGroupProposals, which writes nothing) and in the
+		// Type gate itself; a step's output is read for a capture only by
+		// runCaptures, called only where a typed host's result comes in.
+		"fillProposal":  {"Service.authorizeGroupType", "Service.FillGroupProposals"},
+		"runCaptures":   {"Service.refreshGroupRun"},
+		"CommandOutput": {"Service.runCaptures"},
 	}
 	seen := map[string]int{}
 	for _, f := range parseModule(t) {
@@ -69,7 +76,7 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 			})
 		}
 	}
-	for _, name := range []string{"authorizeGroupType", "groupProposalLocked"} {
+	for _, name := range []string{"authorizeGroupType", "groupProposalLocked", "fillProposal", "runCaptures", "CommandOutput"} {
 		if seen[name] == 0 {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}

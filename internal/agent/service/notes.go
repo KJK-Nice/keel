@@ -466,8 +466,19 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 // values as exact matches, secret-looking values), never IPs or hostnames,
 // which a note may need and which the request's Redactor replaces anyway
 // when it is sent with the user's settings.
+//
+// Captured values and group variables' values are kept as {{name}}
+// (groupvars.go); saveCommandRedactor, for runbook step commands, leaves
+// group variables as written.
 func (s *Service) saveRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil)
+	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(true)...)
+}
+
+// saveCommandRedactor is saveRedactor without the group variables: a step
+// command that holds a variable's value (10.20.0.10) is the user's to
+// type, not a secret, and is kept as written.
+func (s *Service) saveCommandRedactor() (*redact.Redactor, error) {
+	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(false)...)
 }
 
 func (s *Service) noteHost(hostID string) (agent.Host, error) {

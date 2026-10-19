@@ -22,6 +22,10 @@ templ GroupPage() {
 				</button>
 				<div class="k-rb-source-menu k-gx-runmenu" id="group-run-menu" role="menu" hidden></div>
 			</div>
+			<button type="button" class="k-btn k-btn--primary" id="group-export" aria-expanded="false" aria-controls="group-export-drawer">
+				@icon.FileCode()
+				Export to Ansible
+			</button>
 		</div>
 		<div class="k-toolbar k-gx-toolbar">
 			<div class="k-gx-roles" id="group-roles" role="list" aria-label="Hosts per role"></div>
@@ -38,8 +42,84 @@ templ GroupPage() {
 			<div class="k-box k-gx-notes">
 				@notesBlock("group-notes", "Notes for the agent · whole group", "Add a note for every host in this group", "Sent with a question only when a pane on a host in this group is read and its Agent can read is on. Redacted like pane text. Stored encrypted in the vault.", false)
 			</div>
+			@groupVarsBox()
 		</div>
+		@groupExportDrawer()
 	</section>
+}
+
+// groupVarsBox is the group's variables (§17 part 2, board GroupRoles):
+// name = value pairs a runbook step uses as {{name}}, filled in by keel
+// serve only at Type in a group run. js/ui/groups.js fills the list and
+// saves each change with PUT /api/groups/{id}/vars.
+templ groupVarsBox() {
+	<section class="k-box k-gx-vars" id="group-vars" aria-labelledby="group-vars-h">
+		<div class="k-gx-boxhead k-gx-boxhead--flat">
+			<h2 class="k-gx-h3" id="group-vars-h">Group variables</h2>
+			<span class="k-badge" id="group-vars-count">0</span>
+		</div>
+		<dl class="k-gx-kv" id="group-vars-list"></dl>
+		<div class="k-gx-varadd">
+			<input class="k-input k-gx-varname" id="group-var-name" type="text" aria-label="Variable name" placeholder="api_vip" maxlength="32" autocomplete="off" spellcheck="false"/>
+			<input class="k-input k-gx-varvalue" id="group-var-value" type="text" aria-label="Variable value" placeholder="10.20.0.10" maxlength="256" autocomplete="off" spellcheck="false"/>
+			<button type="button" class="k-btn k-btn--sm" id="group-var-add" aria-label="Add variable">Add</button>
+		</div>
+		<p class="k-error" id="group-vars-error" role="alert" hidden></p>
+		<span class="k-help">Runbook steps use these as <span class="k-gx-var">{"{{name}}"}</span>, filled in only when you press Type in a group run. Not secret: they are shown, typed and exported. Keep secrets in the vault.</span>
+	</section>
+}
+
+// groupExportDrawer is the Ansible export (boards GroupRoles and
+// AnsibleExport): the group's inventory and, for a runbook, a playbook,
+// built by keel serve (GET /api/groups/{id}/ansible) to copy or download.
+// Keel never runs Ansible.
+templ groupExportDrawer() {
+	<aside class="k-gx-drawer" id="group-export-drawer" aria-label="Export to Ansible" hidden>
+		<div class="k-gx-drawer-head">
+			@icon.FileCode()
+			<span class="k-gx-grow">Export to Ansible</span>
+			<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="group-export-close" aria-label="Close">
+				@icon.X()
+			</button>
+		</div>
+		<div class="k-gx-drawer-body">
+			<span class="k-help">Built from this folder's hosts, roles and group variables. Change a role or a variable and this updates.</span>
+			<div class="k-gx-exportopts">
+				<div class="k-gx-mode" role="group" aria-label="Inventory format">
+					<button type="button" aria-pressed="true" data-export-format="ini">INI</button>
+					<button type="button" aria-pressed="false" data-export-format="yaml">YAML</button>
+				</div>
+				<select class="k-gx-rolesel k-gx-exportbook" id="group-export-runbook" aria-label="Playbook from a runbook">
+					<option value="">Inventory only</option>
+				</select>
+				<div class="k-gx-mode" role="group" aria-label="Playbook mode" id="group-export-mode" hidden>
+					<button type="button" aria-pressed="true" data-export-mode="rolling">Rolling</button>
+					<button type="button" aria-pressed="false" data-export-mode="parallel">Parallel</button>
+				</div>
+			</div>
+			<div class="k-gx-tabs" role="group" aria-label="Files" id="group-export-tabs"></div>
+			<pre class="k-gx-code" id="group-export-code" tabindex="0" aria-label="File contents"></pre>
+			<span class="k-help" id="group-export-meta"></span>
+			<div class="k-gx-exportchecks">
+				<span class="k-gx-check"><button type="button" class="k-check" role="checkbox" aria-checked="true" id="group-export-user" aria-labelledby="group-export-user-l"><span class="k-i">
+					@icon.Check()
+				</span></button><span id="group-export-user-l">Use ansible_user from each host's saved user</span></span>
+				<span class="k-gx-check"><button type="button" class="k-check" role="checkbox" aria-checked="false" id="group-export-jump" aria-labelledby="group-export-jump-l"><span class="k-i">
+					@icon.Check()
+				</span></button><span id="group-export-jump-l">Include the jump host as ansible_ssh_common_args</span></span>
+			</div>
+			<p class="k-error" id="group-export-error" role="alert" hidden></p>
+			<span class="k-help">Keel does not run Ansible. Save the files and run ansible-playbook yourself. No passwords, keys or tokens are written into them; a host whose key or password is in the vault gets a comment instead.</span>
+			<code class="k-mono k-gx-dryrun" id="group-export-dryrun"></code>
+		</div>
+		<div class="k-gx-drawer-foot">
+			<button type="button" class="k-btn k-btn--ghost" id="group-export-copy">
+				@icon.Copy()
+				Copy
+			</button>
+			<button type="button" class="k-btn k-btn--primary" id="group-export-download">Download</button>
+		</div>
+	</aside>
 }
 
 // GroupRunPage is the run of a runbook across a group (board

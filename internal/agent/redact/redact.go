@@ -43,8 +43,14 @@ const (
 	KindEnvLine        Kind = "env_line"
 	KindHighEntropy    Kind = "high_entropy"
 	KindKnownSecret    Kind = "known_secret" // a value stored in the vault
-	KindIP             Kind = "ip"
-	KindHostname       Kind = "hostname"
+	// KindCaptured is a value Keel captured from a runbook step's output
+	// in a group run, and KindVariable a group variable's value: both are
+	// replaced by their name, {{name}}, so the model can refer to them but
+	// never sees them (docs/ui-redesign.md §17, part 2).
+	KindCaptured Kind = "captured"
+	KindVariable Kind = "variable"
+	KindIP       Kind = "ip"
+	KindHostname Kind = "hostname"
 )
 
 // category is the placeholder family a kind belongs to.
@@ -81,6 +87,18 @@ type Options struct {
 	// Hosts are the user's saved host addresses. A name is replaced when
 	// Hostnames is on, an IP address when IPs is on.
 	Hosts []string
+	// Named are values replaced by their name as {{name}}: values captured
+	// in a group run (KindCaptured) and group variables (KindVariable).
+	// Like vault values, those shorter than 3 characters are skipped and
+	// those under 6 match only as whole words.
+	Named []Named
+}
+
+// Named is a value with the variable name that stands in for it.
+type Named struct {
+	Name  string
+	Value string
+	Kind  Kind
 }
 
 // Report counts replacements per kind. It never holds a matched value.
@@ -156,6 +174,7 @@ type Redactor struct {
 	opts   Options
 	known  []knownValue
 	hosts  []knownValue
+	named  []knownValue
 	seen   map[string]string
 	next   map[category]int
 	report Report
@@ -167,6 +186,7 @@ type knownValue struct {
 	lower    bool // compare without case
 	kind     Kind
 	priority int
+	label    string // a Named value's name: its placeholder is {{label}}
 }
 
 // New returns a Redactor for one request.
@@ -179,13 +199,69 @@ func New(opts Options) *Redactor {
 	}
 	r.known = knownList(opts.Known)
 	r.hosts = hostList(opts.Hosts, opts.IPs, opts.Hostnames)
+	r.named = namedList(opts.Named)
 	return r
+}
+
+// namedList prepares the Named values for exact matching, longest first.
+func namedList(values []Named) []knownValue {
+	var out []knownValue
+	for _, n := range values {
+		v := strings.TrimSpace(n.Value)
+		if len(v) < 3 || !validLabel(n.Name) {
+			continue
+		}
+		kind := n.Kind
+		if kind != KindCaptured && kind != KindVariable {
+			kind = KindCaptured
+		}
+		out = append(out, knownValue{v: v, bounded: len(v) < 6, kind: kind, priority: prioSecret, label: n.Name})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return len(out[i].v) > len(out[j].v) })
+	return out
+}
+
+// validLabel keeps a placeholder to {{name}} with a plain variable name, so
+// a label can never draw anything else into the text.
+func validLabel(s string) bool {
+	if s == "" || len(s) > 32 {
+		return false
+	}
+	for i, c := range s {
+		if !(c == '_' || c >= 'a' && c <= 'z' || i > 0 && c >= '0' && c <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 // Text redacts s and returns it as Safe. Placeholders are shared with
 // every other Text call on this Redactor.
 func (r *Redactor) Text(s string) Safe {
 	return Safe{text: r.redact(s)}
+}
+
+// HoldsKnown reports whether s holds one of the Known (vault) values,
+// whatever other rule would also match around it. It redacts nothing and
+// counts nothing.
+func (r *Redactor) HoldsKnown(s string) bool {
+	return len(findKnown(Normalize(s), r.known, 0)) > 0 || len(findKnown(s, r.known, 0)) > 0
+}
+
+// InsideKnown reports whether s, 6 bytes or longer, is part of one of the
+// Known (vault) values, as stored or in a cleaned form: a captured piece
+// of a vault secret. It redacts nothing and counts nothing.
+func (r *Redactor) InsideKnown(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) < 6 {
+		return false
+	}
+	for _, k := range r.known {
+		if strings.Contains(k.v, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // Report returns the counts so far.
@@ -231,7 +307,11 @@ func (r *Redactor) redact(s string) string {
 	last := 0
 	for _, sp := range spans {
 		b.WriteString(s[last:sp.start])
-		b.WriteString(r.placeholder(sp.kind, s[sp.start:sp.end]))
+		if sp.label != "" {
+			b.WriteString("{{" + sp.label + "}}")
+		} else {
+			b.WriteString(r.placeholder(sp.kind, s[sp.start:sp.end]))
+		}
 		r.report.Counts[sp.kind]++
 		last = sp.end
 	}
@@ -244,6 +324,7 @@ type span struct {
 	kind       Kind
 	priority   int // lower wins: secrets, then ips, then hostnames
 	order      int // detector order, breaks ties
+	label      string
 }
 
 const (
@@ -264,6 +345,10 @@ func (r *Redactor) find(s string) []span {
 		}
 	}
 	all = append(all, findKnown(s, r.known, len(secretDetectors))...)
+	// Named values win a tie with a detector over the same span, so a
+	// captured token shows as {{join_token}}; a longer secret span around
+	// one still wins, so nothing next to it is left out.
+	all = append(all, findKnown(s, r.named, -1)...)
 	if r.opts.IPs {
 		for _, sp := range findIPs(s) {
 			sp.priority = prioIP
@@ -423,7 +508,7 @@ func findKnown(s string, list []knownValue, order int) []span {
 			if k.bounded && (isWordByte(h, start-1) || isWordByte(h, end)) {
 				continue
 			}
-			out = append(out, span{start: start, end: end, kind: k.kind, priority: k.priority, order: order})
+			out = append(out, span{start: start, end: end, kind: k.kind, priority: k.priority, order: order, label: k.label})
 		}
 	}
 	return out

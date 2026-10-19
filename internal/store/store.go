@@ -118,9 +118,12 @@ type Group struct {
 	ParentID string `json:"parentId,omitempty"`
 	// Roles are the roles of hosts in the group, by host id (grouproles.go).
 	// Only SetGroupRole changes them.
-	Roles     map[string]string `json:"roles,omitempty"`
-	CreatedAt time.Time         `json:"createdAt"`
-	UpdatedAt time.Time         `json:"updatedAt"`
+	Roles map[string]string `json:"roles,omitempty"`
+	// Vars are the group's variables (groupvars.go), in the order they
+	// were added. Only SetGroupVar changes them.
+	Vars      []GroupVar `json:"vars,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // MaxGroupDepth is the Termius-like nest cap (6–8). Moves/creates that would

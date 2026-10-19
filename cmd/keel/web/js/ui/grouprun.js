@@ -15,6 +15,7 @@
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
 import * as G from "../lib/grouprun.js";
+import * as V from "../lib/groupvars.js";
 import { ICON } from "./agentthread.js";
 
 const POLL_MS = 1500;
@@ -204,16 +205,19 @@ export function createGroupRunPage(deps) {
     const shift = ready.some((c) => c.proposal.needsShift);
     const riskBadge = st.risk === "readonly" ? `<span class="k-badge k-badge--tide k-prop-risk">Read-only</span>` : st.risk === "destructive" ? `<span class="k-badge k-badge--flare k-prop-risk">Destructive</span>` : `<span class="k-badge k-badge--signal k-prop-risk">Changes</span>`;
     const bytes = ready[0]?.proposal.bytes || `\u0015${st.command}\n`;
+    const uses = V.usesLine(st, run.steps, i);
     const label = ready.length ? `Type into ${ready.length} ${ready.length === 1 ? "pane" : "panes"}` : "Nothing to type now";
     const note = prod
       ? `<p class="k-prop-note k-prop-note--signal">${ICON.alert}<span>${prod} of these ${prod === 1 ? "host is" : "hosts are"} production.${shift ? " Typing there needs ⇧." : ""} Tick each host in the next step only after you checked the command for it.</span></p>`
       : "";
     const card = `<div class="k-prop k-gx-prop" role="group" aria-label="Step ${i + 1} proposal" data-risk="${escapeHtml(st.risk || "")}">
         <div class="k-prop-head">${ICON.cmd}<span>Run on</span>${st.role ? `<span class="k-badge k-badge--mono">${escapeHtml(st.role)}</span>` : `<span class="k-badge k-badge--mono">every host</span>`}<span class="k-mono">${escapeHtml(st.oneHost ? `one of ${hostsText}` : hostsText)}</span>${riskBadge}</div>
-        <div class="k-prop-body"><pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(bytes)}</pre>${note}</div>
-        <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(`${G.bytesLine(bytes)} · same bytes in every pane`)}</span><span class="k-gx-grow"></span>
+        <div class="k-prop-body"><pre class="k-bytes" aria-label="${uses ? "Command, with the variables Keel fills in at Type" : "Exact bytes"}">${V.bytesWithVars(bytes, A.bytesHTML)}</pre>${note}</div>
+        <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(uses || `${G.bytesLine(bytes)} · same bytes in every pane`)}</span><span class="k-gx-grow"></span>
+          ${uses ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-copy-template aria-label="Copy the command without values">${ICON.copy}Copy</button>` : ""}
           <button type="button" class="k-btn k-btn--primary k-btn--sm" data-type-all${ready.length && !state.typing ? "" : " disabled"}>${escapeHtml(label)}${shift ? '<span class="k-kbd" aria-hidden="true">⇧</span>' : ""}</button></div>
-      </div>`;
+      </div>
+      ${uses ? `<p class="k-rb-safe k-help k-gx-fillnote">${ICON.shield}<span>Keel fills these in only when you press Type, and shows you the exact bytes first. Logs record how many values were filled in, never a value. Copy leaves the {{names}} in.</span></p>` : ""}`;
     const halt = G.haltLine(run);
     const haltHTML = halt
       ? `<div class="k-gx-halt" role="alert">${ICON.alert}<span class="k-gx-grow"><b>${escapeHtml(halt.title)}</b>${halt.sub ? `<br />${escapeHtml(halt.sub)}` : ""}</span>
@@ -229,6 +233,41 @@ export function createGroupRunPage(deps) {
     return head + card + haltHTML + needHTML;
   }
 
+  // capturesHTML is a box per step that captures values (board
+  // CaptureVars): each name, its pattern and, per host, whether it was
+  // captured, as a mask and a length. keel serve never sends the value to
+  // this page except to fill the approve dialog.
+  function capturesHTML(run) {
+    return run.steps
+      .map((st, i) => {
+        if (!(st.captures || []).length) return "";
+        const cells = (st.cells || []).filter((c) => c.hostId);
+        const rows = st.captures
+          .map((cap) => {
+            const hosts = cells.length
+              ? cells
+                  .map((c) => {
+                    const v = V.captureView((c.captures || []).find((x) => x.name === cap.name));
+                    return `<li class="k-gx-cap-host" data-capture-state="${escapeHtml(v.state)}"><span class="k-mono">${escapeHtml(c.host)}</span>${v.mask ? `<span class="k-gx-mask" aria-label="hidden value">${v.mask}</span>` : ""}<span class="k-help">${escapeHtml(v.text)}</span></li>`;
+                  })
+                  .join("")
+              : `<li class="k-help">Not captured yet.</li>`;
+            return `<dl class="k-gx-cap-row">
+              <dt>Name</dt><dd><span class="k-gx-var">{{${escapeHtml(cap.name)}}}</span></dd>
+              <dt>Pattern</dt><dd><code class="k-mono k-gx-cap-pattern">${escapeHtml(cap.pattern)}</code></dd>
+              <dt>Value</dt><dd><ul class="k-gx-cap-hosts">${hosts}</ul></dd>
+            </dl>`;
+          })
+          .join("");
+        return `<section class="k-gx-cap" aria-label="Values captured from step ${i + 1}">
+          <div class="k-gx-cap-head">${ICON.shield}<span class="k-gx-grow">Captured from step ${i + 1} · ${escapeHtml(st.title)}</span><span class="k-badge k-badge--brass">Captured by Keel, never sent to the agent</span></div>
+          ${rows}
+          <span class="k-help">${escapeHtml(V.expiryLine(st))}</span>
+        </section>`;
+      })
+      .join("");
+  }
+
   function paint() {
     const run = state.run;
     if (!run) return;
@@ -236,7 +275,7 @@ export function createGroupRunPage(deps) {
     if (el.steps) el.steps.innerHTML = stepsHTML(run);
     if (el.detail) {
       const err = state.error ? `<p class="k-error" role="alert">${escapeHtml(state.error)}</p>` : "";
-      el.detail.innerHTML = `<div class="k-gx-cur" aria-live="polite">${currentHTML(run)}</div>${err}${matrixHTML(run)}`;
+      el.detail.innerHTML = `<div class="k-gx-cur" aria-live="polite">${currentHTML(run)}</div>${err}${capturesHTML(run)}${matrixHTML(run)}`;
     }
   }
 
@@ -246,18 +285,41 @@ export function createGroupRunPage(deps) {
     const a = state.approve;
     if (!a) return;
     const rows = a.rows;
-    if (el.bytes) el.bytes.innerHTML = A.bytesHTML(rows[0]?.bytes || "");
-    if (el.count) el.count.textContent = `${G.bytesLine(rows[0]?.bytes || "")} · ${G.sameBytes(rows) ? "the same bytes in every pane" : "bytes differ per pane"}`;
+    // The exact bytes each pane gets: values filled in (§17 part 2) can
+    // differ per host, and then every row shows its own.
+    const typeable = rows.filter((r) => !r.error);
+    const groups = V.approveGroups(typeable);
+    const same = groups.length <= 1;
+    if (el.bytes) {
+      el.bytes.hidden = !same || !typeable.length;
+      el.bytes.innerHTML = A.bytesHTML(typeable[0]?.bytes || "");
+    }
+    // Where the values came from, once when every host's are the same,
+    // else on each row (the same bytes can come from different sources).
+    const sameUsed = V.sameSources(typeable);
+    if (el.count) {
+      const used = sameUsed && typeable.some((r) => (r.used || []).length) ? ` · filled in by Keel: ${V.usedLine(typeable[0].used)}` : "";
+      el.count.textContent = !typeable.length
+        ? "No host can be typed into now."
+        : same
+          ? `${G.bytesLine(typeable[0].bytes)} · the same bytes in every pane${used}`
+          : "The filled-in values differ per host: each row shows the exact bytes for its pane.";
+    }
     if (el.rows) {
       el.rows.innerHTML = rows
-        .map(
-          (r, k) => `<div class="k-gx-approve-row">
-            <button type="button" class="k-check" role="checkbox" aria-checked="${r.checked}" data-approve-row="${k}" aria-label="Type into ${escapeHtml(r.host)}"><span class="k-i">${ICON.tick}</span></button>
+        .map((r, k) => {
+          let own = "";
+          if (!r.error && !same) own = `<pre class="k-bytes k-gx-approve-rowbytes" aria-label="Exact bytes for ${escapeHtml(r.host)}">${A.bytesHTML(r.bytes)}</pre><span class="k-help k-gx-approve-used">${escapeHtml(`${G.bytesLine(r.bytes)}${(r.used || []).length ? ` · ${V.usedLine(r.used)}` : ""}`)}</span>`;
+          else if (!r.error && !sameUsed) own = `<span class="k-help k-gx-approve-used">${escapeHtml((r.used || []).length ? `Filled in by Keel: ${V.usedLine(r.used)}` : "No variables")}</span>`;
+          const err = r.error ? `<span class="k-error k-gx-approve-err">${escapeHtml(r.error)}</span>` : "";
+          return `<div class="k-gx-approve-row${r.error ? " is-blocked" : ""}">
+            <button type="button" class="k-check" role="checkbox" aria-checked="${r.checked}" data-approve-row="${k}" aria-label="Type into ${escapeHtml(r.host)}"${r.error ? ' aria-disabled="true" disabled' : ""}><span class="k-i">${ICON.tick}</span></button>
             <span class="k-mono k-gx-approve-host">${escapeHtml(r.host)}</span>
             <span class="k-help k-gx-approve-pane">${escapeHtml(r.paneLabel || "")}</span>
             ${r.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""}${r.needsShift ? '<span class="k-badge k-badge--mono">⇧</span>' : ""}
-          </div>`,
-        )
+            ${own}${err}
+          </div>`;
+        })
         .join("");
     }
     const n = rows.filter((r) => r.checked).length;
@@ -284,7 +346,7 @@ export function createGroupRunPage(deps) {
       state.approve = { rows, resolve, shiftHint: false };
       paintApprove();
       deps.openModal?.(el.dialog);
-      (el.rows?.querySelector('[aria-checked="false"]') || el.ok)?.focus();
+      (el.rows?.querySelector('[aria-checked="false"]:not([disabled])') || (el.ok?.disabled ? el.cancel : el.ok))?.focus();
     });
   }
 
@@ -313,6 +375,7 @@ export function createGroupRunPage(deps) {
     const b = ev.target.closest("[data-approve-row]");
     if (!b || !state.approve) return;
     const r = state.approve.rows[Number(b.dataset.approveRow)];
+    if (r.error) return;
     r.checked = !r.checked;
     paintApprove();
     el.rows.querySelector(`[data-approve-row="${b.dataset.approveRow}"]`)?.focus();
@@ -340,7 +403,24 @@ export function createGroupRunPage(deps) {
     if (!run || state.typing) return;
     const ready = G.typeable(run, paneOpen);
     if (!ready.length) return;
-    const ok = await approve(G.approveRows(ready));
+    let rows = G.approveRows(ready);
+    // A step that names variables: keel serve fills each host's values in
+    // now, and the dialog shows those exact bytes (Type is refused for any
+    // other bytes).
+    if (ready.some((c) => (c.proposal.vars || []).length)) {
+      state.typing = true;
+      let res;
+      try {
+        res = await deps.api(`/api/agent/groupruns/${encodeURIComponent(run.id)}/fill`, { method: "POST", body: JSON.stringify({ proposalIds: ready.map((c) => c.proposal.id) }) });
+      } catch (err) {
+        state.typing = false;
+        deps.toast?.(err?.message || String(err), true);
+        return;
+      }
+      state.typing = false;
+      rows = V.fillRows(rows, res?.fills);
+    }
+    const ok = await approve(rows);
     if (!ok) return;
     state.typing = true;
     paint();
@@ -348,7 +428,7 @@ export function createGroupRunPage(deps) {
     for (const r of ok.rows) {
       const cell = ready.find((c) => c.proposal.id === r.proposalId);
       if (!cell) continue;
-      const res = await deps.typeGroup({ runId: run.id, proposal: cell.proposal, shift: ok.shift });
+      const res = await deps.typeGroup({ runId: run.id, proposal: cell.proposal, bytes: r.bytes, shift: ok.shift });
       if (!res?.ok) failed.push(`${r.host}: ${res?.message || "not typed"}`);
     }
     state.typing = false;
@@ -364,6 +444,14 @@ export function createGroupRunPage(deps) {
     const t = ev.target;
     const st = run.current >= 0 ? run.steps[run.current] : null;
     if (t.closest("[data-type-all]")) return void typeAll();
+    if (t.closest("[data-copy-template]") && st) {
+      // The saved command, {{names}} and all: never a value.
+      navigator.clipboard?.writeText(st.command).then(
+        () => deps.toast?.("Copied with the {{names}} in, not their values."),
+        () => deps.toast?.("Could not copy.", true),
+      );
+      return;
+    }
     const mode = t.closest("[data-mode]");
     if (mode) {
       if (mode.dataset.mode !== run.mode) call(`/api/agent/groupruns/${encodeURIComponent(run.id)}/mode`, { method: "PUT", body: JSON.stringify({ mode: mode.dataset.mode }) });

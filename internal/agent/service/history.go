@@ -134,7 +134,7 @@ func (h historySuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candi
 func (h historySuggester) gather(in SuggestInput) []historyCand {
 	// A Redactor of its own, so the scrollback's redactions do not count
 	// as redactions of the words in the logs that follow.
-	hr, err := agent.NewRedactor(h.s.st, in.Settings.Redact, h.hosts)
+	hr, err := h.s.requestRedactor(in.Settings.Redact, h.hosts)
 	if err != nil {
 		return nil
 	}
