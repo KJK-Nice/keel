@@ -354,9 +354,11 @@ func statusBar() templ.Component {
 
 // uiStream opens the page's Datastar stream (GET /ui/stream,
 // internal/httpapi/uistream.go), which patches the vault lists whenever the
-// vault changes. It waits while the vault is locked; term.js dispatches
-// keel-stream after an unlock (and on boot) to open it then. A new @get
-// from the same element replaces the previous request.
+// vault changes. term.js opens it: boot dispatches keel-stream once the
+// vault is unlocked and its own loadAll is done, so the stream's first push
+// can be matched to that load (lib/statefollow.js) and no second stream is
+// opened and dropped at page load. A new @get from the same element
+// replaces the previous request.
 func uiStream() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -378,7 +380,7 @@ func uiStream() templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div id=\"ui-stream\" hidden data-init=\"$locked || @get('/ui/stream', {openWhenHidden: true, retry: 'always', retryMaxCount: 1000000})\" data-on:keel-stream__window=\"@get('/ui/stream', {openWhenHidden: true, retry: 'always', retryMaxCount: 1000000})\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div id=\"ui-stream\" hidden data-on:keel-stream__window=\"@get('/ui/stream', {openWhenHidden: true, retry: 'always', retryMaxCount: 1000000})\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

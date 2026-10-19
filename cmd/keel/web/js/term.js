@@ -43,6 +43,7 @@ import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
+import { createStateFollow } from "./lib/statefollow.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
 import { setHTML, setText } from "./lib/dom.js";
@@ -2745,7 +2746,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // save or a tunnel state change, from this window or anywhere else), so
   // the JSON state the palette, the new-tab page, the sidebar sections and
   // the dialogs read follows the vault without a reload after each action.
-  // One refresh runs at a time; changes during it queue one more.
+  // One refresh runs at a time; changes during it queue one more. The
+  // stream's first push after boot is skipped when boot's own loadAll
+  // already read that state (lib/statefollow.js).
+  const stateFollow = createStateFollow();
   let stateRefresh = null;
   let stateRefreshAgain = false;
   function refreshState() {
@@ -6760,8 +6764,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         return;
       }
       await loadAll();
-      // Open the Datastar list stream (page.templ uiStream). On a page that
-      // loaded unlocked it is already open; after an unlock this opens it.
+      // vault.rev was read before loadAll: if the stream opens at the same
+      // rev, its first push carries nothing new and is skipped.
+      stateFollow.loaded(vault?.rev);
+      // Open the Datastar list stream (page.templ uiStream), only now, so
+      // its first push follows this loadAll.
       window.dispatchEvent(new CustomEvent("keel-stream"));
     } catch (err) {
       if (err.code === 423) {
@@ -7822,8 +7829,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // (@post /ui/forms/{kind}, dialogs.templ). The server shows errors in the
     // form and dispatches keel-form-saved when the save went through.
     on(window, "keel-form-saved", (ev) => afterFormSaved(ev.detail || {}));
-    on(window, "keel-vault-changed", () => {
-      refreshState();
+    on(window, "keel-vault-changed", (ev) => {
+      if (stateFollow.shouldRefresh(ev.detail)) refreshState();
       if (state.tabs.get(state.activeId)?.page === "group") groupPage?.refresh();
     });
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
