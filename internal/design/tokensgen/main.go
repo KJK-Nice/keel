@@ -46,6 +46,7 @@ type tokens struct {
 	Size     group `json:"size"`
 	Shadow   group `json:"shadow"`
 	Duration group `json:"duration"`
+	Vibrancy group `json:"vibrancy"`
 }
 
 type typeStyle struct {
@@ -102,7 +103,7 @@ func generate(src []byte) (string, error) {
 	}
 	b.WriteString(":root{")
 	fmt.Fprintf(&b, "--font-sans:%s;--font-display:%s;--font-mono:%s;", t.Type.Families.Sans, t.Type.Families.Display, t.Type.Families.Mono)
-	for _, g := range []group{t.Spacing, t.Radius, t.Size, t.Duration} {
+	for _, g := range []group{t.Spacing, t.Radius, t.Size, t.Duration, t.Vibrancy} {
 		for _, tok := range g.Tokens {
 			var v string
 			if err := json.Unmarshal(tok.Value, &v); err != nil {

@@ -69,3 +69,14 @@ func TestGenerateTypeStyles(t *testing.T) {
 		t.Error("a non-px size must fail")
 	}
 }
+
+// The window translucency steps (Settings · Appearance) are tokens too.
+func TestGenerateVibrancyTints(t *testing.T) {
+	got, err := generate([]byte(`{"vibrancy":{"tokens":[{"name":"vibrancy-tint-medium","value":"66%"}]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "--vibrancy-tint-medium:66%;") {
+		t.Errorf("missing vibrancy tint in:\n%s", got)
+	}
+}

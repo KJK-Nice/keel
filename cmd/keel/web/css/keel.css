@@ -31,18 +31,28 @@ body {
    the OS dark vibrancy leak into light UI. data-vibrancy (page.templ) is
    set only while the backdrop matches the theme: macOS gives the window
    the theme's appearance; elsewhere a theme that differs from the OS
-   leaves it off, and the page keeps the opaque browser rendering (#59). */
+   leaves it off, and the page keeps the opaque browser rendering (#59).
+   Every area paints its tint once, straight over the backdrop: the root,
+   body, app shell and the boxes that only hold other areas stay clear.
+   Tints stacked on a tinted root multiply (66% over 66% over 66% is 96%),
+   which left the window looking opaque (#75). */
 html[data-vibrancy],
 html[data-vibrancy] body {
-  background: color-mix(in srgb, var(--stage) 66%, transparent) !important;
+  background: transparent !important;
 }
+/* Settings · Appearance · Window translucency picks the tint step
+   (data-translucency, set before first paint by page.templ); Off drops
+   data-vibrancy instead. Values are the vibrancy-tint-* tokens. */
+html[data-vibrancy] { --vibrancy-tint: var(--vibrancy-tint-medium); }
+html[data-vibrancy][data-translucency="low"] { --vibrancy-tint: var(--vibrancy-tint-low); }
+html[data-vibrancy][data-translucency="high"] { --vibrancy-tint: var(--vibrancy-tint-high); }
 html[data-vibrancy] .app,
 html[data-vibrancy] .main {
   background: transparent;
 }
 html[data-vibrancy] .workspace-bar,
 html[data-vibrancy] .pane-bar {
-  background: color-mix(in srgb, var(--chrome) 66%, transparent);
+  background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent);
 }
 html[data-vibrancy] .term-wrap.is-focused .pane-bar {
   background: color-mix(in srgb, var(--surface) 82%, transparent);
@@ -51,17 +61,21 @@ html[data-vibrancy] .tab.is-active {
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 html[data-vibrancy] .tabs-scroller::before {
-  background: linear-gradient(to right, color-mix(in srgb, var(--chrome) 66%, transparent), transparent);
+  background: linear-gradient(to right, color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent), transparent);
 }
 html[data-vibrancy] .tabs-scroller::after {
-  background: linear-gradient(to left, color-mix(in srgb, var(--chrome) 66%, transparent), transparent);
+  background: linear-gradient(to left, color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent), transparent);
 }
 html[data-vibrancy] .terminals,
 html[data-vibrancy] .term-tab,
 html[data-vibrancy] .term-wrap {
   background: transparent;
 }
-html[data-vibrancy] .term-tab:not(.is-split) .term-body,
+/* A solo pane's glass is its body; xterm paints a clear background over it
+   (term.js xtermTheme), so the terminal is tinted once like the chrome. */
+html[data-vibrancy] .term-tab:not(.is-split) .term-body {
+  background: color-mix(in srgb, var(--term-bg) var(--vibrancy-tint), transparent);
+}
 html[data-vibrancy] .term-tab:not(.is-split) .term-host,
 html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm,
 html[data-vibrancy] .term-tab:not(.is-split) .term-body .xterm-screen,
@@ -76,8 +90,12 @@ html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen,
 html[data-vibrancy] .term-tab.is-split .term-body .xterm-screen canvas {
   background: var(--stage);
 }
+/* Behind split tiles: whatever the opaque tiles leave uncovered. */
+html[data-vibrancy] .term-tab.is-split {
+  background: color-mix(in srgb, var(--stage) var(--vibrancy-tint), transparent);
+}
 html[data-vibrancy] .start-page {
-  background: color-mix(in srgb, var(--stage) 66%, transparent);
+  background: color-mix(in srgb, var(--stage) var(--vibrancy-tint), transparent);
 }
 
 input, textarea, select { font: inherit; color: inherit; }
@@ -1880,7 +1898,7 @@ html[data-joined] #btn-sidebar { display: none; }
 .k-status svg { display: block; width: 0.923rem; height: 0.923rem; flex: none; }
 .k-status .k-dot { width: 0.462rem; height: 0.462rem; box-shadow: none; }
 html[data-vibrancy] .k-status {
-  background: color-mix(in srgb, var(--chrome) 66%, transparent);
+  background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent);
 }
 
 /* ---------- Vault sidebar and tab pages (docs/ui-redesign.md §4, phase 2) ----------
@@ -2031,7 +2049,7 @@ button.k-switch[aria-checked="true"]::after { transform: translateX(0.923rem); b
   outline: none;
 }
 html[data-sidebar="closed"] .k-sidebar { display: none; }
-html[data-vibrancy] .k-sidebar { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
+html[data-vibrancy] .k-sidebar { background: color-mix(in srgb, var(--chrome) calc(var(--vibrancy-tint) - 8%), transparent); }
 .k-sidebar-head { display: grid; gap: var(--space-2); flex: none; padding: var(--space-3) var(--space-2) var(--space-2); }
 .k-sidebar-tools { display: flex; align-items: center; gap: var(--space-0\.5); }
 .k-sidebar-filter { flex: 1; margin-right: var(--space-1); }
@@ -2295,7 +2313,7 @@ button.k-item[hidden] { display: none; }
   width: var(--size-rail); padding: var(--space-3) var(--space-2); overflow: auto;
   background: var(--chrome); border-right: 1px solid var(--line);
 }
-html[data-vibrancy] .k-rail { background: color-mix(in srgb, var(--chrome) 58%, transparent); }
+html[data-vibrancy] .k-rail { background: color-mix(in srgb, var(--chrome) calc(var(--vibrancy-tint) - 8%), transparent); }
 .k-rail-label {
   padding: var(--space-1) var(--space-2);
   font: 500 0.846rem/1.077 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
@@ -2325,6 +2343,12 @@ button.k-rail-item[aria-selected="true"] { background: var(--hover); color: var(
 .settings-group-body .pref-row:last-child { border-bottom: 0; }
 .settings-group-body .pref-row-preview { display: block; }
 .settings-group[hidden], .settings-panel .pref-row[hidden] { display: none; }
+/* Window translucency: only the native window has a backdrop. Where the
+   window cannot take the theme (Windows, Linux), say that a theme unlike
+   the system's stays opaque. */
+html:not([data-native]) .pref-row[data-native-only] { display: none; }
+html[data-appearance="native"] .pref-desc-os { display: none; }
+.pref-seg { flex: 0 0 var(--size-rail); }
 
 /* Unlock and first run (docs/ui-redesign.md §5.14, §5.15): one window-wide
    cover over the app (Unlock, Onboard1, Onboard2 boards). */

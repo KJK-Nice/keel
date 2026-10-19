@@ -2408,8 +2408,9 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
 	}
-	// The xterm palette is read from the --term-* and --ansi-* tokens; the
-	// native window glasses the background with an alpha on --term-bg.
+	// The xterm palette is read from the --term-* and --ansi-* tokens; under
+	// native vibrancy xterm paints a clear --term-bg (NATIVE_TERM_ALPHA) with
+	// allowTransparency, and keel.css tints the pane once (#75).
 	if !strings.Contains(string(termBody), "allowTransparency") || !strings.Contains(string(termBody), "NATIVE_TERM_ALPHA") ||
 		!strings.Contains(string(termBody), `get("--term-bg")`) || !strings.Contains(string(termBody), "`--ansi-${i}`") ||
 		strings.Contains(string(termBody), "#0a0a0a") || strings.Contains(string(termBody), "#fbfbfa") {

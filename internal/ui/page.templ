@@ -52,13 +52,15 @@ templ Page(p PageProps) {
 						// Where the window cannot take the theme, a theme that
 						// differs from the OS drops translucency (opaque --stage)
 						// instead of showing the opposite vibrancy (#59).
+						// Settings · Appearance · Window translucency: Off keeps the
+						// opaque rendering; Low/Medium/High pick the tint (keel.css).
 						if (nativeAppearance) postNative("keel:appearance:" + t);
-						if (nativeAppearance || dark === osDark) document.documentElement.dataset.vibrancy = "1";
+						var off = document.documentElement.dataset.translucency === "off";
+						if (!off && (nativeAppearance || dark === osDark)) document.documentElement.dataset.vibrancy = "1";
 						else delete document.documentElement.dataset.vibrancy;
 					}
 					window.__keelApplyTheme = applyTheme;
-					applyTheme(localStorage.getItem("keel-theme") || "system");
-					var uiSize = 12, smooth = "antialiased", sidebar = "open", agent = "closed";
+					var uiSize = 12, smooth = "antialiased", sidebar = "open", agent = "closed", translucency = "medium";
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
@@ -66,7 +68,11 @@ templ Page(p PageProps) {
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
 						if (ui.vaultSidebar === false) sidebar = "closed";
 						if (ui.agentPanel === true) agent = "open";
+						if (ui.translucency === "off" || ui.translucency === "low" || ui.translucency === "high") translucency = ui.translucency;
 					} catch (e) {}
+					document.documentElement.dataset.translucency = translucency;
+					if (nativeAppearance) document.documentElement.dataset.appearance = "native";
+					applyTheme(localStorage.getItem("keel-theme") || "system");
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
 					document.documentElement.dataset.smooth = smooth;
 					document.documentElement.dataset.sidebar = sidebar;

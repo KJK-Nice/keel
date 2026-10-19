@@ -121,6 +121,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     system: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
   };
 
+  // Settings · Appearance · Window translucency (native window only). The
+  // inline script in page.templ reads the same keel-ui key before first
+  // paint; keel.css maps the step to a vibrancy-tint-* token.
+  const TRANSLUCENCY_STEPS = ["off", "low", "medium", "high"];
+
   const state = {
     hosts: [],
     groups: [],
@@ -192,13 +197,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false };
+    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false, translucency: "medium" };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
       const sidebarSeg = SIDEBAR_SEGS.includes(raw.sidebarSeg) ? raw.sidebarSeg : "hosts";
-      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true };
+      const translucency = TRANSLUCENCY_STEPS.includes(raw.translucency) ? raw.translucency : "medium";
+      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true, translucency };
     } catch {
       return fallback;
     }
@@ -558,6 +564,19 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     syncSettingsForm();
   }
 
+  function setTranslucency(next) {
+    const step = TRANSLUCENCY_STEPS.includes(next) ? next : "medium";
+    if (step === state.ui.translucency) return;
+    state.ui.translucency = step;
+    saveUiPrefs();
+    document.documentElement.dataset.translucency = step;
+    // Off drops data-vibrancy (the opaque rendering); the theme script
+    // decides it, then xterm follows (allowTransparency is isVibrant()).
+    if (typeof window.__keelApplyTheme === "function") window.__keelApplyTheme(themeChoice());
+    syncSettingsForm();
+    applyTerminalPrefs();
+  }
+
   function setSmoothing(next) {
     const smoothing = next === "subpixel" || next === "none" ? next : "antialiased";
     if (smoothing === state.ui.smoothing) return;
@@ -614,9 +633,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
     "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
   ];
-  // Native windows let the OS vibrancy show through a solo pane, matching
-  // the 66% tint keel.css gives the chrome behind it.
-  const NATIVE_TERM_ALPHA = 0.66;
+  // Under native vibrancy keel.css tints a solo pane's body once (--term-bg
+  // at the Window translucency step), like the chrome; xterm paints a clear
+  // background over it. A second tint here (or an opaque WebGL cell) would
+  // hide the backdrop (#75). Off drops data-vibrancy: opaque, as before.
+  const NATIVE_TERM_ALPHA = 0;
   let termThemeCache = { key: "", theme: null };
 
   // Resolve any CSS colour (var(), hex, color-mix) to #rrggbb[aa] by letting
@@ -690,7 +711,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       lineHeight: 1,
       letterSpacing: 0,
       customGlyphs: true,
-      allowTransparency: false,
+      allowTransparency: isVibrant(),
       overviewRuler: { width: 0 },
       theme: xtermTheme(),
       // registerDecoration is a proposed API in xterm 6; the command marks
@@ -703,7 +724,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const theme = xtermTheme();
     const family = fontFamily();
     const size = state.prefs.size;
-    const glass = false;
+    const glass = isVibrant();
     for (const p of state.panes.values()) {
       if (!p.term) continue;
       p.term.options.allowTransparency = glass;
@@ -777,6 +798,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     setInputChecked(paste, state.prefs.rightClickPaste);
     if (uiOut) uiOut.textContent = String(state.ui.size);
     setSelectValue("set-smooth", state.ui.smoothing);
+    document.querySelectorAll("#set-translucency [data-translucency-step]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.translucencyStep === state.ui.translucency));
+    });
     setSliderValue("set-ui-size", state.ui.size);
     setSliderValue("set-size", state.prefs.size);
     syncThemeSwitch();
@@ -2223,7 +2247,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     document.querySelectorAll(".settings-panel").forEach((panel) => {
       let hits = 0;
       panel.querySelectorAll(".pref-row:not(.pref-row-preview)").forEach((row) => {
-        row.hidden = q !== "" && !rowText(row).includes(q);
+        // Native-only rows (Window translucency) never match in a browser tab.
+        const absent = row.dataset.nativeOnly !== undefined && !isNativeWindow();
+        row.hidden = absent || (q !== "" && !rowText(row).includes(q));
         if (!row.hidden) hits++;
       });
       panel.querySelectorAll(".settings-group").forEach((group) => {
@@ -7334,6 +7360,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (v != null) setUiSize(v);
     });
     on(document.getElementById("set-smooth"), "select-change", (ev) => setSmoothing(ev.detail?.value));
+    on(document.getElementById("set-translucency"), "click", (ev) => {
+      const b = ev.target.closest?.("[data-translucency-step]");
+      if (b) setTranslucency(b.dataset.translucencyStep);
+    });
     on(document.getElementById("set-font"), "select-change", (ev) => {
       if (!ev.detail?.value) return;
       state.prefs.font = ev.detail.value;

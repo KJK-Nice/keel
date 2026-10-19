@@ -1,6 +1,6 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, keelSend, openKeel, retire, sshTest } from './keel.ts';
+import { keelApi, keelSend, keelToken, openKeel, retire, sshTest } from './keel.ts';
 
 // Named screenshots of the main screens in both themes, for before/after
 // comparisons of visual-only changes (`--output .e2e/proof/<name>`). They
@@ -813,6 +813,22 @@ describe('group variables', { tags: ['visual'], serial: true }, () => {
         await keelSend(app.baseUrl, 'DELETE', `/api/agent/runbooks/${rb.id}`);
       }
       await retire(app, /^vv-/, 'k8s-vars');
+    });
+  }
+});
+
+// Settings · Appearance as the native window shows it: Window translucency
+// is there only with data-native. (Playwright cannot show the OS backdrop;
+// this is the page's half.)
+describe('native appearance settings', { tags: ['visual'], serial: true }, () => {
+  for (const theme of ['dark', 'light'] as const) {
+    test(`appearance settings, native window (${theme})`, async ({ app, screen, browser }) => {
+      await browser.addInitScript(themeScript(theme));
+      await app.open(`/?keel_token=${keelToken()}&name=e2e&native=1&appearance=native&chrome=titlebar`);
+      await screen.getByRole('complementary', 'Vault').getByRole('button', 'Settings').tap();
+      await expect(screen.getByRole('heading', 'Appearance')).toBeVisible();
+      await expect(screen.getByRole('group', 'Window translucency').getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'true');
+      await app.screenshot(`${theme}-settings-appearance-native`);
     });
   }
 });
