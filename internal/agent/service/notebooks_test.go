@@ -83,8 +83,8 @@ func newNbFixture(t *testing.T, reply string) *nbFixture {
 	f := newFixture(t, reply)
 	nf := &nbFixture{fixture: f, now: time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)}
 	nf.nbs = &fakeNotebooks{nbs: map[string]store.Notebook{
-		"nb-ops": {ID: "nb-ops", Name: nbName, Cells: []store.NotebookCell{{ID: "c1", Body: "# Failover\nNB-BODY-MARKER: the password is " + vaultPass + "\njoin with --token " + nbCaptured + "\nVIP " + nbVarValue + "\ntoken " + nbGitHub + "\n```sh\npatronictl list\n```"}}},
-		"nb-two": {ID: "nb-two", Name: "Second", Cells: []store.NotebookCell{{ID: "c1", Body: "SECOND-BODY"}}},
+		"nb-ops":   {ID: "nb-ops", Name: nbName, Cells: []store.NotebookCell{{ID: "c1", Body: "# Failover\nNB-BODY-MARKER: the password is " + vaultPass + "\njoin with --token " + nbCaptured + "\nVIP " + nbVarValue + "\ntoken " + nbGitHub + "\n```sh\npatronictl list\n```"}}},
+		"nb-two":   {ID: "nb-two", Name: "Second", Cells: []store.NotebookCell{{ID: "c1", Body: "SECOND-BODY"}}},
 		"nb-three": {ID: "nb-three", Name: "Third", Cells: []store.NotebookCell{{ID: "c1", Body: "THIRD-BODY"}}},
 	}}
 	vs := &varStore{fakeStore: f.st, vars: map[string][]store.GroupVar{"grp": {{Name: "api_vip", Value: nbVarValue}}}}
@@ -460,7 +460,7 @@ func TestNotebookDraftCleaning(t *testing.T) {
 	if len(resp.Notebooks) != 1 {
 		t.Fatalf("proposals = %+v", resp.Notebooks)
 	}
-	if b := resp.Notebooks[0].Body; strings.ContainsAny(b, "​\u0007‮") || !strings.Contains(b, "rm -rf /tmp/x") {
+	if b := resp.Notebooks[0].Body; strings.ContainsAny(b, "\u200b\u0007\u202e") || !strings.Contains(b, "rm -rf /tmp/x") {
 		t.Fatalf("body = %q", b)
 	}
 	g := newNbFixture(t, "```keel-notebook\n{not json\n```")
