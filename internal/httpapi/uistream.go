@@ -3,7 +3,9 @@ package httpapi
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -34,6 +36,10 @@ const uiLogPushEvery = time.Second
 type uiStreams struct {
 	mu   sync.Mutex
 	open map[string]*uiStream
+	// epoch and changes make up rev: changes counts kickAll calls, epoch
+	// tells this keel serve process from the next, whose count restarts.
+	epoch   string
+	changes uint64
 }
 
 type uiStream struct {
@@ -46,18 +52,39 @@ type uiStream struct {
 }
 
 func newUIStreams() *uiStreams {
-	return &uiStreams{open: map[string]*uiStream{}}
+	return &uiStreams{open: map[string]*uiStream{}, epoch: randomHex(6)}
 }
 
-func (h *uiStreams) add(sig uiSignals) (string, *uiStream) {
-	b := make([]byte, 12)
+func randomHex(n int) string {
+	b := make([]byte, n)
 	_, _ = rand.Read(b)
-	id := hex.EncodeToString(b)
+	return hex.EncodeToString(b)
+}
+
+// rev names the vault state as of now: it changes with every store save
+// and tunnel change (kickAll). GET /api/vault reports it, and the first
+// push of each stream carries the rev the stream opened at, so term.js can
+// tell that the JSON state it loaded at boot is already that state.
+func (h *uiStreams) rev() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.revLocked()
+}
+
+func (h *uiStreams) revLocked() string {
+	return h.epoch + "." + strconv.FormatUint(h.changes, 10)
+}
+
+// add registers a stream and returns the rev it opens at. It reads the rev
+// under the lock kickAll counts under, so every later change kicks it.
+func (h *uiStreams) add(sig uiSignals) (string, *uiStream, string) {
+	id := randomHex(12)
 	st := &uiStream{sig: sig, kick: make(chan struct{}, 1), logKick: make(chan struct{}, 1)}
 	h.mu.Lock()
 	h.open[id] = st
+	rev := h.revLocked()
 	h.mu.Unlock()
-	return id, st
+	return id, st, rev
 }
 
 func (h *uiStreams) remove(id string) {
@@ -71,6 +98,7 @@ func (h *uiStreams) remove(id string) {
 func (h *uiStreams) kickAll() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.changes++
 	for _, st := range h.open {
 		select {
 		case st.kick <- struct{}{}:
@@ -116,7 +144,7 @@ func (st *uiStream) signals() uiSignals {
 func (s *Server) uiStream(w http.ResponseWriter, r *http.Request) {
 	var sig uiSignals
 	_ = datastar.ReadSignals(r, &sig)
-	id, st := s.streams.add(sig)
+	id, st, rev := s.streams.add(sig)
 	defer s.streams.remove(id)
 
 	sse := datastar.NewSSE(w, r)
@@ -124,8 +152,9 @@ func (s *Server) uiStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The page was rendered with these lists, but a reconnect (keel serve
-	// restarted, the laptop slept) must not keep showing stale ones.
-	if err := s.pushLists(sse, r, st.signals()); err != nil {
+	// restarted, the laptop slept) must not keep showing stale ones. This
+	// push alone carries the rev the stream opened at.
+	if err := s.pushLists(sse, r, st.signals(), rev); err != nil {
 		return
 	}
 	var lastLogs time.Time
@@ -162,7 +191,7 @@ func (s *Server) uiStream(w http.ResponseWriter, r *http.Request) {
 		}
 		var err error
 		if lists {
-			err = s.pushLists(sse, r, st.signals())
+			err = s.pushLists(sse, r, st.signals(), "")
 		} else if logs {
 			err = s.pushLogs(sse, r, st.signals())
 		}
@@ -177,7 +206,12 @@ func (s *Server) pushLogs(sse *datastar.ServerSentEventGenerator, r *http.Reques
 	return sse.PatchElementTempl(ui.LogList(s.listProps(r, sig)))
 }
 
-func (s *Server) pushLists(sse *datastar.ServerSentEventGenerator, r *http.Request, sig uiSignals) error {
+// pushLists patches every list, then dispatches keel-vault-changed. rev is
+// set on a stream's first push only (the rev the stream opened at): term.js
+// skips that one push when the loadAll it ran at boot read the same state,
+// going by the rev GET /api/vault gave it just before. Every other push,
+// including the first push of a reconnect, refreshes its JSON state.
+func (s *Server) pushLists(sse *datastar.ServerSentEventGenerator, r *http.Request, sig uiSignals, rev string) error {
 	p := s.listProps(r, sig)
 	for _, c := range []templ.Component{
 		ui.HostList(p),
@@ -193,5 +227,9 @@ func (s *Server) pushLists(sse *datastar.ServerSentEventGenerator, r *http.Reque
 	}
 	// term.js keeps JSON state (palette, new-tab page, sidebar sections,
 	// dialog selects) beside these lists; it refreshes it on this event.
-	return sse.ExecuteScript(`window.dispatchEvent(new CustomEvent("keel-vault-changed"))`)
+	detail, err := json.Marshal(map[string]string{"rev": rev})
+	if err != nil {
+		return err
+	}
+	return sse.ExecuteScript(`window.dispatchEvent(new CustomEvent("keel-vault-changed", {detail: ` + string(detail) + `}))`)
 }

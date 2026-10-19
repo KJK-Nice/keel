@@ -465,6 +465,9 @@ func (s *Server) vaultState(w http.ResponseWriter, _ *http.Request) {
 		"path":       st.Path,
 		"sessions":   s.rt.Count(),
 		"sshConfig":  s.sshConfigDisplay(),
+		// The vault state now (uistream.go rev). Boot reads it just before
+		// its loadAll, so the stream's first push can be matched to it.
+		"rev": s.streams.rev(),
 	})
 }
 

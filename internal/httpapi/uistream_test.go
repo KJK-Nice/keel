@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -166,5 +167,65 @@ func TestUIStreamPushesLogs(t *testing.T) {
 	stream.next(t, "second-event")
 	if time.Since(start) < uiLogPushEvery/2 {
 		t.Fatalf("log pushes not throttled: second came after %v", time.Since(start))
+	}
+}
+
+var vaultRevRe = regexp.MustCompile(`keel-vault-changed", \{detail: \{"rev":"([^"]*)"\}\}`)
+
+// The first push of a stream carries the rev the stream opened at: the
+// value GET /api/vault reports while nothing changes, so term.js can skip
+// the refresh its boot loadAll already did (issue #54). Later pushes carry
+// no rev, and a change moves the rev, so a stream opened after it differs.
+func TestUIStreamFirstPushCarriesVaultRev(t *testing.T) {
+	srv, _, st, _ := testServer(t)
+	vaultRev := func() string {
+		t.Helper()
+		res, err := http.Get(srv.URL + "/api/vault")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var out struct{ Rev string }
+		if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		if out.Rev == "" {
+			t.Fatal("GET /api/vault has no rev")
+		}
+		return out.Rev
+	}
+	revOf := func(ev string) []string {
+		t.Helper()
+		m := vaultRevRe.FindStringSubmatch(ev)
+		if m == nil {
+			t.Fatalf("no keel-vault-changed detail in %q", ev)
+		}
+		return m
+	}
+	before := vaultRev()
+
+	stream, cancel := openStream(t, srv.URL, `{"query":""}`)
+	defer cancel()
+	if got := revOf(stream.next(t, "keel-vault-changed"))[1]; got != before {
+		t.Fatalf("first push rev = %q, want %q", got, before)
+	}
+
+	if _, err := st.UpsertHost(store.Host{
+		Name: "gpu-box", Address: "10.0.0.9", Port: 22, Username: "u", AuthType: "password", Password: "x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := revOf(stream.next(t, "keel-vault-changed"))[1]; got != "" {
+		t.Fatalf("a push after a change carries rev %q, want none", got)
+	}
+	after := vaultRev()
+	if after == before {
+		t.Fatalf("rev stayed %q after a store change", after)
+	}
+
+	again, cancel2 := openStream(t, srv.URL, `{"query":""}`)
+	defer cancel2()
+	if got := revOf(again.next(t, "keel-vault-changed"))[1]; got != after {
+		t.Fatalf("a stream opened after the change has rev %q, want %q", got, after)
 	}
 }
