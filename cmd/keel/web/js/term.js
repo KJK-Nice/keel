@@ -43,6 +43,7 @@ import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
+import { createAutosave } from "./lib/autosave.js";
 import { createStateFollow } from "./lib/statefollow.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
@@ -1697,7 +1698,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (nb && next) {
         nb.title = next;
         tab.title = next;
-        persistNotebook(nb);
+        saveNotebookNow(nb);
         paintNotebook(nb);
       }
     }
@@ -4573,8 +4574,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function disposeNotebookEditor(pane) {
     if (!pane) return;
-    clearTimeout(pane._saveTimer);
-    pane._saveTimer = 0;
+    // The edit is in pane.cells: save it rather than drop it (closing the
+    // pane right after typing used to lose the last 400 ms of edits).
+    pane._autosave?.flush();
     try {
       pane.mdEditor?.destroy?.();
     } catch {
@@ -4864,10 +4866,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       cells: copyNotebookCells(pane.cells).map((c) => ({ id: c.id, body: c.body })),
       pinned: !!pane.pinned,
     };
+    const body = JSON.stringify(payload);
+    // A save from pagehide must outlive the page; keepalive bodies are
+    // capped at 64 KiB, so a bigger notebook goes as a normal request.
+    const keepalive = pageHiding && body.length < 60000;
     try {
       const rec = pane.notebookId
-        ? await api(`/api/notebooks/${pane.notebookId}`, { method: "PUT", body: JSON.stringify(payload) })
-        : await api("/api/notebooks", { method: "POST", body: JSON.stringify(payload) });
+        ? await api(`/api/notebooks/${pane.notebookId}`, { method: "PUT", body, keepalive })
+        : await api("/api/notebooks", { method: "POST", body, keepalive });
       pane.notebookId = rec.id;
       pane.title = rec.name;
       pane.pinned = !!rec.pinned;
@@ -4877,6 +4883,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         });
       }
       rememberNotebook(rec);
+      // A pane closed with an edit pending saves after it is gone.
+      if (pane.closing) return;
       const tab = state.tabs.get(pane.tabId);
       if (tab) syncPaneChrome(tab, pane);
       persistWorkspace();
@@ -4886,10 +4894,41 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
   }
 
+  // Every save is a store save that pushes every vault list to every
+  // window, so edits settle before they save (lib/autosave.js, issue #82).
+  // The pane's autosave runs one save at a time, the first POST included,
+  // so a new notebook is never created twice.
+  function notebookAutosave(pane) {
+    if (!pane._autosave) pane._autosave = createAutosave({ save: () => persistNotebook(pane) });
+    return pane._autosave;
+  }
+
   function scheduleNotebookSave(pane) {
     if (!isNotebookPane(pane)) return;
-    clearTimeout(pane._saveTimer);
-    pane._saveTimer = setTimeout(() => persistNotebook(pane), 400);
+    notebookAutosave(pane).schedule();
+  }
+
+  function saveNotebookNow(pane) {
+    if (!isNotebookPane(pane)) return Promise.resolve();
+    const auto = notebookAutosave(pane);
+    auto.schedule();
+    return auto.flush();
+  }
+
+  // flushNotebookSaves saves pending edits: of the panes showing notebook
+  // id, or of every notebook pane. Rename and pin send the stored cells, so
+  // they flush first.
+  function flushNotebookSaves(id) {
+    const panes = [...state.panes.values()].filter((p) => isNotebookPane(p) && p._autosave && (!id || p.notebookId === id));
+    return Promise.all(panes.map((p) => p._autosave.flush()));
+  }
+
+  let pageHiding = false;
+  function flushNotebooksOnHide() {
+    pageHiding = true;
+    flushNotebookSaves().finally(() => {
+      pageHiding = false;
+    });
   }
 
   function openNotebook(id) {
@@ -4940,7 +4979,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const created = createNotebookTab(null);
     renderTabs();
     markFocusedPane(created.pane);
-    persistNotebook(created.pane);
+    saveNotebookNow(created.pane);
   }
 
   function renameNotebook(id) {
@@ -4964,9 +5003,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const form = els.notebookRenameForm;
     if (!form) return;
     const id = form.querySelector('[name="id"]')?.value;
+    const name = (form.querySelector('[name="name"]')?.value || "").trim() || "Notebook";
+    await flushNotebookSaves(id);
     const rec = notebookById(id);
     if (!rec) return;
-    const name = (form.querySelector('[name="name"]')?.value || "").trim() || "Notebook";
     try {
       const saved = await api(`/api/notebooks/${id}`, {
         method: "PUT",
@@ -4994,6 +5034,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   async function toggleNotebookPin(id) {
+    await flushNotebookSaves(id);
     const rec = notebookById(id);
     if (!rec) return;
     try {
@@ -5018,10 +5059,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const rec = notebookById(id);
     if (!rec) return;
     if (!(await askConfirm(`Delete notebook “${rec.name || "Notebook"}”?`))) return;
+    // A save after the delete would put the notebook back: pending edits
+    // land first, and closing the panes then has nothing left to save.
+    await flushNotebookSaves(id);
+    const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
     try {
       await api(`/api/notebooks/${id}`, { method: "DELETE" });
       state.notebooks = (state.notebooks || []).filter((n) => n.id !== id);
-      const open = [...state.panes.values()].filter((p) => isNotebookPane(p) && p.notebookId === id);
       for (const pane of open) closePane(pane.id);
       paintSidebar();
     } catch (err) {
@@ -5135,7 +5179,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       const created = createNotebookTab(null);
       renderTabs();
       markFocusedPane(created.pane);
-      persistNotebook(created.pane);
+      saveNotebookNow(created.pane);
       return;
     }
     const sibling = termTarget(pane) || pane;
@@ -5153,7 +5197,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     tab.dirty = true;
     renderTabs();
     markFocusedPane(nb);
-    persistNotebook(nb);
+    saveNotebookNow(nb);
   }
 
   function showTermInput(pane, text) {
@@ -7847,6 +7891,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   bindLists();
   bindModals();
   window.addEventListener("pagehide", persistWorkspace);
+  window.addEventListener("pagehide", flushNotebooksOnHide);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushNotebooksOnHide();
+  });
   window.addEventListener("beforeunload", persistWorkspace);
   applyThemeClass();
   syncThemeSwitch();
