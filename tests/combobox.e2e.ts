@@ -1,6 +1,6 @@
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, keelSend, openKeel } from './keel.ts';
+import { keelApi, keelSend, openKeel, retire } from './keel.ts';
 
 // k-combobox (docs/design/README.md, Combobox; js/lib/combobox.js): pick by
 // typing, with the keyboard, in a modal dialog and in a page, in both
@@ -124,8 +124,9 @@ for (const theme of ['dark', 'light']) {
         .toBe('');
       await app.screenshot(`${theme}-combobox-role-picked`);
     } finally {
-      for (const h of made) await keelSend(app.baseUrl, 'DELETE', `/api/hosts/${h.id}`).catch(() => {});
-      await keelSend(app.baseUrl, 'DELETE', `/api/groups/${group.id}`).catch(() => {});
+      // Local hosts cannot be deleted as they are: retire turns them into
+      // SSH hosts first, then removes them and the folder.
+      await retire(app, new RegExp(`^cb-[ab]-${theme}$`), gname);
       await applyTheme(browser, 'dark');
     }
   });
