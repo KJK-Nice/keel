@@ -142,3 +142,9 @@ func pinLabel(nb store.Notebook) string {
 }
 
 func boolAttr(b bool) string { return strconv.FormatBool(b) }
+
+// identityInUse reports an identity a saved host still authenticates with:
+// its menu's Delete is disabled, as on the Keychain detail.
+func identityInUse(hosts []store.Host, id store.Identity) bool {
+	return identityHostCount(hosts, id.ID) > 0
+}

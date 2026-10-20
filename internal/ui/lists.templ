@@ -141,32 +141,38 @@ templ IdentityList(p PageProps) {
 	</div>
 }
 
+// identityItem is one Keychain row: the item button and, beside it, its
+// menu (right-click, ⇧F10 or the Menu key; rowmenus.templ). The wrapper
+// is display: contents, so the list lays out as before.
 templ identityItem(hosts []store.Host, id store.Identity) {
-	<button
-		type="button"
-		class="k-item"
-		data-identity-select={ id.ID }
-		data-filter-text={ id.Name + " " + id.Username }
-		data-show={ filterShow("_identityFilter") }
-		aria-selected="false"
-	>
-		<span class="k-tile">
-			if id.Kind == "key" {
-				@icon.Key01()
+	<div class="k-item-row" data-row-menu>
+		<button
+			type="button"
+			class="k-item"
+			data-identity-select={ id.ID }
+			data-filter-text={ id.Name + " " + id.Username }
+			data-show={ filterShow("_identityFilter") }
+			aria-selected="false"
+		>
+			<span class="k-tile">
+				if id.Kind == "key" {
+					@icon.Key01()
+				} else {
+					@icon.SquareLockPassword()
+				}
+			</span>
+			<span class="k-item-main">
+				<span class="k-item-name">{ id.Name }</span>
+				<span class="k-item-sub">{ identitySubtitle(hosts, id) }</span>
+			</span>
+			if id.Kind == "key" && id.Passphrase != "" {
+				<span class="k-badge">passphrase</span>
 			} else {
-				@icon.SquareLockPassword()
+				<span></span>
 			}
-		</span>
-		<span class="k-item-main">
-			<span class="k-item-name">{ id.Name }</span>
-			<span class="k-item-sub">{ identitySubtitle(hosts, id) }</span>
-		</span>
-		if id.Kind == "key" && id.Passphrase != "" {
-			<span class="k-badge">passphrase</span>
-		} else {
-			<span></span>
-		}
-	</button>
+		</button>
+		@identityRowMenu(hosts, id)
+	</div>
 }
 
 // TunnelList is the Port forwarding table body.
@@ -245,23 +251,26 @@ templ SnippetList(p PageProps) {
 			@sideEmpty("No snippets yet", "Save commands you type often. Typing one always goes through Approve before type.")
 		} else {
 			for _, s := range p.Snippets {
-				<button
-					type="button"
-					class="k-item"
-					data-snippet-select={ s.ID }
-					data-filter-text={ s.Name + " " + s.Command }
-					data-show={ filterShow("_snippetFilter") }
-					aria-selected="false"
-				>
-					<span class="k-tile">
-						@icon.CodeXml()
-					</span>
-					<span class="k-item-main">
-						<span class="k-item-name">{ s.Name }</span>
-						<span class="k-item-sub">{ snippetFirstLine(s) }</span>
-					</span>
-					<span></span>
-				</button>
+				<div class="k-item-row" data-row-menu>
+					<button
+						type="button"
+						class="k-item"
+						data-snippet-select={ s.ID }
+						data-filter-text={ s.Name + " " + s.Command }
+						data-show={ filterShow("_snippetFilter") }
+						aria-selected="false"
+					>
+						<span class="k-tile">
+							@icon.CodeXml()
+						</span>
+						<span class="k-item-main">
+							<span class="k-item-name">{ s.Name }</span>
+							<span class="k-item-sub">{ snippetFirstLine(s) }</span>
+						</span>
+						<span></span>
+					</button>
+					@snippetPageMenu(s)
+				</div>
 			}
 		}
 	</div>

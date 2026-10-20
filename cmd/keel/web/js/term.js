@@ -55,7 +55,9 @@ import { ICON as THREAD_ICON } from "./ui/agentthread.js";
 import * as NB from "./lib/notebooks.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
-import { bindRowMenus } from "./lib/rowmenu.js";
+import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
+import { rightClickMode, termMenuItems, termRightClick } from "./lib/termmenu.js";
+import { actionLive, cardActions, cardMenuHTML } from "./lib/cardmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
@@ -177,14 +179,16 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   let settingsPages = null;
 
   function loadPrefs() {
-    const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClickPaste: true };
+    const fallback = { font: "jetbrains", size: 12, copyOnSelect: true, rightClick: "menu" };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-term") || "{}");
       return {
         font: FONT_STACKS[raw.font] ? raw.font : fallback.font,
         size: Math.min(22, Math.max(10, Number(raw.size) || 12)),
         copyOnSelect: raw.copyOnSelect !== false,
-        rightClickPaste: raw.rightClickPaste !== false,
+        // Right-click in the terminal: paste, menu or nothing; the old
+        // rightClickPaste switch migrates (lib/termmenu.js).
+        rightClick: rightClickMode(raw),
       };
     } catch {
       return fallback;
@@ -755,12 +759,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function syncSettingsForm() {
     const out = document.getElementById("set-size-out");
     const copy = document.getElementById("set-copy");
-    const paste = document.getElementById("set-paste");
     const uiOut = document.getElementById("set-ui-size-out");
     setSelectValue("set-font", state.prefs.font);
     if (out) out.textContent = String(state.prefs.size);
     setInputChecked(copy, state.prefs.copyOnSelect);
-    setInputChecked(paste, state.prefs.rightClickPaste);
+    document.querySelectorAll("#set-right-click [data-right-click]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.rightClick === state.prefs.rightClick));
+    });
     if (uiOut) uiOut.textContent = String(state.ui.size);
     setSelectValue("set-smooth", state.ui.smoothing);
     document.querySelectorAll("#set-translucency [data-translucency-step]").forEach((b) => {
@@ -3622,6 +3627,19 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       return false;
     }
     if (ev.type !== "keydown") return true;
+    // With right-click set to Menu, the Menu key opens the terminal menu
+    // at the cursor. ⇧F10 stays the terminal's: programs such as mc and
+    // htop read it.
+    if (ev.key === "ContextMenu" && isMenuKey(ev) && state.prefs.rightClick === "menu") {
+      const pane = focusedPane();
+      if (pane?.term && isTermPane(pane)) {
+        ev.preventDefault();
+        const anchor = pane.term.textarea || pane.host;
+        termMenu.keyAt = Date.now();
+        openTermMenu(pane, { anchor, returnFocus: pane.term.textarea || null, focusFirst: true });
+        return false;
+      }
+    }
     // Unmodified keys (including hold-to-repeat in vim) must reach xterm.
     if (!hasAppMod(ev) || ev.altKey) return true;
     return !handleShortcut(ev);
@@ -3736,21 +3754,33 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       const sel = term.getSelection();
       if (sel) copyText(sel);
     });
-    pane.wrap.addEventListener("contextmenu", async (ev) => {
-      // The pane bar has its own menu (lib/rowmenu.js); the terminal keeps
-      // right-click paste.
+    pane.wrap.addEventListener("contextmenu", (ev) => {
+      // The pane bar has its own menu (lib/rowmenu.js). The terminal body
+      // does what Settings · Terminal · Right-click in the terminal says
+      // (lib/termmenu.js): paste (as before, ⇧ too), the terminal menu, or
+      // nothing; with menu or nothing, ⇧ right-click is the system's.
       if (ev.target.closest?.(".pane-bar")) return;
-      if (!state.prefs.rightClickPaste) return;
-      ev.preventDefault();
-      if (!isDriving(pane)) {
-        toast("You are following — take or request control to paste");
+      // The Menu key already opened the menu (some engines then fire
+      // contextmenu too; a mouse right-click has button 2).
+      if (ev.button !== 2 && Date.now() - termMenu.keyAt < 600) {
+        ev.preventDefault();
         return;
       }
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text) term.paste(text);
-      } catch {
-        toast("Clipboard paste blocked", true);
+      const act = termRightClick(state.prefs.rightClick, ev);
+      if (act === "paste") {
+        ev.preventDefault();
+        pasteIntoPane(pane);
+        return;
+      }
+      // A control over the terminal (the find bar, a banner's buttons, a
+      // suggestion card) keeps its own right-click.
+      const own = ev.target.closest?.("input, textarea, select, button, a[href], [contenteditable]");
+      if (own && !own.closest(".xterm")) return;
+      if (act === "menu") {
+        ev.preventDefault();
+        openTermMenu(pane, { x: ev.clientX, y: ev.clientY, returnFocus: pane.term?.textarea || null, focusFirst: false });
+      } else if (act === "none") {
+        ev.preventDefault();
       }
     });
     pane.wrap.addEventListener("mousedown", (ev) => {
@@ -5536,6 +5566,192 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       openSharePop();
     } else if (act === "reconnect") reconnectPane(pane);
     else if (act === "close") closePane(pane.id);
+  }
+
+  // menuContent is the content a hidden menu trigger opens.
+  function menuContent(trigger) {
+    return trigger && document.getElementById(trigger.getAttribute("aria-controls"));
+  }
+
+  function openMenuAt(trigger, detail) {
+    trigger.dispatchEvent(new CustomEvent("tui-dropdownmenu-open-at", { bubbles: true, detail }));
+  }
+
+  // keepActionFocus runs a menu item's action where the click happened
+  // (Copy and Paste need the user's gesture) and, when the action moved
+  // focus (Find, a dialog, an edit box), keeps it there: the menu gives
+  // focus back to where it opened right after the click.
+  function keepActionFocus(run) {
+    run();
+    const now = document.activeElement;
+    if (!now || now === document.body || now.closest?.("[data-tui-dropdownmenu-content]")) return;
+    setTimeout(() => {
+      if (now.isConnected && document.activeElement !== now) now.focus({ preventScroll: true });
+    }, 0);
+  }
+
+  // pasteIntoPane is the user's paste into a terminal: right-click paste
+  // and the terminal menu's Paste. xterm sends it as typed input (with
+  // bracketed paste when the program asked for it); a follower cannot.
+  async function pasteIntoPane(pane) {
+    if (!isDriving(pane)) {
+      toast("You are following — take or request control to paste");
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) pane.term?.paste(text);
+    } catch {
+      toast("Clipboard paste blocked", true);
+    }
+  }
+
+  // The terminal menu (TermMenu in internal/ui/rowmenus.templ): a
+  // right-click on a terminal body when the setting says Menu, or the Menu
+  // key in a terminal. termMenu.paneId is the pane it acts on.
+  const termMenu = { paneId: "", keyAt: 0 };
+
+  function openTermMenu(pane, detail) {
+    const trigger = document.getElementById("term-menu-trigger");
+    const content = menuContent(trigger);
+    const tab = pane && state.tabs.get(pane.tabId);
+    if (!pane?.term || !tab || !content) return;
+    termMenu.paneId = pane.id;
+    const items = termMenuItems({
+      selection: !!pane.term.hasSelection?.(),
+      driving: isDriving(pane) && isTermPane(pane),
+      canSplit: !tab.remote && !pane.remote,
+      find: !!pane.search,
+    });
+    content.querySelectorAll("[data-term-act]").forEach((item) => {
+      const it = items[item.dataset.termAct];
+      item.hidden = !it?.show;
+      item.disabled = !!it?.disabled;
+    });
+    const sep = content.querySelector('[data-term-sep="split"]');
+    if (sep) sep.hidden = !items["split-h"].show;
+    openMenuAt(trigger, detail);
+  }
+
+  function runTermMenuAction(act) {
+    const pane = state.panes.get(termMenu.paneId);
+    const term = pane?.term;
+    if (!term) return;
+    if (act === "copy") {
+      const sel = term.getSelection();
+      if (sel) copyText(sel).then((ok) => ok || toast("Copy blocked", true));
+    } else if (act === "paste") pasteIntoPane(pane);
+    else if (act === "select-all") term.selectAll();
+    // Clear drops this window's scrollback; nothing is sent to the shell.
+    else if (act === "clear") term.clear();
+    else if (act === "find") {
+      markFocusedPane(pane);
+      openFind(pane);
+    } else if (act === "split-h") splitPane(pane.id, "h");
+    else if (act === "split-v") splitPane(pane.id, "v");
+    else if (act === "close") closePane(pane.id);
+  }
+
+  // The notebook code block menu (FenceMenu): its items click the fence's
+  // own Copy and Type buttons (notebook-editor.mjs), so Type still asks
+  // Approve before type and only a shell fence offers it.
+  const fenceMenu = { fence: null };
+
+  function openFenceMenu(fence, detail) {
+    const trigger = document.getElementById("fence-menu-trigger");
+    const content = menuContent(trigger);
+    if (!fence || !content) return;
+    fenceMenu.fence = fence;
+    const run = fence.querySelector("[data-notebook-fence]");
+    const typeItem = content.querySelector('[data-fence-act="type"]');
+    if (typeItem) {
+      typeItem.hidden = !run || run.hidden;
+      const label = typeItem.querySelector("[data-fence-type-label]");
+      if (label) label.textContent = `${run?.textContent.trim() || "Type into pane"}…`;
+    }
+    openMenuAt(trigger, detail);
+  }
+
+  function runFenceMenuAction(act) {
+    const fence = fenceMenu.fence;
+    if (!fence?.isConnected) return;
+    const btn = fence.querySelector(act === "type" ? "[data-notebook-fence]" : "[data-notebook-copy]");
+    if (btn && !btn.hidden && !btn.disabled) btn.click();
+  }
+
+  // A right-click on a code block's bar (its language, Copy, Type): its
+  // menu, unless ⇧ is held. The code itself is editable text, so it keeps
+  // the system's menu (Cut, Copy, Paste).
+  function onFenceContextMenu(ev) {
+    const fence = ev.target.closest?.(".notebook-fence-bar")?.closest(".notebook-fence");
+    if (!fence || ev.shiftKey || ev.target.closest("select")) return;
+    ev.preventDefault();
+    const back = ev.target.closest("button") || fence.closest("[data-notebook-editor]");
+    openFenceMenu(fence, { x: ev.clientX, y: ev.clientY, returnFocus: back, focusFirst: false });
+  }
+
+  // The text selection as it was when the right button went down: WebKit
+  // selects the word under the pointer before contextmenu, so the
+  // selection then says nothing about what the user had selected.
+  let rightDownSelection = null;
+
+  function onRightDown(ev) {
+    if (ev.button !== 2) return;
+    const sel = window.getSelection?.();
+    rightDownSelection = sel && !sel.isCollapsed ? sel.anchorNode : null;
+  }
+
+  function selectedBeforeRightClick(el) {
+    return !!(rightDownSelection && el.contains(rightDownSelection));
+  }
+
+  // ⇧F10 or the Menu key on a code block's bar (its language, Copy or
+  // Type): the same menu, below the control.
+  function onFenceMenuKey(ev) {
+    if (!isMenuKey(ev)) return;
+    const active = document.activeElement;
+    const fence = active?.closest?.(".notebook-fence-bar")?.closest(".notebook-fence");
+    if (!fence) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    openFenceMenu(fence, { anchor: active, returnFocus: active, focusFirst: true });
+  }
+
+  // The agent card menu (CardMenu, lib/cardmenu.js): the card's own
+  // buttons. cardMenu.card is the card, cardMenu.buttons the very buttons
+  // offered; cardMenu.shift whether ⇧ is down while it is open (WebKit
+  // does not set shiftKey reliably on a keyboard-made click, so ⇧↵ on an
+  // item is read from the keys, as agentthread.js does).
+  const cardMenu = { card: null, buttons: [], shift: false };
+
+  function prepareCardMenu(card, at) {
+    const trigger = document.getElementById("card-menu-trigger");
+    const popup = menuContent(trigger)?.querySelector("[data-card-menu-items]");
+    if (!popup) return null;
+    // Text selected in the card (the exact bytes, a note): the system's
+    // menu copies it.
+    if (at && "x" in at && selectedBeforeRightClick(card)) return null;
+    const actions = cardActions(card);
+    if (!actions.length) return null;
+    cardMenu.card = card;
+    cardMenu.buttons = actions.map((a) => a.button);
+    cardMenu.shift = false;
+    popup.innerHTML = cardMenuHTML(actions, THREAD_ICON);
+    return trigger;
+  }
+
+  // runCardMenuAction clicks the very button the item was made from. A
+  // card repaints with innerHTML, so if it repainted while the menu was
+  // open (a runbook step marked done, a new status) the button is gone and
+  // nothing runs: labels repeat across steps ("Skip", "Mark done").
+  function runCardMenuAction(index, shiftKey) {
+    const btn = cardMenu.buttons[index];
+    if (!actionLive(cardMenu.card, btn)) return;
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: !!(shiftKey || cardMenu.shift) }));
+  }
+
+  function trackCardMenuShift(ev) {
+    if (ev.key === "Shift") cardMenu.shift = ev.type === "keydown";
   }
 
   // newHostIn opens New host with the folder already picked (a folder
@@ -7978,9 +8194,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       state.prefs.copyOnSelect = ev.target.checked;
       savePrefs();
     });
-    on(document.getElementById("set-paste"), "change", (ev) => {
-      state.prefs.rightClickPaste = ev.target.checked;
+    on(document.getElementById("set-right-click"), "click", (ev) => {
+      const b = ev.target.closest("[data-right-click]");
+      if (!b) return;
+      state.prefs.rightClick = rightClickMode({ rightClick: b.dataset.rightClick });
       savePrefs();
+      syncSettingsForm();
     });
   }
 
@@ -8087,6 +8306,24 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (paneAct) {
         ev.preventDefault();
         runPaneMenuAction(paneAct.dataset.paneAct);
+        return;
+      }
+      const termAct = ev.target.closest("[data-term-act]");
+      if (termAct) {
+        ev.preventDefault();
+        if (!termAct.disabled) keepActionFocus(() => runTermMenuAction(termAct.dataset.termAct));
+        return;
+      }
+      const fenceAct = ev.target.closest("[data-fence-act]");
+      if (fenceAct) {
+        ev.preventDefault();
+        keepActionFocus(() => runFenceMenuAction(fenceAct.dataset.fenceAct));
+        return;
+      }
+      const cardAct = ev.target.closest("[data-card-act]");
+      if (cardAct) {
+        ev.preventDefault();
+        keepActionFocus(() => runCardMenuAction(Number(cardAct.dataset.cardAct), ev.shiftKey));
         return;
       }
       const groupRename = ev.target.closest("[data-group-rename]");
@@ -8522,11 +8759,22 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // menu (lib/rowmenu.js); pane bars and Panes rows share the pane menu.
   bindRowMenus(document, {
     mac: isMac,
-    resolve: (row) => {
+    resolve: (row, at) => {
+      if (row.dataset.rowMenu === "card") return prepareCardMenu(row, at) || false;
       if (row.dataset.rowMenu !== "pane") return undefined;
       const paneId = row.dataset.paneRow || row.closest(".term-wrap")?.dataset.paneId || "";
       return preparePaneMenu(paneId, row.dataset.paneRow ? "row" : "bar") || false;
     },
+  });
+  // Notebook code blocks: right-click, ⇧F10 and the Menu key on the bar.
+  document.addEventListener("contextmenu", onFenceContextMenu);
+  document.addEventListener("pointerdown", onRightDown, true);
+  document.addEventListener("keydown", onFenceMenuKey, true);
+  // ⇧ held on a card menu item (⇧↵, ⇧-click) reaches the card's Type.
+  document.addEventListener("keydown", trackCardMenuShift, true);
+  document.addEventListener("keyup", trackCardMenuShift, true);
+  window.addEventListener("blur", () => {
+    cardMenu.shift = false;
   });
   // ⌥↵ on a host row opens it in a split of the focused pane, as in the
   // palette and the host menu's Open in split.
