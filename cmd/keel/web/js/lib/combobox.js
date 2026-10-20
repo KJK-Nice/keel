@@ -117,9 +117,25 @@ export function normalizeOptions(entries, none) {
     descMono: !!e?.descMono,
     icon: e?.icon || "",
     disabled: !!e?.disabled,
+    missing: !!e?.missing,
   }));
-  if (none && !list.some((o) => o.value === "")) list.unshift({ value: "", label: String(none), desc: "", descMono: false, icon: "", disabled: false });
+  if (none && !list.some((o) => o.value === "")) list.unshift({ value: "", label: String(none), desc: "", descMono: false, icon: "", disabled: false, missing: false });
   return list;
+}
+
+// pickValue is the value a refilled picker shows. A value that is in the
+// list stays. No value (a new item) takes the first option, as a select
+// did. A value that is no longer in the list is never swapped for another
+// real one: it becomes "" (None when there is one, else nothing chosen).
+// Callers that must keep it, so Save cannot quietly change it, list it as
+// a { missing: true } option ("Missing host — pick another"). With
+// first: false (editing a saved item whose value is empty) nothing is
+// picked for it either.
+export function pickValue(options, selected, { first = true } = {}) {
+  const want = String(selected ?? "");
+  if ((options || []).some((o) => o.value === want)) return want;
+  if (want || !first) return "";
+  return options?.[0]?.value ?? "";
 }
 
 // optionHTML is one row. icon is trusted markup (an SVG from Keel's own
@@ -128,7 +144,7 @@ export function optionHTML(listId, opt, i, selected) {
   const sel = opt.value === selected;
   const icon = opt.icon ? `<span class="k-i k-combobox-icon" aria-hidden="true">${opt.icon}</span>` : "";
   const desc = opt.desc ? `<span class="k-combobox-desc${opt.descMono ? " k-combobox-desc--mono" : ""}">${escapeHtml(opt.desc)}</span>` : "";
-  return `<div class="k-menu-item k-combobox-option" role="option" id="${escapeHtml(`${listId}-o${i}`)}" data-value="${escapeHtml(opt.value)}" aria-selected="${sel}"${opt.disabled ? ' aria-disabled="true"' : ""}>${icon}<span class="k-combobox-text"><span class="k-combobox-label">${escapeHtml(opt.label)}</span>${desc}</span>${svg(CHECK, "k-i k-combobox-check")}</div>`;
+  return `<div class="k-menu-item k-combobox-option${opt.missing ? " k-combobox-option--missing" : ""}" role="option" id="${escapeHtml(`${listId}-o${i}`)}" data-value="${escapeHtml(opt.value)}" aria-selected="${sel}"${opt.disabled ? ' aria-disabled="true"' : ""}${opt.missing ? " data-missing" : ""}>${icon}<span class="k-combobox-text"><span class="k-combobox-label">${escapeHtml(opt.label)}</span>${desc}</span>${svg(CHECK, "k-i k-combobox-check")}</div>`;
 }
 
 // comboboxHTML is the whole picker for term.js HTML strings. props: id,
@@ -221,12 +237,20 @@ function syncText(root) {
   if (!input || !hidden) return;
   const value = hidden.value;
   let label = "";
+  let missing = false;
   for (const el of optionEls(root)) {
     const on = el.dataset.value === value;
     if (el.getAttribute("aria-selected") !== String(on)) el.setAttribute("aria-selected", String(on));
-    if (on) label = optLabel(el);
+    if (on) {
+      label = optLabel(el);
+      missing = el.hasAttribute("data-missing");
+    }
   }
   if (input.value !== label) input.value = label;
+  // A value that no longer exists (a deleted host or identity) is shown as
+  // such; a required picker refuses to submit it until another is picked.
+  root.toggleAttribute("data-missing", missing);
+  input.setCustomValidity?.(missing && input.required ? label : "");
 }
 
 // setComboboxValue picks a value without events, as term.js does when it
@@ -243,13 +267,12 @@ export function setComboboxValue(root, value) {
 // first option when selected is not there, as the select did). With no
 // options the input shows emptyLabel as its placeholder and the list says
 // it. Returns the value picked.
-export function setComboboxOptions(root, entries, selected, emptyLabel, none) {
+export function setComboboxOptions(root, entries, selected, emptyLabel, none, pick = {}) {
   const { input, list, empty } = parts(root);
   if (!input || !list) return "";
   const options = normalizeOptions(entries, none);
-  const want = String(selected ?? "");
-  const pick = options.some((o) => o.value === want) ? want : options[0]?.value ?? "";
-  list.innerHTML = options.map((o, i) => optionHTML(list.id, o, i, pick)).join("");
+  const value = pickValue(options, selected, pick);
+  list.innerHTML = options.map((o, i) => optionHTML(list.id, o, i, value)).join("");
   // data-placeholder keeps the placeholder for when options come back.
   if (input.dataset.placeholder == null) input.dataset.placeholder = input.placeholder;
   input.placeholder = options.length ? input.dataset.placeholder : emptyLabel || input.dataset.placeholder;
@@ -257,9 +280,9 @@ export function setComboboxOptions(root, entries, selected, emptyLabel, none) {
     empty.textContent = options.length ? NO_MATCHES : emptyLabel || NO_MATCHES;
     empty.hidden = !!options.length;
   }
-  setComboboxValue(root, pick);
+  setComboboxValue(root, value);
   if (root === openRoot) render(root);
-  return pick;
+  return value;
 }
 
 function items(root) {

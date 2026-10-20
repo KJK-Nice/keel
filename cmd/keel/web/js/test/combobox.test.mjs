@@ -8,6 +8,7 @@ import {
   initialActive,
   normalizeOptions,
   optionMatches,
+  pickValue,
   stepActive,
 } from "../lib/combobox.js";
 
@@ -156,4 +157,36 @@ test("comboboxHTML: no options shows the empty label, an unknown value posts not
   assert.ok(html.includes(" required"));
   const bad = comboboxHTML({ id: "y", value: "b", options: [{ value: "a", label: "A" }] });
   assert.ok(bad.includes('value="" data-combobox-value'));
+});
+
+test("pickValue never swaps a stale value for another real one", () => {
+  const hosts = [
+    { value: "h1", label: "web" },
+    { value: "h2", label: "db" },
+  ];
+  assert.equal(pickValue(hosts, "h2"), "h2", "a listed value stays");
+  assert.equal(pickValue(hosts, ""), "h1", "no value (a new item) takes the first, as a select did");
+  assert.equal(pickValue(hosts, undefined), "h1");
+  assert.equal(pickValue(hosts, "gone"), "", "a deleted host is not replaced by web");
+  assert.equal(pickValue([{ value: "", label: "None" }, ...hosts], "gone"), "", "None, not a host");
+  assert.equal(pickValue([], "gone"), "");
+  assert.equal(pickValue([...hosts, { value: "gone", label: "Missing host — pick another", missing: true }], "gone"), "gone", "kept when listed as missing");
+});
+
+test("a missing option is marked, so a required picker can refuse it", () => {
+  const html = comboboxHTML({
+    id: "tunnel-host",
+    name: "hostId",
+    value: "gone",
+    required: true,
+    options: [
+      { value: "h1", label: "web" },
+      { value: "gone", label: "Missing host — pick another", missing: true },
+    ],
+  });
+  assert.ok(html.includes('class="k-menu-item k-combobox-option k-combobox-option--missing"'));
+  assert.ok(html.includes('data-value="gone" aria-selected="true" data-missing'));
+  assert.ok(html.includes('value="Missing host — pick another"'), "the input says it");
+  assert.ok(html.includes('name="hostId" value="gone" data-combobox-value'));
+  assert.equal(normalizeOptions([{ value: "a" }])[0].missing, false);
 });

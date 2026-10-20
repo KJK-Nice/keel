@@ -469,6 +469,10 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
 .k-combobox-option[aria-selected="true"] svg.k-combobox-check { visibility: visible; }
 .k-combobox-empty { margin: 0; padding: var(--space-1\.5) var(--space-2); font: var(--type-body); color: var(--ink-muted); }
 .k-combobox-empty[hidden] { display: none; }
+/* A saved value that no longer exists: said in words, with the attention
+   colour on the field. */
+.k-combobox[data-missing] > .k-input.k-combobox-input { border-color: var(--signal); }
+.k-combobox-option--missing .k-combobox-label { color: var(--ink-muted); }
 /* On the right of a settings row, as wide as a pref-seg. */
 .k-combobox.k-combobox--setting { flex: 0 0 var(--size-rail); }
 

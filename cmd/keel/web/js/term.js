@@ -865,9 +865,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // fillSelectItems replaces a combobox's options ({value, label, desc,
   // descMono, disabled}) and picks selected, else the first option. With
   // no entries the picker shows emptyLabel.
-  function fillSelectItems(id, entries, selected, emptyLabel) {
+  // opts.first: false keeps an empty value empty instead of taking the
+  // first option (a saved item whose choice is gone).
+  function fillSelectItems(id, entries, selected, emptyLabel, opts) {
     const p = pickerOf(id);
-    if (p?.box) setComboboxOptions(p.box, entries, selected, emptyLabel);
+    if (p?.box) setComboboxOptions(p.box, entries, selected, emptyLabel, "", opts);
   }
 
   function setSliderValue(id, value) {
@@ -6153,12 +6155,27 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return `${h.username ? `${h.username}@` : ""}${h.address}${port}`;
   }
 
-  function fillIdentitySelect(selected) {
+  // A saved value that is no longer in the vault stays listed as missing,
+  // so the dialog never shows (and Save never posts) another one instead.
+  function withMissing(entries, current, label) {
+    if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label, missing: true });
+    return entries;
+  }
+
+  // saved: the dialog edits a saved host. Deleting an identity clears it
+  // from its hosts, so a saved Keychain-identity host with none must not
+  // be shown (and saved) with the first identity instead.
+  function fillIdentitySelect(selected, saved) {
     fillSelectItems(
       "host-identity",
-      state.identities.map((id) => ({ value: id.id, label: id.name, desc: identityDesc(id) })),
+      withMissing(
+        state.identities.map((id) => ({ value: id.id, label: id.name, desc: identityDesc(id) })),
+        selected,
+        "Missing identity — pick another"
+      ),
       selected,
-      "No identities — add in Keychain"
+      "No identities — add in Keychain",
+      { first: !saved }
     );
   }
 
@@ -6197,7 +6214,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     form.privateKey.value = "";
     form.passphrase.value = "";
     setSelectValue("host-auth-type", host?.authType || "password");
-    fillIdentitySelect(host?.identityId || "");
+    fillIdentitySelect(host?.identityId || "", !!host?.id && host.authType === "identity");
     fillJumpSelect(host);
     if (form.startupCommand) form.startupCommand.value = host?.startupCommand || "";
     resetHostTest();
@@ -6242,7 +6259,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (!h?.id || h.id === host?.id || h.authType === "local" || h.jumpHost) continue;
       entries.push({ value: h.id, label: h.name || h.address, desc: hostAddress(h), descMono: true });
     }
-    if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label: "Missing host — pick another" });
+    withMissing(entries, current, "Missing host — pick another");
     fillSelectItems("host-jump", entries, current, "None");
   }
 
@@ -6506,6 +6523,15 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     form.querySelectorAll("[data-ssh-only]").forEach((node) => {
       node.style.display = ssh ? (node.classList.contains("grid-2") ? "grid" : "") : "none";
     });
+    // Keychain identity needs one that exists: none, or a deleted one shown
+    // as missing, refuses Save (only while it is the chosen kind; a hidden
+    // required field would block every other kind).
+    const ident = pickerOf("host-identity");
+    if (ident?.box) {
+      const input = ident.box.querySelector('[role="combobox"]');
+      if (input) input.required = auth === "identity";
+      setComboboxValue(ident.box, comboboxValue(ident.box));
+    }
     toggleKeepAliveFields();
   }
 
@@ -6660,7 +6686,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function fillTunnelHosts(selected) {
     fillSelectItems(
       "tunnel-host",
-      sshHosts().map((h) => ({ value: h.id, label: h.name, desc: hostAddress(h), descMono: true })),
+      withMissing(
+        sshHosts().map((h) => ({ value: h.id, label: h.name, desc: hostAddress(h), descMono: true })),
+        selected,
+        "Missing host — pick another"
+      ),
       selected,
       "Add an SSH host first"
     );
