@@ -1,17 +1,17 @@
-Keel is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `keel serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light that always tells you where you are.
+Keel is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `keel serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light kept for what you can act on.
 
 ## Principles
 
 1. **The terminal is the work; chrome steps back.** Chrome, rails and pane bars use the darkest neutrals and muted text. Nothing in chrome is brighter than the text in the terminal.
-2. **One warm light.** Brass is the only accent. At rest it marks exactly three things: the selected tab, the focused pane, and the cursor. Anything else brass is something you can press right now (primary button, a toggle that is on) or a role that is yours (Driving).
+2. **One warm light.** Brass is the only accent. At rest it marks only the terminal cursor. Anything else brass is something you can press right now (primary button, a toggle that is on) or a role that is yours (Driving). Where you are is shown by shape and brightness, not by color: see Depth, borders, motion.
 3. **State is always spoken.** Live, reconnecting, exited, driving, following: each has a color *and* a word or icon. Never color alone.
 4. **Show the bytes.** Anything that writes into a session from outside the keyboard shows the exact bytes and target first (ApproveType).
-5. **Addresses are code.** Hosts, ports, users, paths, flags and commands are set in mono everywhere they appear.
+5. **Only code is mono.** `user@host:port`, IPs, paths, flags, commands, terminal output and key caps are set in mono. Everything a person reads as UI (tab and host names, labels, counts, status text) is the system font.
 
 ## Content fundamentals
 
 - **Voice:** plain, technical, second person only when instructing ("Add a host to open SSH sessions"). No exclamation marks, no emoji, no apologies.
-- **Casing:** sentence case for everything (buttons, titles, menu items). Uppercase only in the `meta` style for section labels (HOSTS, RECENT).
+- **Casing:** sentence case for everything, section labels included (Hosts, Recent). No uppercase-tracked labels.
 - **Verbs name the result:** "Connect", "Type 58 bytes", "Stop 4 sessions", "Delete host". Never "OK", "Yes", "Submit".
 - **Numbers, not hedges:** "4 sessions are still running", not "some sessions".
 - **Errors** say what happened, then the fix: "bastion rejected key deploy-ed25519." with an "Edit host" action.
@@ -25,9 +25,9 @@ Two themes from one token set; **Dark is primary** and is what every component i
 Grounds, darkest to lightest in Dark:
 
 - `stage`: terminal background and recessed fields (inputs, code). Equal to `term-bg`.
-- `chrome`: tab strip, vault rail, unfocused pane bars.
-- `surface`: vault lists, settings, the focused pane bar, the selected tab.
-- `raised`: menus, dialogs, palette, secondary buttons.
+- `chrome`: tab strip, vault rail, unfocused pane bars, and the ground tiles sit on in a split tab.
+- `surface`: vault lists, settings, the focused pane bar, pane bars inside split tiles.
+- `raised`: menus, dialogs, palette, secondary buttons, the selected tab.
 - `hover`: hover and highlighted rows on any ground.
 
 Text: `ink` (primary), `ink-muted` (secondary, addresses), `ink-faint` (placeholders, counts, shortcut hints; not on chrome or hover in Light). Lines: `line` for hairlines, `line-strong` for control borders (3:1).
@@ -44,12 +44,12 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 ## Type
 
-- `sans` (IBM Plex Sans) for the interface. `display` (IBM Plex Sans Condensed) for dialog titles, page titles and empty states only. `mono` (JetBrains Mono) for terminals, addresses, keys, flags and `meta` labels.
+- `sans` is the **system UI font** (SF Pro Text on macOS, Segoe UI Variable on Windows, the desktop's sans on Linux) so Keel reads like a native app. `display` is the same system family at display optical size (SF Pro Display) for dialog titles, page titles and empty states. `mono` (JetBrains Mono) for terminals, addresses, paths, flags and commands only.
 - Default UI size is 13px (`body` = 1rem). The user scales the UI from 11–16px, so in the app every size here is written in rem (px ÷ 13). Terminal text scales separately (10–22px, ⌘0 resets to 12).
-- Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 11/14 uppercase +0.06em, `kbd` 11/14.
+- Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 12/16 semibold sans in sentence case, `kbd` 11/14.
 - `reading` is for long-form prose only (the notebook's reading column, `size-reading` 68ch wide). The interface stays on `body`.
 - `tokens.css` carries each style as a font shorthand, `--type-<name>` (weight, size/line height in rem, family). Use `font: var(--type-reading)`; add letter spacing and case in the rule.
-- Ship the three families as local woff2 files with the app. Keel is a desktop app and must look right offline; do not load Google Fonts at runtime.
+- The UI font needs nothing shipped: it is the OS font. Ship only the terminal fonts as local woff2 (JetBrains Mono, and IBM Plex Mono because Settings offers it as a terminal font). Keel is a desktop app and must look right offline; do not load fonts from the network at runtime.
 
 ## Space, size and shape
 
@@ -60,7 +60,9 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 ## Depth, borders, motion
 
 - Separation comes from ground steps and hairlines first. Shadows only on things that float: `shadow-pop` (menus, tooltips, toasts) and `shadow-modal` (dialogs, palette, over `scrim`).
-- **The keel line**: a 2px `brass` rule along the bottom edge of the selected tab and the focused pane bar. It is the signature mark of the system; never use colored side bars or left-border accents anywhere.
+- **Selected tab.** A `raised` pill with `ink` text: no border, no underline.
+- **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines (`.k-tiles`, or any container with two `.k-pane` children). The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
+- Never use colored rules, side bars or left-border accents to mark the selected tab or the focused pane.
 - Motion is functional: `duration-fast` 90ms for hover and focus, `duration-base` 160ms for menus, tooltips and the switch, `duration-slow` 240ms for dialogs and toasts. Ease-out in, ease-in out. The reconnecting dot pulses; under `prefers-reduced-motion` it is static and nothing slides.
 
 ## Iconography

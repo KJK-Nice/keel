@@ -161,7 +161,7 @@ export function createGroupRunPage(deps) {
           })
           .join("");
         const c = cur ? (cur.cells || []).find((x) => x.hostId === m.hostId) : null;
-        return `<tr data-host-row="${escapeHtml(m.hostId)}"><th scope="row" class="k-mono k-cell-name">${escapeHtml(m.host)}${m.production ? ' <span class="k-badge k-badge--signal k-gx-prod">Production</span>' : ""}</th><td class="k-mono k-gx-rolecell">${escapeHtml(m.role || "")}</td>${cells}<td class="k-cell-end"><span class="k-gx-actions">${cellActions(run, cur, c)}</span></td></tr>`;
+        return `<tr data-host-row="${escapeHtml(m.hostId)}"><th scope="row" class="k-cell-name">${escapeHtml(m.host)}${m.production ? ' <span class="k-badge k-badge--signal k-gx-prod">Production</span>' : ""}</th><td class="k-mono k-gx-rolecell">${escapeHtml(m.role || "")}</td>${cells}<td class="k-cell-end"><span class="k-gx-actions">${cellActions(run, cur, c)}</span></td></tr>`;
       })
       .join("");
     const left = run.members.filter((m) => m.excluded);
@@ -248,7 +248,7 @@ export function createGroupRunPage(deps) {
               ? cells
                   .map((c) => {
                     const v = V.captureView((c.captures || []).find((x) => x.name === cap.name));
-                    return `<li class="k-gx-cap-host" data-capture-state="${escapeHtml(v.state)}"><span class="k-mono">${escapeHtml(c.host)}</span>${v.mask ? `<span class="k-gx-mask" aria-label="hidden value">${v.mask}</span>` : ""}<span class="k-help">${escapeHtml(v.text)}</span></li>`;
+                    return `<li class="k-gx-cap-host" data-capture-state="${escapeHtml(v.state)}"><span>${escapeHtml(c.host)}</span>${v.mask ? `<span class="k-gx-mask" aria-label="hidden value">${v.mask}</span>` : ""}<span class="k-help">${escapeHtml(v.text)}</span></li>`;
                   })
                   .join("")
               : `<li class="k-help">Not captured yet.</li>`;
@@ -314,7 +314,7 @@ export function createGroupRunPage(deps) {
           const err = r.error ? `<span class="k-error k-gx-approve-err">${escapeHtml(r.error)}</span>` : "";
           return `<div class="k-gx-approve-row${r.error ? " is-blocked" : ""}">
             <button type="button" class="k-check" role="checkbox" aria-checked="${r.checked}" data-approve-row="${k}" aria-label="Type into ${escapeHtml(r.host)}"${r.error ? ' aria-disabled="true" disabled' : ""}><span class="k-i">${ICON.tick}</span></button>
-            <span class="k-mono k-gx-approve-host">${escapeHtml(r.host)}</span>
+            <span class="k-gx-approve-host">${escapeHtml(r.host)}</span>
             <span class="k-help k-gx-approve-pane">${escapeHtml(r.paneLabel || "")}</span>
             ${r.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""}${r.needsShift ? '<span class="k-badge k-badge--mono">⇧</span>' : ""}
             ${own}${err}

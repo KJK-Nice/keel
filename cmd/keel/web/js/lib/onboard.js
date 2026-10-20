@@ -102,7 +102,7 @@ function viaCell(h, sel) {
 function keyCell(h) {
   const names = (h.identityFiles || []).map(baseName);
   if (!names.length) return '<span class="k-faint">—</span>';
-  return `<span class="k-mono k-muted">${escapeHtml(names.join(", "))}</span>`;
+  return `<span class="k-muted">${escapeHtml(names.join(", "))}</span>`;
 }
 
 // checkbox: state is true, false or "mixed".
@@ -135,7 +135,7 @@ export function hostTableHTML(preview, sel) {
       const saved = h.saved ? ' <span class="k-badge k-badge--haze">Already saved</span>' : "";
       return `<tr data-imp-row="${escapeHtml(h.alias)}">
 <td>${checkbox(on, `Add ${h.alias}`, `data-imp-host="${escapeHtml(h.alias)}"`)}</td>
-<td><span class="k-mono">${escapeHtml(h.alias)}</span>${saved}</td>
+<td><span>${escapeHtml(h.alias)}</span>${saved}</td>
 <td class="k-mono k-muted">${escapeHtml(hostAddress(h))}</td>
 <td class="k-mono k-muted">${escapeHtml(h.user || "")}</td>
 <td>${keyCell(h)}</td>

@@ -115,7 +115,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   const PAGE_PREFIX = "page:";
   const pageTabId = (name) => PAGE_PREFIX + name;
   const SIDEBAR_SEGS = ["hosts", "panes", "snippets", "forwards"];
-  const SASH_PX = 1; // 1px line gutter between panes; keel.css .split-sash widens the hit area
+  // Split tabs are tiles on chrome: the space-1.5 token between them and
+  // around them (keel.css .term-tab.is-split). The sash is the gap itself;
+  // keel.css .split-sash widens its hit area.
+  const tileGapPx = () => {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-1.5"));
+    return Number.isFinite(v) ? v : 6;
+  };
   // Pane bar tool buttons: ghost icon buttons from the k-* set. icon-btn and the
   // data-pane-* attributes stay as JS hooks.
   const PANE_BTN = "k-btn k-btn--ghost k-btn--sm k-btn--icon icon-btn";
@@ -2359,7 +2365,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function splitBox(tab, node) {
     const w = tab.stage?.clientWidth || 0;
     const h = tab.stage?.clientHeight || 0;
-    return computeRects(tab.layout, w, h, SASH_PX).splits.get(node)?.box || null;
+    return stageRects(tab, w, h).splits.get(node)?.box || null;
+  }
+
+  // stageRects lays a tab's panes out in its stage: one pane fills it
+  // (full-bleed), two or more are tiles with a gap between and around them.
+  function stageRects(tab, w, h) {
+    const gap = leafCount(tab.layout) > 1 ? tileGapPx() : 0;
+    return computeRects(tab.layout, w, h, gap, gap);
   }
 
   function placePane(tab, paneId, x, y, w, h) {
@@ -2384,7 +2397,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       placePane(tab, tab.zoomedPaneId, 0, 0, w, h);
       shown.add(tab.zoomedPaneId);
     } else if (tab.layout) {
-      for (const [paneId, r] of computeRects(tab.layout, w, h, SASH_PX).panes) {
+      for (const [paneId, r] of stageRects(tab, w, h).panes) {
         placePane(tab, paneId, r.x, r.y, r.w, r.h);
         shown.add(paneId);
       }
@@ -2401,7 +2414,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
 
   function syncSashElements(tab) {
     if (!tab?.sashes || !tab.stage) return;
-    const { splits } = computeRects(tab.layout, tab.stage.clientWidth || 0, tab.stage.clientHeight || 0, SASH_PX);
+    const { splits } = stageRects(tab, tab.stage.clientWidth || 0, tab.stage.clientHeight || 0);
     for (const { el, node } of tab.sashes) {
       const r = splits.get(node)?.sash;
       if (!r) continue;

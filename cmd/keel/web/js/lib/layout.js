@@ -136,8 +136,9 @@ export function remapLayout(node, runtimeToPane, notebookToPane) {
 // computeRects lays the tree out in a w×h box with sash-pixel dividers.
 // panes maps paneId → {x, y, w, h}; splits maps each split node (by
 // identity) → { box, sash } where box is the split's whole area and sash
-// is its divider.
-export function computeRects(layout, w, h, sash) {
+// is its divider. pad insets the whole layout from the box's edges (split
+// tabs are tiles with the same gap around them as between them).
+export function computeRects(layout, w, h, sash, pad = 0) {
   const panes = new Map();
   const splits = new Map();
   const walk = (node, x, y, rw, rh) => {
@@ -160,7 +161,7 @@ export function computeRects(layout, w, h, sash) {
       walk(node.b, x, y + aH + sash, rw, Math.max(0, rh - sash - aH));
     }
   };
-  walk(layout, 0, 0, w, h);
+  walk(layout, pad, pad, Math.max(0, w - 2 * pad), Math.max(0, h - 2 * pad));
   return { panes, splits };
 }
 

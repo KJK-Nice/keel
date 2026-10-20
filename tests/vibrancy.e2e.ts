@@ -184,21 +184,26 @@ const covers = (browser: any, selector: string) =>
       });
   })()`) as Promise<{ cover: number; opaque: boolean; by: string }[]>;
 
-// The split gutters: each sash is a visible, opaque --line hairline, so
-// translucent tiles still read as separate panes, not as one hole.
+// The split gutters: split panes are tiles with a space-1.5 gap and no
+// hairline. The sash is the gap and paints nothing; the chrome ground in it
+// comes from each tile's outer box shadow (which never falls under a tile),
+// so the tiles still read as separate panes and nothing stacks behind them.
 const sashes = (browser: any) =>
   browser.evaluate(`(() => {
-    const probe = document.createElement('span');
-    document.body.appendChild(probe);
-    probe.style.color = 'var(--line)';
-    const line = getComputedStyle(probe).color;
-    probe.remove();
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-1.5'));
+    const tiles = [...document.querySelectorAll('.term-tab.is-active .term-wrap')]
+      .filter((w) => w.getClientRects().length && getComputedStyle(w).visibility === 'visible');
     return [...document.querySelectorAll('.term-tab.is-active .split-sash')].map((s) => {
       const r = s.getBoundingClientRect();
       const bg = getComputedStyle(s).backgroundColor;
-      return { size: Math.min(r.width, r.height), line: bg === line };
+      return {
+        size: Math.min(r.width, r.height),
+        gap,
+        clear: /^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(bg),
+        grounded: tiles.length > 1 && tiles.every((w) => getComputedStyle(w).boxShadow !== 'none'),
+      };
     });
-  })()`) as Promise<{ size: number; line: boolean }[]>;
+  })()`) as Promise<{ size: number; gap: number; clear: boolean; grounded: boolean }[]>;
 
 // Live: the inline theme script reads data-translucency, as a reload would.
 const live = (browser: any, choice: string, step: string) =>
@@ -281,8 +286,9 @@ test('solo and split panes are translucent at every step; light tints the termin
       await expectPanesAt(browser, 2, theme, step);
       const gutters = await sashes(browser);
       expect(gutters.length).toBe(1);
-      expect(gutters[0].size).toBeGreaterThanOrEqual(1);
-      expect(gutters[0].line).toBe(true);
+      expect(gutters[0].size).toBe(gutters[0].gap);
+      expect(gutters[0].clear).toBe(true);
+      expect(gutters[0].grounded).toBe(true);
     }
   }
 

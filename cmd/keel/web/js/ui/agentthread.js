@@ -298,7 +298,7 @@ export function createThreadView(opts) {
     node.dataset.risk = p.risk;
     const when = p.proposedAt ? A.stampLabel(p.proposedAt) : "";
     const typed = p.typedAt ? `typed ${A.stampLabel(p.typedAt)}` : "not typed";
-    node.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span class="k-mono">${escapeHtml(p.host || "no pane")}</span>${
+    node.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span>${escapeHtml(p.host || "no pane")}</span>${
       p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
     }<span class="k-badge ${badge.cls} k-prop-risk">${badge.label}</span><span class="k-badge">Expired</span></div>
       <div class="k-prop-body"><pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>${p.why ? `<p class="k-prop-why">${escapeHtml(p.why)}</p>` : ""}${noteHTML(
@@ -347,7 +347,7 @@ export function createThreadView(opts) {
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-edit-btn aria-label="Edit command" title="Edit">${ICON.edit}</button>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-copy aria-label="Copy command" title="Copy">${ICON.copy}</button>
          ${canType ? `<button type="button" class="k-btn k-btn--primary k-btn--sm" data-prop-type>${escapeHtml(typeLabel(p, pane))}<span class="k-kbd">${typeKbd}</span></button>` : ""}`;
-    rec.el.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span class="k-mono">${escapeHtml(p.host || pane?.label || "no pane")}</span>${
+    rec.el.innerHTML = `<div class="k-prop-head">${ICON.cmd}<span>${escapeHtml(stepLabel(p))}</span><span>${escapeHtml(p.host || pane?.label || "no pane")}</span>${
       p.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""
     }<span class="k-badge ${badge.cls} k-prop-risk">${badge.label}</span></div>
       <div class="k-prop-body">${body}${p.why ? `<p class="k-prop-why">${escapeHtml(p.why)}</p>` : ""}${notes.join("")}</div>
@@ -448,7 +448,7 @@ export function createThreadView(opts) {
     // Where the steps go: the host of the first step, pinned, with its tab.
     const pinPane = run.pinSessionId ? ctl.paneById(run.pinSessionId) : null;
     const target = run.pinHost
-      ? `<p class="k-rb-target">${ICON.cmd}<span>Run on <b class="k-mono">${escapeHtml(run.pinHost)}</b>${pinPane?.sub ? ` · ${escapeHtml(pinPane.sub)}` : ""}</span></p>`
+      ? `<p class="k-rb-target">${ICON.cmd}<span>Run on <b>${escapeHtml(run.pinHost)}</b>${pinPane?.sub ? ` · ${escapeHtml(pinPane.sub)}` : ""}</span></p>`
       : "";
     const blocked = run.blocked
       ? `<p class="k-rb-now k-rb-now--signal">${escapeHtml(run.blocked)}</p>${

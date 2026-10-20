@@ -212,7 +212,7 @@ templ tunnelRow(hosts []store.Host, t tunnel.Info) {
 				</span>
 			}
 		</td>
-		<td><span class="k-mono k-muted">{ hostNameByID(hosts, t.HostID) }</span></td>
+		<td><span class="k-muted">{ hostNameByID(hosts, t.HostID) }</span></td>
 		<td>
 			<span class={ "k-state", st.StateClass }>
 				<span class={ "k-dot", st.DotClass } aria-hidden="true"></span>

@@ -51,7 +51,8 @@ func TestGenerateTypeStyles(t *testing.T) {
 	src := []byte(`{"type":{"families":{"sans":"S","display":"D","mono":"M"},"groups":[
 		{"family":"display","styles":[{"name":"display","fontSize":"28px","lineHeight":"32px","fontWeight":600}]},
 		{"family":"sans","styles":[{"name":"reading","fontSize":"14px","lineHeight":"22px","fontWeight":400},
-			{"name":"body","fontSize":"13px","lineHeight":"18px","fontWeight":400}]}]}}`)
+			{"name":"body","fontSize":"13px","lineHeight":"18px","fontWeight":400}]},
+		{"family":"mono","styles":[{"name":"meta","fontSize":"12px","lineHeight":"16px","fontWeight":600,"family":"sans"}]}]}}`)
 	got, err := generate(src)
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +61,7 @@ func TestGenerateTypeStyles(t *testing.T) {
 		"--type-display:600 2.154rem/2.462rem var(--font-display);",
 		"--type-reading:400 1.077rem/1.692rem var(--font-sans);",
 		"--type-body:400 1rem/1.385rem var(--font-sans);",
+		"--type-meta:600 0.923rem/1.231rem var(--font-sans);",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)

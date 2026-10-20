@@ -54,6 +54,9 @@ type typeStyle struct {
 	FontSize   string `json:"fontSize"`
 	LineHeight string `json:"lineHeight"`
 	FontWeight int    `json:"fontWeight"`
+	// Family overrides the group's family for this one style (meta sits
+	// with the mono styles but is set in sans).
+	Family string `json:"family"`
 }
 
 func main() {
@@ -187,6 +190,9 @@ func typeFont(st typeStyle, family string) (string, error) {
 	lh, err := pxToRem(st.LineHeight)
 	if err != nil {
 		return "", fmt.Errorf("type %s: %w", st.Name, err)
+	}
+	if st.Family != "" {
+		family = st.Family
 	}
 	if family == "" {
 		family = "sans"

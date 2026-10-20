@@ -179,6 +179,8 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await app.screenshot(`${theme}-notebooks`);
     });
 
+    // A single-pane tab: full-bleed (no radius, gap or ring), the pane bar
+    // on surface with no line under it, the selected tab a raised pill.
     test(`terminal and palette (${theme})`, async ({ app, screen, browser }) => {
       await browser.addInitScript(themeScript(theme));
       await openKeel(app);
@@ -269,8 +271,11 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
     });
 
-    // A split session: one focused pane bar (surface + keel line) next to an
-    // unfocused one (chrome, muted), under the selected tab's keel line.
+    // A split session, focus on the new (right) pane: two radius-md tiles on
+    // the chrome ground, 6px apart, pane bars on surface, a soft focus ring
+    // on the focused tile and the other terminal dimmed, under the selected
+    // tab's raised pill. (`split-panes` above is the same split with focus
+    // on the left pane; `terminal` is a single full-bleed pane.)
     test(`split panes (${theme})`, async ({ app, screen, browser }) => {
       await browser.addInitScript(themeScript(theme));
       await openKeel(app);
