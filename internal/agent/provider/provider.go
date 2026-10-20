@@ -29,9 +29,13 @@ type Message struct {
 
 // Request is everything a provider receives. Every text field is Safe.
 type Request struct {
-	Model           string
-	System          redact.Safe
-	Messages        []Message
+	Model    string
+	System   redact.Safe
+	Messages []Message
+	// MaxOutputTokens caps the reply the user reads. A client whose models
+	// think before they answer adds room for the thinking on top (Gemini
+	// counts thinking tokens toward its own output limit), up to a hard
+	// cap of its own, so a long think cannot use up the answer.
 	MaxOutputTokens int
 	// Thinking is how much the model reasons before it answers: one of
 	// the Thinking* levels, or "" for the model's default. Each client
@@ -52,7 +56,22 @@ type Response struct {
 	Text         string
 	InputTokens  int
 	OutputTokens int
+	// ThoughtTokens is how many tokens the model spent thinking (not in
+	// Text, not in OutputTokens).
+	ThoughtTokens int
+	// Stop is why the reply ended before the model finished it, one of
+	// the Stop* reasons, or "" when it finished. A reply with a Stop is
+	// cut: Text is only its start.
+	Stop string
 }
+
+// Why a reply was cut (Response.Stop).
+const (
+	StopLength     = "length"     // the output limit was reached
+	StopSafety     = "safety"     // the provider's safety filters stopped it
+	StopRecitation = "recitation" // the provider stopped it for reciting a source
+	StopOther      = "other"      // any other reason the provider gave
+)
 
 // Provider generates a reply. Implementations must send nothing but the
 // request's fields, and must never log or return the API key.

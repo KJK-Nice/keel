@@ -34,6 +34,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/applog"
 	"keel/internal/runvars"
 	"keel/internal/store"
 )
@@ -158,7 +159,7 @@ type Service struct {
 }
 
 const (
-	defaultTimeout   = 90 * time.Second
+	defaultTimeout   = 150 * time.Second // one ask, with its notebook reads; a long think takes time
 	maxConversations = 16
 	idleConversation = 12 * time.Hour
 	maxProposalsKept = 32
@@ -353,6 +354,10 @@ type AskResponse struct {
 	// for the user (notebooks.go).
 	Notebooks []NotebookProposal `json:"notebooks"`
 	Usage     Usage              `json:"usage"`
+	// Cut is set when the reply ended before the model finished it: a
+	// provider.Stop* reason ("length", "safety", ...). The answer is only
+	// its start, and the panel says so.
+	Cut string `json:"cut,omitempty"`
 }
 
 var convIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
@@ -528,10 +533,11 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	cctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	resp, err := prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxOutputTokens})
+	resp, err := prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
 	if err != nil {
 		return AskResponse{}, s.providerErr(ctx, cctx, err)
 	}
+	resp = s.checkCut(desc.ID, resp)
 	// The model may ask to read notebooks from the index: keel serve reads
 	// them (within the limits, never a private one) and asks again, at
 	// most maxNotebookReadRounds more times (notebooks.go).
@@ -550,10 +556,11 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 			break
 		}
 		messages = append(messages, provider.Message{Role: provider.RoleModel, Text: r.Text(truncate(resp.Text, maxAnswerBytes))}, provider.Message{Role: provider.RoleUser, Text: r.Text(readText)})
-		resp, err = prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxOutputTokens})
+		resp, err = prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
 		if err != nil {
 			return AskResponse{}, s.providerErr(ctx, cctx, err)
 		}
+		resp = s.checkCut(desc.ID, resp)
 		usage.InputTokens += resp.InputTokens
 		usage.OutputTokens += resp.OutputTokens
 	}
@@ -582,6 +589,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		Runbooks:           []RunbookProposal{},
 		Notebooks:          []NotebookProposal{},
 		Usage:              usage,
+		Cut:                resp.Stop,
 	}
 	var made []*Proposal
 	// The runbook in use: the agent's pick, then the current step as one
@@ -641,6 +649,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		// The model hears what Keel did with its notebook blocks.
 		modelText += "\n\n[Keel: " + strings.Join(nbW.notes, ". ") + ".]"
 	}
+	if resp.Stop != "" {
+		// The model hears that its reply was cut, so "continue" works.
+		modelText += "\n\n[Keel: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
+	}
 	conv.turns = append(conv.turns, turn{user: r.Text(hq.String()), model: r.Text(modelText)})
 	conv.trimHistory()
 	conv.asks++
@@ -650,7 +662,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	// question as sent, the answer, the trace (no pane text) and the
 	// proposals. A command came from a model that saw redacted text only,
 	// and is redacted again before it is kept.
-	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Model: conv.turns[len(conv.turns)-1].model.String()}
+	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Cut: resp.Stop, Model: conv.turns[len(conv.turns)-1].model.String()}
 	for _, st := range trace {
 		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated, Asked: st.Asked, Count: st.Count})
 	}
@@ -696,6 +708,22 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	s.mu.Unlock()
 	s.persist(conv)
 	return out, nil
+}
+
+// checkCut handles a reply that ended before the model finished it: it is
+// logged (reason and token counts, never text), and a keel-* block it left
+// open is dropped so it is never parsed or acted on.
+func (s *Service) checkCut(providerID string, resp provider.Response) provider.Response {
+	if resp.Stop == "" {
+		return resp
+	}
+	s.log.Append(applog.Entry{
+		Kind:    "agent",
+		Source:  providerID,
+		Message: fmt.Sprintf("agent answer cut off (%s): %d answer tokens, %d thinking tokens", resp.Stop, resp.OutputTokens, resp.ThoughtTokens),
+	})
+	resp.Text = dropOpenBlock(resp.Text)
+	return resp
 }
 
 // providerFor reads the provider key from the vault and builds the client
