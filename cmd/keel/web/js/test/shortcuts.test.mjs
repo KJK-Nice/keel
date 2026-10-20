@@ -156,3 +156,18 @@ test("menuShortcutAllowed: menu items keep the keyboard's limits", () => {
     assert.equal(menuShortcutAllowed("stop-runtime", ctx), true, "Stop Keel runtime always runs");
   }
 });
+
+test("focus view is ⌘⇧↵ on macOS and Ctrl+Shift+Enter elsewhere, also while a dialog is open", () => {
+  const other = { mac: false, modalOpen: false, findOpen: () => false };
+  const ctrl = (key, extra = {}) => ({ ...cmd(key, extra), metaKey: false, ctrlKey: true });
+  assert.equal(name(cmd("Enter", { shiftKey: true })), "focus-pane");
+  assert.equal(name(cmd("Enter", { shiftKey: true }), { ...mac, modalOpen: true }), "focus-pane");
+  assert.equal(name(ctrl("Enter", { shiftKey: true }), other), "focus-pane");
+  assert.equal(name(ctrl("Enter", { shiftKey: true }), { ...other, modalOpen: true }), "focus-pane");
+  // Without Shift, or with the other platform's modifier, ↵ stays the shell's.
+  assert.equal(name(cmd("Enter")), null);
+  assert.equal(name(ctrl("Enter", { shiftKey: true })), null, "Ctrl+Shift+Enter reaches the PTY on macOS");
+  assert.equal(name(cmd("Enter", { shiftKey: true }), other), null);
+  assert.ok(isChromeChord(cmd("Enter", { shiftKey: true }), true));
+  assert.ok(menuShortcutAllowed("focus-pane", { gateOpen: false, renaming: false, modalOpen: true }));
+});

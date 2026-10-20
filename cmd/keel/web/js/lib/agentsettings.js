@@ -59,7 +59,7 @@ export function keyFormHTML(d, { changing = false, error = "", busy = false } = 
   return `<div class="k-agent-keyform" data-agent-keyform="${escapeHtml(d.id)}">
     ${warningHTML(d)}
     <label class="k-field"><span class="k-label">${escapeHtml(label)}</span>
-      <input class="k-input k-agent-key" type="password" name="key" data-agent-key="${escapeHtml(d.id)}" aria-label="${escapeHtml(label)}" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="${changing ? "Paste the new key" : "Paste the key"}"${error ? ' aria-invalid="true"' : ""} />
+      <input autocorrect="off" class="k-input k-agent-key" type="password" name="key" data-agent-key="${escapeHtml(d.id)}" aria-label="${escapeHtml(label)}" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="${changing ? "Paste the new key" : "Paste the key"}"${error ? ' aria-invalid="true"' : ""} />
     </label>
     <p class="k-agent-field-error" role="alert">${escapeHtml(error)}</p>
     <div class="k-agent-keyform-foot">

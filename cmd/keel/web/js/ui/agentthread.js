@@ -115,7 +115,7 @@ export function sessionRowHTML(s, { current = false, renaming = false, actions =
     .join("");
   if (renaming) {
     return `<form class="k-agent-sess-row k-agent-sess-row--edit" data-sess-rename-form="${escapeHtml(s.id)}" aria-current="${current}">
-        <input class="k-input" data-sess-title value="${escapeHtml(s.title || "")}" maxlength="120" aria-label="Conversation title" spellcheck="false" autocomplete="off" />
+        <input autocapitalize="off" autocorrect="off" class="k-input" data-sess-title value="${escapeHtml(s.title || "")}" maxlength="120" aria-label="Conversation title" spellcheck="false" autocomplete="off" />
         <button type="submit" class="k-btn k-btn--primary k-btn--sm">Save</button>
       </form>`;
   }
@@ -336,7 +336,7 @@ export function createThreadView(opts) {
     const canType = offer === "type" || offer === "shift";
     const typeKbd = offer === "shift" ? `${shiftWord === "⇧" ? "⇧↵" : "Shift+↵"}` : "↵";
     const body = rec.editing
-      ? `<textarea class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
+      ? `<textarea autocapitalize="off" autocorrect="off" class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
       : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>`;
     const foot = rec.editing
       ? `<span class="k-spacer"></span>
@@ -639,7 +639,7 @@ export function createThreadView(opts) {
     rec.el.classList.remove("k-prop--done");
     const badges = `${n.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}<span class="k-badge k-badge--mono">${escapeHtml(N.proposalTarget(n))}</span>`;
     const body = rec.editing
-      ? `<textarea class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
+      ? `<textarea autocapitalize="off" autocorrect="off" class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
       : `<p class="k-note-text">${A.answerHTML(n.text)}</p>`;
     const notes = [];
     const origin = N.proposalOrigin(n);

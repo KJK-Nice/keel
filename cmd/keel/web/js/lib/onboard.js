@@ -197,7 +197,7 @@ export function keysHTML(preview, sel) {
       const pass = k.encrypted
         ? `<div class="k-field k-imp-pass" data-imp-pass-field="${i}"${st.on ? "" : " hidden"}>
 <label class="k-label" for="imp-pass-${i}">Passphrase for ${escapeHtml(k.name)}</label>
-<input class="k-input" type="password" id="imp-pass-${i}" data-imp-pass="${i}" autocomplete="off" spellcheck="false" value="${escapeHtml(st.passphrase)}"/>
+<input autocapitalize="off" autocorrect="off" class="k-input" type="password" id="imp-pass-${i}" data-imp-pass="${i}" autocomplete="off" spellcheck="false" value="${escapeHtml(st.passphrase)}"/>
 <p class="k-error" data-imp-key-error="${i}" role="alert" hidden></p>
 </div>`
         : `<p class="k-error" data-imp-key-error="${i}" role="alert" hidden></p>`;

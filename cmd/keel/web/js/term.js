@@ -48,7 +48,7 @@ import { createStateFollow } from "./lib/statefollow.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createWebglGuard, webglPlan } from "./lib/webglguard.js";
-import { setHTML, setText } from "./lib/dom.js";
+import { noTextAssist, setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
 import { AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
 import { ICON as THREAD_ICON } from "./ui/agentthread.js";
@@ -1697,6 +1697,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     input.type = "text";
     input.className = "tab-rename";
     input.size = 1;
+    noTextAssist(input);
     input.value = tabTitle(tab);
     input.setAttribute("aria-label", "Rename tab");
     label.replaceWith(input);
@@ -3572,46 +3573,64 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!repeat && name === lastShortcutName && now - lastShortcutAt < 300) return;
     lastShortcutName = name;
     lastShortcutAt = now;
-    if (name === "new-tab") newTab();
-    else if (name === "close-tab") {
-      if (state.openModal) closeModal();
-      else closeActivePaneOrTab();
-    } else if (name === "reopen-tab") reopenLastTab();
-    else if (name === "search") revealVault();
-    // ⌘N (and the native New Host item, which sends the same name): the
-    // page's own New on a tab page, New host elsewhere.
-    else if (name === "new-host") newItem();
-    else if (name === "quick-connect") openQuick();
-    else if (name === "join") openJoin();
-    else if (name === "settings") openPage("settings");
-    else if (name === "split-right") splitActive("h");
-    else if (name === "split-down") splitActive("v");
-    else if (name === "split-notebook") splitNotebook("h");
-    else if (name === "focus-pane") {
-      const pane = focusedPane();
-      if (pane) togglePaneZoom(pane.id);
-    }
-    else if (name === "find-term") {
-      const pane = focusedPane();
-      if (pane?.search) openFind(pane);
-    } else if (name === "toggle-sidebar") toggleSidebar();
-    else if (name === "toggle-agent") toggleAgentPanel();
-    else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
-    else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
-    else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
-    else if (name === "stop-runtime") {
-      state.runtimeStopping = true;
-      api("/api/runtime/stop", { method: "POST" })
-        .then(() => toast("Keel runtime stopped"))
-        .catch((err) => {
-          state.runtimeStopping = false;
-          toast(err.message, true);
+    // The window is measured from when the action and the layout it
+    // queued (renderTabs, then fitVisiblePanes three frames on) finished,
+    // not from when it started. In the native window the menu item can run
+    // the chord again after the page did (window.__keelShortcut, queued
+    // behind this work); leaving focus view re-attaches a WebGL context per
+    // pane, which in WKWebView can outlast 300 ms, and a start-time stamp
+    // let that late copy zoom the pane straight back in.
+    try {
+      if (name === "new-tab") newTab();
+      else if (name === "close-tab") {
+        if (state.openModal) closeModal();
+        else closeActivePaneOrTab();
+      } else if (name === "reopen-tab") reopenLastTab();
+      else if (name === "search") revealVault();
+      // ⌘N (and the native New Host item, which sends the same name): the
+      // page's own New on a tab page, New host elsewhere.
+      else if (name === "new-host") newItem();
+      else if (name === "quick-connect") openQuick();
+      else if (name === "join") openJoin();
+      else if (name === "settings") openPage("settings");
+      else if (name === "split-right") splitActive("h");
+      else if (name === "split-down") splitActive("v");
+      else if (name === "split-notebook") splitNotebook("h");
+      else if (name === "focus-pane") {
+        const pane = focusedPane();
+        if (pane) togglePaneZoom(pane.id);
+      }
+      else if (name === "find-term") {
+        const pane = focusedPane();
+        if (pane?.search) openFind(pane);
+      } else if (name === "toggle-sidebar") toggleSidebar();
+      else if (name === "toggle-agent") toggleAgentPanel();
+      else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
+      else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
+      else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
+      else if (name === "stop-runtime") {
+        state.runtimeStopping = true;
+        api("/api/runtime/stop", { method: "POST" })
+          .then(() => toast("Keel runtime stopped"))
+          .catch((err) => {
+            state.runtimeStopping = false;
+            toast(err.message, true);
+          });
+      } else if (name === "prev-tab") activateTabDelta(-1);
+      else if (name === "next-tab") activateTabDelta(1);
+      else if (name === "palette") {
+        if (isCommandPaletteOpen()) closeCommandPalette();
+        else openCommandPalette();
+      }
+    } finally {
+      lastShortcutAt = Date.now();
+      const restamp = (frames) =>
+        requestAnimationFrame(() => {
+          if (lastShortcutName !== name) return;
+          lastShortcutAt = Date.now();
+          if (frames > 1) restamp(frames - 1);
         });
-    } else if (name === "prev-tab") activateTabDelta(-1);
-    else if (name === "next-tab") activateTabDelta(1);
-    else if (name === "palette") {
-      if (isCommandPaletteOpen()) closeCommandPalette();
-      else openCommandPalette();
+      restamp(3);
     }
   }
 
@@ -4177,7 +4196,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     findEl.className = "term-find";
     findEl.hidden = true;
     findEl.setAttribute("role", "search");
-    findEl.innerHTML = `<input type="text" class="term-find-input" placeholder="Find" autocomplete="off" spellcheck="false" aria-label="Find in terminal" />
+    findEl.innerHTML = `<input autocapitalize="off" autocorrect="off" type="text" class="term-find-input" placeholder="Find" autocomplete="off" spellcheck="false" aria-label="Find in terminal" />
       <span class="term-find-count" aria-live="polite"></span>
       <button type="button" class="icon-btn term-find-prev" title="Previous match">↑</button>
       <button type="button" class="icon-btn term-find-next" title="Next match">↓</button>
@@ -4198,7 +4217,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     inputEl.className = "term-input";
     inputEl.hidden = true;
     inputEl.innerHTML = `<span class="term-input-kicker">CLI input</span>
-      <textarea class="term-input-body" data-term-input rows="2" spellcheck="false" placeholder="Inserted from the notebook — edit here, then confirm. Nothing is typed until you approve."></textarea>
+      <textarea autocapitalize="off" autocorrect="off" class="term-input-body" data-term-input rows="2" spellcheck="false" placeholder="Inserted from the notebook — edit here, then confirm. Nothing is typed until you approve."></textarea>
       <div class="term-input-actions">
         <button type="button" class="tiny" data-term-input-cancel="${paneId}">Cancel</button>
         <button type="button" class="tiny" data-term-input-confirm="${paneId}">Confirm</button>
@@ -5215,7 +5234,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // meta line under it names the pane shell fences type into.
     body.innerHTML = `<article class="notebook-col">
       <div class="notebook-review" data-notebook-review hidden></div>
-      <h1 class="notebook-title"><input class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
+      <h1 class="notebook-title"><input autocapitalize="off" autocorrect="off" class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
       <div class="notebook-meta" data-notebook-meta></div>
       <hr class="notebook-rule" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
@@ -5878,7 +5897,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     pane.mdEditor = null;
     const KeelMD = window.KeelMarkdownEditor;
     if (!KeelMD || typeof KeelMD.mount !== "function") {
-      host.innerHTML = `<textarea class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
+      host.innerHTML = `<textarea autocapitalize="off" autocorrect="off" class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
       return;
     }
     // Shell fences say "Type into <pane>" (target) and go through
@@ -6597,6 +6616,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     input.type = "text";
     input.value = g.name || "";
     input.className = "group-rename";
+    noTextAssist(input);
     const original = title.textContent;
     title.replaceChildren(input);
     input.focus({ preventScroll: true });

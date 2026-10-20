@@ -48,14 +48,14 @@ func VaultSidebar(p PageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</span> <input id=\"search\" class=\"k-input\" type=\"search\" placeholder=\"Filter hosts\" aria-label=\"Search hosts\" autocomplete=\"off\" spellcheck=\"false\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</span> <input autocapitalize=\"off\" autocorrect=\"off\" id=\"search\" class=\"k-input\" type=\"search\" placeholder=\"Filter hosts\" aria-label=\"Search hosts\" autocomplete=\"off\" spellcheck=\"false\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Query)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/sidebar.templ`, Line: 30, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/sidebar.templ`, Line: 32, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {

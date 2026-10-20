@@ -125,7 +125,7 @@ func viewMenu(goos string) []menuEntry {
 		{"Toggle Vault Sidebar", "CmdOrCtrl+b", "toggle-sidebar"},
 		{"Toggle Agent Panel", agentPanelAccel(goos), "toggle-agent"},
 		{},
-		{"Focus Pane", "CmdOrCtrl+Shift+enter", "focus-pane"},
+		{"Focus View", "CmdOrCtrl+Shift+enter", "focus-pane"},
 		{},
 		{"Zoom In", "CmdOrCtrl+=", "zoom-in"},
 		{"Zoom Out", "CmdOrCtrl+-", "zoom-out"},
