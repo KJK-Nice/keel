@@ -17,9 +17,15 @@ export function isMenuKey(ev) {
 }
 
 // Keys of menu items that are not app-modifier chords (shortcutmap.js).
+// The terminal menu's Copy, Paste and Select all are the native Edit
+// menu's ⌘C ⌘V ⌘A on macOS; elsewhere Ctrl+C, Ctrl+V and Ctrl+A belong to
+// the shell, so those items show no key.
 const ROW_KEYS = {
   connect: { mac: "↵", other: "Enter" },
   "open-split": { mac: "⌥↵", other: "Alt+Enter" },
+  copy: { mac: "⌘C", other: "" },
+  paste: { mac: "⌘V", other: "" },
+  "select-all": { mac: "⌘A", other: "" },
 };
 
 // shortcutLabel is what a menu item shows for its shortcut on this
@@ -44,9 +50,13 @@ export function ariaKeys(label) {
 export function localizeShortcuts(root, mac) {
   root?.querySelectorAll?.("[data-keys]").forEach((el) => {
     const label = shortcutLabel(el.getAttribute("data-keys"), mac);
-    if (!label) return;
-    if (el.textContent !== label) el.textContent = label;
     const item = el.closest('[role^="menuitem"]');
+    el.hidden = !label;
+    if (!label) {
+      item?.removeAttribute("aria-keyshortcuts");
+      return;
+    }
+    if (el.textContent !== label) el.textContent = label;
     const aria = ariaKeys(label);
     if (item && aria && item.getAttribute("aria-keyshortcuts") !== aria) item.setAttribute("aria-keyshortcuts", aria);
   });

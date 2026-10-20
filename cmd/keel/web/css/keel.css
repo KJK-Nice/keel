@@ -413,6 +413,13 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
 .k-menu-item:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus, :focus-visible, [data-highlighted]) { background: var(--hover); color: var(--ink); outline: none; }
 .k-menu-item--danger, .k-menu-item--danger:is(:hover, :focus, :focus-visible), .k-menu-item--danger .k-i, .k-menu-item--danger svg.k-i { color: var(--flare); }
 .k-menu-item[hidden], .k-menu-sep[hidden] { display: none; }
+/* An item term.js disables while the menu is open (the terminal menu's
+   Copy without a selection), as components.css dims a disabled .k-btn. */
+.k-menu-item:disabled, .k-menu-item[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+.k-menu-item .k-shortcut[hidden] { display: none; }
+/* A list item with its menu beside it (Keychain, Snippets): the wrapper
+   leaves the list's layout to the item. */
+.k-item-row { display: contents; }
 .k-menu-sep { height: 1px; margin: var(--space-1) calc(var(--space-1) * -1); background: var(--line); }
 .k-menu > .k-menu-label:first-child { padding-top: var(--space-1); }
 @media (prefers-reduced-motion: no-preference) {

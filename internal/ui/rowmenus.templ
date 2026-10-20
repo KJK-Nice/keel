@@ -107,13 +107,17 @@ templ groupRowMenu(n groupNode) {
 // Approve before type (§6); nothing here writes a PTY.
 templ snippetRowMenu(s store.Snippet) {
 	@rowMenu("Actions") {
-		@menuItem(icon.Keyboard, "Type into pane…", "", "", templ.Attributes{"data-snippet-run": s.ID})
-		@menuItem(icon.Copy01, "Copy", "", "", templ.Attributes{"data-copy": s.Command, "data-copy-what": "snippet"})
-		@dropdownmenu.Separator()
-		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-snippet": s.ID})
-		@dropdownmenu.Separator()
-		@menuDanger("Delete", templ.Attributes{"data-delete-snippet": s.ID})
+		@snippetMenuItems(s)
 	}
+}
+
+templ snippetMenuItems(s store.Snippet) {
+	@menuItem(icon.Keyboard, "Type into pane…", "", "", templ.Attributes{"data-snippet-run": s.ID})
+	@menuItem(icon.Copy01, "Copy", "", "", templ.Attributes{"data-copy": s.Command, "data-copy-what": "snippet"})
+	@dropdownmenu.Separator()
+	@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-snippet": s.ID})
+	@dropdownmenu.Separator()
+	@menuDanger("Delete", templ.Attributes{"data-delete-snippet": s.ID})
 }
 
 templ tunnelRowMenu(t tunnel.Info) {
@@ -177,5 +181,92 @@ templ PaneMenu() {
 			@dropdownmenu.Separator()
 			@menuItem(icon.Cancel01, "Close pane", "close-tab", "⌘W", templ.Attributes{"data-pane-act": "close"})
 		}
+	}
+}
+
+// TermMenu is the terminal's own menu: a right-click on a terminal body
+// when Settings · Terminal · Right-click in the terminal is Menu (the
+// default), or the Menu key in a terminal. term.js sets the pane, hides
+// what does not apply and disables Copy without a selection and Paste for
+// a follower (lib/termmenu.js). Paste is the user's own paste, the same
+// path as right-click paste; nothing else here writes to the PTY. ⇧F10
+// stays the terminal's (programs such as mc read it).
+templ TermMenu() {
+	@dropdownmenu.DropdownMenu(dropdownmenu.Props{ID: "term-menu"}) {
+		<button type="button" id="term-menu-trigger" hidden tabindex="-1" aria-label="Terminal actions" { dropdownmenu.Trigger(ctx)... }></button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom}) {
+			@menuItem(icon.Copy01, "Copy", "copy", "⌘C", templ.Attributes{"data-term-act": "copy"})
+			@menuItem(icon.ClipboardPaste, "Paste", "paste", "⌘V", templ.Attributes{"data-term-act": "paste"})
+			@menuItem(icon.TextSelection, "Select all", "select-all", "⌘A", templ.Attributes{"data-term-act": "select-all"})
+			@menuItem(icon.Eraser, "Clear", "", "", templ.Attributes{"data-term-act": "clear"})
+			@menuItem(icon.Search01, "Find", "find-term", "⌘F", templ.Attributes{"data-term-act": "find"})
+			@dropdownmenu.Separator(dropdownmenu.SeparatorProps{Attributes: templ.Attributes{"data-term-sep": "split"}})
+			@menuItem(icon.LayoutTwoColumn, "Split right", "split-right", "⌘⇧D", templ.Attributes{"data-term-act": "split-h"})
+			@menuItem(icon.LayoutTwoRow, "Split down", "split-down", "⌘⇧E", templ.Attributes{"data-term-act": "split-v"})
+			@dropdownmenu.Separator()
+			@menuItem(icon.Cancel01, "Close pane", "close-tab", "⌘W", templ.Attributes{"data-term-act": "close"})
+		}
+	}
+}
+
+// FenceMenu is a notebook code block's menu: a right-click on a fence (its
+// bar, or its code when no text is selected), or ⇧F10 / the Menu key on
+// the fence bar. Its items click the fence's own buttons, so Type into
+// pane… still opens Approve before type (§6) and only shell fences offer
+// it; term.js names the pane in the label.
+templ FenceMenu() {
+	@dropdownmenu.DropdownMenu(dropdownmenu.Props{ID: "fence-menu"}) {
+		<button type="button" id="fence-menu-trigger" hidden tabindex="-1" aria-label="Code block actions" { dropdownmenu.Trigger(ctx)... }></button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom}) {
+			@dropdownmenu.Item(dropdownmenu.ItemProps{Attributes: templ.Attributes{"data-fence-act": "type"}}) {
+				@icon.Keyboard(icon.Props{Class: "k-i"})
+				<span data-fence-type-label>Type into pane…</span>
+			}
+			@menuItem(icon.Copy01, "Copy code", "", "", templ.Attributes{"data-fence-act": "copy"})
+		}
+	}
+}
+
+// CardMenu is the agent cards' menu (lib/cardmenu.js): term.js fills it
+// with the right-clicked card's own buttons, so it offers exactly what the
+// card shows and every item takes that button's path.
+templ CardMenu() {
+	@dropdownmenu.DropdownMenu(dropdownmenu.Props{ID: "card-menu"}) {
+		<button type="button" id="card-menu-trigger" hidden tabindex="-1" aria-label="Card actions" { dropdownmenu.Trigger(ctx)... }></button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom, Attributes: templ.Attributes{"data-card-menu-items": "true"}})
+	}
+}
+
+// hiddenRowMenu is a row menu with no "…" button of its own, for a row
+// that is one button already (a Keychain or Snippets page item): a
+// right-click, ⇧F10 or the Menu key open it (lib/rowmenu.js).
+templ hiddenRowMenu(label string) {
+	@dropdownmenu.DropdownMenu() {
+		<button type="button" hidden tabindex="-1" aria-label={ label } { dropdownmenu.Trigger(ctx)... }></button>
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignStart, Side: dropdownmenu.SideBottom}) {
+			{ children... }
+		}
+	}
+}
+
+// identityRowMenu: Edit and Delete, the detail's own actions. Nothing here
+// shows or copies a key, a passphrase or a password. An identity hosts
+// still use cannot be deleted, as on the detail.
+templ identityRowMenu(hosts []store.Host, id store.Identity) {
+	@hiddenRowMenu("Identity actions") {
+		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-identity": id.ID})
+		@dropdownmenu.Separator()
+		@dropdownmenu.Item(dropdownmenu.ItemProps{Variant: dropdownmenu.ItemVariantDestructive, Disabled: identityInUse(hosts, id), Attributes: templ.Attributes{"data-delete-identity": id.ID}}) {
+			@icon.Delete02(icon.Props{Class: "k-i"})
+			Delete
+		}
+	}
+}
+
+// snippetPageMenu is a Snippets page row's menu: the sidebar snippet
+// menu's items.
+templ snippetPageMenu(s store.Snippet) {
+	@hiddenRowMenu("Snippet actions") {
+		@snippetMenuItems(s)
 	}
 }

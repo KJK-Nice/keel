@@ -377,10 +377,14 @@ templ SettingsPage() {
 						</div>
 						<div class="pref-row">
 							<div class="pref-copy">
-								<div class="pref-title">Right-click to paste</div>
-								<p class="pref-desc">Paste clipboard into the focused pane.</p>
+								<div class="pref-title" id="set-right-click-title">Right-click in the terminal</div>
+								<p class="pref-desc" id="set-right-click-help">Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.</p>
 							</div>
-							@switchcomp.Switch(switchcomp.Props{ID: "set-paste"})
+							<div class="k-seg pref-seg" id="set-right-click" role="group" aria-labelledby="set-right-click-title" aria-describedby="set-right-click-help">
+								for i, v := range []string{"paste", "menu", "nothing"} {
+									<button type="button" data-right-click={ v } aria-pressed={ strconv.FormatBool(v == "menu") }>{ []string{"Paste", "Menu", "Nothing"}[i] }</button>
+								}
+							</div>
 						</div>
 					}
 				</div>

@@ -271,6 +271,7 @@ export function createThreadView(opts) {
     const node = doc.createElement("div");
     node.className = "k-prop";
     node.setAttribute("role", "group");
+    node.dataset.rowMenu = "card"; // the card menu: its own buttons (lib/cardmenu.js)
     node.setAttribute("aria-label", "Proposal");
     node.dataset.proposalId = id;
     el.appendChild(node);
@@ -380,6 +381,7 @@ export function createThreadView(opts) {
     const node = doc.createElement("div");
     node.className = "k-rb-pick";
     node.setAttribute("role", "group");
+    node.dataset.rowMenu = "card"; // the card menu: its own buttons (lib/cardmenu.js)
     node.dataset.runId = runId;
     const who = turnEl?.querySelector(".k-agent-who");
     if (who) who.insertAdjacentElement("afterend", node);
@@ -486,6 +488,7 @@ export function createThreadView(opts) {
     const node = doc.createElement("div");
     node.className = "k-prop k-prop--note k-prop--runbook";
     node.setAttribute("role", "group");
+    node.dataset.rowMenu = "card"; // the card menu: its own buttons (lib/cardmenu.js)
     node.setAttribute("aria-label", "Proposed runbook");
     node.dataset.bookId = id;
     el.appendChild(node);
@@ -545,6 +548,7 @@ export function createThreadView(opts) {
     const node = doc.createElement("div");
     node.className = "k-prop k-prop--note k-prop--notebook";
     node.setAttribute("role", "group");
+    node.dataset.rowMenu = "card"; // the card menu: its own buttons (lib/cardmenu.js)
     node.dataset.nbpId = id;
     el.appendChild(node);
     nbRecs.set(id, node);
@@ -607,6 +611,7 @@ export function createThreadView(opts) {
     const node = doc.createElement("div");
     node.className = "k-prop k-prop--note";
     node.setAttribute("role", "group");
+    node.dataset.rowMenu = "card"; // the card menu: its own buttons (lib/cardmenu.js)
     node.setAttribute("aria-label", "Proposed note");
     node.dataset.noteId = id;
     el.appendChild(node);
