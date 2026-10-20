@@ -66,10 +66,22 @@ import { createGroupRunPage } from "./ui/grouprun.js";
 import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 import { attachCommandMarks } from "./lib/cmdmarks.js";
+import { openExternal } from "./lib/openlink.js";
 
 (() => {
   if (window.__keelTermBound) return;
   window.__keelTermBound = true;
+  // Links marked data-k-external (provider key and terms links, agent
+  // answers) open in the system browser: the native window does nothing
+  // with target=_blank (lib/openlink.js). A view that handled the click
+  // itself has already called preventDefault.
+  document.addEventListener("click", (ev) => {
+    if (ev.defaultPrevented || ev.button !== 0) return;
+    const a = ev.target instanceof Element ? ev.target.closest("a[data-k-external]") : null;
+    if (!a) return;
+    ev.preventDefault();
+    openExternal(a.getAttribute("href"));
+  });
   function createTerminal(opts) {
     const Ctor = window.Terminal;
     if (typeof Ctor !== "function") {

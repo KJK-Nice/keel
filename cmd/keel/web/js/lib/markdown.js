@@ -74,6 +74,34 @@ function linkHTML(href, inner) {
   return `<a class="k-md-link" href="${h}" title="${h}" target="_blank" rel="noopener noreferrer" data-k-external>${inner}</a>`;
 }
 
+// target is what a link opens, for comparing: the host of an http(s) URL
+// (without "www."), or the address of a mailto.
+function target(href) {
+  try {
+    const u = new URL(href);
+    if (u.protocol === "mailto:") return decodeURIComponent(u.pathname).toLowerCase();
+    return u.hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+// labelMismatch: when a link's text looks like a URL, a host or an email
+// address that is not where the link goes ([good.com](https://evil.example)),
+// the real target is shown after the text, so the text cannot pass for it.
+// "" when the text is ordinary words or names the same target.
+const LOOKS_URL = /^(?:https?:\/\/|mailto:|www\.)|^[^\s@/]+@[^\s@/]+\.[^\s@/]+$|^[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.[\p{L}]{2,}\.?(?::\d+)?(?:[/?#]\S*)?$/iu;
+function labelMismatch(label, href) {
+  const t = label.replace(/[`*_~<>]/g, "").trim();
+  if (t.length > 2048 || !LOOKS_URL.test(t)) return "";
+  let shown = "";
+  if (/^mailto:/i.test(t) || /^[^\s@/:]+@[^\s@/]+$/.test(t)) shown = target(/^mailto:/i.test(t) ? t : "mailto:" + t);
+  else shown = target(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : "https://" + t);
+  const real = target(href);
+  if (shown && shown === real) return "";
+  return ` <span class="k-md-linkhost">(${escapeHtml(real || href)})</span>`;
+}
+
 // --- inline ---
 
 const PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
@@ -81,8 +109,10 @@ const isSpace = (c) => c === undefined || /\s/.test(c);
 const isWord = (c) => c !== undefined && /[\p{L}\p{N}]/u.test(c);
 
 const TICKS_Y = /`+/y;
-const AUTOLINK_Y = /<((?:https?:\/\/|mailto:)[^\s<>]+)>/iy;
-const BARE_Y = /(?:https?:\/\/|mailto:)[^\s<>"'`]+/iy;
+// URL bodies are capped at the longest URL Keel opens (safeLinkURL), so a
+// match never runs over a whole answer.
+const AUTOLINK_Y = /<((?:https?:\/\/|mailto:)[^\s<>]{1,2040})>/iy;
+const BARE_Y = /(?:https?:\/\/|mailto:)[^\s<>"'`]{1,2041}/iy;
 
 // at runs a /y regex at index i, without slicing the string.
 function at(re, s, i) {
@@ -92,13 +122,18 @@ function at(re, s, i) {
 
 // skipCode returns the index of the last backtick of the code span that
 // opens at i, or -1 when its run of backticks has no closer.
-function skipCode(s, i) {
+// memo (optional) remembers, per run length, from where no closer exists,
+// so the same unclosed run is not searched for to the end again and again.
+function skipCode(s, i, memo) {
   const run = at(TICKS_Y, s, i)[0];
+  const key = "`" + run.length;
+  if (memo && memo.get(key) <= i) return -1;
   let j = i + run.length;
   while ((j = s.indexOf(run, j)) >= 0) {
-    if (s[j + run.length] !== "`") return j + run.length - 1;
+    if (s[j + run.length] !== "`" && s[j - 1] !== "`") return j + run.length - 1;
     while (s[j] === "`") j++;
   }
+  memo?.set(key, i);
   return -1;
 }
 
@@ -117,7 +152,7 @@ function findClose(s, from, d, intraword, memo) {
       continue;
     }
     if (c === "`") {
-      const end = skipCode(s, i);
+      const end = skipCode(s, i, memo);
       if (end > 0) i = end;
       else while (s[i + 1] === "`") i++;
       continue;
@@ -136,39 +171,55 @@ function findClose(s, from, d, intraword, memo) {
   return -1;
 }
 
-// matchBracket returns the index of the `]` that closes the `[` at i, or -1.
-function matchBracket(s, i) {
-  let depth = 0;
-  const stop = Math.min(s.length, i + SCAN_LINK);
-  for (let j = i; j < stop; j++) {
+// brackets pairs every `[` with its `]` in one left-to-right pass (a stack;
+// backslash escapes and code spans skipped), so looking up a link's text
+// costs nothing per `[`. A pair further apart than SCAN_LINK is left out.
+function brackets(s, memo) {
+  const pairs = new Map();
+  const stack = [];
+  for (let j = 0; j < s.length; j++) {
     const c = s[j];
     if (c === "\\") {
       j++;
       continue;
     }
     if (c === "`") {
-      const end = skipCode(s, j);
+      const end = skipCode(s, j, memo);
       if (end > 0) j = end;
       else while (s[j + 1] === "`") j++;
       continue;
     }
-    if (c === "[") depth++;
-    else if (c === "]" && --depth === 0) return j;
+    if (c === "[") stack.push(j);
+    else if (c === "]" && stack.length) {
+      const k = stack.pop();
+      if (j - k <= SCAN_LINK) pairs.set(k, j);
+    }
+  }
+  return pairs;
+}
+
+// findChar returns the index of ch in s[from, stop) before any newline, or
+// -1. Bounded, unlike indexOf, which would run to the end of the answer.
+function findChar(s, ch, from, stop, bad = "") {
+  for (let j = from; j < stop; j++) {
+    if (s[j] === ch) return j;
+    if (s[j] === "\n" || s[j] === bad) return -1;
   }
   return -1;
 }
 
 // linkDest reads `(url "title")` at i: { url, end } with end past the `)`,
-// or null.
+// or null. It reads at most a URL's length (2048) plus a short title, and
+// gives up at the fourth unclosed `(`, so a run of `[a](` stays linear.
 function linkDest(s, i) {
   if (s[i] !== "(") return null;
-  const stop = Math.min(s.length, i + SCAN);
+  const stop = Math.min(s.length, i + 2048 + 256);
   let j = i + 1;
   while (s[j] === " ") j++;
   let url = "";
   if (s[j] === "<") {
-    const end = s.indexOf(">", j);
-    if (end < 0 || end > stop || s.slice(j, end).includes("\n")) return null;
+    const end = findChar(s, ">", j + 1, stop, "<");
+    if (end < 0) return null;
     url = s.slice(j + 1, end);
     j = end + 1;
   } else {
@@ -180,9 +231,10 @@ function linkDest(s, i) {
         j++;
         continue;
       }
-      if (/\s/.test(c)) break;
-      if (c === "(") depth++;
-      else if (c === ")") {
+      if (c === " " || c === "\t" || c === "\n" || c === "\r") break;
+      if (c === "(") {
+        if (++depth > 3) return null;
+      } else if (c === ")") {
         if (depth === 0) break;
         depth--;
       }
@@ -191,8 +243,8 @@ function linkDest(s, i) {
   }
   while (s[j] === " ") j++;
   if (s[j] === '"' || s[j] === "'") {
-    const end = s.indexOf(s[j], j + 1);
-    if (end < 0 || end > stop) return null;
+    const end = findChar(s, s[j], j + 1, stop);
+    if (end < 0) return null;
     j = end + 1;
     while (s[j] === " ") j++;
   }
@@ -203,24 +255,40 @@ function linkDest(s, i) {
 // bareURL reads a URL in running text at i. It stops at whitespace, quotes
 // and angle brackets, and leaves trailing punctuation and an unbalanced
 // closing bracket outside.
+// A URL longer than the cap is not a link at all. One pass counts the
+// brackets; trailing characters are then dropped by moving one index.
 function bareURL(s, i) {
   const m = at(BARE_Y, s, i);
   if (!m) return null;
-  let url = m[0];
-  const count = (ch) => url.split(ch).length - 1;
-  for (;;) {
-    const last = url[url.length - 1];
-    if (/[.,:;!?*_~]/.test(last)) url = url.slice(0, -1);
-    else if (last === ")" && count("(") < count(")")) url = url.slice(0, -1);
-    else if (last === "]" && count("[") < count("]")) url = url.slice(0, -1);
-    else break;
+  const url = m[0];
+  if (url.length > 2048 || /[^\s<>"'`]/.test(s[i + url.length] || " ")) return null;
+  let open = 0, close = 0, openSq = 0, closeSq = 0;
+  for (const ch of url) {
+    if (ch === "(") open++;
+    else if (ch === ")") close++;
+    else if (ch === "[") openSq++;
+    else if (ch === "]") closeSq++;
   }
-  return url;
+  let end = url.length;
+  while (end > 0) {
+    const last = url[end - 1];
+    if (/[.,:;!?*_~]/.test(last)) end--;
+    else if (last === ")" && open < close) {
+      close--;
+      end--;
+    } else if (last === "]" && openSq < closeSq) {
+      closeSq--;
+      end--;
+    } else break;
+  }
+  return url.slice(0, end);
 }
 
 function inline(s, depth = 0, inLink = false) {
   if (depth > MAX_INLINE_DEPTH) return escapeHtml(s);
   const memo = new Map();
+  let pairs = null; // [ → ] for this text, made on the first [
+  const closeOf = (k) => (pairs ??= brackets(s, memo)).get(k) ?? -1;
   let out = "";
   let text = "";
   const flush = () => {
@@ -233,7 +301,10 @@ function inline(s, depth = 0, inLink = false) {
     // A line break is kept as a break in chat (`\` or two spaces at the
     // end of a line, the markdown hard break, mean the same).
     if (c === "\n") {
-      text = text.replace(/(?:\\|[ \t]+)$/, "");
+      let end = text.length;
+      if (text[end - 1] === "\\") end--;
+      else while (end > 0 && (text[end - 1] === " " || text[end - 1] === "\t")) end--;
+      text = text.slice(0, end);
       flush();
       out += "<br>";
       i++;
@@ -261,7 +332,7 @@ function inline(s, depth = 0, inLink = false) {
     // Code span: a run of n backticks closed by exactly n.
     if (c === "`") {
       const run = at(TICKS_Y, s, i)[0];
-      const last = skipCode(s, i);
+      const last = skipCode(s, i, memo);
       if (last < 0) {
         text += run;
         i += run.length;
@@ -277,7 +348,7 @@ function inline(s, depth = 0, inLink = false) {
 
     // Image: never made. The whole `![alt](url)` stays text.
     if (c === "!" && s[i + 1] === "[") {
-      const close = matchBracket(s, i + 1);
+      const close = closeOf(i + 1);
       const dest = close > 0 ? linkDest(s, close + 1) : null;
       if (dest) {
         text += s.slice(i, dest.end);
@@ -288,14 +359,14 @@ function inline(s, depth = 0, inLink = false) {
 
     // Link: [text](url). It stays text when the URL is not one Keel opens.
     if (c === "[" && !inLink) {
-      const close = matchBracket(s, i);
+      const close = closeOf(i);
       const dest = close > 0 ? linkDest(s, close + 1) : null;
       if (dest) {
         const href = safeLinkURL(dest.url);
         const label = s.slice(i + 1, close);
         if (href && label.trim() && !HAS_PLACEHOLDER.test(label)) {
           flush();
-          out += linkHTML(href, inline(label, depth + 1, true));
+          out += linkHTML(href, inline(label, depth + 1, true) + labelMismatch(label, href));
         } else {
           text += s.slice(i, dest.end);
         }
@@ -310,7 +381,7 @@ function inline(s, depth = 0, inLink = false) {
       const href = m && safeLinkURL(m[1]);
       if (href) {
         flush();
-        out += linkHTML(href, escapeHtml(m[1]));
+        out += linkHTML(href, escapeHtml(href)); // the URL opened, as opened
         i += m[0].length;
         continue;
       }
@@ -322,7 +393,7 @@ function inline(s, depth = 0, inLink = false) {
       const href = url && safeLinkURL(url);
       if (href) {
         flush();
-        out += linkHTML(href, escapeHtml(url));
+        out += linkHTML(href, escapeHtml(href));
         i += url.length;
         continue;
       }
@@ -360,12 +431,42 @@ function inline(s, depth = 0, inLink = false) {
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
-const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
-const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+// Block tests are written so no two quantifiers can trade the same
+// characters before an anchor (that backtracks quadratically on a long
+// line); the rest of each line is read by hand.
+const HEADING_START = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const QUOTE = /^ {0,3}> ?(.*)$/;
 const ITEM = /^( *)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*))?$/;
-const TABLE_DELIM = /^ {0,3}\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
 const blank = (l) => /^[ \t]*$/.test(l);
+const trimBlanks = (s) => s.replace(/^[ \t]+/, "").trimEnd();
+
+// heading: { level, text } for an ATX heading line, else null. A closing
+// run of # (after a blank, or the whole text) is dropped.
+function heading(line) {
+  const m = line.match(HEADING_START);
+  if (!m) return null;
+  let text = trimBlanks(line.slice(m[0].length));
+  let end = text.length;
+  while (end > 0 && text[end - 1] === "#") end--;
+  if (end === 0 || text[end - 1] === " " || text[end - 1] === "\t") text = text.slice(0, end).trimEnd();
+  return { level: m[1].length, text };
+}
+
+// isRule: three or more of one of - * _, with only blanks between.
+function isRule(line) {
+  if (indentOf(line) > 3) return false;
+  const t = line.replace(/[ \t]/g, "");
+  return t.length >= 3 && /^[-*_]$/.test(t[0]) && t.split(t[0]).length - 1 === t.length;
+}
+
+// isDelimRow: a table's delimiter row, such as |:--|--:|.
+function isDelimRow(line) {
+  if (indentOf(line) > 3) return false;
+  let t = line.trim();
+  if (t.startsWith("|")) t = t.slice(1);
+  if (t.endsWith("|")) t = t.slice(0, -1);
+  return t.split("|").every((c) => /^:?-+:?$/.test(c.trim()));
+}
 const indentOf = (l) => l.length - l.trimStart().length;
 
 function isFence(line) {
@@ -374,14 +475,14 @@ function isFence(line) {
 }
 
 function isTable(line, next) {
-  return line.includes("|") && next !== undefined && next.includes("-") && TABLE_DELIM.test(next);
+  return line.includes("|") && next !== undefined && isDelimRow(next);
 }
 
 // interrupts: may this line end a paragraph without a blank line before
 // it? As in CommonMark, an ordered list does so only when it starts at 1,
 // and a list item only when it has text.
 function interrupts(line, next) {
-  if (isFence(line) || HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || isTable(line, next)) return true;
+  if (isFence(line) || heading(line) || isRule(line) || QUOTE.test(line) || isTable(line, next)) return true;
   const m = line.match(ITEM);
   return !!m && indentOf(line) < 4 && !!m[3]?.trim() && (!/\d/.test(m[2]) || parseInt(m[2], 10) === 1);
 }
@@ -508,15 +609,14 @@ function blocks(lines, opts, depth) {
       continue;
     }
 
-    let m = line.match(HEADING);
-    if (m) {
-      const level = m[1].length;
-      out += `<h${level} class="k-md-h">${inline((m[2] || "").trim())}</h${level}>`;
+    const h = heading(line);
+    if (h) {
+      out += `<h${h.level} class="k-md-h">${inline(h.text)}</h${h.level}>`;
       i++;
       continue;
     }
 
-    if (RULE.test(line)) {
+    if (isRule(line)) {
       out += "<hr>";
       i++;
       continue;
@@ -542,8 +642,10 @@ function blocks(lines, opts, depth) {
         .map((body) => {
           const inner = blocks(body, opts, depth + 1);
           // A tight item's one paragraph is shown without its <p>.
-          const tight = inner.match(/^<p>([\s\S]*?)<\/p>((?:<(?:ul|ol)[\s>][\s\S]*)?)$/);
-          return `<li>${tight && !tight[1].includes("</p>") ? tight[1] + tight[2] : inner}</li>`;
+          const close = inner.startsWith("<p>") ? inner.indexOf("</p>") : -1;
+          const rest = close > 0 ? inner.slice(close + 4) : "";
+          const tight = close > 0 && (rest === "" || rest.startsWith("<ul>") || rest.startsWith("<ol"));
+          return `<li>${tight ? inner.slice(3, close) + rest : inner}</li>`;
         })
         .join("");
       out += list.ordered ? `<ol${list.start !== 1 ? ` start="${list.start}"` : ""}>${lis}</ol>` : `<ul>${lis}</ul>`;

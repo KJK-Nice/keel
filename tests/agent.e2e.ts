@@ -69,6 +69,8 @@ test('no key: Connect Gemini shows the free-tier warning and stores the key in t
   await expect(panel(screen).getByRole('heading', 'Connect Gemini')).toBeVisible();
   await expect(panel(screen)).toContainText('On the free tier of the Gemini API');
   await expect(panel(screen).getByRole('link', 'Gemini API terms')).toHaveAttribute('href', 'https://ai.google.dev/gemini-api/terms');
+  // Opened through openExternal (the native window ignores target=_blank).
+  await expect(panel(screen).getByRole('link', 'Gemini API terms')).toHaveAttribute('data-k-external', '');
   await app.screenshot('agent-connect');
 
   // Asking without a key keeps the Connect state; nothing is read.

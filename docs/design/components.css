@@ -875,6 +875,7 @@ button.k-agent-pick[aria-checked="true"] .k-check .k-i { visibility: visible; }
   overflow-wrap: anywhere;
 }
 .k-md-link:hover { text-decoration-color: var(--brass-ink); }
+.k-md-linkhost { color: var(--ink-muted); }
 .k-md-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-radius: var(--radius-xs); }
 .k-md-code { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--stage); overflow: hidden; }
 .k-md-code-bar {

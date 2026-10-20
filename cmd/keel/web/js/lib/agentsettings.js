@@ -38,8 +38,8 @@ function linksHTML(d) {
   const out = [];
   const help = safeURL(d.keyHelpUrl);
   const terms = safeURL(d.termsUrl);
-  if (help) out.push(`<a href="${escapeHtml(help)}" target="_blank" rel="noopener noreferrer">Get a key</a>`);
-  if (terms) out.push(`<a href="${escapeHtml(terms)}" target="_blank" rel="noopener noreferrer">Terms</a>`);
+  if (help) out.push(`<a href="${escapeHtml(help)}" target="_blank" rel="noopener noreferrer" data-k-external>Get a key</a>`);
+  if (terms) out.push(`<a href="${escapeHtml(terms)}" target="_blank" rel="noopener noreferrer" data-k-external>Terms</a>`);
   return out.join('<span aria-hidden="true"> · </span>');
 }
 

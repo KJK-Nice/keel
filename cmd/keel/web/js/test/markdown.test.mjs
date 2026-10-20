@@ -208,3 +208,76 @@ test("openExternal: native window posts to the app; a browser opens a new tab; b
   assert.equal(openExternal("https://example.com/b", browserWin), true);
   assert.deepEqual(clicked, [{ href: "https://example.com/b", target: "_blank", rel: "noopener noreferrer" }]);
 });
+
+test("a link shows what it opens", () => {
+  // Bare URLs and autolinks show the normalized URL that is opened.
+  assert.match(md("see https://evil.com\\@good.com now"), />https:\/\/evil.com\/@good.com<\/a>/);
+  assert.match(md("<https://EVIL.com/a>"), /href="https:\/\/evil.com\/a"[^>]*>https:\/\/evil.com\/a<\/a>/);
+  // Text that looks like another URL, host or address gets the real target.
+  const host = (src) => (md(src).match(/<span class="k-md-linkhost">\(([^)]*)\)<\/span>/) || [])[1];
+  assert.equal(host("[https://good.com](https://evil.example/x)"), "evil.example");
+  assert.equal(host("[good.com](https://evil.example)"), "evil.example");
+  assert.equal(host("[www.good.com/login](https://evil.example)"), "evil.example");
+  assert.equal(host("[**good.com**](https://evil.example)"), "evil.example");
+  assert.equal(host("[ops@good.com](mailto:ops@evil.example)"), "ops@evil.example");
+  assert.equal(host("[good.com](https://good.com.evil.example)"), "good.com.evil.example");
+  // Same target, or ordinary words: nothing added.
+  assert.equal(host("[good.com](https://www.good.com/a)"), undefined);
+  assert.equal(host("[https://good.com/docs](https://good.com/other)"), undefined);
+  assert.equal(host("[the docs](https://evil.example)"), undefined);
+  assert.equal(host("[ops@good.com](mailto:ops@good.com)"), undefined);
+  assert.match(md("[good.com](https://evil.example)"), /^<p><a [^>]*>good.com <span class="k-md-linkhost">\(evil.example\)<\/span><\/a><\/p>$/);
+});
+
+test("no quadratic paths: 32 KiB of each hostile shape renders fast", () => {
+  const K = 32 * 1024;
+  const fill = (unit) => unit.repeat(Math.ceil(K / unit.length)).slice(0, K);
+  const shapes = {
+    "bare URL then )": "https://a.co/" + ")".repeat(K - 13),
+    "bare URL then ]": "https://a.co/" + "]".repeat(K - 13),
+    "heading blanks": "# a" + " ".repeat(K - 4) + "x",
+    "heading #s": "# " + "# ".repeat(K / 2 - 2) + "x",
+    "table delim blanks": "a|b\n---" + " ".repeat(K - 8) + "x",
+    "table delim cells": "a|b\n" + fill("-| ") + "x",
+    "rule blanks": "- - -" + " ".repeat(K - 6) + "x",
+    "blanks before newline": "a" + " ".repeat(K - 4) + "b\nc",
+    "link dest openers": fill("[a]("),
+    "link dest long": "[a](" + "x".repeat(K - 4),
+    "link angle": fill("[a](<"),
+    "link title": fill('[a](x "'),
+    brackets: "[".repeat(K),
+    closers: "]".repeat(K),
+    stars: "*".repeat(K),
+    underscores: fill("_a"),
+    tildes: fill("~~a "),
+    backticks: fill("`a``"),
+    "rising backtick runs": Array.from({ length: 250 }, (_, n) => "`".repeat(n + 1) + "x").join(""),
+    "star code": fill("*`"),
+    "autolink opens": fill("<https://a"),
+    "bare URLs": fill("https://a.co/ "),
+    placeholders: fill("[secret:1]"),
+    "emphasis nest": fill("**a *b ~~c "),
+    "list items": fill("- a\n"),
+    "nested list": Array.from({ length: 400 }, (_, n) => " ".repeat((n % 40) * 2) + "- x").join("\n"),
+    quotes: fill("> "),
+    "items with paragraphs": fill("- a\n\n  b\n\n"),
+    fences: fill("```\n"),
+    "table rows": "a|b\n-|-\n" + fill("| `x` | y |\n"),
+  };
+  shapes.mixed = Object.values(shapes)
+    .map((v) => v.slice(0, 1200))
+    .join("\n");
+  md(shapes.mixed); // warm up the JIT once
+  for (const [name, src] of Object.entries(shapes)) {
+    // Best of five, so a busy test runner does not fail a linear shape;
+    // the quadratic ones this guards against took seconds.
+    let ms = Infinity;
+    for (let k = 0; k < 5 && ms >= 100; k++) {
+      const t0 = performance.now();
+      md(src);
+      ms = Math.min(ms, performance.now() - t0);
+    }
+    if (process.env.MD_PERF) console.log(name, ms.toFixed(1));
+    assert.ok(ms < 100, `${name}: ${ms.toFixed(1)} ms`);
+  }
+});
