@@ -54,9 +54,13 @@ func TestMacOSICNS(t *testing.T) {
 	if n := binary.BigEndian.Uint32(data[4:8]); int(n) != len(data) {
 		t.Fatalf("icns length %d, file %d", n, len(data))
 	}
+	// ic04/ic05 hold the 1x 16 and 32 px sizes as ARGB; the rest are PNG.
+	// icp4/icp5 must not appear: macOS decodes them as raw pixels, so PNG
+	// data there renders as noise on non-Retina displays.
+	argb := map[string]bool{"ic04": true, "ic05": true}
 	want := map[string]bool{
 		"ic10": false, "ic09": false, "ic08": false, "ic07": false,
-		"icp6": false, "icp5": false, "icp4": false,
+		"ic05": false, "ic04": false,
 		"ic14": false, "ic13": false, "ic12": false, "ic11": false,
 	}
 	for i := 8; i < len(data); {
@@ -69,7 +73,15 @@ func TestMacOSICNS(t *testing.T) {
 			t.Fatalf("bad icns chunk %q length %d at %d", typ, n, i)
 		}
 		payload := data[i+8 : i+n]
-		if len(payload) < 8 || string(payload[:8]) != "\x89PNG\r\n\x1a\n" {
+		switch {
+		case typ == "icp4" || typ == "icp5":
+			t.Fatalf("icns has %s; macOS misreads PNG there, use ic04/ic05", typ)
+		case typ == "info":
+		case argb[typ]:
+			if len(payload) < 4 || string(payload[:4]) != "ARGB" {
+				t.Fatalf("icns %q is not ARGB", typ)
+			}
+		case len(payload) < 8 || string(payload[:8]) != "\x89PNG\r\n\x1a\n":
 			t.Fatalf("icns %q is not a PNG", typ)
 		}
 		if _, ok := want[typ]; ok {

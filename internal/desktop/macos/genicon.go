@@ -8,7 +8,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"image"
 	"image/draw"
@@ -81,21 +80,10 @@ func main() {
 		fatal(err)
 	}
 
-	// PNG-based ICNS elements. Largest first; @2x types reuse the 2× raster.
-	chunks := []icnsChunk{
-		{typ: "ic10", data: encoded[1024]},
-		{typ: "ic09", data: encoded[512]},
-		{typ: "ic14", data: encoded[512]},
-		{typ: "ic08", data: encoded[256]},
-		{typ: "ic13", data: encoded[256]},
-		{typ: "ic07", data: encoded[128]},
-		{typ: "icp6", data: encoded[64]},
-		{typ: "ic12", data: encoded[64]},
-		{typ: "icp5", data: encoded[32]},
-		{typ: "ic11", data: encoded[32]},
-		{typ: "icp4", data: encoded[16]},
-	}
-	if err := os.WriteFile(filepath.Join(dir, "Keel.icns"), packICNS(chunks), 0o644); err != nil {
+	// Pack with iconutil. It stores the 1x 16 and 32 px sizes as ARGB
+	// (ic04/ic05): macOS reads icp4/icp5 as raw pixels, so PNG data there
+	// shows as noise on non-Retina displays.
+	if err := packICNS(dir, encoded); err != nil {
 		fatal(err)
 	}
 
@@ -198,28 +186,40 @@ func lookACTool() (string, error) {
 	return "", fmt.Errorf("actool not found; install Xcode to compile Liquid Glass Assets.car")
 }
 
-type icnsChunk struct {
-	typ  string
-	data []byte
+// iconset maps each .iconset file name to the pixel size it holds.
+var iconset = map[string]int{
+	"icon_16x16.png":      16,
+	"icon_16x16@2x.png":   32,
+	"icon_32x32.png":      32,
+	"icon_32x32@2x.png":   64,
+	"icon_128x128.png":    128,
+	"icon_128x128@2x.png": 256,
+	"icon_256x256.png":    256,
+	"icon_256x256@2x.png": 512,
+	"icon_512x512.png":    512,
+	"icon_512x512@2x.png": 1024,
 }
 
-func packICNS(chunks []icnsChunk) []byte {
-	var body bytes.Buffer
-	for _, c := range chunks {
-		if len(c.typ) != 4 {
-			fatal(fmt.Errorf("icns type %q must be 4 bytes", c.typ))
-		}
-		body.WriteString(c.typ)
-		if err := binary.Write(&body, binary.BigEndian, uint32(8+len(c.data))); err != nil {
-			fatal(err)
-		}
-		body.Write(c.data)
+func packICNS(dir string, encoded map[int][]byte) error {
+	tmp, err := os.MkdirTemp("", "keel-icns-*")
+	if err != nil {
+		return err
 	}
-	out := make([]byte, 8+body.Len())
-	copy(out[0:4], "icns")
-	binary.BigEndian.PutUint32(out[4:8], uint32(len(out)))
-	copy(out[8:], body.Bytes())
-	return out
+	defer os.RemoveAll(tmp)
+	set := filepath.Join(tmp, "Keel.iconset")
+	if err := os.Mkdir(set, 0o755); err != nil {
+		return err
+	}
+	for name, size := range iconset {
+		if err := os.WriteFile(filepath.Join(set, name), encoded[size], 0o644); err != nil {
+			return err
+		}
+	}
+	out, err := exec.Command("iconutil", "-c", "icns", set, "-o", filepath.Join(dir, "Keel.icns")).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("iconutil: %w: %s", err, bytes.TrimSpace(out))
+	}
+	return nil
 }
 
 func fatal(err error) {
