@@ -115,7 +115,13 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   const PAGE_PREFIX = "page:";
   const pageTabId = (name) => PAGE_PREFIX + name;
   const SIDEBAR_SEGS = ["hosts", "panes", "snippets", "forwards"];
-  const SASH_PX = 1; // 1px line gutter between panes; keel.css .split-sash widens the hit area
+  // Split tabs are tiles on chrome: the space-1.5 token between them and
+  // around them (keel.css .term-tab.is-split). The sash is the gap itself;
+  // keel.css .split-sash widens its hit area.
+  const tileGapPx = () => {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-1.5"));
+    return Number.isFinite(v) ? v : 6;
+  };
   // Pane bar tool buttons: ghost icon buttons from the k-* set. icon-btn and the
   // data-pane-* attributes stay as JS hooks.
   const PANE_BTN = "k-btn k-btn--ghost k-btn--sm k-btn--icon icon-btn";
@@ -2359,7 +2365,14 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function splitBox(tab, node) {
     const w = tab.stage?.clientWidth || 0;
     const h = tab.stage?.clientHeight || 0;
-    return computeRects(tab.layout, w, h, SASH_PX).splits.get(node)?.box || null;
+    return stageRects(tab, w, h).splits.get(node)?.box || null;
+  }
+
+  // stageRects lays a tab's panes out in its stage: one pane fills it
+  // (full-bleed), two or more are tiles with a gap between and around them.
+  function stageRects(tab, w, h) {
+    const gap = leafCount(tab.layout) > 1 ? tileGapPx() : 0;
+    return computeRects(tab.layout, w, h, gap, gap);
   }
 
   function placePane(tab, paneId, x, y, w, h) {
@@ -2384,7 +2397,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       placePane(tab, tab.zoomedPaneId, 0, 0, w, h);
       shown.add(tab.zoomedPaneId);
     } else if (tab.layout) {
-      for (const [paneId, r] of computeRects(tab.layout, w, h, SASH_PX).panes) {
+      for (const [paneId, r] of stageRects(tab, w, h).panes) {
         placePane(tab, paneId, r.x, r.y, r.w, r.h);
         shown.add(paneId);
       }
@@ -2397,11 +2410,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       pane.wrap.style.left = "-10000px";
       pane.wrap.style.top = "0px";
     }
+    syncTileGround(tab);
   }
 
   function syncSashElements(tab) {
     if (!tab?.sashes || !tab.stage) return;
-    const { splits } = computeRects(tab.layout, tab.stage.clientWidth || 0, tab.stage.clientHeight || 0, SASH_PX);
+    const { splits } = stageRects(tab, tab.stage.clientWidth || 0, tab.stage.clientHeight || 0);
     for (const { el, node } of tab.sashes) {
       const r = splits.get(node)?.sash;
       if (!r) continue;
@@ -2410,6 +2424,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       el.style.width = `${r.w}px`;
       el.style.height = `${r.h}px`;
     }
+    syncTileGround(tab);
   }
 
   function bindAbsSash(el, node, tab) {
@@ -2439,11 +2454,37 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     });
   }
 
+  // A split tab's chrome ground is one element under the tiles, clipped to
+  // the stage minus each tile's rounded rect, so it fills the gaps, gap
+  // crossings and the wedges outside rounded corners, and never lies under
+  // a tile (a translucent tile must not stack on a second tint).
+  function syncTileGround(tab) {
+    const ground = tab?.stage?.querySelector(":scope > .tile-ground");
+    if (!ground) return;
+    const w = tab.stage.clientWidth || 0;
+    const h = tab.stage.clientHeight || 0;
+    const rv = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--radius-md"));
+    let d = `M0 0H${w}V${h}H0Z`;
+    for (const r of stageRects(tab, w, h).panes.values()) {
+      const k = Math.min(Number.isFinite(rv) ? rv : 8, r.w / 2, r.h / 2);
+      const { x, y } = r;
+      const x2 = x + r.w;
+      const y2 = y + r.h;
+      d += `M${x + k} ${y}H${x2 - k}A${k} ${k} 0 0 1 ${x2} ${y + k}V${y2 - k}A${k} ${k} 0 0 1 ${x2 - k} ${y2}` +
+        `H${x + k}A${k} ${k} 0 0 1 ${x} ${y2 - k}V${y + k}A${k} ${k} 0 0 1 ${x + k} ${y}Z`;
+    }
+    ground.style.clipPath = `path(evenodd, "${d}")`;
+  }
+
   function paintSashes(tab) {
     if (!tab?.stage) return;
-    tab.stage.querySelectorAll(":scope > .split-sash").forEach((el) => el.remove());
+    tab.stage.querySelectorAll(":scope > .split-sash, :scope > .tile-ground").forEach((el) => el.remove());
     tab.sashes = [];
     if (tab.zoomedPaneId || !tab.layout || tab.layout.type === "leaf") return;
+    const ground = document.createElement("div");
+    ground.className = "tile-ground";
+    ground.setAttribute("aria-hidden", "true");
+    tab.stage.prepend(ground);
     const walk = (node) => {
       if (!node || node.type === "leaf") return;
       const el = document.createElement("div");

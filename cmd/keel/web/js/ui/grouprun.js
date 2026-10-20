@@ -161,7 +161,7 @@ export function createGroupRunPage(deps) {
           })
           .join("");
         const c = cur ? (cur.cells || []).find((x) => x.hostId === m.hostId) : null;
-        return `<tr data-host-row="${escapeHtml(m.hostId)}"><th scope="row" class="k-mono k-cell-name">${escapeHtml(m.host)}${m.production ? ' <span class="k-badge k-badge--signal k-gx-prod">Production</span>' : ""}</th><td class="k-mono k-gx-rolecell">${escapeHtml(m.role || "")}</td>${cells}<td class="k-cell-end"><span class="k-gx-actions">${cellActions(run, cur, c)}</span></td></tr>`;
+        return `<tr data-host-row="${escapeHtml(m.hostId)}"><th scope="row" class="k-cell-name">${escapeHtml(m.host)}${m.production ? ' <span class="k-badge k-badge--signal k-gx-prod">Production</span>' : ""}</th><td class="k-mono k-gx-rolecell">${escapeHtml(m.role || "")}</td>${cells}<td class="k-cell-end"><span class="k-gx-actions">${cellActions(run, cur, c)}</span></td></tr>`;
       })
       .join("");
     const left = run.members.filter((m) => m.excluded);
@@ -211,7 +211,7 @@ export function createGroupRunPage(deps) {
       ? `<p class="k-prop-note k-prop-note--signal">${ICON.alert}<span>${prod} of these ${prod === 1 ? "host is" : "hosts are"} production.${shift ? " Typing there needs ⇧." : ""} Tick each host in the next step only after you checked the command for it.</span></p>`
       : "";
     const card = `<div class="k-prop k-gx-prop" role="group" aria-label="Step ${i + 1} proposal" data-risk="${escapeHtml(st.risk || "")}">
-        <div class="k-prop-head">${ICON.cmd}<span>Run on</span>${st.role ? `<span class="k-badge k-badge--mono">${escapeHtml(st.role)}</span>` : `<span class="k-badge k-badge--mono">every host</span>`}<span class="k-mono">${escapeHtml(st.oneHost ? `one of ${hostsText}` : hostsText)}</span>${riskBadge}</div>
+        <div class="k-prop-head">${ICON.cmd}<span>Run on</span>${st.role ? `<span class="k-badge k-badge--mono">${escapeHtml(st.role)}</span>` : `<span class="k-badge k-badge--mono">every host</span>`}<span>${escapeHtml(st.oneHost ? `one of ${hostsText}` : hostsText)}</span>${riskBadge}</div>
         <div class="k-prop-body"><pre class="k-bytes" aria-label="${uses ? "Command, with the variables Keel fills in at Type" : "Exact bytes"}">${V.bytesWithVars(bytes, A.bytesHTML)}</pre>${note}</div>
         <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(uses || `${G.bytesLine(bytes)} · same bytes in every pane`)}</span><span class="k-gx-grow"></span>
           ${uses ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-copy-template aria-label="Copy the command without values">${ICON.copy}Copy</button>` : ""}
@@ -248,7 +248,7 @@ export function createGroupRunPage(deps) {
               ? cells
                   .map((c) => {
                     const v = V.captureView((c.captures || []).find((x) => x.name === cap.name));
-                    return `<li class="k-gx-cap-host" data-capture-state="${escapeHtml(v.state)}"><span class="k-mono">${escapeHtml(c.host)}</span>${v.mask ? `<span class="k-gx-mask" aria-label="hidden value">${v.mask}</span>` : ""}<span class="k-help">${escapeHtml(v.text)}</span></li>`;
+                    return `<li class="k-gx-cap-host" data-capture-state="${escapeHtml(v.state)}"><span>${escapeHtml(c.host)}</span>${v.mask ? `<span class="k-gx-mask" aria-label="hidden value">${v.mask}</span>` : ""}<span class="k-help">${escapeHtml(v.text)}</span></li>`;
                   })
                   .join("")
               : `<li class="k-help">Not captured yet.</li>`;
@@ -314,7 +314,7 @@ export function createGroupRunPage(deps) {
           const err = r.error ? `<span class="k-error k-gx-approve-err">${escapeHtml(r.error)}</span>` : "";
           return `<div class="k-gx-approve-row${r.error ? " is-blocked" : ""}">
             <button type="button" class="k-check" role="checkbox" aria-checked="${r.checked}" data-approve-row="${k}" aria-label="Type into ${escapeHtml(r.host)}"${r.error ? ' aria-disabled="true" disabled' : ""}><span class="k-i">${ICON.tick}</span></button>
-            <span class="k-mono k-gx-approve-host">${escapeHtml(r.host)}</span>
+            <span class="k-gx-approve-host">${escapeHtml(r.host)}</span>
             <span class="k-help k-gx-approve-pane">${escapeHtml(r.paneLabel || "")}</span>
             ${r.production ? '<span class="k-badge k-badge--signal">Production</span>' : ""}${r.needsShift ? '<span class="k-badge k-badge--mono">⇧</span>' : ""}
             ${own}${err}

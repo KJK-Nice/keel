@@ -2320,12 +2320,13 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(twBody), "--text-sm:1rem") {
 		t.Fatal("output.css --text-sm must be 1rem so shadcn controls match --ui-size")
 	}
-	// Tabs are the size-tab token (28px) in every chrome, with the keel line
-	// (2px brass) under the selected one.
+	// Tabs are the size-tab token (28px) in every chrome. The selected tab
+	// is a raised pill with ink text: no border, no underline, no brass.
 	if !strings.Contains(string(cssBody), "height: var(--size-tab)") ||
-		!strings.Contains(string(cssBody), ".tab.is-active::after") ||
-		!strings.Contains(string(cssBody), "background: var(--brass)") {
-		t.Fatal("keel.css missing token-sized tabs or the keel line under the selected tab")
+		!strings.Contains(string(cssBody), ".tab.is-active {\n  background: var(--raised);\n  color: var(--ink);\n}") ||
+		strings.Contains(string(cssBody), ".tab.is-active::after") ||
+		strings.Contains(string(cssBody), ".tab.is-active .tab-icon { color: var(--brass-ink); }") {
+		t.Fatal("the selected tab must be a raised pill with ink text and no keel line or brass")
 	}
 	if !strings.Contains(string(cssBody), ".tab-new:focus") || !strings.Contains(string(cssBody), "html.is-window-dragging") {
 		t.Fatal("new-tab must not show a focus ring; window drag must keep the default cursor")
@@ -2361,12 +2362,41 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), "width: 6px !important") {
 		t.Fatal("xterm overlay scrollbar should be thin, not the 14px overview ruler default")
 	}
-	// Single and split tabs share one pane look: no tile borders or radii,
-	// 1px line gutters, and the keel line under the focused pane bar.
+	// A single-pane tab is full-bleed: no radius, gap or ring, and no keel
+	// line under any pane bar. Only a split tab (two or more panes) turns its
+	// panes into radius-md tiles on the chrome ground, space-1.5 apart (the
+	// gap is laid out by term.js stageRects, not a hairline sash), with pane
+	// bars on surface, a soft focus ring on the focused tile and the other
+	// terminals dimmed.
 	if !strings.Contains(string(cssBody), ".term-tab.is-split { padding: 0;") ||
-		!strings.Contains(string(cssBody), ".term-wrap.is-focused .pane-bar::after") ||
-		!strings.Contains(string(cssBody), ".split-sash {\n  flex: 0 0 1px;") {
-		t.Fatal("split tabs must fill the stage with 1px gutters and mark the focused pane bar with the keel line")
+		strings.Contains(string(cssBody), ".pane-bar::after") ||
+		strings.Contains(string(cssBody), "flex: 0 0 1px") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split > .term-stage { background: var(--chrome); }") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap { border-radius: var(--radius-md);") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split .pane-bar { background: var(--surface); }") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused { box-shadow: var(--shadow-tile-focus); }") ||
+		!strings.Contains(string(cssBody), ".term-tab.is-split:has(.term-wrap.is-focused) .term-wrap:not(.is-focused) .term-host > .xterm { opacity: .7; }") ||
+		!strings.Contains(string(cssBody), ".split-sash {\n  background: transparent;") {
+		t.Fatal("only split tabs may be tiles (chrome ground, radius-md, surface pane bars, focus ring, dimmed others); single panes stay full-bleed with no keel line")
+	}
+	// Under native vibrancy the stage is clear and the chrome ground is one
+	// .tile-ground element that term.js clips to the stage minus the tiles'
+	// rounded rects: gaps, crossings and corner wedges, never under a tile.
+	if !strings.Contains(string(cssBody), "html[data-vibrancy] .term-tab.is-split > .term-stage { background: transparent; }") ||
+		!strings.Contains(string(cssBody), "html[data-vibrancy] .tile-ground { background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent); }") ||
+		!strings.Contains(string(cssBody), ".tile-ground { position: absolute; inset: 0; pointer-events: none;") ||
+		strings.Contains(string(cssBody), "var(--tile-ground)") {
+		t.Fatal("split tiles under vibrancy must paint the chrome ground only outside the tiles")
+	}
+	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(js), `getPropertyValue("--space-1.5")`) ||
+		!strings.Contains(string(js), "const gap = leafCount(tab.layout) > 1 ? tileGapPx() : 0;") ||
+		!strings.Contains(string(js), "ground.style.clipPath = `path(evenodd, ") ||
+		strings.Contains(string(js), "SASH_PX") {
+		t.Fatal("term.js must lay split tiles out with the space-1.5 gap and keep single panes full-bleed")
 	}
 	if strings.Contains(string(cssBody), ".snippet-bar") || strings.Contains(string(body), "active-snippets") {
 		t.Fatal("session snippet footer must be removed")
@@ -3461,17 +3491,56 @@ func TestStylesUseKeelTokensOnly(t *testing.T) {
 	}
 
 	fonts := get("/fonts/fonts.css")
-	for _, family := range []string{"IBM Plex Sans", "IBM Plex Sans Condensed", "JetBrains Mono"} {
+	// Section labels (rail, menus, palette groups, table headers, agent
+	// "You"/"Agent") are the meta style, sans 600 12/16 in sentence case:
+	// no uppercase, no tracking. Tab labels and pane bar hosts are sans;
+	// only code (addresses, commands, key caps) is mono.
+	for _, sel := range []string{".k-menu-label", ".k-rail-label", ".k-side-label", ".k-table th", ".k-split-label", ".settings-group-title", ".k-agent-who", ".k-start-section-head", ".k-sug-head"} {
+		rules := regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(sel)+` \{[^}]*\}`).FindAllString(keel, -1)
+		meta := false
+		for _, r := range rules {
+			meta = meta || strings.Contains(r, "font: var(--type-meta); letter-spacing: 0;")
+			if strings.Contains(r, "uppercase") {
+				t.Errorf("%s must be sentence case, got %q", sel, r)
+			}
+		}
+		if !meta {
+			t.Errorf("%s must use the meta style, got %q", sel, rules)
+		}
+	}
+	if !strings.Contains(get("/css/tokens.css"), "--type-meta:600 0.923rem/1.231rem var(--font-sans);") {
+		t.Error("--type-meta must be sans 600 12/16")
+	}
+	for _, rule := range []string{"font: 400 1rem/1 var(--font-sans);\n  letter-spacing: 0;\n  user-select: none;", "font: 500 1rem/1 var(--font-sans);\n  letter-spacing: 0;\n  color: var(--ink-muted);\n}\n/* user@address truncates first. */"} {
+		if !strings.Contains(keel, rule) {
+			t.Errorf("tab labels and pane bar hosts must be sans: missing %q", rule)
+		}
+	}
+	// The UI is the system font; only terminal fonts ship (JetBrains Mono,
+	// and IBM Plex Mono for Settings · Terminal font).
+	for _, family := range []string{"JetBrains Mono", "IBM Plex Mono"} {
 		if !strings.Contains(fonts, "font-family: '"+family+"'") {
 			t.Errorf("fonts.css missing %s", family)
 		}
+	}
+	for _, family := range []string{"IBM Plex Sans'", "IBM Plex Sans Condensed'"} {
+		if strings.Contains(fonts, "font-family: '"+family) {
+			t.Errorf("fonts.css still loads %s; the UI uses the system font", strings.TrimSuffix(family, "'"))
+		}
+	}
+	tokens = get("/css/tokens.css")
+	if !strings.Contains(tokens, `--font-sans:-apple-system, BlinkMacSystemFont, "SF Pro Text"`) ||
+		!strings.Contains(tokens, `--font-display:-apple-system, BlinkMacSystemFont, "SF Pro Display"`) ||
+		!strings.Contains(tokens, `--font-mono:"JetBrains Mono"`) ||
+		strings.Contains(tokens, "IBM Plex Sans") {
+		t.Error("tokens.css must set the UI in the system font and the terminal in JetBrains Mono")
 	}
 	for _, css := range []string{page, keel, fonts, get("/css/output.css")} {
 		if strings.Contains(css, "fonts.googleapis") || strings.Contains(css, "fonts.gstatic") {
 			t.Error("UI loads fonts from the network")
 		}
 	}
-	if get("/fonts/ibm-plex-sans-latin-400-normal.woff2") == "" {
+	if get("/fonts/jetbrains-mono-latin-400-normal.woff2") == "" {
 		t.Error("empty woff2")
 	}
 }

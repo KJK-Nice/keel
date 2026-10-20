@@ -82,6 +82,15 @@ test("computeRects tiles the box with sashes between panes", () => {
   assert.deepEqual(splits.get(t.b).sash, { x: 106, y: 50, w: 100, h: 6 });
 });
 
+test("computeRects insets the layout by pad on every edge", () => {
+  const t = hsplit(leaf("a"), leaf("b"), [1, 1]);
+  const { panes, splits } = computeRects(t, 218, 112, 6, 6);
+  assert.deepEqual(panes.get("a"), { x: 6, y: 6, w: 100, h: 100 });
+  assert.deepEqual(panes.get("b"), { x: 112, y: 6, w: 100, h: 100 });
+  assert.deepEqual(splits.get(t).sash, { x: 106, y: 6, w: 6, h: 100 });
+  assert.deepEqual(splits.get(t).box, { x: 6, y: 6, w: 206, h: 100 });
+});
+
 test("computeRects honours uneven sizes", () => {
   const { panes } = computeRects(hsplit(leaf("a"), leaf("b"), [3, 1]), 406, 10, 6);
   assert.equal(panes.get("a").w, 300);
