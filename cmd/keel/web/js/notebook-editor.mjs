@@ -271,7 +271,11 @@ export function mount(el, opts = {}) {
     state,
     attributes: {
       class: "notebook-prose",
+      // Prose keeps spellcheck; autocapitalize and autocorrect stay off in
+      // the native WKWebView (code fences and commands share the body).
       spellcheck: "true",
+      autocapitalize: "off",
+      autocorrect: "off",
       role: "textbox",
       "aria-label": opts.ariaLabel || "Notebook markdown",
       "data-notebook-editor": "1",

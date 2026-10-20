@@ -271,7 +271,7 @@ export function createAgentPanel(deps) {
       ${warn}
       <label class="k-field"><span class="k-label">${escapeHtml(d.keyLabel || "API key")}</span>
         <div class="k-agent-connect-row">
-          <input class="k-input" type="password" id="agent-key" name="key" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(d.keyLabel || "API key")}" />
+          <input autocapitalize="off" autocorrect="off" class="k-input" type="password" id="agent-key" name="key" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(d.keyLabel || "API key")}" />
           <button type="submit" class="k-btn k-btn--primary k-btn--sm">Connect</button>
         </div>
       </label>

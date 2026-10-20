@@ -40,7 +40,8 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createActionToasts } from "./ui/actiontoast.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
-import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
+import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
+import { createChordGuard } from "./lib/chordguard.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { createAutosave } from "./lib/autosave.js";
@@ -48,7 +49,7 @@ import { createStateFollow } from "./lib/statefollow.js";
 import { showStaleRuntimeBanner } from "./ui/stalebanner.js";
 import { createFrameThrottle } from "./ui/framethrottle.js";
 import { createWebglGuard, webglPlan } from "./lib/webglguard.js";
-import { setHTML, setText } from "./lib/dom.js";
+import { noTextAssist, setHTML, setText } from "./lib/dom.js";
 import { createGate } from "./ui/gate.js";
 import { AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
 import { ICON as THREAD_ICON } from "./ui/agentthread.js";
@@ -1698,6 +1699,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     input.type = "text";
     input.className = "tab-rename";
     input.size = 1;
+    noTextAssist(input);
     input.value = tabTitle(tab);
     input.setAttribute("aria-label", "Rename tab");
     label.replaceWith(input);
@@ -3165,8 +3167,23 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   let kbdTimer = 0;
-  let lastShortcutAt = 0;
-  let lastShortcutName = "";
+  const chordGuard = createChordGuard();
+
+  // Shortcut debug log: off unless localStorage["keel-debug-keys"] is "1"
+  // (the palette's "Log shortcut keys (debug)" toggles it; ?debug=keys in
+  // the URL turns it on for that load). Each chrome chord then logs one
+  // line, also shown as a toast so it is readable in the native window,
+  // which has no console: source (keyboard or menu), name, repeat, and what
+  // happened (ran, repeat skipped, echo dropped, declined). The last 50
+  // lines stay in window.__keelKeyLog whether or not the log is on.
+  const keyLog = [];
+  window.__keelKeyLog = keyLog;
+  let keyDebug = false;
+  try {
+    keyDebug = localStorage.getItem("keel-debug-keys") === "1" || new URLSearchParams(location.search).get("debug") === "keys";
+  } catch {
+    keyDebug = false;
+  }
   let ptyInjectWaiter = null;
   let ptyChromeHoldUntil = 0;
   // Keys held down now. After a Type without the dialog (§6 rule 13) the
@@ -3354,6 +3371,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       group: "Terminal",
       title: "Stop Keel runtime",
       run: () => runShortcut("stop-runtime"),
+    });
+    add({
+      id: "debug-keys",
+      group: "Terminal",
+      title: keyDebug ? "Stop logging shortcut keys (debug)" : "Log shortcut keys (debug)",
+      run: () => toggleKeyDebug(),
     });
     // Open now: every tab, and the panes of tabs with more than one. Picking
     // one focuses it; it never starts a second session.
@@ -3599,11 +3622,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
   }
 
-  function runShortcut(name, repeat) {
-    const now = Date.now();
-    if (!repeat && name === lastShortcutName && now - lastShortcutAt < 300) return;
-    lastShortcutName = name;
-    lastShortcutAt = now;
+  // runShortcut runs a chrome action once. There is no time-based
+  // de-duplication: two presses are two actions. A held key repeats only
+  // what classifyShortcut lets repeat, and a native menu echo of a chord
+  // the keyboard ran is dropped by chordGuard (window.__keelShortcut).
+  function runShortcut(name) {
     if (name === "new-tab") newTab();
     else if (name === "close-tab") {
       if (state.openModal) closeModal();
@@ -3651,6 +3674,26 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return !!els.gate && !els.gate.hidden;
   }
 
+  function logChord(source, name, repeat, outcome) {
+    const line = `keel keys: ${source} ${name} repeat=${!!repeat} ${outcome}`;
+    keyLog.push(line);
+    if (keyLog.length > 50) keyLog.shift();
+    if (!keyDebug) return;
+    console.info(line);
+    toast(line.slice("keel keys: ".length));
+  }
+
+  function toggleKeyDebug() {
+    keyDebug = !keyDebug;
+    try {
+      if (keyDebug) localStorage.setItem("keel-debug-keys", "1");
+      else localStorage.removeItem("keel-debug-keys");
+    } catch {
+      /* the log stays on for this window only */
+    }
+    toast(keyDebug ? "Logging shortcut keys" : "Stopped logging shortcut keys");
+  }
+
   function handleShortcut(ev) {
     const declined = ev.target?.closest?.(".tab-rename") || isGateOpen();
     const action = declined
@@ -3662,12 +3705,25 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
           startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
         });
     if (!action) {
+      const chord = chromeChordName(ev, isMac);
+      if (!chord) return false;
+      // A held chord's repeat runs nothing (classifyShortcut) and goes
+      // nowhere else either: not to the terminal, not to the native menu.
+      if (ev.repeat && !declined && !state.openModal) {
+        ev.preventDefault();
+        logChord("keyboard", chord, true, "repeat skipped");
+        return true;
+      }
       // In the native window a chrome chord declined here must not reach
       // the menu's accelerator, which would run it anyway (shortcuts.js).
-      if (isNativeWindow() && isChromeChord(ev, isMac)) ev.preventDefault();
+      if (isNativeWindow()) ev.preventDefault();
+      logChord("keyboard", chord, ev.repeat, "declined");
       return false;
     }
     ev.preventDefault();
+    const name = action.name === "tab-index" || action.name === "recent-host" ? `${action.name}-${action.index}` : action.name;
+    chordGuard.keyboard(name);
+    logChord("keyboard", name, ev.repeat, "ran");
     if (action.name === "find-next" || action.name === "find-prev") {
       runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
     } else if (action.name === "tab-index") {
@@ -3675,18 +3731,25 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     } else if (action.name === "recent-host") {
       openRecent(action.index);
     } else {
-      runShortcut(action.name, action.repeat);
+      runShortcut(action.name);
     }
     return true;
   }
 
-  // The native menu (internal/desktop) runs its items through here.
+  // The native menu (internal/desktop) runs its items through here. A call
+  // that echoes a chord the keyboard just ran, with no input since, is
+  // dropped (lib/chordguard.js); any other call runs.
   window.__keelShortcut = (name) => {
+    if (!chordGuard.menu(name)) {
+      logChord("menu", name, false, "echo dropped");
+      return;
+    }
     const ok = menuShortcutAllowed(name, {
       gateOpen: isGateOpen(),
       renaming: !!document.activeElement?.closest?.(".tab-rename"),
       modalOpen: !!state.openModal,
     });
+    logChord("menu", name, false, ok ? "ran" : "declined");
     if (ok) runShortcut(name);
   };
 
@@ -4209,7 +4272,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     findEl.className = "term-find";
     findEl.hidden = true;
     findEl.setAttribute("role", "search");
-    findEl.innerHTML = `<input type="text" class="term-find-input" placeholder="Find" autocomplete="off" spellcheck="false" aria-label="Find in terminal" />
+    findEl.innerHTML = `<input autocapitalize="off" autocorrect="off" type="text" class="term-find-input" placeholder="Find" autocomplete="off" spellcheck="false" aria-label="Find in terminal" />
       <span class="term-find-count" aria-live="polite"></span>
       <button type="button" class="icon-btn term-find-prev" title="Previous match">↑</button>
       <button type="button" class="icon-btn term-find-next" title="Next match">↓</button>
@@ -4230,7 +4293,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     inputEl.className = "term-input";
     inputEl.hidden = true;
     inputEl.innerHTML = `<span class="term-input-kicker">CLI input</span>
-      <textarea class="term-input-body" data-term-input rows="2" spellcheck="false" placeholder="Inserted from the notebook — edit here, then confirm. Nothing is typed until you approve."></textarea>
+      <textarea autocapitalize="off" autocorrect="off" class="term-input-body" data-term-input rows="2" spellcheck="false" placeholder="Inserted from the notebook — edit here, then confirm. Nothing is typed until you approve."></textarea>
       <div class="term-input-actions">
         <button type="button" class="tiny" data-term-input-cancel="${paneId}">Cancel</button>
         <button type="button" class="tiny" data-term-input-confirm="${paneId}">Confirm</button>
@@ -5249,7 +5312,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // meta line under it names the pane shell fences type into.
     body.innerHTML = `<article class="notebook-col">
       <div class="notebook-review" data-notebook-review hidden></div>
-      <h1 class="notebook-title"><input class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
+      <h1 class="notebook-title"><input autocapitalize="off" autocorrect="off" class="notebook-title-input" data-notebook-title="${pane.id}" value="${escapeHtml(pane.title || "Notebook")}" spellcheck="false" aria-label="Rename notebook" /></h1>
       <div class="notebook-meta" data-notebook-meta></div>
       <hr class="notebook-rule" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
@@ -5912,7 +5975,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     pane.mdEditor = null;
     const KeelMD = window.KeelMarkdownEditor;
     if (!KeelMD || typeof KeelMD.mount !== "function") {
-      host.innerHTML = `<textarea class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
+      host.innerHTML = `<textarea autocapitalize="off" autocorrect="off" class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
       return;
     }
     // Shell fences say "Type into <pane>" (target) and go through
@@ -6738,6 +6801,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     input.type = "text";
     input.value = g.name || "";
     input.className = "group-rename";
+    noTextAssist(input);
     const original = title.textContent;
     title.replaceChildren(input);
     input.focus({ preventScroll: true });
@@ -7817,9 +7881,17 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     window.__keelChromeBound = true;
     document.fonts?.ready?.then(remeasureTerminalFonts);
     document.fonts?.addEventListener?.("loadingdone", remeasureTerminalFonts);
+    // Any input after a chord ends it for the menu echo guard: a menu call
+    // after it is the user's own (lib/chordguard.js). A held key's repeat
+    // is the same press, and another chrome chord (⌘⇧D then ⌘⇧↵, ⌘ held)
+    // adds itself in handleShortcut instead of clearing. Capture phase, so
+    // a field that stops the event still counts.
+    window.addEventListener("keyup", () => chordGuard.input(), true);
+    window.addEventListener("mousedown", () => chordGuard.input(), true);
     window.addEventListener(
       "keydown",
       (ev) => {
+        if (!ev.repeat && !chromeChordName(ev, isMac)) chordGuard.input();
         if (isHoldModKey(ev) && !ev.repeat) {
           clearTimeout(kbdTimer);
           kbdTimer = window.setTimeout(() => showKbdHints(true), 280);

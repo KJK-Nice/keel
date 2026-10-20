@@ -61,7 +61,7 @@ templ AgentPanel() {
 					<span class="k-addon">
 						@icon.Search01()
 					</span>
-					<input class="k-input" id="agent-sessions-filter" type="search" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" spellcheck="false"/>
+					<input autocapitalize="off" autocorrect="off" class="k-input" id="agent-sessions-filter" type="search" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" spellcheck="false"/>
 				</div>
 			</div>
 			<div class="k-agent-sessions-list" id="agent-sessions-list"></div>
@@ -80,7 +80,7 @@ templ AgentPanel() {
 		</div>
 		<form class="k-agent-composer" id="agent-composer" autocomplete="off">
 			<div class="k-agent-chips" id="agent-chips"></div>
-			<textarea id="agent-input" rows="2" aria-label="Message the agent" placeholder="Ask about these sessions…"></textarea>
+			<textarea autocapitalize="off" autocorrect="off" spellcheck="true" id="agent-input" rows="2" aria-label="Message the agent" placeholder="Ask about these sessions…"></textarea>
 			<div class="k-agent-picker k-agent-nb-picker" id="agent-nb-picker" role="dialog" aria-label="Notebooks to send with your question" tabindex="-1" hidden></div>
 			<div class="k-agent-composer-foot">
 				<button

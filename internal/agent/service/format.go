@@ -24,14 +24,18 @@ import (
 const ProposalFence = "keel-proposal"
 
 const (
-	maxProposals       = 3
-	maxCommandBytes    = 2048
-	maxCommandLines    = 20
-	maxWhyBytes        = 300
-	maxAnswerBytes     = 32 * 1024
-	maxQuestionBytes   = 8 * 1024
-	maxPanesPerAsk     = 8
-	maxOutputTokens    = 2048
+	maxProposals     = 3
+	maxCommandBytes  = 2048
+	maxCommandLines  = 20
+	maxWhyBytes      = 300
+	maxAnswerBytes   = 32 * 1024
+	maxQuestionBytes = 8 * 1024
+	maxPanesPerAsk   = 8
+	// maxAnswerTokens caps an agent panel answer (about maxAnswerBytes of
+	// text); the provider adds room for thinking on top (provider.Request).
+	// maxSuggestTokens caps an in-pane suggestion, a few short blocks.
+	maxAnswerTokens    = 8192
+	maxSuggestTokens   = 2048
 	maxHistoryMessages = 20
 	maxHistoryBytes    = 128 * 1024
 )
@@ -236,6 +240,56 @@ func truncate(s string, max int) string {
 		s = s[:len(s)-1]
 	}
 	return s + "…"
+}
+
+// keelOpenRe finds where a keel-* block opens, the way the parsers see it:
+// anywhere in the text, three or more backticks, the name, then only
+// spaces up to the line break. An info string never holds a backtick, so
+// inline code (```df``` is handy) is not an opener. It also takes a reply
+// cut inside the name (```kee at the very end).
+var keelOpenRe = regexp.MustCompile("`{3,}[ \\t]*(?:keel-[a-z-]*[ \\t]*(?:\\r?\\n|$)|(?:k|ke|kee|keel)$)")
+
+// blockParsers are the regexes that take keel-* blocks out of a reply. A
+// block one of them matches whole is complete, whatever its line layout.
+func blockParsers() []*regexp.Regexp {
+	return []*regexp.Regexp{fenceRe, noteFenceRe, runbookUseRe, runbookFenceRe, notebookFenceRe, notebookReadFenceRe, notebookEditFenceRe, notebookDeleteFenceRe}
+}
+
+// completeBlockAt returns where the keel-* block that opens with the k
+// backticks at i ends, or -1 when no parser matches a whole block there.
+// A parser may start at a later backtick of the run (```` read as ```).
+func completeBlockAt(text string, i, k int) int {
+	for s := i; s <= i+k-3; s++ {
+		for _, re := range blockParsers() {
+			if loc := re.FindStringIndex(text[s:]); loc != nil && loc[0] == 0 {
+				return s + loc[1]
+			}
+		}
+	}
+	return -1
+}
+
+// dropOpenBlock removes a keel-* block that a cut reply left open (no
+// parser matches it whole) and everything after it. A cut block is never
+// half-parsed or acted on, and its raw JSON is not shown as the answer.
+// Complete blocks are kept: openers are found as the parsers find them,
+// and a block a parser matches is skipped whole. A cut fence of another
+// kind (```sh) is left as text.
+func dropOpenBlock(text string) string {
+	for pos := 0; pos < len(text); {
+		loc := keelOpenRe.FindStringIndex(text[pos:])
+		if loc == nil {
+			return text
+		}
+		i := pos + loc[0]
+		k := len(text[i:]) - len(strings.TrimLeft(text[i:], "`"))
+		end := completeBlockAt(text, i, k)
+		if end < 0 {
+			return strings.TrimRight(text[:i], " \t\r\n")
+		}
+		pos = end
+	}
+	return text
 }
 
 func collapseBlankLines(s string) string {

@@ -59,7 +59,7 @@ templ unlockScreen(p PageProps) {
 					<span class="k-addon">
 						@gateIcon("lock")
 					</span>
-					<input class="k-input" id="unlock-pass" name="passphrase" type="password" autocomplete="current-password" spellcheck="false" aria-describedby="unlock-error"/>
+					<input autocapitalize="off" autocorrect="off" class="k-input" id="unlock-pass" name="passphrase" type="password" autocomplete="current-password" spellcheck="false" aria-describedby="unlock-error"/>
 					<button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" id="unlock-show" aria-label="Show passphrase" aria-pressed="false">
 						@gateIcon("eye")
 					</button>
@@ -135,11 +135,11 @@ templ firstRunScreen(p PageProps) {
 				<div class="k-onb-fields" id="onb-pass-fields" hidden>
 					<div class="k-field">
 						<label class="k-label" for="onb-pass">Passphrase</label>
-						<input class="k-input" id="onb-pass" type="password" autocomplete="new-password" spellcheck="false"/>
+						<input autocapitalize="off" autocorrect="off" class="k-input" id="onb-pass" type="password" autocomplete="new-password" spellcheck="false"/>
 					</div>
 					<div class="k-field">
 						<label class="k-label" for="onb-pass2">Repeat passphrase</label>
-						<input class="k-input" id="onb-pass2" type="password" autocomplete="new-password" spellcheck="false"/>
+						<input autocapitalize="off" autocorrect="off" class="k-input" id="onb-pass2" type="password" autocomplete="new-password" spellcheck="false"/>
 					</div>
 					<p class="k-error" id="onb-pass-error" role="alert" hidden></p>
 					<p class="k-help">Keel can't recover the vault if you lose the passphrase.</p>
@@ -246,7 +246,7 @@ templ agentStep() {
 				</div>
 				<div class="k-field">
 					<label class="k-label" for="onb-agent-key-input" id="onb-agent-key-label">Gemini API key</label>
-					<input class="k-input k-agent-key" id="onb-agent-key-input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="onb-agent-key-error"/>
+					<input autocorrect="off" class="k-input k-agent-key" id="onb-agent-key-input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="onb-agent-key-error"/>
 				</div>
 				<p class="k-agent-field-error" id="onb-agent-key-error" role="alert"></p>
 				<p class="k-help k-agent-links" id="onb-agent-links"></p>

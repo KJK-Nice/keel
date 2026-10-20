@@ -24,7 +24,12 @@ import (
 const (
 	defaultBaseURL = "https://generativelanguage.googleapis.com/v1beta"
 	maxBody        = 4 << 20
-	defaultTimeout = 60 * time.Second
+	// defaultTimeout covers one request: a full answer after a long
+	// think takes a while on a thinking model.
+	defaultTimeout = 120 * time.Second
+	// maxOutputCap is the hard cap on maxOutputTokens (thinking and
+	// answer together), the output limit of the Gemini 3 models.
+	maxOutputCap = 65536
 )
 
 type Client struct {
@@ -64,6 +69,9 @@ func (c *Client) ID() string { return "gemini" }
 
 type part struct {
 	Text string `json:"text"`
+	// Thought marks a part that is the model's thinking, not its answer
+	// (sent only when includeThoughts is asked, which Keel never does).
+	Thought bool `json:"thought,omitempty"`
 }
 
 type content struct {
@@ -113,6 +121,46 @@ func thinkingLevel(model, level string) (string, error) {
 	return "", fmt.Errorf("gemini: unknown thinking level %q", level)
 }
 
+// thinkingRoom is the room maxOutputTokens leaves for thinking at a level
+// (the API's enum, "" for the model's default), on top of the answer:
+// Gemini counts thinking tokens toward maxOutputTokens, and Gemini 3
+// thinks at HIGH by default, so a small limit is spent on thinking and the
+// answer stops mid-sentence (finishReason MAX_TOKENS). Levels are
+// allowances, not budgets, so the room is generous and the answer is still
+// checked for MAX_TOKENS.
+func thinkingRoom(level string) int {
+	switch level {
+	case "MINIMAL":
+		return 1024
+	case "LOW":
+		return 4096
+	case "MEDIUM":
+		return 8192
+	}
+	return 24576 // HIGH, and the default
+}
+
+// outputLimit is maxOutputTokens for an answer of up to answer tokens.
+func outputLimit(answer int, level string) int {
+	return min(answer+thinkingRoom(level), maxOutputCap)
+}
+
+// stopReason maps a FinishReason to a provider.Stop* reason: "" when the
+// model finished (STOP, or no reason given).
+func stopReason(finish string) string {
+	switch finish {
+	case "", "STOP":
+		return ""
+	case "MAX_TOKENS":
+		return provider.StopLength
+	case "SAFETY", "PROHIBITED_CONTENT", "SPII", "BLOCKLIST", "IMAGE_SAFETY":
+		return provider.StopSafety
+	case "RECITATION":
+		return provider.StopRecitation
+	}
+	return provider.StopOther
+}
+
 // SupportsMinimal reports whether model takes the MINIMAL thinking level.
 func SupportsMinimal(model string) bool { return !noMinimal[model] }
 
@@ -130,6 +178,7 @@ type genResponse struct {
 	UsageMetadata struct {
 		PromptTokenCount     int `json:"promptTokenCount"`
 		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		ThoughtsTokenCount   int `json:"thoughtsTokenCount"`
 	} `json:"usageMetadata"`
 	PromptFeedback struct {
 		BlockReason string `json:"blockReason"`
@@ -166,7 +215,10 @@ func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.R
 		return provider.Response{}, err
 	}
 	if req.MaxOutputTokens > 0 || level != "" {
-		body.GenerationConfig = &genConfig{MaxOutputTokens: req.MaxOutputTokens}
+		body.GenerationConfig = &genConfig{}
+		if req.MaxOutputTokens > 0 {
+			body.GenerationConfig.MaxOutputTokens = outputLimit(req.MaxOutputTokens, level)
+		}
 		if level != "" {
 			body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: level}
 		}
@@ -208,14 +260,22 @@ func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.R
 	if len(out.Candidates) == 0 {
 		return provider.Response{}, errors.New("gemini: no candidates")
 	}
+	// One candidate (candidateCount defaults to 1); its answer is every
+	// text part in order, thought parts left out.
+	cand := out.Candidates[0]
 	var text strings.Builder
-	for _, p := range out.Candidates[0].Content.Parts {
+	for _, p := range cand.Content.Parts {
+		if p.Thought {
+			continue
+		}
 		text.WriteString(p.Text)
 	}
 	return provider.Response{
-		Text:         text.String(),
-		InputTokens:  out.UsageMetadata.PromptTokenCount,
-		OutputTokens: out.UsageMetadata.CandidatesTokenCount,
+		Text:          text.String(),
+		InputTokens:   out.UsageMetadata.PromptTokenCount,
+		OutputTokens:  out.UsageMetadata.CandidatesTokenCount,
+		ThoughtTokens: out.UsageMetadata.ThoughtsTokenCount,
+		Stop:          stopReason(cand.FinishReason),
 	}, nil
 }
 

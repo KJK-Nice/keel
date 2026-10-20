@@ -92,6 +92,13 @@ export function errorHTML(err) {
   return `<div class="k-agent-error" role="alert"><b>The agent could not answer.</b><span>${escapeHtml(msg)}</span></div>`;
 }
 
+// cutHTML is the notice under an answer the provider cut (res.cut), "" for
+// a finished one.
+export function cutHTML(cut) {
+  const msg = A.cutNotice(cut);
+  return msg ? `<div class="k-note-warn" role="note" data-agent-cut>${ICON.alert}<span>${escapeHtml(msg)}</span></div>` : "";
+}
+
 // savedTurnHTML is one turn of a resumed conversation: the question with
 // its time, then the trace and the answer. A Propose again turn has no
 // question; its proposal is added on its own.
@@ -102,7 +109,7 @@ export function savedTurnHTML(t) {
   return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
       <div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
         t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
-      }</div>`;
+      }${cutHTML(t.cut)}</div>`;
 }
 
 // sessionRowHTML is one saved conversation in a list (the panel's Recent
@@ -116,7 +123,7 @@ export function sessionRowHTML(s, { current = false, renaming = false, actions =
     .join("");
   if (renaming) {
     return `<form class="k-agent-sess-row k-agent-sess-row--edit" data-sess-rename-form="${escapeHtml(s.id)}" aria-current="${current}">
-        <input class="k-input" data-sess-title value="${escapeHtml(s.title || "")}" maxlength="120" aria-label="Conversation title" spellcheck="false" autocomplete="off" />
+        <input autocapitalize="off" autocorrect="off" class="k-input" data-sess-title value="${escapeHtml(s.title || "")}" maxlength="120" aria-label="Conversation title" spellcheck="false" autocomplete="off" />
         <button type="submit" class="k-btn k-btn--primary k-btn--sm">Save</button>
       </form>`;
   }
@@ -215,6 +222,7 @@ export function createThreadView(opts) {
       trace.insertAdjacentHTML("beforeend", `<div class="k-agent-step k-agent-step--skip">${ICON.info}<span>Test provider · nothing left this machine</span></div>`);
     }
     if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
+    if (res.cut) turn.insertAdjacentHTML("beforeend", cutHTML(res.cut));
     if (res.runbook) placeRun(res.runbook.id, turn);
     for (const p of res.proposals || []) addProposal(p.id);
     for (const n of res.notes || []) addNote(n.id);
@@ -340,7 +348,7 @@ export function createThreadView(opts) {
     // it goes without the dialog (§6 rule 13); else the dialog's bytes.
     const shown = TD.proposalDirect(p) ? p.command : p.bytes;
     const body = rec.editing
-      ? `<textarea class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
+      ? `<textarea autocapitalize="off" autocorrect="off" class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
       : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(shown)}</pre>`;
     const foot = rec.editing
       ? `<span class="k-spacer"></span>
@@ -643,7 +651,7 @@ export function createThreadView(opts) {
     rec.el.classList.remove("k-prop--done");
     const badges = `${n.fromPane ? '<span class="k-badge k-badge--flare">From pane output</span>' : warn ? '<span class="k-badge k-badge--flare">After reading panes</span>' : ""}<span class="k-badge k-badge--mono">${escapeHtml(N.proposalTarget(n))}</span>`;
     const body = rec.editing
-      ? `<textarea class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
+      ? `<textarea autocapitalize="off" autocorrect="off" class="k-textarea" data-note-edit aria-label="Edit note" spellcheck="true" maxlength="${N.MAX_NOTE_BYTES}">${escapeHtml(n.text)}</textarea>`
       : `<p class="k-note-text">${A.answerHTML(n.text)}</p>`;
     const notes = [];
     const origin = N.proposalOrigin(n);
