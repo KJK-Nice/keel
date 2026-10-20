@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "../lib/shortcuts.js";
+import { chromeChordName, classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed, REPEATS } from "../lib/shortcuts.js";
 
 const mac = { mac: true, modalOpen: false, findOpen: () => false };
 const cmd = (key, extra = {}) => ({ key, code: "", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, ...extra });
@@ -170,4 +170,50 @@ test("focus view is ⌘⇧↵ on macOS and Ctrl+Shift+Enter elsewhere, also whil
   assert.equal(name(cmd("Enter", { shiftKey: true }), other), null);
   assert.ok(isChromeChord(cmd("Enter", { shiftKey: true }), true));
   assert.ok(menuShortcutAllowed("focus-pane", { gateOpen: false, renaming: false, modalOpen: true }));
+});
+
+test("a held key repeats only tab cycling, text size and find next", () => {
+  assert.deepEqual([...REPEATS].sort(), ["find-next", "find-prev", "next-tab", "prev-tab", "zoom-in", "zoom-out", "zoom-reset"]);
+  const held = (ev) => ({ ...ev, repeat: true });
+  // Run once per press: the repeat runs nothing.
+  for (const [ev, want] of [
+    [cmd("Enter", { shiftKey: true }), "focus-pane"],
+    [cmd("D", { shiftKey: true }), "split-right"],
+    [cmd("E", { shiftKey: true }), "split-down"],
+    [cmd("w"), "close-tab"],
+    [cmd("T", { shiftKey: true }), "reopen-tab"],
+    [cmd("t"), "new-tab"],
+    [cmd("k"), "palette"],
+    [cmd("b"), "toggle-sidebar"],
+    [cmd("i"), "toggle-agent"],
+    [cmd("f"), "find-term"],
+    [cmd("n"), "new-host"],
+    [cmd("j"), "join"],
+    [cmd(","), "settings"],
+  ]) {
+    assert.equal(name(ev), want, `${want} on the first keydown`);
+    assert.equal(classifyShortcut(held(ev), mac), null, `${want} must not repeat`);
+    assert.equal(chromeChordName(held(ev), true), want, "term.js still knows the held chord, to swallow and log it");
+  }
+  assert.equal(classifyShortcut(held(cmd("3")), mac), null, "Cmd+3 activates once");
+  assert.equal(classifyShortcut({ ...held(cmd("")), metaKey: false, altKey: true, code: "Digit2" }, { ...mac, startPage: true }), null, "⌥2 opens one recent host");
+  // Repeat: hold to keep going.
+  assert.deepEqual(classifyShortcut(held(cmd(">", { code: "Period", shiftKey: true })), mac), { name: "next-tab", repeat: true });
+  assert.deepEqual(classifyShortcut(held(cmd("<", { code: "Comma", shiftKey: true })), mac), { name: "prev-tab", repeat: true });
+  assert.equal(classifyShortcut(held(cmd("=", { code: "Equal" })), mac)?.name, "zoom-in");
+  assert.equal(classifyShortcut(held(cmd("-", { code: "Minus" })), mac)?.name, "zoom-out");
+  assert.equal(classifyShortcut(held(cmd("0", { code: "Digit0" })), mac)?.name, "zoom-reset");
+  assert.equal(classifyShortcut(held(cmd("g")), { ...mac, findOpen: () => true })?.name, "find-next");
+  assert.equal(classifyShortcut(held(cmd("G", { shiftKey: true })), { ...mac, findOpen: () => true })?.name, "find-prev");
+  // Ctrl elsewhere: the same rule.
+  const other = { mac: false, modalOpen: false, findOpen: () => false };
+  const ctrl = (key, extra = {}) => ({ ...cmd(key, extra), metaKey: false, ctrlKey: true });
+  assert.equal(classifyShortcut(ctrl("Enter", { shiftKey: true }), other)?.name, "focus-pane");
+  assert.equal(classifyShortcut(held(ctrl("Enter", { shiftKey: true })), other), null);
+});
+
+test("chromeChordName names a chord in the plain state, and nothing else", () => {
+  assert.equal(chromeChordName(cmd("Enter", { shiftKey: true }), true), "focus-pane");
+  assert.equal(chromeChordName(cmd("Shift", { shiftKey: true }), true), "");
+  assert.equal(chromeChordName({ ...cmd("a"), metaKey: false }, true), "");
 });

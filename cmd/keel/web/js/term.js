@@ -40,7 +40,8 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createActionToasts } from "./ui/actiontoast.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
-import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";
+import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
+import { createChordGuard } from "./lib/chordguard.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { createAutosave } from "./lib/autosave.js";
@@ -3165,8 +3166,23 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   let kbdTimer = 0;
-  let lastShortcutAt = 0;
-  let lastShortcutName = "";
+  const chordGuard = createChordGuard();
+
+  // Shortcut debug log: off unless localStorage["keel-debug-keys"] is "1"
+  // (the palette's "Log shortcut keys (debug)" toggles it; ?debug=keys in
+  // the URL turns it on for that load). Each chrome chord then logs one
+  // line, also shown as a toast so it is readable in the native window,
+  // which has no console: source (keyboard or menu), name, repeat, and what
+  // happened (ran, repeat skipped, echo dropped, declined). The last 50
+  // lines stay in window.__keelKeyLog whether or not the log is on.
+  const keyLog = [];
+  window.__keelKeyLog = keyLog;
+  let keyDebug = false;
+  try {
+    keyDebug = localStorage.getItem("keel-debug-keys") === "1" || new URLSearchParams(location.search).get("debug") === "keys";
+  } catch {
+    keyDebug = false;
+  }
   let ptyInjectWaiter = null;
   let ptyChromeHoldUntil = 0;
 
@@ -3339,6 +3355,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       group: "Terminal",
       title: "Stop Keel runtime",
       run: () => runShortcut("stop-runtime"),
+    });
+    add({
+      id: "debug-keys",
+      group: "Terminal",
+      title: keyDebug ? "Stop logging shortcut keys (debug)" : "Log shortcut keys (debug)",
+      run: () => toggleKeyDebug(),
     });
     // Open now: every tab, and the panes of tabs with more than one. Picking
     // one focuses it; it never starts a second session.
@@ -3568,74 +3590,76 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     }
   }
 
-  function runShortcut(name, repeat) {
-    const now = Date.now();
-    if (!repeat && name === lastShortcutName && now - lastShortcutAt < 300) return;
-    lastShortcutName = name;
-    lastShortcutAt = now;
-    // The window is measured from when the action and the layout it
-    // queued (renderTabs, then fitVisiblePanes three frames on) finished,
-    // not from when it started. In the native window the menu item can run
-    // the chord again after the page did (window.__keelShortcut, queued
-    // behind this work); leaving focus view re-attaches a WebGL context per
-    // pane, which in WKWebView can outlast 300 ms, and a start-time stamp
-    // let that late copy zoom the pane straight back in.
-    try {
-      if (name === "new-tab") newTab();
-      else if (name === "close-tab") {
-        if (state.openModal) closeModal();
-        else closeActivePaneOrTab();
-      } else if (name === "reopen-tab") reopenLastTab();
-      else if (name === "search") revealVault();
-      // ⌘N (and the native New Host item, which sends the same name): the
-      // page's own New on a tab page, New host elsewhere.
-      else if (name === "new-host") newItem();
-      else if (name === "quick-connect") openQuick();
-      else if (name === "join") openJoin();
-      else if (name === "settings") openPage("settings");
-      else if (name === "split-right") splitActive("h");
-      else if (name === "split-down") splitActive("v");
-      else if (name === "split-notebook") splitNotebook("h");
-      else if (name === "focus-pane") {
-        const pane = focusedPane();
-        if (pane) togglePaneZoom(pane.id);
-      }
-      else if (name === "find-term") {
-        const pane = focusedPane();
-        if (pane?.search) openFind(pane);
-      } else if (name === "toggle-sidebar") toggleSidebar();
-      else if (name === "toggle-agent") toggleAgentPanel();
-      else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
-      else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
-      else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
-      else if (name === "stop-runtime") {
-        state.runtimeStopping = true;
-        api("/api/runtime/stop", { method: "POST" })
-          .then(() => toast("Keel runtime stopped"))
-          .catch((err) => {
-            state.runtimeStopping = false;
-            toast(err.message, true);
-          });
-      } else if (name === "prev-tab") activateTabDelta(-1);
-      else if (name === "next-tab") activateTabDelta(1);
-      else if (name === "palette") {
-        if (isCommandPaletteOpen()) closeCommandPalette();
-        else openCommandPalette();
-      }
-    } finally {
-      lastShortcutAt = Date.now();
-      const restamp = (frames) =>
-        requestAnimationFrame(() => {
-          if (lastShortcutName !== name) return;
-          lastShortcutAt = Date.now();
-          if (frames > 1) restamp(frames - 1);
+  // runShortcut runs a chrome action once. There is no time-based
+  // de-duplication: two presses are two actions. A held key repeats only
+  // what classifyShortcut lets repeat, and a native menu echo of a chord
+  // the keyboard ran is dropped by chordGuard (window.__keelShortcut).
+  function runShortcut(name) {
+    if (name === "new-tab") newTab();
+    else if (name === "close-tab") {
+      if (state.openModal) closeModal();
+      else closeActivePaneOrTab();
+    } else if (name === "reopen-tab") reopenLastTab();
+    else if (name === "search") revealVault();
+    // ⌘N (and the native New Host item, which sends the same name): the
+    // page's own New on a tab page, New host elsewhere.
+    else if (name === "new-host") newItem();
+    else if (name === "quick-connect") openQuick();
+    else if (name === "join") openJoin();
+    else if (name === "settings") openPage("settings");
+    else if (name === "split-right") splitActive("h");
+    else if (name === "split-down") splitActive("v");
+    else if (name === "split-notebook") splitNotebook("h");
+    else if (name === "focus-pane") {
+      const pane = focusedPane();
+      if (pane) togglePaneZoom(pane.id);
+    }
+    else if (name === "find-term") {
+      const pane = focusedPane();
+      if (pane?.search) openFind(pane);
+    } else if (name === "toggle-sidebar") toggleSidebar();
+    else if (name === "toggle-agent") toggleAgentPanel();
+    else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
+    else if (name === "zoom-out") setFontSize(state.prefs.size - 1);
+    else if (name === "zoom-reset") setFontSize(SIZE_DEFAULT);
+    else if (name === "stop-runtime") {
+      state.runtimeStopping = true;
+      api("/api/runtime/stop", { method: "POST" })
+        .then(() => toast("Keel runtime stopped"))
+        .catch((err) => {
+          state.runtimeStopping = false;
+          toast(err.message, true);
         });
-      restamp(3);
+    } else if (name === "prev-tab") activateTabDelta(-1);
+    else if (name === "next-tab") activateTabDelta(1);
+    else if (name === "palette") {
+      if (isCommandPaletteOpen()) closeCommandPalette();
+      else openCommandPalette();
     }
   }
 
   function isGateOpen() {
     return !!els.gate && !els.gate.hidden;
+  }
+
+  function logChord(source, name, repeat, outcome) {
+    const line = `keel keys: ${source} ${name} repeat=${!!repeat} ${outcome}`;
+    keyLog.push(line);
+    if (keyLog.length > 50) keyLog.shift();
+    if (!keyDebug) return;
+    console.info(line);
+    toast(line.slice("keel keys: ".length));
+  }
+
+  function toggleKeyDebug() {
+    keyDebug = !keyDebug;
+    try {
+      if (keyDebug) localStorage.setItem("keel-debug-keys", "1");
+      else localStorage.removeItem("keel-debug-keys");
+    } catch {
+      /* the log stays on for this window only */
+    }
+    toast(keyDebug ? "Logging shortcut keys" : "Stopped logging shortcut keys");
   }
 
   function handleShortcut(ev) {
@@ -3649,12 +3673,25 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
           startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
         });
     if (!action) {
+      const chord = chromeChordName(ev, isMac);
+      if (!chord) return false;
+      // A held chord's repeat runs nothing (classifyShortcut) and goes
+      // nowhere else either: not to the terminal, not to the native menu.
+      if (ev.repeat && !declined && !state.openModal) {
+        ev.preventDefault();
+        logChord("keyboard", chord, true, "repeat skipped");
+        return true;
+      }
       // In the native window a chrome chord declined here must not reach
       // the menu's accelerator, which would run it anyway (shortcuts.js).
-      if (isNativeWindow() && isChromeChord(ev, isMac)) ev.preventDefault();
+      if (isNativeWindow()) ev.preventDefault();
+      logChord("keyboard", chord, ev.repeat, "declined");
       return false;
     }
     ev.preventDefault();
+    const name = action.name === "tab-index" || action.name === "recent-host" ? `${action.name}-${action.index}` : action.name;
+    chordGuard.keyboard(name);
+    logChord("keyboard", name, ev.repeat, "ran");
     if (action.name === "find-next" || action.name === "find-prev") {
       runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
     } else if (action.name === "tab-index") {
@@ -3662,18 +3699,25 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     } else if (action.name === "recent-host") {
       openRecent(action.index);
     } else {
-      runShortcut(action.name, action.repeat);
+      runShortcut(action.name);
     }
     return true;
   }
 
-  // The native menu (internal/desktop) runs its items through here.
+  // The native menu (internal/desktop) runs its items through here. A call
+  // that echoes a chord the keyboard just ran, with no input since, is
+  // dropped (lib/chordguard.js); any other call runs.
   window.__keelShortcut = (name) => {
+    if (!chordGuard.menu(name)) {
+      logChord("menu", name, false, "echo dropped");
+      return;
+    }
     const ok = menuShortcutAllowed(name, {
       gateOpen: isGateOpen(),
       renaming: !!document.activeElement?.closest?.(".tab-rename"),
       modalOpen: !!state.openModal,
     });
+    logChord("menu", name, false, ok ? "ran" : "declined");
     if (ok) runShortcut(name);
   };
 
@@ -7670,9 +7714,17 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     window.__keelChromeBound = true;
     document.fonts?.ready?.then(remeasureTerminalFonts);
     document.fonts?.addEventListener?.("loadingdone", remeasureTerminalFonts);
+    // Any input after a chord ends it for the menu echo guard: a menu call
+    // after it is the user's own (lib/chordguard.js). A held key's repeat
+    // is the same press, and another chrome chord (⌘⇧D then ⌘⇧↵, ⌘ held)
+    // adds itself in handleShortcut instead of clearing. Capture phase, so
+    // a field that stops the event still counts.
+    window.addEventListener("keyup", () => chordGuard.input(), true);
+    window.addEventListener("mousedown", () => chordGuard.input(), true);
     window.addEventListener(
       "keydown",
       (ev) => {
+        if (!ev.repeat && !chromeChordName(ev, isMac)) chordGuard.input();
         if (isHoldModKey(ev) && !ev.repeat) {
           clearTimeout(kbdTimer);
           kbdTimer = window.setTimeout(() => showKbdHints(true), 280);

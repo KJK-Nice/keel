@@ -149,9 +149,11 @@ func (w *nativeWindow) addItems(menu *application.Menu, entries []menuEntry) {
 // menuAction runs one menu item. A ⌘-key reaches the menu only when the
 // page did not take it: WKWebView offers key equivalents to the page
 // first and hands them back to AppKit only if keydown was not
-// preventDefault-ed. A chord the page handles therefore runs once, from
-// the page, and the menu runs it only when clicked or when the page
-// passed the key on.
+// preventDefault-ed. term.js preventDefaults every chord it runs (and a
+// held chord's repeats), so a chord runs once, from the page, and the menu
+// runs it only when clicked or when the page passed the key on. Should the
+// menu still run a chord the keyboard just ran, window.__keelShortcut
+// drops that call (cmd/keel/web/js/lib/chordguard.js).
 func (w *nativeWindow) menuAction(name string) func(*application.Context) {
 	return func(*application.Context) {
 		if name == actionQuit {

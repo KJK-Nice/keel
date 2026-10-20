@@ -2961,7 +2961,7 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	js := string(jsBody)
 	// Keys map to actions in lib/shortcuts.js; term.js runs them.
 	keyTable := readShortcutsJS(t)
-	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "runShortcut(action.name, action.repeat)") {
+	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "runShortcut(action.name)") {
 		t.Fatal("term.js must open the command palette through runShortcut")
 	}
 	kIdx := strings.Index(keyTable, `if (key === "k" && !ev.shiftKey)`)
@@ -3235,7 +3235,7 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 		t.Fatal(err)
 	}
 	shortcuts := string(shortcutsSrc)
-	if !strings.Contains(handle, "classifyShortcut(ev") || !strings.Contains(handle, "runShortcut(action.name, action.repeat)") {
+	if !strings.Contains(handle, "classifyShortcut(ev") || !strings.Contains(handle, "runShortcut(action.name)") {
 		t.Fatal("handleShortcut must classify keys with classifyShortcut and run the action in JS")
 	}
 	if !strings.Contains(shortcuts, `key === "w" && !ev.shiftKey`) {
@@ -3249,8 +3249,14 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 		t.Fatal("newTab must create exactly one start tab per call")
 	}
 	run := sliceJSFunc(term, "function runShortcut")
-	if run == "" || !strings.Contains(run, "lastShortcutAt < 300") {
-		t.Fatal("runShortcut must debounce duplicate new-tab within one gesture")
+	// Two presses are two actions: no time-based de-duplication. A native
+	// menu echo of a chord the keyboard ran is dropped by source and
+	// sequence (lib/chordguard.js), in window.__keelShortcut.
+	if run == "" || strings.Contains(run, "lastShortcutAt") {
+		t.Fatal("runShortcut must not de-duplicate by time")
+	}
+	if !strings.Contains(term, "if (!chordGuard.menu(name))") || !strings.Contains(handle, "chordGuard.keyboard(name)") {
+		t.Fatal("the menu path must drop an echo of a chord the keyboard ran (chordGuard)")
 	}
 	for _, name := range []string{
 		"new-tab", "close-tab", "reopen-tab", "new-host", "quick-connect", "join",
@@ -3313,7 +3319,7 @@ func TestCmdAngleCycleTabs(t *testing.T) {
 	}
 	term := string(js)
 	if !strings.Contains(term, `import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";`) ||
-		!strings.Contains(term, `import { classifyShortcut, isAppMod, isChromeChord, menuShortcutAllowed } from "./lib/shortcuts.js";`) {
+		!strings.Contains(term, `import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";`) {
 		t.Fatal("term.js must take tab cycling from lib/keys.js and the shortcut table from lib/shortcuts.js")
 	}
 	keys, err := filepath.Abs(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "keys.js"))
@@ -3399,11 +3405,8 @@ console.log("ok");
 	if strings.Contains(handle, "_keelTabCycle") {
 		t.Fatal("window capture must own the keydown; do not stamp the event to hide a second listener")
 	}
-	if !strings.Contains(shortcuts, "repeat: !!ev.repeat") || !strings.Contains(handle, "action.repeat") {
-		t.Fatal("hold-to-repeat tab cycling must pass ev.repeat into runShortcut")
-	}
-	if !strings.Contains(run, "!repeat") || !strings.Contains(run, "lastShortcutAt < 300") {
-		t.Fatal("runShortcut must debounce a duplicate gesture and still run key repeat")
+	if !strings.Contains(shortcuts, `new Set(["prev-tab", "next-tab"`) || !strings.Contains(shortcuts, "ev.repeat && !REPEATS.has(action.name)") {
+		t.Fatal("hold-to-repeat must keep cycling tabs and run no other chord twice (REPEATS in lib/shortcuts.js)")
 	}
 	bind := sliceJSFunc(term, "function bindChrome")
 	if !strings.Contains(bind, "if (handleShortcut(ev)) ev.stopPropagation()") {

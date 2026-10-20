@@ -2,30 +2,23 @@ import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 import { keelToken } from './keel.ts';
 
-// Focus view (⌘⇧↵ on macOS, Ctrl+Shift+Enter elsewhere) toggles: the same
-// chord zooms the focused pane and brings the split back, and so do the
-// pane bar's button and the palette's Focus view.
+// Focus view (⌘⇧↵ on macOS, Ctrl+Shift+Enter elsewhere) toggles: one press
+// zooms the focused pane, the next brings the split back. A held chord
+// toggles once: its auto-repeats run nothing (lib/shortcuts.js REPEATS).
+// Leaving focus view re-attaches a WebGL context per pane, which is slow in
+// WKWebView; the test makes contexts slow to create, so a repeat that ran
+// would land well after the first press and zoom straight back in.
 //
-// In the native window the View menu carries the same accelerator. When
-// the page runs the chord, WKWebView may still hand it to the menu, whose
-// item runs the action again through window.__keelShortcut; that call is
-// queued behind the page's own work. Leaving focus view attaches a WebGL
-// context per pane again, which in WKWebView can take longer than the
-// page's 300 ms duplicate window, so the menu's copy used to arrive late
-// and zoom the pane straight back in. The test plays the menu's part: a
-// keydown listener queues window.__keelShortcut('focus-pane') right after
-// the page's handler, and WebGL contexts are made slow to create.
+// The native menu carries the same accelerator. WKWebView should never
+// hand it a chord the page preventDefaulted, but if it did, the echo
+// (window.__keelShortcut with no input since the press) is dropped
+// (lib/chordguard.js), while a menu call after a keyup still runs.
 
 const native = '&native=1&appearance=native&chrome=titlebar';
 
-const menuEcho = `(() => {
-  if (window.__fvEcho) return;
-  window.__fvEcho = true;
-  window.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && ev.shiftKey && (ev.metaKey || ev.ctrlKey)) {
-      setTimeout(() => window.__keelShortcut && window.__keelShortcut('focus-pane'), 0);
-    }
-  }, true);
+const slowWebgl = `(() => {
+  if (window.__slowGl) return;
+  window.__slowGl = true;
   const get = HTMLCanvasElement.prototype.getContext;
   const made = new WeakSet();
   HTMLCanvasElement.prototype.getContext = function (kind, ...rest) {
@@ -40,8 +33,33 @@ const menuEcho = `(() => {
 
 const zoomed = `document.querySelectorAll('.term-wrap.is-zoomed').length`;
 
+// The e2e keyboard only presses whole keys, so a held chord is played as
+// the keydowns a real one sends to the focused element: ⌘, ⇧, ↵, then ↵
+// again with repeat set, then the keyups. One evaluate per event, so each
+// lands after the page finished the one before, as a real repeat would.
+const key = (type: 'keydown' | 'keyup', k: string, repeat = false) => `(() => {
+  const code = { Meta: 'MetaLeft', Shift: 'ShiftLeft', Enter: 'Enter' }['${k}'];
+  const down = '${type}' === 'keydown';
+  const ev = new KeyboardEvent('${type}', {
+    key: '${k}', code, repeat: ${repeat}, bubbles: true, cancelable: true,
+    metaKey: '${k}' === 'Meta' ? down : true, shiftKey: '${k}' === 'Shift' ? down : '${k}' !== 'Meta',
+  });
+  (document.activeElement || document.body).dispatchEvent(ev);
+})()`;
+const holdDown = async (browser: any) => {
+  await browser.evaluate(key('keydown', 'Meta'));
+  await browser.evaluate(key('keydown', 'Shift'));
+  await browser.evaluate(key('keydown', 'Enter'));
+};
+const holdUp = async (browser: any) => {
+  await browser.evaluate(key('keyup', 'Enter'));
+  await browser.evaluate(key('keyup', 'Shift'));
+  await browser.evaluate(key('keyup', 'Meta'));
+};
+const keyLog = `JSON.stringify(window.__keelKeyLog || [])`;
+
 for (const mode of ['browser', 'native'] as const) {
-  test(`${mode}: the focus view chord toggles the split`, { tags: ['terminal'] }, async ({ app, browser, screen }) => {
+  test(`${mode}: focus view toggles per press, once per held key, and drops a menu echo`, { tags: ['terminal'] }, async ({ app, browser, screen }) => {
     await app.open(`/?keel_token=${keelToken()}&name=e2e${mode === 'native' ? native : ''}`);
     const vault = screen.getByRole('complementary', 'Vault');
     const terms = screen.getByRole('textbox', 'Terminal input');
@@ -50,29 +68,51 @@ for (const mode of ['browser', 'native'] as const) {
     await expect(terms).toHaveCount(1);
     await terms.first().press('Meta+Shift+D');
     await expect(terms).toHaveCount(2);
-    if (mode === 'native') await browser.evaluate(menuEcho);
+    await browser.evaluate(slowWebgl);
 
     // The left pane has the keyboard.
     const box = await terms.nth(0).boundingBox();
     if (!box) throw new Error('first terminal has no box');
     await screen.tapAt({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
     await expect(terms.nth(0)).toBeFocused();
-
     const exit = screen.getByRole('button', 'Exit focus view', { visible: true });
-    for (let i = 0; i < 2; i++) {
-      await browser.keyboard.press('Meta+Shift+Enter');
-      await expect(exit).toHaveCount(1);
-      await expect.poll(() => browser.evaluate(zoomed)).toBe(1);
-      // Past the duplicate window: whatever the menu echoed has landed.
-      await new Promise((r) => setTimeout(r, 1000));
-      await expect.poll(() => browser.evaluate(zoomed)).toBe(1);
+    const settled = async (want: number) => {
+      await expect.poll(() => browser.evaluate(zoomed)).toBe(want);
+      // Past any late repeat or echo: the state holds.
+      await new Promise((r) => setTimeout(r, 800));
+      expect(await browser.evaluate(zoomed)).toBe(want);
+    };
 
-      await browser.keyboard.press('Meta+Shift+Enter');
-      await expect(exit).toHaveCount(0);
-      await new Promise((r) => setTimeout(r, 1000));
-      await expect.poll(() => browser.evaluate(zoomed)).toBe(0);
-      await expect(terms).toHaveCount(2);
+    // Tap twice: in, then out, then in and out again, quickly.
+    await browser.keyboard.press('Meta+Shift+Enter');
+    await settled(1);
+    await browser.keyboard.press('Meta+Shift+Enter');
+    await settled(0);
+    await browser.keyboard.press('Meta+Shift+Enter');
+    await browser.keyboard.press('Meta+Shift+Enter');
+    await settled(0);
+    await expect(terms).toHaveCount(2);
+
+    // Hold it: the first keydown toggles, the repeats run nothing.
+    for (const want of [1, 0]) {
+      await holdDown(browser);
+      for (let i = 0; i < 5; i++) await browser.evaluate(key('keydown', 'Enter', true));
+      await holdUp(browser);
+      await settled(want);
     }
+    const log = JSON.parse(await browser.evaluate(keyLog)) as string[];
+    expect(log.filter((l) => l.includes('keyboard focus-pane repeat=true repeat skipped')).length).toBeGreaterThanOrEqual(10);
+
+    // A menu echo of the press, before any other input, is dropped.
+    await holdDown(browser);
+    await browser.evaluate(`window.__keelShortcut('focus-pane')`);
+    await settled(1);
+    await holdUp(browser);
+    expect(await browser.evaluate(`(window.__keelKeyLog || []).slice(-1)[0]`)).toContain('menu focus-pane repeat=false echo dropped');
+    // After the keys are up, the menu item is the user's: it runs.
+    await browser.evaluate(`window.__keelShortcut('focus-pane')`);
+    await settled(0);
+    await expect(exit).toHaveCount(0);
 
     // The pane bar button and the palette run the same toggle.
     await screen.getByRole('button', 'Focus view', { visible: true }).first().tap();
@@ -80,11 +120,10 @@ for (const mode of ['browser', 'native'] as const) {
     await exit.tap();
     await expect(exit).toHaveCount(0);
     await browser.keyboard.press('Meta+k');
-    const palette = screen.getByRole('combobox').first();
+    const palette = screen.getByRole('combobox', 'Run a command or connect a host…');
     await palette.pressSequentially('Focus view');
     await palette.press('Enter');
     await expect(exit).toHaveCount(1);
-    await new Promise((r) => setTimeout(r, 600));
     await browser.keyboard.press('Meta+Shift+Enter');
     await expect(exit).toHaveCount(0);
 
