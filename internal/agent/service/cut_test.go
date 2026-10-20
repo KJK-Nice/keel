@@ -122,7 +122,8 @@ func TestCutNotebookBlocksAreDropped(t *testing.T) {
 		"Editing.\n\n```keel-notebook-edit\n{\"notebook\": 1, \"rev\": 1, \"edits\": [{\"find\": \"a\", \"replace\": \"",
 		"Reading.\n\n```keel-notebook-read\n{\"notebooks\": [1",
 		"A note.\n\n```keel-note\n{\"for\": \"user\", \"text\": \"prefer",
-		"A runbook.\n\n````keel-runbook\n{\"name\": \"x\", \"steps\": [\n```sh\nls\n```\n",
+		"A runbook.\n\n````keel-runbook\n{\"name\": \"x\", \"steps\": [",
+		"Cut in the name.\n\n```kee",
 	} {
 		got := dropOpenBlock(reply)
 		if strings.Contains(got, "keel-") || strings.Contains(got, "{") {
@@ -152,5 +153,71 @@ func TestDropOpenBlockLeavesClosedAndOtherFences(t *testing.T) {
 	in := "Text.\n```keel-notebook\n{\"body\": \"\n```sh\nls\n"
 	if got := dropOpenBlock(in); got != "Text." {
 		t.Errorf("dropOpenBlock(%q) = %q", in, got)
+	}
+	// A block the runbook parser closes early (at a ```sh inside it) is
+	// the parser's to take: whatever dropOpenBlock keeps, nothing is
+	// parsed from it and no block text is left in the answer.
+	rb := "A runbook.\n\n````keel-runbook\n{\"name\": \"x\", \"steps\": [\n```sh\nls\n```\n"
+	rest, use, book := parseRunbookBlocks(dropOpenBlock(rb))
+	if use != nil || book != nil || strings.Contains(rest, "keel-") {
+		t.Errorf("runbook parsed from a cut block: rest %q, %v, %v", rest, use, book)
+	}
+}
+
+// The parsers take a block whose closing fence follows the JSON on the
+// same line; dropOpenBlock must see it as complete too, and keep it and
+// the text after it.
+func TestDropOpenBlockKeepsSameLineClose(t *testing.T) {
+	in := "Check:\n```keel-proposal\n{\"pane\": 1, \"command\": \"uptime\", \"why\": \"load\", \"risk\": \"readonly\"}```\n\nNext I would"
+	got := dropOpenBlock(in)
+	if got != in {
+		t.Fatalf("dropOpenBlock = %q", got)
+	}
+	answer, props := parseResponse(got)
+	if len(props) != 1 || props[0].Command != "uptime" || !strings.HasSuffix(answer, "Next I would") {
+		t.Fatalf("answer %q, proposals %+v", answer, props)
+	}
+	// Still dropped: a cut block after it.
+	cut := in + "\n```keel-proposal\n{\"pane\": 1, \"command\": \"rm -rf /var"
+	if got := dropOpenBlock(cut); got != in {
+		t.Fatalf("dropOpenBlock = %q", got)
+	}
+}
+
+// A line that starts with inline code is not a fence: the cut proposal
+// after it is still found and dropped, not read as the fake fence's text.
+func TestDropOpenBlockIgnoresInlineCode(t *testing.T) {
+	in := "```df``` is handy.\n\n```keel-proposal\n{\"pane\": 1, \"command\": \"rm -rf /var/lib"
+	got := dropOpenBlock(in)
+	if got != "```df``` is handy." {
+		t.Fatalf("dropOpenBlock = %q", got)
+	}
+	// Inline code naming a block is not an opener either.
+	s := "Blocks look like ```keel-proposal``` in the reply."
+	if got := dropOpenBlock(s); got != s {
+		t.Fatalf("dropOpenBlock(%q) = %q", s, got)
+	}
+}
+
+// Through Ask: the same-line close keeps its proposal when the reply is
+// cut later, and the rm -rf after inline code never reaches the answer or
+// the history the model hears next.
+func TestCutReplyEdgeCasesThroughAsk(t *testing.T) {
+	f := newFixture(t, "")
+	f.fake.Reply = provider.Response{Stop: provider.StopLength, Text: "```df``` is handy.\n\n```keel-proposal\n{\"pane\": 1, \"command\": \"uptime\"}```\n\nThen:\n```keel-proposal\n{\"pane\": 1, \"command\": \"rm -rf /var/lib"}
+	resp, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q", Panes: []string{"s-web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Proposals) != 1 || resp.Proposals[0].Command != "uptime" || strings.Contains(resp.Answer, "rm -rf") {
+		t.Fatalf("answer %q, proposals %+v", resp.Answer, resp.Proposals)
+	}
+	f.fake.Reply = provider.Response{Text: "ok"}
+	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "continue"}); err != nil {
+		t.Fatal(err)
+	}
+	reqs := f.fake.Requests()
+	if h := reqs[len(reqs)-1].Messages[1].Text.String(); strings.Contains(h, "rm -rf") {
+		t.Fatalf("history holds the cut block: %q", h)
 	}
 }
