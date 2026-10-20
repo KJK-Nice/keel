@@ -34,7 +34,7 @@ test('Edit host: jump host, Test connection with Trust and save, startup command
     await dialog.getByLabel('Password').fill(target.password);
     await expect(dialog.getByRole('group', 'Host key')).toContainText('Not saved');
     await dialog.getByRole('combobox', 'Jump host').tap();
-    await screen.getByRole('option', names.bastion).tap();
+    await screen.getByRole('option', new RegExp(`^${names.bastion}`)).tap();
 
     // First test: the jump host's key is unknown. It is shown, not trusted.
     const trust = dialog.getByRole('button', 'Trust and save');
@@ -107,7 +107,7 @@ test('Edit host: jump host, Test connection with Trust and save, startup command
     await screen.getByRole('menuitem', 'Edit').tap();
     const editing = screen.getByRole('dialog').filter({ hasText: 'Edit host' });
     await expect(editing).toBeVisible();
-    await expect(editing.getByRole('combobox', 'Jump host')).toContainText(names.bastion);
+    await expect(editing.getByRole('combobox', 'Jump host')).toHaveValue(names.bastion);
     await expect(editing.getByLabel('Startup command')).toHaveValue('echo hello-from-keel');
     const keyLine = editing.getByRole('group', 'Host key');
     await expect(keyLine).toContainText('Trusted');

@@ -180,7 +180,8 @@ test('Export to Ansible: the inventory from roles and variables, a playbook from
     await expect(drawer.getByRole('button', 'inventory.yml')).toBeVisible();
     await expect(drawer).toContainText('"gv_version": "1.31.2"');
 
-    await drawer.getByRole('combobox', 'Playbook from a runbook').selectOption('Playbook: gv bootstrap');
+    await drawer.getByRole('combobox', 'Playbook from a runbook').tap();
+    await screen.getByRole('option', /Playbook: gv bootstrap/).tap();
     await expect(drawer.getByRole('button', 'playbooks/gv-bootstrap.yml')).toHaveAttribute('aria-pressed', 'true');
     await expect(drawer).toContainText('{{ join_code | quote }}');
     await expect(drawer).toContainText('TODO: Keel captures join_code');

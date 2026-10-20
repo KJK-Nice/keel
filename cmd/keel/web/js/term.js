@@ -1,4 +1,6 @@
 import { escapeHtml } from "./lib/html.js";
+import { comboboxValue, enhanceAll, installCombobox, setComboboxOptions, setComboboxValue } from "./lib/combobox.js";
+import { installSeg, segValue, setSegValue } from "./lib/seg.js";
 import { paneTarget } from "./lib/agent.js";
 import * as G from "./lib/groups.js";
 import * as V from "./lib/vaultview.js";
@@ -68,6 +70,12 @@ import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 import { attachCommandMarks } from "./lib/cmdmarks.js";
 
 (() => {
+  // Value pickers (k-combobox, k-seg): delegated, so pickers that a page
+  // paints later or a stream push morphs in work without more wiring.
+  // First, so an open list hears its keys (Escape) before the app's
+  // window shortcuts and dialog handling.
+  installCombobox(document);
+  installSeg(document);
   if (window.__keelTermBound) return;
   window.__keelTermBound = true;
   function createTerminal(opts) {
@@ -829,73 +837,37 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     el.addEventListener(type, fn, opts);
   }
 
-  function setSelectValue(triggerId, value) {
-    const trigger = document.getElementById(triggerId);
-    if (!trigger) return;
-    if (trigger.tagName === "SELECT") {
-      trigger.value = value;
-      return;
-    }
-    const contentId = trigger.getAttribute("aria-controls");
-    const content = contentId ? document.getElementById(contentId) : null;
-    if (!content) return;
-    const item = [...content.querySelectorAll("[data-tui-select-item]")].find(
-      (el) => el.getAttribute("data-tui-select-value") === value
-    );
-    if (!item) return;
-    content.querySelectorAll("[data-tui-select-item]").forEach((el) => {
-      const on = el === item;
-      el.toggleAttribute("data-selected", on);
-      el.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    const label =
-      item.getAttribute("data-tui-select-label") ||
-      (item.querySelector("[data-tui-select-item-text]") || item).textContent.trim();
-    const span = trigger.querySelector("[data-tui-select-value]");
-    if (span) span.textContent = label;
-    trigger.removeAttribute("data-placeholder");
-    const input = trigger.previousElementSibling;
-    if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  // Value pickers: a k-combobox (lib/combobox.js) named by its input's id,
+  // or a k-seg (lib/seg.js) named by the group's id. Neither sends events
+  // when term.js fills a dialog; a user's pick sends "select-change".
+  function pickerOf(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    if (el.matches(".k-seg[data-seg]")) return { seg: el };
+    const box = el.closest(".k-combobox[data-combobox]");
+    return box ? { box } : null;
   }
 
-  function fieldValue(form, name, triggerId) {
+  function setSelectValue(id, value) {
+    const p = pickerOf(id);
+    if (p?.seg) setSegValue(p.seg, value);
+    else if (p?.box) setComboboxValue(p.box, value);
+  }
+
+  function fieldValue(form, name, id) {
     const el = form?.elements?.[name];
     if (el && typeof el.value === "string") return el.value;
-    const trigger = document.getElementById(triggerId);
-    const input = trigger?.previousElementSibling;
-    if (input?.hasAttribute?.("data-tui-select-input") && typeof input.value === "string") return input.value;
-    const contentId = trigger?.getAttribute("aria-controls");
-    const selected = contentId && document.getElementById(contentId)?.querySelector("[data-selected]");
-    return selected?.getAttribute("data-tui-select-value") || "";
+    const p = pickerOf(id);
+    if (p?.seg) return segValue(p.seg);
+    return p?.box ? comboboxValue(p.box) : "";
   }
 
-  function fillSelectItems(triggerId, entries, selected, emptyLabel) {
-    const trigger = document.getElementById(triggerId);
-    if (!trigger) return;
-    const contentId = trigger.getAttribute("aria-controls");
-    const content = contentId ? document.getElementById(contentId) : null;
-    if (!content) return;
-    const group =
-      content.querySelector("[data-slot='select-group']") ||
-      content.querySelector("[data-tui-select-viewport]") ||
-      content;
-    const proto = group.querySelector("[data-tui-select-item]");
-    if (!proto) return;
-    const list = entries.length ? entries : [{ value: "", label: emptyLabel || "—" }];
-    group.replaceChildren(
-      ...list.map((entry) => {
-        const node = proto.cloneNode(true);
-        node.setAttribute("data-tui-select-value", entry.value);
-        node.setAttribute("data-tui-select-label", entry.label);
-        node.setAttribute("aria-selected", "false");
-        node.removeAttribute("data-selected");
-        const text = node.querySelector("[data-tui-select-item-text]");
-        if (text) text.textContent = entry.label;
-        return node;
-      })
-    );
-    const pick = selected && list.some((entry) => entry.value === selected) ? selected : list[0].value;
-    setSelectValue(triggerId, pick);
+  // fillSelectItems replaces a combobox's options ({value, label, desc,
+  // descMono, disabled}) and picks selected, else the first option. With
+  // no entries the picker shows emptyLabel.
+  function fillSelectItems(id, entries, selected, emptyLabel) {
+    const p = pickerOf(id);
+    if (p?.box) setComboboxOptions(p.box, entries, selected, emptyLabel);
   }
 
   function setSliderValue(id, value) {
@@ -1325,6 +1297,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         queued = true;
         requestAnimationFrame(() => {
           queued = false;
+          // A push may morph a picker in: make its ARIA whole again.
+          enhanceAll(el);
           afterListPaint(id);
           obs.takeRecords();
         });
@@ -6165,10 +6139,24 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return true;
   }
 
+  // The picker's secondary line: the kind and the user, never a secret.
+  function identityDesc(id) {
+    const kind = id?.kind === "key" ? "Private key" : "Password";
+    return id?.username ? `${kind} · ${id.username}` : kind;
+  }
+
+  // hostAddress is a host's user@address[:port] for a picker's secondary
+  // line (code, so mono).
+  function hostAddress(h) {
+    if (!h?.address) return "";
+    const port = h.port && h.port !== 22 ? `:${h.port}` : "";
+    return `${h.username ? `${h.username}@` : ""}${h.address}${port}`;
+  }
+
   function fillIdentitySelect(selected) {
     fillSelectItems(
       "host-identity",
-      state.identities.map((id) => ({ value: id.id, label: id.name })),
+      state.identities.map((id) => ({ value: id.id, label: id.name, desc: identityDesc(id) })),
       selected,
       "No identities — add in Keychain"
     );
@@ -6252,7 +6240,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const entries = [{ value: "", label: "None" }];
     for (const h of state.hosts || []) {
       if (!h?.id || h.id === host?.id || h.authType === "local" || h.jumpHost) continue;
-      entries.push({ value: h.id, label: h.name || h.address });
+      entries.push({ value: h.id, label: h.name || h.address, desc: hostAddress(h), descMono: true });
     }
     if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label: "Missing host — pick another" });
     fillSelectItems("host-jump", entries, current, "None");
@@ -6672,7 +6660,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function fillTunnelHosts(selected) {
     fillSelectItems(
       "tunnel-host",
-      sshHosts().map((h) => ({ value: h.id, label: h.name })),
+      sshHosts().map((h) => ({ value: h.id, label: h.name, desc: hostAddress(h), descMono: true })),
       selected,
       "Add an SSH host first"
     );

@@ -2182,8 +2182,11 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(body), `<template data-tui-dialog-portal`) && !strings.Contains(string(body), `data-slot="alert-dialog-content"`) {
 		t.Fatal("unexpected dialog portal without confirm alert dialog")
 	}
-	if !strings.Contains(string(body), `data-slot="switch"`) || !strings.Contains(string(body), `data-tui-select-trigger`) {
-		t.Fatal("index missing settings switch or select")
+	if !strings.Contains(string(body), `data-slot="switch"`) || !strings.Contains(string(body), `role="combobox"`) || !strings.Contains(string(body), `data-combobox`) {
+		t.Fatal("index missing settings switch or combobox")
+	}
+	if strings.Contains(string(body), `data-tui-select-trigger`) || strings.Contains(string(body), `<select`) {
+		t.Fatal("index should pick values with k-combobox or k-seg, not a select")
 	}
 	if strings.Contains(string(body), `class="ui-select`) {
 		t.Fatal("index should not keep native ui-select")
@@ -2772,8 +2775,8 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(string(cssBody), `button:not([data-slot="button"])`) {
 		t.Fatal("button reset must not target only data-slot=button (select triggers need a border)")
 	}
-	if !strings.Contains(string(cssBody), `.modal [data-slot="select-trigger"]`) {
-		t.Fatal("modal select triggers must share the field border with inputs")
+	if !strings.Contains(string(cssBody), `.k-combobox > .k-input.k-combobox-input`) || !strings.Contains(string(cssBody), `.k-menu.k-combobox-pop`) {
+		t.Fatal("keel.css missing the k-combobox field and its k-menu popup")
 	}
 	if strings.Contains(string(cssBody), "button {\n  cursor: pointer;\n  background-color: transparent") {
 		t.Fatal("unlayered button reset must not paint every button transparent")

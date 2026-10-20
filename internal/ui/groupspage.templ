@@ -89,9 +89,7 @@ templ groupExportDrawer() {
 					<button type="button" aria-pressed="true" data-export-format="ini">INI</button>
 					<button type="button" aria-pressed="false" data-export-format="yaml">YAML</button>
 				</div>
-				<select class="k-gx-rolesel k-gx-exportbook" id="group-export-runbook" aria-label="Playbook from a runbook">
-					<option value="">Inventory only</option>
-				</select>
+				@Combobox(ComboboxProps{ID: "group-export-runbook", Label: "Playbook from a runbook", Placeholder: "Search runbooks", Options: []ComboOption{{Value: "", Label: "Inventory only"}}, Class: "k-gx-exportbook"})
 				<div class="k-gx-mode" role="group" aria-label="Playbook mode" id="group-export-mode" hidden>
 					<button type="button" aria-pressed="true" data-export-mode="rolling">Rolling</button>
 					<button type="button" aria-pressed="false" data-export-mode="parallel">Parallel</button>

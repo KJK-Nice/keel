@@ -801,7 +801,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = settingsSelect("set-theme", "theme", "Color theme", "Theme", "system", []string{"system", "light", "dark"}, []string{"System", "Light", "Dark"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = segControl("set-theme", "", "", "Color theme", "system", "pref-seg", []SegOption{{"system", "System"}, {"light", "Light"}, {"dark", "Dark"}}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -873,7 +873,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = settingsSelect("set-smooth", "smoothing", "Font smoothing", "Smoothing", "antialiased", []string{"antialiased", "subpixel", "none"}, []string{"Antialiased", "Subpixel", "None"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = segControl("set-smooth", "", "", "Font smoothing", "antialiased", "pref-seg", []SegOption{{"antialiased", "Antialiased"}, {"subpixel", "Subpixel"}, {"none", "None"}}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -907,7 +907,7 @@ func SettingsPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = settingsSelect("set-font", "font", "Terminal font", "Font", "jetbrains", []string{"jetbrains", "ibmplex", "menlo", "consolas", "system"}, []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = settingsCombobox("set-font", "Terminal font", "jetbrains", terminalFontOptions).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1131,7 +1131,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = settingsSelect("agent-set-model", "agentModel", "Model", "Model", agentDefaultModel(), agentModels(), agentModels()).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = settingsCombobox("agent-set-model", "Model", agentDefaultModel(), agentModelOptions()).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1356,7 +1356,7 @@ func agentSettingsPanel() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = settingsSelect("agent-set-history", "agentHistory", "Keep conversations", "Keep", "30", []string{"0", "7", "30", "90", "365"}, []string{"Only while open", "7 days", "30 days", "90 days", "1 year"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = settingsCombobox("agent-set-history", "Keep conversations", "30", historyOptions).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
