@@ -391,3 +391,20 @@ export function startedLabel(when, questions, now = new Date()) {
   const day = g === "Older" ? `${MONTHS[d.getMonth()]} ${d.getDate()}` : g;
   return `${day} ${hm} · ${count}`;
 }
+
+// cutNotice is the line under an answer the provider cut before the model
+// finished it (AskResponse.cut), "" for a finished answer. A cut answer is
+// never shown as if it were whole.
+export function cutNotice(cut) {
+  switch (cut || "") {
+    case "":
+      return "";
+    case "length":
+      return "Answer cut off at the length limit. Ask the agent to continue.";
+    case "safety":
+      return "Answer cut off by the provider's safety filter.";
+    case "recitation":
+      return "Answer cut off by the provider: it matched a published source.";
+  }
+  return "Answer cut off by the provider before it ended.";
+}

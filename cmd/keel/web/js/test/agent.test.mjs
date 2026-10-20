@@ -195,3 +195,12 @@ test("Agent page: host chips, host filter, context column (§5.4.2)", () => {
   assert.equal(A.startedLabel(new Date(2026, 9, 14, 16, 2), 3, now), "Oct 14 16:02 · 3 questions");
   assert.equal(A.startedLabel("", 0, now), "0 questions");
 });
+
+test("a cut answer gets a notice, a finished one none", () => {
+  assert.equal(A.cutNotice(""), "");
+  assert.equal(A.cutNotice(undefined), "");
+  assert.match(A.cutNotice("length"), /^Answer cut off at the length limit\./);
+  assert.match(A.cutNotice("safety"), /safety/);
+  assert.match(A.cutNotice("other"), /^Answer cut off/);
+  assert.equal(A.cutNotice("<b>"), "Answer cut off by the provider before it ended.");
+});

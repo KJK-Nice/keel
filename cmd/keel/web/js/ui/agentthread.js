@@ -91,6 +91,13 @@ export function errorHTML(err) {
   return `<div class="k-agent-error" role="alert"><b>The agent could not answer.</b><span>${escapeHtml(msg)}</span></div>`;
 }
 
+// cutHTML is the notice under an answer the provider cut (res.cut), "" for
+// a finished one.
+export function cutHTML(cut) {
+  const msg = A.cutNotice(cut);
+  return msg ? `<div class="k-note-warn" role="note" data-agent-cut>${ICON.alert}<span>${escapeHtml(msg)}</span></div>` : "";
+}
+
 // savedTurnHTML is one turn of a resumed conversation: the question with
 // its time, then the trace and the answer. A Propose again turn has no
 // question; its proposal is added on its own.
@@ -101,7 +108,7 @@ export function savedTurnHTML(t) {
   return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
       <div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
         t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
-      }</div>`;
+      }${cutHTML(t.cut)}</div>`;
 }
 
 // sessionRowHTML is one saved conversation in a list (the panel's Recent
@@ -214,6 +221,7 @@ export function createThreadView(opts) {
       trace.insertAdjacentHTML("beforeend", `<div class="k-agent-step k-agent-step--skip">${ICON.info}<span>Test provider · nothing left this machine</span></div>`);
     }
     if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
+    if (res.cut) turn.insertAdjacentHTML("beforeend", cutHTML(res.cut));
     if (res.runbook) placeRun(res.runbook.id, turn);
     for (const p of res.proposals || []) addProposal(p.id);
     for (const n of res.notes || []) addNote(n.id);

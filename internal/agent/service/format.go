@@ -24,14 +24,18 @@ import (
 const ProposalFence = "keel-proposal"
 
 const (
-	maxProposals       = 3
-	maxCommandBytes    = 2048
-	maxCommandLines    = 20
-	maxWhyBytes        = 300
-	maxAnswerBytes     = 32 * 1024
-	maxQuestionBytes   = 8 * 1024
-	maxPanesPerAsk     = 8
-	maxOutputTokens    = 2048
+	maxProposals     = 3
+	maxCommandBytes  = 2048
+	maxCommandLines  = 20
+	maxWhyBytes      = 300
+	maxAnswerBytes   = 32 * 1024
+	maxQuestionBytes = 8 * 1024
+	maxPanesPerAsk   = 8
+	// maxAnswerTokens caps an agent panel answer (about maxAnswerBytes of
+	// text); the provider adds room for thinking on top (provider.Request).
+	// maxSuggestTokens caps an in-pane suggestion, a few short blocks.
+	maxAnswerTokens    = 8192
+	maxSuggestTokens   = 2048
 	maxHistoryMessages = 20
 	maxHistoryBytes    = 128 * 1024
 )
@@ -236,6 +240,32 @@ func truncate(s string, max int) string {
 		s = s[:len(s)-1]
 	}
 	return s + "…"
+}
+
+// dropOpenBlock removes a keel-* block that a cut reply left open (its
+// closing fence never came) and everything after it. A cut block is never
+// half-parsed or acted on, and its raw JSON is not shown as the answer.
+// Fences are read as markdown reads them: a fence opens with three or more
+// backticks and closes with a line of at least as many backticks and
+// nothing else. A cut fence of another kind (```sh) is left as text.
+func dropOpenBlock(text string) string {
+	open, ticks, keel, at := -1, 0, false, 0
+	for _, ln := range strings.SplitAfter(text, "\n") {
+		t := strings.TrimSpace(ln)
+		n := len(t) - len(strings.TrimLeft(t, "`"))
+		switch {
+		case open < 0 && n >= 3:
+			open, ticks = at, n
+			keel = strings.HasPrefix(strings.TrimSpace(t[n:]), "keel-")
+		case open >= 0 && n >= ticks && n == len(t):
+			open = -1
+		}
+		at += len(ln)
+	}
+	if open >= 0 && keel {
+		return strings.TrimRight(text[:open], " \t\r\n")
+	}
+	return text
 }
 
 func collapseBlankLines(s string) string {
