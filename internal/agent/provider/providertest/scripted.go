@@ -38,6 +38,9 @@ import (
 //     "write this up" makes it propose a notebook draft with a shell
 //     fence (and, for "placeholder", a second fence holding [secret:1];
 //     for "image", a remote markdown image, LeakImageURL);
+//   - when the question says "markdown", it adds MarkdownSample, an answer
+//     in markdown with hostile bits (raw HTML, a javascript: link, a remote
+//     image), so a test can see the thread render it safely;
 //   - when the question says "long", it adds a tall answer with **bold**
 //     text before the proposal and a second proposal after it, so a test
 //     can check that the thread scrolls and the cards keep their height.
@@ -167,6 +170,9 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 			`{"name": "keel-runbook-e2e proposed", "when": "The e2e marker needs checking", "steps": [` +
 			`{"title": "Print the marker", "description": "Shows the command reached the pane.", "command": "echo keel-runbook-proposed", "expect": "keel-runbook-proposed"},` +
 			`{"title": "Check the clock", "command": "date"}]}` + "\n```\n")
+	}
+	if strings.Contains(question, "markdown") {
+		b.WriteString(MarkdownSample)
 	}
 	long := strings.Contains(question, "long")
 	if long {
@@ -389,6 +395,20 @@ func (s *Scripted) Requests() []provider.Request {
 // a draft (.invalid never resolves). tests/agent-notebooks.e2e.ts checks
 // that it shows as text, never as an <img>.
 const LeakImageURL = "https://keel-e2e-leak.invalid/keel-notebook-leak.png"
+
+// MarkdownSample is the markdown answer "markdown" adds. tests/agent.e2e.ts
+// checks that it renders as markdown, that its raw HTML, javascript: link
+// and remote image stay text, and that its code block has Copy and no Type.
+const MarkdownSample = "\n\n## Disk check\n\n" +
+	"The **root volume** is at *91%*. Run `df -h` first, then look for big logs:\n\n" +
+	"1. Find the largest folders\n2. Rotate the logs\n   - keep the last `7` days\n   - compress the rest\n\n" +
+	"```sh\ndu -xh / 2>/dev/null | sort -rh | head -n 20 && echo \"<done>\"\n```\n\n" +
+	"> Logs under `/var/log/journal` are kept by journald.\n\n" +
+	"| Mount | Used |\n|:--|--:|\n| `/` | 91% |\n| `/data` | 40% |\n\n" +
+	"See [the journald docs](https://www.freedesktop.org/software/systemd/man/journald.conf.html) or https://keel-e2e.invalid/help.\n\n" +
+	"Not a link: [click me](javascript:alert(1)). Not an image: ![leak](" + LeakImageURL + ").\n" +
+	"Raw HTML stays text: <img src=x onerror=alert(1)> <script>alert(1)</script>\n" +
+	"Withheld values stay as written: [secret:1] and {{join_token}}."
 
 func plural(n int) string {
 	if n == 1 {

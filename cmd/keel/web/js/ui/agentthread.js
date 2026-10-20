@@ -8,10 +8,12 @@
 // (ctl.type), which hands the proposal to term.js: the approve-before-type
 // dialog, then the session socket, where keel serve checks it with the
 // agent service before writing (§6.1, §6.5, §6.6, §6.7). Every server
-// string is escaped here (escapeHtml, or A.bytesHTML / A.answerHTML, which
-// escape first).
+// string is escaped here (escapeHtml, or A.bytesHTML / A.answerHTML /
+// markdownHTML, which escape first).
 
 import { escapeHtml } from "../lib/html.js";
+import { markdownHTML } from "../lib/markdown.js";
+import { openExternal } from "../lib/openlink.js";
 import * as A from "../lib/agent.js";
 import * as N from "../lib/notes.js";
 import * as R from "../lib/runbooks.js";
@@ -91,6 +93,15 @@ export function errorHTML(err) {
   return `<div class="k-agent-error" role="alert"><b>The agent could not answer.</b><span>${escapeHtml(msg)}</span></div>`;
 }
 
+// answerBlockHTML is the agent's answer as markdown (lib/markdown.js:
+// model text, escaped first; no raw HTML, no images, links only to http,
+// https and mailto, opened through openExternal). A code block has Copy and
+// never Type: only a proposal card types, through approve-before-type
+// (§6.1).
+export function answerBlockHTML(answer) {
+  return `<div class="k-agent-msg k-md">${markdownHTML(answer, { copyIcon: ICON.copy })}</div>`;
+}
+
 // savedTurnHTML is one turn of a resumed conversation: the question with
 // its time, then the trace and the answer. A Propose again turn has no
 // question; its proposal is added on its own.
@@ -100,7 +111,7 @@ export function savedTurnHTML(t) {
   const trace = (t.trace || []).map(stepHTML).join("");
   return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
       <div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
-        t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
+        t.answer ? answerBlockHTML(t.answer) : ""
       }</div>`;
 }
 
@@ -213,7 +224,7 @@ export function createThreadView(opts) {
     if (res.testProvider) {
       trace.insertAdjacentHTML("beforeend", `<div class="k-agent-step k-agent-step--skip">${ICON.info}<span>Test provider · nothing left this machine</span></div>`);
     }
-    if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
+    if (res.answer) turn.insertAdjacentHTML("beforeend", answerBlockHTML(res.answer));
     if (res.runbook) placeRun(res.runbook.id, turn);
     for (const p of res.proposals || []) addProposal(p.id);
     for (const n of res.notes || []) addNote(n.id);
@@ -717,6 +728,20 @@ export function createThreadView(opts) {
   }
 
   el.addEventListener("click", (ev) => {
+    // Answer markdown: a link opens in the system browser, never in the
+    // page; Copy copies a code block's text. Neither touches a pane.
+    const link = ev.target.closest(".k-md a[data-k-external]");
+    if (link) {
+      ev.preventDefault();
+      (opts.openLink || openExternal)(link.getAttribute("href"));
+      return;
+    }
+    const mdCopy = ev.target.closest(".k-md [data-md-copy]");
+    if (mdCopy) {
+      const code = mdCopy.closest(".k-md-code")?.querySelector("pre code");
+      if (code) ctl.copyText?.(code.textContent);
+      return;
+    }
     const runCard = ev.target.closest(".k-rb-pick");
     if (runCard) {
       const btn = ev.target.closest("button");

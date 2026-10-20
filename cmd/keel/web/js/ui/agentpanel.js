@@ -148,6 +148,8 @@ export function createAgentPanel(deps) {
       const rec = state.props.get(id);
       if (rec) deps.copyText(rec.p.command);
     },
+    // A code block in an answer (Copy only, never Type: §6.1).
+    copyText: (text) => deps.copyText(text),
     note: (id) => state.notes.get(id) || null,
     saveNote,
     dismissNote: (id) => noteAction(id, "DELETE", ""),

@@ -314,6 +314,88 @@ test('long answer: the thread scrolls, cards keep their height, bold renders, th
   await closeTabs(screen);
 });
 
+test('markdown answer: rendered, model HTML and images stay text, links open outside, code has Copy and no Type', { tags: ['agent'] }, async ({ app, screen, browser }) => {
+  await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: FAKE_KEY });
+  await openKeel(app);
+  const session = await openHost(app, screen, /^Local Shell\b/);
+  await openPanel(screen);
+  // No network in this test: a link click is recorded, not followed.
+  await browser.evaluate(`(() => {
+    window.__opened = [];
+    window.__copied = [];
+    HTMLAnchorElement.prototype.click = function () { window.__opened.push(this.href); };
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied.push(t); } } });
+  })()`);
+
+  await composer(screen).fill('answer in markdown please');
+  await composer(screen).press('Enter');
+  const answer = panel(screen);
+  await expect(answer.getByRole('heading', 'Disk check').last()).toBeVisible();
+
+  const shape = await browser.evaluate(`(() => {
+    const a = [...document.querySelectorAll('#agent-thread .k-agent-msg.k-md')].pop();
+    return {
+      h2: a.querySelector('h2')?.textContent,
+      strong: [...a.querySelectorAll('strong')].map((e) => e.textContent),
+      em: [...a.querySelectorAll('em')].map((e) => e.textContent),
+      ol: a.querySelectorAll('ol > li').length,
+      nested: a.querySelectorAll('ol > li > ul > li').length,
+      quote: a.querySelector('blockquote')?.textContent,
+      cells: [...a.querySelectorAll('td')].map((e) => e.textContent),
+      code: a.querySelector('.k-md-code pre code')?.textContent,
+      codeFont: getComputedStyle(a.querySelector('.k-md-code pre')).fontFamily,
+      proseFont: getComputedStyle(a.querySelector('p')).fontFamily,
+      codeScroll: getComputedStyle(a.querySelector('.k-md-code pre')).overflowX,
+      codeButtons: [...a.querySelectorAll('.k-md-code button')].map((b) => b.getAttribute('aria-label')),
+      links: [...a.querySelectorAll('a')].map((l) => ({ href: l.getAttribute('href'), title: l.title, ext: l.hasAttribute('data-k-external') })),
+      imgs: document.querySelectorAll('#agent-thread img, #agent-thread script, #agent-thread iframe').length,
+      text: a.textContent,
+    };
+  })()`) as any;
+  expect(shape.h2).toBe('Disk check');
+  expect(shape.strong).toEqual(['root volume']);
+  expect(shape.em).toEqual(['91%']);
+  expect(shape.ol).toBe(2);
+  expect(shape.nested).toBe(2);
+  expect(shape.quote).toContain('Logs under /var/log/journal');
+  expect(shape.cells).toEqual(['/', '91%', '/data', '40%']);
+  expect(shape.code).toBe('du -xh / 2>/dev/null | sort -rh | head -n 20 && echo "<done>"');
+  expect(shape.codeFont).toContain('JetBrains Mono');
+  expect(shape.proseFont).not.toContain('JetBrains Mono');
+  expect(shape.codeScroll).toBe('auto');
+  // §6.1: a code block in chat has Copy only; nothing in the answer types.
+  expect(shape.codeButtons).toEqual(['Copy code']);
+  expect(await browser.evaluate(`[...[...document.querySelectorAll('#agent-thread .k-md')].pop().querySelectorAll('button')].map((b) => b.textContent + (b.getAttribute('aria-label') || ''))`)).toEqual(['Copy code']);
+  expect(shape.links).toEqual([
+    { href: 'https://www.freedesktop.org/software/systemd/man/journald.conf.html', title: 'https://www.freedesktop.org/software/systemd/man/journald.conf.html', ext: true },
+    { href: 'https://keel-e2e.invalid/help', title: 'https://keel-e2e.invalid/help', ext: true },
+  ]);
+  // Hostile bits are text: no element, no javascript: link, no image fetch.
+  expect(shape.imgs).toBe(0);
+  expect(shape.text).toContain('[click me](javascript:alert(1))');
+  expect(shape.text).toContain('![leak](https://keel-e2e-leak.invalid/keel-notebook-leak.png)');
+  expect(shape.text).toContain('<img src=x onerror=alert(1)> <script>alert(1)</script>');
+  expect(shape.text).toContain('[secret:1] and {{join_token}}');
+  expect(shape.text).not.toContain('**');
+
+  // The proposal card is still the only way to type (approve-before-type).
+  await expect(panel(screen).getByRole('group', 'Proposal').last().getByRole('button', /Type into pane/)).toBeVisible();
+
+  // Copy copies the block's text; nothing reaches the pane.
+  await answer.getByRole('button', 'Copy code').last().tap();
+  await expect.poll(() => browser.evaluate('window.__copied.length')).toBe(1);
+  expect(await browser.evaluate('window.__copied[0]')).toBe(shape.code);
+  expect(await scrollback(app, session.id)).not.toContain('sort -rh');
+
+  // A link opens outside the page (here: recorded); the page stays put.
+  const before = await browser.evaluate('location.href');
+  await answer.getByRole('link', 'https://keel-e2e.invalid/help').last().tap();
+  await expect.poll(() => browser.evaluate('window.__opened')).toEqual(['https://keel-e2e.invalid/help']);
+  expect(await browser.evaluate('location.href')).toBe(before);
+  await app.screenshot('agent-markdown');
+  await closeTabs(screen);
+});
+
 test('a joined (follower) tab has no agent panel and its pane is never in scope', { tags: ['agent'], timeout: 120_000 }, async ({ app, screen, browser }) => {
   await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: FAKE_KEY });
   await openKeel(app);
