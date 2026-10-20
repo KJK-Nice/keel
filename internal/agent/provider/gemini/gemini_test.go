@@ -58,8 +58,9 @@ func TestGenerateSendsOnlyRequestAndKeyInHeader(t *testing.T) {
 	if len(got.Contents) != 1 || got.Contents[0].Role != "user" || strings.Contains(got.Contents[0].Parts[0].Text, "hunter22") {
 		t.Fatalf("contents = %+v", got.Contents)
 	}
-	if got.GenerationConfig.MaxOutputTokens != 64 {
-		t.Fatal("max tokens not sent")
+	// 64 answer tokens plus the room for the default (HIGH) thinking.
+	if got.GenerationConfig.MaxOutputTokens != 64+24576 {
+		t.Fatalf("maxOutputTokens = %d", got.GenerationConfig.MaxOutputTokens)
 	}
 	// No level asked: the model's default thinking, no thinkingConfig.
 	if got.GenerationConfig.ThinkingConfig != nil {
@@ -88,10 +89,14 @@ func TestGenerateSendsThinkingLevel(t *testing.T) {
 		tc, _ := gc["thinkingConfig"].(map[string]any)
 		return tc["thinkingLevel"]
 	}
-	for _, tc := range []struct{ model, thinking, want string }{
-		{"gemini-3.5-flash-lite", provider.ThinkingMinimal, "MINIMAL"},
-		{"gemini-3.8-flash", provider.ThinkingMinimal, "LOW"},
-		{"gemini-3.8-flash", provider.ThinkingMedium, "MEDIUM"},
+	for _, tc := range []struct {
+		model, thinking, want string
+		max                   float64
+	}{
+		{"gemini-3.5-flash-lite", provider.ThinkingMinimal, "MINIMAL", 32 + 1024},
+		{"gemini-3.8-flash", provider.ThinkingMinimal, "LOW", 32 + 4096},
+		{"gemini-3.8-flash", provider.ThinkingMedium, "MEDIUM", 32 + 8192},
+		{"gemini-3.8-flash", provider.ThinkingHigh, "HIGH", 32 + 24576},
 	} {
 		_, err := c.Generate(context.Background(), provider.Request{
 			Model:           tc.model,
@@ -106,7 +111,7 @@ func TestGenerateSendsThinkingLevel(t *testing.T) {
 			t.Fatalf("%s/%s: path %q, body %v", tc.model, tc.thinking, path, raw)
 		}
 		gc := raw["generationConfig"].(map[string]any)
-		if gc["maxOutputTokens"] != float64(32) || len(gc) != 2 {
+		if gc["maxOutputTokens"] != tc.max || len(gc) != 2 {
 			t.Fatalf("generationConfig = %v", gc)
 		}
 	}
@@ -177,6 +182,56 @@ func TestBlockedPromptAndNoCandidates(t *testing.T) {
 		srv.Close()
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("%s: err = %v", body, err)
+		}
+	}
+}
+
+// Gemini counts thinking tokens toward maxOutputTokens: the limit sent
+// leaves room for the thinking on top of the answer, and never goes over
+// the hard cap.
+func TestOutputLimitLeavesRoomForThinking(t *testing.T) {
+	for _, tc := range []struct {
+		answer int
+		level  string
+		want   int
+	}{
+		{8192, "", 8192 + 24576},
+		{8192, "HIGH", 8192 + 24576},
+		{2048, "MINIMAL", 2048 + 1024},
+		{60000, "", maxOutputCap},
+	} {
+		if got := outputLimit(tc.answer, tc.level); got != tc.want {
+			t.Errorf("outputLimit(%d, %q) = %d, want %d", tc.answer, tc.level, got, tc.want)
+		}
+		if got := outputLimit(tc.answer, tc.level); got-tc.answer < 1024 && got < maxOutputCap {
+			t.Errorf("outputLimit(%d, %q) leaves no room for thinking", tc.answer, tc.level)
+		}
+	}
+}
+
+// A reply that ends for any reason but STOP comes back as cut, with its
+// reason and token counts; thought parts never reach the text.
+func TestGenerateReportsCutReply(t *testing.T) {
+	for finish, want := range map[string]string{
+		"STOP":       "",
+		"":           "",
+		"MAX_TOKENS": provider.StopLength,
+		"SAFETY":     provider.StopSafety,
+		"RECITATION": provider.StopRecitation,
+		"OTHER":      provider.StopOther,
+		"LANGUAGE":   provider.StopOther,
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.WriteString(w, `{"candidates":[{"content":{"parts":[{"text":"plan","thought":true},{"text":"Free space on /var is "}]},"finishReason":"`+finish+`"}],"usageMetadata":{"promptTokenCount":900,"candidatesTokenCount":6,"thoughtsTokenCount":2042}}`)
+		}))
+		c, _ := New("k", WithBaseURL(srv.URL))
+		resp, err := c.Generate(context.Background(), provider.Request{Model: "gemini-3.8-flash", MaxOutputTokens: 2048, Messages: []provider.Message{{Text: redact.Static("x")}}})
+		srv.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.Stop != want || resp.Text != "Free space on /var is " || resp.OutputTokens != 6 || resp.ThoughtTokens != 2042 {
+			t.Fatalf("%q: resp = %+v", finish, resp)
 		}
 	}
 }

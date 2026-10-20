@@ -70,6 +70,7 @@ type TranscriptTurn struct {
 	At        time.Time         `json:"at"`
 	Question  string            `json:"question,omitempty"`
 	Answer    string            `json:"answer,omitempty"`
+	Cut       string            `json:"cut,omitempty"` // AskResponse.Cut
 	Trace     []TraceStep       `json:"trace"`
 	Proposals []Proposal        `json:"proposals"`
 	Notes     []NoteProposal    `json:"notes"`
@@ -234,7 +235,7 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 	out := Transcript{ID: chat.ID, Title: chat.Title, CreatedAt: chat.CreatedAt, UpdatedAt: chat.UpdatedAt, Saved: saved, Turns: make([]TranscriptTurn, 0, len(chat.Turns)), Runbook: chat.Runbook.Copy(), NoRunbook: chat.NoRunbook}
 	prodCache := map[string]bool{}
 	for _, t := range chat.Turns {
-		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks)), Notebooks: make([]NotebookProposal, 0, len(t.Notebooks))}
+		tt := TranscriptTurn{At: t.At, Question: t.Question, Answer: t.Answer, Cut: t.Cut, Again: t.Again, Trace: make([]TraceStep, 0, len(t.Trace)), Proposals: make([]Proposal, 0, len(t.Proposals)), Notes: make([]NoteProposal, 0, len(t.Notes)), Runbooks: make([]RunbookProposal, 0, len(t.Runbooks)), Notebooks: make([]NotebookProposal, 0, len(t.Notebooks))}
 		for _, st := range t.Trace {
 			tt.Trace = append(tt.Trace, TraceStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated, Asked: st.Asked, Count: st.Count})
 		}
