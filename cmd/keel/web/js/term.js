@@ -57,7 +57,7 @@ import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
 import { rightClickMode, termMenuItems, termRightClick } from "./lib/termmenu.js";
-import { cardActions, cardMenuHTML } from "./lib/cardmenu.js";
+import { actionLive, cardActions, cardMenuHTML } from "./lib/cardmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
@@ -5679,14 +5679,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (btn && !btn.hidden && !btn.disabled) btn.click();
   }
 
-  // A right-click on a code block: its menu, unless the code has a text
-  // selection (the system's menu copies it) or ⇧ is held.
+  // A right-click on a code block's bar (its language, Copy, Type): its
+  // menu, unless ⇧ is held. The code itself is editable text, so it keeps
+  // the system's menu (Cut, Copy, Paste).
   function onFenceContextMenu(ev) {
-    const fence = ev.target.closest?.(".notebook-fence");
+    const fence = ev.target.closest?.(".notebook-fence-bar")?.closest(".notebook-fence");
     if (!fence || ev.shiftKey || ev.target.closest("select")) return;
-    // Text the user had selected in the code gets the system's menu, to
-    // copy it.
-    if (selectedBeforeRightClick(fence) && !ev.target.closest(".notebook-fence-bar")) return;
     ev.preventDefault();
     const back = ev.target.closest("button") || fence.closest("[data-notebook-editor]");
     openFenceMenu(fence, { x: ev.clientX, y: ev.clientY, returnFocus: back, focusFirst: false });
@@ -5720,8 +5718,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   // The agent card menu (CardMenu, lib/cardmenu.js): the card's own
-  // buttons. cardMenu.card is the card, cardMenu.labels what was offered.
-  const cardMenu = { card: null, labels: [] };
+  // buttons. cardMenu.card is the card, cardMenu.buttons the very buttons
+  // offered; cardMenu.shift whether ⇧ is down while it is open (WebKit
+  // does not set shiftKey reliably on a keyboard-made click, so ⇧↵ on an
+  // item is read from the keys, as agentthread.js does).
+  const cardMenu = { card: null, buttons: [], shift: false };
 
   function prepareCardMenu(card, at) {
     const trigger = document.getElementById("card-menu-trigger");
@@ -5733,21 +5734,24 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const actions = cardActions(card);
     if (!actions.length) return null;
     cardMenu.card = card;
-    cardMenu.labels = actions.map((a) => a.label);
+    cardMenu.buttons = actions.map((a) => a.button);
+    cardMenu.shift = false;
     popup.innerHTML = cardMenuHTML(actions, THREAD_ICON);
     return trigger;
   }
 
-  // runCardMenuAction clicks the card's button, found again by its label:
-  // the card may have been repainted while the menu was open, and an
-  // action it no longer offers is not run.
+  // runCardMenuAction clicks the very button the item was made from. A
+  // card repaints with innerHTML, so if it repainted while the menu was
+  // open (a runbook step marked done, a new status) the button is gone and
+  // nothing runs: labels repeat across steps ("Skip", "Mark done").
   function runCardMenuAction(index, shiftKey) {
-    const card = cardMenu.card;
-    const label = cardMenu.labels[index];
-    if (!card?.isConnected || !label) return;
-    const btn = cardActions(card).find((a) => a.label === label)?.button;
-    if (!btn) return;
-    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: !!shiftKey }));
+    const btn = cardMenu.buttons[index];
+    if (!actionLive(cardMenu.card, btn)) return;
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: !!(shiftKey || cardMenu.shift) }));
+  }
+
+  function trackCardMenuShift(ev) {
+    if (ev.key === "Shift") cardMenu.shift = ev.type === "keydown";
   }
 
   // newHostIn opens New host with the folder already picked (a folder
@@ -8766,6 +8770,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   document.addEventListener("contextmenu", onFenceContextMenu);
   document.addEventListener("pointerdown", onRightDown, true);
   document.addEventListener("keydown", onFenceMenuKey, true);
+  // ⇧ held on a card menu item (⇧↵, ⇧-click) reaches the card's Type.
+  document.addEventListener("keydown", trackCardMenuShift, true);
+  document.addEventListener("keyup", trackCardMenuShift, true);
+  window.addEventListener("blur", () => {
+    cardMenu.shift = false;
+  });
   // ⌥↵ on a host row opens it in a split of the focused pane, as in the
   // palette and the host menu's Open in split.
   document.getElementById("host-list")?.addEventListener("keydown", (ev) => {

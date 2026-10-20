@@ -38,12 +38,15 @@ async function openLocal(app: any, screen: any): Promise<Session> {
   return now.find((s) => !before.some((b) => b.id === s.id))!;
 }
 
-async function closeTabs(screen: any) {
-  for (let i = 0; i < 4; i++) {
-    const close = screen.getByRole('button', 'Close tab', { visible: true });
-    if (!(await close.count())) return;
+async function closeTabs(app: any, screen: any) {
+  // Leave no tab behind: the next file restores this window's workspace.
+  for (let i = 0; i < 8; i++) {
+    const close = screen.getByRole('button', /^Close (tab|pane)$/, { visible: true });
+    if (!(await close.count())) break;
     await close.first().tap();
   }
+  await expect(screen.getByRole('textbox', 'Terminal input')).toHaveCount(0);
+  await expect.poll(async () => JSON.stringify(await keelApi<Session[]>(app.baseUrl, '/api/sessions'))).toBe('[]');
 }
 
 describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () => {
@@ -133,7 +136,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
 
     // Back to the default for the other tests.
     await browser.evaluate(`localStorage.setItem('keel-term', JSON.stringify({ ...JSON.parse(localStorage.getItem('keel-term') || '{}'), rightClick: 'menu' }))`);
-    await closeTabs(screen);
+    await closeTabs(app, screen);
   });
 
   test('notebook code block: Type into the pane (approve first) and Copy', async ({ app, screen, browser }) => {
@@ -170,6 +173,10 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
       await screen.getByRole('button', 'Cancel', { visible: true }).tap();
       expect(await scrollback(app, session.id)).not.toContain('keel-fence-menu');
 
+      // The code itself is editable: it keeps the system's menu.
+      await screen.getByText('echo keel-fence-menu', { exact: true }).first().secondaryTap();
+      await expect(menu).toHaveCount(0);
+
       // A non-shell fence: Copy only.
       const copies = screen.getByRole('button', 'Copy code');
       await copies.nth(1).secondaryTap();
@@ -184,7 +191,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
       await expect(menu.getByRole('menuitem', 'Type into Local Shell…')).toBeFocused();
       await browser.keyboard.press('Escape');
       await expect(typeBtn).toBeFocused();
-      await closeTabs(screen);
+      await closeTabs(app, screen);
     } finally {
       await keelSend(app.baseUrl, 'DELETE', `/api/notebooks/${nb.id}`).catch(() => {});
     }
@@ -225,6 +232,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
       for (const item of ['Type into pane…', 'Copy', 'Edit', 'Delete']) await expect(menu.getByRole('menuitem', item)).toBeVisible();
       await browser.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
+      await closeTabs(app, screen);
     } finally {
       await keelSend(app.baseUrl, 'DELETE', `/api/identities/${id.id}`).catch(() => {});
       await keelSend(app.baseUrl, 'DELETE', `/api/snippets/${sn.id}`).catch(() => {});
@@ -270,6 +278,6 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     await expect(menu.getByRole('menuitem', 'Edit command')).toBeFocused();
     await browser.keyboard.press('Escape');
     await expect(card.getByRole('button', 'Copy command')).toBeFocused();
-    await closeTabs(screen);
+    await closeTabs(app, screen);
   });
 });

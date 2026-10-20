@@ -58,6 +58,17 @@ function buttonLabel(btn) {
   return text || (btn.getAttribute("aria-label") || "").trim();
 }
 
+// actionLive reports whether a button offered when the menu opened is
+// still that card's, shown and enabled. A card repaints with innerHTML,
+// so any repaint (a runbook step done, a status change) disconnects it
+// and the item runs nothing: buttons reuse labels across steps ("Skip").
+export function actionLive(card, btn) {
+  if (!card?.isConnected || !btn?.isConnected) return false;
+  if (typeof card.contains === "function" && !card.contains(btn)) return false;
+  if (btn.disabled || btn.getAttribute?.("aria-disabled") === "true") return false;
+  return !hiddenIn(btn, card);
+}
+
 // cardActions lists a card's buttons as menu items: { button, label, icon,
 // keys, danger }. A disabled or hidden button is left out; so is one with
 // no label.

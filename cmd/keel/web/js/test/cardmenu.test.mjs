@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cardActions, cardMenuHTML } from "../lib/cardmenu.js";
+import { actionLive, cardActions, cardMenuHTML } from "../lib/cardmenu.js";
 
 // A tiny stand-in for the card's DOM: buttons with attributes, text and
 // a key hint child.
@@ -77,4 +77,48 @@ test("cardMenuHTML: k-menu items, escaped, with icons and keys", () => {
   assert.match(html, /data-card-act="2">Odd<\/button>/);
   assert.equal((html.match(/role="menuitem"/g) || []).length, 3);
   assert.equal((html.match(/data-tui-dropdownmenu-item/g) || []).length, 3);
+});
+
+test("actionLive: a repainted card runs nothing, even for a same-label button", () => {
+  // A runbook-in-use card on step 3 offers Skip; the menu keeps that very
+  // button. Step 3 is then marked done (exit 0) and the card repaints with
+  // innerHTML: step 4's Skip is a new button with the same label.
+  const step3Skip = button({ "data-rb-skip": "", "data-rb-step": "s3" }, [text("Skip")]);
+  const c = card([step3Skip]);
+  c.isConnected = true;
+  c.contains = (n) => !!n?.isConnected && (n === step3Skip || n === step4Skip);
+  step3Skip.isConnected = true;
+  const [offered] = cardActions(c);
+  assert.equal(offered.button, step3Skip);
+  assert.equal(actionLive(c, offered.button), true);
+
+  step3Skip.isConnected = false;
+  const step4Skip = button({ "data-rb-skip": "", "data-rb-step": "s4" }, [text("Skip")], { parent: c });
+  step4Skip.isConnected = true;
+  c.querySelectorAll = () => [step4Skip];
+  assert.equal(cardActions(c)[0].label, "Skip");
+  assert.equal(actionLive(c, offered.button), false);
+  assert.equal(actionLive(c, step4Skip), true);
+});
+
+test("actionLive: hidden, disabled, detached or foreign buttons run nothing", () => {
+  const b = button({ "data-prop-copy": "" }, [text("Copy")]);
+  const c = card([b]);
+  c.isConnected = true;
+  c.contains = (n) => n === b;
+  b.isConnected = true;
+  assert.equal(actionLive(c, b), true);
+  b.disabled = true;
+  assert.equal(actionLive(c, b), false);
+  b.disabled = false;
+  b.hidden = true;
+  assert.equal(actionLive(c, b), false);
+  b.hidden = false;
+  c.isConnected = false;
+  assert.equal(actionLive(c, b), false);
+  c.isConnected = true;
+  const other = button({}, [text("Copy")]);
+  other.isConnected = true;
+  assert.equal(actionLive(c, other), false);
+  assert.equal(actionLive(c, undefined), false);
 });

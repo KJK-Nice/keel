@@ -1182,9 +1182,9 @@ func TermMenu() templ.Component {
 	})
 }
 
-// FenceMenu is a notebook code block's menu: a right-click on a fence (its
-// bar, or its code when no text is selected), or ⇧F10 / the Menu key on
-// the fence bar. Its items click the fence's own buttons, so Type into
+// FenceMenu is a notebook code block's menu: a right-click, ⇧F10 or the
+// Menu key on the fence bar (the code is editable text and keeps the
+// system's Cut, Copy and Paste menu). Its items click the fence's own buttons, so Type into
 // pane… still opens Approve before type (§6) and only shell fences offer
 // it; term.js names the pane in the label.
 func FenceMenu() templ.Component {
