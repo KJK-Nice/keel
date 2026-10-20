@@ -166,7 +166,7 @@ func (m modelSuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candida
 		Thinking:        m.thinking,
 		System:          suggestSafe,
 		Messages:        []provider.Message{{Role: provider.RoleUser, Text: msg}},
-		MaxOutputTokens: maxOutputTokens,
+		MaxOutputTokens: maxSuggestTokens,
 	})
 	if err != nil {
 		return nil, err

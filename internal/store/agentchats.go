@@ -160,6 +160,9 @@ type AgentChatTurn struct {
 	Question string `json:"question,omitempty"`
 	// Answer is the reply shown in the panel, redacted.
 	Answer string `json:"answer,omitempty"`
+	// Cut is why the reply ended before the model finished it
+	// (provider.Stop*), "" when it finished.
+	Cut string `json:"cut,omitempty"`
 	// Model is the model's whole reply as kept for the next ask's context
 	// (redacted, truncated).
 	Model     string              `json:"model,omitempty"`
