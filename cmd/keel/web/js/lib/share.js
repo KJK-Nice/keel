@@ -155,7 +155,7 @@ export function sharePopoverHTML(model) {
       ? `<p class="k-help k-share-error" role="alert">${escapeHtml(error || "Sharing failed.")}</p>`
       : `<div class="k-field">
       <label class="k-label" for="share-link">Join link</label>
-      <div class="k-inputgroup"><input class="k-input k-input--mono" id="share-link" readonly value="${escapeHtml(url)}" placeholder="Creating link…" />
+      <div class="k-inputgroup"><input autocapitalize="off" autocorrect="off" spellcheck="false" class="k-input k-input--mono" id="share-link" readonly value="${escapeHtml(url)}" placeholder="Creating link…" />
         <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-share-copy ${url ? "" : "disabled"}>${glyph("copy")}${copied ? "Copied" : "Copy"}</button></div>
       <p class="k-help">Works until you stop sharing or close this pane, 24 hours at most. You are asked before anyone joins; a request you do not answer is turned away after 2 minutes. Peer-to-peer over WebRTC; your loopback API stays private.</p>
     </div>`;

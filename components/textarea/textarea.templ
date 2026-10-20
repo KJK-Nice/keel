@@ -18,6 +18,9 @@ type Props struct {
 	ReadOnly    bool
 }
 
+// Keel: the field turns off autocapitalize, autocorrect and spellcheck,
+// which the native WKWebView applies to text fields (hostnames, paths and
+// commands are not prose). A caller may turn one back on through Attributes.
 templ Textarea(props ...Props) {
 	{{ var p Props }}
 	if len(props) > 0 {
@@ -30,6 +33,15 @@ templ Textarea(props ...Props) {
 		id={ p.ID }
 		if _, hasSlot := p.Attributes["data-slot"]; !hasSlot {
 			data-slot="textarea"
+		}
+		if _, set := p.Attributes["autocapitalize"]; !set {
+			autocapitalize="off"
+		}
+		if _, set := p.Attributes["autocorrect"]; !set {
+			autocorrect="off"
+		}
+		if _, set := p.Attributes["spellcheck"]; !set {
+			spellcheck="false"
 		}
 		if p.Name != "" {
 			name={ p.Name }

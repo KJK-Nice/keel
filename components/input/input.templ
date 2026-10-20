@@ -17,6 +17,9 @@ type Props struct {
 	Accept  string
 }
 
+// Keel: the field turns off autocapitalize, autocorrect and spellcheck,
+// which the native WKWebView applies to text fields (hostnames, paths and
+// commands are not prose). A caller may turn one back on through Attributes.
 templ Input(props ...Props) {
 	{{ var p Props }}
 	if len(props) > 0 {
@@ -29,6 +32,15 @@ templ Input(props ...Props) {
 		id={ p.ID }
 		if _, hasSlot := p.Attributes["data-slot"]; !hasSlot {
 			data-slot="input"
+		}
+		if _, set := p.Attributes["autocapitalize"]; !set {
+			autocapitalize="off"
+		}
+		if _, set := p.Attributes["autocorrect"]; !set {
+			autocorrect="off"
+		}
+		if _, set := p.Attributes["spellcheck"]; !set {
+			spellcheck="false"
 		}
 		if p.Type != "" {
 			type={ p.Type }

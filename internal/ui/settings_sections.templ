@@ -31,7 +31,7 @@ templ sharingSettingsPanel() {
 					<label class="pref-title" for="share-set-name">Display name</label>
 					<p class="pref-desc" id="share-set-name-help">Shown to people in sessions you share and join. Empty uses the default.</p>
 				</div>
-				<input id="share-set-name" class="k-input k-pref-input" type="text" maxlength="40" autocomplete="off" spellcheck="false" aria-describedby="share-set-name-help"/>
+				<input autocapitalize="off" autocorrect="off" id="share-set-name" class="k-input k-pref-input" type="text" maxlength="40" autocomplete="off" spellcheck="false" aria-describedby="share-set-name-help"/>
 			</div>
 		}
 		@settingsGroup("Signal server") {
