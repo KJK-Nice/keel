@@ -69,7 +69,7 @@ test("follower banner: whose session, which host, read-only, Ask and Leave", () 
   const st = followState(joiner);
   assert.deepEqual(st, { owner: "khajornkiat", driver: "khajornkiat", driving: false, host: "prod-db-01" });
   const html = followBannerHTML(st);
-  assert.match(html, /Following <b>khajornkiat<\/b>'s session on <b class="k-mono">prod-db-01<\/b> · read-only/);
+  assert.match(html, /Following <b>khajornkiat<\/b>'s session on <b>prod-db-01<\/b> · read-only/);
   assert.match(html, /data-request="1">.*Ask for control<\/button>/);
   assert.match(html, /data-join-leave="1">Leave<\/button>/);
   // Handed control: no Ask, says so.

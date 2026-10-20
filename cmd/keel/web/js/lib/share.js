@@ -107,7 +107,7 @@ export function followBannerHTML(st) {
   const ask = st.driving
     ? ""
     : `<button type="button" class="k-btn k-btn--sm" data-request="1">${glyph("steering")}Ask for control</button>`;
-  return `${glyph(st.driving ? "steering" : "eye")}<span>${lead} <b>${escapeHtml(st.owner)}</b>'s session on <b class="k-mono">${escapeHtml(st.host)}</b> · ${tail}</span>${ask}<button type="button" class="k-btn k-btn--sm k-btn--ghost" data-join-leave="1">Leave</button>`;
+  return `${glyph(st.driving ? "steering" : "eye")}<span>${lead} <b>${escapeHtml(st.owner)}</b>'s session on <b>${escapeHtml(st.host)}</b> · ${tail}</span>${ask}<button type="button" class="k-btn k-btn--sm k-btn--ghost" data-join-leave="1">Leave</button>`;
 }
 
 // isTypingKey: a keydown that would type into a terminal (not a shortcut,

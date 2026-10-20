@@ -2410,6 +2410,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       pane.wrap.style.left = "-10000px";
       pane.wrap.style.top = "0px";
     }
+    syncTileGround(tab);
   }
 
   function syncSashElements(tab) {
@@ -2423,6 +2424,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       el.style.width = `${r.w}px`;
       el.style.height = `${r.h}px`;
     }
+    syncTileGround(tab);
   }
 
   function bindAbsSash(el, node, tab) {
@@ -2452,11 +2454,37 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     });
   }
 
+  // A split tab's chrome ground is one element under the tiles, clipped to
+  // the stage minus each tile's rounded rect, so it fills the gaps, gap
+  // crossings and the wedges outside rounded corners, and never lies under
+  // a tile (a translucent tile must not stack on a second tint).
+  function syncTileGround(tab) {
+    const ground = tab?.stage?.querySelector(":scope > .tile-ground");
+    if (!ground) return;
+    const w = tab.stage.clientWidth || 0;
+    const h = tab.stage.clientHeight || 0;
+    const rv = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--radius-md"));
+    let d = `M0 0H${w}V${h}H0Z`;
+    for (const r of stageRects(tab, w, h).panes.values()) {
+      const k = Math.min(Number.isFinite(rv) ? rv : 8, r.w / 2, r.h / 2);
+      const { x, y } = r;
+      const x2 = x + r.w;
+      const y2 = y + r.h;
+      d += `M${x + k} ${y}H${x2 - k}A${k} ${k} 0 0 1 ${x2} ${y + k}V${y2 - k}A${k} ${k} 0 0 1 ${x2 - k} ${y2}` +
+        `H${x + k}A${k} ${k} 0 0 1 ${x} ${y2 - k}V${y + k}A${k} ${k} 0 0 1 ${x + k} ${y}Z`;
+    }
+    ground.style.clipPath = `path(evenodd, "${d}")`;
+  }
+
   function paintSashes(tab) {
     if (!tab?.stage) return;
-    tab.stage.querySelectorAll(":scope > .split-sash").forEach((el) => el.remove());
+    tab.stage.querySelectorAll(":scope > .split-sash, :scope > .tile-ground").forEach((el) => el.remove());
     tab.sashes = [];
     if (tab.zoomedPaneId || !tab.layout || tab.layout.type === "leaf") return;
+    const ground = document.createElement("div");
+    ground.className = "tile-ground";
+    ground.setAttribute("aria-hidden", "true");
+    tab.stage.prepend(ground);
     const walk = (node) => {
       if (!node || node.type === "leaf") return;
       const el = document.createElement("div");

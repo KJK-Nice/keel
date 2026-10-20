@@ -2379,12 +2379,14 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(cssBody), ".split-sash {\n  background: transparent;") {
 		t.Fatal("only split tabs may be tiles (chrome ground, radius-md, surface pane bars, focus ring, dimmed others); single panes stay full-bleed with no keel line")
 	}
-	// Under native vibrancy the chrome ground shows only in the gaps (box
-	// shadows outside each tile), never as a tint behind the tiles.
-	if !strings.Contains(string(cssBody), "html[data-vibrancy] .term-tab.is-split > .term-stage {") ||
-		!strings.Contains(string(cssBody), "box-shadow: inset 0 0 0 calc(var(--space-1\\.5) / 2) var(--tile-ground);") ||
-		!strings.Contains(string(cssBody), "html[data-vibrancy] .term-tab.is-split .term-wrap { box-shadow: 0 0 0 calc(var(--space-1\\.5) / 2) var(--tile-ground); }") {
-		t.Fatal("split tiles under vibrancy must paint the chrome ground only in the gaps")
+	// Under native vibrancy the stage is clear and the chrome ground is one
+	// .tile-ground element that term.js clips to the stage minus the tiles'
+	// rounded rects: gaps, crossings and corner wedges, never under a tile.
+	if !strings.Contains(string(cssBody), "html[data-vibrancy] .term-tab.is-split > .term-stage { background: transparent; }") ||
+		!strings.Contains(string(cssBody), "html[data-vibrancy] .tile-ground { background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent); }") ||
+		!strings.Contains(string(cssBody), ".tile-ground { position: absolute; inset: 0; pointer-events: none;") ||
+		strings.Contains(string(cssBody), "var(--tile-ground)") {
+		t.Fatal("split tiles under vibrancy must paint the chrome ground only outside the tiles")
 	}
 	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
 	if err != nil {
@@ -2392,6 +2394,7 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(js), `getPropertyValue("--space-1.5")`) ||
 		!strings.Contains(string(js), "const gap = leafCount(tab.layout) > 1 ? tileGapPx() : 0;") ||
+		!strings.Contains(string(js), "ground.style.clipPath = `path(evenodd, ") ||
 		strings.Contains(string(js), "SASH_PX") {
 		t.Fatal("term.js must lay split tiles out with the space-1.5 gap and keep single panes full-bleed")
 	}

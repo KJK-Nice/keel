@@ -211,7 +211,7 @@ export function createGroupRunPage(deps) {
       ? `<p class="k-prop-note k-prop-note--signal">${ICON.alert}<span>${prod} of these ${prod === 1 ? "host is" : "hosts are"} production.${shift ? " Typing there needs ⇧." : ""} Tick each host in the next step only after you checked the command for it.</span></p>`
       : "";
     const card = `<div class="k-prop k-gx-prop" role="group" aria-label="Step ${i + 1} proposal" data-risk="${escapeHtml(st.risk || "")}">
-        <div class="k-prop-head">${ICON.cmd}<span>Run on</span>${st.role ? `<span class="k-badge k-badge--mono">${escapeHtml(st.role)}</span>` : `<span class="k-badge k-badge--mono">every host</span>`}<span class="k-mono">${escapeHtml(st.oneHost ? `one of ${hostsText}` : hostsText)}</span>${riskBadge}</div>
+        <div class="k-prop-head">${ICON.cmd}<span>Run on</span>${st.role ? `<span class="k-badge k-badge--mono">${escapeHtml(st.role)}</span>` : `<span class="k-badge k-badge--mono">every host</span>`}<span>${escapeHtml(st.oneHost ? `one of ${hostsText}` : hostsText)}</span>${riskBadge}</div>
         <div class="k-prop-body"><pre class="k-bytes" aria-label="${uses ? "Command, with the variables Keel fills in at Type" : "Exact bytes"}">${V.bytesWithVars(bytes, A.bytesHTML)}</pre>${note}</div>
         <div class="k-prop-foot"><span class="k-prop-count">${escapeHtml(uses || `${G.bytesLine(bytes)} · same bytes in every pane`)}</span><span class="k-gx-grow"></span>
           ${uses ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-copy-template aria-label="Copy the command without values">${ICON.copy}Copy</button>` : ""}

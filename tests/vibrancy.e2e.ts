@@ -185,25 +185,66 @@ const covers = (browser: any, selector: string) =>
   })()`) as Promise<{ cover: number; opaque: boolean; by: string }[]>;
 
 // The split gutters: split panes are tiles with a space-1.5 gap and no
-// hairline. The sash is the gap and paints nothing; the chrome ground in it
-// comes from each tile's outer box shadow (which never falls under a tile),
-// so the tiles still read as separate panes and nothing stacks behind them.
+// hairline. The sash is the gap's drag handle and paints nothing; the chrome
+// ground under it is .tile-ground (one element, clipped by term.js to the
+// stage minus each tile's rounded rect), so the tiles read as separate panes
+// and nothing is tinted under a tile.
 const sashes = (browser: any) =>
   browser.evaluate(`(() => {
     const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-1.5'));
-    const tiles = [...document.querySelectorAll('.term-tab.is-active .term-wrap')]
-      .filter((w) => w.getClientRects().length && getComputedStyle(w).visibility === 'visible');
     return [...document.querySelectorAll('.term-tab.is-active .split-sash')].map((s) => {
       const r = s.getBoundingClientRect();
       const bg = getComputedStyle(s).backgroundColor;
-      return {
-        size: Math.min(r.width, r.height),
-        gap,
-        clear: /^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(bg),
-        grounded: tiles.length > 1 && tiles.every((w) => getComputedStyle(w).boxShadow !== 'none'),
-      };
+      return { size: Math.min(r.width, r.height), gap, clear: /^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(bg) };
     });
-  })()`) as Promise<{ size: number; gap: number; clear: boolean; grounded: boolean }[]>;
+  })()`) as Promise<{ size: number; gap: number; clear: boolean }[]>;
+
+// Hit-tests the active tab's .tile-ground (pointer events on for the probe;
+// clip-path limits hit testing to what it paints) at a tile's corner wedge
+// (1px in from each corner of its box, outside the rounded corner), at each
+// outer corner of the stage, at every gap crossing (2x2), in each gap's
+// middle, and at each tile's centre. The ground must be hit everywhere but
+// the tile centres.
+const groundProbe = (browser: any) =>
+  browser.evaluate(`(() => {
+    const stage = document.querySelector('.term-tab.is-active .term-stage');
+    const ground = stage && stage.querySelector(':scope > .tile-ground');
+    if (!ground) return { ground: false };
+    const tiles = [...stage.querySelectorAll(':scope > .term-wrap')]
+      .filter((w) => w.getClientRects().length && getComputedStyle(w).visibility === 'visible')
+      .map((w) => w.getBoundingClientRect());
+    const s = stage.getBoundingClientRect();
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-1.5'));
+    const hit = (x, y) => document.elementsFromPoint(x, y).includes(ground);
+    ground.style.pointerEvents = 'auto';
+    try {
+      const corners = tiles.flatMap((t) => [[t.left + 1, t.top + 1], [t.right - 1, t.top + 1], [t.left + 1, t.bottom - 1], [t.right - 1, t.bottom - 1]]);
+      const outer = [[s.left + 1, s.top + 1], [s.right - 1, s.top + 1], [s.left + 1, s.bottom - 1], [s.right - 1, s.bottom - 1]];
+      // A crossing sits gap/2 past a tile's bottom-right corner when a tile
+      // lies both to its right and below it.
+      const crossings = tiles
+        .filter((t) => tiles.some((o) => Math.abs(o.left - (t.right + gap)) < 1) && tiles.some((o) => Math.abs(o.top - (t.bottom + gap)) < 1))
+        .map((t) => [t.right + gap / 2, t.bottom + gap / 2]);
+      const gaps = [...stage.querySelectorAll(':scope > .split-sash')].map((el) => {
+        const r = el.getBoundingClientRect();
+        return [r.left + r.width / 2, r.top + r.height / 2];
+      });
+      const centres = tiles.map((t) => [t.left + t.width / 2, t.top + t.height / 2]);
+      return {
+        ground: true,
+        tiles: tiles.length,
+        corners: corners.filter(([x, y]) => !hit(x, y)).length,
+        outer: outer.filter(([x, y]) => !hit(x, y)).length,
+        crossings: crossings.length,
+        crossingsMissed: crossings.filter(([x, y]) => !hit(x, y)).length,
+        gaps: gaps.length,
+        gapsMissed: gaps.filter(([x, y]) => !hit(x, y)).length,
+        underTiles: centres.filter(([x, y]) => hit(x, y)).length,
+      };
+    } finally {
+      ground.style.pointerEvents = '';
+    }
+  })()`) as Promise<{ ground: boolean; tiles?: number; corners?: number; outer?: number; crossings?: number; crossingsMissed?: number; gaps?: number; gapsMissed?: number; underTiles?: number }>;
 
 // Live: the inline theme script reads data-translucency, as a reload would.
 const live = (browser: any, choice: string, step: string) =>
@@ -288,7 +329,13 @@ test('solo and split panes are translucent at every step; light tints the termin
       expect(gutters.length).toBe(1);
       expect(gutters[0].size).toBe(gutters[0].gap);
       expect(gutters[0].clear).toBe(true);
-      expect(gutters[0].grounded).toBe(true);
+      const g = await groundProbe(browser);
+      expect(g, `${theme} ${step} tile ground`).toEqual({ ground: true, tiles: 2, corners: 0, outer: 0, crossings: 0, crossingsMissed: 0, gaps: 1, gapsMissed: 0, underTiles: 0 });
+      const tint = await token(browser, `vibrancy-tint-${step}`);
+      for (const c of await covers(browser, '.term-tab.is-active .tile-ground')) {
+        expect(c.opaque, `${theme} ${step} ground opaque by${c.by}`).toBe(false);
+        expect(Math.abs(c.cover - tint), `${theme} ${step} ground covers ${c.cover}, want ${tint}`).toBeLessThan(0.02);
+      }
     }
   }
 
@@ -346,6 +393,43 @@ test('solo and split panes are translucent at every step; light tints the termin
   await setStep(browser, 'medium');
   await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
   await expect(terms).toHaveCount(1);
+  await screen.getByRole('button', 'Close tab', { visible: true }).tap();
+  await expect(terms).toBeHidden();
+});
+
+// A 2x2 split: the ground fills every gap, the crossing in the middle, the
+// stage's outer corners and the wedge outside each tile's rounded corners,
+// and never lies under a tile. All four panes keep WebGL and clear canvases.
+test('a 2x2 split tints its gaps, crossing and tile corners, never under a tile', async ({ app, browser, screen }) => {
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await setStep(browser, 'medium');
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await live(browser, 'dark', 'medium');
+  const vault = screen.getByRole('complementary', 'Vault');
+  await vault.getByRole('button', 'Hosts').tap();
+  await vault.getByRole('button', /^Local Shell\b/).tap();
+  const terms = screen.getByRole('textbox', 'Terminal input');
+  await expect(terms.first()).toBeFocused();
+  await screen.getByRole('button', 'Split right', { visible: true }).first().tap();
+  await expect(terms).toHaveCount(2);
+  await screen.getByRole('button', 'Split down', { visible: true }).nth(1).tap();
+  await expect(terms).toHaveCount(3);
+  await screen.getByRole('button', 'Split down', { visible: true }).nth(0).tap();
+  await expect(terms).toHaveCount(4);
+  await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl', 'webgl', 'webgl']);
+  expect(await canvasBackgrounds(browser)).toEqual([]);
+  for (const theme of ['dark', 'light'] as const) {
+    await live(browser, theme, 'medium');
+    const g = await groundProbe(browser);
+    expect(g, `${theme} 2x2 tile ground`).toEqual({ ground: true, tiles: 4, corners: 0, outer: 0, crossings: 1, crossingsMissed: 0, gaps: 3, gapsMissed: 0, underTiles: 0 });
+    await expectPanesAt(browser, 4, theme, 'medium');
+  }
+  for (let n = 4; n > 1; n--) {
+    await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
+    await expect(terms).toHaveCount(n - 1);
+  }
+  // One pane: full-bleed, no ground.
+  expect((await groundProbe(browser)).ground).toBe(false);
   await screen.getByRole('button', 'Close tab', { visible: true }).tap();
   await expect(terms).toBeHidden();
 });

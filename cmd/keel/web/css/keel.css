@@ -79,19 +79,14 @@ html[data-vibrancy] .term-wrap {
    xterm paints a clear background over it (term.js xtermTheme), so the
    terminal is tinted once like the chrome. Nothing behind a split tab's
    tiles is tinted, so a tile never stacks on a second layer: the chrome
-   ground shows only in the gaps, painted by box shadows that fall outside
-   each tile (half the gap each, meeting in the middle) and an inset shadow
-   on the stage's edge (the other half of the outer gap). */
+   ground is .tile-ground, which term.js clips to the stage minus each
+   tile's rounded rect (gaps, gap crossings and the wedges outside rounded
+   corners). */
 html[data-vibrancy] .term-body {
   background: color-mix(in srgb, var(--term-bg) var(--vibrancy-term), transparent);
 }
-html[data-vibrancy] .term-tab.is-split > .term-stage {
-  --tile-ground: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent);
-  background: transparent;
-  box-shadow: inset 0 0 0 calc(var(--space-1\.5) / 2) var(--tile-ground);
-}
-html[data-vibrancy] .term-tab.is-split .term-wrap { box-shadow: 0 0 0 calc(var(--space-1\.5) / 2) var(--tile-ground); }
-html[data-vibrancy] .term-tab.is-split .term-wrap.is-focused { box-shadow: var(--shadow-tile-focus), 0 0 0 calc(var(--space-1\.5) / 2) var(--tile-ground); }
+html[data-vibrancy] .term-tab.is-split > .term-stage { background: transparent; }
+html[data-vibrancy] .tile-ground { background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent); }
 html[data-vibrancy] .term-host,
 html[data-vibrancy] .term-body .xterm,
 html[data-vibrancy] .term-body .xterm-screen,
@@ -884,6 +879,7 @@ button.k-start-closed:hover { background: var(--hover); color: var(--ink); }
    pseudo-element widens the hit area. The focused tile carries a soft
    ring and the other terminals dim. A single-pane tab stays full-bleed. */
 .term-tab.is-split > .term-stage { background: var(--chrome); }
+.tile-ground { position: absolute; inset: 0; pointer-events: none; background: var(--chrome); }
 .term-tab.is-split .term-wrap { border-radius: var(--radius-md); transition: box-shadow var(--duration-fast); }
 .term-tab.is-split .pane-bar { background: var(--surface); }
 .term-tab.is-split .term-wrap.is-focused { box-shadow: var(--shadow-tile-focus); }

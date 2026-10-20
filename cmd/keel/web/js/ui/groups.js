@@ -103,7 +103,7 @@ export function createGroupPage(deps) {
               const prod = h.production ? ` <span class="k-badge k-badge--signal">Production</span>` : "";
               const folder = m.folder && m.folder !== state.group?.name ? `<span class="k-gx-folder">${escapeHtml(m.folder)}</span>` : "";
               return `<tr data-member="${escapeHtml(m.hostId)}">
-                <td><span class="k-gx-hostcell"><span class="k-tile k-tile--sm"${h.color ? ` style="--host:${escapeHtml(h.color)}"` : ""}>${SERVER}</span><span class="k-mono k-cell-name">${escapeHtml(m.name)}</span>${folder}</span></td>
+                <td><span class="k-gx-hostcell"><span class="k-tile k-tile--sm"${h.color ? ` style="--host:${escapeHtml(h.color)}"` : ""}>${SERVER}</span><span class="k-cell-name">${escapeHtml(m.name)}</span>${folder}</span></td>
                 <td class="k-mono k-gx-addr">${escapeHtml(addr)}</td>
                 <td>${roleSelect(m, roles)}</td>
                 <td><span class="k-rb-chips">${tags}</span></td>
