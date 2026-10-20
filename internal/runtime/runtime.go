@@ -330,7 +330,9 @@ type Session struct {
 	buf  *ring
 	// marks reads OSC 133 / OSC 7 shell-integration marks from the output
 	// (under mu, with buf). Read-only: it never writes to the PTY.
-	marks          *shellmark.Tracker
+	marks *shellmark.Tracker
+	// alt follows the alternate screen buffer (altscreen.go), under mu.
+	alt            altScreen
 	clients        map[uint64]*clientConn
 	next           uint64
 	ownerID        uint64
@@ -682,6 +684,17 @@ func (s *Session) LastCommand() (shellmark.Block, bool) {
 	return blk, true
 }
 
+// AltScreen reports whether the pane shows the alternate screen buffer
+// now (a full-screen program such as vim, less or htop), as its output
+// last set it. Like the marks it is untrusted output: a program can claim
+// either state. It is only ever a reason to ask more (the approve dialog),
+// never a reason to type.
+func (s *Session) AltScreen() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.alt.on
+}
+
 // StreamMark is the pane's output stream offset now (the scrollback ring's
 // write counter). Taken right before a runbook step is typed, it lets
 // CommandsAfter find the commands that step started.
@@ -974,6 +987,7 @@ func (s *Session) runLoop() {
 		// A new shell: half a mark from the old one must not join it, and
 		// a command the old shell left open is abandoned.
 		s.marks.Reset(s.buf.Mark())
+		s.alt.Reset()
 		// A driver may have resized while the bridge was connecting (an SSH
 		// connect takes seconds; the client fits and sends its size as soon
 		// as it attaches). Resize only recorded that size, since there was
@@ -1033,6 +1047,7 @@ func (s *Session) runLoop() {
 			// The shell is gone: a command it left open ends here, before
 			// Keel's own note ("Connection lost — reconnecting…").
 			s.marks.Reset(s.buf.Mark())
+			s.alt.Reset()
 			auto := s.host.AutoReconnect()
 			force := s.forceReconnect
 			s.forceReconnect = false
@@ -1178,6 +1193,7 @@ func (s *Session) output(b []byte) {
 	base := s.buf.Mark()
 	s.buf.Write(b)
 	s.marks.Feed(b, base)
+	s.alt.Feed(b)
 	slow := s.fanoutLocked(Event{Kind: "bytes", Bytes: b})
 	s.mu.Unlock()
 	for _, id := range slow {

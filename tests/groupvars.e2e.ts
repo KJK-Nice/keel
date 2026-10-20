@@ -45,12 +45,14 @@ async function setup(app: any) {
     steps: [
       {
         title: 'Make a join code on the control plane',
-        command: `t=tok7f3a; printf '\\033]133;C\\007kubeadm join 10.0.0.1:6443 --code %s.%s\\n\\033]133;D;0\\007' "$t" "$t"`,
+        // touch: these steps change state, so the group approve dialog,
+        // which shows the filled-in values, decides (§6 rule 13).
+        command: `touch /tmp/keel-gv-e2e; t=tok7f3a; printf '\\033]133;C\\007kubeadm join 10.0.0.1:6443 --code %s.%s\\n\\033]133;D;0\\007' "$t" "$t"`,
         role: 'cp',
         oneHost: true,
         captures: [{ name: 'join_code', pattern: '--code\\s+(\\S+)' }],
       },
-      { title: 'Join the worker', command: `printf '\\033]133;C\\007gv-joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{gv_version}}`, role: 'wk' },
+      { title: 'Join the worker', command: `touch /tmp/keel-gv-e2e; printf '\\033]133;C\\007gv-joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{gv_version}}`, role: 'wk' },
       { title: 'Use a variable no one set', command: 'echo {{gv_missing}}', role: 'wk' },
     ],
   });

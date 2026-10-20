@@ -487,6 +487,24 @@ func (a *Auditor) Type(p Pane, command string) error {
 	return a.authorize(EventType, "typed", p, command, "")
 }
 
+// How a Type into pane was approved, as agent.type records it (Source).
+const (
+	// TypeApproved: in the approve dialog, which showed the exact bytes.
+	TypeApproved = "approved"
+	// TypeDirect: one click, without the dialog, and without Enter: the
+	// command waits on the prompt line (docs/ui-redesign.md §6 rule 13).
+	TypeDirect = "direct"
+)
+
+// TypeFrom is Type with how it was approved (TypeApproved, TypeDirect).
+func (a *Auditor) TypeFrom(p Pane, command, how string) error {
+	verb := "typed"
+	if how == TypeDirect {
+		verb = "typed without Enter"
+	}
+	return a.authorize(EventType, verb, p, command, how)
+}
+
 func (a *Auditor) authorize(kind, verb string, p Pane, command, source string) error {
 	if err := CanInsert(p.Role); err != nil {
 		return err

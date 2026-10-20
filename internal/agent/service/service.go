@@ -918,7 +918,7 @@ func (s *Service) AuthorizeType(req TypeRequest) error {
 	if agent.NeedsShift(snap.Risk, snap.Production || current) && !req.Shift {
 		return ErrNeedsShift
 	}
-	return s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes)
+	return s.audit.TypeFrom(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes, agent.TypeApproved)
 }
 
 // hostProduction reports a host's current production flag. It fails

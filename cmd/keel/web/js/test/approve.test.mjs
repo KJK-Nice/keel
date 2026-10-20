@@ -39,13 +39,56 @@ test("every caller of sendApprovedInject awaits approveBeforeType first and abor
   }
 });
 
-test("only sendApprovedInject sends an inject message, and only with a server nonce", () => {
+test("only sendApprovedInject and typeDirect send an inject message, and only with a server nonce", () => {
   const holders = [...fns].filter(([, body]) => body.includes('type: "inject"'));
-  assert.deepEqual(holders.map(([name]) => name), ["sendApprovedInject"]);
-  const body = fns.get("sendApprovedInject");
-  assert.match(body, /await requestInjectTicket\(/);
-  assert.match(body, /type: "inject", command, nonce/);
+  assert.deepEqual(holders.map(([name]) => name).sort(), ["sendApprovedInject", "typeDirect"]);
+  for (const name of ["sendApprovedInject", "typeDirect"]) {
+    const body = fns.get(name);
+    assert.match(body, /await requestInjectTicket\(/);
+    assert.match(body, /type: "inject", command, nonce/);
+  }
   assert.ok(!src.includes("approved: true"), "the client must never claim approval itself");
+});
+
+// §6 rule 13 (for review): a read-only command of one line may be typed
+// without the dialog, and without Enter. keel serve decides (typedirect.go);
+// the page sends exactly the bytes it was given, to one pane it drives on
+// the normal screen, with a server nonce and the "direct" marker, and on
+// any other answer than ok it opens the dialog (or reports the refusal).
+test("typeDirect types one line, to one driven pane, never with a newline", () => {
+  const body = fns.get("typeDirect");
+  const ready = body.indexOf("if (!directReady(pane, command)) return { dialog: true");
+  const ticket = body.indexOf("await requestInjectTicket(pane, command)");
+  assert.ok(ready >= 0 && ready < ticket, "typeDirect checks the pane and the line before it asks for a ticket");
+  assert.match(body, /const frame = \{ type: "inject", command, nonce, direct \};/);
+  assert.ok(!/\\n|\\r|\+ "\\n"/.test(body), "typeDirect never adds a newline");
+  // No answer is not a dialog: it may have been typed.
+  assert.match(body, /if \(!msg\) return \{ ok: false/);
+  assert.match(body, /if \(msg\.dialog\) return \{ dialog: true/);
+  const gate = fns.get("directReady");
+  for (const want of ["isTermPane(pane)", "!pane.remote", "isDriving(pane)", "TD.altScreen(pane.term)", "TD.directLine(command)"]) {
+    assert.ok(gate.includes(want), `directReady must check ${want}`);
+  }
+  // Its callers: a proposal, a snippet, a notebook block and a group run's
+  // host. Each falls back to the approve dialog when keel serve says so.
+  const callers = [...fns].filter(([name, text]) => name !== "typeDirect" && calls("typeDirect", text).length).map(([name]) => name);
+  assert.deepEqual(callers.sort(), ["paletteRunSnippet", "runNotebookFence", "typeAgentProposal", "typeGroupProposal"]);
+  for (const name of ["paletteRunSnippet", "typeAgentProposal"]) {
+    const text = fns.get(name);
+    const direct = calls("typeDirect", text)[0];
+    const fallback = text.indexOf("if (!r.dialog)");
+    const approve = text.indexOf("await approveBeforeType(");
+    assert.ok(direct < fallback && fallback < approve, `${name}: direct first, then the dialog when keel serve says so`);
+  }
+  const nb = fns.get("runNotebookFence");
+  assert.ok(calls("typeDirect", nb)[0] < nb.indexOf("insertNotebookIntoInput(nbPane, command)"), "a notebook block falls back to the CLI input and its dialog");
+  assert.match(nb, /!NB\.hasPlaceholder\(line\)/);
+  // The agent proposal goes direct only when the page knows it is read-only.
+  assert.ok(fns.get("typeAgentProposal").indexOf("if (TD.proposalDirect(proposal))") < calls("typeDirect", fns.get("typeAgentProposal"))[0]);
+  // After a direct type the user reviews it in the pane; the key that
+  // pressed Type is held back from the PTY.
+  assert.match(fns.get("focusForReview"), /reviewHold = heldKeys\.size > 0;/);
+  assert.match(fns.get("ptyWritesBlocked"), /\(reviewHold && heldKeys\.size\)/);
 });
 
 // §6.1: the agent never writes to a PTY. Its proposals reach a pane only
@@ -163,13 +206,23 @@ test("group run steps are typed only for the hosts ticked in the group approve d
   const run = readFileSync(join(dir, "..", "ui", "grouprun.js"), "utf8");
   for (const bad of ["sendSession", "/ws/", ".send(", "WebSocket", "inject"]) assert.ok(!run.includes(bad), `grouprun.js must not use ${bad}`);
   const uses = [...run.matchAll(/deps\.typeGroup\(/g)];
-  assert.equal(uses.length, 1, "one call site");
-  const typeAll = run.slice(run.indexOf("async function typeAll("), run.indexOf("// --- actions ---"));
+  assert.equal(uses.length, 2, "two call sites: after the dialog, and without it (§6 rule 13)");
+  const typeAll = run.slice(run.indexOf("async function typeAll("), run.indexOf("// typeDirectAll"));
+  const direct = typeAll.indexOf("if (await typeDirectAll(run, ready, rows)) return;");
   const approve = typeAll.indexOf("const ok = await approve(");
   const abort = typeAll.indexOf("if (!ok) return;");
   const loop = typeAll.indexOf("for (const r of ok.rows)");
   const send = typeAll.indexOf("deps.typeGroup(");
-  assert.ok(approve >= 0 && approve < abort && abort < loop && loop < send, "approve, abort on cancel, then one type per ticked row");
+  assert.ok(direct >= 0 && direct < approve && approve < abort && abort < loop && loop < send, "direct when keel serve agrees; else approve, abort on cancel, then one type per ticked row");
+  // §6 rule 13: one click types a read-only step of one line into every
+  // host only after keel serve said yes for each (checkGroup writes
+  // nothing); each host is its own type, marked direct.
+  const all = run.slice(run.indexOf("async function typeDirectAll("), run.indexOf("// --- actions ---"));
+  const gate = all.indexOf("if (!deps.checkGroup || !TD.stepDirect(st) || !rows.length || rows.some((r) => r.error)) return false;");
+  const checks = all.indexOf("if (!checks.every(Boolean)) return false;");
+  const each = all.indexOf("deps.typeGroup({ runId: run.id, proposal: x.cell.proposal, bytes: x.command, direct: true })");
+  assert.ok(gate >= 0 && gate < checks && checks < each, "typeDirectAll asks keel serve for every host before it types any");
+  assert.match(fns.get("typeGroupProposal"), /if \(direct\) \{\n\s+const r = await typeDirect\(pane, send, \{ kind: "agent" \}, \{ groupRunId: runId, proposalId: proposal\.id \}\);/);
   // Only ticked rows leave the dialog, and nothing is ticked in advance
   // unless it is the only host.
   assert.match(run, /const picked = a\.rows\.filter\(\(r\) => r\.checked\);/);

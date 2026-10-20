@@ -93,11 +93,14 @@ test('create a runbook, use it: step 1 is proposed, approved, typed, and its exi
   // Nothing has been typed: the step waits for the user.
   expect(await scrollback(app, shell.id)).not.toContain("rb-step-ok");
 
+  // A read-only step of one line goes without the approve dialog and
+  // without Enter (§6 rule 13): it runs on the user's Enter in the pane.
   await card.getByRole('button', /Type into pane/).tap();
-  await expect(approveDialog(screen)).toBeVisible();
-  await expect(approveDialog(screen)).toContainText('133;D;0');
-  await approveDialog(screen).getByRole('button', 'Type', { exact: true }).tap();
+  await expect(approveDialog(screen)).toBeHidden();
   await expect(card).toContainText('Typed into');
+  await expect(card).toContainText('Press Enter to run.');
+  await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
+  await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Enter');
   // The shell's marks report exit 0 for the step.
   await expect(run).toContainText('exit 0 · reported', { timeout: 15_000 });
   await app.screenshot('runbook-in-use');

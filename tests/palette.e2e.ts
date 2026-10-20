@@ -109,7 +109,7 @@ test('Alt+Enter opens a host in a split of the focused pane', { tags: ['palette'
   await expect(terminal).toBeHidden();
 });
 
-test('a snippet row asks Approve first and types nothing until you approve', { tags: ['palette'] }, async ({ app, screen }) => {
+test('a read-only snippet row types without a dialog and runs only on Enter', { tags: ['palette'] }, async ({ app, screen }) => {
   await openKeel(app);
   await openLocalShell(screen);
   const sessions = await keelApi<Session[]>(app.baseUrl, '/api/sessions');
@@ -122,26 +122,19 @@ test('a snippet row asks Approve first and types nothing until you approve', { t
   const row = palette(screen).getByRole('option').filter({ hasText: 'Type snippet: memory' });
   await expect(row).toContainText('Approve first');
   await expect(row).toContainText('free -h');
+  expect(await scrollback()).not.toContain('free -h');
   await combo(screen).press('Enter');
 
-  // The approval names the exact bytes; nothing has been typed yet.
+  // One read-only line (§6 rule 13): typed with no dialog and no Enter.
   const approve = screen.getByRole('dialog').filter({ hasText: 'Type into the terminal?' });
-  await expect(approve).toBeVisible();
-  await expect(approve).toContainText('free -h');
-  expect(await scrollback()).not.toContain('free -h');
-
-  // Cancel: still nothing in the terminal.
-  await approve.getByRole('button', 'Cancel').tap();
-  await expect(approve).toBeHidden();
-  await new Promise((r) => setTimeout(r, 500));
-  expect(await scrollback()).not.toContain('free -h');
-
-  // Approve: the line is typed and run.
-  await input.press('Meta+k');
-  await combo(screen).fill('snippet: memory');
-  await combo(screen).press('Enter');
-  await expect(approve).toBeVisible();
-  await approve.getByRole('button', 'Type').tap();
   await expect.poll(scrollback, { timeout: 10_000 }).toContain('free -h');
+  await expect(approve).toBeHidden();
+  const typed = await scrollback();
+  await new Promise((r) => setTimeout(r, 500));
+  expect(await scrollback()).toBe(typed);
+  // The user's Enter runs it.
+  await expect(input).toBeFocused();
+  await input.press('Enter');
+  await expect.poll(async () => (await scrollback()).length, { timeout: 10_000 }).toBeGreaterThan(typed.length);
   await closeSessionTab(screen);
 });

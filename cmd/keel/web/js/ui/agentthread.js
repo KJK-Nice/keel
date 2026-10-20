@@ -16,6 +16,7 @@ import * as A from "../lib/agent.js";
 import * as N from "../lib/notes.js";
 import * as R from "../lib/runbooks.js";
 import * as NB from "../lib/notebooks.js";
+import * as TD from "../lib/typedirect.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -335,14 +336,17 @@ export function createThreadView(opts) {
     if (status) notes.push(noteHTML(status.ok ? "tide" : "flare", status.ok ? ICON.tick : ICON.alert, escapeHtml(status.text)));
     const canType = offer === "type" || offer === "shift";
     const typeKbd = offer === "shift" ? `${shiftWord === "⇧" ? "⇧↵" : "Shift+↵"}` : "↵";
+    // The bytes Type sends: the command alone, without ^U or Enter, when
+    // it goes without the dialog (§6 rule 13); else the dialog's bytes.
+    const shown = TD.proposalDirect(p) ? p.command : p.bytes;
     const body = rec.editing
       ? `<textarea class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
-      : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>`;
+      : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(shown)}</pre>`;
     const foot = rec.editing
       ? `<span class="k-spacer"></span>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-prop-cancel>Cancel</button>
          <button type="button" class="k-btn k-btn--primary k-btn--sm" data-prop-save>Save command</button>`
-      : `<span class="k-prop-count">${escapeHtml(A.countLabel(p.bytes))}</span>
+      : `<span class="k-prop-count">${escapeHtml(A.countLabel(shown))}</span>
          <span class="k-spacer"></span>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-edit-btn aria-label="Edit command" title="Edit">${ICON.edit}</button>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-copy aria-label="Copy command" title="Copy">${ICON.copy}</button>

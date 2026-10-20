@@ -379,6 +379,9 @@ type GroupFill struct {
 	Risk       agent.Risk     `json:"risk,omitempty"`
 	NeedsShift bool           `json:"needsShift,omitempty"`
 	Error      string         `json:"error,omitempty"`
+	// command is the filled command alone: what a direct type (§6 rule
+	// 13) writes. Never sent to the page.
+	command string
 }
 
 // FillGroupProposals fills the run's live proposals named by ids, for the
@@ -436,7 +439,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		}
 	}
 	s.mu.Unlock()
-	f := GroupFill{ProposalID: snap.ID, HostID: snap.HostID, Host: snap.Host, Bytes: snap.Bytes, Risk: snap.Risk, NeedsShift: snap.NeedsShift}
+	f := GroupFill{ProposalID: snap.ID, HostID: snap.HostID, Host: snap.Host, Bytes: snap.Bytes, Risk: snap.Risk, NeedsShift: snap.NeedsShift, command: snap.Command}
 	if !runvars.HasRefs(snap.Command) {
 		if hasPlaceholder(snap.Command) {
 			return f, ErrPlaceholder
@@ -514,7 +517,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		return f, fmt.Errorf("%w: the filled command is longer than %d bytes", ErrFill, 4*store.MaxRunbookCommandBytes)
 	}
 	prod, _ := s.hostProduction(snap.HostID)
-	f.Bytes, f.Used = typedBytes(filled), used
+	f.Bytes, f.Used, f.command = typedBytes(filled), used, filled
 	f.Risk = agent.Stricter(snap.Risk, agent.Classify(filled))
 	f.NeedsShift = agent.NeedsShift(f.Risk, snap.Production || prod)
 	return f, nil

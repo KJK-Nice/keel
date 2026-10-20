@@ -11,12 +11,19 @@
 // ticks; each ticked host is then typed on its own, with its own server
 // nonce and its own check in keel serve (term.js typeGroupProposal). Open
 // a pane on a host that has none is also the user's action.
+//
+// A read-only step of one line goes without the dialog (§6 rule 13, for
+// review): when keel serve says so for every host (checkGroup, which
+// writes nothing), one click types the command into each host's pane,
+// each with its own nonce and check, and no Enter: it waits on every
+// prompt line for the user.
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
 import * as G from "../lib/grouprun.js";
 import * as V from "../lib/groupvars.js";
 import { ICON } from "./agentthread.js";
+import * as TD from "../lib/typedirect.js";
 
 const POLL_MS = 1500;
 
@@ -25,7 +32,10 @@ const POLL_MS = 1500;
 //   isMac
 //   panes()            → [{sessionId, hostId, driving, remote}] open here
 //   openHost(hostId)   opens a session on a host (the user's click)
-//   typeGroup({runId, proposal, shift}) → Promise<{ok, message}>
+//   typeGroup({runId, proposal, bytes, shift, direct}) → Promise<{ok, message, pane}>
+//   checkGroup({runId, proposal, bytes}) → Promise<bool>: would keel serve
+//                      type these bytes without the dialog now (writes nothing)
+//   focusPane(pane)    focuses a pane a command was typed into
 //   isOpen()           → whether the run's tab is still open
 //   setTitle(text)     names the tab
 //   openModal(el), closeModal(el)
@@ -108,7 +118,7 @@ export function createGroupRunPage(deps) {
       </div>
       <ol class="k-gx-steplist" aria-label="Steps">${rows}</ol>
       <div class="k-gx-steps-foot">
-        <p class="k-rb-safe k-help">${ICON.shield}<span>Each step is one proposal per host. Nothing is typed until you tick the host and press Type, and each host's result comes from its shell's exit code.</span></p>
+        <p class="k-rb-safe k-help">${ICON.shield}<span>Each step is one proposal per host. Nothing runs until you press Enter in each pane: a read-only step of one line is typed with one click, anything else only into the hosts you tick. Each host's result comes from its shell's exit code.</span></p>
         ${run.status === "active" ? `<button type="button" class="k-btn k-btn--ghost k-btn--sm" data-run-stop>Stop runbook</button>` : ""}
       </div>`;
   }
@@ -206,7 +216,8 @@ export function createGroupRunPage(deps) {
     const riskBadge = st.risk === "readonly" ? `<span class="k-badge k-badge--tide k-prop-risk">Read-only</span>` : st.risk === "destructive" ? `<span class="k-badge k-badge--flare k-prop-risk">Destructive</span>` : `<span class="k-badge k-badge--signal k-prop-risk">Changes</span>`;
     const bytes = ready[0]?.proposal.bytes || `\u0015${st.command}\n`;
     const uses = V.usesLine(st, run.steps, i);
-    const label = ready.length ? `Type into ${ready.length} ${ready.length === 1 ? "pane" : "panes"}` : "Nothing to type now";
+    // The ellipsis: the group approve dialog will follow (§6 rule 13).
+    const label = ready.length ? TD.typeWord(`Type into ${ready.length} ${ready.length === 1 ? "pane" : "panes"}`, TD.stepDirect(st)) : "Nothing to type now";
     const note = prod
       ? `<p class="k-prop-note k-prop-note--signal">${ICON.alert}<span>${prod} of these ${prod === 1 ? "host is" : "hosts are"} production.${shift ? " Typing there needs ⇧." : ""} Tick each host in the next step only after you checked the command for it.</span></p>`
       : "";
@@ -420,6 +431,7 @@ export function createGroupRunPage(deps) {
       state.typing = false;
       rows = V.fillRows(rows, res?.fills);
     }
+    if (await typeDirectAll(run, ready, rows)) return;
     const ok = await approve(rows);
     if (!ok) return;
     state.typing = true;
@@ -434,6 +446,38 @@ export function createGroupRunPage(deps) {
     state.typing = false;
     if (failed.length) deps.toast?.(`Not typed on ${failed.join("; ")}`, true);
     await call(`/api/agent/groupruns/${encodeURIComponent(run.id)}`);
+  }
+
+  // typeDirectAll types a read-only step of one line into every host's
+  // pane with one click (§6 rule 13), when keel serve says each may go
+  // without the dialog. Each host is typed on its own, with its own nonce
+  // and check; no Enter is sent. Returns false, having typed nothing, when
+  // the group approve dialog must decide.
+  async function typeDirectAll(run, ready, rows) {
+    const st = run.steps[run.current];
+    if (!deps.checkGroup || !TD.stepDirect(st) || !rows.length || rows.some((r) => r.error)) return false;
+    const plan = rows.map((r) => ({ r, cell: ready.find((c) => c.proposal.id === r.proposalId), command: TD.commandOf(r.bytes) }));
+    if (plan.some((x) => !x.cell || !TD.directLine(x.command))) return false;
+    state.typing = true;
+    paint();
+    const typed = [];
+    const failed = [];
+    try {
+      const checks = await Promise.all(plan.map((x) => deps.checkGroup({ runId: run.id, proposal: x.cell.proposal, bytes: x.command })));
+      if (!checks.every(Boolean)) return false;
+      for (const x of plan) {
+        const res = await deps.typeGroup({ runId: run.id, proposal: x.cell.proposal, bytes: x.command, direct: true });
+        if (res?.ok) typed.push(res.pane);
+        else failed.push(`${x.r.host}: ${res?.message || "not typed"}`);
+      }
+    } finally {
+      state.typing = false;
+    }
+    if (typed.length) deps.toast?.(TD.typedNoteMany(typed.length));
+    if (failed.length) deps.toast?.(`Not typed on ${failed.join("; ")}`, true);
+    if (typed.length === 1 && plan.length === 1 && typed[0]) deps.focusPane?.(typed[0]);
+    await call(`/api/agent/groupruns/${encodeURIComponent(run.id)}`);
+    return true;
   }
 
   // --- actions ---

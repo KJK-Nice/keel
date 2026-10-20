@@ -1160,6 +1160,9 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				Notebook bool   `json:"notebook"`
 				Seq      int    `json:"seq"`
 				Line     string `json:"line"`
+				// Direct marks a type without the approve dialog (§6 rule
+				// 13, typedirect.go): on type-check and on inject.
+				Direct *directTypeMsg `json:"direct"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
 				continue
@@ -1182,11 +1185,22 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
+			case "type-check":
+				if ctl.Direct != nil {
+					go s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent)
+				}
 			case "agent-detect":
 				sug.detect(ctl.Seq, ctl.Line)
 			case "agent-suggest":
 				sug.suggest(ctl.Seq, ctl.Line)
 			case "inject":
+				if ctl.Direct != nil {
+					// One click, no dialog, no Enter (§6 rule 13): keel
+					// serve checks again, off this loop (a snippet or a
+					// notebook block may be rated by Jev), then writes.
+					go s.typeDirect(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent)
+					break
+				}
 				if ctl.Suggestion != nil {
 					// ⇥ / ⇧⇥ on a suggestion: the agent service checks the
 					// suggestion, the bytes, the ⇧ rule and that this

@@ -617,6 +617,33 @@ func (s *Service) groupProposalLocked(runID, proposalID string) (*groupRun, *Gro
 // and no placeholder; its host must still be in the group and readable;
 // the ⇧ rule takes the host's production flag now; the client must drive.
 func (s *Service) authorizeGroupType(req TypeRequest) error {
+	t, err := s.groupTypeTarget(req, false)
+	if err != nil {
+		return err
+	}
+	if agent.NeedsShift(t.risk, t.snap.Production || t.production) && !req.Shift {
+		return ErrNeedsShift
+	}
+	return s.claimGroupType(req, t, agent.TypeApproved)
+}
+
+// groupTarget is a group run's proposal as a Type would write it.
+type groupTarget struct {
+	snap Proposal
+	// want is what the client must send: the typed bytes (^U, the
+	// command, a newline) for the approve dialog, the command alone for a
+	// direct type (§6 rule 13); with a step's variables filled in.
+	want       string
+	risk       agent.Risk
+	filled     int
+	production bool // the host's production flag now
+}
+
+// groupTypeTarget runs the checks a group run's Type shares with a direct
+// type: the proposal is live and proposed, for this session, the bytes
+// are the ones filled in now (or saved), with no placeholder, and the host
+// is still in the group and readable. direct compares the command alone.
+func (s *Service) groupTypeTarget(req TypeRequest, direct bool) (groupTarget, error) {
 	s.mu.Lock()
 	run, c := s.groupProposalLocked(req.GroupRunID, req.ProposalID)
 	var (
@@ -629,40 +656,49 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 	}
 	s.mu.Unlock()
 	if snap.ID == "" {
-		return ErrNotFound
+		return groupTarget{}, ErrNotFound
 	}
 	if state != cellProposed {
-		return ErrNotProposed
+		return groupTarget{}, ErrNotProposed
 	}
 	if snap.SessionID == "" {
-		return ErrNoTarget
+		return groupTarget{}, ErrNoTarget
 	}
 	if snap.SessionID != req.SessionID {
-		return ErrWrongPane
+		return groupTarget{}, ErrWrongPane
 	}
 	// The exact bytes: for a step that names variables, the command with
 	// the values filled in now (fillProposal), which is what the approve
 	// dialog showed; the stored proposal keeps {{name}}. A missing or
 	// unsafe value, a vault value or a placeholder refuses it.
-	want, risk, filled := snap.Bytes, snap.Risk, 0
+	want, command, risk, filled := snap.Bytes, snap.Command, snap.Risk, 0
 	if runvars.HasRefs(snap.Command) {
 		f, err := s.fillProposal(req.GroupRunID, req.ProposalID)
 		if err != nil {
-			return err
+			return groupTarget{}, err
 		}
-		want, risk, filled = f.Bytes, f.Risk, len(f.Used)
+		want, command, risk, filled = f.Bytes, f.command, f.Risk, len(f.Used)
 	} else if hasPlaceholder(snap.Command) {
-		return ErrPlaceholder
+		return groupTarget{}, ErrPlaceholder
+	}
+	if direct {
+		if !DirectLine(command) {
+			return groupTarget{}, needsDialog(ReasonLines)
+		}
+		want = command
 	}
 	if req.Bytes != want {
-		return ErrChanged
+		if direct {
+			return groupTarget{}, needsDialog(ReasonBytes)
+		}
+		return groupTarget{}, ErrChanged
 	}
 	if hasPlaceholder(want) {
-		return ErrPlaceholder
+		return groupTarget{}, ErrPlaceholder
 	}
 	_, members, byID, err := s.groupMembers(groupID)
 	if err != nil {
-		return ErrNotTarget
+		return groupTarget{}, ErrNotTarget
 	}
 	member := false
 	for _, m := range members {
@@ -670,27 +706,29 @@ func (s *Service) authorizeGroupType(req TypeRequest) error {
 	}
 	h, found := byID[snap.HostID]
 	if !member || !found || !h.AgentReadable {
-		return ErrNotTarget
+		return groupTarget{}, ErrNotTarget
 	}
-	if agent.NeedsShift(risk, snap.Production || h.Production) && !req.Shift {
-		return ErrNeedsShift
-	}
+	return groupTarget{snap: snap, want: want, risk: risk, filled: filled, production: h.Production}, nil
+}
+
+// claimGroupType checks the role, claims the host under the lock (it is
+// typing until the write is done, GroupTypeDoneAt, or failed,
+// GroupTypeFailed, and Retry, Skip and a mode change leave it alone
+// meanwhile) and logs agent.type with how it was approved.
+func (s *Service) claimGroupType(req TypeRequest, t groupTarget, how string) error {
 	if err := agent.CanInsert(req.Role); err != nil {
 		return err
 	}
-	// Claim the host under the lock: it is typing until the write is done
-	// (GroupTypeDoneAt) or failed (GroupTypeFailed), and Retry, Skip and a
-	// mode change leave it alone meanwhile.
 	s.mu.Lock()
-	run, c = s.groupProposalLocked(req.GroupRunID, req.ProposalID)
+	run, c := s.groupProposalLocked(req.GroupRunID, req.ProposalID)
 	if run == nil || c == nil || run.Status != runActive || c.State != cellProposed {
 		s.mu.Unlock()
 		return ErrNotProposed
 	}
-	c.State, c.filled = cellTyping, filled
+	c.State, c.filled = cellTyping, t.filled
 	s.mu.Unlock()
 	// agent.type logs the byte and line counts, never the bytes.
-	if err := s.audit.Type(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, want); err != nil {
+	if err := s.audit.TypeFrom(agent.Pane{SessionID: t.snap.SessionID, HostID: t.snap.HostID, HostName: t.snap.Host, Role: req.Role}, t.want, how); err != nil {
 		s.GroupTypeFailed(req.GroupRunID, req.ProposalID)
 		return err
 	}
