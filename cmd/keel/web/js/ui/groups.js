@@ -71,7 +71,7 @@ export function createGroupPage(deps) {
 
   function roleSelect(m, roles) {
     if (state.newRoleFor === m.hostId) {
-      return `<input class="k-input k-gx-rolenew" data-role-new="${escapeHtml(m.hostId)}" aria-label="New role for ${escapeHtml(m.name)}" placeholder="e.g. worker" maxlength="32" autocomplete="off" spellcheck="false" />`;
+      return `<input autocapitalize="off" autocorrect="off" class="k-input k-gx-rolenew" data-role-new="${escapeHtml(m.hostId)}" aria-label="New role for ${escapeHtml(m.name)}" placeholder="e.g. worker" maxlength="32" autocomplete="off" spellcheck="false" />`;
     }
     // A k-combobox (lib/combobox.js): roles are code (Ansible group names),
     // so the value is mono; "New role…" turns the cell into a text input.
@@ -284,7 +284,7 @@ export function createGroupPage(deps) {
       ? list
           .map((v) =>
             vars.editing === v.name
-              ? `<dt class="k-mono">${escapeHtml(v.name)}</dt><dd><input class="k-input k-gx-varvalue" data-var-edit="${escapeHtml(v.name)}" value="${escapeHtml(v.value)}" aria-label="Value of ${escapeHtml(v.name)}" maxlength="256" autocomplete="off" spellcheck="false" /></dd>`
+              ? `<dt class="k-mono">${escapeHtml(v.name)}</dt><dd><input autocapitalize="off" autocorrect="off" class="k-input k-gx-varvalue" data-var-edit="${escapeHtml(v.name)}" value="${escapeHtml(v.value)}" aria-label="Value of ${escapeHtml(v.name)}" maxlength="256" autocomplete="off" spellcheck="false" /></dd>`
               : `<dt class="k-mono">${escapeHtml(v.name)}</dt><dd><span class="k-mono k-gx-varval">${escapeHtml(v.value)}</span><span class="k-gx-varact"><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-var-editbtn="${escapeHtml(v.name)}" aria-label="Edit ${escapeHtml(v.name)}">Edit</button><button type="button" class="k-btn k-btn--ghost k-btn--sm" data-var-remove="${escapeHtml(v.name)}" aria-label="Remove ${escapeHtml(v.name)}">Remove</button></span></dd>`,
           )
           .join("")

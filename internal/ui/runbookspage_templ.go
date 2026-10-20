@@ -73,7 +73,7 @@ func RunbooksPage() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</span> <input class=\"k-input\" type=\"search\" id=\"runbooks-filter\" placeholder=\"Filter runbooks\" aria-label=\"Filter runbooks\" autocomplete=\"off\" spellcheck=\"false\"></div></div><div class=\"k-split-items\" id=\"runbooks-list\" aria-label=\"Runbooks list\"></div><div class=\"k-rb-listfoot\"><span class=\"k-help\" id=\"runbooks-count\"></span></div></div><div class=\"k-split-detail\" id=\"runbooks-detail\"><div class=\"k-detail-empty\"><p class=\"k-help\">Select a runbook to edit it, or add one with New.</p></div></div></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</span> <input autocapitalize=\"off\" autocorrect=\"off\" class=\"k-input\" type=\"search\" id=\"runbooks-filter\" placeholder=\"Filter runbooks\" aria-label=\"Filter runbooks\" autocomplete=\"off\" spellcheck=\"false\"></div></div><div class=\"k-split-items\" id=\"runbooks-list\" aria-label=\"Runbooks list\"></div><div class=\"k-rb-listfoot\"><span class=\"k-help\" id=\"runbooks-count\"></span></div></div><div class=\"k-split-detail\" id=\"runbooks-detail\"><div class=\"k-detail-empty\"><p class=\"k-help\">Select a runbook to edit it, or add one with New.</p></div></div></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

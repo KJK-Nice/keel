@@ -127,7 +127,7 @@ func commandPalette() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<dialog class=\"cmd-palette k-palette\" id=\"cmd-palette\" aria-label=\"Command palette\"><form id=\"cmd-palette-form\"><div class=\"k-palette-search\"><span class=\"k-i\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.5 17.5L22 22M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z\"></path></svg></span> <input id=\"cmd-palette-input\" class=\"k-palette-input\" type=\"search\" placeholder=\"Run a command or connect a host…\" autocomplete=\"off\" role=\"combobox\" aria-expanded=\"true\" aria-controls=\"cmd-palette-list\" aria-autocomplete=\"list\"> <span class=\"k-kbd\">esc</span></div><div class=\"k-palette-list cmd-palette-list\" id=\"cmd-palette-list\" role=\"listbox\"></div><p class=\"k-palette-foot\"><span><span class=\"k-kbd\">↑</span><span class=\"k-kbd\">↓</span>move</span> <span><span class=\"k-kbd\">↵</span>open</span> <span><span class=\"k-kbd\">⌥↵</span>open in split</span> <span class=\"k-palette-foot-end\"><span class=\"k-kbd\" id=\"cmd-palette-ask-kbd\">⌘↵</span>ask agent</span></p></form></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<dialog class=\"cmd-palette k-palette\" id=\"cmd-palette\" aria-label=\"Command palette\"><form id=\"cmd-palette-form\"><div class=\"k-palette-search\"><span class=\"k-i\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.5 17.5L22 22M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z\"></path></svg></span> <input autocapitalize=\"off\" autocorrect=\"off\" spellcheck=\"false\" id=\"cmd-palette-input\" class=\"k-palette-input\" type=\"search\" placeholder=\"Run a command or connect a host…\" autocomplete=\"off\" role=\"combobox\" aria-expanded=\"true\" aria-controls=\"cmd-palette-list\" aria-autocomplete=\"list\"> <span class=\"k-kbd\">esc</span></div><div class=\"k-palette-list cmd-palette-list\" id=\"cmd-palette-list\" role=\"listbox\"></div><p class=\"k-palette-foot\"><span><span class=\"k-kbd\">↑</span><span class=\"k-kbd\">↓</span>move</span> <span><span class=\"k-kbd\">↵</span>open</span> <span><span class=\"k-kbd\">⌥↵</span>open in split</span> <span class=\"k-palette-foot-end\"><span class=\"k-kbd\" id=\"cmd-palette-ask-kbd\">⌘↵</span>ask agent</span></p></form></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -739,7 +739,7 @@ func hostDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><div class=\"k-field\" data-ssh-only role=\"group\" aria-labelledby=\"host-key-label\"><span class=\"k-label\" id=\"host-key-label\">Host key</span><div class=\"k-row\" id=\"host-key-line\"><span class=\"k-badge\" id=\"host-key-badge\">Not saved</span> <span class=\"k-badge k-badge--mono k-badge--outline\" id=\"host-key-type\" hidden></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"host-key-forget\" hidden>Forget host key</button></div><p class=\"hostkey-fp\" id=\"host-key-fp\" hidden></p><span class=\"k-help\" id=\"host-key-help\">Trusted on first connect; Keel asks again if it changes.</span></div><div class=\"k-menu-label\" data-ssh-only>Session</div><div class=\"k-field\" data-ssh-only><label class=\"k-label\" for=\"host-startup\">Startup command</label> <input class=\"k-input k-input--mono\" id=\"host-startup\" name=\"startupCommand\" placeholder=\"tmux new -A -s main\" maxlength=\"1024\" autocomplete=\"off\" spellcheck=\"false\"> <span class=\"k-help\">Typed once with Enter when a session opens. Not typed again on reconnect, nor for people who join. Do not put secrets here.</span></div><div class=\"grid-2\" data-ssh-only>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><div class=\"k-field\" data-ssh-only role=\"group\" aria-labelledby=\"host-key-label\"><span class=\"k-label\" id=\"host-key-label\">Host key</span><div class=\"k-row\" id=\"host-key-line\"><span class=\"k-badge\" id=\"host-key-badge\">Not saved</span> <span class=\"k-badge k-badge--mono k-badge--outline\" id=\"host-key-type\" hidden></span> <button type=\"button\" class=\"k-btn k-btn--ghost k-btn--sm\" id=\"host-key-forget\" hidden>Forget host key</button></div><p class=\"hostkey-fp\" id=\"host-key-fp\" hidden></p><span class=\"k-help\" id=\"host-key-help\">Trusted on first connect; Keel asks again if it changes.</span></div><div class=\"k-menu-label\" data-ssh-only>Session</div><div class=\"k-field\" data-ssh-only><label class=\"k-label\" for=\"host-startup\">Startup command</label> <input autocapitalize=\"off\" autocorrect=\"off\" class=\"k-input k-input--mono\" id=\"host-startup\" name=\"startupCommand\" placeholder=\"tmux new -A -s main\" maxlength=\"1024\" autocomplete=\"off\" spellcheck=\"false\"> <span class=\"k-help\">Typed once with Enter when a session opens. Not typed again on reconnect, nor for people who join. Do not put secrets here.</span></div><div class=\"grid-2\" data-ssh-only>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2332,7 +2332,7 @@ func labeledInput(id, caption, name, placeholder string, required bool) templ.Co
 				var templ_7745c5c3_Var85 string
 				templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 526, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 529, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 				if templ_7745c5c3_Err != nil {
@@ -2416,7 +2416,7 @@ func labeledNumber(id, caption, name, value, min, max string) templ.Component {
 				var templ_7745c5c3_Var89 string
 				templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 541, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 544, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 				if templ_7745c5c3_Err != nil {
@@ -2500,7 +2500,7 @@ func labeledPassword(id, caption, name, placeholder string, required bool) templ
 				var templ_7745c5c3_Var93 string
 				templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 556, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 559, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 				if templ_7745c5c3_Err != nil {
@@ -2585,7 +2585,7 @@ func labeledTextarea(id, caption, name, placeholder string, rows int, required b
 				var templ_7745c5c3_Var97 string
 				templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(caption)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 572, Col: 12}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 575, Col: 12}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 				if templ_7745c5c3_Err != nil {
@@ -2657,7 +2657,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var99 string
 		templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 593, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 596, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var99)
 		if templ_7745c5c3_Err != nil {
@@ -2670,7 +2670,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var100 string
 		templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 593, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 596, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var100)
 		if templ_7745c5c3_Err != nil {
@@ -2691,7 +2691,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var101 string
 		templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 596, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 599, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var101)
 		if templ_7745c5c3_Err != nil {
@@ -2704,7 +2704,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var102 string
 		templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 596, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 599, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 		if templ_7745c5c3_Err != nil {
@@ -2735,20 +2735,20 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var103 string
 		templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.ResolveAttributeValue(id + "-label")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 606, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 609, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var103)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "\" data-notes-list></div><div class=\"k-note-add\" data-notes-add-row><input class=\"k-input\" type=\"text\" data-notes-input aria-label=\"Add a note\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "\" data-notes-list></div><div class=\"k-note-add\" data-notes-add-row><input autocapitalize=\"off\" autocorrect=\"off\" class=\"k-input\" type=\"text\" data-notes-input aria-label=\"Add a note\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var104 string
 		templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.ResolveAttributeValue(placeholder)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 608, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 611, Col: 143}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var104)
 		if templ_7745c5c3_Err != nil {
@@ -2761,7 +2761,7 @@ func notesBlock(id, title, placeholder, help string, host bool) templ.Component 
 		var templ_7745c5c3_Var105 string
 		templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(help)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 612, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dialogs.templ`, Line: 615, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 		if templ_7745c5c3_Err != nil {

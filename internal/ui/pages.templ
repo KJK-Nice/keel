@@ -54,6 +54,8 @@ templ filterInput(label, scope string) {
 			@icon.Search01()
 		</span>
 		<input
+			autocapitalize="off"
+			autocorrect="off"
 			class="k-input"
 			type="search"
 			placeholder={ label }
@@ -132,7 +134,7 @@ templ SnippetsPage(p PageProps) {
 				<form class="k-editor" id="snippet-editor" hidden data-on:submit__prevent="@post('/ui/forms/snippet-editor', {contentType: 'form'})" data-indicator:_saving>
 					<input type="hidden" name="id"/>
 					<div class="k-editor-head">
-						<input class="k-input k-editor-title" name="name" aria-label="Snippet name" autocomplete="off" required/>
+						<input autocapitalize="off" autocorrect="off" spellcheck="false" class="k-input k-editor-title" name="name" aria-label="Snippet name" autocomplete="off" required/>
 						<button type="button" class="k-btn" id="snippet-editor-run" data-run="">Type into pane…</button>
 						<button type="submit" class="k-btn k-btn--primary" id="snippet-editor-save" data-attr:disabled="$_saving">
 							Save
@@ -142,6 +144,8 @@ templ SnippetsPage(p PageProps) {
 					<div class="k-field">
 						<label class="k-label" for="snippet-editor-command">Commands</label>
 						<textarea
+							autocapitalize="off"
+							autocorrect="off"
 							class="k-textarea k-textarea--mono k-editor-body"
 							id="snippet-editor-command"
 							name="command"
@@ -214,6 +218,8 @@ templ LogsPage(p PageProps) {
 					@icon.Search01()
 				</span>
 				<input
+					autocapitalize="off"
+					autocorrect="off"
 					id="log-filter"
 					class="k-input"
 					type="search"
@@ -257,6 +263,8 @@ templ SettingsPage() {
 					@icon.Search01()
 				</span>
 				<input
+					autocapitalize="off"
+					autocorrect="off"
 					id="settings-search"
 					class="k-input"
 					type="search"

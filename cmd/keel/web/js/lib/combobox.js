@@ -4,7 +4,7 @@
 // a dialog, a settings row or a term.js HTML string is one component.
 //
 //   <div class="k-combobox" data-combobox>
-//     <input class="k-input k-combobox-input" role="combobox" aria-controls="ID-list" …>
+//     <input class="k-input k-combobox-input" role="combobox" aria-controls="ID-list" autocapitalize="off" autocorrect="off" spellcheck="false" …>
 //     <span class="k-combobox-chevron">…</span>
 //     <input type="hidden" name="…" data-combobox-value>
 //     <div class="k-menu k-combobox-pop" popover="manual" hidden>

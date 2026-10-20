@@ -87,7 +87,7 @@ func sharingSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"pref-row\"><div class=\"pref-copy\"><label class=\"pref-title\" for=\"share-set-name\">Display name</label><p class=\"pref-desc\" id=\"share-set-name-help\">Shown to people in sessions you share and join. Empty uses the default.</p></div><input id=\"share-set-name\" class=\"k-input k-pref-input\" type=\"text\" maxlength=\"40\" autocomplete=\"off\" spellcheck=\"false\" aria-describedby=\"share-set-name-help\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"pref-row\"><div class=\"pref-copy\"><label class=\"pref-title\" for=\"share-set-name\">Display name</label><p class=\"pref-desc\" id=\"share-set-name-help\">Shown to people in sessions you share and join. Empty uses the default.</p></div><input autocapitalize=\"off\" autocorrect=\"off\" id=\"share-set-name\" class=\"k-input k-pref-input\" type=\"text\" maxlength=\"40\" autocomplete=\"off\" spellcheck=\"false\" aria-describedby=\"share-set-name-help\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

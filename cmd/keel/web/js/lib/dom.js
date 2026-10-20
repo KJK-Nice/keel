@@ -23,3 +23,16 @@ export function setHTML(el, html) {
   el._keelHTML = html;
   return true;
 }
+
+// noTextAssist turns off what the native WKWebView does to a text field it
+// did not get from markup: capitalizing the first letter, autocorrecting
+// words and underlining them. Fields in markup (templ and the HTML strings
+// in term.js and ui/*.js) carry the same three attributes inline; this is
+// for fields made with document.createElement.
+export function noTextAssist(el) {
+  if (!el) return el;
+  el.setAttribute("autocapitalize", "off");
+  el.setAttribute("autocorrect", "off");
+  el.setAttribute("spellcheck", "false");
+  return el;
+}

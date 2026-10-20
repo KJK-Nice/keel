@@ -47,7 +47,7 @@ export function createNotesEditor({ root, api, toast, kind = "host" }) {
   function rowHTML(n) {
     if (state.editing === n.id) {
       return `<div class="k-note k-note--edit" role="listitem" data-note-id="${escapeHtml(n.id)}" data-note-form>
-        <textarea class="k-textarea" aria-label="Edit note" data-note-text rows="2" maxlength="${N.MAX_NOTE_BYTES}" spellcheck="true">${escapeHtml(n.text)}</textarea>
+        <textarea autocapitalize="off" autocorrect="off" class="k-textarea" aria-label="Edit note" data-note-text rows="2" maxlength="${N.MAX_NOTE_BYTES}" spellcheck="true">${escapeHtml(n.text)}</textarea>
         <span class="k-note-tools">
           <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-note-cancel>Cancel</button>
           <button type="button" class="k-btn k-btn--primary k-btn--sm" data-note-save>Save</button>

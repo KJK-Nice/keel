@@ -114,7 +114,7 @@ func TestWindowDragJSIsTheWindowJSOption(t *testing.T) {
 func TestAppMenuHasTabShortcuts(t *testing.T) {
 	w := &nativeWindow{}
 	m := w.appMenu()
-	for _, want := range []string{"New Tab", "Close Tab", "Find Host", "Find in Terminal", "Toggle Vault Sidebar", "Split Right", "Split Notebook", "Close Window", "Stop Keel runtime", "Focus Pane", "Zoom In", "Zoom Out", "Actual Size"} {
+	for _, want := range []string{"New Tab", "Close Tab", "Find Host", "Find in Terminal", "Toggle Vault Sidebar", "Split Right", "Split Notebook", "Close Window", "Stop Keel runtime", "Focus View", "Zoom In", "Zoom Out", "Actual Size"} {
 		if m.FindByLabel(want) == nil {
 			t.Errorf("menu missing %q", want)
 		}
