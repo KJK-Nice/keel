@@ -157,7 +157,9 @@ test('roles on the group page, then a rolling run: one host at a time, a failure
 
 test('a parallel run: one dialog lists every host, only ticked hosts are typed, each on its own', { tags: ['agent', 'runbooks'] }, async ({ app, screen }) => {
   try {
-  const step = `printf '\\033]133;C\\007gx-par\\n\\033]133;D;0\\007'`;
+  // touch: the step changes state, so the group approve dialog decides
+  // (a read-only step of one line goes without it, §6 rule 13).
+  const step = `touch /tmp/keel-gx-par; printf '\\033]133;C\\007gx-par\\n\\033]133;D;0\\007'`;
   const { wk1, wk2, group } = await setup(app, step);
   for (const h of [wk1, wk2]) await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: h.id, role: 'worker' });
   await openKeel(app);

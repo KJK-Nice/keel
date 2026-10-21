@@ -31,10 +31,12 @@ test("isDriving is still the driver role and nothing else", () => {
   assert.equal(squash(body("isDriving")), 'function isDriving(pane) { return pane?.you?.role === "driver"; }');
 });
 
+// It only ever blocks more: §6 rule 13 adds the hold while the key that
+// pressed a direct Type is still down.
 test("ptyWritesBlocked is unchanged", () => {
   assert.equal(
     squash(body("ptyWritesBlocked")),
-    "function ptyWritesBlocked() { return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen()); }",
+    "function ptyWritesBlocked() { return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || (reviewHold && heldKeys.size) || isNotebookPane(focusedPane()) || termInputOpen()); }",
   );
 });
 

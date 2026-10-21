@@ -16,6 +16,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
+import * as TD from "../lib/typedirect.js";
 import * as R from "../lib/runbooks.js";
 import * as NB from "../lib/notebooks.js";
 import { setText } from "../lib/dom.js";
@@ -188,7 +189,8 @@ export function createAgentPanel(deps) {
     ctl,
     isMac: deps.isMac,
     emptyHTML: panelEmptyHTML,
-    typeLabel: () => "Type into pane",
+    // "…" when the approve dialog will follow (§6 rule 13).
+    typeLabel: (p) => TD.typeWord("Type into pane", TD.proposalDirect(p)),
   });
   views.push(panelView);
 
@@ -676,7 +678,8 @@ export function createAgentPanel(deps) {
     const res = await deps.typeProposal({ proposal: rec.p, conversationId: state.conv, shift: !!shift });
     if (!res) return null;
     if (res.ok && rec.p.runbook) schedulePoll(true);
-    if (res.ok) rec.status = { ok: true, text: `Typed into ${rec.p.host || "the pane"}.` };
+    // Typed without the dialog (§6 rule 13): it waits for the user's Enter.
+    if (res.ok) rec.status = { ok: true, text: res.direct ? res.message : `Typed into ${rec.p.host || "the pane"}.` };
     else if (res.cancelled) rec.status = null;
     else rec.status = { ok: false, text: res.message || "Not typed." };
     repaintProposal(id);
