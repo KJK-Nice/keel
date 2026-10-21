@@ -5,7 +5,6 @@ import (
 	"keel/components/empty"
 	"keel/components/icon"
 	"keel/components/kbd"
-	selectcomp "keel/components/select"
 )
 
 templ tabContextMenu() {
@@ -58,27 +57,8 @@ templ emptyBox(id, title, desc string) {
 	}
 }
 
-templ settingsSelect(id, name, aria, placeholder, current string, values []string, labels []string) {
-	@formSelect(id, name, aria, placeholder, current, false, "min-w-[10.5rem]", selectcomp.AlignEnd, values, labels)
-}
-
-templ formSelect(id, name, aria, placeholder, current string, required bool, class string, align selectcomp.Align, values []string, labels []string) {
-	{{ attrs := templ.Attributes{} }}
-	if aria != "" {
-		{{ attrs["aria-label"] = aria }}
-	}
-	@selectcomp.Select(selectcomp.Props{Name: name, DefaultValue: current, Required: required}) {
-		@selectcomp.Trigger(selectcomp.TriggerProps{ID: id, Class: class, Attributes: attrs}) {
-			@selectcomp.Value(selectcomp.ValueProps{Placeholder: placeholder})
-		}
-		@selectcomp.Content(selectcomp.ContentProps{Align: align, DisableAlignItemWithTrigger: true}) {
-			@selectcomp.Group() {
-				for i, v := range values {
-					@selectcomp.Item(selectcomp.ItemProps{Value: v}) {
-						{ labels[i] }
-					}
-				}
-			}
-		}
-	}
+// settingsCombobox is a picker on the right of a settings row; the row's
+// title is its name.
+templ settingsCombobox(id, aria, current string, opts []ComboOption) {
+	@Combobox(ComboboxProps{ID: id, Label: aria, Value: current, Options: opts, Class: "k-combobox--setting"})
 }

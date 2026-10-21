@@ -76,6 +76,15 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 `assets/Logos/keel-mark.svg` is the in-app mark (splash, favicon): a dark hexagonal hull with a slit, on a white rounded square. `keel-app-icon.png` is the macOS Dock icon. Use the mark as supplied; do not recolor it brass or redraw it.
 
+## Choosing a value
+
+- **A list, or a list that changes** (identity, folder, jump host, forward host, role, runbook, terminal font, model, retention): a **combobox**, `.k-combobox`. A `.k-input` with `role="combobox"` shows the chosen label; typing filters the options (case-insensitive substring of the label and the second line). The popup is a `.k-menu` (`raised`, `radius-md`, `shadow-pop`) of `.k-menu-item` rows: optional leading icon, label, optional `ink-muted` second line, a check on the chosen row. ↑ ↓ move, Home / End jump, ↵ picks, Esc closes the list (not the dialog), a click outside closes it, Tab leaves it. Disabled rows are skipped. Nothing matching says "No matches"; no options at all says what to do ("Add an SSH host first").
+- **Two to four fixed choices** (theme, smoothing, translucency, right-click, authentication, identity kind, forward kind): a **segmented control**, `.k-seg`, every choice visible. Do not put a fixed set this small in a combobox.
+- A "None" choice is the first option, with an empty value. Label it with what it means ("No group", "No role", "None").
+- The text is the system font. Only an option that is code is mono: an address line (`user@host:port`) uses `.k-combobox-desc--mono`, and a picker whose values are code (roles) is `.k-combobox--mono`.
+- Never a native `<select>`, and never a menu used as a value picker: menus are for actions.
+- The value posts with its form through a hidden input; the text input has no name. The same markup comes from templ (`Combobox`, `internal/ui/combobox.templ`) and from term.js strings (`comboboxHTML`, `js/lib/combobox.js`), which wires every picker by delegation, so pickers a page repaints or a stream morphs in keep working. The popup is a top-layer popover, so it shows over a modal dialog and is not clipped by its scroll.
+
 ## Building with it
 
 - Components are plain CSS classes (`k-` prefix) in `components/bundle.css`, so they work in templ (shadcn-templ components restyled through tokens) and in HTML strings rendered by `term.js`. `components/bundle.js` only provides the preview icon helper.

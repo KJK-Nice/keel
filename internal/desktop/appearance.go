@@ -88,6 +88,12 @@ func (w *nativeWindow) rawMessage(win application.Window, msg string, origin *ap
 	if origin == nil || !origin.IsMainFrame || !sameOrigin(w.url, origin.Origin) {
 		return
 	}
+	if target, ok := parseOpenURL(msg); ok {
+		if w.app != nil && w.app.Browser != nil {
+			_ = w.app.Browser.OpenURL(target)
+		}
+		return
+	}
 	choice, ok := parseAppearance(msg)
 	if !ok {
 		return

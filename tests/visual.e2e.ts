@@ -240,6 +240,13 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await ask.press('Enter');
       await expect(panel.getByRole('button', /Type into pane/)).toBeVisible();
       await app.screenshot(`${theme}-agent`);
+      // An answer in markdown (heading, list, code block with Copy, quote,
+      // table, links; its raw HTML and image stay text).
+      await ask.fill('answer in markdown please');
+      await ask.press('Enter');
+      await expect(panel.getByRole('heading', 'Disk check')).toBeVisible();
+      await browser.evaluate(`(() => { const t = document.getElementById('agent-thread'); const h = [...t.querySelectorAll('.k-md h2')].pop(); t.scrollTop = h.offsetTop - t.offsetTop - 8; })()`);
+      await app.screenshot(`${theme}-agent-markdown`);
       await panel.getByRole('button', 'Close agent').tap();
       await expect(panel).toBeHidden();
       await screen.getByRole('button', 'Close tab').tap();
@@ -802,7 +809,7 @@ describe('groups', { tags: ['visual'], serial: true }, () => {
       await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
         name: 'Rolling restart kubelet on workers',
         steps: [
-          { title: 'Restart kubelet on each worker', command: "printf '\\033]133;C\\007active\\n\\033]133;D;0\\007'", role: 'worker' },
+          { title: 'Restart kubelet on each worker', command: "touch /tmp/keel-vx-kubelet; printf '\\033]133;C\\007active\\n\\033]133;D;0\\007'", role: 'worker' },
           { title: 'Look for pods in CrashLoopBackOff', command: 'kubectl get pods -A | grep -i crashloop', role: 'control-plane', oneHost: true },
           { title: 'Check the dashboards' },
         ],
@@ -881,12 +888,12 @@ describe('group variables', { tags: ['visual'], serial: true }, () => {
         steps: [
           {
             title: 'kubeadm init on the control plane',
-            command: `t=abcdef; printf '\\033]133;C\\007kubeadm join 10.20.0.10:6443 --code %s.0123456789abcdef\\n\\033]133;D;0\\007' "$t"`,
+            command: `touch /tmp/keel-vv-token; t=abcdef; printf '\\033]133;C\\007kubeadm join 10.20.0.10:6443 --code %s.0123456789abcdef\\n\\033]133;D;0\\007' "$t"`,
             role: 'control-plane',
             oneHost: true,
             captures: [{ name: 'join_code', pattern: '--code\\s+(\\S+)' }],
           },
-          { title: 'Join the workers', command: `printf '\\033]133;C\\007joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{k8s_version}}`, role: 'worker' },
+          { title: 'Join the workers', command: `touch /tmp/keel-vv-join; printf '\\033]133;C\\007joined %s %s\\n\\033]133;D;0\\007' {{join_code}} {{k8s_version}}`, role: 'worker' },
         ],
       });
       await openKeel(app);

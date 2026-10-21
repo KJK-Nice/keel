@@ -9,6 +9,7 @@
 // is a proposal you approve.
 
 import { escapeHtml } from "../lib/html.js";
+import { comboboxHTML, comboboxValue, setComboboxOptions } from "../lib/combobox.js";
 import * as G from "../lib/grouprun.js";
 import * as V from "../lib/groupvars.js";
 import { createNotesEditor } from "./notes.js";
@@ -72,10 +73,19 @@ export function createGroupPage(deps) {
     if (state.newRoleFor === m.hostId) {
       return `<input autocapitalize="off" autocorrect="off" class="k-input k-gx-rolenew" data-role-new="${escapeHtml(m.hostId)}" aria-label="New role for ${escapeHtml(m.name)}" placeholder="e.g. worker" maxlength="32" autocomplete="off" spellcheck="false" />`;
     }
-    const opts = [`<option value=""${m.role ? "" : " selected"}>No role</option>`]
-      .concat(roles.map((r) => `<option value="${escapeHtml(r)}"${r === m.role ? " selected" : ""}>${escapeHtml(r)}</option>`))
-      .concat([`<option value="${NEW_ROLE}">New role…</option>`]);
-    return `<select class="k-gx-rolesel" data-role-host="${escapeHtml(m.hostId)}" aria-label="Role of ${escapeHtml(m.name)}">${opts.join("")}</select>`;
+    // A k-combobox (lib/combobox.js): roles are code (Ansible group names),
+    // so the value is mono; "New role…" turns the cell into a text input.
+    return comboboxHTML({
+      id: `group-role-${m.hostId}`,
+      label: `Role of ${m.name}`,
+      placeholder: "Search roles",
+      value: m.role || "",
+      none: "No role",
+      mono: true,
+      className: "k-gx-rolesel",
+      attrs: `data-role-host="${escapeHtml(m.hostId)}"`,
+      options: roles.map((r) => ({ value: r, label: r })).concat([{ value: NEW_ROLE, label: "New role…" }]),
+    });
   }
 
   function paint() {
@@ -135,19 +145,23 @@ export function createGroupPage(deps) {
     }
     state.newRoleFor = "";
     paint();
-    el.hosts?.querySelector(`[data-role-host="${CSS.escape(hostId)}"]`)?.focus();
+    roleInput(hostId)?.focus();
   }
 
+  const roleInput = (hostId) => el.hosts?.querySelector(`[data-role-host="${CSS.escape(hostId)}"] [role="combobox"]`);
+
+  // The picker's hidden input sends "change" when a role is picked.
   el.hosts?.addEventListener("change", (ev) => {
     const sel = ev.target.closest("[data-role-host]");
     if (!sel) return;
     const hostId = sel.dataset.roleHost;
-    if (sel.value === NEW_ROLE) {
+    const value = comboboxValue(sel);
+    if (value === NEW_ROLE) {
       state.newRoleFor = hostId;
       paint();
       return;
     }
-    setRole(hostId, sel.value);
+    setRole(hostId, value);
   });
   el.hosts?.addEventListener("keydown", (ev) => {
     const input = ev.target.closest("[data-role-new]");
@@ -161,7 +175,7 @@ export function createGroupPage(deps) {
       const id = input.dataset.roleNew;
       state.newRoleFor = "";
       paint();
-      el.hosts?.querySelector(`[data-role-host="${CSS.escape(id)}"]`)?.focus();
+      roleInput(id)?.focus();
     }
   });
   el.hosts?.addEventListener("focusout", (ev) => {
@@ -353,7 +367,7 @@ export function createGroupPage(deps) {
     btn: $("group-export"),
     drawer: $("group-export-drawer"),
     close: $("group-export-close"),
-    book: $("group-export-runbook"),
+    bookBox: $("group-export-runbook")?.closest(".k-combobox"),
     modeRow: $("group-export-mode"),
     tabs: $("group-export-tabs"),
     code: $("group-export-code"),
@@ -413,8 +427,12 @@ export function createGroupPage(deps) {
     try {
       const res = await deps.api("/api/agent/runbooks");
       const books = (res?.runbooks || []).filter((b) => (b.steps || []).length);
-      if (ex.book) {
-        ex.book.innerHTML = `<option value="">Inventory only</option>` + books.map((b) => `<option value="${escapeHtml(b.id)}"${b.id === ex.runbookId ? " selected" : ""}>${escapeHtml(`Playbook: ${b.name}`)}</option>`).join("");
+      if (ex.bookBox) {
+        ex.runbookId = setComboboxOptions(
+          ex.bookBox,
+          [{ value: "", label: "Inventory only" }].concat(books.map((b) => ({ value: b.id, label: `Playbook: ${b.name}`, desc: `${b.steps.length} ${b.steps.length === 1 ? "step" : "steps"}` }))),
+          ex.runbookId,
+        );
       }
     } catch {
       /* runbooks need the vault; the inventory alone still works */
@@ -465,8 +483,8 @@ export function createGroupPage(deps) {
       return void exportRefresh();
     }
   });
-  ex.book?.addEventListener("change", () => {
-    ex.runbookId = ex.book.value;
+  ex.bookBox?.addEventListener("change", () => {
+    ex.runbookId = comboboxValue(ex.bookBox);
     ex.file = ex.runbookId ? 1 : 0;
     exportRefresh();
   });

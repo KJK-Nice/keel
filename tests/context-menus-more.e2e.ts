@@ -141,7 +141,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
 
   test('notebook code block: Type into the pane (approve first) and Copy', async ({ app, screen, browser }) => {
     const name = `cm-nb-${stamp()}`;
-    const nb = await keelSend<Notebook>(app.baseUrl, 'POST', '/api/notebooks', { name, cells: [{ body: '```sh\necho keel-fence-menu\n```\n\n```json\n{"a": 1}\n```' }] });
+    const nb = await keelSend<Notebook>(app.baseUrl, 'POST', '/api/notebooks', { name, cells: [{ body: '```sh\ntouch /tmp/keel-fence-menu\n```\n\n```json\n{"a": 1}\n```' }] });
     try {
       await browser.addInitScript(CLIPBOARD);
       await openKeel(app);
@@ -160,21 +160,22 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
       await expect(menu.getByRole('menuitem', 'Copy code')).toBeVisible();
       await app.screenshot('fence-context-menu');
       await menu.getByRole('menuitem', 'Copy code').tap();
-      await expect.poll(() => copied(browser)).toEqual(['echo keel-fence-menu']);
+      await expect.poll(() => copied(browser)).toEqual(['touch /tmp/keel-fence-menu']);
 
-      // Type goes through the same approve step; nothing is typed before.
+      // Type goes through the same approve step (a state change, §6 rule
+      // 13); nothing is typed before.
       await typeBtn.secondaryTap();
       await menu.getByRole('menuitem', 'Type into Local Shell…').tap();
       const approve = screen.getByRole('dialog').filter({ hasText: 'Type into the terminal?' });
       await expect(approve).toBeVisible();
-      await expect(approve).toContainText('echo keel-fence-menu');
+      await expect(approve).toContainText('touch /tmp/keel-fence-menu');
       await approve.getByRole('button', 'Cancel').tap();
       await expect(approve).toBeHidden();
       await screen.getByRole('button', 'Cancel', { visible: true }).tap();
       expect(await scrollback(app, session.id)).not.toContain('keel-fence-menu');
 
       // The code itself is editable: it keeps the system's menu.
-      await screen.getByText('echo keel-fence-menu', { exact: true }).first().secondaryTap();
+      await screen.getByText('touch /tmp/keel-fence-menu', { exact: true }).first().secondaryTap();
       await expect(menu).toHaveCount(0);
 
       // A non-shell fence: Copy only.
@@ -248,10 +249,11 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     const panel = screen.getByRole('complementary', 'Agent');
     const composer = panel.getByRole('textbox', 'Message the agent');
     await expect(composer).toBeFocused();
-    await composer.fill('what is going on in this pane?');
+    // A state change, so Type keeps the approve dialog (§6 rule 13).
+    await composer.fill('touch the marker');
     await composer.press('Enter');
     const card = panel.getByRole('group', 'Proposal').last();
-    await expect(card).toContainText('echo keel-agent-ok');
+    await expect(card).toContainText('touch /tmp/keel-agent-e2e-touched');
     const menu = screen.getByRole('menu');
 
     await card.secondaryTap();
@@ -260,7 +262,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     await expect(menu.getByRole('menuitem', /^Type into/)).toBeVisible();
     await app.screenshot('agent-card-menu');
     await menu.getByRole('menuitem', 'Copy command').tap();
-    await expect.poll(async () => (await copied(browser)).join('\n')).toContain('echo keel-agent-ok');
+    await expect.poll(async () => (await copied(browser)).join('\n')).toContain('touch /tmp/keel-agent-e2e-touched');
 
     // Type into pane from the menu opens the same approve dialog; nothing
     // is typed until the user approves.
@@ -268,9 +270,9 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     await menu.getByRole('menuitem', /^Type into/).tap();
     const approve = screen.getByRole('dialog').filter({ hasText: 'Type into the terminal?' });
     await expect(approve).toBeVisible();
-    expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
+    expect(await scrollback(app, session.id)).not.toContain('keel-agent-e2e-touched');
     await approve.getByRole('button', 'Cancel').tap();
-    expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
+    expect(await scrollback(app, session.id)).not.toContain('keel-agent-e2e-touched');
 
     // ⇧F10 on a card's button opens it too.
     await card.getByRole('button', 'Copy command').focus();
