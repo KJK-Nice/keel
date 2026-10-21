@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"testing"
 
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
@@ -37,9 +38,11 @@ var (
 )
 
 // KeyringOff reports whether KEEL_KEYRING=off keeps the store away from
-// the OS keychain.
+// the OS keychain. A test binary is always off: go-keyring shells out to
+// /usr/bin/security on macOS, which endpoint security flags as credential
+// access (INC-777162), whether or not a test remembered the variable.
 func KeyringOff() bool {
-	return os.Getenv(envKeyring) == "off"
+	return os.Getenv(envKeyring) == "off" || testing.Testing()
 }
 
 type hostSecret struct {
