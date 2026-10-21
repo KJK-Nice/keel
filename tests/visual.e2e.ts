@@ -240,6 +240,13 @@ describe('screens', { tags: ['visual'], serial: true }, () => {
       await ask.press('Enter');
       await expect(panel.getByRole('button', /Type into pane/)).toBeVisible();
       await app.screenshot(`${theme}-agent`);
+      // An answer in markdown (heading, list, code block with Copy, quote,
+      // table, links; its raw HTML and image stay text).
+      await ask.fill('answer in markdown please');
+      await ask.press('Enter');
+      await expect(panel.getByRole('heading', 'Disk check')).toBeVisible();
+      await browser.evaluate(`(() => { const t = document.getElementById('agent-thread'); const h = [...t.querySelectorAll('.k-md h2')].pop(); t.scrollTop = h.offsetTop - t.offsetTop - 8; })()`);
+      await app.screenshot(`${theme}-agent-markdown`);
       await panel.getByRole('button', 'Close agent').tap();
       await expect(panel).toBeHidden();
       await screen.getByRole('button', 'Close tab').tap();

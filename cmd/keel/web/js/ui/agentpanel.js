@@ -149,6 +149,8 @@ export function createAgentPanel(deps) {
       const rec = state.props.get(id);
       if (rec) deps.copyText(rec.p.command);
     },
+    // A code block in an answer (Copy only, never Type: §6.1).
+    copyText: (text) => deps.copyText(text),
     note: (id) => state.notes.get(id) || null,
     saveNote,
     dismissNote: (id) => noteAction(id, "DELETE", ""),
@@ -259,11 +261,11 @@ export function createAgentPanel(deps) {
     const d = state.provider || { name: "Google Gemini", keyLabel: "Gemini API key" };
     const warn = d.warning
       ? `<div class="k-agent-warning" role="note">${ICON.alert}<p>${escapeHtml(d.warning)}${
-          d.termsUrl ? ` <a href="${escapeHtml(d.termsUrl)}" target="_blank" rel="noopener noreferrer">Gemini API terms</a>` : ""
+          d.termsUrl ? ` <a href="${escapeHtml(d.termsUrl)}" target="_blank" rel="noopener noreferrer" data-k-external>Gemini API terms</a>` : ""
         }</p></div>`
       : "";
     const help = d.keyHelpUrl
-      ? `<a href="${escapeHtml(d.keyHelpUrl)}" target="_blank" rel="noopener noreferrer">Get a key</a>`
+      ? `<a href="${escapeHtml(d.keyHelpUrl)}" target="_blank" rel="noopener noreferrer" data-k-external>Get a key</a>`
       : "";
     return `<form class="k-agent-connect" id="agent-connect" autocomplete="off">
       <h2 class="k-agent-connect-title">Connect Gemini</h2>

@@ -489,6 +489,7 @@ export function createGate({ doc = document, api, toast, onUnlocked, onImported 
         a.href = url;
         a.target = "_blank";
         a.rel = "noopener noreferrer";
+        a.dataset.kExternal = "";
         a.textContent = text;
         el.agentLinks.append(a);
       };
