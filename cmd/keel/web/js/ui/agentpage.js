@@ -13,6 +13,7 @@
 
 import { escapeHtml } from "../lib/html.js";
 import * as A from "../lib/agent.js";
+import * as TD from "../lib/typedirect.js";
 import { setText } from "../lib/dom.js";
 import { ICON, sessionGroupsHTML } from "./agentthread.js";
 
@@ -84,7 +85,8 @@ export function createAgentPage(deps) {
     emptyHTML,
     // The page is away from the panes, so the button names the pane it
     // types into.
-    typeLabel: (p, pane) => `Type into ${pane ? A.paneTarget(pane.label, pane.sub) : p.host || "pane"}`,
+    // "…" when the approve dialog will follow (§6 rule 13).
+    typeLabel: (p, pane) => TD.typeWord(`Type into ${pane ? A.paneTarget(pane.label, pane.sub) : p.host || "pane"}`, TD.proposalDirect(p)),
   });
 
   // --- left column: the saved conversations ---
