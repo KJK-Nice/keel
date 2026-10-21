@@ -39,7 +39,7 @@ type PageProps struct {
 	SignalURL    string
 	Query        string
 	LogFilter    string
-	Hosts        []store.Host
+	Hosts        []Host
 	Identities   []store.Identity
 	Tunnels      []tunnel.Info
 	Snippets     []store.Snippet
@@ -75,7 +75,7 @@ func filterShow(signal string) string {
 	return "!$" + signal + ".trim() || el.dataset.filterText.toLowerCase().includes($" + signal + ".trim().toLowerCase())"
 }
 
-func hostSubtitle(h store.Host) string {
+func hostSubtitle(h Host) string {
 	if h.AuthType == "local" {
 		return "this machine"
 	}
@@ -90,7 +90,7 @@ func hostSubtitle(h store.Host) string {
 	return user + "@" + addr
 }
 
-func hostProtocol(h store.Host) string {
+func hostProtocol(h Host) string {
 	if h.AuthType == "local" {
 		return "local"
 	}
@@ -114,22 +114,22 @@ func folderGroups(groups []hostGroup) []hostGroup {
 	return out
 }
 
-func flatHosts(groups []hostGroup) []store.Host {
+func flatHosts(groups []hostGroup) []Host {
 	n := 0
 	for _, g := range groups {
 		n += len(g.Hosts)
 	}
-	out := make([]store.Host, 0, n)
+	out := make([]Host, 0, n)
 	for _, g := range groups {
 		out = append(out, g.Hosts...)
 	}
 	return out
 }
 
-func groupHosts(hosts []store.Host, query string) []hostGroup {
+func groupHosts(hosts []Host, query string) []hostGroup {
 	q := strings.ToLower(strings.TrimSpace(query))
 	order := make([]string, 0)
-	by := map[string][]store.Host{}
+	by := map[string][]Host{}
 	for _, h := range hosts {
 		if q != "" {
 			blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group + " " + strings.Join(h.Tags, " "))
@@ -155,19 +155,19 @@ func groupHosts(hosts []store.Host, query string) []hostGroup {
 
 type hostGroup struct {
 	Name  string
-	Hosts []store.Host
+	Hosts []Host
 }
 
 // groupNode is one Termius-style folder in the vault tree.
 type groupNode struct {
 	Group store.Group
-	Hosts []store.Host
+	Hosts []Host
 	Kids  []groupNode
 	Count int
 	Depth int
 }
 
-func nestGroupTree(groups []store.Group, hosts []store.Host, query, parentID string) []groupNode {
+func nestGroupTree(groups []store.Group, hosts []Host, query, parentID string) []groupNode {
 	byID := map[string]store.Group{}
 	for _, g := range groups {
 		byID[g.ID] = g
@@ -183,7 +183,7 @@ func nestGroupTree(groups []store.Group, hosts []store.Host, query, parentID str
 		byParent[parent] = append(byParent[parent], g)
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
-	hostsByGID := map[string][]store.Host{}
+	hostsByGID := map[string][]Host{}
 	for _, h := range hosts {
 		if q != "" && !hostMatchesGroupQuery(h, byID, q) {
 			continue
@@ -248,14 +248,14 @@ func subtreeGroupIDs(groups []store.Group, root string) map[string]struct{} {
 // hostsInCurrentAndSubgroups is the Termius Hosts list: current group plus
 // every nested subgroup. An empty focus shows every matching host (root).
 // Tags stay in the query blob and are not group membership.
-func hostsInCurrentAndSubgroups(groups []store.Group, hosts []store.Host, focus, query string) []store.Host {
+func hostsInCurrentAndSubgroups(groups []store.Group, hosts []Host, focus, query string) []Host {
 	byID := map[string]store.Group{}
 	for _, g := range groups {
 		byID[g.ID] = g
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
 	allow := subtreeGroupIDs(groups, focus)
-	out := make([]store.Host, 0)
+	out := make([]Host, 0)
 	for _, h := range hosts {
 		if allow != nil {
 			if _, ok := allow[h.GroupID]; !ok {
@@ -293,13 +293,13 @@ func groupFocusPath(groups []store.Group, id string) []store.Group {
 	return path
 }
 
-func ungroupedHosts(hosts []store.Host, groups []store.Group, query string) []store.Host {
+func ungroupedHosts(hosts []Host, groups []store.Group, query string) []Host {
 	byID := map[string]store.Group{}
 	for _, g := range groups {
 		byID[g.ID] = g
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
-	out := make([]store.Host, 0)
+	out := make([]Host, 0)
 	for _, h := range hosts {
 		// A host whose group is gone sits at the root of the tree, not
 		// nowhere.
@@ -314,7 +314,7 @@ func ungroupedHosts(hosts []store.Host, groups []store.Group, query string) []st
 	return out
 }
 
-func hostMatchesGroupQuery(h store.Host, byID map[string]store.Group, q string) bool {
+func hostMatchesGroupQuery(h Host, byID map[string]store.Group, q string) bool {
 	blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group + " " + strings.Join(h.Tags, " "))
 	gid := h.GroupID
 	seen := map[string]struct{}{}
@@ -337,7 +337,7 @@ func nestDepthAttr(depth int) string {
 	return fmt.Sprintf("%d", depth)
 }
 
-func vaultTreeEmpty(tree []groupNode, hosts []store.Host) bool {
+func vaultTreeEmpty(tree []groupNode, hosts []Host) bool {
 	return len(tree) == 0 && len(hosts) == 0
 }
 
@@ -372,7 +372,7 @@ func tunnelListen(t tunnel.Info) string {
 	return fmt.Sprintf("%s:%d", t.BindAddr, t.BindPort)
 }
 
-func hostNameByID(hosts []store.Host, id string) string {
+func hostNameByID(hosts []Host, id string) string {
 	for _, h := range hosts {
 		if h.ID == id {
 			return h.Name
@@ -449,7 +449,7 @@ func identitiesOfKind(ids []store.Identity, kind string) []store.Identity {
 }
 
 // identityHostCount is how many saved hosts authenticate with id.
-func identityHostCount(hosts []store.Host, id string) int {
+func identityHostCount(hosts []Host, id string) int {
 	n := 0
 	for _, h := range hosts {
 		if h.AuthType == "identity" && h.IdentityID == id {
@@ -467,7 +467,7 @@ func identityKindLabel(kind string) string {
 }
 
 // identitySubtitle is the list line under an identity: kind, user, hosts.
-func identitySubtitle(hosts []store.Host, id store.Identity) string {
+func identitySubtitle(hosts []Host, id store.Identity) string {
 	parts := []string{identityKindLabel(id.Kind)}
 	if id.Username != "" {
 		parts = append(parts, id.Username)

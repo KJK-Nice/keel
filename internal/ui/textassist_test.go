@@ -89,7 +89,7 @@ func textAssistProblems(doc string) ([]string, int) {
 
 func TestTextFieldsHaveNoTextAssist(t *testing.T) {
 	p := PageProps{
-		Hosts:      []store.Host{{ID: "h1", Name: "web", Address: "10.0.0.1", Username: "ops"}},
+		Hosts:      []Host{{ID: "h1", Name: "web", Address: "10.0.0.1", Username: "ops"}},
 		Identities: []store.Identity{{ID: "k1", Name: "deploy", Kind: "key"}},
 		Snippets:   []store.Snippet{{ID: "s1", Name: "disk", Command: "df -h"}},
 	}

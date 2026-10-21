@@ -50,7 +50,8 @@ func (s *Server) listProps(r *http.Request, sig uiSignals) ui.PageProps {
 	if p.Locked {
 		return p
 	}
-	p.Hosts, _ = s.store.ListHosts()
+	hosts, _ := s.store.ListHosts()
+	p.Hosts = ui.HostsFrom(hosts)
 	p.Groups, _ = s.store.ListGroups()
 	p.Identities, _ = s.store.ListIdentities()
 	p.Snippets, _ = s.store.ListSnippets()

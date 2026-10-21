@@ -158,7 +158,7 @@ func sideEmpty(title, desc string) templ.Component {
 	})
 }
 
-func treeGroup(n groupNode, hosts []store.Host) templ.Component {
+func treeGroup(n groupNode, hosts []Host) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -362,7 +362,7 @@ func treeGroup(n groupNode, hosts []store.Host) templ.Component {
 	})
 }
 
-func treeHost(h store.Host, hosts []store.Host) templ.Component {
+func treeHost(h Host, hosts []Host) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -486,7 +486,7 @@ func treeHost(h store.Host, hosts []store.Host) templ.Component {
 }
 
 // hostTile is the host's 16% tint tile with its icon at full strength.
-func hostTile(h store.Host) templ.Component {
+func hostTile(h Host) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -551,7 +551,7 @@ func hostTile(h store.Host) templ.Component {
 	})
 }
 
-func hostIcon(h store.Host) templ.Component {
+func hostIcon(h Host) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -662,7 +662,7 @@ func IdentityList(p PageProps) templ.Component {
 // identityItem is one Keychain row: the item button and, beside it, its
 // menu (right-click, ⇧F10 or the Menu key; rowmenus.templ). The wrapper
 // is display: contents, so the list lays out as before.
-func identityItem(hosts []store.Host, id store.Identity) templ.Component {
+func identityItem(hosts []Host, id store.Identity) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -849,7 +849,7 @@ func TunnelList(p PageProps) templ.Component {
 	})
 }
 
-func tunnelRow(hosts []store.Host, t tunnel.Info) templ.Component {
+func tunnelRow(hosts []Host, t tunnel.Info) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
