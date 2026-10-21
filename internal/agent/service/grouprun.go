@@ -637,6 +637,10 @@ type groupTarget struct {
 	risk       agent.Risk
 	filled     int
 	production bool // the host's production flag now
+	// hosts is how many hosts the step targets, anyProduction whether any
+	// of them is production now (or can no longer be found).
+	hosts         int
+	anyProduction bool
 }
 
 // groupTypeTarget runs the checks a group run's Type shares with a direct
@@ -650,9 +654,23 @@ func (s *Service) groupTypeTarget(req TypeRequest, direct bool) (groupTarget, er
 		snap    Proposal
 		groupID string
 		state   string
+		hosts   []string // the hosts of this step (§6 rule 13: production)
 	)
 	if run != nil && c != nil && run.Status == runActive {
 		snap, groupID, state = *c.Proposal, run.GroupID, c.State
+		for i := range run.Steps {
+			mine := false
+			for j := range run.Steps[i].Cells {
+				mine = mine || &run.Steps[i].Cells[j] == c
+			}
+			if mine {
+				for _, x := range run.Steps[i].Cells {
+					if x.HostID != "" {
+						hosts = append(hosts, x.HostID)
+					}
+				}
+			}
+		}
 	}
 	s.mu.Unlock()
 	if snap.ID == "" {
@@ -708,7 +726,13 @@ func (s *Service) groupTypeTarget(req TypeRequest, direct bool) (groupTarget, er
 	if !member || !found || !h.AgentReadable {
 		return groupTarget{}, ErrNotTarget
 	}
-	return groupTarget{snap: snap, want: want, risk: risk, filled: filled, production: h.Production}, nil
+	anyProd := false
+	for _, id := range hosts {
+		if x, ok := byID[id]; !ok || x.Production {
+			anyProd = true
+		}
+	}
+	return groupTarget{snap: snap, want: want, risk: risk, filled: filled, production: h.Production, hosts: len(hosts), anyProduction: anyProd}, nil
 }
 
 // claimGroupType checks the role, claims the host under the lock (it is

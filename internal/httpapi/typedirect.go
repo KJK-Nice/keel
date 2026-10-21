@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"keel/internal/agent"
 	"keel/internal/agent/service"
@@ -37,6 +40,11 @@ type directTypeMsg struct {
 	Kind       string `json:"kind"`
 	SnippetID  string `json:"snippetId,omitempty"`
 	NotebookID string `json:"notebookId,omitempty"`
+	// What the page's terminal shows: whether xterm.js is on its
+	// alternate screen, and the line the cursor is on. keel serve ORs
+	// them with its own view of the output: they can only add a dialog.
+	AltScreen  bool   `json:"altScreen,omitempty"`
+	PromptLine string `json:"promptLine,omitempty"`
 }
 
 const (
@@ -50,7 +58,126 @@ const (
 	reasonAltScreen  = "the pane shows a full-screen program (such as vim, less or htop), where typed bytes are keystrokes"
 	reasonUnknown    = "Keel cannot check this command here"
 	reasonUnreviewed = "the agent edited this notebook and you have not reviewed that edit"
+	reasonNotPrompt  = "the shell is not at its prompt (a command is still running)"
+	reasonInput      = "the pane looks like it is asking for input (a password, a confirmation, another program's prompt)"
+	reasonBusy       = "too many checks at once"
 )
+
+// inputPromptRe is a last screen line that asks for input rather than a
+// command: typed bytes there would answer it (an echo-off password prompt
+// above all). Case-insensitive, on the last line with spaces trimmed.
+var inputPromptRe = regexp.MustCompile(`(?i)pass(word|phrase|code)|\bpin\b|one-time|verification code|\botp\b|\[sudo\]|'s password|are you sure|\[y/n\]|\(y/n\)|\(yes/no|\[yes/no|\byes/no\b|\b(continue|proceed|overwrite|replace|delete)\?|\benter\b[^:]*:$|\b(login|username|user name|token|passcode|secret|key)\s*:$|^(mysql|mariadb|sqlite|redis[^>]*|ftp|sftp|irb[^>]*|\(gdb\)|\(pdb\)|>>>|\.\.\.|in \[\d+\]:)\s*>?$|^[\w-]+[=-][#>]$|^>$`)
+
+// looksLikeInput reports whether a terminal line is an input prompt.
+func looksLikeInput(line string) bool {
+	line = strings.TrimSpace(line)
+	return line != "" && inputPromptRe.MatchString(line)
+}
+
+// promptCheck sends a direct type to the dialog unless the pane is at its
+// shell's prompt: with OSC 133 marks, at a prompt with no command open;
+// in any case, not on a line that asks for input (keel serve's view of the
+// output tail, or the page's xterm line).
+func promptCheck(sess *runtime.Session, d *directTypeMsg) error {
+	marks, atPrompt, last := sess.PromptState()
+	if marks && !atPrompt {
+		return &service.DialogError{Reason: reasonNotPrompt}
+	}
+	if looksLikeInput(last) || looksLikeInput(d.PromptLine) {
+		return &service.DialogError{Reason: reasonInput}
+	}
+	return nil
+}
+
+// directLimiter bounds type-checks and direct types on one socket: a
+// bucket of directBurst for each, refilled at one every directRefill. A
+// faster page is misbehaving; it is answered "dialog" and nothing reaches
+// a provider.
+type directLimiter struct {
+	mu     sync.Mutex
+	tokens map[string]float64
+	at     map[string]time.Time
+}
+
+const (
+	directBurst  = 20
+	directRefill = 200 * time.Millisecond
+)
+
+func newDirectLimiter() *directLimiter {
+	return &directLimiter{tokens: map[string]float64{}, at: map[string]time.Time{}}
+}
+
+func (l *directLimiter) allow(kind string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	tok, ok := l.tokens[kind]
+	if !ok {
+		tok = directBurst
+	} else {
+		tok = min(directBurst, tok+float64(now.Sub(l.at[kind]))/float64(directRefill))
+	}
+	l.at[kind] = now
+	if tok < 1 {
+		l.tokens[kind] = tok
+		return false
+	}
+	l.tokens[kind] = tok - 1
+	return true
+}
+
+// shellLangs are the notebook fence languages that offer Type (the editor's
+// SHELL_LANGS).
+var shellLangs = map[string]bool{"sh": true, "bash": true, "shell": true}
+
+// notebookLine reports whether command is, exactly, the one line of a
+// shell code fence in body: a fence with one non-empty line whose text,
+// trimmed, is command. Prose and longer blocks do not count.
+func notebookLine(body, command string) bool {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	for i := 0; i < len(lines); i++ {
+		open := strings.TrimLeft(lines[i], " ")
+		if len(lines[i])-len(open) > 3 {
+			continue
+		}
+		var ch string
+		switch {
+		case strings.HasPrefix(open, "```"):
+			ch = "`"
+		case strings.HasPrefix(open, "~~~"):
+			ch = "~"
+		default:
+			continue
+		}
+		n := len(open) - len(strings.TrimLeft(open, ch))
+		info := strings.Fields(strings.TrimSpace(open[n:]))
+		lang := ""
+		if len(info) > 0 {
+			lang = strings.ToLower(info[0])
+		}
+		var block []string
+		j := i + 1
+		for ; j < len(lines); j++ {
+			t := strings.TrimSpace(lines[j])
+			if len(t) >= n && strings.Trim(t, ch) == "" {
+				break
+			}
+			block = append(block, lines[j])
+		}
+		i = j
+		for len(block) > 0 && strings.TrimSpace(block[len(block)-1]) == "" {
+			block = block[:len(block)-1]
+		}
+		for len(block) > 0 && strings.TrimSpace(block[0]) == "" {
+			block = block[1:]
+		}
+		if shellLangs[lang] && len(block) == 1 && strings.TrimSpace(block[0]) == command {
+			return true
+		}
+	}
+	return false
+}
 
 // errFollowing refuses a direct type from a client that does not drive.
 var errFollowing = errors.New("you follow this pane: take or request control to type")
@@ -64,15 +191,18 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 	if clientID != info.DriverID {
 		return errFollowing
 	}
-	if sess.AltScreen() {
+	if sess.AltScreen() || d.AltScreen {
 		return &service.DialogError{Reason: reasonAltScreen}
+	}
+	if err := promptCheck(sess, d); err != nil {
+		return err
 	}
 	switch d.Kind {
 	case directAgent:
 		if am == nil || s.agent == nil {
 			return &service.DialogError{Reason: reasonUnknown}
 		}
-		return s.agent.AuthorizeDirect(service.TypeRequest{
+		return s.agent.AuthorizeDirect(ctx, service.TypeRequest{
 			ConversationID: am.ConversationID,
 			GroupRunID:     am.GroupRunID,
 			ProposalID:     am.ProposalID,
@@ -99,10 +229,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 			}
 			// Snippet bodies are vault contents: Jev rates one only when
 			// the user marked it agent-usable (§6 rule 3).
-			if s.agent.RateCommand(ctx, info.ID, command, sn.AgentUsable) != agent.RiskReadOnly {
-				return &service.DialogError{Reason: service.ReasonRisk}
-			}
-			return nil
+			return s.agent.DirectRating(ctx, info.ID, command, sn.AgentUsable)
 		}
 		return &service.DialogError{Reason: service.ReasonBytes}
 	case directNotebook:
@@ -121,19 +248,18 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 		if nb.AgentUnreviewed {
 			return &service.DialogError{Reason: reasonUnreviewed}
 		}
+		// The command must be a shell code block of exactly one line,
+		// not text found anywhere (prose, a longer block).
 		found := false
 		for _, c := range nb.Cells {
-			found = found || strings.Contains(c.Body, command)
+			found = found || notebookLine(c.Body, command)
 		}
 		if !found {
 			return &service.DialogError{Reason: service.ReasonBytes}
 		}
 		// A private notebook does not exist for the agent (§6 rule 12):
-		// its blocks are rated by the code rule alone.
-		if s.agent.RateCommand(ctx, info.ID, command, !nb.Private) != agent.RiskReadOnly {
-			return &service.DialogError{Reason: service.ReasonRisk}
-		}
-		return nil
+		// its blocks are never sent to Jev.
+		return s.agent.DirectRating(ctx, info.ID, command, !nb.Private)
 	}
 	return &service.DialogError{Reason: reasonUnknown}
 }
@@ -153,9 +279,18 @@ func directAnswer(out map[string]any, err error) {
 
 // typeCheck answers a type-check: whether this command would be typed
 // without the dialog now. It writes and logs nothing.
+//
+// Only the group run page needs it (it checks every host before one click
+// types into them all), so only a group run's proposal is checked; every
+// other kind is answered "dialog" without a check.
 func (s *Server) typeCheck(ctx context.Context, ws *wsConn, sess *runtime.Session, clientID uint64, command string, d *directTypeMsg, am *agentTypeMsg) {
 	out := map[string]any{"type": "type-check", "ref": d.Ref}
-	err := s.directCheck(ctx, sess, clientID, command, d, am, false)
+	var err error
+	if d.Kind != directAgent || am == nil || am.GroupRunID == "" {
+		err = &service.DialogError{Reason: reasonUnknown}
+	} else {
+		err = s.directCheck(ctx, sess, clientID, command, d, am, false)
+	}
 	directAnswer(out, err)
 	out["direct"] = err == nil
 	_ = ws.writeJSON(out)

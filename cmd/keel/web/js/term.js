@@ -3190,17 +3190,29 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // pane is focused for review: while the key that pressed Type (↵ on the
   // button) is still down or repeating, nothing reaches the PTY, so it
   // cannot run the command it just typed.
+  // macOS WebKit sends no keyup for a key pressed while ⌘ is held, so the
+  // set is also cleared when ⌘ goes up, on blur, and HELD_KEYS_MS after
+  // the last keydown: a lost keyup must never keep the pane from typing.
   const heldKeys = new Set();
   let reviewHold = false;
-  window.addEventListener("keydown", (ev) => heldKeys.add(ev.code || ev.key), true);
+  let heldTimer = 0;
+  const HELD_KEYS_MS = 1500;
+  function clearHeldKeys() {
+    heldKeys.clear();
+    reviewHold = false;
+    clearTimeout(heldTimer);
+  }
+  window.addEventListener("keydown", (ev) => {
+    heldKeys.add(ev.code || ev.key);
+    clearTimeout(heldTimer);
+    heldTimer = setTimeout(clearHeldKeys, HELD_KEYS_MS);
+  }, true);
   window.addEventListener("keyup", (ev) => {
+    if (ev.key === "Meta" || ev.key === "OS") return clearHeldKeys();
     heldKeys.delete(ev.code || ev.key);
     if (!heldKeys.size) reviewHold = false;
   }, true);
-  window.addEventListener("blur", () => {
-    heldKeys.clear();
-    reviewHold = false;
-  });
+  window.addEventListener("blur", clearHeldKeys);
 
   function holdPtyFromChrome(ms = 500) {
     ptyChromeHoldUntil = Math.max(ptyChromeHoldUntil, Date.now() + ms);
@@ -3448,7 +3460,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         title: `Type snippet: ${sn.name}`,
         hint: String(sn.command || "").trim().split("\n")[0],
         icon: "snippet",
-        badge: "Approve first",
+        // Only a snippet that will certainly ask (§6 rule 13): more than
+        // one line, or a placeholder. Others may type with no dialog.
+        badge: TD.snippetBadge(sn.command),
         run: () => paletteRunSnippet(sn.id),
       });
     }
@@ -3591,7 +3605,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // A read-only snippet of one line: typed with no dialog and no Enter
     // when keel serve agrees (§6 rule 13); else Approve before type.
     const line = TD.snippetLine(sn.command);
-    if (TD.directLine(line)) {
+    if (TD.directHint(line)) {
       const r = await typeDirect(pane, line, { kind: "snippet", snippetId: sn.id });
       if (r.ok) {
         pane.term?.clearSelection?.();
@@ -6093,7 +6107,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     // 13). Anything else: the CLI input, then Approve before type.
     const line = String(command || "").trim();
     const target = termTarget(nbPane) || termTarget(focusedPane());
-    if (target && isNotebookPane(nbPane) && nbPane.notebookId && TD.directLine(line) && !NB.hasPlaceholder(line) && !termInputOpen(target)) {
+    if (target && isNotebookPane(nbPane) && nbPane.notebookId && TD.directHint(line) && !NB.hasPlaceholder(line) && !termInputOpen(target)) {
       try {
         await flushNotebookSaves(nbPane.notebookId);
       } catch {
@@ -6281,7 +6295,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       const nonce = await requestInjectTicket(pane, command);
       if (!nonce) return { dialog: true, reason: "" };
       holdPtyFromChrome();
-      const frame = { type: "inject", command, nonce, direct };
+      // What this terminal shows goes with it: keel serve ORs it with its
+      // own view (alternate screen, an input prompt on the cursor line).
+      const frame = { type: "inject", command, nonce, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
       if (agent) frame.agent = agent;
       const msg = await askDirect(pane, frame, 8000);
       // No answer: it may have been typed. Never open a dialog that could
@@ -6298,7 +6314,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // checkDirect asks whether typeDirect would type now (nothing written).
   async function checkDirect(pane, command, direct, agent = null) {
     if (!directReady(pane, command)) return false;
-    const frame = { type: "type-check", command, direct };
+    const frame = { type: "type-check", command, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
     if (agent) frame.agent = agent;
     const msg = await askDirect(pane, frame, 8000);
     return !!msg?.direct;

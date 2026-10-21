@@ -1093,6 +1093,8 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	sugCtx, sugCancel := context.WithCancel(r.Context())
 	defer sugCancel()
 	sug := newSuggestConn(sugCtx, s, ws, sess, cl.ID)
+	// Type-checks and direct types are bounded per socket (typedirect.go).
+	directLim := newDirectLimiter()
 
 	go func() {
 		defer conn.Close()
@@ -1186,14 +1188,23 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
 			case "type-check":
-				if ctl.Direct != nil {
-					go s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent)
+				if ctl.Direct == nil {
+					break
 				}
+				if !directLim.allow("check") {
+					_ = ws.writeJSON(map[string]any{"type": "type-check", "ref": ctl.Direct.Ref, "ok": false, "direct": false, "dialog": true, "reason": reasonBusy})
+					break
+				}
+				go s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent)
 			case "agent-detect":
 				sug.detect(ctl.Seq, ctl.Line)
 			case "agent-suggest":
 				sug.suggest(ctl.Seq, ctl.Line)
 			case "inject":
+				if ctl.Direct != nil && !directLim.allow("type") {
+					_ = ws.writeJSON(map[string]any{"type": "type-direct", "ref": ctl.Direct.Ref, "ok": false, "dialog": true, "reason": reasonBusy})
+					break
+				}
 				if ctl.Direct != nil {
 					// One click, no dialog, no Enter (§6 rule 13): keel
 					// serve checks again, off this loop (a snippet or a

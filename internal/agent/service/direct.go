@@ -21,7 +21,9 @@ import (
 // approved path, unchanged) and nothing was typed.
 const (
 	ReasonLines = "it is more than one line, or holds a control or invisible character"
-	ReasonRisk  = "it is not rated read-only"
+	ReasonRisk  = "it is not one of the plain read-only commands Keel types without asking"
+	ReasonJev   = "Jev did not rate it read-only"
+	ReasonProd  = "a host of this step is production: tick each host"
 	ReasonBytes = "Keel cannot confirm these are the bytes it was shown"
 )
 
@@ -68,8 +70,14 @@ func DirectLine(command string) bool {
 // (a conversation's, or a group run's for one host): the client drives,
 // the bytes are the proposal's command alone (no ^U, no newline; for a
 // group run's step with its values filled in now, rule 11), one line with
-// no control character, no placeholder, and the rating is read-only (the
-// stricter of the stored rating and Keel's code rule on the bytes). A
+// no control character, no placeholder, the rating is read-only (the
+// stricter of the stored rating and Keel's code rule on the bytes), and
+// the command is one agent.DirectSafe allows. A conversation's proposal
+// (the least trusted source) is also rated by Jev when a key is set, and
+// must come back read-only. A group run's step is never sent to Jev (a
+// group run sends nothing to a provider, and its filled values never
+// leave the machine, §6 rules 10 and 11); one whose step targets more
+// than one host goes to the dialog when any of them is production. A
 // *DialogError means the approve dialog decides instead.
 //
 // With commit it logs agent.type (Source "direct") and, for a group run,
@@ -77,7 +85,7 @@ func DirectLine(command string) bool {
 // and calls TypeDoneAt or GroupTypeDoneAt (GroupTypeFailed if the write
 // failed). Without commit it changes nothing: the group run page checks
 // every host before one click types into them all.
-func (s *Service) AuthorizeDirect(req TypeRequest, commit bool) error {
+func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest, commit bool) error {
 	if err := agent.CanInsert(req.Role); err != nil {
 		return err
 	}
@@ -92,8 +100,11 @@ func (s *Service) AuthorizeDirect(req TypeRequest, commit bool) error {
 		if err != nil {
 			return err
 		}
-		if agent.Stricter(t.risk, agent.Classify(t.want)) != agent.RiskReadOnly {
+		if agent.Stricter(t.risk, agent.Classify(t.want)) != agent.RiskReadOnly || !agent.DirectSafe(t.want) {
 			return needsDialog(ReasonRisk)
+		}
+		if t.hosts > 1 && t.anyProduction {
+			return needsDialog(ReasonProd)
 		}
 		if !commit {
 			return nil
@@ -125,45 +136,61 @@ func (s *Service) AuthorizeDirect(req TypeRequest, commit bool) error {
 	if req.Bytes != snap.Command {
 		return needsDialog(ReasonBytes)
 	}
-	if agent.Stricter(snap.Risk, agent.Classify(snap.Command)) != agent.RiskReadOnly {
+	if agent.Stricter(snap.Risk, agent.Classify(snap.Command)) != agent.RiskReadOnly || !agent.DirectSafe(snap.Command) {
 		return needsDialog(ReasonRisk)
 	}
 	if !commit {
 		return nil
 	}
+	if err := s.jevReadOnly(ctx, snap.SessionID, snap.Command); err != nil {
+		return err
+	}
 	return s.audit.TypeFrom(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, req.Bytes, agent.TypeDirect)
 }
 
-// RateCommand rates a command that has no rating of its own (a snippet, a
-// notebook's code block) for a Type without the dialog, by the path that
-// rates in-pane suggestions: Keel's code rule, made stricter (never
-// looser) by Jev. Jev is asked only when the code rule says read-only, a
-// Jev key is set, the pane's host is one the agent may read, and maySend
-// (the text may leave the machine: a snippet marked agent-usable, a
-// notebook that is not private; §6 rules 3 and 12). The command goes
-// redacted, and the egress is logged as agent.read. Without Jev (no key,
-// offline, a timeout, an error, or not allowed), the code rule decides.
-// A nil Service rates with the code rule alone.
-func (s *Service) RateCommand(ctx context.Context, sessionID, command string, maySend bool) agent.Risk {
-	risk := agent.Classify(command)
-	if s == nil || risk != agent.RiskReadOnly || !maySend {
-		return risk
+// DirectRating decides a command that has no rating of its own (a
+// snippet, a notebook's code block) for a Type without the dialog: it must
+// be one agent.DirectSafe allows (which also needs Keel's code rule to
+// say read-only), and, when Jev may be asked, Jev must rate it read-only.
+// Jev is asked only when maySend (the text may leave the machine: a
+// snippet marked agent-usable, a notebook that is not private; §6 rules 3
+// and 12). A nil Service decides by DirectSafe alone.
+func (s *Service) DirectRating(ctx context.Context, sessionID, command string, maySend bool) error {
+	if !agent.DirectSafe(command) {
+		return needsDialog(ReasonRisk)
+	}
+	if s == nil || !maySend {
+		return nil
+	}
+	return s.jevReadOnly(ctx, sessionID, command)
+}
+
+// jevReadOnly asks Jev to rate a command a direct type would write. It is
+// asked only when a Jev key is set (whatever the in-pane suggestions
+// setting) and the pane's host is one the agent may read; the command
+// goes redacted and the egress is logged as agent.read. An answer that is
+// not read-only sends the Type to the dialog. No answer (no key, offline,
+// a timeout, an error, or the host may not be read): the allowlist alone
+// has decided, and it stands.
+func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) error {
+	if _, err := s.judgeFor(); err != nil {
+		return nil
 	}
 	p, _, hosts, err := s.paneFor(sessionID, agent.RoleDriver)
 	if err != nil {
-		return risk
+		return nil
 	}
 	set, err := s.st.AgentSettings()
 	if err != nil {
-		return risk
+		return nil
 	}
 	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
-		return risk
+		return nil
 	}
 	judged, _ := s.judgeRisks(ctx, p, []Candidate{{Command: command}}, []int{0}, r)
-	if j, ok := judged[0]; ok {
-		risk = agent.Stricter(risk, j)
+	if j, ok := judged[0]; ok && j != agent.RiskReadOnly {
+		return needsDialog(ReasonJev)
 	}
-	return risk
+	return nil
 }

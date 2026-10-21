@@ -6,9 +6,13 @@ package runtime
 // without the approve dialog (docs/ui-redesign.md §6 rule 13): there the
 // bytes would be keystrokes for that program, not a command line.
 //
-// It parses only CSI ? Pm h / l and keeps its state across writes, so a
+// It parses only CSI ? Pm h / l (CSI as ESC [ or as the 8-bit U+009B,
+// which xterm.js reads in UTF-8 as c2 9b) and RIS (ESC c, a full reset
+// back to the normal screen), and keeps its state across writes, so a
 // sequence split over two reads is still seen. Anything else is skipped.
-// It is fed under Session.mu, with the scrollback ring.
+// It fails closed: a private mode sequence too long to read counts as
+// entering the alternate screen. It is fed under Session.mu, with the
+// scrollback ring.
 type altScreen struct {
 	on    bool
 	state uint8
@@ -20,6 +24,7 @@ const (
 	altEsc          // after ESC
 	altCSI          // after ESC [
 	altPriv         // after ESC [ ?
+	altC2           // after the UTF-8 lead byte c2 (U+0080–U+00BF)
 )
 
 // maxAltParam bounds the parameter bytes kept for one sequence: a longer
@@ -28,15 +33,28 @@ const maxAltParam = 32
 
 func (a *altScreen) Feed(b []byte) {
 	for _, c := range b {
+		if a.state == altC2 {
+			a.state = altGround
+			if c == 0x9b {
+				a.state = altCSI
+				continue
+			}
+		}
 		switch a.state {
 		case altGround:
-			if c == 0x1b {
+			switch c {
+			case 0x1b:
 				a.state = altEsc
+			case 0xc2:
+				a.state = altC2
 			}
 		case altEsc:
 			switch c {
 			case '[':
 				a.state = altCSI
+			case 'c':
+				// RIS: xterm resets to the normal screen.
+				a.on, a.state = false, altGround
 			case 0x1b:
 				// ESC ESC: still after an ESC.
 			default:
@@ -48,8 +66,11 @@ func (a *altScreen) Feed(b []byte) {
 				continue
 			}
 			a.state = altGround
-			if c == 0x1b {
+			switch c {
+			case 0x1b:
 				a.state = altEsc
+			case 0xc2:
+				a.state = altC2
 			}
 		case altPriv:
 			switch {
@@ -57,7 +78,9 @@ func (a *altScreen) Feed(b []byte) {
 				if len(a.param) < maxAltParam {
 					a.param = append(a.param, c)
 				} else {
-					a.state = altGround
+					// Too long to read: it may set the alternate
+					// screen, which xterm.js honours. Fail closed.
+					a.on, a.state = true, altGround
 				}
 			case c == 'h' || c == 'l':
 				if altModes(a.param) {
@@ -66,6 +89,8 @@ func (a *altScreen) Feed(b []byte) {
 				a.state = altGround
 			case c == 0x1b:
 				a.state = altEsc
+			case c == 0xc2:
+				a.state = altC2
 			default:
 				a.state = altGround
 			}

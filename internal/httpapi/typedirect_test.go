@@ -121,8 +121,10 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 
 	// type-check says so and writes and logs nothing.
 	got := readPTY(bridge)
-	if r := checkOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(roID)); r["direct"] != true || r["ref"] != "r1" {
-		t.Fatalf("type-check read-only → %v", r)
+	// type-check is only for a group run's proposal: a conversation's is
+	// answered "dialog" without a check.
+	if r := checkOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(roID)); r["direct"] != false || r["dialog"] != true || r["ref"] != "r1" {
+		t.Fatalf("type-check of a conversation's proposal → %v", r)
 	}
 	if r := checkOverSocket(t, driver, "touch /tmp/keel-agent-e2e-touched", agentDirect(), convPart(chID)); r["direct"] != false || r["dialog"] != true {
 		t.Fatalf("type-check changes → %v", r)
@@ -251,7 +253,7 @@ func TestDirectTypeSnippetsAreRatedServerSide(t *testing.T) {
 	// Agent-usable: Jev may make it stricter (never looser), and is logged.
 	stricter := snip("echo keel-jev-stricter", true)
 	got = readPTY(bridge)
-	wantDialog(t, "Jev says changes", directOverSocket(t, driver, "echo keel-jev-stricter", dir(stricter), nil), service.ReasonRisk)
+	wantDialog(t, "Jev says changes", directOverSocket(t, driver, "echo keel-jev-stricter", dir(stricter), nil), service.ReasonJev)
 	if n := len(f.judge.Requests()); n != 1 {
 		t.Fatalf("Jev requests = %d", n)
 	}
@@ -346,6 +348,24 @@ func TestDirectTypeGroupRun(t *testing.T) {
 	if err := f.st.AssignHostsGroup([]string{f.webID, f.prodID}, g.ID); err != nil {
 		t.Fatal(err)
 	}
+	// prod-db-01 is production: a step on two hosts then keeps the group
+	// approve dialog (§6 rule 13). Off for most of this test.
+	setProd := func(on bool) {
+		t.Helper()
+		hosts, err := f.st.ListHosts()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, h := range hosts {
+			if h.ID == f.prodID {
+				h.Production = bp(on)
+				if _, err := f.st.UpsertHost(h); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	setProd(false)
 	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "1.31.2"}); code != 200 {
 		t.Fatalf("var → %d %s", code, b)
 	}
@@ -403,6 +423,14 @@ func TestDirectTypeGroupRun(t *testing.T) {
 	if r := checkOverSocket(t, conns[f.webID], filled, agentDirect(), part(props[f.prodID])); r["direct"] != false || r["dialog"] == true {
 		t.Fatalf("other host's proposal → %v", r)
 	}
+	// A production host among the step's two: the dialog, for every host.
+	setProd(true)
+	for host, p := range props {
+		if r := checkOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["direct"] != false || !strings.Contains(r["reason"].(string), "production") {
+			t.Fatalf("type-check %s with a production host → %v", host, r)
+		}
+	}
+	setProd(false)
 	// Every host is checked first (nothing written), then each is typed.
 	for host, p := range props {
 		if r := checkOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["direct"] != true {
@@ -423,7 +451,7 @@ func TestDirectTypeGroupRun(t *testing.T) {
 		}
 	}
 	written(t, gotWeb, filled, "web-1's step")
-	written(t, gotProd, filled, "prod-db-01's step (read-only goes direct on production too)")
+	written(t, gotProd, filled, "prod-db-01's step")
 	direct := f.entriesFrom(agent.EventType, agent.TypeDirect)
 	if len(direct) != 2 || direct[0].SessionID == direct[1].SessionID {
 		t.Fatalf("one agent.type per host: %+v", direct)

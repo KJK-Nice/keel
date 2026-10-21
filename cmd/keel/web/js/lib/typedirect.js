@@ -22,6 +22,32 @@ export function directLine(command) {
   return s !== "" && !NOT_LINE.test(s);
 }
 
+// DIRECT_COMMANDS are the command words keel serve's allowlist
+// (agent.DirectSafe, internal/agent/directsafe.go) may type without the
+// dialog. The page uses them only as a hint, to skip a round trip and
+// name the button; keel serve checks every flag and word itself.
+const DIRECT_COMMANDS = new Set(
+  "ls pwd whoami id groups uptime uname hostname date df du free cat head tail wc grep egrep fgrep sort uniq cut echo ps pgrep pidof ss netstat lsblk lscpu nproc arch tty w who last dmesg stat which type basename dirname realpath readlink printenv tree lsof dig host ping history systemctl journalctl git docker kubectl ip".split(" "),
+);
+const PIPE_FILTERS = new Set("grep egrep fgrep head tail wc sort uniq cut tr".split(" "));
+// Shell syntax and expansions DirectSafe refuses outside quotes; ! anywhere.
+const SYNTAX = /[$`;&<>(){}\\*?[\]#~^]/;
+
+// directHint: could keel serve type this line without the dialog? False
+// means it certainly will not (so the page goes straight to the dialog);
+// true means it may, and keel serve decides.
+export function directHint(command) {
+  if (!directLine(command) || command.includes("!") || /\|\||\|&/.test(command)) return false;
+  // Outside quotes only.
+  const bare = command.replace(/'[^']*'/g, "''").replace(/"[^"$`\\]*"/g, '""');
+  if (SYNTAX.test(bare) || /['"]/.test(bare.replace(/''|""/g, ""))) return false;
+  const segs = bare.split("|").map((s) => s.trim());
+  return segs.every((seg, i) => {
+    const name = seg.split(/\s+/)[0] || "";
+    return (i === 0 ? DIRECT_COMMANDS : PIPE_FILTERS).has(name);
+  });
+}
+
 // snippetLine is what a direct type of a snippet sends: its command
 // without the trailing newlines that would run it.
 export function snippetLine(command) {
@@ -39,13 +65,30 @@ export function commandOf(bytes) {
 // proposalDirect: an agent proposal that keel serve should type without
 // the dialog, as far as the page knows (its rating, its text).
 export function proposalDirect(p) {
-  return !!p && p.risk === "readonly" && !p.needsShift && !p.placeholders && !/\{\{/.test(p.command || "") && directLine(p.command);
+  return !!p && p.risk === "readonly" && !p.needsShift && !p.placeholders && !/\{\{/.test(p.command || "") && directHint(p.command);
 }
 
 // stepDirect: a group run step that should go without the group approve
 // dialog. Values filled in at Type are rated again by keel serve.
-export function stepDirect(step) {
-  return !!step && step.risk === "readonly" && directLine(step.command);
+// A step on more than one host, one of them production, keeps the dialog.
+export function stepDirect(step, cells = []) {
+  if (!step || step.risk !== "readonly" || !directHint(step.command.replace(/\{\{[a-z0-9_]+(\|q)?\}\}/gi, "x"))) return false;
+  return !(cells.length > 1 && cells.some((c) => c?.proposal?.production));
+}
+
+// snippetBadge: "Approve first" only on a snippet that will certainly
+// open the dialog (more than one line, or a redaction placeholder).
+export function snippetBadge(command) {
+  const line = snippetLine(command);
+  return !directLine(line) || /\[(secret|ip|host):\d+\]/.test(line) ? "Approve first" : "";
+}
+
+// cursorLine is the text of the line the terminal's cursor is on, sent
+// with a direct type so keel serve can see an input prompt the page sees.
+export function cursorLine(term) {
+  const buf = term?.buffer?.active;
+  const line = buf?.getLine?.(buf.baseY + buf.cursorY);
+  return line ? String(line.translateToString(true)).slice(0, 512) : "";
 }
 
 // typeWord adds the ellipsis when a dialog will follow the press.

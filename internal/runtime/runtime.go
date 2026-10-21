@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -693,6 +694,46 @@ func (s *Session) AltScreen() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.alt.on
+}
+
+// PromptState is what keel serve knows of the pane's prompt before a
+// direct type (§6 rule 13): whether its shell sends OSC 133 marks, whether
+// those say it is at its prompt with no command open, and the last line of
+// its output (escape sequences taken out), to look for an input prompt
+// such as a password prompt. The line is read raw, not redacted (a mask
+// can swallow "password:"): it is only matched in keel serve, never sent
+// or logged. All of it is untrusted output.
+func (s *Session) PromptState() (marks, atPrompt bool, lastLine string) {
+	s.mu.Lock()
+	marks, atPrompt = s.marks.Prompt()
+	raw := s.buf.Bytes()
+	s.mu.Unlock()
+	if len(raw) > 4096 {
+		raw = raw[len(raw)-4096:]
+	}
+	return marks, atPrompt, LastLine(raw)
+}
+
+var (
+	oscRe = regexp.MustCompile(`(?:\x1b\]|\x{9d})[^\x07\x1b\x{9c}]*(?:\x07|\x1b\\|\x{9c})?`)
+	csiRe = regexp.MustCompile(`(?:\x1b\[|\x{9b})[0-9;?<=>]*[ -/]*[@-~]`)
+	escRe = regexp.MustCompile(`\x1b[()][0-9A-Za-z]|\x1b[@-Z\\-_]`)
+)
+
+// LastLine is the last line of terminal output as text: escape sequences
+// taken out, and what a carriage return wrote over dropped.
+func LastLine(out []byte) string {
+	s := oscRe.ReplaceAllString(string(out), "")
+	s = csiRe.ReplaceAllString(s, "")
+	s = escRe.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+		s = s[i+1:]
+	}
+	if i := strings.LastIndexByte(s, '\r'); i >= 0 {
+		s = s[i+1:]
+	}
+	return strings.TrimRight(s, " \t\x07")
 }
 
 // StreamMark is the pane's output stream offset now (the scrollback ring's

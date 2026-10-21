@@ -217,7 +217,7 @@ export function createGroupRunPage(deps) {
     const bytes = ready[0]?.proposal.bytes || `\u0015${st.command}\n`;
     const uses = V.usesLine(st, run.steps, i);
     // The ellipsis: the group approve dialog will follow (§6 rule 13).
-    const label = ready.length ? TD.typeWord(`Type into ${ready.length} ${ready.length === 1 ? "pane" : "panes"}`, TD.stepDirect(st)) : "Nothing to type now";
+    const label = ready.length ? TD.typeWord(`Type into ${ready.length} ${ready.length === 1 ? "pane" : "panes"}`, TD.stepDirect(st, ready)) : "Nothing to type now";
     const note = prod
       ? `<p class="k-prop-note k-prop-note--signal">${ICON.alert}<span>${prod} of these ${prod === 1 ? "host is" : "hosts are"} production.${shift ? " Typing there needs ⇧." : ""} Tick each host in the next step only after you checked the command for it.</span></p>`
       : "";
@@ -455,7 +455,9 @@ export function createGroupRunPage(deps) {
   // the group approve dialog must decide.
   async function typeDirectAll(run, ready, rows) {
     const st = run.steps[run.current];
-    if (!deps.checkGroup || !TD.stepDirect(st) || !rows.length || rows.some((r) => r.error)) return false;
+    // A step on several hosts, one of them production, keeps the group
+    // approve dialog and its ticks (keel serve says so too).
+    if (!deps.checkGroup || !TD.stepDirect(st, ready) || !rows.length || rows.some((r) => r.error)) return false;
     const plan = rows.map((r) => ({ r, cell: ready.find((c) => c.proposal.id === r.proposalId), command: TD.commandOf(r.bytes) }));
     if (plan.some((x) => !x.cell || !TD.directLine(x.command))) return false;
     state.typing = true;
