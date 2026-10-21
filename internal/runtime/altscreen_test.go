@@ -29,6 +29,14 @@ func TestAltScreenFollowsPrivateModes(t *testing.T) {
 		{"8-bit CSI split", []string{"\xc2", "\x9b?1049h"}, true},
 		{"8-bit CSI leave", []string{"\x1b[?1049h", "\u009b?1049l"}, false},
 		{"other c2 char", []string{"\u00a0?1049h"}, false},
+		// ':' sub-parameters and leading zeros, as xterm.js reads them.
+		{"sub-parameter", []string{"\x1b[?1049:1h"}, true},
+		{"sub-parameter leave", []string{"\x1b[?1049h", "\x1b[?1049:1l"}, false},
+		{"leading zeros", []string{"\x1b[?01049h"}, true},
+		// Anything unread in a sequence naming the alt screen fails closed.
+		{"intermediate byte", []string{"\x1b[?1049$h"}, true},
+		{"unread leave", []string{"\x1b[?1049h", "\x1b[?1049 l"}, true},
+		{"unread other mode", []string{"\x1b[?25$h"}, false},
 		// RIS resets to the normal screen.
 		{"RIS", []string{"\x1b[?1049h", "\x1bc"}, false},
 	}

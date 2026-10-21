@@ -1,5 +1,7 @@
 package runtime
 
+import "strings"
+
 // altScreen follows whether a pane shows the terminal's alternate screen
 // buffer (vim, less, htop, a pager): DECSET / DECRST of private modes 47,
 // 1047 and 1049 in the output. keel serve reads it before typing a command
@@ -74,7 +76,7 @@ func (a *altScreen) Feed(b []byte) {
 			}
 		case altPriv:
 			switch {
-			case c >= '0' && c <= '9' || c == ';':
+			case c >= '0' && c <= '9' || c == ';' || c == ':':
 				if len(a.param) < maxAltParam {
 					a.param = append(a.param, c)
 				} else {
@@ -92,6 +94,11 @@ func (a *altScreen) Feed(b []byte) {
 			case c == 0xc2:
 				a.state = altC2
 			default:
+				// Anything else in a sequence naming 47, 1047 or 1049 is
+				// not read here; xterm.js may still act on it. Fail closed.
+				if altModes(a.param) {
+					a.on = true
+				}
 				a.state = altGround
 			}
 		}
@@ -104,17 +111,15 @@ func (a *altScreen) Reset() {
 }
 
 // altModes reports whether a parameter list names an alternate screen mode.
+// Each parameter is read as xterm.js reads it: its number before any ':'
+// sub-parameter, leading zeros and all ("01049:1" is 1049).
 func altModes(p []byte) bool {
-	start := 0
-	for i := 0; i <= len(p); i++ {
-		if i < len(p) && p[i] != ';' {
-			continue
-		}
-		switch string(p[start:i]) {
+	for _, part := range strings.Split(string(p), ";") {
+		n, _, _ := strings.Cut(part, ":")
+		switch strings.TrimLeft(n, "0") {
 		case "47", "1047", "1049":
 			return true
 		}
-		start = i + 1
 	}
 	return false
 }

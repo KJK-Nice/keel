@@ -170,6 +170,9 @@ func TestDirectSafeRefusesReviewPoCs(t *testing.T) {
 		`cat app-secret.yaml`,
 		`cat .env`,
 		`grep -r --include=*.pem x .`,
+		`grep -rn TODO src`,
+		`grep -R x .`,
+		`grep --recursive x .`,
 		`kubectl get secrets -A`,
 		`kubectl describe secret db`,
 		// follow and watch never end
@@ -219,7 +222,7 @@ func TestDirectSafeAllowsPlainReads(t *testing.T) {
 		`head -n 20 /var/log/syslog`,
 		`tail -50 /var/log/syslog`,
 		`grep -i 'error|warn' /var/log/syslog`,
-		`grep -rn --include='*.go' 'func main' .`,
+		`grep -n --include='*.go' 'func main' main.go`,
 		`ps aux`,
 		`ps aux | grep nginx`,
 		`ps -ef | grep -v grep | head -5`,

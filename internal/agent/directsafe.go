@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -95,6 +96,12 @@ func directSegments(line string) ([][]string, bool) {
 				j++
 			}
 			if j >= len(rs) {
+				return nil, false
+			}
+			// No backslash even here: echo in zsh and dash turns \e, \033
+			// and \a into escapes the terminal obeys (OSC 52 writes the
+			// clipboard).
+			if strings.ContainsRune(string(rs[i+1:j]), '\\') {
 				return nil, false
 			}
 			w.WriteString(string(rs[i+1 : j]))
@@ -264,8 +271,9 @@ func notFlagLike(s string) bool { return !strings.HasPrefix(s, "-") }
 
 var (
 	grepArgs = args{
-		short: "inrvcwlLHhoEFxsRqIPzZTU", shortVal: "ABCmef", maxPos: -1,
-		long:    set("color", "colour", "ignore-case", "invert-match", "count", "line-number", "recursive", "files-with-matches", "only-matching", "extended-regexp", "fixed-strings", "word-regexp", "no-messages", "quiet", "silent"),
+		// No -r / -R / --recursive: it walks into ~/.ssh and the like.
+		short: "invcwlLHhoEFxsqIPzZTU", shortVal: "ABCmef", maxPos: -1,
+		long:    set("color", "colour", "ignore-case", "invert-match", "count", "line-number", "files-with-matches", "only-matching", "extended-regexp", "fixed-strings", "word-regexp", "no-messages", "quiet", "silent"),
 		longVal: set("color", "colour", "include", "exclude", "exclude-dir", "max-count", "context", "after-context", "before-context"),
 	}
 	headArgs = args{short: "qvz", shortVal: "nc", numFlag: true, maxPos: -1, valueOK: func(f, v string) bool {
@@ -336,7 +344,7 @@ var directCommands = map[string]func([]string) bool{
 	"cut":   cutArgs.fn(),
 	// echo: no -e, which turns \e into an escape the terminal obeys.
 	"echo":     args{short: "nE", maxPos: -1}.fn(),
-	"ps":       args{short: "AaefFHjlLMrTuwxyZ", shortVal: "opuUgGCt", maxPos: 0, firstBSD: "auxwefjlvTHrc", long: set("forest", "headers", "no-headers"), longVal: set("sort", "format", "pid", "ppid", "user")}.fn(),
+	"ps":       args{short: "AaefFHjlLMrTuwxyZ", shortVal: "opuUgGCt", maxPos: 0, firstBSD: "auxwfjlvTHrc", long: set("forest", "headers", "no-headers"), longVal: set("sort", "format", "pid", "ppid", "user")}.fn(),
 	"pgrep":    args{short: "aflnoxcivw", shortVal: "uUgGPt", maxPos: 1, long: set("list-name", "list-full", "full", "newest", "oldest", "exact", "count")}.fn(),
 	"pidof":    args{short: "sx", maxPos: -1}.fn(),
 	"ss":       args{short: "tulpnaexmoiswr46H", maxPos: -1, posOK: ssFilterWord, long: set("tcp", "udp", "listening", "processes", "numeric", "all", "extended", "memory", "options", "info", "summary", "no-header")}.fn(),
@@ -362,7 +370,8 @@ var directCommands = map[string]func([]string) bool{
 		return len(ws) > 0 && args{maxPos: -1, posOK: func(s string) bool { return words0Plain(strings.ToLower(s)) }}.check(ws)
 	},
 	"tree": args{short: "adfFhlpsugDCnrtx", shortVal: "LIP", maxPos: -1}.fn(),
-	"lsof": args{short: "nPlt", shortVal: "ipuc", maxPos: -1}.fn(),
+	// lsof: no +r / +d / +D words (repeat mode never ends; +D walks trees).
+	"lsof": args{short: "nPlt", shortVal: "ipuc", maxPos: -1, posOK: func(s string) bool { return !strings.HasPrefix(s, "+") }}.fn(),
 	"dig":  args{short: "46", shortVal: "tcp", maxPos: -1, posOK: func(s string) bool { return !strings.HasPrefix(s, "-") }}.fn(),
 	"host": args{short: "46aCdlrv", shortVal: "tcW", maxPos: 2}.fn(),
 	// ping: only with a count, so it ends.
@@ -405,15 +414,15 @@ func systemctlArgs(ws []string) bool {
 	if !hasWord(ws, "--no-pager") {
 		return false
 	}
-	sub := ""
-	rest := []string{}
-	for _, w := range ws {
-		if sub == "" && !strings.HasPrefix(w, "-") {
-			sub = w
-			continue
-		}
-		rest = append(rest, w)
+	// The verb is the first word (after --no-pager): a word after another
+	// flag may be that flag's value ("-p status stop sshd").
+	for len(ws) > 0 && ws[0] == "--no-pager" {
+		ws = ws[1:]
 	}
+	if len(ws) == 0 {
+		return false
+	}
+	sub, rest := ws[0], ws[1:]
 	if !systemctlRead[sub] {
 		return false
 	}
@@ -455,16 +464,12 @@ var kubectlRead = set("get", "describe", "logs", "top", "version", "cluster-info
 // credential plugin runs code; the others change who the call is made
 // as); no -f, --follow, -w or --watch (they never end).
 func kubectlArgs(ws []string) bool {
-	verb := ""
-	var rest []string
-	for i := 0; i < len(ws); i++ {
-		w := ws[i]
-		if verb == "" && !strings.HasPrefix(w, "-") {
-			verb = w
-			continue
-		}
-		rest = append(rest, w)
+	// The verb is the first word: a word after a flag may be its value
+	// ("-n get delete ns prod").
+	if len(ws) == 0 {
+		return false
 	}
+	verb, rest := ws[0], ws[1:]
 	if !kubectlRead[verb] {
 		return false
 	}
@@ -492,14 +497,21 @@ func ipArgs(ws []string) bool {
 
 // secretPaths are the places that hold keys and tokens: a word naming one,
 // as a path or inside one, is never typed with one click.
-var secretPaths = []string{"/.ssh", "/.aws", "/.kube", "/.gnupg", "/.config/gh", "/.docker/config", "/.netrc", "/.git-credentials", "/etc/shadow", "/etc/gshadow", "/etc/sudoers"}
+var secretPaths = []string{"/proc/", "environ", "/.ssh", "/.aws", "/.kube", "/.gnupg", "/.config/gh", "/.docker/config", "/.netrc", "/.git-credentials", "/etc/shadow", "/etc/gshadow", "/etc/sudoers"}
 
 // secretNames are parts of a file or word name that suggest a secret. A
 // grep pattern such as "token" is refused too: the dialog decides.
-var secretNames = []string{"id_", ".pem", ".key", ".p12", ".pfx", "credential", "token", "secret", "password", ".env", "kubeconfig", "shadow"}
+var secretNames = []string{"id_", ".pem", ".key", ".p12", ".pfx", "credential", "token", "secret", "password", ".env", "kubeconfig", "shadow", "_history", ".pgpass", ".npmrc", ".pypirc", ".my.cnf"}
+
+// homeRoot matches a home directory itself (/root, /home, /home/NAME,
+// /Users, /Users/NAME): cat, ls -R or grep there reaches its dot files.
+var homeRoot = regexp.MustCompile(`^/(root|home|Users)(/[^/]+)?/?$`)
 
 // secretWord reports whether an argument names a secret's place or file.
 func secretWord(w string) bool {
+	if _, v, ok := strings.Cut(w, "="); ok && homeRoot.MatchString(v) || homeRoot.MatchString(w) {
+		return true
+	}
 	l := "/" + strings.ToLower(w)
 	if _, v, ok := strings.Cut(l, "="); ok {
 		l = "/" + v

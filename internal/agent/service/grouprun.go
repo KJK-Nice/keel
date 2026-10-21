@@ -751,6 +751,10 @@ func (s *Service) claimGroupType(req TypeRequest, t groupTarget, how string) err
 	}
 	c.State, c.filled = cellTyping, t.filled
 	s.mu.Unlock()
+	// A direct type is logged once its bytes are written (DirectTyped).
+	if how == agent.TypeDirect {
+		return nil
+	}
 	// agent.type logs the byte and line counts, never the bytes.
 	if err := s.audit.TypeFrom(agent.Pane{SessionID: t.snap.SessionID, HostID: t.snap.HostID, HostName: t.snap.Host, Role: req.Role}, t.want, how); err != nil {
 		s.GroupTypeFailed(req.GroupRunID, req.ProposalID)

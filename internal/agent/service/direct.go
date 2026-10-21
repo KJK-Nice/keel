@@ -20,11 +20,12 @@ import (
 // Why a Type needs the approve dialog. The page opens the dialog (the
 // approved path, unchanged) and nothing was typed.
 const (
-	ReasonLines = "it is more than one line, or holds a control or invisible character"
-	ReasonRisk  = "it is not one of the plain read-only commands Keel types without asking"
-	ReasonJev   = "Jev did not rate it read-only"
-	ReasonProd  = "a host of this step is production: tick each host"
-	ReasonBytes = "Keel cannot confirm these are the bytes it was shown"
+	ReasonLines   = "it is more than one line, or holds a control or invisible character"
+	ReasonRisk    = "it is not one of the plain read-only commands Keel types without asking"
+	ReasonJev     = "Jev did not rate it read-only"
+	ReasonJevNone = "Jev was asked and did not answer"
+	ReasonProd    = "a host of this step is production: tick each host"
+	ReasonBytes   = "Keel cannot confirm these are the bytes it was shown"
 )
 
 // DialogError says a Type cannot go without the approve dialog, and why.
@@ -81,35 +82,37 @@ func DirectLine(command string) bool {
 // *DialogError means the approve dialog decides instead.
 //
 // With commit it logs agent.type (Source "direct") and, for a group run,
-// claims the host as AuthorizeType does; the caller then writes req.Bytes
-// and calls TypeDoneAt or GroupTypeDoneAt (GroupTypeFailed if the write
-// failed). Without commit it changes nothing: the group run page checks
-// every host before one click types into them all.
-func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest, commit bool) error {
+// claims the host as AuthorizeType does; the caller then writes req.Bytes,
+// calls DirectTyped with the grant once the write succeeded (agent.type is
+// logged only then), and TypeDoneAt or GroupTypeDoneAt (GroupTypeFailed if
+// the write failed). Without commit it changes nothing: the group run page
+// checks every host before one click types into them all.
+func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest, commit bool) (DirectGrant, error) {
 	if err := agent.CanInsert(req.Role); err != nil {
-		return err
+		return DirectGrant{}, err
 	}
 	if hasPlaceholder(req.Bytes) {
-		return ErrPlaceholder
+		return DirectGrant{}, ErrPlaceholder
 	}
 	if !DirectLine(req.Bytes) {
-		return needsDialog(ReasonLines)
+		return DirectGrant{}, needsDialog(ReasonLines)
 	}
 	if req.GroupRunID != "" {
 		t, err := s.groupTypeTarget(req, true)
 		if err != nil {
-			return err
+			return DirectGrant{}, err
 		}
 		if agent.Stricter(t.risk, agent.Classify(t.want)) != agent.RiskReadOnly || !agent.DirectSafe(t.want) {
-			return needsDialog(ReasonRisk)
+			return DirectGrant{}, needsDialog(ReasonRisk)
 		}
 		if t.hosts > 1 && t.anyProduction {
-			return needsDialog(ReasonProd)
+			return DirectGrant{}, needsDialog(ReasonProd)
 		}
 		if !commit {
-			return nil
+			return DirectGrant{}, nil
 		}
-		return s.claimGroupType(req, t, agent.TypeDirect)
+		g := DirectGrant{pane: agent.Pane{SessionID: t.snap.SessionID, HostID: t.snap.HostID, HostName: t.snap.Host, Role: req.Role}, bytes: t.want}
+		return g, s.claimGroupType(req, t, agent.TypeDirect)
 	}
 	s.mu.Lock()
 	p, err := s.proposalLocked(req.ConversationID, req.ProposalID)
@@ -119,33 +122,49 @@ func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest, commit b
 	}
 	s.mu.Unlock()
 	if err != nil {
-		return err
+		return DirectGrant{}, err
 	}
 	if snap.SessionID == "" {
-		return ErrNoTarget
+		return DirectGrant{}, ErrNoTarget
 	}
 	if snap.SessionID != req.SessionID {
-		return ErrWrongPane
+		return DirectGrant{}, ErrWrongPane
 	}
 	if hasPlaceholder(snap.Command) {
-		return ErrPlaceholder
+		return DirectGrant{}, ErrPlaceholder
 	}
 	if runvars.HasRefs(snap.Command) {
-		return ErrVarsOutsideRun
+		return DirectGrant{}, ErrVarsOutsideRun
 	}
 	if req.Bytes != snap.Command {
-		return needsDialog(ReasonBytes)
+		return DirectGrant{}, needsDialog(ReasonBytes)
 	}
 	if agent.Stricter(snap.Risk, agent.Classify(snap.Command)) != agent.RiskReadOnly || !agent.DirectSafe(snap.Command) {
-		return needsDialog(ReasonRisk)
+		return DirectGrant{}, needsDialog(ReasonRisk)
 	}
 	if !commit {
-		return nil
+		return DirectGrant{}, nil
 	}
 	if err := s.jevReadOnly(ctx, snap.SessionID, snap.Command); err != nil {
-		return err
+		return DirectGrant{}, err
 	}
-	return s.audit.TypeFrom(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, req.Bytes, agent.TypeDirect)
+	return DirectGrant{pane: agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, bytes: req.Bytes}, nil
+}
+
+// DirectGrant is an authorized direct type, logged once it is written.
+type DirectGrant struct {
+	pane  agent.Pane
+	bytes string
+}
+
+// DirectTyped logs agent.type (source "direct") for a grant whose bytes
+// were written: ids and counts, never the bytes. A write that failed is
+// never logged as typed.
+func (s *Service) DirectTyped(g DirectGrant) {
+	if g.pane.SessionID == "" {
+		return
+	}
+	_ = s.audit.TypeFrom(g.pane, g.bytes, agent.TypeDirect)
 }
 
 // DirectRating decides a command that has no rating of its own (a
@@ -169,9 +188,10 @@ func (s *Service) DirectRating(ctx context.Context, sessionID, command string, m
 // asked only when a Jev key is set (whatever the in-pane suggestions
 // setting) and the pane's host is one the agent may read; the command
 // goes redacted and the egress is logged as agent.read. An answer that is
-// not read-only sends the Type to the dialog. No answer (no key, offline,
-// a timeout, an error, or the host may not be read): the allowlist alone
-// has decided, and it stands.
+// not read-only sends the Type to the dialog, and so does a call that was
+// made and got no answer (an error, a timeout, offline): fail closed. Jev
+// not asked (no key, or a host the agent may not read): the allowlist
+// alone has decided, and it stands.
 func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) error {
 	if _, err := s.judgeFor(); err != nil {
 		return nil
@@ -182,14 +202,18 @@ func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) er
 	}
 	set, err := s.st.AgentSettings()
 	if err != nil {
-		return nil
+		return needsDialog(ReasonJevNone)
 	}
 	r, err := s.requestRedactor(set.Redact, hosts)
 	if err != nil {
-		return nil
+		return needsDialog(ReasonJevNone)
 	}
 	judged, _ := s.judgeRisks(ctx, p, []Candidate{{Command: command}}, []int{0}, r)
-	if j, ok := judged[0]; ok && j != agent.RiskReadOnly {
+	j, ok := judged[0]
+	if !ok {
+		return needsDialog(ReasonJevNone)
+	}
+	if j != agent.RiskReadOnly {
 		return needsDialog(ReasonJev)
 	}
 	return nil

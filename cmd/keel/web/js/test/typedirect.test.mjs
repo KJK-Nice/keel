@@ -113,6 +113,7 @@ test("directHint: the page's mirror of keel serve's allowlist, for the label onl
     "frobnicate",
     "git status",
     "history",
+    "echo '\\e]0;x\\a'",
   ]) {
     assert.equal(TD.directHint(bad), false, bad);
   }

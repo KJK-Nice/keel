@@ -37,7 +37,7 @@ const SYNTAX = /[$`;&<>(){}\\*?[\]#~^]/;
 // means it certainly will not (so the page goes straight to the dialog);
 // true means it may, and keel serve decides.
 export function directHint(command) {
-  if (!directLine(command) || command.includes("!") || /\|\||\|&/.test(command)) return false;
+  if (!directLine(command) || command.includes("!") || command.includes("\\") || /\|\||\|&/.test(command)) return false;
   // Outside quotes only.
   const bare = command.replace(/'[^']*'/g, "''").replace(/"[^"$`\\]*"/g, '""');
   if (SYNTAX.test(bare) || /['"]/.test(bare.replace(/''|""/g, ""))) return false;
