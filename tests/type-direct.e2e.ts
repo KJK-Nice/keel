@@ -114,7 +114,7 @@ test('a read-only proposal is typed without a dialog and runs only on Enter; a s
 test('a snippet of one read-only line is typed without a dialog; one of two lines asks', { tags: ['palette'] }, async ({ app, screen }) => {
   const made: string[] = [];
   try {
-    const one = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-one', command: "printf '%s-out\\n' tdsnip\n" });
+    const one = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-one', command: 'echo tdsnip""-out\n' });
     const two = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-two', command: 'echo td-first\necho td-second\n' });
     made.push(one.id, two.id);
     await openKeel(app);
@@ -152,7 +152,7 @@ test('a notebook block of one read-only line is typed without a dialog; a block 
   const name = `td-nb-${Date.now()}`;
   const nb = await keelSend<Notebook>(app.baseUrl, 'POST', '/api/notebooks', {
     name,
-    cells: [{ body: "```sh\nprintf '%s-out\\n' tdnb\n```\n\n```sh\necho td-nb-first\necho td-nb-second\n```" }],
+    cells: [{ body: '```sh\necho tdnb""-out\n```\n\n```sh\necho td-nb-first\necho td-nb-second\n```' }],
   });
   try {
     await openKeel(app);
@@ -207,12 +207,12 @@ test('a group run of a read-only step: one click types into both hosts, no Enter
     const group = groups.find((g) => g.name === 'td-e2e') ?? (await keelSend<Group>(app.baseUrl, 'POST', '/api/groups', { name: 'td-e2e' }));
     await keelSend(app.baseUrl, 'POST', '/api/hosts/move', { ids: [h1.id, h2.id], groupId: group.id });
     for (const h of [h1, h2]) await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: h.id, role: 'worker' });
-    // The step prints the OSC 133 marks a shell with integration would
-    // send, so the run page sees exit 0 once the user runs it.
+    // echo with an empty quote: the typed line holds tdgrp""-out, only
+    // its output holds tdgrp-out.
     await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
       name: 'td check workers',
       agentMayPick: false,
-      steps: [{ title: 'Check each worker', command: "printf '\\033]133;C\\007%s-out\\n\\033]133;D;0\\007' tdgrp", role: 'worker' }],
+      steps: [{ title: 'Check each worker', command: 'echo tdgrp""-out', role: 'worker' }],
     });
     await openKeel(app);
     const vault = screen.getByRole('complementary', 'Vault');

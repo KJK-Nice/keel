@@ -4,7 +4,8 @@ import { keelApi, openKeel } from './keel.ts';
 
 // Phase 3 command palette (docs/ui-redesign.md §5.2): groups in the order
 // Open now, Hosts, Actions, Snippets; picking an open tab focuses it; ⌥↵
-// opens a host in a split; a snippet row always goes through Approve first.
+// opens a host in a split; a snippet row is marked Approve first only when
+// the dialog is certain (more than one line, or a placeholder; §6 rule 13).
 
 type Session = { id: string };
 
@@ -32,12 +33,13 @@ test('the palette lists Open now, Hosts, Actions, then Snippets', { tags: ['pale
 
   const options = palette(screen).getByRole('option');
   // Open now first: the session tab, with its place and role; the last row
-  // is a snippet, marked Approve first.
+  // is a snippet (the seeded ones are one read-only line: no badge).
   await expect(options.first()).toContainText('Local Shell');
   await expect(options.first()).toContainText('tab 1');
   await expect(options.first()).toContainText('driving');
   await expect(options.first()).toContainText(/⌘\s*1/);
-  await expect(options.filter({ hasText: 'Approve first' }).last()).toBeVisible();
+  await expect(options.filter({ hasText: 'Type snippet:' }).last()).toBeVisible();
+  await expect(options.filter({ hasText: 'Approve first' })).toHaveCount(0);
   for (const group of ['Open now', 'Hosts', 'Actions']) {
     await expect(palette(screen).getByText(group, { exact: true })).toBeVisible();
   }
@@ -120,7 +122,7 @@ test('a read-only snippet row types without a dialog and runs only on Enter', { 
   await input.press('Meta+k');
   await combo(screen).fill('snippet: memory');
   const row = palette(screen).getByRole('option').filter({ hasText: 'Type snippet: memory' });
-  await expect(row).toContainText('Approve first');
+  await expect(row).not.toContainText('Approve first');
   await expect(row).toContainText('free -h');
   expect(await scrollback()).not.toContain('free -h');
   await combo(screen).press('Enter');

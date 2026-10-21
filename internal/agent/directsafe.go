@@ -48,13 +48,6 @@ func DirectSafe(line string) bool {
 	return true
 }
 
-// word is one shell word: its text with the quotes taken off, and whether
-// any part of it was quoted.
-type word struct {
-	text   string
-	quoted bool
-}
-
 // directSegments splits a line on unquoted pipes into words. It refuses
 // every character that could be shell syntax or an expansion.
 func directSegments(line string) ([][]string, bool) {

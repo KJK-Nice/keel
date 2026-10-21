@@ -60,7 +60,8 @@ test("typeDirect types one line, to one driven pane, never with a newline", () =
   const ready = body.indexOf("if (!directReady(pane, command)) return { dialog: true");
   const ticket = body.indexOf("await requestInjectTicket(pane, command)");
   assert.ok(ready >= 0 && ready < ticket, "typeDirect checks the pane and the line before it asks for a ticket");
-  assert.match(body, /const frame = \{ type: "inject", command, nonce, direct \};/);
+  // The page's view goes with it (keel serve ORs it with its own).
+  assert.match(body, /const frame = \{ type: "inject", command, nonce, direct: \{ \.\.\.direct, altScreen: TD\.altScreen\(pane\.term\), promptLine: TD\.cursorLine\(pane\.term\) \} \};/);
   assert.ok(!/\\n|\\r|\+ "\\n"/.test(body), "typeDirect never adds a newline");
   // No answer is not a dialog: it may have been typed.
   assert.match(body, /if \(!msg\) return \{ ok: false/);
@@ -168,7 +169,8 @@ test("the palette's snippet rows say Approve first and ignore the split key", ()
   const at = catalog.indexOf('group: "Snippets"');
   assert.ok(at > 0, "the catalog has a Snippets group");
   const row = catalog.slice(catalog.lastIndexOf("items.push({", at), catalog.indexOf("});", at));
-  assert.match(row, /badge: "Approve first"/);
+  // "Approve first" only where the dialog is certain (§6 rule 13).
+  assert.match(row, /badge: TD\.snippetBadge\(sn\.command\)/);
   // run takes no options, so ⌥↵ cannot change what a snippet row does.
   assert.match(row, /run: \(\) => paletteRunSnippet\(sn\.id\)/);
   assert.ok(!/inject|sendSession|approved/.test(catalog), "the catalog itself never writes");
@@ -218,7 +220,7 @@ test("group run steps are typed only for the hosts ticked in the group approve d
   // host only after keel serve said yes for each (checkGroup writes
   // nothing); each host is its own type, marked direct.
   const all = run.slice(run.indexOf("async function typeDirectAll("), run.indexOf("// --- actions ---"));
-  const gate = all.indexOf("if (!deps.checkGroup || !TD.stepDirect(st) || !rows.length || rows.some((r) => r.error)) return false;");
+  const gate = all.indexOf("if (!deps.checkGroup || !TD.stepDirect(st, ready) || !rows.length || rows.some((r) => r.error)) return false;");
   const checks = all.indexOf("if (!checks.every(Boolean)) return false;");
   const each = all.indexOf("deps.typeGroup({ runId: run.id, proposal: x.cell.proposal, bytes: x.command, direct: true })");
   assert.ok(gate >= 0 && gate < checks && checks < each, "typeDirectAll asks keel serve for every host before it types any");
@@ -229,4 +231,16 @@ test("group run steps are typed only for the hosts ticked in the group approve d
   assert.match(run, /settleApprove\(\{ rows: picked, shift: !!shiftHeld \}\)/);
   const lib = readFileSync(join(dir, "..", "lib", "grouprun.js"), "utf8");
   assert.match(lib, /checked: one,/);
+});
+
+// macOS WebKit sends no keyup for a key pressed while ⌘ is held: the held
+// set that blocks the PTY after a direct type must clear on ⌘ up, on blur
+// and after a timeout, so a lost keyup never drops what the user types.
+test("held keys after a direct type cannot get stuck", () => {
+  const at = src.indexOf("const heldKeys = new Set();");
+  const block = src.slice(at, src.indexOf("function holdPtyFromChrome", at));
+  assert.match(block, /function clearHeldKeys\(\) \{\n\s+heldKeys\.clear\(\);\n\s+reviewHold = false;/);
+  assert.match(block, /heldTimer = setTimeout\(clearHeldKeys, HELD_KEYS_MS\);/);
+  assert.match(block, /if \(ev\.key === "Meta" \|\| ev\.key === "OS"\) return clearHeldKeys\(\);/);
+  assert.match(block, /window\.addEventListener\("blur", clearHeldKeys\);/);
 });
