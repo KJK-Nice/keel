@@ -33,6 +33,11 @@ func DirectSafe(line string) bool {
 		if len(words) == 0 {
 			return false
 		}
+		for _, w := range words[1:] {
+			if secretWord(w) {
+				return false
+			}
+		}
 		name := words[0]
 		if !words0Plain(name) {
 			return false
@@ -266,9 +271,10 @@ var (
 	headArgs = args{short: "qvz", shortVal: "nc", numFlag: true, maxPos: -1, valueOK: func(f, v string) bool {
 		return isDigits(strings.TrimPrefix(v, "-")) || isDigits(strings.TrimPrefix(v, "+"))
 	}, long: set("quiet", "silent", "verbose"), longVal: set("lines", "bytes")}
-	tailArgs = args{short: "qvfFz", shortVal: "nc", numFlag: true, maxPos: -1, valueOK: func(f, v string) bool {
+	// tail: no -f / -F / --follow (it never ends).
+	tailArgs = args{short: "qvz", shortVal: "nc", numFlag: true, maxPos: -1, valueOK: func(f, v string) bool {
 		return isDigits(strings.TrimPrefix(v, "+")) || isDigits(strings.TrimPrefix(v, "-"))
-	}, long: set("follow", "quiet", "silent", "verbose"), longVal: set("lines", "bytes")}
+	}, long: set("quiet", "silent", "verbose"), longVal: set("lines", "bytes")}
 	wcArgs = args{short: "lwcmL", maxPos: -1, long: set("lines", "words", "bytes", "chars", "max-line-length")}
 	// sort: no -o / --output (writes a file), no --compress-program (runs one),
 	// no -T (temporary files) and no --files0-from.
@@ -294,6 +300,10 @@ var pipeFilters = map[string]func([]string) bool{
 }
 
 // directCommands are the commands a direct type may start with. Not here,
+// besides the list below: git (a checkout's own config, core.fsmonitor,
+// diff.external, textconv or filters, runs code from git status, diff and
+// log -p), history, kubectl config and docker inspect (they print
+// secrets), and every follow or watch flag. Not here,
 // on purpose: wrappers (sudo, env, watch, timeout, nice, xargs, exec,
 // eval, command, builtin, sh/bash -c, ssh), pagers and interactive
 // programs (less, more, man, top, htop, vim, fzf), interpreters (awk, sed,
@@ -347,19 +357,19 @@ var directCommands = map[string]func([]string) bool{
 	"dirname":  args{short: "z", maxPos: -1}.fn(),
 	"realpath": args{short: "eLmPqsz", maxPos: -1}.fn(),
 	"readlink": args{short: "efmnqsvz", maxPos: -1}.fn(),
-	"printenv": args{short: "0", maxPos: -1, posOK: func(s string) bool { return !strings.Contains(s, "=") }}.fn(),
-	"tree":     args{short: "adfFhlpsugDCnrtx", shortVal: "LIP", maxPos: -1}.fn(),
-	"lsof":     args{short: "nPlt", shortVal: "ipuc", maxPos: -1}.fn(),
-	"dig":      args{short: "46", shortVal: "tcp", maxPos: -1, posOK: func(s string) bool { return !strings.HasPrefix(s, "-") }}.fn(),
-	"host":     args{short: "46aCdlrv", shortVal: "tcW", maxPos: 2}.fn(),
+	// printenv: only named variables, never the whole environment.
+	"printenv": func(ws []string) bool {
+		return len(ws) > 0 && args{maxPos: -1, posOK: func(s string) bool { return words0Plain(strings.ToLower(s)) }}.check(ws)
+	},
+	"tree": args{short: "adfFhlpsugDCnrtx", shortVal: "LIP", maxPos: -1}.fn(),
+	"lsof": args{short: "nPlt", shortVal: "ipuc", maxPos: -1}.fn(),
+	"dig":  args{short: "46", shortVal: "tcp", maxPos: -1, posOK: func(s string) bool { return !strings.HasPrefix(s, "-") }}.fn(),
+	"host": args{short: "46aCdlrv", shortVal: "tcW", maxPos: 2}.fn(),
 	// ping: only with a count, so it ends.
 	"ping": pingArgs,
-	// history: a number at most; -c, -d, -w, -r change it.
-	"history": args{maxPos: 1, posOK: isDigits}.fn(),
 	// systemctl and journalctl page through less unless told not to.
 	"systemctl":  systemctlArgs,
 	"journalctl": journalctlArgs,
-	"git":        gitArgs,
 	"docker":     dockerArgs,
 	"kubectl":    kubectlArgs,
 	"ip":         ipArgs,
@@ -414,47 +424,7 @@ func journalctlArgs(ws []string) bool {
 	if !hasWord(ws, "--no-pager") {
 		return false
 	}
-	return args{short: "abefkqrx", shortVal: "unpo", numFlag: true, maxPos: 0, long: set("no-pager", "follow", "reverse", "boot", "dmesg", "utc", "catalog", "quiet", "no-hostname"), longVal: set("unit", "lines", "priority", "since", "until", "output", "grep", "identifier")}.check(ws)
-}
-
-// gitArgs: only read subcommands, with their read flags, and nothing
-// before the subcommand except --no-pager (no -c, no -C, no --git-dir,
-// no --exec-path, no config from the command line). Not here: --output,
-// --ext-diff, --textconv, --open-files-in-pager, -O, a pager flag. log,
-// diff and show must carry --no-pager, since they page.
-func gitArgs(ws []string) bool {
-	noPager := false
-	for len(ws) > 0 && ws[0] == "--no-pager" {
-		noPager = true
-		ws = ws[1:]
-	}
-	if len(ws) == 0 {
-		return false
-	}
-	sub, rest := ws[0], ws[1:]
-	revOrPath := func(s string) bool { return notFlagLike(s) }
-	switch sub {
-	case "status":
-		return args{short: "sbuv", maxPos: -1, posOK: revOrPath, long: set("short", "branch", "porcelain", "long", "ignored")}.check(rest)
-	case "log":
-		return noPager && args{short: "pP", shortVal: "n", numFlag: true, maxPos: -1, posOK: revOrPath, valueOK: func(f, v string) bool { return f != "n" || isDigits(v) }, long: set("oneline", "graph", "stat", "shortstat", "decorate", "all", "patch", "no-merges", "merges", "reverse", "name-only", "name-status", "first-parent", "no-color"), longVal: set("since", "until", "author", "grep", "max-count", "format", "pretty", "date")}.check(rest)
-	case "diff":
-		return noPager && args{maxPos: -1, posOK: revOrPath, long: set("stat", "shortstat", "cached", "staged", "name-only", "name-status", "no-color", "numstat", "check")}.check(rest)
-	case "show":
-		return noPager && args{maxPos: -1, posOK: revOrPath, long: set("stat", "name-only", "name-status", "no-patch", "oneline", "no-color"), longVal: set("format", "pretty")}.check(rest)
-	case "branch":
-		// No positional word: "git branch NAME" makes a branch.
-		return args{short: "arv", maxPos: 0, long: set("all", "remotes", "list", "verbose", "show-current", "merged", "no-merged")}.check(rest)
-	case "remote":
-		return len(rest) == 0 || len(rest) == 1 && (rest[0] == "-v" || rest[0] == "--verbose")
-	case "rev-parse":
-		return args{maxPos: -1, posOK: revOrPath, long: set("short", "abbrev-ref", "show-toplevel", "git-dir", "is-inside-work-tree", "verify")}.check(rest)
-	case "describe":
-		return args{maxPos: 1, posOK: revOrPath, long: set("tags", "always", "long", "dirty")}.check(rest)
-	case "stash":
-		return len(rest) == 1 && rest[0] == "list" && noPager
-	}
-	return false
+	return args{short: "abekqrx", shortVal: "unpo", numFlag: true, maxPos: 0, long: set("no-pager", "reverse", "boot", "dmesg", "utc", "catalog", "quiet", "no-hostname"), longVal: set("unit", "lines", "priority", "since", "until", "output", "grep", "identifier")}.check(ws)
 }
 
 func dockerArgs(ws []string) bool {
@@ -469,9 +439,7 @@ func dockerArgs(ws []string) bool {
 	case "images":
 		return args{short: "aq", maxPos: 1, posOK: name, long: set("all", "quiet", "no-trunc", "digests"), longVal: set("filter", "format")}.check(rest)
 	case "logs":
-		return args{short: "ft", shortVal: "n", maxPos: 1, posOK: name, long: set("follow", "timestamps"), longVal: set("tail", "since", "until")}.check(rest)
-	case "inspect":
-		return args{maxPos: -1, posOK: name, longVal: set("format", "type")}.check(rest)
+		return args{short: "t", shortVal: "n", maxPos: 1, posOK: name, long: set("timestamps"), longVal: set("tail", "since", "until")}.check(rest)
 	case "version", "info":
 		return args{maxPos: 0, longVal: set("format")}.check(rest)
 	case "stats":
@@ -482,9 +450,10 @@ func dockerArgs(ws []string) bool {
 
 var kubectlRead = set("get", "describe", "logs", "top", "version", "cluster-info", "api-resources", "api-versions", "explain")
 
-// kubectlArgs: read verbs only, and no --kubeconfig, --token, --server or
-// --as (another config's credential plugin runs code; the others change
-// who the call is made as).
+// kubectlArgs: read verbs only; no config verb; no --context,
+// --kubeconfig, --token, --server or --as (another context or config's
+// credential plugin runs code; the others change who the call is made
+// as); no -f, --follow, -w or --watch (they never end).
 func kubectlArgs(ws []string) bool {
 	verb := ""
 	var rest []string
@@ -496,13 +465,10 @@ func kubectlArgs(ws []string) bool {
 		}
 		rest = append(rest, w)
 	}
-	if verb == "config" {
-		return len(rest) == 1 && set("view", "current-context", "get-contexts")[rest[0]]
-	}
 	if !kubectlRead[verb] {
 		return false
 	}
-	return args{short: "Awfp", shortVal: "nolc", maxPos: -1, posOK: notFlagLike, long: set("all-namespaces", "watch", "follow", "previous", "show-labels", "no-headers", "wide"), longVal: set("namespace", "output", "selector", "context", "container", "tail", "since", "sort-by", "field-selector")}.check(rest)
+	return args{short: "Ap", shortVal: "nolc", maxPos: -1, posOK: notFlagLike, long: set("all-namespaces", "previous", "show-labels", "no-headers", "wide"), longVal: set("namespace", "output", "selector", "container", "tail", "since", "sort-by", "field-selector")}.check(rest)
 }
 
 // ipArgs: ip OBJECT [show|list] [dev NAME]: no add, del, set, flush.
@@ -522,4 +488,31 @@ func ipArgs(ws []string) bool {
 		return true
 	}
 	return len(rest) == 2 && rest[0] == "dev" && notFlagLike(rest[1]) && words0Plain(strings.ReplaceAll(strings.ReplaceAll(rest[1], ".", "-"), "@", "-"))
+}
+
+// secretPaths are the places that hold keys and tokens: a word naming one,
+// as a path or inside one, is never typed with one click.
+var secretPaths = []string{"/.ssh", "/.aws", "/.kube", "/.gnupg", "/.config/gh", "/.docker/config", "/.netrc", "/.git-credentials", "/etc/shadow", "/etc/gshadow", "/etc/sudoers"}
+
+// secretNames are parts of a file or word name that suggest a secret. A
+// grep pattern such as "token" is refused too: the dialog decides.
+var secretNames = []string{"id_", ".pem", ".key", ".p12", ".pfx", "credential", "token", "secret", "password", ".env", "kubeconfig", "shadow"}
+
+// secretWord reports whether an argument names a secret's place or file.
+func secretWord(w string) bool {
+	l := "/" + strings.ToLower(w)
+	if _, v, ok := strings.Cut(l, "="); ok {
+		l = "/" + v
+	}
+	for _, p := range secretPaths {
+		if strings.Contains(l, p) {
+			return true
+		}
+	}
+	for _, n := range secretNames {
+		if strings.Contains(l, n) {
+			return true
+		}
+	}
+	return false
 }

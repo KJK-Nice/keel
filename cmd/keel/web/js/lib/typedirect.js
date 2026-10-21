@@ -27,7 +27,7 @@ export function directLine(command) {
 // dialog. The page uses them only as a hint, to skip a round trip and
 // name the button; keel serve checks every flag and word itself.
 const DIRECT_COMMANDS = new Set(
-  "ls pwd whoami id groups uptime uname hostname date df du free cat head tail wc grep egrep fgrep sort uniq cut echo ps pgrep pidof ss netstat lsblk lscpu nproc arch tty w who last dmesg stat which type basename dirname realpath readlink printenv tree lsof dig host ping history systemctl journalctl git docker kubectl ip".split(" "),
+  "ls pwd whoami id groups uptime uname hostname date df du free cat head tail wc grep egrep fgrep sort uniq cut echo ps pgrep pidof ss netstat lsblk lscpu nproc arch tty w who last dmesg stat which type basename dirname realpath readlink printenv tree lsof dig host ping systemctl journalctl docker kubectl ip".split(" "),
 );
 const PIPE_FILTERS = new Set("grep egrep fgrep head tail wc sort uniq cut tr".split(" "));
 // Shell syntax and expansions DirectSafe refuses outside quotes; ! anywhere.

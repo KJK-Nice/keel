@@ -87,7 +87,7 @@ test("the notes after a direct type say Enter is the user's", () => {
 });
 
 test("directHint: the page's mirror of keel serve's allowlist, for the label only", () => {
-  for (const ok of ["ls -la", "df -h", "ps aux | grep nginx", "grep -i 'a|b' f", "echo \"a b\"", "git status", "kubectl get pods -A"]) {
+  for (const ok of ["ls -la", "df -h", "ps aux | grep nginx", "grep -i 'a|b' f", "echo \"a b\"", "kubectl get pods -A"]) {
     assert.equal(TD.directHint(ok), true, ok);
   }
   for (const bad of [
@@ -111,6 +111,8 @@ test("directHint: the page's mirror of keel serve's allowlist, for the label onl
     "echo !!",
     "ls *",
     "frobnicate",
+    "git status",
+    "history",
   ]) {
     assert.equal(TD.directHint(bad), false, bad);
   }
