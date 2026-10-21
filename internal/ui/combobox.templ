@@ -1,0 +1,220 @@
+package ui
+
+import (
+	"strconv"
+
+	"keel/components/field"
+	"keel/components/icon"
+	"keel/components/label"
+)
+
+// ComboOption is one row of a k-combobox: a label, an optional secondary
+// muted line (DescMono when it is code, such as user@host:port) and an
+// optional leading icon.
+type ComboOption struct {
+	Value    string
+	Label    string
+	Desc     string
+	DescMono bool
+	Disabled bool
+	Icon     templ.Component
+}
+
+// ComboboxProps is a searchable value picker (docs/design/README.md,
+// Combobox). The value posts through a hidden input named Name, so the
+// picker works in the Datastar @post forms. The markup is the same as
+// comboboxHTML in js/lib/combobox.js, which wires both.
+type ComboboxProps struct {
+	ID          string
+	Name        string
+	Label       string // aria-label when no <label for=ID> names it
+	LabelledBy  string
+	DescribedBy string // aria-describedby of the input
+	Placeholder string
+	Value       string
+	Options     []ComboOption
+	None        string // label of a first "" option; empty for none
+	EmptyLabel  string // shown when there are no options at all
+	Mono        bool   // the value is code (an address, a role)
+	Required    bool
+	Disabled    bool
+	Class       string
+	Attributes  templ.Attributes
+}
+
+func (p ComboboxProps) options() []ComboOption {
+	if p.None == "" {
+		return p.Options
+	}
+	for _, o := range p.Options {
+		if o.Value == "" {
+			return p.Options
+		}
+	}
+	return append([]ComboOption{{Value: "", Label: p.None}}, p.Options...)
+}
+
+func (p ComboboxProps) chosen() (ComboOption, bool) {
+	for _, o := range p.options() {
+		if o.Value == p.Value {
+			return o, true
+		}
+	}
+	return ComboOption{}, false
+}
+
+func (p ComboboxProps) rootClass() string {
+	c := "k-combobox"
+	if p.Mono {
+		c += " k-combobox--mono"
+	}
+	if p.Class != "" {
+		c += " " + p.Class
+	}
+	return c
+}
+
+func (p ComboboxProps) inputAttrs() templ.Attributes {
+	a := templ.Attributes{}
+	if p.LabelledBy != "" {
+		a["aria-labelledby"] = p.LabelledBy
+	} else if p.Label != "" {
+		a["aria-label"] = p.Label
+	}
+	return a
+}
+
+func (p ComboboxProps) placeholder() string {
+	if len(p.options()) == 0 && p.EmptyLabel != "" {
+		return p.EmptyLabel
+	}
+	return p.Placeholder
+}
+
+func (p ComboboxProps) emptyText() string {
+	if len(p.options()) == 0 && p.EmptyLabel != "" {
+		return p.EmptyLabel
+	}
+	return "No matches"
+}
+
+func comboOptionID(listID string, i int) string { return listID + "-o" + strconv.Itoa(i) }
+
+templ Combobox(p ComboboxProps) {
+	{{ chosen, ok := p.chosen() }}
+	{{ listID := p.ID + "-list" }}
+	<div class={ p.rootClass() } data-combobox { p.Attributes... }>
+		<input
+			class="k-input k-combobox-input"
+			type="text"
+			id={ p.ID }
+			role="combobox"
+			aria-autocomplete="list"
+			aria-expanded="false"
+			aria-controls={ listID }
+			{ p.inputAttrs()... }
+			if p.DescribedBy != "" {
+				aria-describedby={ p.DescribedBy }
+			}
+			value={ chosen.Label }
+			placeholder={ p.placeholder() }
+			data-placeholder={ p.Placeholder }
+			autocomplete="off"
+			autocapitalize="off"
+			autocorrect="off"
+			spellcheck="false"
+			required?={ p.Required }
+			disabled?={ p.Disabled }
+		/>
+		<span class="k-i k-combobox-chevron" aria-hidden="true">
+			@icon.ChevronDown()
+		</span>
+		if ok {
+			<input type="hidden" name={ p.Name } value={ p.Value } data-combobox-value/>
+		} else {
+			<input type="hidden" name={ p.Name } value="" data-combobox-value/>
+		}
+		<div class="k-menu k-combobox-pop" popover="manual" hidden>
+			<div class="k-combobox-list" role="listbox" id={ listID } { p.inputAttrs()... }>
+				for i, o := range p.options() {
+					<div
+						class="k-menu-item k-combobox-option"
+						role="option"
+						id={ comboOptionID(listID, i) }
+						data-value={ o.Value }
+						aria-selected={ strconv.FormatBool(ok && o.Value == chosen.Value) }
+						if o.Disabled {
+							aria-disabled="true"
+						}
+					>
+						if o.Icon != nil {
+							<span class="k-i k-combobox-icon" aria-hidden="true">
+								@o.Icon
+							</span>
+						}
+						<span class="k-combobox-text">
+							<span class="k-combobox-label">{ o.Label }</span>
+							if o.Desc != "" {
+								if o.DescMono {
+									<span class="k-combobox-desc k-combobox-desc--mono">{ o.Desc }</span>
+								} else {
+									<span class="k-combobox-desc">{ o.Desc }</span>
+								}
+							}
+						</span>
+						@icon.Check(icon.Props{Class: "k-i k-combobox-check"})
+					</div>
+				}
+			</div>
+			<p class="k-combobox-empty" hidden?={ len(p.options()) > 0 }>{ p.emptyText() }</p>
+		</div>
+	</div>
+}
+
+// fieldCombobox is a labelled picker in a dialog field: the <label> names
+// the input and its listbox.
+templ fieldCombobox(caption string, p ComboboxProps) {
+	{{ p.LabelledBy = p.ID + "-label" }}
+	@field.Field() {
+		@label.Label(label.Props{ID: p.LabelledBy, For: p.ID}) {
+			{ caption }
+		}
+		@Combobox(p)
+	}
+}
+
+// SegOption is one segment of a k-seg value picker.
+type SegOption struct {
+	Value string
+	Label string
+}
+
+// segControl is a k-seg used to pick one of a few fixed values (2–4; a
+// longer or changing list is a Combobox). With a name it carries a hidden
+// input, so it posts with its form. js/lib/seg.js wires it.
+templ segControl(id, name, labelledBy, aria, current, class string, opts []SegOption) {
+	{{ attrs := templ.Attributes{} }}
+	if labelledBy != "" {
+		{{ attrs["aria-labelledby"] = labelledBy }}
+	} else if aria != "" {
+		{{ attrs["aria-label"] = aria }}
+	}
+	<div class={ "k-seg " + class } id={ id } role="group" data-seg { attrs... }>
+		for _, o := range opts {
+			<button type="button" data-seg-value={ o.Value } aria-pressed={ strconv.FormatBool(o.Value == current) }>{ o.Label }</button>
+		}
+		if name != "" {
+			<input type="hidden" name={ name } value={ current } data-seg-input/>
+		}
+	</div>
+}
+
+// segField is a labelled segControl in a dialog field.
+templ segField(id, caption, name, current string, opts []SegOption) {
+	@field.Field() {
+		@label.Label(label.Props{ID: id + "-label"}) {
+			{ caption }
+		}
+		@segControl(id, name, id+"-label", "", current, "k-seg--field", opts)
+	}
+}
