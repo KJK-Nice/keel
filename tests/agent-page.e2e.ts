@@ -105,23 +105,17 @@ test('open from the panel: list, resume, type, rename, delete, all in step with 
   await expect(titleButton(screen)).toContainText('page first question');
   await expect(panel(screen)).toContainText(/resumed · /i);
 
-  // Its proposal is still live (this run holds it): Type names the pane.
-  // Read-only and one line, it goes without the approve dialog and without
-  // Enter (§6 rule 13), and the pane it went to takes the focus.
+  // Its proposal is still live (this run holds it): Type names the pane
+  // and goes through the approve dialog like the panel's.
   const card = thread(screen).getByRole('group', 'Proposal').first();
   await expect(card).not.toContainText('Expired');
-  expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
   await card.getByRole('button', /^Type into Local Shell/).tap();
-  await expect(approveDialog(screen)).toBeHidden();
-  await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('keel-agent-ok');
-  await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
-  await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Enter');
+  await expect(approveDialog(screen)).toBeVisible();
+  await expect(approveDialog(screen)).toContainText('echo keel-agent-ok');
+  expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
+  await approveDialog(screen).getByRole('button', 'Type', { exact: true }).tap();
   await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toMatch(/keel-agent-ok[\s\S]*keel-agent-ok/);
-  await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Meta+k');
-  await screen.getByRole('dialog', 'Command palette').getByRole('combobox').fill('Agent conversations');
-  await screen.getByRole('dialog', 'Command palette').getByRole('option').filter({ hasText: 'Agent conversations' }).first().tap();
-  await expect(page(screen)).toBeVisible();
-  await expect(card).toContainText('Typed into Local Shell. Press Enter to run.');
+  await expect(card).toContainText('Typed into Local Shell');
   await expect(panel(screen).getByRole('group', 'Proposal').first()).toContainText('Typed into Local Shell');
   await expect(context(screen)).toContainText('Typed');
   await expect

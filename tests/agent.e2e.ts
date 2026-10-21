@@ -86,7 +86,7 @@ test('no key: Connect Gemini shows the free-tier warning and stores the key in t
   await closeTabs(screen);
 });
 
-test('ask: trace, answer and a read-only proposal typed without a dialog, run only on Enter', { tags: ['agent'] }, async ({ app, screen }) => {
+test('ask: trace, answer and a read-only proposal typed only after approval', { tags: ['agent'] }, async ({ app, screen }) => {
   await keelSend(app.baseUrl, 'PUT', '/api/agent/keys/gemini', { key: FAKE_KEY });
   await openKeel(app);
   const session = await openHost(app, screen, /^Local Shell\b/);
@@ -108,24 +108,21 @@ test('ask: trace, answer and a read-only proposal typed without a dialog, run on
   const card = panel(screen).getByRole('group', 'Proposal').last();
   await expect(card).toContainText('echo keel-agent-ok');
   await expect(card).toContainText('Read-only');
-  // Read-only and one line: Type sends the command alone, no ^U and no
-  // Enter, without the approve dialog (§6 rule 13, for review).
-  await expect(card).toContainText('1 line · 18 bytes');
-  await expect(card.getByLabel('Exact bytes')).toHaveText('echo keel-agent-ok');
+  await expect(card).toContainText('1 line · 20 bytes');
+  await expect(card).toContainText('^Uecho keel-agent-ok↵'); // control bytes as glyphs
   await app.screenshot('agent-proposal');
 
   // The proposal is in no pane yet: only the agent's card shows it.
   expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
   await card.getByRole('button', /Type into pane/).tap();
-  await expect(approveDialog(screen)).toBeHidden();
-  await expect(card).toContainText('Typed into Local Shell. Press Enter to run.');
-  // On the prompt line (the shell's echo), not run until the user's Enter.
-  await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('keel-agent-ok');
-  await new Promise((r) => setTimeout(r, 500));
-  expect(await scrollback(app, session.id)).not.toMatch(/keel-agent-ok[\s\S]*keel-agent-ok/);
-  await expect(screen.getByRole('textbox', 'Terminal input', { visible: true })).toBeFocused();
-  await screen.getByRole('textbox', 'Terminal input', { visible: true }).press('Enter');
+  await expect(approveDialog(screen)).toBeVisible();
+  await expect(approveDialog(screen)).toContainText('echo keel-agent-ok');
+  await app.screenshot('agent-approve');
+  // Still nothing in the pane while the dialog waits.
+  expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
+  await approveDialog(screen).getByRole('button', 'Type', { exact: true }).tap();
   await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toMatch(/keel-agent-ok[\s\S]*keel-agent-ok/);
+  await expect(card).toContainText('Typed into Local Shell');
 
   // §6.7: the read and the type are in keel.log, with counts, not content.
   const entries = await logs(app);
@@ -133,7 +130,7 @@ test('ask: trace, answer and a read-only proposal typed without a dialog, run on
   const typed = entries.find((e) => e.kind === 'agent.type' && e.sessionId === session.id);
   expect(read?.lines).toBeGreaterThan(0);
   expect(Object.keys(read?.redactions || {}).length).toBeGreaterThan(0);
-  expect(typed?.bytes).toBe(18);
+  expect(typed?.bytes).toBe(20);
   expect(JSON.stringify(entries)).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz0123456789');
   await closeTabs(screen);
 });

@@ -87,7 +87,7 @@ test("the notes after a direct type say Enter is the user's", () => {
 });
 
 test("directHint: the page's mirror of keel serve's allowlist, for the label only", () => {
-  for (const ok of ["ls -la", "df -h", "ps aux | grep nginx", "grep -i 'a|b' f", "echo \"a b\"", "kubectl get pods -A"]) {
+  for (const ok of ["pwd", "uname -a", "ls", "ls -lah build/out", "kubectl get pods -A", "kubectl get pods -n kube-system -o wide", "systemctl status nginx --no-pager", "docker ps -a"]) {
     assert.equal(TD.directHint(ok), true, ok);
   }
   for (const bad of [
@@ -113,6 +113,16 @@ test("directHint: the page's mirror of keel serve's allowlist, for the label onl
     "frobnicate",
     "git status",
     "history",
+    "ps aux | grep nginx",
+    "echo \"a b\"",
+    "ls /home/u",
+    "ls /USERS/me",
+    "ls .ssh",
+    "ls x/../y",
+    "kubectl get secrets",
+    "kubectl get pods -o yaml",
+    "systemctl --no-pager status nginx",
+    "printenv ANTHROPIC_API_KEY",
     "echo '\\e]0;x\\a'",
   ]) {
     assert.equal(TD.directHint(bad), false, bad);
@@ -121,17 +131,20 @@ test("directHint: the page's mirror of keel serve's allowlist, for the label onl
 
 test("stepDirect keeps the dialog for several hosts when one is production", () => {
   const st = { risk: "readonly", command: "uptime" };
+  assert.equal(TD.stepDirect({ risk: "readonly", command: "kubectl get pods -n {{ns}}" }), true);
   const cell = (production) => ({ proposal: { production } });
   assert.equal(TD.stepDirect(st, [cell(false), cell(false)]), true);
   assert.equal(TD.stepDirect(st, [cell(false), cell(true)]), false);
   assert.equal(TD.stepDirect(st, [cell(true)]), true);
-  assert.equal(TD.stepDirect({ risk: "readonly", command: "echo {{ver}}" }), true);
+  assert.equal(TD.stepDirect({ risk: "readonly", command: "echo {{ver}}" }), false);
 });
 
 test("snippetBadge: Approve first only where the dialog is certain", () => {
   assert.equal(TD.snippetBadge("free -h\n"), "");
   assert.equal(TD.snippetBadge("echo a\necho b\n"), "Approve first");
   assert.equal(TD.snippetBadge("cat [secret:1]"), "Approve first");
+  assert.equal(TD.snippetBadge("ps aux --sort=-%cpu | head -n 15\n"), "Approve first");
+  assert.equal(TD.snippetBadge("ls -la\n"), "");
 });
 
 test("cursorLine reads the cursor's line", () => {

@@ -25,6 +25,8 @@ const runPage = (screen: any) => screen.getByRole('region', 'Group run');
 const scrollback = async (app: any, id: string) => (await keelApi<{ text: string }>(app.baseUrl, `/api/sessions/${id}/scrollback`)).text;
 const logs = (app: any) => keelApi<LogEntry[]>(app.baseUrl, '/api/logs');
 const count = (text: string, needle: string) => text.split(needle).length - 1;
+// What uname -a prints first on this machine.
+const KERNEL = process.platform === 'darwin' ? 'Darwin' : 'Linux';
 const terminal = (screen: any) => screen.getByRole('textbox', 'Terminal input', { visible: true });
 
 async function openLocalShell(app: any, screen: any): Promise<Session> {
@@ -68,31 +70,35 @@ test('a read-only proposal is typed without a dialog and runs only on Enter; a s
     await composer(screen).press('Enter');
     const card = panel(screen).getByRole('group', 'Proposal').last();
     await expect(card).toContainText('Read-only');
+    // The fake proposes echo, which is outside the direct grammar: edit it
+    // to one that is in it.
+    await card.getByRole('button', 'Edit command').tap();
+    await card.getByRole('textbox', 'Edit command').fill('uptime');
+    await card.getByRole('button', 'Save command').tap();
     // The card shows what Type sends: the command alone, no ^U, no ↵.
-    await expect(card).toContainText('1 line · 18 bytes');
-    await expect(card.getByLabel('Exact bytes')).toHaveText('echo keel-agent-ok');
+    await expect(card).toContainText('1 line · 6 bytes');
+    await expect(card.getByLabel('Exact bytes')).toHaveText('uptime');
     // No ellipsis: no dialog follows.
     const type = card.getByRole('button', /^Type into pane/);
     await expect(type).toHaveText(/^Type into pane\s*↵$/);
-    expect(await scrollback(app, session.id)).not.toContain('keel-agent-ok');
+    expect(await scrollback(app, session.id)).not.toContain('uptime');
 
     await type.tap();
     await expect(approveDialog(screen)).toBeHidden();
     await expect(card).toContainText('Typed into Local Shell. Press Enter to run.');
-    // On the prompt line, once (the echo of what was typed), not run.
-    await notRun(app, session.id, 'echo keel-agent-ok', 'keel-agent-ok\r\n');
-    expect(count(await scrollback(app, session.id), 'keel-agent-ok')).toBe(1);
+    // On the prompt line (the echo of what was typed), not run.
+    await notRun(app, session.id, 'uptime', 'load average');
     await app.screenshot('type-direct-proposal');
     // The pane has the focus: the user's Enter runs it.
     await expect(terminal(screen)).toBeFocused();
     await terminal(screen).press('Enter');
-    await expect.poll(async () => count(await scrollback(app, session.id), 'keel-agent-ok'), { timeout: 10_000 }).toBe(2);
+    await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('load average');
 
     const direct = (await logs(app)).filter((e) => e.kind === 'agent.type' && e.sessionId === session.id);
     expect(direct).toHaveLength(1);
     expect(direct[0].source).toBe('direct');
-    expect(direct[0].bytes).toBe(18);
-    expect(direct[0].message).not.toContain('keel-agent-ok');
+    expect(direct[0].bytes).toBe(6);
+    expect(direct[0].message).not.toContain('uptime');
 
     // A state change: the label ends in "…" and the approve dialog decides.
     await composer(screen).fill('touch the marker');
@@ -114,7 +120,7 @@ test('a read-only proposal is typed without a dialog and runs only on Enter; a s
 test('a snippet of one read-only line is typed without a dialog; one of two lines asks', { tags: ['palette'] }, async ({ app, screen }) => {
   const made: string[] = [];
   try {
-    const one = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-one', command: 'echo tdsnip""-out\n' });
+    const one = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-one', command: 'uname -a\n' });
     const two = await keelSend<Snippet>(app.baseUrl, 'POST', '/api/snippets', { name: 'td-two', command: 'echo td-first\necho td-second\n' });
     made.push(one.id, two.id);
     await openKeel(app);
@@ -126,13 +132,13 @@ test('a snippet of one read-only line is typed without a dialog; one of two line
     await palette.getByRole('combobox').press('Enter');
     await expect(approveDialog(screen)).toBeHidden();
     // Typed without its newline: on the prompt line, not run.
-    await notRun(app, session.id, 'tdsnip', 'tdsnip-out');
+    await notRun(app, session.id, 'uname -a', KERNEL);
     await expect(terminal(screen)).toBeFocused();
     await terminal(screen).press('Enter');
-    await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('tdsnip-out');
+    await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain(KERNEL);
     const entry = (await logs(app)).find((e) => e.kind === 'snippet' && e.source === 'direct' && e.sessionId === session.id);
     expect(entry?.message).toContain(one.id);
-    expect(entry?.message).not.toContain('tdsnip');
+    expect(entry?.message).not.toContain('uname');
 
     // Two lines: Approve before type, as before.
     await terminal(screen).press('Meta+k');
@@ -152,7 +158,7 @@ test('a notebook block of one read-only line is typed without a dialog; a block 
   const name = `td-nb-${Date.now()}`;
   const nb = await keelSend<Notebook>(app.baseUrl, 'POST', '/api/notebooks', {
     name,
-    cells: [{ body: '```sh\necho tdnb""-out\n```\n\n```sh\necho td-nb-first\necho td-nb-second\n```' }],
+    cells: [{ body: '```sh\nid\n```\n\n```sh\necho td-nb-first\necho td-nb-second\n```' }],
   });
   try {
     await openKeel(app);
@@ -175,10 +181,10 @@ test('a notebook block of one read-only line is typed without a dialog; a block 
     // One read-only line: typed into the pane beside it, not run.
     await types.first().tap();
     await expect(approveDialog(screen)).toBeHidden();
-    await notRun(app, session.id, 'tdnb', 'tdnb-out');
+    await notRun(app, session.id, 'id', 'uid=');
     await expect(terminal(screen)).toBeFocused();
     await terminal(screen).press('Enter');
-    await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('tdnb-out');
+    await expect.poll(() => scrollback(app, session.id), { timeout: 10_000 }).toContain('uid=');
     expect((await logs(app)).some((e) => e.kind === 'notebook' && e.source === 'direct' && e.message.includes(nb.id))).toBe(true);
   } finally {
     await closeTabs(app, screen);
@@ -207,12 +213,11 @@ test('a group run of a read-only step: one click types into both hosts, no Enter
     const group = groups.find((g) => g.name === 'td-e2e') ?? (await keelSend<Group>(app.baseUrl, 'POST', '/api/groups', { name: 'td-e2e' }));
     await keelSend(app.baseUrl, 'POST', '/api/hosts/move', { ids: [h1.id, h2.id], groupId: group.id });
     for (const h of [h1, h2]) await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: h.id, role: 'worker' });
-    // echo with an empty quote: the typed line holds tdgrp""-out, only
-    // its output holds tdgrp-out.
+    // df -h: the typed line is "df -h", only its output says Filesystem.
     await keelSend(app.baseUrl, 'POST', '/api/agent/runbooks', {
       name: 'td check workers',
       agentMayPick: false,
-      steps: [{ title: 'Check each worker', command: 'echo tdgrp""-out', role: 'worker' }],
+      steps: [{ title: 'Check each worker', command: 'df -h', role: 'worker' }],
     });
     await openKeel(app);
     const vault = screen.getByRole('complementary', 'Vault');
@@ -248,8 +253,8 @@ test('a group run of a read-only step: one click types into both hosts, no Enter
     const s1 = sessions.find((s) => s.hostId === h1.id)!;
     const s2 = sessions.find((s) => s.hostId === h2.id)!;
     // In both panes, and run in neither: no Enter was sent.
-    await notRun(app, s1.id, 'tdgrp', 'tdgrp-out');
-    await notRun(app, s2.id, 'tdgrp', 'tdgrp-out');
+    await notRun(app, s1.id, 'df -h', 'Filesystem');
+    await notRun(app, s2.id, 'df -h', 'Filesystem');
     await expect(runPage(screen).getByRole('row', /^td-wk-1/)).not.toContainText('✓ exit 0');
     const typed = (await logs(app)).filter((e) => e.kind === 'agent.type' && e.source === 'direct' && (e.sessionId === s1.id || e.sessionId === s2.id));
     expect(new Set(typed.map((e) => e.sessionId)).size).toBe(2);
@@ -261,8 +266,8 @@ test('a group run of a read-only step: one click types into both hosts, no Enter
     if (await tabs.count()) await tabs.first().tap();
     await expect(terminal(screen)).toBeVisible();
     await terminal(screen).press('Enter');
-    await expect.poll(() => scrollback(app, s1.id), { timeout: 10_000 }).toContain('tdgrp-out');
-    expect(await scrollback(app, s2.id)).not.toContain('tdgrp-out');
+    await expect.poll(() => scrollback(app, s1.id), { timeout: 10_000 }).toContain('Filesystem');
+    expect(await scrollback(app, s2.id)).not.toContain('Filesystem');
   } finally {
     await closeTabs(app, screen);
     await retire(app, /^td-wk-/, 'td-e2e');

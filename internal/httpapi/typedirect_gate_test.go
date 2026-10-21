@@ -97,23 +97,23 @@ func TestDirectTypeGateAsksJevAboutProposals(t *testing.T) {
 	before := len(f.judge.Requests())
 
 	// Read-only by the allowlist, but Jev says it changes state: dialog.
-	if code, b := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "echo keel-jev-stricter"}); code != 200 {
+	if code, b := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "ls keel-jev-stricter"}); code != 200 {
 		t.Fatalf("edit → %d %s", code, b)
 	}
 	got := readPTY(bridge)
-	wantDialog(t, "Jev changes", directOverSocket(t, driver, "echo keel-jev-stricter", agentDirect(), convPart(id)), service.ReasonJev)
+	wantDialog(t, "Jev changes", directOverSocket(t, driver, "ls keel-jev-stricter", agentDirect(), convPart(id)), service.ReasonJev)
 	nothingWritten(t, got, "a proposal Jev rated stricter")
 	if n := len(f.judge.Requests()) - before; n != 1 {
 		t.Fatalf("Jev requests = %d", n)
 	}
 	// Jev says read-only: typed.
-	if code, _ := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "echo keel-ok"}); code != 200 {
+	if code, _ := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "ls keel-ok"}); code != 200 {
 		t.Fatal("edit")
 	}
-	if r := directOverSocket(t, driver, "echo keel-ok", agentDirect(), convPart(id)); r["ok"] != true {
+	if r := directOverSocket(t, driver, "ls keel-ok", agentDirect(), convPart(id)); r["ok"] != true {
 		t.Fatalf("Jev read-only → %v", r)
 	}
-	written(t, got, "echo keel-ok", "a proposal Jev rated read-only")
+	written(t, got, "ls keel-ok", "a proposal Jev rated read-only")
 }
 
 func TestDirectTypeGatePromptState(t *testing.T) {

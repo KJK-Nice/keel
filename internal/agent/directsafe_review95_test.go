@@ -103,32 +103,6 @@ func TestDirectSafeReview95Refuses(t *testing.T) {
 	}
 }
 
-func TestDirectSafeReview95Accepts(t *testing.T) {
-	for _, c := range []string{
-		`ls -la`,
-		`pwd`,
-		`df -h`,
-		`uptime`,
-		`ps aux | grep nginx`,
-		`ps -ef`,
-		`tail -n 50 /var/log/syslog`,
-		`grep -n TODO main.go | head -20`,
-		`kubectl get pods -n kube-system`,
-		`kubectl get pods -A`,
-		`systemctl status nginx --no-pager`,
-		`systemctl --no-pager status nginx`,
-		`journalctl --no-pager -u nginx -n 100`,
-		`docker ps -a`,
-		`date +%F`,
-		`ls /home/u/projects`,
-		`lsof -i :5432`,
-	} {
-		if !DirectSafe(c) {
-			t.Errorf("DirectSafe(%q) = false, want a direct type", c)
-		}
-	}
-}
-
 // The ⇧ rule's rating is fooled the same way: a word after a flag may be
 // that flag's value, so the line is rated with each reading and the
 // stricter one stands.

@@ -118,12 +118,17 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 		t.Fatalf("proposals %v %v", ro, ch)
 	}
 	roID, chID := ro["id"].(string), ch["id"].(string)
+	// The fake proposes "uptime", which is outside the direct
+	// grammar: make it a form that is in it.
+	if code, b := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+roID, map[string]string{"command": "uptime"}); code != 200 {
+		t.Fatalf("edit → %d %s", code, b)
+	}
 
 	// type-check says so and writes and logs nothing.
 	got := readPTY(bridge)
 	// type-check is only for a group run's proposal: a conversation's is
 	// answered "dialog" without a check.
-	if r := checkOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(roID)); r["direct"] != false || r["dialog"] != true || r["ref"] != "r1" {
+	if r := checkOverSocket(t, driver, "uptime", agentDirect(), convPart(roID)); r["direct"] != false || r["dialog"] != true || r["ref"] != "r1" {
 		t.Fatalf("type-check of a conversation's proposal → %v", r)
 	}
 	if r := checkOverSocket(t, driver, "touch /tmp/keel-agent-e2e-touched", agentDirect(), convPart(chID)); r["direct"] != false || r["dialog"] != true {
@@ -142,13 +147,13 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 	wantDialog(t, "other bytes", directOverSocket(t, driver, "echo other", agentDirect(), convPart(roID)), service.ReasonBytes)
 	// A follower gets no nonce, and its direct inject is refused, not
 	// offered the dialog.
-	if err := follower.WriteJSON(map[string]any{"type": "inject", "command": "echo keel-agent-ok", "nonce": "", "direct": agentDirect(), "agent": convPart(roID)}); err != nil {
+	if err := follower.WriteJSON(map[string]any{"type": "inject", "command": "uptime", "nonce": "", "direct": agentDirect(), "agent": convPart(roID)}); err != nil {
 		t.Fatal(err)
 	}
 	if r := waitJSON(t, follower, "type-direct"); r["ok"] != false || r["dialog"] == true || !strings.Contains(r["message"].(string), "follow") {
 		t.Fatalf("follower → %v", r)
 	}
-	if r := checkOverSocket(t, follower, "echo keel-agent-ok", agentDirect(), convPart(roID)); r["direct"] != false {
+	if r := checkOverSocket(t, follower, "uptime", agentDirect(), convPart(roID)); r["direct"] != false {
 		t.Fatalf("follower type-check → %v", r)
 	}
 	nothingWritten(t, got, "a refused direct type")
@@ -168,17 +173,17 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 		t.Fatalf("alt screen never followed %q", seq)
 	}
 	alt("\x1b[?1049h")
-	wantDialog(t, "alternate screen", directOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(roID)), "full-screen")
+	wantDialog(t, "alternate screen", directOverSocket(t, driver, "uptime", agentDirect(), convPart(roID)), "full-screen")
 	nothingWritten(t, got, "a type into vim")
 	alt("\x1b[?1049l")
 
 	// Read-only and one line: typed without ^U and without Enter.
-	if r := directOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(roID)); r["ok"] != true {
+	if r := directOverSocket(t, driver, "uptime", agentDirect(), convPart(roID)); r["ok"] != true {
 		t.Fatalf("direct read-only → %v", r)
 	}
-	written(t, got, "echo keel-agent-ok", "the direct type")
+	written(t, got, "uptime", "the direct type")
 	typed := f.entriesFrom(agent.EventType, agent.TypeDirect)
-	if len(typed) != 1 || typed[0].Bytes != len("echo keel-agent-ok") || typed[0].Lines != 1 || typed[0].SessionID != web.ID || strings.Contains(typed[0].Message, "keel-agent-ok") {
+	if len(typed) != 1 || typed[0].Bytes != len("uptime") || typed[0].Lines != 1 || typed[0].SessionID != web.ID || strings.Contains(typed[0].Message, "uptime") {
 		t.Fatalf("agent.type direct = %+v", typed)
 	}
 	if n := len(f.logEntries(agent.EventType)); n != 1 {
@@ -251,9 +256,9 @@ func TestDirectTypeSnippetsAreRatedServerSide(t *testing.T) {
 	}
 
 	// Agent-usable: Jev may make it stricter (never looser), and is logged.
-	stricter := snip("echo keel-jev-stricter", true)
+	stricter := snip("ls keel-jev-stricter", true)
 	got = readPTY(bridge)
-	wantDialog(t, "Jev says changes", directOverSocket(t, driver, "echo keel-jev-stricter", dir(stricter), nil), service.ReasonJev)
+	wantDialog(t, "Jev says changes", directOverSocket(t, driver, "ls keel-jev-stricter", dir(stricter), nil), service.ReasonJev)
 	if n := len(f.judge.Requests()); n != 1 {
 		t.Fatalf("Jev requests = %d", n)
 	}
@@ -271,10 +276,10 @@ func TestDirectTypeSnippetsAreRatedServerSide(t *testing.T) {
 	if err := f.st.ClearAgentKey("jev"); err != nil {
 		t.Fatal(err)
 	}
-	if r := directOverSocket(t, driver, "echo keel-jev-stricter", dir(stricter), nil); r["ok"] != true {
+	if r := directOverSocket(t, driver, "ls keel-jev-stricter", dir(stricter), nil); r["ok"] != true {
 		t.Fatalf("no Jev, read-only by the code rule → %v", r)
 	}
-	written(t, got, "echo keel-jev-stricter", "a snippet rated by the code rule alone")
+	written(t, got, "ls keel-jev-stricter", "a snippet rated by the code rule alone")
 	got = readPTY(bridge)
 	unknown := snip("frobnicate --all", true)
 	wantDialog(t, "a command the code rule does not know", directOverSocket(t, driver, "frobnicate --all", dir(unknown), nil), service.ReasonRisk)
@@ -366,11 +371,11 @@ func TestDirectTypeGroupRun(t *testing.T) {
 		}
 	}
 	setProd(false)
-	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "1.31.2"}); code != 200 {
+	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "kube-system"}); code != 200 {
 		t.Fatalf("var → %d %s", code, b)
 	}
 	code, b := f.call(t, "POST", "/api/agent/runbooks", service.RunbookInput{Name: "rb", Steps: []store.RunbookStep{
-		{Title: "check", Command: "echo kubelet-ok {{ver}}"},
+		{Title: "check", Command: "kubectl get pods -n {{ver}}"},
 		{Title: "restart", Command: "systemctl restart kubelet"},
 	}})
 	var saved service.SavedRunbook
@@ -413,12 +418,12 @@ func TestDirectTypeGroupRun(t *testing.T) {
 	part := func(p *service.Proposal) map[string]any {
 		return map[string]any{"groupRunId": run.ID, "proposalId": p.ID}
 	}
-	filled := "echo kubelet-ok 1.31.2"
+	filled := "kubectl get pods -n kube-system"
 
 	// The saved command (with {{ver}}) is not the bytes typed: dialog.
 	gotWeb := readPTY(f.bridge(t, f.webID))
 	gotProd := readPTY(f.bridge(t, f.prodID))
-	wantDialog(t, "unfilled", directOverSocket(t, conns[f.webID], "echo kubelet-ok {{ver}}", agentDirect(), part(props[f.webID])), service.ReasonBytes)
+	wantDialog(t, "unfilled", directOverSocket(t, conns[f.webID], "kubectl get pods -n {{ver}}", agentDirect(), part(props[f.webID])), service.ReasonBytes)
 	// Another host's proposal in this pane: refused.
 	if r := checkOverSocket(t, conns[f.webID], filled, agentDirect(), part(props[f.prodID])); r["direct"] != false || r["dialog"] == true {
 		t.Fatalf("other host's proposal → %v", r)
@@ -440,11 +445,11 @@ func TestDirectTypeGroupRun(t *testing.T) {
 	nothingWritten(t, gotWeb, "a group type-check")
 	// The value changed after the check: the old bytes are not the bytes
 	// filled in now (rule 11), so the dialog decides.
-	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "1.32.0"}); code != 200 {
+	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "default"}); code != 200 {
 		t.Fatalf("var → %d %s", code, b)
 	}
 	wantDialog(t, "stale value", directOverSocket(t, conns[f.webID], filled, agentDirect(), part(props[f.webID])), service.ReasonBytes)
-	filled = "echo kubelet-ok 1.32.0"
+	filled = "kubectl get pods -n default"
 	for host, p := range props {
 		if r := directOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["ok"] != true {
 			t.Fatalf("direct %s → %v", host, r)
@@ -457,7 +462,7 @@ func TestDirectTypeGroupRun(t *testing.T) {
 		t.Fatalf("one agent.type per host: %+v", direct)
 	}
 	for _, e := range direct {
-		if strings.Contains(e.Message, "1.32.0") || strings.Contains(e.Message, "kubelet") {
+		if strings.Contains(e.Message, "default") || strings.Contains(e.Message, "kubectl") {
 			t.Fatalf("log holds the command: %q", e.Message)
 		}
 	}

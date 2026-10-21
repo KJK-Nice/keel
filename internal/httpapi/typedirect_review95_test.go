@@ -61,11 +61,11 @@ func TestDirectTypeJevNoAnswerFailsClosed(t *testing.T) {
 	waitJSON(t, driver, "ready")
 	_, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "check", "panes": []string{web.ID}})
 	id := proposalsOf(t, resp)[0]["id"].(string)
-	if code, _ := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "echo keel-jev-slow"}); code != 200 {
+	if code, _ := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "ls keel-jev-slow"}); code != 200 {
 		t.Fatal("edit")
 	}
 	got := readPTY(f.bridge(t, f.webID))
-	r := directAnswerWithin(t, driver, "echo keel-jev-slow", agentDirect(), convPart(id), 6*time.Second)
+	r := directAnswerWithin(t, driver, "ls keel-jev-slow", agentDirect(), convPart(id), 6*time.Second)
 	wantDialog(t, "Jev timed out", r, service.ReasonJevNone)
 	nothingWritten(t, got, "a type Jev never answered")
 }
@@ -129,7 +129,10 @@ func TestDirectTypeLogsOnlyAfterTheWrite(t *testing.T) {
 	waitJSON(t, driver, "ready")
 	_, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "check", "panes": []string{web.ID}})
 	id := proposalsOf(t, resp)[0]["id"].(string)
-	if err := driver.WriteJSON(map[string]any{"type": "inject", "command": "echo keel-agent-ok", "nonce": "not-a-nonce", "direct": agentDirect(), "agent": convPart(id)}); err != nil {
+	if code, _ := f.call(t, "PUT", "/api/agent/conversations/"+askConv+"/proposals/"+id, map[string]string{"command": "uptime"}); code != 200 {
+		t.Fatal("edit")
+	}
+	if err := driver.WriteJSON(map[string]any{"type": "inject", "command": "uptime", "nonce": "not-a-nonce", "direct": agentDirect(), "agent": convPart(id)}); err != nil {
 		t.Fatal(err)
 	}
 	if r := waitJSON(t, driver, "type-direct"); r["ok"] != false || r["dialog"] == true {
@@ -139,10 +142,10 @@ func TestDirectTypeLogsOnlyAfterTheWrite(t *testing.T) {
 		t.Fatalf("agent.type logged for a write that failed: %d", n)
 	}
 	got := readPTY(f.bridge(t, f.webID))
-	if r := directOverSocket(t, driver, "echo keel-agent-ok", agentDirect(), convPart(id)); r["ok"] != true {
+	if r := directOverSocket(t, driver, "uptime", agentDirect(), convPart(id)); r["ok"] != true {
 		t.Fatalf("direct → %v", r)
 	}
-	written(t, got, "echo keel-agent-ok", "the direct type")
+	written(t, got, "uptime", "the direct type")
 	if n := len(f.entriesFrom(agent.EventType, agent.TypeDirect)); n != 1 {
 		t.Fatalf("agent.type after the write = %d", n)
 	}

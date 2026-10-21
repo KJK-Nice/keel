@@ -22,30 +22,53 @@ export function directLine(command) {
   return s !== "" && !NOT_LINE.test(s);
 }
 
-// DIRECT_COMMANDS are the command words keel serve's allowlist
-// (agent.DirectSafe, internal/agent/directsafe.go) may type without the
-// dialog. The page uses them only as a hint, to skip a round trip and
-// name the button; keel serve checks every flag and word itself.
-const DIRECT_COMMANDS = new Set(
-  "ls pwd whoami id groups uptime uname hostname date df du free cat head tail wc grep egrep fgrep sort uniq cut echo ps pgrep pidof ss netstat lsblk lscpu nproc arch tty w who last dmesg stat which type basename dirname realpath readlink printenv tree lsof dig host ping systemctl journalctl docker kubectl ip".split(" "),
-);
-const PIPE_FILTERS = new Set("grep egrep fgrep head tail wc sort uniq cut tr".split(" "));
-// Shell syntax and expansions DirectSafe refuses outside quotes; ! anywhere.
-const SYNTAX = /[$`;&<>(){}\\*?[\]#~^]/;
+// The direct grammar, as keel serve's agent.DirectSafe
+// (internal/agent/directsafe.go) has it. The page uses it only as a hint,
+// to skip a round trip and name the button; keel serve decides.
+const EXACT = new Set(["pwd", "whoami", "id", "date", "uptime", "hostname", "uname -a", "df -h", "free -h", "ps aux", "docker ps", "docker ps -a"]);
+const KUBE = new Set("pods nodes svc services deployments ns namespaces ingress pvc events jobs cronjobs statefulsets daemonsets replicasets".split(" "));
+const HOMES = ["/root", "/home", "/users", "/var/root", "/private/var/root"];
+const SECRETS = ["/proc", "environ", "/.ssh", "/.aws", "/.kube", "/.gnupg", "/.config/gh", "/.docker", "/.netrc", "/.git-credentials", "/etc/shadow", "/etc/gshadow", "/etc/sudoers",
+  "id_", ".pem", ".key", ".p12", ".pfx", "credential", "token", "secret", "password", ".env", "kubeconfig", "shadow", "_history", ".pgpass", ".npmrc", ".pypirc", ".my.cnf", ".ssh"];
+
+function safePath(p) {
+  if (!/^[A-Za-z0-9_./-]{1,128}$/.test(p) || p.startsWith("-") || p.includes("//")) return false;
+  if (p.split("/").some((seg) => seg === "." || seg === "..")) return false;
+  const c = p.length > 1 ? p.replace(/\/$/, "").toLowerCase() : p;
+  if (HOMES.some((h) => c === h || c.startsWith(h + "/"))) return false;
+  return !SECRETS.some((x) => ("/" + c).includes(x));
+}
+
+function kubeGet(w) {
+  if (w.length < 2 || w[0] !== "get" || !KUBE.has(w[1])) return false;
+  let ns = false;
+  let wide = false;
+  for (let i = 2; i < w.length; i++) {
+    if (w[i] === "-n" && !ns && /^[a-z0-9-]{1,63}$/.test(w[i + 1] || "")) {
+      ns = true;
+      i++;
+    } else if (w[i] === "-A" && !ns) ns = true;
+    else if (w[i] === "-o" && !wide && w[i + 1] === "wide") {
+      wide = true;
+      i++;
+    } else return false;
+  }
+  return true;
+}
 
 // directHint: could keel serve type this line without the dialog? False
-// means it certainly will not (so the page goes straight to the dialog);
-// true means it may, and keel serve decides.
+// means it certainly will not (the page goes straight to the dialog).
 export function directHint(command) {
-  if (!directLine(command) || command.includes("!") || command.includes("\\") || /\|\||\|&/.test(command)) return false;
-  // Outside quotes only.
-  const bare = command.replace(/'[^']*'/g, "''").replace(/"[^"$`\\]*"/g, '""');
-  if (SYNTAX.test(bare) || /['"]/.test(bare.replace(/''|""/g, ""))) return false;
-  const segs = bare.split("|").map((s) => s.trim());
-  return segs.every((seg, i) => {
-    const name = seg.split(/\s+/)[0] || "";
-    return (i === 0 ? DIRECT_COMMANDS : PIPE_FILTERS).has(name);
-  });
+  if (typeof command !== "string" || command.length > 256 || !/^[\x21-\x7e]+( [\x21-\x7e]+)*$/.test(command)) return false;
+  if (EXACT.has(command)) return true;
+  const w = command.split(" ");
+  if (w[0] === "ls") {
+    const rest = ["-l", "-la", "-lah"].includes(w[1]) ? w.slice(2) : w.slice(1);
+    return rest.length === 0 || (rest.length === 1 && safePath(rest[0]));
+  }
+  if (w[0] === "kubectl") return kubeGet(w.slice(1));
+  if (w[0] === "systemctl") return w.length === 4 && w[1] === "status" && /^[A-Za-z0-9@._][A-Za-z0-9@._-]{0,127}$/.test(w[2]) && w[3] === "--no-pager";
+  return false;
 }
 
 // snippetLine is what a direct type of a snippet sends: its command
@@ -77,10 +100,9 @@ export function stepDirect(step, cells = []) {
 }
 
 // snippetBadge: "Approve first" only on a snippet that will certainly
-// open the dialog (more than one line, or a redaction placeholder).
+// open the dialog: one outside the direct grammar.
 export function snippetBadge(command) {
-  const line = snippetLine(command);
-  return !directLine(line) || /\[(secret|ip|host):\d+\]/.test(line) ? "Approve first" : "";
+  return directHint(snippetLine(command)) ? "" : "Approve first";
 }
 
 // cursorLine is the text of the line the terminal's cursor is on, sent
