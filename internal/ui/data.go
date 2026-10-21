@@ -574,6 +574,35 @@ func agentModels() []string {
 
 func agentDefaultModel() string { return store.DefaultAgentModel }
 
+// agentModelOptions is the Model picker of Settings · Agent; js/ui/
+// agentsettings.js replaces it with the provider's list.
+func agentModelOptions() []ComboOption {
+	models := agentModels()
+	out := make([]ComboOption, 0, len(models))
+	for _, m := range models {
+		out = append(out, ComboOption{Value: m, Label: m})
+	}
+	return out
+}
+
+// terminalFontOptions is Settings · Terminal · Font (term.js fontFamily).
+var terminalFontOptions = []ComboOption{
+	{Value: "jetbrains", Label: "JetBrains Mono", Desc: "Ships with Keel"},
+	{Value: "ibmplex", Label: "IBM Plex Mono", Desc: "Ships with Keel"},
+	{Value: "menlo", Label: "Menlo / SF Mono", Desc: "macOS"},
+	{Value: "consolas", Label: "Consolas", Desc: "Windows"},
+	{Value: "system", Label: "System mono", Desc: "The system's monospace font"},
+}
+
+// historyOptions is Settings · Agent · Keep conversations (historyDays).
+var historyOptions = []ComboOption{
+	{Value: "0", Label: "Only while open"},
+	{Value: "7", Label: "7 days"},
+	{Value: "30", Label: "30 days"},
+	{Value: "90", Label: "90 days"},
+	{Value: "365", Label: "1 year"},
+}
+
 // logFacts lists the counts an agent entry carries (lines, bytes, how many
 // prompt lines one entry stands for, redactions, where a suggestion came
 // from, and how long the model and Jev took), as short labels in this

@@ -17,6 +17,9 @@
 /* The agent packages hold no markup; their redaction placeholders like
    `[secret:1]` would otherwise become arbitrary-property classes. */
 @source not "../../internal/agent";
+/* Nor do the JS unit tests: the markdown renderer's cases quote those
+   placeholders too. */
+@source not "../../cmd/keel/web/js/test";
 
 @custom-variant dark (&:is(.dark *));
 

@@ -88,10 +88,13 @@ test('roles on the group page, then a rolling run: one host at a time, a failure
   await openGroupPage(screen);
 
   // Roles: a new role for wx-wk-1, the same for wx-wk-2 from the menu.
-  await page(screen).getByRole('combobox', 'Role of wx-wk-1').selectOption('New role…');
+  // The role picker is a k-combobox: tap it, then pick or type to filter.
+  await page(screen).getByRole('combobox', 'Role of wx-wk-1').tap();
+  await screen.getByRole('option', 'New role…').tap();
   await page(screen).getByRole('textbox', 'New role for wx-wk-1').fill('worker');
   await page(screen).getByRole('textbox', 'New role for wx-wk-1').press('Enter');
-  await page(screen).getByRole('combobox', 'Role of wx-wk-2').selectOption('worker');
+  await page(screen).getByRole('combobox', 'Role of wx-wk-2').tap();
+  await screen.getByRole('option', 'worker').tap();
   await expect(page(screen).getByRole('list', 'Hosts per role')).toContainText('3 worker');
   const members = await keelApi<{ members: { hostId: string; role?: string }[] }>(app.baseUrl, `/api/groups/${group.id}/members`);
   expect(members.members.filter((m) => m.role === 'worker').map((m) => m.hostId).sort()).toEqual([wk1.id, wk2.id, off.id].sort());
@@ -157,7 +160,9 @@ test('roles on the group page, then a rolling run: one host at a time, a failure
 
 test('a parallel run: one dialog lists every host, only ticked hosts are typed, each on its own', { tags: ['agent', 'runbooks'] }, async ({ app, screen }) => {
   try {
-  const step = `printf '\\033]133;C\\007gx-par\\n\\033]133;D;0\\007'`;
+  // touch: the step changes state, so the group approve dialog decides
+  // (a read-only step of one line goes without it, §6 rule 13).
+  const step = `touch /tmp/keel-gx-par; printf '\\033]133;C\\007gx-par\\n\\033]133;D;0\\007'`;
   const { wk1, wk2, group } = await setup(app, step);
   for (const h of [wk1, wk2]) await keelSend(app.baseUrl, 'PUT', `/api/groups/${group.id}/roles`, { hostId: h.id, role: 'worker' });
   await openKeel(app);
