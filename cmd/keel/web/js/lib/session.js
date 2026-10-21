@@ -56,6 +56,9 @@ export function parseSessionMessage(text) {
 //   agentSuggest(msg)        a suggestion for the prompt line, or why not
 //   agentSuggestRisk(msg)    Jev rated a shown suggestion stricter
 //   agentInsert(msg)         keel serve inserted (or refused) a suggestion
+//   typeDirect(msg)          keel serve typed a command without the dialog,
+//                            or says the dialog decides (§6 rule 13)
+//   typeCheck(msg)           would it, now (nothing written)
 //   error(msg)               the session failed
 // Unknown types are ignored. Returns whether a handler ran.
 export function dispatchSessionMessage(msg, h) {
@@ -89,6 +92,10 @@ export function dispatchSessionMessage(msg, h) {
       return run("agentSuggestRisk", msg);
     case "agent-insert":
       return run("agentInsert", msg);
+    case "type-direct":
+      return run("typeDirect", msg);
+    case "type-check":
+      return run("typeCheck", msg);
     case "error":
       return run("error", msg);
     default:

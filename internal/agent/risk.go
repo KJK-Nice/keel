@@ -383,7 +383,49 @@ func classifySegment(seg segment, depth int) Risk {
 	if len(w) == 0 {
 		return worst
 	}
-	return Stricter(worst, classifyWords(w, depth))
+	worst = Stricter(worst, classifyWords(w, depth))
+	// A tool's verb is its first word that is not a flag, but that word may
+	// be a flag's value ("kubectl -n get delete ns prod"): rate the line
+	// again as if it were, and keep the stricter. Never looser.
+	if verbTools[cmdName(w[0])] {
+		for _, v := range flagValueReadings(w) {
+			worst = Stricter(worst, classifyWords(v, depth))
+		}
+	}
+	return worst
+}
+
+// verbTools take a subcommand as their first word that is not a flag.
+var verbTools = set("kubectl", "oc", "k", "helm", "systemctl", "ufw", "terraform", "tofu", "apt", "apt-cache", "openssl", "tmux", "docker", "podman", "nerdctl", "docker-compose", "git")
+
+// boolFlags are global flags known to take no value, so the word after
+// them is never read as their value.
+var boolFlags = set("--no-pager", "--user", "--system", "--quiet", "-q", "--all-namespaces", "-A", "--no-headers", "--no-legend", "--full", "--plain", "--all", "-a")
+
+// flagValueReadings are the other ways to read w when a word before the
+// verb may be a flag's value: each reading drops one more of the words
+// that stand right after a flag that may take a value, in order.
+func flagValueReadings(w []string) [][]string {
+	var out [][]string
+	drop := map[int]bool{}
+	for i := 1; i < len(w); i++ {
+		if strings.HasPrefix(w[i], "-") {
+			continue
+		}
+		prev := w[i-1]
+		if !strings.HasPrefix(prev, "-") || strings.Contains(prev, "=") || boolFlags[prev] {
+			break
+		}
+		drop[i] = true
+		v := make([]string, 0, len(w))
+		for k, x := range w {
+			if !drop[k] {
+				v = append(v, x)
+			}
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 func isAssignment(s string) bool {

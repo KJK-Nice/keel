@@ -422,6 +422,60 @@ html[data-chrome="titlebar"] .workspace-bar :is(button, a, input, select, textar
    Copy without a selection), as components.css dims a disabled .k-btn. */
 .k-menu-item:disabled, .k-menu-item[aria-disabled="true"] { opacity: .45; pointer-events: none; }
 .k-menu-item .k-shortcut[hidden] { display: none; }
+/* ---------- Combobox (components.css .k-combobox) ----------
+   A searchable value picker: a k-input with role=combobox and a listbox
+   popup that is a k-menu (js/lib/combobox.js). The popup is a manual
+   popover in the top layer, placed under the input in viewport
+   coordinates by the script; without popovers it falls back to an
+   absolute drop below the input. */
+.k-combobox { position: relative; display: block; min-width: 0; }
+.k-combobox > .k-input.k-combobox-input {
+  padding-right: calc(var(--space-2) * 2 + var(--space-4));
+  text-overflow: ellipsis; cursor: default;
+}
+.k-combobox > .k-input.k-combobox-input:focus { cursor: text; }
+.k-combobox > .k-input.k-combobox-input:disabled { color: var(--ink-faint); }
+.k-combobox--mono > .k-input.k-combobox-input, .k-combobox--mono .k-combobox-label { font: var(--type-address); }
+.k-combobox-chevron {
+  position: absolute; top: 0; right: var(--space-2); bottom: 0;
+  display: flex; align-items: center; color: var(--ink-muted); cursor: pointer;
+}
+.k-combobox-chevron svg { display: block; width: var(--space-4); height: var(--space-4); }
+.k-combobox-input:disabled ~ .k-combobox-chevron { color: var(--ink-faint); pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .k-combobox-chevron svg { transition: transform var(--duration-base); }
+}
+.k-combobox[data-open] .k-combobox-chevron svg { transform: rotate(180deg); }
+.k-menu.k-combobox-pop {
+  position: absolute; inset: auto; top: calc(100% + var(--space-1)); left: 0; z-index: 30;
+  margin: 0; min-width: 100%; max-width: calc(100vw - var(--space-4));
+  max-height: calc(var(--size-row) * 7); overflow: auto; overscroll-behavior: contain;
+}
+.k-menu.k-combobox-pop:popover-open { position: fixed; }
+.k-menu.k-combobox-pop[hidden] { display: none; }
+.k-combobox-list { display: grid; }
+.k-menu-item.k-combobox-option {
+  height: auto; min-height: var(--size-control); padding: var(--space-1) var(--space-2);
+  white-space: normal; cursor: default;
+}
+.k-menu-item.k-combobox-option[hidden] { display: none; }
+.k-combobox-icon svg { display: block; width: var(--space-4); height: var(--space-4); }
+.k-combobox-text { display: grid; flex: 1; min-width: 0; }
+.k-combobox-label, .k-combobox-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-combobox-label { font: var(--type-body); color: var(--ink); }
+.k-combobox-desc { font: var(--type-caption); color: var(--ink-muted); }
+.k-combobox-desc--mono { font: var(--type-address); }
+.k-menu-item svg.k-combobox-check { width: var(--space-4); height: var(--space-4); color: var(--ink); visibility: hidden; }
+.k-combobox-option[aria-selected="true"] svg.k-combobox-check { visibility: visible; }
+.k-combobox-empty { margin: 0; padding: var(--space-1\.5) var(--space-2); font: var(--type-body); color: var(--ink-muted); }
+.k-combobox-empty[hidden] { display: none; }
+/* A saved value that no longer exists: said in words, with the attention
+   colour on the field. */
+.k-combobox[data-missing] > .k-input.k-combobox-input { border-color: var(--signal); }
+.k-combobox-option--missing .k-combobox-label { color: var(--ink-muted); }
+/* On the right of a settings row, as wide as a pref-seg. */
+.k-combobox.k-combobox--setting { flex: 0 0 var(--size-rail); }
+
 /* A list item with its menu beside it (Keychain, Snippets): the wrapper
    leaves the list's layout to the item. */
 .k-item-row { display: contents; }
@@ -1634,7 +1688,9 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   max-height: calc(100dvh - 32px);
   overflow: auto;
 }
-.modal:has([data-tui-select-content][data-open]) {
+/* A combobox list is a top-layer popover. Where popovers are missing it
+   drops below its input inside the dialog, which then must not clip it. */
+.modal:has(.k-combobox[data-open-inline]) {
   overflow: visible;
 }
 .modal::backdrop { background: var(--scrim); }
@@ -1653,10 +1709,6 @@ html.show-kbd .pane-actions .icon-btn:disabled .kbd-hint { display: none !import
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   outline: none;
-}
-.modal [data-slot="select-trigger"] {
-  background: var(--stage);
-  border: 1px solid var(--line);
 }
 .modal input:focus, .modal textarea:focus, .modal select:focus {
   border-color: var(--line-strong);
@@ -2676,6 +2728,58 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 .k-agent-who svg { display: block; width: 0.923rem; height: 0.923rem; color: var(--brass-ink); }
 .k-agent-msg { margin: 0; font: 400 1rem/1.462 var(--font-sans); letter-spacing: 0; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .k-agent-msg code { font: 400 0.923rem/1 var(--font-mono); padding: 1px var(--space-1); border-radius: var(--radius-xs); background: var(--hover); color: var(--ink); }
+
+/* An answer as markdown (lib/markdown.js). Sans prose on `body`, mono
+   only for code; headings step down to fit the panel (no display sizes).
+   A code block is the notebook fence's box with Copy only: answers never
+   type (§6.1). */
+.k-md { display: grid; gap: var(--space-2); min-width: 0; font: var(--type-body); white-space: normal; }
+.k-md > *, .k-md li > * { margin: 0; min-width: 0; }
+.k-md :is(h1, h2) { font: var(--type-title); letter-spacing: 0; color: var(--ink); }
+.k-md :is(h3, h4, h5, h6) { font: var(--type-body-strong); letter-spacing: 0; color: var(--ink); }
+.k-md > :is(h1, h2, h3, h4, h5, h6):not(:first-child) { margin-top: var(--space-2); }
+.k-md strong { font-weight: 600; }
+.k-md del { color: var(--ink-muted); }
+.k-md code { font: var(--type-code); line-height: 1; padding: var(--space-0\.5) var(--space-1); }
+.k-md :is(ul, ol) { padding-left: calc(var(--space-4) + var(--space-1\.5)); }
+.k-md li + li { margin-top: var(--space-1); }
+.k-md ul { list-style: disc outside; }
+.k-md ol { list-style: decimal outside; }
+.k-md li { display: list-item; padding-left: var(--space-0\.5); }
+.k-md li > :is(ul, ol, p, blockquote, .k-md-code, .k-md-table) { margin-top: var(--space-1); }
+.k-md li::marker { color: var(--ink-faint); }
+.k-md ol > li::marker { font-family: var(--font-mono); font-weight: 500; }
+.k-md blockquote { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--stage); }
+.k-md blockquote > * { margin: 0; }
+.k-md hr { height: 1px; border: 0; background: var(--line); }
+.k-md-link {
+  color: var(--brass-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-0\.5);
+  text-decoration-color: var(--line-strong);
+  overflow-wrap: anywhere;
+}
+.k-md-link:hover { text-decoration-color: var(--brass-ink); }
+.k-md-linkhost { color: var(--ink-muted); }
+.k-md-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-radius: var(--radius-xs); }
+.k-md-code { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--stage); overflow: hidden; }
+.k-md-code-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-1\.5);
+  height: var(--size-control-lg); padding: 0 var(--space-1) 0 var(--space-3);
+  border-bottom: 1px solid var(--line); user-select: none;
+}
+.k-md-code-lang { font: var(--type-kbd); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.k-md-code pre { margin: 0; padding: var(--space-2) var(--space-3) var(--space-3); overflow-x: auto; white-space: pre; font: var(--type-code); color: var(--ink); }
+.k-md-code pre code { padding: 0; border-radius: 0; background: transparent; font: inherit; white-space: inherit; }
+.k-md-table { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-md-table table { width: 100%; border-collapse: collapse; font: var(--type-caption); }
+.k-md-table :is(th, td) { padding: var(--space-1) var(--space-2); text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.k-md-table th { font: var(--type-label); color: var(--ink-muted); background: var(--surface); }
+.k-md-table tr:last-child td { border-bottom: 0; }
+.k-md-table :is(th, td) + :is(th, td) { border-left: 1px solid var(--line); }
+.k-md-table .k-md-center { text-align: center; }
+.k-md-table .k-md-right { text-align: right; }
 .k-agent-trace { display: grid; gap: var(--space-0\.5); padding: var(--space-1) 0; }
 .k-agent-step { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font: 400 0.923rem/1.538rem var(--font-mono); letter-spacing: 0; color: var(--ink-muted); }
 .k-agent-step > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3322,12 +3426,14 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-gx-hostcell { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .k-gx-folder { font: var(--type-caption); color: var(--ink-faint); }
 .k-gx-addr { color: var(--ink-muted); }
-.k-gx-rolesel, .k-input.k-gx-rolenew {
-  height: var(--size-control-sm); padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--stage); color: var(--ink); font: 400 0.923rem/1 var(--font-mono); cursor: pointer;
+.k-input.k-gx-rolenew {
+  width: calc(var(--size-control) * 5); height: var(--size-control-sm); padding: 0 var(--space-2);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--stage); color: var(--ink); font: var(--type-address);
 }
-.k-input.k-gx-rolenew { width: calc(var(--size-control) * 5); cursor: text; }
-.k-gx-rolesel:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+/* The role picker in a members row: a small mono k-combobox. */
+.k-combobox.k-gx-rolesel { width: calc(var(--size-control) * 6); }
+.k-gx-rolesel > .k-input.k-combobox-input, .k-gx-exportbook > .k-input.k-combobox-input { height: var(--size-control-sm); }
 .k-gx-empty { margin: 0; padding: var(--space-4) var(--space-8); }
 .k-gx-grid { display: grid; grid-template-columns: minmax(0, var(--size-reading)); gap: var(--space-4); padding: var(--space-6) var(--space-8) var(--space-8); }
 
@@ -3460,7 +3566,7 @@ button.k-rb-row-pick:focus-visible { outline: 2px solid var(--focus); outline-of
 .k-gx-drawer-body { display: grid; flex: 1; align-content: start; gap: var(--space-3); min-height: 0; padding: var(--space-4); overflow: auto; }
 .k-gx-drawer-foot { display: flex; flex: none; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
 .k-gx-exportopts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.k-gx-rolesel.k-gx-exportbook { flex: 1; min-width: 0; font: var(--type-caption); }
+.k-combobox.k-gx-exportbook { flex: 1; min-width: 0; }
 .k-gx-exportchecks { display: grid; gap: var(--space-2); }
 .k-gx-check { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--type-caption); color: var(--ink-muted); }
 .k-gx-dryrun { font: var(--type-address); color: var(--ink-muted); overflow-wrap: anywhere; }

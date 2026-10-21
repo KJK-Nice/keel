@@ -1,4 +1,6 @@
 import { escapeHtml } from "./lib/html.js";
+import { comboboxValue, enhanceAll, installCombobox, setComboboxOptions, setComboboxValue } from "./lib/combobox.js";
+import { installSeg, segValue, setSegValue } from "./lib/seg.js";
 import { paneTarget } from "./lib/agent.js";
 import * as G from "./lib/groups.js";
 import * as V from "./lib/vaultview.js";
@@ -55,6 +57,7 @@ import { createGate } from "./ui/gate.js";
 import { AGENT_ICON, createAgentPanel } from "./ui/agentpanel.js";
 import { ICON as THREAD_ICON } from "./ui/agentthread.js";
 import * as NB from "./lib/notebooks.js";
+import * as TD from "./lib/typedirect.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
@@ -68,10 +71,28 @@ import { createGroupRunPage } from "./ui/grouprun.js";
 import { createSettingsPages } from "./ui/settingspages.js";
 import { createPaneSuggest, readPromptLine } from "./ui/suggest.js";
 import { attachCommandMarks } from "./lib/cmdmarks.js";
+import { openExternal } from "./lib/openlink.js";
 
 (() => {
+  // Value pickers (k-combobox, k-seg): delegated, so pickers that a page
+  // paints later or a stream push morphs in work without more wiring.
+  // First, so an open list hears its keys (Escape) before the app's
+  // window shortcuts and dialog handling.
+  installCombobox(document);
+  installSeg(document);
   if (window.__keelTermBound) return;
   window.__keelTermBound = true;
+  // Links marked data-k-external (provider key and terms links, agent
+  // answers) open in the system browser: the native window does nothing
+  // with target=_blank (lib/openlink.js). A view that handled the click
+  // itself has already called preventDefault.
+  document.addEventListener("click", (ev) => {
+    if (ev.defaultPrevented || ev.button !== 0) return;
+    const a = ev.target instanceof Element ? ev.target.closest("a[data-k-external]") : null;
+    if (!a) return;
+    ev.preventDefault();
+    openExternal(a.getAttribute("href"));
+  });
   function createTerminal(opts) {
     const Ctor = window.Terminal;
     if (typeof Ctor !== "function") {
@@ -858,73 +879,39 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     el.addEventListener(type, fn, opts);
   }
 
-  function setSelectValue(triggerId, value) {
-    const trigger = document.getElementById(triggerId);
-    if (!trigger) return;
-    if (trigger.tagName === "SELECT") {
-      trigger.value = value;
-      return;
-    }
-    const contentId = trigger.getAttribute("aria-controls");
-    const content = contentId ? document.getElementById(contentId) : null;
-    if (!content) return;
-    const item = [...content.querySelectorAll("[data-tui-select-item]")].find(
-      (el) => el.getAttribute("data-tui-select-value") === value
-    );
-    if (!item) return;
-    content.querySelectorAll("[data-tui-select-item]").forEach((el) => {
-      const on = el === item;
-      el.toggleAttribute("data-selected", on);
-      el.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    const label =
-      item.getAttribute("data-tui-select-label") ||
-      (item.querySelector("[data-tui-select-item-text]") || item).textContent.trim();
-    const span = trigger.querySelector("[data-tui-select-value]");
-    if (span) span.textContent = label;
-    trigger.removeAttribute("data-placeholder");
-    const input = trigger.previousElementSibling;
-    if (input?.hasAttribute?.("data-tui-select-input")) input.value = value;
+  // Value pickers: a k-combobox (lib/combobox.js) named by its input's id,
+  // or a k-seg (lib/seg.js) named by the group's id. Neither sends events
+  // when term.js fills a dialog; a user's pick sends "select-change".
+  function pickerOf(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    if (el.matches(".k-seg[data-seg]")) return { seg: el };
+    const box = el.closest(".k-combobox[data-combobox]");
+    return box ? { box } : null;
   }
 
-  function fieldValue(form, name, triggerId) {
+  function setSelectValue(id, value) {
+    const p = pickerOf(id);
+    if (p?.seg) setSegValue(p.seg, value);
+    else if (p?.box) setComboboxValue(p.box, value);
+  }
+
+  function fieldValue(form, name, id) {
     const el = form?.elements?.[name];
     if (el && typeof el.value === "string") return el.value;
-    const trigger = document.getElementById(triggerId);
-    const input = trigger?.previousElementSibling;
-    if (input?.hasAttribute?.("data-tui-select-input") && typeof input.value === "string") return input.value;
-    const contentId = trigger?.getAttribute("aria-controls");
-    const selected = contentId && document.getElementById(contentId)?.querySelector("[data-selected]");
-    return selected?.getAttribute("data-tui-select-value") || "";
+    const p = pickerOf(id);
+    if (p?.seg) return segValue(p.seg);
+    return p?.box ? comboboxValue(p.box) : "";
   }
 
-  function fillSelectItems(triggerId, entries, selected, emptyLabel) {
-    const trigger = document.getElementById(triggerId);
-    if (!trigger) return;
-    const contentId = trigger.getAttribute("aria-controls");
-    const content = contentId ? document.getElementById(contentId) : null;
-    if (!content) return;
-    const group =
-      content.querySelector("[data-slot='select-group']") ||
-      content.querySelector("[data-tui-select-viewport]") ||
-      content;
-    const proto = group.querySelector("[data-tui-select-item]");
-    if (!proto) return;
-    const list = entries.length ? entries : [{ value: "", label: emptyLabel || "—" }];
-    group.replaceChildren(
-      ...list.map((entry) => {
-        const node = proto.cloneNode(true);
-        node.setAttribute("data-tui-select-value", entry.value);
-        node.setAttribute("data-tui-select-label", entry.label);
-        node.setAttribute("aria-selected", "false");
-        node.removeAttribute("data-selected");
-        const text = node.querySelector("[data-tui-select-item-text]");
-        if (text) text.textContent = entry.label;
-        return node;
-      })
-    );
-    const pick = selected && list.some((entry) => entry.value === selected) ? selected : list[0].value;
-    setSelectValue(triggerId, pick);
+  // fillSelectItems replaces a combobox's options ({value, label, desc,
+  // descMono, disabled}) and picks selected, else the first option. With
+  // no entries the picker shows emptyLabel.
+  // opts.first: false keeps an empty value empty instead of taking the
+  // first option (a saved item whose choice is gone).
+  function fillSelectItems(id, entries, selected, emptyLabel, opts) {
+    const p = pickerOf(id);
+    if (p?.box) setComboboxOptions(p.box, entries, selected, emptyLabel, "", opts);
   }
 
   function setSliderValue(id, value) {
@@ -1354,6 +1341,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         queued = true;
         requestAnimationFrame(() => {
           queued = false;
+          // A push may morph a picker in: make its ARIA whole again.
+          enhanceAll(el);
           afterListPaint(id);
           obs.takeRecords();
         });
@@ -3211,6 +3200,33 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
   let ptyInjectWaiter = null;
   let ptyChromeHoldUntil = 0;
+  // Keys held down now. After a Type without the dialog (§6 rule 13) the
+  // pane is focused for review: while the key that pressed Type (↵ on the
+  // button) is still down or repeating, nothing reaches the PTY, so it
+  // cannot run the command it just typed.
+  // macOS WebKit sends no keyup for a key pressed while ⌘ is held, so the
+  // set is also cleared when ⌘ goes up, on blur, and HELD_KEYS_MS after
+  // the last keydown: a lost keyup must never keep the pane from typing.
+  const heldKeys = new Set();
+  let reviewHold = false;
+  let heldTimer = 0;
+  const HELD_KEYS_MS = 1500;
+  function clearHeldKeys() {
+    heldKeys.clear();
+    reviewHold = false;
+    clearTimeout(heldTimer);
+  }
+  window.addEventListener("keydown", (ev) => {
+    heldKeys.add(ev.code || ev.key);
+    clearTimeout(heldTimer);
+    heldTimer = setTimeout(clearHeldKeys, HELD_KEYS_MS);
+  }, true);
+  window.addEventListener("keyup", (ev) => {
+    if (ev.key === "Meta" || ev.key === "OS") return clearHeldKeys();
+    heldKeys.delete(ev.code || ev.key);
+    if (!heldKeys.size) reviewHold = false;
+  }, true);
+  window.addEventListener("blur", clearHeldKeys);
 
   function holdPtyFromChrome(ms = 500) {
     ptyChromeHoldUntil = Math.max(ptyChromeHoldUntil, Date.now() + ms);
@@ -3225,7 +3241,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   function ptyWritesBlocked() {
-    return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || isNotebookPane(focusedPane()) || termInputOpen());
+    return !!(sidebarFocused() || state.openModal || ptyInjectWaiter || Date.now() < ptyChromeHoldUntil || (reviewHold && heldKeys.size) || isNotebookPane(focusedPane()) || termInputOpen());
   }
 
   // jumpCommand scrolls the focused terminal to its previous or next
@@ -3458,7 +3474,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         title: `Type snippet: ${sn.name}`,
         hint: String(sn.command || "").trim().split("\n")[0],
         icon: "snippet",
-        badge: "Approve first",
+        // Only a snippet that will certainly ask (§6 rule 13): more than
+        // one line, or a placeholder. Others may type with no dialog.
+        badge: TD.snippetBadge(sn.command),
         run: () => paletteRunSnippet(sn.id),
       });
     }
@@ -3597,6 +3615,22 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!isDriving(pane)) {
       toast("You are following — take or request control to type");
       return;
+    }
+    // A read-only snippet of one line: typed with no dialog and no Enter
+    // when keel serve agrees (§6 rule 13); else Approve before type.
+    const line = TD.snippetLine(sn.command);
+    if (TD.directHint(line)) {
+      const r = await typeDirect(pane, line, { kind: "snippet", snippetId: sn.id });
+      if (r.ok) {
+        pane.term?.clearSelection?.();
+        focusForReview(pane);
+        toast(TD.typedNote(pane.title || pane.subtitle || "the pane"));
+        return;
+      }
+      if (!r.dialog) {
+        toast(r.message, true);
+        return;
+      }
     }
     const command = sn.command.endsWith("\n") ? sn.command : sn.command + "\n";
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
@@ -4480,6 +4514,8 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
       agentType: (msg) => settleAgentType(pane, msg),
+      typeDirect: (msg) => settleDirect(pane, msg),
+      typeCheck: (msg) => settleDirect(pane, msg),
       agentDetect: (msg) => pane.suggest?.onDetect(msg),
       agentSuggest: (msg) => pane.suggest?.onSuggest(msg),
       agentSuggestRisk: (msg) => pane.suggest?.onRisk(msg),
@@ -6080,6 +6116,28 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   }
 
   async function runNotebookFence(nbPane, command) {
+    // A read-only block of one line, from a notebook keel serve has saved:
+    // typed with no dialog and no Enter when keel serve agrees (§6 rule
+    // 13). Anything else: the CLI input, then Approve before type.
+    const line = String(command || "").trim();
+    const target = termTarget(nbPane) || termTarget(focusedPane());
+    if (target && isNotebookPane(nbPane) && nbPane.notebookId && TD.directHint(line) && !NB.hasPlaceholder(line) && !termInputOpen(target)) {
+      try {
+        await flushNotebookSaves(nbPane.notebookId);
+      } catch {
+        /* not saved: keel serve cannot confirm the block, and says dialog */
+      }
+      const r = await typeDirect(target, line, { kind: "notebook", notebookId: nbPane.notebookId });
+      if (r.ok) {
+        focusForReview(target);
+        toast(TD.typedNote(target.title || target.subtitle || "the pane"));
+        return;
+      }
+      if (!r.dialog) {
+        toast(r.message, true);
+        return;
+      }
+    }
     insertNotebookIntoInput(nbPane, command);
     const term = termTarget(nbPane) || termTarget(focusedPane());
     if (term && termInputOpen(term)) await confirmTermInput(term);
@@ -6201,6 +6259,93 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return true;
   }
 
+  // ---- Type without the approve dialog (docs/ui-redesign.md §6 rule 13) --
+  // keel serve decides (internal/httpapi/typedirect.go). The page asks only
+  // when it cannot already tell the answer is the dialog: a pane it drives
+  // on this keel serve, on the normal screen, and a command of one line.
+
+  let directSeq = 0;
+
+  function settleDirect(pane, msg) {
+    const done = pane.directWaiters?.get(msg?.ref);
+    if (!done) return;
+    pane.directWaiters.delete(msg.ref);
+    done(msg);
+  }
+
+  // askDirect sends a type-check or a direct inject and waits for its
+  // answer (null when keel serve did not answer in time).
+  function askDirect(pane, frame, ms) {
+    return new Promise((resolve) => {
+      const ref = `d${++directSeq}`;
+      if (!pane.directWaiters) pane.directWaiters = new Map();
+      const timer = setTimeout(() => {
+        if (pane.directWaiters.delete(ref)) resolve(null);
+      }, ms);
+      pane.directWaiters.set(ref, (msg) => {
+        clearTimeout(timer);
+        resolve(msg);
+      });
+      sendSessionJSON(pane, { ...frame, direct: { ...frame.direct, ref } });
+    });
+  }
+
+  function directReady(pane, command) {
+    return !!pane && isTermPane(pane) && !pane.remote && isDriving(pane) && pane.ws?.readyState === WebSocket.OPEN && !TD.altScreen(pane.term) && TD.directLine(command);
+  }
+
+  // typeDirect asks keel serve to type command into pane, without Enter.
+  // direct is {kind, snippetId?, notebookId?}; agent is the agent part of
+  // an inject ({conversationId | groupRunId, proposalId}). Answers
+  // {ok: true} (typed), {dialog: true, reason} (nothing typed: Approve
+  // before type decides) or {ok: false, message} (refused).
+  async function typeDirect(pane, command, direct, agent = null) {
+    if (!directReady(pane, command)) return { dialog: true, reason: "" };
+    // One at a time per pane: a second click while the first is on its
+    // way would type the command twice on the prompt line.
+    if (pane.directBusy) return { ok: false, message: "Still typing the last command into this pane." };
+    pane.directBusy = true;
+    try {
+      const nonce = await requestInjectTicket(pane, command);
+      if (!nonce) return { dialog: true, reason: "" };
+      holdPtyFromChrome();
+      // What this terminal shows goes with it: keel serve ORs it with its
+      // own view (alternate screen, an input prompt on the cursor line).
+      const frame = { type: "inject", command, nonce, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
+      if (agent) frame.agent = agent;
+      const msg = await askDirect(pane, frame, 8000);
+      // No answer: it may have been typed. Never open a dialog that could
+      // type it a second time.
+      if (!msg) return { ok: false, message: "keel serve did not answer. Check the pane before you press Type again." };
+      if (msg.dialog) return { dialog: true, reason: msg.reason || "" };
+      if (!msg.ok) return { ok: false, message: msg.message || "Not typed." };
+      return { ok: true };
+    } finally {
+      pane.directBusy = false;
+    }
+  }
+
+  // checkDirect asks whether typeDirect would type now (nothing written).
+  async function checkDirect(pane, command, direct, agent = null) {
+    if (!directReady(pane, command)) return false;
+    const frame = { type: "type-check", command, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
+    if (agent) frame.agent = agent;
+    const msg = await askDirect(pane, frame, 8000);
+    return !!msg?.direct;
+  }
+
+  // focusForReview shows and focuses the pane a command was just typed
+  // into, so the user reads it on the prompt line and presses Enter. The
+  // key that pressed Type (↵ on the button) must not reach the pane.
+  function focusForReview(pane) {
+    if (!state.tabs.has(pane.tabId)) return;
+    holdPtyFromChrome(150);
+    reviewHold = heldKeys.size > 0;
+    markFocusedPane(pane);
+    renderTabs();
+    requestAnimationFrame(() => pane.term?.focus?.());
+  }
+
   function requestInjectTicket(pane, command) {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
@@ -6254,12 +6399,41 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     return true;
   }
 
-  function fillIdentitySelect(selected) {
+  // The picker's secondary line: the kind and the user, never a secret.
+  function identityDesc(id) {
+    const kind = id?.kind === "key" ? "Private key" : "Password";
+    return id?.username ? `${kind} · ${id.username}` : kind;
+  }
+
+  // hostAddress is a host's user@address[:port] for a picker's secondary
+  // line (code, so mono).
+  function hostAddress(h) {
+    if (!h?.address) return "";
+    const port = h.port && h.port !== 22 ? `:${h.port}` : "";
+    return `${h.username ? `${h.username}@` : ""}${h.address}${port}`;
+  }
+
+  // A saved value that is no longer in the vault stays listed as missing,
+  // so the dialog never shows (and Save never posts) another one instead.
+  function withMissing(entries, current, label) {
+    if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label, missing: true });
+    return entries;
+  }
+
+  // saved: the dialog edits a saved host. Deleting an identity clears it
+  // from its hosts, so a saved Keychain-identity host with none must not
+  // be shown (and saved) with the first identity instead.
+  function fillIdentitySelect(selected, saved) {
     fillSelectItems(
       "host-identity",
-      state.identities.map((id) => ({ value: id.id, label: id.name })),
+      withMissing(
+        state.identities.map((id) => ({ value: id.id, label: id.name, desc: identityDesc(id) })),
+        selected,
+        "Missing identity — pick another"
+      ),
       selected,
-      "No identities — add in Keychain"
+      "No identities — add in Keychain",
+      { first: !saved }
     );
   }
 
@@ -6298,7 +6472,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     form.privateKey.value = "";
     form.passphrase.value = "";
     setSelectValue("host-auth-type", host?.authType || "password");
-    fillIdentitySelect(host?.identityId || "");
+    fillIdentitySelect(host?.identityId || "", !!host?.id && host.authType === "identity");
     fillJumpSelect(host);
     if (form.startupCommand) form.startupCommand.value = host?.startupCommand || "";
     resetHostTest();
@@ -6341,9 +6515,9 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     const entries = [{ value: "", label: "None" }];
     for (const h of state.hosts || []) {
       if (!h?.id || h.id === host?.id || h.authType === "local" || h.jumpHost) continue;
-      entries.push({ value: h.id, label: h.name || h.address });
+      entries.push({ value: h.id, label: h.name || h.address, desc: hostAddress(h), descMono: true });
     }
-    if (current && !entries.some((e) => e.value === current)) entries.push({ value: current, label: "Missing host — pick another" });
+    withMissing(entries, current, "Missing host — pick another");
     fillSelectItems("host-jump", entries, current, "None");
   }
 
@@ -6607,6 +6781,15 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     form.querySelectorAll("[data-ssh-only]").forEach((node) => {
       node.style.display = ssh ? (node.classList.contains("grid-2") ? "grid" : "") : "none";
     });
+    // Keychain identity needs one that exists: none, or a deleted one shown
+    // as missing, refuses Save (only while it is the chosen kind; a hidden
+    // required field would block every other kind).
+    const ident = pickerOf("host-identity");
+    if (ident?.box) {
+      const input = ident.box.querySelector('[role="combobox"]');
+      if (input) input.required = auth === "identity";
+      setComboboxValue(ident.box, comboboxValue(ident.box));
+    }
     toggleKeepAliveFields();
   }
 
@@ -6762,7 +6945,11 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   function fillTunnelHosts(selected) {
     fillSelectItems(
       "tunnel-host",
-      sshHosts().map((h) => ({ value: h.id, label: h.name })),
+      withMissing(
+        sshHosts().map((h) => ({ value: h.id, label: h.name, desc: hostAddress(h), descMono: true })),
+        selected,
+        "Missing host — pick another"
+      ),
       selected,
       "Add an SSH host first"
     );
@@ -7245,6 +7432,18 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     if (!isDriving(pane)) return { ok: false, message: "You follow this pane. The agent cannot type into it." };
     // The tab name tells two panes on one host apart.
     const tab = state.tabs.get(pane.tabId);
+    // A read-only proposal of one line: typed with no dialog and no Enter
+    // when keel serve agrees (§6 rule 13); else Approve before type.
+    if (TD.proposalDirect(proposal)) {
+      const r = await typeDirect(pane, proposal.command, { kind: "agent" }, { conversationId, proposalId: proposal.id, shift: !!shift });
+      if (r.ok) {
+        focusForReview(pane);
+        const note = TD.typedNote(proposal.host || pane.title);
+        toast(note);
+        return { ok: true, direct: true, message: note };
+      }
+      if (!r.dialog) return { ok: false, message: r.message };
+    }
     const label = `${paneTarget(proposal.host || pane.title || "the pane", tab ? tabName(tab) : "")} (agent proposal)`;
     const ok = await approveBeforeType(proposal.bytes, label);
     if (!ok) return { cancelled: true };
@@ -7439,11 +7638,19 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
   // bytes are the exact bytes the dialog showed: for a step that names
   // variables, the command with keel serve's values filled in (§17 part
   // 2), which keel serve fills again and compares before it writes.
-  async function typeGroupProposal({ runId, proposal, bytes, shift }) {
+  //
+  // direct (§6 rule 13): bytes are the command alone, typed without the
+  // dialog and without Enter, when keel serve agrees for this host.
+  async function typeGroupProposal({ runId, proposal, bytes, shift, direct = false }) {
     const send = typeof bytes === "string" && bytes ? bytes : proposal.bytes;
     const pane = findPaneByRuntime(proposal.sessionId);
     if (!pane || !isTermPane(pane) || pane.remote) return { ok: false, message: "that pane is not open in this window" };
     if (!isDriving(pane)) return { ok: false, message: "you follow this pane" };
+    if (direct) {
+      const r = await typeDirect(pane, send, { kind: "agent" }, { groupRunId: runId, proposalId: proposal.id });
+      if (r.dialog) return { ok: false, message: "it needs your approval now; press Type again" };
+      return r.ok ? { ok: true, pane } : r;
+    }
     holdPtyFromChrome();
     const result = new Promise((resolve) => {
       const timer = setTimeout(() => {
@@ -7483,6 +7690,12 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
       if (host) openSession(host).catch((err) => toast(err?.message || String(err), true));
     },
     typeGroup: typeGroupProposal,
+    // Would keel serve type this host's step without the dialog now?
+    checkGroup: ({ runId, proposal, bytes }) => {
+      const pane = findPaneByRuntime(proposal.sessionId);
+      return checkDirect(pane, bytes, { kind: "agent" }, { groupRunId: runId, proposalId: proposal.id });
+    },
+    focusPane: (pane) => focusForReview(pane),
     isOpen: () => state.tabs.has(pageTabId("grouprun")),
     setTitle: (text) => setPageTitle("grouprun", text),
     openModal,
