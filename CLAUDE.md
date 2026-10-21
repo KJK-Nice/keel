@@ -1,6 +1,6 @@
 # Keel
 
-Local SSH workspace: Go owns SSH and PTYs, the window is a Wails v3 webview on a loopback HTTP server, the UI is templ + shadcn-templ + Datastar, terminals are xterm.js. See README.md for build, run and shortcuts.
+Local SSH workspace: Go owns SSH and PTYs, the window is a Wails v3 webview on a loopback HTTP server, the UI is templ + shadcn-templ + Datastar, terminals are xterm.js. See CONTRIBUTING.md for build and checks, and README.md plus `docs/*.md` for features, configuration and shortcuts.
 
 ## Checks
 

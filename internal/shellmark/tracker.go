@@ -55,6 +55,8 @@ type Tracker struct {
 	cwd     string
 	seq     uint64
 	now     func() time.Time
+	// seen is set once this shell sent any mark (cleared by Reset).
+	seen bool
 }
 
 // NewTracker returns an empty tracker.
@@ -74,6 +76,7 @@ func (t *Tracker) Feed(b []byte, base uint64) {
 func (t *Tracker) Reset(at uint64) {
 	t.p.Reset()
 	t.pending = nil
+	t.seen = false
 	if n := len(t.cmds); n > 0 && !t.cmds[n-1].Done {
 		c := &t.cmds[n-1]
 		c.Done, c.Abandoned, c.HasExit = true, true, false
@@ -83,6 +86,9 @@ func (t *Tracker) Reset(at uint64) {
 }
 
 func (t *Tracker) mark(m Mark) {
+	if m.Kind != Cwd {
+		t.seen = true
+	}
 	switch m.Kind {
 	case PromptStart:
 		t.pending = &Command{PromptStart: m.Start}
@@ -123,6 +129,24 @@ func (t *Tracker) mark(m Mark) {
 	case Cwd:
 		t.cwd = m.Cwd
 	}
+}
+
+// Prompt reports whether this shell has sent marks at all, and whether it
+// is at its prompt now: a prompt (A or B) seen after the last command
+// started, and no command still open. Like every mark it is untrusted
+// output, so it is only ever a reason to ask more (the approve dialog
+// before a direct type, docs/ui-redesign.md §6 rule 13), never one to type.
+func (t *Tracker) Prompt() (marks, atPrompt bool) {
+	if !t.seen {
+		return false, false
+	}
+	if t.pending == nil {
+		return true, false
+	}
+	if n := len(t.cmds); n > 0 && !t.cmds[n-1].Done {
+		return true, false
+	}
+	return true, true
 }
 
 // Last returns the latest command record, finished or not.

@@ -14,7 +14,7 @@ const MD = [
   '## Check',
   '',
   '```sh',
-  'printf "nb-typed-%s\\n" ok',
+  'printf "nb-typed-%s\\n" ok > /tmp/keel-nb-typed',
   '```',
   '',
   '```yaml',
@@ -79,12 +79,12 @@ describe('notebook pane', { tags: ['notebook'], serial: true }, () => {
         await browser.evaluate(`[getComputedStyle(document.querySelector('.notebook-fence pre')).whiteSpace, getComputedStyle(document.querySelector('.notebook-doc p code')).whiteSpace]`),
       ).toEqual(['pre', 'nowrap']);
 
-      // Type goes through the same approve dialog as agent proposals:
-      // cancel types nothing.
+      // A block that changes state goes through the same approve dialog
+      // as agent proposals (§6 rule 13): cancel types nothing.
       await typeBtn.tap();
       const dialog = approveDialog(screen);
       await expect(dialog).toBeVisible();
-      await expect(dialog).toContainText('printf "nb-typed-%s\\n" ok');
+      await expect(dialog).toContainText('printf "nb-typed-%s\\n" ok > /tmp/keel-nb-typed');
       await dialog.getByRole('button', 'Cancel').tap();
       await expect(dialog).toBeHidden();
       await screen.getByRole('button', 'Cancel', { visible: true }).tap();

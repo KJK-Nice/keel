@@ -93,6 +93,8 @@ test('create a runbook, use it: step 1 is proposed, approved, typed, and its exi
   // Nothing has been typed: the step waits for the user.
   expect(await scrollback(app, shell.id)).not.toContain("rb-step-ok");
 
+  // printf is not on the list keel serve types without asking (§6 rule
+  // 13): the approve dialog decides, as before.
   await card.getByRole('button', /Type into pane/).tap();
   await expect(approveDialog(screen)).toBeVisible();
   await expect(approveDialog(screen)).toContainText('133;D;0');

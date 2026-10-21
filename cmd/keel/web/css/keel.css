@@ -2728,6 +2728,58 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 .k-agent-who svg { display: block; width: 0.923rem; height: 0.923rem; color: var(--brass-ink); }
 .k-agent-msg { margin: 0; font: 400 1rem/1.462 var(--font-sans); letter-spacing: 0; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .k-agent-msg code { font: 400 0.923rem/1 var(--font-mono); padding: 1px var(--space-1); border-radius: var(--radius-xs); background: var(--hover); color: var(--ink); }
+
+/* An answer as markdown (lib/markdown.js). Sans prose on `body`, mono
+   only for code; headings step down to fit the panel (no display sizes).
+   A code block is the notebook fence's box with Copy only: answers never
+   type (§6.1). */
+.k-md { display: grid; gap: var(--space-2); min-width: 0; font: var(--type-body); white-space: normal; }
+.k-md > *, .k-md li > * { margin: 0; min-width: 0; }
+.k-md :is(h1, h2) { font: var(--type-title); letter-spacing: 0; color: var(--ink); }
+.k-md :is(h3, h4, h5, h6) { font: var(--type-body-strong); letter-spacing: 0; color: var(--ink); }
+.k-md > :is(h1, h2, h3, h4, h5, h6):not(:first-child) { margin-top: var(--space-2); }
+.k-md strong { font-weight: 600; }
+.k-md del { color: var(--ink-muted); }
+.k-md code { font: var(--type-code); line-height: 1; padding: var(--space-0\.5) var(--space-1); }
+.k-md :is(ul, ol) { padding-left: calc(var(--space-4) + var(--space-1\.5)); }
+.k-md li + li { margin-top: var(--space-1); }
+.k-md ul { list-style: disc outside; }
+.k-md ol { list-style: decimal outside; }
+.k-md li { display: list-item; padding-left: var(--space-0\.5); }
+.k-md li > :is(ul, ol, p, blockquote, .k-md-code, .k-md-table) { margin-top: var(--space-1); }
+.k-md li::marker { color: var(--ink-faint); }
+.k-md ol > li::marker { font-family: var(--font-mono); font-weight: 500; }
+.k-md blockquote { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--stage); }
+.k-md blockquote > * { margin: 0; }
+.k-md hr { height: 1px; border: 0; background: var(--line); }
+.k-md-link {
+  color: var(--brass-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-0\.5);
+  text-decoration-color: var(--line-strong);
+  overflow-wrap: anywhere;
+}
+.k-md-link:hover { text-decoration-color: var(--brass-ink); }
+.k-md-linkhost { color: var(--ink-muted); }
+.k-md-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-radius: var(--radius-xs); }
+.k-md-code { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--stage); overflow: hidden; }
+.k-md-code-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-1\.5);
+  height: var(--size-control-lg); padding: 0 var(--space-1) 0 var(--space-3);
+  border-bottom: 1px solid var(--line); user-select: none;
+}
+.k-md-code-lang { font: var(--type-kbd); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.k-md-code pre { margin: 0; padding: var(--space-2) var(--space-3) var(--space-3); overflow-x: auto; white-space: pre; font: var(--type-code); color: var(--ink); }
+.k-md-code pre code { padding: 0; border-radius: 0; background: transparent; font: inherit; white-space: inherit; }
+.k-md-table { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.k-md-table table { width: 100%; border-collapse: collapse; font: var(--type-caption); }
+.k-md-table :is(th, td) { padding: var(--space-1) var(--space-2); text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.k-md-table th { font: var(--type-label); color: var(--ink-muted); background: var(--surface); }
+.k-md-table tr:last-child td { border-bottom: 0; }
+.k-md-table :is(th, td) + :is(th, td) { border-left: 1px solid var(--line); }
+.k-md-table .k-md-center { text-align: center; }
+.k-md-table .k-md-right { text-align: right; }
 .k-agent-trace { display: grid; gap: var(--space-0\.5); padding: var(--space-1) 0; }
 .k-agent-step { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font: 400 0.923rem/1.538rem var(--font-mono); letter-spacing: 0; color: var(--ink-muted); }
 .k-agent-step > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

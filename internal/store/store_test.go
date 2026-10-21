@@ -622,3 +622,13 @@ func TestSetupRefusesExistingVault(t *testing.T) {
 		t.Fatalf("password = %q after refused setup", got.Password)
 	}
 }
+
+func TestKeyringOffInTests(t *testing.T) {
+	t.Setenv(envKeyring, "")
+	if !KeyringOff() {
+		t.Fatal("a test binary must never reach the OS keychain")
+	}
+	if _, err := keyringIdentity(); !errors.Is(err, errKeyringOff) {
+		t.Fatalf("keyringIdentity = %v, want errKeyringOff", err)
+	}
+}

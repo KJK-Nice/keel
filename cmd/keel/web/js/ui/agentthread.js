@@ -8,14 +8,17 @@
 // (ctl.type), which hands the proposal to term.js: the approve-before-type
 // dialog, then the session socket, where keel serve checks it with the
 // agent service before writing (§6.1, §6.5, §6.6, §6.7). Every server
-// string is escaped here (escapeHtml, or A.bytesHTML / A.answerHTML, which
-// escape first).
+// string is escaped here (escapeHtml, or A.bytesHTML / A.answerHTML /
+// markdownHTML, which escape first).
 
 import { escapeHtml } from "../lib/html.js";
+import { markdownHTML } from "../lib/markdown.js";
+import { openExternal } from "../lib/openlink.js";
 import * as A from "../lib/agent.js";
 import * as N from "../lib/notes.js";
 import * as R from "../lib/runbooks.js";
 import * as NB from "../lib/notebooks.js";
+import * as TD from "../lib/typedirect.js";
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -91,6 +94,15 @@ export function errorHTML(err) {
   return `<div class="k-agent-error" role="alert"><b>The agent could not answer.</b><span>${escapeHtml(msg)}</span></div>`;
 }
 
+// answerBlockHTML is the agent's answer as markdown (lib/markdown.js:
+// model text, escaped first; no raw HTML, no images, links only to http,
+// https and mailto, opened through openExternal). A code block has Copy and
+// never Type: only a proposal card types, through approve-before-type
+// (§6.1).
+export function answerBlockHTML(answer) {
+  return `<div class="k-agent-msg k-md">${markdownHTML(answer, { copyIcon: ICON.copy })}</div>`;
+}
+
 // cutHTML is the notice under an answer the provider cut (res.cut), "" for
 // a finished one.
 export function cutHTML(cut) {
@@ -107,7 +119,7 @@ export function savedTurnHTML(t) {
   const trace = (t.trace || []).map(stepHTML).join("");
   return `<div class="k-agent-turn"><div class="k-agent-who">You${who}</div><p class="k-agent-msg">${escapeHtml(t.question || "")}</p></div>
       <div class="k-agent-turn" data-agent-turn><div class="k-agent-who">${ICON.ai}Agent</div>${trace ? `<div class="k-agent-trace">${trace}</div>` : ""}${
-        t.answer ? `<p class="k-agent-msg">${A.answerHTML(t.answer)}</p>` : ""
+        t.answer ? answerBlockHTML(t.answer) : ""
       }${cutHTML(t.cut)}</div>`;
 }
 
@@ -220,7 +232,7 @@ export function createThreadView(opts) {
     if (res.testProvider) {
       trace.insertAdjacentHTML("beforeend", `<div class="k-agent-step k-agent-step--skip">${ICON.info}<span>Test provider · nothing left this machine</span></div>`);
     }
-    if (res.answer) turn.insertAdjacentHTML("beforeend", `<p class="k-agent-msg">${A.answerHTML(res.answer)}</p>`);
+    if (res.answer) turn.insertAdjacentHTML("beforeend", answerBlockHTML(res.answer));
     if (res.cut) turn.insertAdjacentHTML("beforeend", cutHTML(res.cut));
     if (res.runbook) placeRun(res.runbook.id, turn);
     for (const p of res.proposals || []) addProposal(p.id);
@@ -343,14 +355,17 @@ export function createThreadView(opts) {
     if (status) notes.push(noteHTML(status.ok ? "tide" : "flare", status.ok ? ICON.tick : ICON.alert, escapeHtml(status.text)));
     const canType = offer === "type" || offer === "shift";
     const typeKbd = offer === "shift" ? `${shiftWord === "⇧" ? "⇧↵" : "Shift+↵"}` : "↵";
+    // The bytes Type sends: the command alone, without ^U or Enter, when
+    // it goes without the dialog (§6 rule 13); else the dialog's bytes.
+    const shown = TD.proposalDirect(p) ? p.command : p.bytes;
     const body = rec.editing
       ? `<textarea autocapitalize="off" autocorrect="off" class="k-textarea k-textarea--mono" data-prop-edit aria-label="Edit command" spellcheck="false">${escapeHtml(p.command)}</textarea>`
-      : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(p.bytes)}</pre>`;
+      : `<pre class="k-bytes" aria-label="Exact bytes">${A.bytesHTML(shown)}</pre>`;
     const foot = rec.editing
       ? `<span class="k-spacer"></span>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm" data-prop-cancel>Cancel</button>
          <button type="button" class="k-btn k-btn--primary k-btn--sm" data-prop-save>Save command</button>`
-      : `<span class="k-prop-count">${escapeHtml(A.countLabel(p.bytes))}</span>
+      : `<span class="k-prop-count">${escapeHtml(A.countLabel(shown))}</span>
          <span class="k-spacer"></span>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-edit-btn aria-label="Edit command" title="Edit">${ICON.edit}</button>
          <button type="button" class="k-btn k-btn--ghost k-btn--sm k-btn--icon" data-prop-copy aria-label="Copy command" title="Copy">${ICON.copy}</button>
@@ -725,6 +740,20 @@ export function createThreadView(opts) {
   }
 
   el.addEventListener("click", (ev) => {
+    // Answer markdown: a link opens in the system browser, never in the
+    // page; Copy copies a code block's text. Neither touches a pane.
+    const link = ev.target.closest(".k-md a[data-k-external]");
+    if (link) {
+      ev.preventDefault();
+      (opts.openLink || openExternal)(link.getAttribute("href"));
+      return;
+    }
+    const mdCopy = ev.target.closest(".k-md [data-md-copy]");
+    if (mdCopy) {
+      const code = mdCopy.closest(".k-md-code")?.querySelector("pre code");
+      if (code) ctl.copyText?.(code.textContent);
+      return;
+    }
     const runCard = ev.target.closest(".k-rb-pick");
     if (runCard) {
       const btn = ev.target.closest("button");
