@@ -6278,8 +6278,10 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
     resetHostTest();
     renderHostKey(null);
     if (host?.id && host.authType !== "local") loadHostKey(host.id);
-    const color = host?.color || "#5ee0b5";
-    const radio = form.querySelector(`input[name="color"][value="${color}"]`);
+    // The first swatch is the default (store.DefaultHostColor).
+    const radio = host?.color
+      ? form.querySelector(`input[name="color"][value="${CSS.escape(host.color)}"]`)
+      : form.querySelector('input[name="color"]');
     if (radio) {
       radio.checked = true;
       radio.dispatchEvent(new Event("change", { bubbles: true }));
@@ -6779,7 +6781,7 @@ import { attachCommandMarks } from "./lib/cmdmarks.js";
         username: parsed.user,
         authType: "password",
         password,
-        color: "#6ea8ff",
+        color: "var(--ansi-12)",
       }),
     });
     closeModal(els.quickModal);

@@ -532,7 +532,7 @@ func seed() persistData {
 			Port:      0,
 			Username:  os.Getenv("USER"),
 			AuthType:  "local",
-			Color:     "#5ee0b5",
+			Color:     DefaultHostColor,
 			CreatedAt: now,
 			UpdatedAt: now,
 		}},
@@ -747,7 +747,7 @@ func (s *Store) viewLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID, Color: h.Color,
+		IdentityID: h.IdentityID, Color: hostColor(h.Color),
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
 		Tags:     append([]string(nil), h.Tags...),
 		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
@@ -775,7 +775,7 @@ func (s *Store) fullLocked(h persistHost) Host {
 	out := Host{
 		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID, Color: h.Color,
+		IdentityID: h.IdentityID, Color: hostColor(h.Color),
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
 		Tags:     append([]string(nil), h.Tags...),
 		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
@@ -929,7 +929,7 @@ func persistFrom(h Host) persistHost {
 	return persistHost{
 		ID: h.ID, Name: h.Name, Group: gid, Address: h.Address,
 		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID, Color: h.Color,
+		IdentityID: h.IdentityID, Color: hostColor(h.Color),
 		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
 		Tags:     append([]string(nil), h.Tags...),
 		JumpHost: strings.TrimSpace(h.JumpHost), StartupCommand: h.StartupCommand,

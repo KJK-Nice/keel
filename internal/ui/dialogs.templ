@@ -11,6 +11,7 @@ import (
 	"keel/components/radiogroup"
 	selectcomp "keel/components/select"
 	"keel/components/textarea"
+	"keel/internal/store"
 	"keel/utils"
 )
 
@@ -155,11 +156,11 @@ templ hostDialog() {
 						@field.Legend() {
 							Color
 						}
-						@radiogroup.RadioGroup(radiogroup.Props{Name: "color", DefaultValue: "#5ee0b5", Class: "swatches-rg"}) {
-							for _, c := range hostColors {
+						@radiogroup.RadioGroup(radiogroup.Props{Name: "color", DefaultValue: store.DefaultHostColor, Class: "swatches-rg"}) {
+							for _, c := range store.HostColors {
 								@radiogroup.Item(radiogroup.ItemProps{
-									Value:      c,
-									Attributes: templ.Attributes{"style": "--swatch:" + c, "title": c},
+									Value:      c.Value,
+									Attributes: templ.Attributes{"style": "--swatch:" + c.Value, "title": c.Name},
 								})
 							}
 						}

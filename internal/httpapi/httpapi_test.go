@@ -177,7 +177,7 @@ func TestHealthUnlocked(t *testing.T) {
 
 func TestHostTagsAPI(t *testing.T) {
 	srv, _, _, _ := testServer(t)
-	body := `{"name":"gpu-box","address":"10.0.0.9","port":22,"username":"ubuntu","authType":"password","password":"pw","color":"#6ea8ff","tags":[" prod ","#GPU","prod"]}`
+	body := `{"name":"gpu-box","address":"10.0.0.9","port":22,"username":"ubuntu","authType":"password","password":"pw","color":"var(--ansi-12)","tags":[" prod ","#GPU","prod"]}`
 	res, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -1822,7 +1822,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 
 func TestDuplicateHostAPI(t *testing.T) {
 	srv, _, st, _ := testServer(t)
-	body := `{"name":"api","group":"prod","address":"10.0.0.8","port":22,"username":"ubuntu","authType":"password","password":"secret","color":"#6ea8ff"}`
+	body := `{"name":"api","group":"prod","address":"10.0.0.8","port":22,"username":"ubuntu","authType":"password","password":"secret","color":"var(--ansi-12)"}`
 	res, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
