@@ -1022,7 +1022,7 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 	if strings.Contains(persist, "output") || strings.Contains(persist, "stdout") {
 		t.Fatal("notebook persist must not store cell outputs")
 	}
-	if !strings.Contains(mount, "target: notebookTarget(pane)") || !strings.Contains(term, "pane.mdEditor?.setTarget") || !strings.Contains(css, ".term-input") {
+	if !strings.Contains(mount, "target: notebookTarget(pane)") || !strings.Contains(term, "viewOf(pane).mdEditor?.setTarget") || !strings.Contains(css, ".term-input") {
 		t.Fatal("shell fences must name the pane they type into (Type into <pane>) and fill a CLI input buffer beside the terminal")
 	}
 	if !strings.Contains(term, "function runNotebookFence") || !strings.Contains(term, "function copyNotebookFence") {
@@ -2492,7 +2492,7 @@ func TestIndexServesVault(t *testing.T) {
 	}
 	if !strings.Contains(string(termBody), `className = "term-host"`) ||
 		!strings.Contains(string(termBody), "ensurePaneTerm") ||
-		!strings.Contains(string(termBody), ".open(pane.host)") ||
+		!strings.Contains(string(termBody), ".open(viewOf(pane).host)") ||
 		!strings.Contains(string(termBody), "overviewRuler: { width: 0 }") {
 		t.Fatal("term.js must disable the xterm overview ruler strip beside the scrollbar")
 	}
@@ -3287,10 +3287,10 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if !strings.Contains(disposeEd, "pane._autosave?.flush()") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
 		t.Fatal("disposeNotebookEditor must destroy ProseMirror and save a pending edit, not drop it")
 	}
-	if !strings.Contains(paint, "pane.mdEditor && pane._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
+	if !strings.Contains(paint, "viewOf(pane).mdEditor && viewOf(pane)._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
 		t.Fatal("paintNotebook must keep a live editor and destroy before remount")
 	}
-	if !strings.Contains(mount, "pane.closing || !pane.mdEditor") {
+	if !strings.Contains(mount, "pane.closing || !viewOf(pane).mdEditor") {
 		t.Fatal("onChange after close must not reschedule saves")
 	}
 	if !strings.Contains(src, "t.replaceChildren()") {

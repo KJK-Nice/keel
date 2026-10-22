@@ -9,6 +9,7 @@
 // follower. The caller passes:
 //   pane(id), tab(id)        the pane and its tab, or undefined
 //   isTermPane, isDriving
+//   canFind(pane)            the pane has a find bar (xterm's search addon)
 //   copyText(text)           resolves true when the clipboard took it
 //   toast
 //   act                      { paste, find, splitH, splitV, close }, each
@@ -20,7 +21,7 @@ import { termMenuItems } from "../lib/termmenu.js";
 // the same press, not a second right-click.
 const KEY_ECHO_MS = 600;
 
-export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, isTermPane, isDriving, copyText, toast, act }) {
+export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, isTermPane, isDriving, canFind = (p) => !!p.search, copyText, toast, act }) {
   let paneId = "";
   let keyAt = 0;
 
@@ -37,7 +38,7 @@ export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, 
       selection: !!p.term.hasSelection?.(),
       driving: isDriving(p) && isTermPane(p),
       canSplit: !t.remote && !p.remote,
-      find: !!p.search,
+      find: canFind(p),
     });
     content.querySelectorAll("[data-term-act]").forEach((item) => {
       const it = items[item.dataset.termAct];
