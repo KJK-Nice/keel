@@ -39,8 +39,8 @@ import { parseJoinLink } from "./lib/joinlink.js";
 import { openJoinPeer } from "./lib/joinpeer.js";
 import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSocketURL, statusClass } from "./lib/session.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
-import { createActionToasts } from "./ui/actiontoast.js";
 import { createSharePopover } from "./ui/sharepop.js";
+import { createShareControl } from "./ui/sharecontrol.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -869,10 +869,13 @@ import { openExternal } from "./lib/openlink.js";
     toast,
     onStopped: (pane) => {
       joinPrompts.forget(pane.runtimeId);
-      controlToasts.dismissWhere(`${pane.runtimeId}\n`);
+      shareControl.forgetSession(pane.runtimeId);
     },
     refocus: () => focusedPane()?.term?.focus(),
   });
+
+  // ---- Control requests and follower feedback (§5.6, §5.7, ui/sharecontrol.js)
+  const shareControl = createShareControl({ sendSessionJSON, toast, isDriving, isOwner, isTermPane });
 
   function on(el, type, fn, opts) {
     if (!el) return;
@@ -2199,7 +2202,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!els.controlWidget) return;
     if (isNotebookPane(pane)) pane = termTarget(pane);
     // "Typing is off" belongs to the pane that is focused and following.
-    followToasts.dismissWhere("typing\n", pane && !isDriving(pane) ? `typing\n${pane.id}` : "");
+    shareControl.followFocus(pane && !isDriving(pane) ? pane.id : "");
     if (!pane || !activeSessionTab()) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
@@ -4419,7 +4422,7 @@ import { openExternal } from "./lib/openlink.js";
       remote: false,
     };
     wirePaneTerminal(pane);
-    wireFollowerNotice(pane);
+    shareControl.wireFollowerNotice(pane);
 
     let tab = opts.tab;
     if (!tab && !opts.splitDir && !opts.freshTab) tab = fillableStartTab();
@@ -4534,7 +4537,7 @@ import { openExternal } from "./lib/openlink.js";
         pane.status = statusClass(msg.status, "is-ready");
         applyPresence(msg);
         if (msg.type === "ready") live = true;
-        if (msg.type === "control" && msg.message) noteControl(pane, msg);
+        if (msg.type === "control" && msg.message) shareControl.noteControl(pane, msg);
       },
       error: (msg) => {
         pane.status = "is-error";
@@ -7173,63 +7176,6 @@ import { openExternal } from "./lib/openlink.js";
     onError: (err) => toast(err.message, true),
   });
 
-  // ---- Control requests and follower feedback (§5.6, §5.7) -----------------
-  const controlToasts = createActionToasts({ className: "join-prompts", label: "Share requests" });
-  const followToasts = createActionToasts({ className: "k-toasts--center", label: "Following" });
-
-  // noteControl handles a session "control" event. A request (someone asks
-  // for control) becomes a toast for whoever may hand over (the driver or
-  // the owner: the runtime's GrantControl rule); Hand over sends the same
-  // grant-control message as Pass control. Anything else is the old toast.
-  function noteControl(pane, msg) {
-    if (Share.isControlRequest(msg) && msg.fromId !== pane.you?.id && (isDriving(pane) || isOwner(pane))) {
-      const name = Share.clientName(pane.attached, msg.fromId);
-      controlToasts.show({
-        key: `${pane.runtimeId}\n${msg.fromId}`,
-        tone: "haze",
-        role: "alertdialog",
-        icon: Share.glyph("steering"),
-        title: `${name} asks for control`,
-        desc: `Of ${pane.title || "this session"}. You follow until ${isOwner(pane) ? "you take it back" : "it is passed back"}.`,
-        actions: [
-          { label: "Hand over", primary: true, run: () => sendSessionJSON(pane, { type: "grant-control", targetId: msg.fromId }) },
-          { label: "Keep driving" },
-        ],
-      });
-      return;
-    }
-    if (!Share.isControlRequest(msg)) controlToasts.dismissWhere(`${pane.runtimeId}\n`);
-    toast(msg.message);
-  }
-
-  // A follower who types gets told why nothing happens. Feedback only: it
-  // listens in the capture phase and never stops the event, so xterm and
-  // wirePaneTerminal (isDriving, ptyWritesBlocked) still decide, as before.
-  function wireFollowerNotice(pane) {
-    pane.wrap?.addEventListener(
-      "keydown",
-      (ev) => {
-        if (!Share.isTypingKey(ev)) return;
-        if (!isTermPane(pane) || !pane.you || isDriving(pane)) return;
-        if (ev.target?.closest?.(".term-find, .term-input, .k-pane-banner, .pane-bar")) return;
-        const owner = isOwner(pane);
-        followToasts.show({
-          key: `typing\n${pane.id}`,
-          tone: "haze",
-          icon: Share.glyph("lock"),
-          title: "Typing is off while you follow",
-          timeout: 4000,
-          actions: [
-            owner
-              ? { label: "Take control", run: () => sendSessionJSON(pane, { type: "take-control" }) }
-              : { label: "Ask for control", run: () => sendSessionJSON(pane, { type: "request-control" }) },
-          ],
-        });
-      },
-      true,
-    );
-  }
-
   function openJoin() {
     els.joinForm.reset();
     openModal(els.joinModal);
@@ -7286,7 +7232,7 @@ import { openExternal } from "./lib/openlink.js";
       ownerId: 0,
     };
     wirePaneTerminal(pane);
-    wireFollowerNotice(pane);
+    shareControl.wireFollowerNotice(pane);
     const tab = createTab(pane);
     tab.remote = true;
     tab.hostId = "";
@@ -7353,7 +7299,7 @@ import { openExternal } from "./lib/openlink.js";
       presence: (msg) => {
         pane.status = statusClass(msg.status, pane.status);
         applyPresence(msg);
-        if (msg.type === "control" && msg.message) noteControl(pane, msg);
+        if (msg.type === "control" && msg.message) shareControl.noteControl(pane, msg);
       },
     };
     dc.onmessage = (ev) => {

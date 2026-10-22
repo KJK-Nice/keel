@@ -12,16 +12,18 @@ import { readFileSync } from "node:fs";
 
 const src = readFileSync(new URL("../term.js", import.meta.url), "utf8");
 const sharePopSrc = readFileSync(new URL("../ui/sharepop.js", import.meta.url), "utf8");
+const shareControlSrc = readFileSync(new URL("../ui/sharecontrol.js", import.meta.url), "utf8");
 
-// body returns the source of `function name(...) { ... }` (brace matched).
-function body(name) {
-  const start = src.indexOf(`function ${name}(`);
+// body returns the source of `function name(...) { ... }` (brace matched)
+// in src, or in another module's source.
+function body(name, source = src) {
+  const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `function ${name} not found`);
-  let i = src.indexOf("{", start);
+  let i = source.indexOf("{", start);
   let depth = 0;
-  for (let j = i; j < src.length; j++) {
-    if (src[j] === "{") depth++;
-    else if (src[j] === "}" && --depth === 0) return src.slice(start, j + 1);
+  for (let j = i; j < source.length; j++) {
+    if (source[j] === "{") depth++;
+    else if (source[j] === "}" && --depth === 0) return source.slice(start, j + 1);
   }
   throw new Error(`unbalanced ${name}`);
 }
@@ -52,9 +54,17 @@ test("keystrokes reach a PTY only through ptyWritesBlocked and isDriving", () =>
   assert.ok(wire.includes("if (isDriving(p) && isTermPane(p)) sendSessionBytes(p, bytes);"), "sync input no longer checks isDriving per pane");
   // Only wirePaneTerminal, the approved inject path and the notebook's
   // confirmed CLI input send bytes; the share and follow code never does.
-  for (const fn of ["wireFollowerNotice", "noteControl", "syncFollowBanner", "syncJoinBanner"]) {
+  for (const fn of ["syncFollowBanner", "syncJoinBanner"]) {
     assert.doesNotMatch(body(fn), /sendSessionBytes|\.send\(|term\.write|paste\(/, `${fn} must not write to a session`);
   }
+  // The control-request and typing toasts live in ui/sharecontrol.js: they
+  // send control messages only, and term.js hands them nothing else.
+  for (const fn of ["wireFollowerNotice", "noteControl"]) {
+    assert.doesNotMatch(body(fn, shareControlSrc), /sendSessionBytes|\.send\(|term\.write|paste\(/, `${fn} must not write to a session`);
+  }
+  assert.doesNotMatch(shareControlSrc, /sendSessionBytes|\.send\(|term\.write|paste\(/, "ui/sharecontrol.js must not write to a session");
+  const control = src.slice(src.indexOf("createShareControl({"), src.indexOf("});", src.indexOf("createShareControl({")));
+  assert.match(control, /^createShareControl\(\{ sendSessionJSON, toast, isDriving, isOwner, isTermPane $/, "createShareControl gets control messages only");
   // The Share popover lives in ui/sharepop.js: nothing in it writes to a
   // session, and term.js hands it no way to.
   assert.doesNotMatch(sharePopSrc, /sendSession|\.send\(|term\.write|paste\(/, "ui/sharepop.js must not write to a session");
@@ -69,7 +79,7 @@ test("a follower's xterm stays read-only", () => {
 });
 
 test("the typing toast only listens: it neither cancels nor sends keys", () => {
-  const notice = body("wireFollowerNotice");
+  const notice = body("wireFollowerNotice", shareControlSrc);
   assert.doesNotMatch(notice, /preventDefault|stopPropagation|stopImmediatePropagation|return false/);
   // Its one action asks for control the way the old buttons did.
   const sent = [...notice.matchAll(/sendSessionJSON\(pane, \{ type: "([a-z-]+)" \}\)/g)].map((m) => m[1]);
@@ -77,6 +87,6 @@ test("the typing toast only listens: it neither cancels nor sends keys", () => {
 });
 
 test("Hand over sends the same grant-control as Pass control", () => {
-  assert.match(body("noteControl"), /sendSessionJSON\(pane, \{ type: "grant-control", targetId: msg\.fromId \}\)/);
+  assert.match(body("noteControl", shareControlSrc), /sendSessionJSON\(pane, \{ type: "grant-control", targetId: msg\.fromId \}\)/);
   assert.match(src, /if \(grant\) sendControl\("grant-control", \{ targetId: Number\(grant\.dataset\.grant\) \}\);/);
 });
