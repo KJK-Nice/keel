@@ -47,6 +47,7 @@ import { createTabRename } from "./ui/tabrename.js";
 import { createDrag } from "./ui/drag.js";
 import * as Share from "./lib/share.js";
 import * as W from "./lib/workspace.js";
+import { kbdHint, tabStripHTML } from "./lib/tabstrip.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { createChordGuard } from "./lib/chordguard.js";
@@ -2322,10 +2323,6 @@ import { openExternal } from "./lib/openlink.js";
     for (const pane of visiblePanes(tab)) ensurePaneTerm(pane);
   }
 
-  function kbdHint(key) {
-    return `<kbd class="kbd-hint" aria-hidden="true">${escapeHtml(key)}</kbd>`;
-  }
-
   function hugeicon(paths) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
   }
@@ -2341,6 +2338,24 @@ import { openExternal } from "./lib/openlink.js";
 
   function closeGlyph() {
     return hugeicon(`<path d="M18 6L6.00081 17.9992M17.9992 18L6 6.00085" />`);
+  }
+
+  // tabStripEntry is what the strip shows for a tab (lib/tabstrip.js): its
+  // name, and before it a page's icon, the joined-share link, a notebook or
+  // New tab icon, or the dot of its panes' state.
+  function tabStripEntry(tab) {
+    const status = tabStatus(tab);
+    const panes = tabPanes(tab);
+    const notebookOnly = panes.length > 0 && panes.every(isNotebookPane);
+    const dot = dotFor(status);
+    const lead = tab.page
+      ? pageGlyph(tab)
+      : tab.remote
+        ? `<span class="tab-icon tab-icon--joined" title="Joined over a share link" aria-hidden="true">${Share.glyph("link")}</span>`
+        : notebookOnly || tab.start
+          ? tabGlyph(tab)
+          : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
+    return { id: tab.id, label: tabName(tab), lead, status, panes: panes.length, page: !!tab.page, sync: !!tab.sync };
   }
 
   function pageGlyph(tab) {
@@ -2418,32 +2433,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!tabRename.editing()) {
       // setHTML: presence and status messages re-render the strip several
       // times per opened tab, mostly with identical markup.
-      setHTML(els.tabs, ids
-          .map((id, i) => {
-            const tab = state.tabs.get(id);
-            const st = tabStatus(tab);
-            // ⌘1…8 select the first eight tabs; ⌘9 the last.
-            const num = i < 8 ? String(i + 1) : i === ids.length - 1 ? "9" : "";
-            const closeHint = id === state.activeId ? kbdHint("W") : "";
-            const notebookOnly = tabPanes(tab).length > 0 && tabPanes(tab).every(isNotebookPane);
-            const dot = dotFor(st);
-            const lead = tab.page
-              ? pageGlyph(tab)
-              : tab.remote
-                ? `<span class="tab-icon tab-icon--joined" title="Joined over a share link" aria-hidden="true">${Share.glyph("link")}</span>`
-                : notebookOnly || tab.start
-                ? tabGlyph(tab)
-                : `<span class="k-dot ${dot.cls}" title="${dot.label}" aria-hidden="true"></span>`;
-            const count = tabPanes(tab).length;
-            return `<button type="button" class="tab k-tab ${tab.page ? "is-page" : ""} ${id === state.activeId ? "is-active" : ""} ${st} ${tab.sync ? "is-sync" : ""}" data-tab="${id}" title="Drag to reorder">
-            ${num ? kbdHint(num) : ""}
-            ${lead}
-            <span class="tab-label">${escapeHtml(tabName(tab))}</span>
-            ${count > 1 ? `<span class="k-badge k-badge--mono tab-count" title="${count} panes">${count}</span>` : ""}
-            <span class="close k-tab-close" data-close="${id}" title="Close  ${MOD}W">${closeGlyph()}${closeHint}</span>
-          </button>`;
-          })
-          .join(""));
+      setHTML(els.tabs, tabStripHTML(ids.map((id) => tabStripEntry(state.tabs.get(id))), { activeId: state.activeId, mod: MOD, closeGlyph: closeGlyph() }));
       els.tabs.scrollLeft = keepScroll;
       const activeBtn = els.tabs.querySelector(".tab.is-active");
       if (activeBtn) {
