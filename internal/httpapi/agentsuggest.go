@@ -123,7 +123,7 @@ func (c *suggestConn) detect(seq int, line string) {
 		return
 	}
 	ctx := c.begin("detect")
-	go func() {
+	c.srv.goSocket(func() {
 		out := map[string]any{"type": "agent-detect", "seq": seq, "plain": false, "source": service.DetectOff}
 		if c.srv.agent != nil {
 			info := c.sess.Info()
@@ -136,7 +136,7 @@ func (c *suggestConn) detect(seq int, line string) {
 			return
 		}
 		_ = c.ws.writeJSON(out)
-	}()
+	})
 }
 
 func (c *suggestConn) suggest(seq int, line string) {
@@ -145,7 +145,7 @@ func (c *suggestConn) suggest(seq int, line string) {
 		return
 	}
 	ctx := c.begin("suggest")
-	go func() {
+	c.srv.goSocket(func() {
 		if c.srv.agent == nil {
 			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": "the agent needs keel.log to record what it reads", "reason": "unavailable"})
 			return
@@ -171,7 +171,7 @@ func (c *suggestConn) suggest(seq int, line string) {
 		if upd.Stricter && ctx.Err() == nil {
 			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest-risk", "suggestionId": upd.SuggestionID, "options": upd.Options})
 		}
-	}()
+	})
 }
 
 func orDefault(s string) string {

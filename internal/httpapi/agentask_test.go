@@ -99,8 +99,14 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	}
 	server := New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil })
 	f.srv = httptest.NewServer(server.Handler())
+	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {
 		f.srv.Close()
+		// A socket's work outlives its reply: a suggestion's Jev check
+		// logs agent.read and agent.suggest to keel.log after the card
+		// was sent. Wait for it (dialSession's cleanup closed the
+		// clients, so the sockets end).
+		server.waitSockets()
 		// Conversations are saved in the background; let the last save
 		// finish before the temp dir goes.
 		if server.agent != nil {
