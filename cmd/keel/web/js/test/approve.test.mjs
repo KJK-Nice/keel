@@ -61,13 +61,13 @@ test("typeDirect types one line, to one driven pane, never with a newline", () =
   const ticket = body.indexOf("await requestInjectTicket(pane, command)");
   assert.ok(ready >= 0 && ready < ticket, "typeDirect checks the pane and the line before it asks for a ticket");
   // The page's view goes with it (keel serve ORs it with its own).
-  assert.match(body, /const frame = \{ type: "inject", command, nonce, direct: \{ \.\.\.direct, altScreen: TD\.altScreen\(pane\.term\), promptLine: TD\.cursorLine\(pane\.term\) \} \};/);
+  assert.match(body, /const frame = \{ type: "inject", command, nonce, direct: \{ \.\.\.direct, altScreen: TD\.altScreen\(viewOf\(pane\)\.term\), promptLine: TD\.cursorLine\(viewOf\(pane\)\.term\) \} \};/);
   assert.ok(!/\\n|\\r|\+ "\\n"/.test(body), "typeDirect never adds a newline");
   // No answer is not a dialog: it may have been typed.
   assert.match(body, /if \(!msg\) return \{ ok: false/);
   assert.match(body, /if \(msg\.dialog\) return \{ dialog: true/);
   const gate = fns.get("directReady");
-  for (const want of ["isTermPane(pane)", "!pane.remote", "isDriving(pane)", "TD.altScreen(pane.term)", "TD.directLine(command)"]) {
+  for (const want of ["isTermPane(pane)", "!pane.remote", "isDriving(pane)", "TD.altScreen(viewOf(pane).term)", "TD.directLine(command)"]) {
     assert.ok(gate.includes(want), `directReady must check ${want}`);
   }
   // Its callers: a proposal, a snippet, a notebook block and a group run's
@@ -125,7 +125,7 @@ test("suggestions are inserted only by the user's ⇥, to one pane, never run", 
   assert.ok(body.indexOf("!canSuggestIn(pane)) return") < send, "insertSuggestion checks the driver first");
   assert.ok(body.indexOf("/[\\r\\n]/.test(opt.bytes)) return") < send, "insertSuggestion refuses a newline");
   // Re-checked right before the write: prompt line, alt screen, a blocking dialog.
-  const recheck = body.indexOf("const line = readPromptLine(pane.term);");
+  const recheck = body.indexOf("const line = readPromptLine(viewOf(pane).term);");
   assert.ok(recheck > 0 && recheck < send, "insertSuggestion re-reads the prompt line before the write");
   const gate = body.slice(recheck, send);
   for (const want of ["ptyWritesBlocked()", 'buffer?.active?.type !== "normal"', "line.input !== words", "dropped: true"]) {

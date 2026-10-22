@@ -2539,7 +2539,7 @@ func TestIndexServesVault(t *testing.T) {
 	if strings.Contains(invFn, "cols - 1") || strings.Contains(invFn, "term.resize") {
 		t.Fatal("invalidatePaneRender must not dummy-resize; cols±1 blinks the frame on every type")
 	}
-	if !strings.Contains(invFn, "pane.term.refresh") || !strings.Contains(invFn, "kickNativeCanvasCompositor") {
+	if !strings.Contains(invFn, "viewOf(pane).term.refresh") || !strings.Contains(invFn, "kickNativeCanvasCompositor") {
 		t.Fatal("write invalidate must refresh then kick the WKWebView canvas compositor")
 	}
 	kickFn := sliceJSFunc(string(termBody), "function kickNativeCanvasCompositor")
@@ -3284,13 +3284,13 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if !strings.Contains(disposePane, "disposeNotebookEditor(pane)") {
 		t.Fatal("closing a pane must tear down the markdown editor")
 	}
-	if !strings.Contains(disposeEd, "pane._autosave?.flush()") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
+	if !strings.Contains(disposeEd, "connOf(pane)._autosave?.flush()") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
 		t.Fatal("disposeNotebookEditor must destroy ProseMirror and save a pending edit, not drop it")
 	}
 	if !strings.Contains(paint, "viewOf(pane).mdEditor && viewOf(pane)._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
 		t.Fatal("paintNotebook must keep a live editor and destroy before remount")
 	}
-	if !strings.Contains(mount, "pane.closing || !viewOf(pane).mdEditor") {
+	if !strings.Contains(mount, "connOf(pane).closing || !viewOf(pane).mdEditor") {
 		t.Fatal("onChange after close must not reschedule saves")
 	}
 	if !strings.Contains(src, "t.replaceChildren()") {

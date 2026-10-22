@@ -9,6 +9,7 @@
 // follower. The caller passes:
 //   pane(id), tab(id)        the pane and its tab, or undefined
 //   isTermPane, isDriving
+//   termOf(pane)             the pane's xterm
 //   canFind(pane)            the pane has a find bar (xterm's search addon)
 //   copyText(text)           resolves true when the clipboard took it
 //   toast
@@ -21,7 +22,7 @@ import { termMenuItems } from "../lib/termmenu.js";
 // the same press, not a second right-click.
 const KEY_ECHO_MS = 600;
 
-export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, isTermPane, isDriving, canFind = (p) => !!p.search, copyText, toast, act }) {
+export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, isTermPane, isDriving, termOf = (p) => p?.term, canFind = (p) => !!p.search, copyText, toast, act }) {
   let paneId = "";
   let keyAt = 0;
 
@@ -31,11 +32,12 @@ export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, 
     const trigger = doc.getElementById("term-menu-trigger");
     const content = trigger && doc.getElementById(trigger.getAttribute("aria-controls"));
     const t = p && tab(p.tabId);
-    if (!p?.term || !t || !content) return;
+    const term = termOf(p);
+    if (!term || !t || !content) return;
     if (fromKey) keyAt = now();
     paneId = p.id;
     const items = termMenuItems({
-      selection: !!p.term.hasSelection?.(),
+      selection: !!term.hasSelection?.(),
       driving: isDriving(p) && isTermPane(p),
       canSplit: !t.remote && !p.remote,
       find: canFind(p),
@@ -59,7 +61,7 @@ export function createTerminalMenu({ doc = document, now = Date.now, pane, tab, 
   // run is a click on one of its items (data-term-act).
   function run(name) {
     const p = pane(paneId);
-    const term = p?.term;
+    const term = termOf(p);
     if (!term) return;
     if (name === "copy") {
       const sel = term.getSelection();
