@@ -111,7 +111,11 @@ test('native vibrancy tints each area once, so the backdrop shows through', asyn
       [0.5, 0.95],
     ),
   ).toEqual([]);
+  // Wait for the close to land: a test that ends on the tap can drop the
+  // session's DELETE with the page, and the next file's page load would
+  // restore it as a tab.
   await screen.getByRole('button', 'Close tab').tap();
+  await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
 });
 
 // Settings · Appearance · Window translucency: each step tints the chrome

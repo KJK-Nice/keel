@@ -23,16 +23,12 @@ import {
 import {
   computeRects,
   dragSizes,
-  insertBeside,
   layoutNotebookIds,
   layoutRuntimeIds,
   leafCount,
   pruneLayout,
   remapLayout,
-  removeLeaf,
-  replaceLeaf,
   serializeLayout as serializeLayoutWith,
-  swapLeaves,
   walkLeaves,
 } from "./lib/layout.js";
 import { parseJoinLink } from "./lib/joinlink.js";
@@ -47,6 +43,7 @@ import { createTerminalMenu } from "./ui/terminalmenu.js";
 import { createFenceMenu } from "./ui/fencemenu.js";
 import { createAgentCardMenu } from "./ui/agentcardmenu.js";
 import * as Share from "./lib/share.js";
+import * as W from "./lib/workspace.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
 import { createChordGuard } from "./lib/chordguard.js";
@@ -399,8 +396,8 @@ import { openExternal } from "./lib/openlink.js";
     const tab = pane && state.tabs.get(pane.tabId);
     if (!tab) return;
     if (tab.zoomedPaneId && tab.zoomedPaneId !== paneId) {
-      tab.zoomedPaneId = "";
-      tab.focusedPaneId = paneId;
+      W.zoom(state, tab, "");
+      W.focusPane(state, paneId, { activate: false });
       tab.dirty = true;
       renderTabs();
     }
@@ -1269,24 +1266,13 @@ import { openExternal } from "./lib/openlink.js";
       notebookToPane.set(rec.id, nb.id);
     });
     const remapped = remapLayout(layout, runtimeToPane, notebookToPane);
-    if (remapped) {
-      tab.layout = remapped;
-      tab.dirty = true;
-    }
+    if (remapped) tab.dirty = true;
     if (saved.title) tab.customTitle = saved.title;
     if (saved.sync) tab.sync = true;
-    const focusedNb = notebookToPane.get(saved.focusedNotebookId);
-    if (focusedNb) tab.focusedPaneId = focusedNb;
-    else {
-      const focusedId = runtimeToPane.get(saved.focusedRuntimeId);
-      if (focusedId) tab.focusedPaneId = focusedId;
-    }
-    const zoomedNb = notebookToPane.get(saved.zoomedNotebookId);
-    if (zoomedNb && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedNb;
-    else {
-      const zoomedId = runtimeToPane.get(saved.zoomedRuntimeId);
-      if (zoomedId && leafCount(tab.layout) > 1) tab.zoomedPaneId = zoomedId;
-    }
+    W.setLayout(state, tab, remapped, {
+      focusedPaneId: notebookToPane.get(saved.focusedNotebookId) || runtimeToPane.get(saved.focusedRuntimeId) || "",
+      zoomedPaneId: notebookToPane.get(saved.zoomedNotebookId) || runtimeToPane.get(saved.zoomedRuntimeId) || "",
+    });
   }
 
   function restoreOpenSessions() {
@@ -1464,9 +1450,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function focusedPane() {
-    const tab = state.tabs.get(state.activeId);
-    if (!tab) return null;
-    return state.panes.get(tab.focusedPaneId) || tabPanes(tab)[0] || null;
+    return W.focusedPane(state);
   }
 
   function paneKind(pane) {
@@ -1489,25 +1473,11 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function tabPanes(tab) {
-    const out = [];
-    walkLeaves(tab.layout, ({ paneId }) => {
-      const p = state.panes.get(paneId);
-      if (p) out.push(p);
-    });
-    return out;
+    return W.tabPanes(state, tab);
   }
 
   function visiblePanes(tab) {
-    if (!tab) return [];
-    if (tab.zoomedPaneId && state.panes.has(tab.zoomedPaneId)) return [state.panes.get(tab.zoomedPaneId)];
-    return tabPanes(tab);
-  }
-
-  function rehomeLayout(node, tabId) {
-    walkLeaves(node, ({ paneId }) => {
-      const p = state.panes.get(paneId);
-      if (p) p.tabId = tabId;
-    });
+    return W.visiblePanes(state, tab);
   }
 
   function findPaneByRuntime(runtimeId) {
@@ -1565,15 +1535,12 @@ import { openExternal } from "./lib/openlink.js";
     return [...state.tabs.keys()];
   }
 
-  // A session tab holds panes (terminals or notebooks); New tabs and tab
-  // pages do not.
   function isSessionTab(tab) {
-    return !!tab && !tab.start && !tab.page && !!tab.layout;
+    return W.isSessionTab(tab);
   }
 
   function activeSessionTab() {
-    const tab = state.tabs.get(state.activeId);
-    return isSessionTab(tab) ? tab : null;
+    return W.activeSessionTab(state);
   }
 
   let tabDrag = null;
@@ -1583,26 +1550,8 @@ import { openExternal } from "./lib/openlink.js";
   let tabMenuTarget = "";
   let dropOverlay = null;
 
-  function reorderTabIds(ids, fromId, toIndex) {
-    const from = ids.indexOf(fromId);
-    if (from < 0) return ids;
-    if (toIndex === from || toIndex === from + 1) return ids;
-    const next = ids.slice();
-    next.splice(from, 1);
-    const at = Math.max(0, Math.min(toIndex > from ? toIndex - 1 : toIndex, next.length));
-    next.splice(at, 0, fromId);
-    return next;
-  }
-
   function moveTabToIndex(fromId, toIndex) {
-    if (!fromId || !state.tabs.has(fromId)) return false;
-    const ids = [...state.tabs.keys()];
-    const next = reorderTabIds(ids, fromId, toIndex);
-    if (next.length !== ids.length || next.every((id, i) => id === ids[i])) return false;
-    const tabs = new Map();
-    for (const id of next) tabs.set(id, state.tabs.get(id));
-    state.tabs = tabs;
-    return true;
+    return W.moveTab(state, fromId, toIndex);
   }
 
   function tabStripInsertIndex(clientX) {
@@ -2292,7 +2241,7 @@ import { openExternal } from "./lib/openlink.js";
       const section = document.getElementById(`page-${name}`);
       if (section) tab.root.appendChild(section);
       els.terminals.appendChild(tab.root);
-      state.tabs.set(id, tab);
+      W.addTab(state, tab, { activate: false });
     }
     if (opts.activate !== false) setActive(id);
     if (opts.render !== false) renderTabs();
@@ -2566,16 +2515,9 @@ import { openExternal } from "./lib/openlink.js";
     });
   }
 
-  // setActive makes tab id the active one, or none when there is no such
-  // tab. It is the one place state.activeId is written. It also keeps
-  // lastSessionTabId, the tab that tab pages and snippets mean by "the
-  // session shown last": the session tab it selects, or the one it leaves
-  // (a New tab that connected in place is a session tab only by then).
+  // setActive makes tab id the active one (lib/workspace.js setActive).
   function setActive(id) {
-    const left = state.tabs.get(state.activeId);
-    if (isSessionTab(left)) state.lastSessionTabId = left.id;
-    state.activeId = state.tabs.has(id) ? id : "";
-    if (isSessionTab(state.tabs.get(state.activeId))) state.lastSessionTabId = state.activeId;
+    W.setActive(state, id);
   }
 
   // activateTab selects a tab and shows it.
@@ -2587,10 +2529,7 @@ import { openExternal } from "./lib/openlink.js";
   // showPane makes a pane the focused one of its tab and its tab the
   // active one. The caller renders.
   function showPane(pane) {
-    const tab = state.tabs.get(pane.tabId);
-    if (!tab) return;
-    tab.focusedPaneId = pane.id;
-    setActive(tab.id);
+    W.focusPane(state, pane.id);
   }
 
   // settleTabs keeps the workspace whole after tabs went away (closeTab) or
@@ -2598,8 +2537,7 @@ import { openExternal } from "./lib/openlink.js";
   // with no tab shows a New tab, since the Vault is no longer a tab to fall
   // back to, and the active tab is one that exists. renderTabs only reads.
   function settleTabs() {
-    if (!state.tabs.size && state.booted) createStartTab({ render: false });
-    if (!state.tabs.has(state.activeId)) setActive([...state.tabs.keys()].at(-1) || "");
+    if (W.settle(state) && state.booted) createStartTab({ render: false });
   }
 
   function renderTabs() {
@@ -3028,8 +2966,7 @@ import { openExternal } from "./lib/openlink.js";
     };
     tab.root.className = "term-tab start-tab";
     els.terminals.appendChild(tab.root);
-    state.tabs.set(tab.id, tab);
-    setActive(tab.id);
+    W.addTab(state, tab);
     paintStartPage(tab);
     if (opts.render === false) return tab;
     renderTabs();
@@ -4378,18 +4315,16 @@ import { openExternal } from "./lib/openlink.js";
       title: paneSeed.title || "Session",
       remote: !!paneSeed.remote,
       sync: false,
-      layout: { type: "leaf", paneId: paneSeed.id },
-      focusedPaneId: paneSeed.id,
+      layout: null,
+      focusedPaneId: "",
       zoomedPaneId: "",
       root: document.createElement("div"),
     };
     tab.root.className = "term-tab";
     ensureTabStage(tab);
     els.terminals.appendChild(tab.root);
-    paneSeed.tabId = tab.id;
-    state.tabs.set(tab.id, tab);
-    state.panes.set(paneSeed.id, paneSeed);
-    setActive(tab.id);
+    W.fillTab(state, tab, paneSeed);
+    W.addTab(state, tab);
     tab.dirty = true;
     return tab;
   }
@@ -4446,10 +4381,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!tab) {
       tab = createTab(pane);
     } else if (tab.start) {
-      pane.tabId = tab.id;
-      state.panes.set(pane.id, pane);
-      tab.layout = { type: "leaf", paneId: pane.id };
-      tab.focusedPaneId = pane.id;
+      W.fillTab(state, tab, pane);
       tab.hostId = pane.hostId || "";
       tab.title = pane.title || tab.title;
       tab.start = false;
@@ -4458,18 +4390,8 @@ import { openExternal } from "./lib/openlink.js";
       tab.dirty = true;
       rememberRecent(pane.hostId);
     } else {
-      pane.tabId = tab.id;
-      state.panes.set(pane.id, pane);
-      const focused = opts.splitPaneId || tab.focusedPaneId;
-      tab.zoomedPaneId = "";
-      tab.layout = replaceLeaf(tab.layout, focused, {
-        type: "split",
-        dir: opts.splitDir || "h",
-        sizes: [50, 50],
-        a: { type: "leaf", paneId: focused },
-        b: { type: "leaf", paneId: pane.id },
-      });
-      tab.focusedPaneId = focused;
+      // The new pane goes beside the focused one, which keeps focus.
+      if (!W.splitPane(state, opts.splitPaneId || tab.focusedPaneId, pane, { dir: opts.splitDir, focus: "target" })) W.addPane(state, tab, pane);
       tab.dirty = true;
       if (!tab.hostId && pane.hostId) tab.hostId = pane.hostId;
     }
@@ -4859,7 +4781,7 @@ import { openExternal } from "./lib/openlink.js";
       /* ignore */
     }
     pane.wrap.remove();
-    state.panes.delete(pane.id);
+    W.removePane(state, pane.id);
   }
 
   function killRuntimeIfOwned(pane, opts = {}) {
@@ -4897,18 +4819,12 @@ import { openExternal } from "./lib/openlink.js";
     if (tab && !opts.fromHerd && !opts.remote && !tab.remote && !pane.remote && isTermPane(pane)) {
       recordClosed(pane.hostId, pane.title, leafCount(tab.layout) > 1 ? "pane" : "tab");
     }
+    const rest = tab && W.detachPane(state, paneId);
     disposePane(pane);
     if (!tab) return;
-    const next = removeLeaf(tab.layout, paneId);
-    if (!next) {
+    if (!rest) {
       closeTab(tab.id, { skipPanes: true });
       return;
-    }
-    tab.layout = next;
-    if (tab.zoomedPaneId === paneId) tab.zoomedPaneId = "";
-    if (tab.focusedPaneId === paneId) {
-      const left = tabPanes(tab)[0];
-      tab.focusedPaneId = left?.id || "";
     }
     tab.dirty = true;
     renderTabs();
@@ -4936,7 +4852,7 @@ import { openExternal } from "./lib/openlink.js";
     tab.stageObs?.disconnect();
     tab.stageObs = null;
     tab.root.remove();
-    state.tabs.delete(id);
+    W.removeTab(state, id);
     settleTabs();
     if (!opts.silent) {
       renderTabs();
@@ -4968,8 +4884,8 @@ import { openExternal } from "./lib/openlink.js";
       toast("Split needs a local host session");
       return;
     }
-    tab.focusedPaneId = pane.id;
-    tab.zoomedPaneId = "";
+    W.focusPane(state, pane.id, { activate: false });
+    W.zoom(state, tab, "");
     try {
       const info = await spawnHost(hostId);
       attachRuntime(info, { tab, splitDir: dir, splitPaneId: pane.id });
@@ -5080,10 +4996,9 @@ import { openExternal } from "./lib/openlink.js";
     tab.root.className = "term-tab";
     ensureTabStage(tab);
     els.terminals.appendChild(tab.root);
-    state.tabs.set(tab.id, tab);
+    W.addTab(state, tab, { activate: false });
     const pane = createNotebookPane(tab, null, saved);
-    tab.layout = { type: "leaf", paneId: pane.id };
-    tab.focusedPaneId = pane.id;
+    W.fillTab(state, tab, pane);
     tab.dirty = true;
     if (opts.activate !== false) setActive(tab.id);
     return { tab, pane };
@@ -5109,7 +5024,7 @@ import { openExternal } from "./lib/openlink.js";
       cells: copyNotebookCells(saved?.cells),
       remote: !!tab.remote,
     };
-    state.panes.set(pane.id, pane);
+    W.addPane(state, tab, pane);
     paintNotebook(pane);
     return pane;
   }
@@ -5212,15 +5127,7 @@ import { openExternal } from "./lib/openlink.js";
       const sibling = termTarget(focused) || focused || tabPanes(tab)[0];
       if (sibling) {
         const nb = createNotebookPane(tab, sibling, rec);
-        tab.layout = replaceLeaf(tab.layout, sibling.id, {
-          type: "split",
-          dir: "h",
-          sizes: [50, 50],
-          a: { type: "leaf", paneId: sibling.id },
-          b: { type: "leaf", paneId: nb.id },
-        });
-        tab.zoomedPaneId = "";
-        tab.focusedPaneId = nb.id;
+        W.splitPane(state, sibling.id, nb);
         tab.dirty = true;
         renderTabs();
         markFocusedPane(nb);
@@ -5738,17 +5645,8 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     const sibling = termTarget(pane) || pane;
-    tab.focusedPaneId = pane.id;
-    tab.zoomedPaneId = "";
     const nb = createNotebookPane(tab, sibling);
-    tab.layout = replaceLeaf(tab.layout, pane.id, {
-      type: "split",
-      dir: dir === "v" ? "v" : "h",
-      sizes: [50, 50],
-      a: { type: "leaf", paneId: pane.id },
-      b: { type: "leaf", paneId: nb.id },
-    });
-    tab.focusedPaneId = nb.id;
+    W.splitPane(state, pane.id, nb, { dir });
     tab.dirty = true;
     renderTabs();
     markFocusedPane(nb);
@@ -5899,46 +5797,23 @@ import { openExternal } from "./lib/openlink.js";
   function togglePaneZoom(paneId) {
     const pane = state.panes.get(paneId);
     const tab = pane && state.tabs.get(pane.tabId);
-    if (!tab) return;
-    if (leafCount(tab.layout) < 2 && tab.zoomedPaneId !== paneId) return;
-    tab.zoomedPaneId = tab.zoomedPaneId === paneId ? "" : paneId;
-    tab.focusedPaneId = paneId;
+    if (!tab || !W.zoom(state, tab, tab.zoomedPaneId === paneId ? "" : paneId)) return;
+    W.focusPane(state, paneId);
     tab.dirty = true;
     activateTab(tab.id);
   }
 
   function movePaneTo(fromPaneId, targetPaneId, edge) {
-    if (!fromPaneId || !targetPaneId || fromPaneId === targetPaneId || !edge) return false;
-    const from = state.panes.get(fromPaneId);
-    const to = state.panes.get(targetPaneId);
-    if (!from || !to || from.tabId !== to.tabId) return false;
-    const tab = state.tabs.get(from.tabId);
-    if (!tab?.layout) return false;
-    if (edge === "center") {
-      tab.layout = swapLeaves(tab.layout, fromPaneId, targetPaneId);
-    } else {
-      const next = removeLeaf(tab.layout, fromPaneId);
-      if (!next) return false;
-      tab.layout = insertBeside(next, targetPaneId, { type: "leaf", paneId: fromPaneId }, edge);
-    }
-    tab.zoomedPaneId = "";
-    tab.focusedPaneId = fromPaneId;
-    tab.dirty = true;
+    if (!W.movePane(state, fromPaneId, targetPaneId, edge)) return false;
+    state.tabs.get(state.panes.get(fromPaneId).tabId).dirty = true;
     renderTabs();
     return true;
   }
 
   function dockTabIntoPane(srcTabId, targetPaneId, edge) {
     const src = state.tabs.get(srcTabId);
-    const target = state.panes.get(targetPaneId);
-    const dest = target && state.tabs.get(target.tabId);
-    if (!src || !dest || src.id === dest.id || src.start || dest.start || !src.layout || !dest.layout) return false;
-    const dockEdge = edge === "center" || !edge ? "right" : edge;
-    dest.zoomedPaneId = "";
-    src.zoomedPaneId = "";
-    rehomeLayout(src.layout, dest.id);
-    dest.layout = insertBeside(dest.layout, targetPaneId, src.layout, dockEdge);
-    dest.focusedPaneId = src.focusedPaneId || targetPaneId;
+    if (!W.dockTab(state, srcTabId, targetPaneId, edge)) return false;
+    const dest = state.tabs.get(state.panes.get(targetPaneId).tabId);
     dest.sync = dest.sync || src.sync;
     dest.dirty = true;
     closeTab(src.id, { skipPanes: true, silent: true });
@@ -5950,12 +5825,7 @@ import { openExternal } from "./lib/openlink.js";
   function extractPaneToTab(paneId, toIndex) {
     const pane = state.panes.get(paneId);
     const src = pane && state.tabs.get(pane.tabId);
-    if (!src || leafCount(src.layout) < 2) return false;
-    const next = removeLeaf(src.layout, paneId);
-    if (!next) return false;
-    src.layout = next;
-    src.zoomedPaneId = "";
-    if (src.focusedPaneId === paneId) src.focusedPaneId = tabPanes(src)[0]?.id || "";
+    if (!src || !W.detachPane(state, paneId, { unzoom: true })) return false;
     src.dirty = true;
     const tab = createTab(pane);
     if (typeof toIndex === "number" && toIndex >= 0) moveTabToIndex(tab.id, toIndex);
@@ -7682,7 +7552,7 @@ import { openExternal } from "./lib/openlink.js";
           pane?.wrap?.classList.add("is-dragging");
           const tab = pane && state.tabs.get(pane.tabId);
           if (tab?.zoomedPaneId) {
-            tab.zoomedPaneId = "";
+            W.zoom(state, tab, "");
             tab.dirty = true;
             renderTabs();
           }
