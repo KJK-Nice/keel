@@ -44,6 +44,7 @@ import { createShareControl } from "./ui/sharecontrol.js";
 import { createNotebookHistory } from "./ui/notebookhistory.js";
 import { createPaneMenu } from "./ui/panemenu.js";
 import { createTerminalMenu } from "./ui/terminalmenu.js";
+import { createFenceMenu } from "./ui/fencemenu.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -5616,43 +5617,8 @@ import { openExternal } from "./lib/openlink.js";
     },
   });
 
-  // The notebook code block menu (FenceMenu): its items click the fence's
-  // own Copy and Type buttons (notebook-editor.mjs), so Type still asks
-  // Approve before type and only a shell fence offers it.
-  const fenceMenu = { fence: null };
-
-  function openFenceMenu(fence, detail) {
-    const trigger = document.getElementById("fence-menu-trigger");
-    const content = menuContent(trigger);
-    if (!fence || !content) return;
-    fenceMenu.fence = fence;
-    const run = fence.querySelector("[data-notebook-fence]");
-    const typeItem = content.querySelector('[data-fence-act="type"]');
-    if (typeItem) {
-      typeItem.hidden = !run || run.hidden;
-      const label = typeItem.querySelector("[data-fence-type-label]");
-      if (label) label.textContent = `${run?.textContent.trim() || "Type into pane"}…`;
-    }
-    openMenuAt(trigger, detail);
-  }
-
-  function runFenceMenuAction(act) {
-    const fence = fenceMenu.fence;
-    if (!fence?.isConnected) return;
-    const btn = fence.querySelector(act === "type" ? "[data-notebook-fence]" : "[data-notebook-copy]");
-    if (btn && !btn.hidden && !btn.disabled) btn.click();
-  }
-
-  // A right-click on a code block's bar (its language, Copy, Type): its
-  // menu, unless ⇧ is held. The code itself is editable text, so it keeps
-  // the system's menu (Cut, Copy, Paste).
-  function onFenceContextMenu(ev) {
-    const fence = ev.target.closest?.(".notebook-fence-bar")?.closest(".notebook-fence");
-    if (!fence || ev.shiftKey || ev.target.closest("select")) return;
-    ev.preventDefault();
-    const back = ev.target.closest("button") || fence.closest("[data-notebook-editor]");
-    openFenceMenu(fence, { x: ev.clientX, y: ev.clientY, returnFocus: back, focusFirst: false });
-  }
+  // The notebook code block menu (FenceMenu, ui/fencemenu.js).
+  const fenceMenu = createFenceMenu();
 
   // The text selection as it was when the right button went down: WebKit
   // selects the word under the pointer before contextmenu, so the
@@ -5667,18 +5633,6 @@ import { openExternal } from "./lib/openlink.js";
 
   function selectedBeforeRightClick(el) {
     return !!(rightDownSelection && el.contains(rightDownSelection));
-  }
-
-  // ⇧F10 or the Menu key on a code block's bar (its language, Copy or
-  // Type): the same menu, below the control.
-  function onFenceMenuKey(ev) {
-    if (!isMenuKey(ev)) return;
-    const active = document.activeElement;
-    const fence = active?.closest?.(".notebook-fence-bar")?.closest(".notebook-fence");
-    if (!fence) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    openFenceMenu(fence, { anchor: active, returnFocus: active, focusFirst: true });
   }
 
   // The agent card menu (CardMenu, lib/cardmenu.js): the card's own
@@ -8254,7 +8208,7 @@ import { openExternal } from "./lib/openlink.js";
       const fenceAct = ev.target.closest("[data-fence-act]");
       if (fenceAct) {
         ev.preventDefault();
-        keepActionFocus(() => runFenceMenuAction(fenceAct.dataset.fenceAct));
+        keepActionFocus(() => fenceMenu.run(fenceAct.dataset.fenceAct));
         return;
       }
       const cardAct = ev.target.closest("[data-card-act]");
@@ -8698,9 +8652,8 @@ import { openExternal } from "./lib/openlink.js";
     },
   });
   // Notebook code blocks: right-click, ⇧F10 and the Menu key on the bar.
-  document.addEventListener("contextmenu", onFenceContextMenu);
+  fenceMenu.bind();
   document.addEventListener("pointerdown", onRightDown, true);
-  document.addEventListener("keydown", onFenceMenuKey, true);
   // ⇧ held on a card menu item (⇧↵, ⇧-click) reaches the card's Type.
   document.addEventListener("keydown", trackCardMenuShift, true);
   document.addEventListener("keyup", trackCardMenuShift, true);
