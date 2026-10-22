@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RIGHT_CLICK_MODES, rightClickMode, termMenuItems, termRightClick } from "../lib/termmenu.js";
+import { RIGHT_CLICK_MODES, paneMenuItems, rightClickMode, termMenuItems, termRightClick } from "../lib/termmenu.js";
 import { shortcutLabel, ariaKeys } from "../lib/rowmenu.js";
 import { classifyShortcut } from "../lib/shortcuts.js";
 
@@ -68,4 +68,26 @@ test("terminal menu shortcuts: macOS Edit keys, none for the shell's Ctrl keys",
 test("the terminal menu's Find is the real ⌘F binding", () => {
   const ev = { key: "f", code: "KeyF", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false };
   assert.equal(classifyShortcut(ev, { mac: true, modalOpen: false, findOpen: () => false })?.name, "find-term");
+});
+
+test("paneMenuItems: Focus for a row, Focus view for a bar with another pane", () => {
+  const row = paneMenuItems({ where: "row", term: true, runtime: true, panes: 2 });
+  assert.equal(row.focus, true);
+  assert.equal(row.zoom, false);
+  const bar = paneMenuItems({ where: "bar", term: true, runtime: true, panes: 2 });
+  assert.equal(bar.focus, false);
+  assert.equal(bar.zoom, true);
+  assert.equal(paneMenuItems({ where: "bar", panes: 1 }).zoom, false);
+  assert.equal(paneMenuItems({ where: "bar", panes: 1, zoomed: true }).zoom, true);
+});
+
+test("paneMenuItems: a joined pane cannot split, share or reconnect; close always shows", () => {
+  const joined = paneMenuItems({ term: true, runtime: true, remote: true, failed: true });
+  assert.deepEqual([joined["split-h"], joined["split-v"], joined.share, joined.reconnect, joined.close], [false, false, false, false, true]);
+  const live = paneMenuItems({ term: true, runtime: true });
+  assert.deepEqual([live["split-h"], live.share, live.reconnect], [true, true, false]);
+  assert.equal(paneMenuItems({ term: true, runtime: true, failed: true }).reconnect, true);
+  // A notebook pane (not a terminal) or one with no session: no Share.
+  assert.equal(paneMenuItems({ term: false, runtime: true }).share, false);
+  assert.equal(paneMenuItems({ term: true, runtime: false }).share, false);
 });

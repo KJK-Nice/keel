@@ -47,3 +47,23 @@ export function termMenuItems({ selection = false, driving = false, canSplit = f
     close: { show: true, disabled: false },
   };
 }
+
+// paneMenuItems is which pane menu items show (PaneMenu in
+// internal/ui/rowmenus.templ), keyed by data-pane-act. where is "bar" (the
+// pane bar: More, a right-click, ⇧F10) or "row" (the sidebar's Panes
+// section). Focus is for a row; Focus view is for a bar, with another pane
+// beside it or while zoomed. Splits need a pane of this window, not a
+// joined one; Share and Reconnect need a live terminal session of this
+// window, and Reconnect one that failed.
+export function paneMenuItems({ where = "bar", term = false, runtime = false, remote = false, panes = 1, zoomed = false, failed = false } = {}) {
+  const live = !!term && !!runtime && !remote;
+  return {
+    focus: where === "row",
+    "split-h": !remote,
+    "split-v": !remote,
+    zoom: where === "bar" && (panes > 1 || !!zoomed),
+    share: live,
+    reconnect: live && !!failed,
+    close: true,
+  };
+}
