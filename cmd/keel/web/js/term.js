@@ -1305,23 +1305,16 @@ import { openExternal } from "./lib/openlink.js";
         if (PAGES[name]) openPage(name, { activate: false, render: false });
       }
       if (typeof saved?.active === "string" && saved.active.startsWith(PAGE_PREFIX)) {
-        if (state.tabs.has(saved.active)) state.activeId = saved.active;
+        if (state.tabs.has(saved.active)) setActive(saved.active);
       } else if (typeof saved?.active === "string" && saved.active.startsWith("nb:")) {
         const nbId = saved.active.slice(3);
         const pane = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === nbId);
-        if (pane) {
-          state.activeId = pane.tabId;
-          const tab = state.tabs.get(pane.tabId);
-          if (tab) tab.focusedPaneId = pane.id;
-        }
+        if (pane) showPane(pane);
       } else if (saved?.active) {
         const pane = findPaneByRuntime(saved.active);
-        if (pane) {
-          state.activeId = pane.tabId;
-          const tab = state.tabs.get(pane.tabId);
-          if (tab) tab.focusedPaneId = pane.id;
-        }
+        if (pane) showPane(pane);
       }
+      settleTabs();
       renderTabs();
     } finally {
       restoringWorkspace = false;
@@ -2039,8 +2032,7 @@ import { openExternal } from "./lib/openlink.js";
   function markFocusedPane(pane) {
     const tab = state.tabs.get(pane.tabId);
     if (!tab) return;
-    tab.focusedPaneId = pane.id;
-    state.activeId = pane.tabId;
+    showPane(pane);
     for (const p of tabPanes(tab)) syncPaneChrome(tab, p);
     const statusPane = isNotebookPane(pane) ? termTarget(pane) || pane : pane;
     if (els.barStatus) {
@@ -2302,7 +2294,7 @@ import { openExternal } from "./lib/openlink.js";
       els.terminals.appendChild(tab.root);
       state.tabs.set(id, tab);
     }
-    if (opts.activate !== false) state.activeId = id;
+    if (opts.activate !== false) setActive(id);
     if (opts.render !== false) renderTabs();
     return tab;
   }
@@ -2574,17 +2566,47 @@ import { openExternal } from "./lib/openlink.js";
     });
   }
 
+  // setActive makes tab id the active one, or none when there is no such
+  // tab. It is the one place state.activeId is written. It also keeps
+  // lastSessionTabId, the tab that tab pages and snippets mean by "the
+  // session shown last": the session tab it selects, or the one it leaves
+  // (a New tab that connected in place is a session tab only by then).
+  function setActive(id) {
+    const left = state.tabs.get(state.activeId);
+    if (isSessionTab(left)) state.lastSessionTabId = left.id;
+    state.activeId = state.tabs.has(id) ? id : "";
+    if (isSessionTab(state.tabs.get(state.activeId))) state.lastSessionTabId = state.activeId;
+  }
+
+  // activateTab selects a tab and shows it.
+  function activateTab(id) {
+    setActive(id);
+    renderTabs();
+  }
+
+  // showPane makes a pane the focused one of its tab and its tab the
+  // active one. The caller renders.
+  function showPane(pane) {
+    const tab = state.tabs.get(pane.tabId);
+    if (!tab) return;
+    tab.focusedPaneId = pane.id;
+    setActive(tab.id);
+  }
+
+  // settleTabs keeps the workspace whole after tabs went away (closeTab) or
+  // came back without one being selected (restore, boot): a booted window
+  // with no tab shows a New tab, since the Vault is no longer a tab to fall
+  // back to, and the active tab is one that exists. renderTabs only reads.
+  function settleTabs() {
+    if (!state.tabs.size && state.booted) createStartTab({ render: false });
+    if (!state.tabs.has(state.activeId)) setActive([...state.tabs.keys()].at(-1) || "");
+  }
+
   function renderTabs() {
     renderTabsDirty = false;
-    // With no tab left (startup with nothing to restore, or the last one
-    // closed) the window shows a New tab: the Vault is no longer a tab to
-    // fall back to.
-    if (!state.tabs.size && state.booted) createStartTab({ render: false });
-    if (!state.tabs.has(state.activeId)) state.activeId = [...state.tabs.keys()].at(-1) || "";
     const ids = chromeTabs();
     const activeTab = state.tabs.get(state.activeId) || null;
     const sessionOn = isSessionTab(activeTab);
-    if (sessionOn) state.lastSessionTabId = activeTab.id;
 
     const keepScroll = els.tabs.scrollLeft;
     if (!tabRenaming) {
@@ -3007,7 +3029,7 @@ import { openExternal } from "./lib/openlink.js";
     tab.root.className = "term-tab start-tab";
     els.terminals.appendChild(tab.root);
     state.tabs.set(tab.id, tab);
-    state.activeId = tab.id;
+    setActive(tab.id);
     paintStartPage(tab);
     if (opts.render === false) return tab;
     renderTabs();
@@ -3418,10 +3440,7 @@ import { openExternal } from "./lib/openlink.js";
       const tab = state.tabs.get(id);
       const n = i + 1;
       const keys = i < 8 ? `${MOD}${n}` : i === ids.length - 1 ? `${MOD}9` : "";
-      const focusTab = () => {
-        state.activeId = id;
-        renderTabs();
-      };
+      const focusTab = () => activateTab(id);
       if (tab.page) {
         items.push({ id: `tab:${id}`, group: "Open now", title: tabTitle(tab), hint: `tab ${n}`, icon: PALETTE_PAGE_ICONS[tab.page] || "action", keys, run: focusTab });
         return;
@@ -3610,10 +3629,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!sn) return;
     // From a tab page (Snippets), type into the session shown last: select
     // its tab first so the approval names the pane you can see.
-    if (!activeSessionTab() && state.tabs.has(state.lastSessionTabId)) {
-      state.activeId = state.lastSessionTabId;
-      renderTabs();
-    }
+    if (!activeSessionTab() && state.tabs.has(state.lastSessionTabId)) activateTab(state.lastSessionTabId);
     const pane = termTarget(focusedPane());
     if (!pane) {
       toast("Open a session first");
@@ -4373,7 +4389,7 @@ import { openExternal } from "./lib/openlink.js";
     paneSeed.tabId = tab.id;
     state.tabs.set(tab.id, tab);
     state.panes.set(paneSeed.id, paneSeed);
-    state.activeId = tab.id;
+    setActive(tab.id);
     tab.dirty = true;
     return tab;
   }
@@ -4382,9 +4398,7 @@ import { openExternal } from "./lib/openlink.js";
     const existing = findPaneByRuntime(info.id);
     if (existing && !opts.splitDir) {
       const leftover = opts.tab?.start && opts.tab.id !== existing.tabId ? opts.tab : null;
-      state.activeId = existing.tabId;
-      const tab = state.tabs.get(existing.tabId);
-      if (tab) tab.focusedPaneId = existing.id;
+      showPane(existing);
       if (leftover) closeTab(leftover.id);
       else renderTabs();
       if (!sessionSocketOpen(existing)) reconnectPane(existing);
@@ -4923,8 +4937,7 @@ import { openExternal } from "./lib/openlink.js";
     tab.stageObs = null;
     tab.root.remove();
     state.tabs.delete(id);
-    const remain = [...state.tabs.keys()];
-    if (state.activeId === id) state.activeId = remain.at(-1) || "";
+    settleTabs();
     if (!opts.silent) {
       renderTabs();
     }
@@ -5072,7 +5085,7 @@ import { openExternal } from "./lib/openlink.js";
     tab.layout = { type: "leaf", paneId: pane.id };
     tab.focusedPaneId = pane.id;
     tab.dirty = true;
-    if (opts.activate !== false) state.activeId = tab.id;
+    if (opts.activate !== false) setActive(tab.id);
     return { tab, pane };
   }
 
@@ -5189,7 +5202,6 @@ import { openExternal } from "./lib/openlink.js";
     }
     const existing = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === id);
     if (existing) {
-      state.activeId = existing.tabId;
       markFocusedPane(existing);
       renderTabs();
       return;
@@ -5892,8 +5904,7 @@ import { openExternal } from "./lib/openlink.js";
     tab.zoomedPaneId = tab.zoomedPaneId === paneId ? "" : paneId;
     tab.focusedPaneId = paneId;
     tab.dirty = true;
-    state.activeId = tab.id;
-    renderTabs();
+    activateTab(tab.id);
   }
 
   function movePaneTo(fromPaneId, targetPaneId, edge) {
@@ -5931,9 +5942,8 @@ import { openExternal } from "./lib/openlink.js";
     dest.sync = dest.sync || src.sync;
     dest.dirty = true;
     closeTab(src.id, { skipPanes: true, silent: true });
-    state.activeId = dest.id;
     dest.dirty = true;
-    renderTabs();
+    activateTab(dest.id);
     return true;
   }
 
@@ -6882,8 +6892,7 @@ import { openExternal } from "./lib/openlink.js";
       existing = null;
     }
     if (existing) {
-      state.activeId = existing.tabId;
-      renderTabs();
+      activateTab(existing.tabId);
       existing.term.focus();
       return;
     }
@@ -7345,16 +7354,12 @@ import { openExternal } from "./lib/openlink.js";
 
   function activateTabIndex(n) {
     const id = tabIndexTarget(chromeTabs(), n);
-    if (!id) return;
-    state.activeId = id;
-    renderTabs();
+    if (id) activateTab(id);
   }
 
   function activateTabDelta(delta) {
     const id = tabCycleTarget(chromeTabs(), state.activeId, delta);
-    if (!id) return;
-    state.activeId = id;
-    renderTabs();
+    if (id) activateTab(id);
   }
 
   async function boot() {
@@ -7402,9 +7407,7 @@ import { openExternal } from "./lib/openlink.js";
     if (state.pendingSession) {
       const pane = findPaneByRuntime(state.pendingSession);
       if (pane) {
-        state.activeId = pane.tabId;
-        const tab = state.tabs.get(pane.tabId);
-        if (tab) tab.focusedPaneId = pane.id;
+        showPane(pane);
         renderTabs();
       } else {
         const info = state.herd.find((s) => s.id === state.pendingSession);
@@ -7415,6 +7418,7 @@ import { openExternal } from "./lib/openlink.js";
     // Only now may an empty strip turn into a New tab: earlier, restore
     // would have left a stray one beside the sessions it brings back.
     state.booted = true;
+    settleTabs();
     renderTabs();
   }
 
@@ -7619,10 +7623,7 @@ import { openExternal } from "./lib/openlink.js";
         return;
       }
       const tab = ev.target.closest("[data-tab]");
-      if (tab) {
-        state.activeId = tab.dataset.tab;
-        renderTabs();
-      }
+      if (tab) activateTab(tab.dataset.tab);
     });
     on(els.tabs, "pointerdown", (ev) => {
       if (ev.button !== 0) return;
