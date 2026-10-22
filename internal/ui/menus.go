@@ -20,7 +20,7 @@ import (
 // whitespace or a control character gets no command at all: hosts can come
 // from an imported ~/.ssh/config, and a pasted command must never run
 // anything but ssh to that host. The same holds for the jump host.
-func sshCommand(h store.Host, hosts []store.Host) string {
+func sshCommand(h Host, hosts []Host) string {
 	if h.AuthType == "local" || strings.TrimSpace(h.Address) == "" {
 		return ""
 	}
@@ -116,7 +116,7 @@ func tunnelLocalAddress(t tunnel.Info) string {
 	return fmt.Sprintf("%s:%d", addr, t.BindPort)
 }
 
-func hostAgentReadable(h store.Host) string {
+func hostAgentReadable(h Host) string {
 	return strconv.FormatBool(h.ReadableByAgent())
 }
 
@@ -145,6 +145,6 @@ func boolAttr(b bool) string { return strconv.FormatBool(b) }
 
 // identityInUse reports an identity a saved host still authenticates with:
 // its menu's Delete is disabled, as on the Keychain detail.
-func identityInUse(hosts []store.Host, id store.Identity) bool {
+func identityInUse(hosts []Host, id store.Identity) bool {
 	return identityHostCount(hosts, id.ID) > 0
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func TestGroupHostsFiltersQuery(t *testing.T) {
-	hosts := []store.Host{
+	hosts := []Host{
 		{Name: "prod-api", Address: "10.0.0.1", Group: "Production"},
 		{Name: "laptop", Address: "127.0.0.1", Group: "Local", AuthType: "local"},
 		{Name: "trainer", Address: "10.0.0.9", Group: "Labs", Tags: []string{"gpu", "ml"}},
@@ -29,8 +29,8 @@ func TestGroupHostsFiltersQuery(t *testing.T) {
 
 func TestFolderGroupsSkipsDefaultBucket(t *testing.T) {
 	groups := []hostGroup{
-		{Name: "This machine", Hosts: []store.Host{{Name: "Local Shell"}}},
-		{Name: "Hosts", Hosts: []store.Host{{Name: "orphan"}}},
+		{Name: "This machine", Hosts: []Host{{Name: "Local Shell"}}},
+		{Name: "Hosts", Hosts: []Host{{Name: "orphan"}}},
 	}
 	got := folderGroups(groups)
 	if len(got) != 1 || got[0].Name != "This machine" {
@@ -39,7 +39,7 @@ func TestFolderGroupsSkipsDefaultBucket(t *testing.T) {
 	if hostCountLabel(1) != "1 Host" || hostCountLabel(3) != "3 Hosts" {
 		t.Fatal("host count labels")
 	}
-	if hostProtocol(store.Host{AuthType: "local"}) != "local" || hostProtocol(store.Host{}) != "ssh" {
+	if hostProtocol(Host{AuthType: "local"}) != "local" || hostProtocol(Host{}) != "ssh" {
 		t.Fatal("host protocol labels")
 	}
 	if n := len(flatHosts(groups)); n != 2 {
@@ -62,7 +62,7 @@ func TestNestGroupTreeParentsAndCounts(t *testing.T) {
 		{ID: "prod", Name: "prod", ParentID: "root"},
 		{ID: "labs", Name: "labs"},
 	}
-	hosts := []store.Host{
+	hosts := []Host{
 		{ID: "h1", Name: "api", Group: "prod", GroupID: "prod", Address: "10.0.0.1"},
 		{ID: "h2", Name: "gpu", Group: "labs", GroupID: "labs", Address: "10.0.0.9", Tags: []string{"ml"}},
 		{ID: "h3", Name: "solo", Address: "10.0.0.8"},
@@ -141,7 +141,7 @@ func TestTunnelStateAndLogKinds(t *testing.T) {
 	if logGroup("session") != "sessions" || logGroup("tunnel") != "forwards" || logGroup("identity") != "vault" || logGroup("info") != "other" || logGroup("agent.read") != "agent" || logGroup("agent") != "agent" || logGroup("agentx") != "other" {
 		t.Fatal("log chip groups")
 	}
-	p := PageProps{Hosts: []store.Host{{ID: "h1", Name: "db"}}}
+	p := PageProps{Hosts: []Host{{ID: "h1", Name: "db"}}}
 	if logTarget(p, applog.Entry{HostID: "h1"}) != "db" || logTarget(p, applog.Entry{}) != "—" {
 		t.Fatal("log targets")
 	}
@@ -151,7 +151,7 @@ func TestVaultTileLabels(t *testing.T) {
 	if identityKindLabel("key") != "SSH key" || identityKindLabel("password") != "Password" {
 		t.Fatal("identity kind labels")
 	}
-	hosts := []store.Host{
+	hosts := []Host{
 		{ID: "a", AuthType: "identity", IdentityID: "k"},
 		{ID: "b", AuthType: "identity", IdentityID: "k"},
 		{ID: "c", AuthType: "password", IdentityID: "k"},
@@ -182,7 +182,7 @@ func TestVaultTileLabels(t *testing.T) {
 
 func TestUngroupedHostsKeepOrphans(t *testing.T) {
 	groups := []store.Group{{ID: "g", Name: "prod"}}
-	hosts := []store.Host{{ID: "a", GroupID: "g"}, {ID: "b"}, {ID: "c", GroupID: "gone"}}
+	hosts := []Host{{ID: "a", GroupID: "g"}, {ID: "b"}, {ID: "c", GroupID: "gone"}}
 	got := ungroupedHosts(hosts, groups, "")
 	if len(got) != 2 || got[0].ID != "b" || got[1].ID != "c" {
 		t.Fatalf("a host whose group is gone sits at the root: %+v", got)

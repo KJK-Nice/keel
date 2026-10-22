@@ -22,7 +22,7 @@ func renderString(t *testing.T, c templ.Component) string {
 func TestIdentityRowMenu(t *testing.T) {
 	key := store.Identity{ID: "k1", Name: "deploy", Kind: "key", Username: "ops", PrivateKey: "-----BEGIN OPENSSH PRIVATE KEY-----", Passphrase: "pp-secret"}
 	pw := store.Identity{ID: "p1", Name: "root pw", Kind: "password", Password: "pw-secret"}
-	hosts := []store.Host{{ID: "h1", AuthType: "identity", IdentityID: "k1"}}
+	hosts := []Host{{ID: "h1", AuthType: "identity", IdentityID: "k1"}}
 	if !identityInUse(hosts, key) || identityInUse(hosts, pw) {
 		t.Fatal("identityInUse: a host uses k1, none uses p1")
 	}

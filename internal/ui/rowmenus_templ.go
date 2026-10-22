@@ -279,7 +279,7 @@ func rowMenu(label string) templ.Component {
 	})
 }
 
-func hostRowMenu(h store.Host, hosts []store.Host) templ.Component {
+func hostRowMenu(h Host, hosts []Host) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1452,7 +1452,7 @@ func hiddenRowMenu(label string) templ.Component {
 // identityRowMenu: Edit and Delete, the detail's own actions. Nothing here
 // shows or copies a key, a passphrase or a password. An identity hosts
 // still use cannot be deleted, as on the detail.
-func identityRowMenu(hosts []store.Host, id store.Identity) templ.Component {
+func identityRowMenu(hosts []Host, id store.Identity) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

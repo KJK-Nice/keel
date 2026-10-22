@@ -47,7 +47,7 @@ templ sideEmpty(title, desc string) {
 	</div>
 }
 
-templ treeGroup(n groupNode, hosts []store.Host) {
+templ treeGroup(n groupNode, hosts []Host) {
 	<div
 		class="group-tree-node k-tree-group"
 		data-group-id={ n.Group.ID }
@@ -82,7 +82,7 @@ templ treeGroup(n groupNode, hosts []store.Host) {
 	</div>
 }
 
-templ treeHost(h store.Host, hosts []store.Host) {
+templ treeHost(h Host, hosts []Host) {
 	<div class="k-tree-row k-tree-hostrow" data-id={ h.ID } draggable="true" data-drag-host={ h.ID } data-row-menu>
 		<button type="button" class="k-tree-host" data-connect={ h.ID } title={ hostSubtitle(h) }>
 			@hostTile(h)
@@ -96,7 +96,7 @@ templ treeHost(h store.Host, hosts []store.Host) {
 }
 
 // hostTile is the host's 16% tint tile with its icon at full strength.
-templ hostTile(h store.Host) {
+templ hostTile(h Host) {
 	if h.Color != "" {
 		<span class="k-tile k-tile--sm" style={ "--host:" + h.Color }>
 			@hostIcon(h)
@@ -108,7 +108,7 @@ templ hostTile(h store.Host) {
 	}
 }
 
-templ hostIcon(h store.Host) {
+templ hostIcon(h Host) {
 	if h.AuthType == "local" {
 		@icon.ComputerTerminal01()
 	} else {
@@ -144,7 +144,7 @@ templ IdentityList(p PageProps) {
 // identityItem is one Keychain row: the item button and, beside it, its
 // menu (right-click, ⇧F10 or the Menu key; rowmenus.templ). The wrapper
 // is display: contents, so the list lays out as before.
-templ identityItem(hosts []store.Host, id store.Identity) {
+templ identityItem(hosts []Host, id store.Identity) {
 	<div class="k-item-row" data-row-menu>
 		<button
 			type="button"
@@ -192,7 +192,7 @@ templ TunnelList(p PageProps) {
 	</tbody>
 }
 
-templ tunnelRow(hosts []store.Host, t tunnel.Info) {
+templ tunnelRow(hosts []Host, t tunnel.Info) {
 	{{ st := tunnelState(t) }}
 	<tr
 		data-id={ t.ID }

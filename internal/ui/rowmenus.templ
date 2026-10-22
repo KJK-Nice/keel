@@ -55,7 +55,7 @@ templ rowMenu(label string) {
 	}
 }
 
-templ hostRowMenu(h store.Host, hosts []store.Host) {
+templ hostRowMenu(h Host, hosts []Host) {
 	@rowMenu("Actions") {
 		@menuItem(icon.Plug01, "Connect", "connect", "↵", templ.Attributes{"data-connect": h.ID})
 		@menuItem(icon.LayoutTwoColumn, "Open in split", "open-split", "⌥↵", templ.Attributes{"data-connect-split": h.ID})
@@ -252,7 +252,7 @@ templ hiddenRowMenu(label string) {
 // identityRowMenu: Edit and Delete, the detail's own actions. Nothing here
 // shows or copies a key, a passphrase or a password. An identity hosts
 // still use cannot be deleted, as on the detail.
-templ identityRowMenu(hosts []store.Host, id store.Identity) {
+templ identityRowMenu(hosts []Host, id store.Identity) {
 	@hiddenRowMenu("Identity actions") {
 		@menuItem(icon.PencilEdit02, "Edit", "", "", templ.Attributes{"data-edit-identity": id.ID})
 		@dropdownmenu.Separator()
