@@ -41,6 +41,55 @@ jobs:
       - name: make test
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
 
+  # The e2e suite in WebKit, the engine of the macOS app's window. On
+  # macOS: the tests press ⌘. Each test starts from the built binary, so
+  # the job builds first (make build), then runs make e2e. A failure
+  # uploads the run's report, traces and keel serve logs.
+  e2e:
+    name: e2e (webkit)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install WebKit
+        run: npx e2e-web install webkit
+
+      - name: make build
+        run: sh scripts/ci-run.sh "make build" make build
+
+      - name: make e2e
+        run: sh scripts/ci-run.sh "e2e (webkit)" make e2e
+
+      - name: Upload the e2e report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            .e2e/report.json
+            .e2e/results/
+            .e2e/logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
   generated:
     name: generated files
     runs-on: ubuntu-24.04

@@ -1,4 +1,4 @@
-.PHONY: app build test test-js notebook-editorsignal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -79,6 +79,14 @@ notebook-editor:
 # Pure frontend modules (cmd/keel/web/js/lib) with node's built-in runner.
 test-js:
 	node --test 'cmd/keel/web/js/test/*.test.mjs'
+
+# The e2e suite (tests/*.e2e.ts) in WebKit against a scratch keel serve
+# (e2e.config.ts), as CI runs it. Build first: the UI is embedded in
+# bin/keel. readme.e2e.ts only makes the docs screenshots, so it is left
+# out. The tests press ⌘ (Meta), so run it on macOS.
+E2E_TESTS := $(filter-out tests/readme.e2e.ts,$(wildcard tests/*.e2e.ts))
+e2e:
+	npx e2e run --target webkit --reporter list --trace retain-on-failure $(E2E_TESTS)
 
 # Fails when the committed templ output or output.css differs from what the
 # pinned tools generate.
