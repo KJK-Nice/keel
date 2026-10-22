@@ -398,7 +398,6 @@ import { openExternal } from "./lib/openlink.js";
     if (tab.zoomedPaneId && tab.zoomedPaneId !== paneId) {
       W.zoom(state, tab, "");
       W.focusPane(state, paneId, { activate: false });
-      tab.dirty = true;
       renderTabs();
     }
     markFocusedPane(pane);
@@ -1266,7 +1265,6 @@ import { openExternal } from "./lib/openlink.js";
       notebookToPane.set(rec.id, nb.id);
     });
     const remapped = remapLayout(layout, runtimeToPane, notebookToPane);
-    if (remapped) tab.dirty = true;
     if (saved.title) tab.customTitle = saved.title;
     if (saved.sync) tab.sync = true;
     W.setLayout(state, tab, remapped, {
@@ -1627,8 +1625,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function closeTabs(ids) {
-    for (const id of ids) closeTab(id, { silent: true });
-    renderTabs();
+    for (const id of ids) closeTab(id);
   }
 
   function applyTabRename(id, raw, ok) {
@@ -2520,7 +2517,8 @@ import { openExternal } from "./lib/openlink.js";
     W.setActive(state, id);
   }
 
-  // activateTab selects a tab and shows it.
+  // activateTab selects a tab and shows it now, for a caller that goes on
+  // to focus something in it.
   function activateTab(id) {
     setActive(id);
     renderTabs();
@@ -2540,8 +2538,24 @@ import { openExternal } from "./lib/openlink.js";
     if (W.settle(state) && state.booted) createStartTab({ render: false });
   }
 
+  // The workspace model tells of every change it makes (lib/workspace.js
+  // onChange): one render covers a burst of them, at the end of the task
+  // that made them, so the DOM is current before the next event. A
+  // change of focus alone repaints nothing here: markFocusedPane updates
+  // the pane chrome itself. A direct renderTabs in between makes the
+  // queued one a no-op.
+  let renderQueued = false;
+  state.onChange = (what) => {
+    if (what === "focus" || renderQueued) return;
+    renderQueued = true;
+    queueMicrotask(() => {
+      if (renderQueued) renderTabs();
+    });
+  };
+
   function renderTabs() {
     renderTabsDirty = false;
+    renderQueued = false;
     const ids = chromeTabs();
     const activeTab = state.tabs.get(state.activeId) || null;
     const sessionOn = isSessionTab(activeTab);
@@ -4325,7 +4339,6 @@ import { openExternal } from "./lib/openlink.js";
     els.terminals.appendChild(tab.root);
     W.fillTab(state, tab, paneSeed);
     W.addTab(state, tab);
-    tab.dirty = true;
     return tab;
   }
 
@@ -4335,7 +4348,7 @@ import { openExternal } from "./lib/openlink.js";
       const leftover = opts.tab?.start && opts.tab.id !== existing.tabId ? opts.tab : null;
       showPane(existing);
       if (leftover) closeTab(leftover.id);
-      else renderTabs();
+      renderTabs();
       if (!sessionSocketOpen(existing)) reconnectPane(existing);
       existing.term?.focus();
       return existing;
@@ -4387,12 +4400,10 @@ import { openExternal } from "./lib/openlink.js";
       tab.start = false;
       tab.connecting = "";
       tab.root.classList.remove("start-tab");
-      tab.dirty = true;
       rememberRecent(pane.hostId);
     } else {
       // The new pane goes beside the focused one, which keeps focus.
       if (!W.splitPane(state, opts.splitPaneId || tab.focusedPaneId, pane, { dir: opts.splitDir, focus: "target" })) W.addPane(state, tab, pane);
-      tab.dirty = true;
       if (!tab.hostId && pane.hostId) tab.hostId = pane.hostId;
     }
 
@@ -4822,12 +4833,7 @@ import { openExternal } from "./lib/openlink.js";
     const rest = tab && W.detachPane(state, paneId);
     disposePane(pane);
     if (!tab) return;
-    if (!rest) {
-      closeTab(tab.id, { skipPanes: true });
-      return;
-    }
-    tab.dirty = true;
-    renderTabs();
+    if (!rest) closeTab(tab.id, { skipPanes: true });
   }
 
   function closeTab(id, opts = {}) {
@@ -4854,9 +4860,6 @@ import { openExternal } from "./lib/openlink.js";
     tab.root.remove();
     W.removeTab(state, id);
     settleTabs();
-    if (!opts.silent) {
-      renderTabs();
-    }
   }
 
   async function splitActive(dir) {
@@ -4999,7 +5002,6 @@ import { openExternal } from "./lib/openlink.js";
     W.addTab(state, tab, { activate: false });
     const pane = createNotebookPane(tab, null, saved);
     W.fillTab(state, tab, pane);
-    tab.dirty = true;
     if (opts.activate !== false) setActive(tab.id);
     return { tab, pane };
   }
@@ -5128,7 +5130,6 @@ import { openExternal } from "./lib/openlink.js";
       if (sibling) {
         const nb = createNotebookPane(tab, sibling, rec);
         W.splitPane(state, sibling.id, nb);
-        tab.dirty = true;
         renderTabs();
         markFocusedPane(nb);
         return;
@@ -5647,7 +5648,6 @@ import { openExternal } from "./lib/openlink.js";
     const sibling = termTarget(pane) || pane;
     const nb = createNotebookPane(tab, sibling);
     W.splitPane(state, pane.id, nb, { dir });
-    tab.dirty = true;
     renderTabs();
     markFocusedPane(nb);
     saveNotebookNow(nb);
@@ -5799,15 +5799,10 @@ import { openExternal } from "./lib/openlink.js";
     const tab = pane && state.tabs.get(pane.tabId);
     if (!tab || !W.zoom(state, tab, tab.zoomedPaneId === paneId ? "" : paneId)) return;
     W.focusPane(state, paneId);
-    tab.dirty = true;
-    activateTab(tab.id);
   }
 
   function movePaneTo(fromPaneId, targetPaneId, edge) {
-    if (!W.movePane(state, fromPaneId, targetPaneId, edge)) return false;
-    state.tabs.get(state.panes.get(fromPaneId).tabId).dirty = true;
-    renderTabs();
-    return true;
+    return W.movePane(state, fromPaneId, targetPaneId, edge);
   }
 
   function dockTabIntoPane(srcTabId, targetPaneId, edge) {
@@ -5815,10 +5810,8 @@ import { openExternal } from "./lib/openlink.js";
     if (!W.dockTab(state, srcTabId, targetPaneId, edge)) return false;
     const dest = state.tabs.get(state.panes.get(targetPaneId).tabId);
     dest.sync = dest.sync || src.sync;
-    dest.dirty = true;
-    closeTab(src.id, { skipPanes: true, silent: true });
-    dest.dirty = true;
-    activateTab(dest.id);
+    closeTab(src.id, { skipPanes: true });
+    setActive(dest.id);
     return true;
   }
 
@@ -5826,10 +5819,8 @@ import { openExternal } from "./lib/openlink.js";
     const pane = state.panes.get(paneId);
     const src = pane && state.tabs.get(pane.tabId);
     if (!src || !W.detachPane(state, paneId, { unzoom: true })) return false;
-    src.dirty = true;
     const tab = createTab(pane);
     if (typeof toIndex === "number" && toIndex >= 0) moveTabToIndex(tab.id, toIndex);
-    renderTabs();
     return true;
   }
 
@@ -7308,7 +7299,7 @@ import { openExternal } from "./lib/openlink.js";
       dockTabIntoPane(drag.id, dock.paneId, dock.edge);
       return;
     }
-    if (overStrip && moveTabToIndex(drag.id, toIndex)) renderTabs();
+    if (overStrip) moveTabToIndex(drag.id, toIndex);
   }
 
   function finishPanePointer(ev) {
@@ -7553,8 +7544,6 @@ import { openExternal } from "./lib/openlink.js";
           const tab = pane && state.tabs.get(pane.tabId);
           if (tab?.zoomedPaneId) {
             W.zoom(state, tab, "");
-            tab.dirty = true;
-            renderTabs();
           }
         }
         ev.preventDefault();

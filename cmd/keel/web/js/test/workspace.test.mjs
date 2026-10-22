@@ -198,3 +198,33 @@ test("setLayout takes a restored layout with focus and zoom only when they are i
   assert.equal(solo.focusedPaneId, "c");
   assert.equal(solo.zoomedPaneId, "", "one pane does not zoom");
 });
+
+test("onChange tells each change once, and nothing for a no-op", () => {
+  const { ws, t1 } = sample();
+  const seen = [];
+  ws.onChange = (what, tab) => seen.push(tab ? `${what}:${tab.id}` : what);
+  W.setActive(ws, "t1");
+  W.focusPane(ws, "b");
+  W.zoom(ws, t1, "");
+  W.moveTab(ws, "page", 3);
+  assert.deepEqual(seen, [], "nothing changed");
+  W.setActive(ws, "page");
+  W.focusPane(ws, "a", { activate: false });
+  W.zoom(ws, t1, "a");
+  W.moveTab(ws, "page", 0);
+  W.addTab(ws, tab("x"), { activate: false });
+  W.removeTab(ws, "x");
+  assert.deepEqual(seen, ["active", "focus:t1", "layout:t1", "tabs", "tabs:x", "tabs"]);
+});
+
+test("a layout change marks the tab dirty for a repaint", () => {
+  const { ws, t1 } = sample();
+  t1.dirty = false;
+  W.focusPane(ws, "a");
+  assert.equal(t1.dirty, false, "focus alone repaints nothing");
+  W.detachPane(ws, "b");
+  assert.equal(t1.dirty, true);
+  t1.dirty = false;
+  W.splitPane(ws, "a", pane("c"));
+  assert.equal(t1.dirty, true);
+});
