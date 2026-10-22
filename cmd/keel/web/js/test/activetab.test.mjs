@@ -36,10 +36,17 @@ test("renderTabs writes no workspace state and makes no tab", () => {
   assert.doesNotMatch(body, /(?<![\w.])(W\.\w+|setActive|settleTabs|createStartTab|showPane)\(/);
 });
 
-test("closing a tab settles the workspace before it renders", () => {
+test("closing a tab settles the workspace; the model's change renders", () => {
   const body = fns.get("closeTab");
   const del = body.indexOf("W.removeTab(");
   const settle = body.indexOf("settleTabs(");
   assert.ok(del >= 0 && settle > del, "closeTab must call settleTabs after it removes the tab");
-  assert.ok(body.indexOf("renderTabs(") > settle, "closeTab must render after it settles");
+  assert.doesNotMatch(body, /renderTabs\(/);
+});
+
+test("the model's changes schedule a render, but a change of focus alone does not", () => {
+  const hook = src.slice(src.indexOf("state.onChange = "), src.indexOf("function renderTabs()"));
+  assert.match(hook, /what === "focus"/);
+  assert.match(hook, /queueMicrotask\(/);
+  assert.match(fns.get("renderTabs"), /renderQueued = false/);
 });

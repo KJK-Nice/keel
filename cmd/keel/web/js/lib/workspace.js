@@ -3,15 +3,29 @@
 // the elements and the connections, and changes the structure only through
 // these functions, so the rules for it live in one place.
 //
-// ws is { tabs: Map, panes: Map, activeId, lastSessionTabId } (term.js
-// passes its state). The model reads and writes only these fields of the
-// records; everything else on them is the caller's:
-//   tab   { id, layout, focusedPaneId, zoomedPaneId, start?, page? }
+// ws is { tabs: Map, panes: Map, activeId, lastSessionTabId, onChange? }
+// (term.js passes its state). The model reads and writes only these fields
+// of the records; everything else on them is the caller's:
+//   tab   { id, layout, focusedPaneId, zoomedPaneId, dirty, start?, page? }
 //   pane  { id, tabId }
 // A layout is a lib/layout.js tree of pane ids.
+//
+// Every change that shows calls ws.onChange(what, tab), so the caller can
+// render once for a burst of them. what is
+//   "tabs"    a tab was added, removed or moved
+//   "active"  another tab is active
+//   "layout"  a tab's panes or focus view changed; the tab is marked dirty
+//             (its panes need laying out again)
+//   "focus"   only which pane of a tab has focus
+// A call that changes nothing calls nothing.
 import { insertBeside, leafCount, removeLeaf, replaceLeaf, swapLeaves, walkLeaves } from "./layout.js";
 
 const leaf = (paneId) => ({ type: "leaf", paneId });
+
+function changed(ws, what, tab) {
+  if (what === "layout" && tab) tab.dirty = true;
+  ws.onChange?.(what, tab);
+}
 
 export function createWorkspace() {
   return { tabs: new Map(), panes: new Map(), activeId: "", lastSessionTabId: "" };
@@ -66,14 +80,18 @@ export function focusedPane(ws) {
 export function setActive(ws, id) {
   const left = ws.tabs.get(ws.activeId);
   if (isSessionTab(left)) ws.lastSessionTabId = left.id;
-  ws.activeId = ws.tabs.has(id) ? id : "";
+  const next = ws.tabs.has(id) ? id : "";
+  const moved = next !== ws.activeId;
+  ws.activeId = next;
   if (isSessionTab(ws.tabs.get(ws.activeId))) ws.lastSessionTabId = ws.activeId;
+  if (moved) changed(ws, "active");
 }
 
 // addTab puts a tab at the end of the strip and, unless activate is false,
 // selects it.
 export function addTab(ws, tab, { activate = true } = {}) {
   ws.tabs.set(tab.id, tab);
+  changed(ws, "tabs", tab);
   if (activate) setActive(ws, tab.id);
   return tab;
 }
@@ -82,6 +100,7 @@ export function addTab(ws, tab, { activate = true } = {}) {
 // those first. When it was the active tab, the last one becomes active.
 export function removeTab(ws, id) {
   if (!ws.tabs.delete(id)) return false;
+  changed(ws, "tabs");
   settle(ws);
   return true;
 }
@@ -107,21 +126,22 @@ export function moveTab(ws, id, toIndex) {
   const tabs = next.map((x) => ws.tabs.get(x));
   ws.tabs.clear();
   for (const tab of tabs) ws.tabs.set(tab.id, tab);
+  changed(ws, "tabs");
   return true;
 }
 
 // ---- Panes ---------------------------------------------------------------
 
 // addPane makes pane one of tab's panes. It is not in the layout yet:
-// fillTab, splitPane or setLayout place it.
+// fillTab, splitPane or setLayout place it, and tell onChange.
 export function addPane(ws, tab, pane) {
   pane.tabId = tab.id;
   ws.panes.set(pane.id, pane);
   return pane;
 }
 
-// removePane forgets a pane. Take it out of its layout first (detachPane),
-// unless its whole tab is going.
+// removePane forgets a pane. Take it out of its layout first (detachPane,
+// which tells onChange), unless its whole tab is going.
 export function removePane(ws, id) {
   return ws.panes.delete(id);
 }
@@ -133,6 +153,7 @@ export function fillTab(ws, tab, pane) {
   tab.layout = leaf(pane.id);
   tab.focusedPaneId = pane.id;
   tab.zoomedPaneId = "";
+  changed(ws, "layout", tab);
 }
 
 // splitPane puts pane beside the pane targetId: dir "h" to its right, "v"
@@ -146,6 +167,7 @@ export function splitPane(ws, targetId, pane, { dir = "h", focus = "new" } = {})
   tab.layout = replaceLeaf(tab.layout, targetId, { type: "split", dir: dir === "v" ? "v" : "h", sizes: [50, 50], a: leaf(targetId), b: leaf(pane.id) });
   tab.zoomedPaneId = "";
   tab.focusedPaneId = focus === "target" ? targetId : pane.id;
+  changed(ws, "layout", tab);
   return true;
 }
 
@@ -162,6 +184,7 @@ export function detachPane(ws, paneId, { unzoom = false } = {}) {
   tab.layout = next;
   if (unzoom || tab.zoomedPaneId === paneId) tab.zoomedPaneId = "";
   if (tab.focusedPaneId === paneId) tab.focusedPaneId = tabPanes(ws, tab)[0]?.id || "";
+  changed(ws, "layout", tab);
   return tab;
 }
 
@@ -183,6 +206,7 @@ export function movePane(ws, fromId, toId, edge) {
   }
   tab.zoomedPaneId = "";
   tab.focusedPaneId = fromId;
+  changed(ws, "layout", tab);
   return true;
 }
 
@@ -199,6 +223,7 @@ export function dockTab(ws, srcId, targetId, edge) {
   dest.zoomedPaneId = "";
   src.zoomedPaneId = "";
   dest.focusedPaneId = src.focusedPaneId || targetId;
+  changed(ws, "layout", dest);
   return true;
 }
 
@@ -208,7 +233,10 @@ export function focusPane(ws, paneId, { activate = true } = {}) {
   const pane = ws.panes.get(paneId);
   const tab = pane && ws.tabs.get(pane.tabId);
   if (!tab) return false;
-  tab.focusedPaneId = pane.id;
+  if (tab.focusedPaneId !== pane.id) {
+    tab.focusedPaneId = pane.id;
+    changed(ws, "focus", tab);
+  }
   if (activate) setActive(ws, tab.id);
   return true;
 }
@@ -219,8 +247,10 @@ export function focusPane(ws, paneId, { activate = true } = {}) {
 export function zoom(ws, tab, paneId) {
   if (!tab) return false;
   if (paneId && (!ws.panes.has(paneId) || leafCount(tab.layout) < 2)) return false;
+  if (tab.zoomedPaneId === (paneId || "")) return true;
   tab.zoomedPaneId = paneId || "";
   if (paneId) tab.focusedPaneId = paneId;
+  changed(ws, "layout", tab);
   return true;
 }
 
@@ -232,4 +262,5 @@ export function setLayout(ws, tab, layout, { focusedPaneId = "", zoomedPaneId = 
   walkLeaves(tab.layout, ({ paneId }) => ids.add(paneId));
   if (ids.has(focusedPaneId)) tab.focusedPaneId = focusedPaneId;
   if (ids.has(zoomedPaneId) && ids.size > 1) tab.zoomedPaneId = zoomedPaneId;
+  changed(ws, "layout", tab);
 }
