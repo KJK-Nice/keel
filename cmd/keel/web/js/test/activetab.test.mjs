@@ -59,3 +59,8 @@ test("term.js changes a pane's session record only through lib/workspace.js", ()
   assert.deepEqual(bad, []);
   assert.deepEqual(lines(/Object\.assign\(pane\b|failLog\.(push|shift|splice)\(/), []);
 });
+
+test("a pane's elements live in its view, not on the record", () => {
+  const field = /\b(pane|p)\??\.(host|wrap|banner|search|cmdMarks|findEl|failEl|inputEl|fitObs|webglGuard|suggest|_docEl|mdEditor|body)\b/;
+  assert.deepEqual(lines(field), []);
+});

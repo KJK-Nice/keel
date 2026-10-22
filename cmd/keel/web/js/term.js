@@ -1451,6 +1451,30 @@ import { openExternal } from "./lib/openlink.js";
     return W.focusedPane(state);
   }
 
+  // A pane's view: its elements and what draws into them, apart from its
+  // record (lib/workspace.js). Keyed by the record, so a callback that
+  // still holds a closed pane finds the same elements it did before.
+  //   wrap, host, banner, findEl, failEl, inputEl   the pane's elements
+  //   search, cmdMarks                              xterm addons
+  //   body, mdEditor, _docEl                        a notebook's
+  //   fitObs, webglGuard, suggest                   set up later
+  const paneViews = new WeakMap();
+  function viewOf(pane) {
+    return (pane && paneViews.get(pane)) || {};
+  }
+  function setPaneView(pane, shell) {
+    paneViews.set(pane, {
+      host: shell.host,
+      wrap: shell.wrap,
+      banner: shell.banner,
+      search: shell.search,
+      cmdMarks: shell.marks,
+      findEl: shell.findEl,
+      failEl: shell.failEl,
+      inputEl: shell.inputEl,
+    });
+  }
+
   function paneKind(pane) {
     return pane?.kind || "term";
   }
@@ -1745,7 +1769,7 @@ import { openExternal } from "./lib/openlink.js";
   function endPaneDrag() {
     if (!paneDrag) return;
     const pane = state.panes.get(paneDrag.paneId);
-    pane?.wrap?.classList.remove("is-dragging");
+    viewOf(pane)?.wrap?.classList.remove("is-dragging");
     paneDrag = null;
     document.body.classList.remove("is-pane-dragging");
     hidePaneDrop();
@@ -1792,7 +1816,7 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     const pane = state.panes.get(target.paneId);
-    const wrap = pane?.wrap;
+    const wrap = viewOf(pane)?.wrap;
     if (!wrap?.isConnected) {
       overlay.hidden = true;
       return;
@@ -1828,8 +1852,8 @@ import { openExternal } from "./lib/openlink.js";
     const tab = state.tabs.get(state.activeId);
     if (!tab || tab.start || !tab.layout) return null;
     for (const pane of tabPanes(tab)) {
-      if (!pane.wrap?.isConnected) continue;
-      const r = pane.wrap.getBoundingClientRect();
+      if (!viewOf(pane).wrap?.isConnected) continue;
+      const r = viewOf(pane).wrap.getBoundingClientRect();
       if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
       if (pane.id === excludePaneId) return { paneId: pane.id, edge: null, self: true };
       if (fromTabId && pane.tabId === fromTabId) return { paneId: pane.id, edge: null, self: true };
@@ -1839,17 +1863,17 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function syncPaneChrome(tab, pane) {
-    if (!tab || !pane?.wrap) return;
+    if (!tab || !viewOf(pane)?.wrap) return;
     const focused = tab.focusedPaneId === pane.id;
     const zoomed = tab.zoomedPaneId === pane.id;
-    pane.wrap.classList.toggle("is-focused", focused);
-    pane.wrap.classList.toggle("is-sync", !!tab.sync);
-    pane.wrap.classList.toggle("is-zoomed", zoomed);
-    const title = pane.wrap.querySelector(".pane-title");
+    viewOf(pane).wrap.classList.toggle("is-focused", focused);
+    viewOf(pane).wrap.classList.toggle("is-sync", !!tab.sync);
+    viewOf(pane).wrap.classList.toggle("is-zoomed", zoomed);
+    const title = viewOf(pane).wrap.querySelector(".pane-title");
     setText(title, pane.title || "session");
-    const addr = pane.wrap.querySelector(".pane-addr");
+    const addr = viewOf(pane).wrap.querySelector(".pane-addr");
     if (addr && isTermPane(pane)) setText(addr, pane.subtitle || "");
-    const dotEl = pane.wrap.querySelector(".pane-dot");
+    const dotEl = viewOf(pane).wrap.querySelector(".pane-dot");
     if (dotEl && isTermPane(pane)) {
       const dot = dotFor(pane.status);
       dotEl.className = `k-dot pane-dot ${dot.cls}`;
@@ -1857,34 +1881,34 @@ import { openExternal } from "./lib/openlink.js";
     }
     syncPaneRole(tab, pane);
     syncPaneFail(pane);
-    const syncBtn = pane.wrap.querySelector("[data-pane-sync]");
+    const syncBtn = viewOf(pane).wrap.querySelector("[data-pane-sync]");
     if (syncBtn) {
       syncBtn.hidden = !!tab.remote || isNotebookPane(pane);
       syncBtn.classList.toggle("is-on", !!tab.sync);
       syncBtn.setAttribute("aria-pressed", String(!!tab.sync));
       syncBtn.title = tab.sync ? "Stop syncing input" : "Sync input";
     }
-    const zoomBtn = pane.wrap.querySelector("[data-pane-zoom]");
+    const zoomBtn = viewOf(pane).wrap.querySelector("[data-pane-zoom]");
     if (zoomBtn) {
       const canZoom = leafCount(tab.layout) > 1 || !!tab.zoomedPaneId;
       zoomBtn.disabled = !canZoom;
       zoomBtn.classList.toggle("is-on", zoomed);
       zoomBtn.title = zoomed ? "Exit focus view" : "Focus view";
     }
-    pane.wrap.querySelectorAll("[data-pane-split]").forEach((btn) => {
+    viewOf(pane).wrap.querySelectorAll("[data-pane-split]").forEach((btn) => {
       btn.hidden = !!pane.remote || !(pane.hostId || tab.hostId || localHost()?.id);
     });
-    const closeBtn = pane.wrap.querySelector("[data-pane-close]");
+    const closeBtn = viewOf(pane).wrap.querySelector("[data-pane-close]");
     if (closeBtn) closeBtn.title = leafCount(tab.layout) > 1 ? "Close pane" : "Close tab";
     if (isNotebookPane(pane)) syncNotebookMeta(pane);
   }
 
   // Role chip on the pane bar, only when the session is shared or joined.
   function syncPaneRole(tab, pane) {
-    const chip = pane.wrap.querySelector(".pane-role");
+    const chip = viewOf(pane).wrap.querySelector(".pane-role");
     if (!chip) return;
     const shared = isTermPane(pane) && (pane.remote || tab.remote || (pane.attached?.length || 0) > 1) && pane.you;
-    const youFollow = pane.wrap.querySelector(".pane-you-follow");
+    const youFollow = viewOf(pane).wrap.querySelector(".pane-you-follow");
     chip.hidden = !shared;
     if (youFollow) youFollow.hidden = !shared || isDriving(pane);
     syncFollowBanner(tab, pane);
@@ -1903,7 +1927,7 @@ import { openExternal } from "./lib/openlink.js";
   // banner over the whole tab instead (syncJoinBanner). Display only: input
   // stays gated by isDriving in wirePaneTerminal.
   function syncFollowBanner(tab, pane) {
-    const banner = pane.banner;
+    const banner = viewOf(pane).banner;
     if (!banner) return;
     const show = isTermPane(pane) && !!pane.you && !isDriving(pane) && !pane.remote && !tab.remote;
     banner.hidden = !show;
@@ -1996,7 +2020,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function paneBodyBox(pane) {
-    const body = pane.wrap?.querySelector(".term-body");
+    const body = viewOf(pane).wrap?.querySelector(".term-body");
     if (!body) return null;
     const r = body.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return null;
@@ -2063,12 +2087,12 @@ import { openExternal } from "./lib/openlink.js";
     if (!isNativeWindow() || !pane || !pane.term?._keelWebgl) return;
     if (!pane._invalidate) pane._invalidate = createFrameThrottle({ intervalMs: PANE_INVALIDATE_MS });
     pane._invalidate.schedule(() => {
-      if (pane.wrap?.isConnected) invalidatePaneRender(pane);
+      if (viewOf(pane).wrap?.isConnected) invalidatePaneRender(pane);
     });
   }
 
   function reflowPane(pane) {
-    if (!pane?.wrap?.isConnected || !pane.term || !pane.fit) return;
+    if (!viewOf(pane)?.wrap?.isConnected || !pane.term || !pane.fit) return;
     try {
       if (!pane.term.element) return;
       let cell = pane.term._core?._renderService?.dimensions?.css?.cell;
@@ -2123,10 +2147,10 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function ensurePaneTerm(pane) {
-    if (!isTermPane(pane) || !pane?.term || !pane.wrap?.isConnected) return;
+    if (!isTermPane(pane) || !pane?.term || !viewOf(pane).wrap?.isConnected) return;
     if (!pane.term.element) {
-      if (!pane.host) return;
-      pane.term.open(pane.host);
+      if (!viewOf(pane).host) return;
+      pane.term.open(viewOf(pane).host);
       observePaneFit(pane);
     }
     if (paneWantsWebgl(pane)) attachWebgl(pane);
@@ -2135,9 +2159,9 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function observePaneFit(pane) {
-    if (typeof ResizeObserver === "undefined" || pane.fitObs) return;
-    pane.fitObs = new ResizeObserver(() => refreshPaneRender(pane));
-    pane.fitObs.observe(pane.wrap);
+    if (typeof ResizeObserver === "undefined" || viewOf(pane).fitObs) return;
+    viewOf(pane).fitObs = new ResizeObserver(() => refreshPaneRender(pane));
+    viewOf(pane).fitObs.observe(viewOf(pane).wrap);
   }
 
   function renderControl(pane) {
@@ -2163,7 +2187,7 @@ import { openExternal } from "./lib/openlink.js";
       els.controlWidget.title = "People in this session";
     }
     if (!attached.length && !pane.you) return;
-    pane.wrap?.classList.toggle("is-follow", !isDriving(pane));
+    viewOf(pane).wrap?.classList.toggle("is-follow", !isDriving(pane));
     if (pane.term) pane.term.options.disableStdin = !isDriving(pane);
   }
 
@@ -2339,14 +2363,14 @@ import { openExternal } from "./lib/openlink.js";
 
   function placePane(tab, paneId, x, y, w, h) {
     const pane = state.panes.get(paneId);
-    if (!pane?.wrap) return;
-    if (pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
-    pane.wrap.classList.remove("is-parked");
-    pane.wrap.style.position = "absolute";
-    pane.wrap.style.left = `${x}px`;
-    pane.wrap.style.top = `${y}px`;
-    pane.wrap.style.width = `${Math.max(0, w)}px`;
-    pane.wrap.style.height = `${Math.max(0, h)}px`;
+    if (!viewOf(pane)?.wrap) return;
+    if (viewOf(pane).wrap.parentNode !== tab.stage) tab.stage.appendChild(viewOf(pane).wrap);
+    viewOf(pane).wrap.classList.remove("is-parked");
+    viewOf(pane).wrap.style.position = "absolute";
+    viewOf(pane).wrap.style.left = `${x}px`;
+    viewOf(pane).wrap.style.top = `${y}px`;
+    viewOf(pane).wrap.style.width = `${Math.max(0, w)}px`;
+    viewOf(pane).wrap.style.height = `${Math.max(0, h)}px`;
   }
 
   function layoutTabPanes(tab) {
@@ -2365,12 +2389,12 @@ import { openExternal } from "./lib/openlink.js";
       }
     }
     for (const pane of tabPanes(tab)) {
-      if (shown.has(pane.id) || !pane.wrap) continue;
-      if (pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
-      pane.wrap.classList.add("is-parked");
-      pane.wrap.style.position = "absolute";
-      pane.wrap.style.left = "-10000px";
-      pane.wrap.style.top = "0px";
+      if (shown.has(pane.id) || !viewOf(pane).wrap) continue;
+      if (viewOf(pane).wrap.parentNode !== tab.stage) tab.stage.appendChild(viewOf(pane).wrap);
+      viewOf(pane).wrap.classList.add("is-parked");
+      viewOf(pane).wrap.style.position = "absolute";
+      viewOf(pane).wrap.style.left = "-10000px";
+      viewOf(pane).wrap.style.top = "0px";
     }
     syncTileGround(tab);
   }
@@ -2465,7 +2489,7 @@ import { openExternal } from "./lib/openlink.js";
     ensureTabStage(tab);
     for (const pane of tabPanes(tab)) {
       syncPaneChrome(tab, pane);
-      if (pane.wrap && pane.wrap.parentNode !== tab.stage) tab.stage.appendChild(pane.wrap);
+      if (viewOf(pane).wrap && viewOf(pane).wrap.parentNode !== tab.stage) tab.stage.appendChild(viewOf(pane).wrap);
     }
     layoutTabPanes(tab);
     paintSashes(tab);
@@ -3217,9 +3241,9 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function termInputOpen(pane) {
-    if (pane) return !!(isTermPane(pane) && pane.inputEl && !pane.inputEl.hidden);
+    if (pane) return !!(isTermPane(pane) && viewOf(pane).inputEl && !viewOf(pane).inputEl.hidden);
     for (const p of state.panes.values()) {
-      if (isTermPane(p) && p.inputEl && !p.inputEl.hidden) return true;
+      if (isTermPane(p) && viewOf(p).inputEl && !viewOf(p).inputEl.hidden) return true;
     }
     return false;
   }
@@ -3232,12 +3256,12 @@ import { openExternal } from "./lib/openlink.js";
   // command prompt, from the shell's OSC 133 marks (lib/cmdmarks.js).
   function jumpCommand(dir) {
     const pane = focusedPane();
-    if (!isTermPane(pane) || !pane.cmdMarks) return;
-    if (!pane.cmdMarks.count()) {
+    if (!isTermPane(pane) || !viewOf(pane).cmdMarks) return;
+    if (!viewOf(pane).cmdMarks.count()) {
       toast("This pane's shell sends no command marks. Turn on shell integration (README) to jump between commands.");
       return;
     }
-    if (!pane.cmdMarks.jump(dir)) toast(dir < 0 ? "No earlier command" : "No later command");
+    if (!viewOf(pane).cmdMarks.jump(dir)) toast(dir < 0 ? "No earlier command" : "No later command");
     pane.term?.focus();
   }
 
@@ -3654,7 +3678,7 @@ import { openExternal } from "./lib/openlink.js";
     }
     else if (name === "find-term") {
       const pane = focusedPane();
-      if (pane?.search) openFind(pane);
+      if (viewOf(pane)?.search) openFind(pane);
     } else if (name === "toggle-sidebar") toggleSidebar();
     else if (name === "toggle-agent") toggleAgentPanel();
     else if (name === "zoom-in") setFontSize(state.prefs.size + 1);
@@ -3763,7 +3787,7 @@ import { openExternal } from "./lib/openlink.js";
     // A noticed line or a suggestion card in the focused pane takes ⇥, ⇧⇥,
     // esc, 1–3, ↑↓ and ⌘Z first; with neither showing they stay the
     // shell's (§8).
-    if (focusedPane()?.suggest?.onKey(ev)) {
+    if (viewOf(focusedPane())?.suggest?.onKey(ev)) {
       ev.preventDefault();
       ev.stopPropagation();
       return false;
@@ -3776,7 +3800,7 @@ import { openExternal } from "./lib/openlink.js";
       const pane = focusedPane();
       if (pane?.term && isTermPane(pane)) {
         ev.preventDefault();
-        const anchor = pane.term.textarea || pane.host;
+        const anchor = pane.term.textarea || viewOf(pane).host;
         termMenu.open(pane, { anchor, returnFocus: pane.term.textarea || null, focusFirst: true }, { fromKey: true });
         return false;
       }
@@ -3795,10 +3819,10 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function wirePaneSuggest(pane) {
-    if (pane.remote || !pane.host?.parentElement) return;
-    pane.suggest = createPaneSuggest({
+    if (pane.remote || !viewOf(pane).host?.parentElement) return;
+    viewOf(pane).suggest = createPaneSuggest({
       term: pane.term,
-      body: pane.host.parentElement,
+      body: viewOf(pane).host.parentElement,
       mac: isMac,
       canSuggest: () => canSuggestIn(pane) && focusedPane() === pane && !ptyWritesBlocked(),
       send: (obj) => sendSessionJSON(pane, obj),
@@ -3806,16 +3830,16 @@ import { openExternal } from "./lib/openlink.js";
       // ⌘Z: the user's own words back, as their keystrokes (wirePaneTerminal).
       restore: (bytes) => pane.restoreWords?.(bytes),
     });
-    const follow = () => pane.suggest?.onRender();
+    const follow = () => viewOf(pane).suggest?.onRender();
     pane.term.onRender?.(follow);
     pane.term.onScroll?.(follow);
     pane.term.onResize?.(follow);
     // The native window's Edit › Undo (⌘Z) may reach the page as an undo
     // of xterm's hidden textarea instead of a keydown.
-    pane.host.addEventListener(
+    viewOf(pane).host.addEventListener(
       "beforeinput",
       (ev) => {
-        if (ev.inputType === "historyUndo" && pane.suggest?.undo()) ev.preventDefault();
+        if (ev.inputType === "historyUndo" && viewOf(pane).suggest?.undo()) ev.preventDefault();
       },
       true,
     );
@@ -3870,7 +3894,7 @@ import { openExternal } from "./lib/openlink.js";
       if (ptyWritesBlocked()) return;
       if (!isDriving(pane) || !isTermPane(pane)) return;
       const bytes = new TextEncoder().encode(data);
-      pane.suggest?.onInput(data);
+      viewOf(pane).suggest?.onInput(data);
       const tab = state.tabs.get(pane.tabId);
       if (tab?.sync) {
         for (const p of tabPanes(tab)) {
@@ -3895,7 +3919,7 @@ import { openExternal } from "./lib/openlink.js";
       const sel = term.getSelection();
       if (sel) copyText(sel);
     });
-    pane.wrap.addEventListener("contextmenu", (ev) => {
+    viewOf(pane).wrap.addEventListener("contextmenu", (ev) => {
       // The pane bar has its own menu (lib/rowmenu.js). The terminal body
       // does what Settings · Terminal · Right-click in the terminal says
       // (lib/termmenu.js): paste (as before, ⇧ too), the terminal menu, or
@@ -3924,7 +3948,7 @@ import { openExternal } from "./lib/openlink.js";
         ev.preventDefault();
       }
     });
-    pane.wrap.addEventListener("mousedown", (ev) => {
+    viewOf(pane).wrap.addEventListener("mousedown", (ev) => {
       if (ev.target.closest?.(".pane-bar button, .pane-actions")) return;
       markFocusedPane(pane);
       revealPanes(pane);
@@ -3939,8 +3963,8 @@ import { openExternal } from "./lib/openlink.js";
   // xterm canvas clear. The DOM renderer is the fallback for a pane whose
   // WebGL context fails (webglGuard).
   function webglGuard(pane) {
-    if (!pane.webglGuard) pane.webglGuard = createWebglGuard();
-    return pane.webglGuard;
+    if (!viewOf(pane).webglGuard) viewOf(pane).webglGuard = createWebglGuard();
+    return viewOf(pane).webglGuard;
   }
 
   function paneWantsWebgl(pane) {
@@ -3976,7 +4000,7 @@ import { openExternal } from "./lib/openlink.js";
           return;
         }
         requestAnimationFrame(() => {
-          if (pane.closing || !pane.wrap?.isConnected) return;
+          if (pane.closing || !viewOf(pane).wrap?.isConnected) return;
           attachWebgl(pane);
           invalidatePaneRender(pane);
         });
@@ -4086,7 +4110,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function isFindOpen(pane) {
-    return !!(pane?.findEl && !pane.findEl.hidden);
+    return !!(viewOf(pane)?.findEl && !viewOf(pane).findEl.hidden);
   }
 
   function paintFindCount(el, ev) {
@@ -4107,13 +4131,13 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function runPaneFind(pane, dir, incremental) {
-    if (!pane?.search || !pane.findEl) return;
-    const input = pane.findEl.querySelector(".term-find-input");
-    const count = pane.findEl.querySelector(".term-find-count");
+    if (!viewOf(pane)?.search || !viewOf(pane).findEl) return;
+    const input = viewOf(pane).findEl.querySelector(".term-find-input");
+    const count = viewOf(pane).findEl.querySelector(".term-find-count");
     const term = input?.value ?? "";
     if (!term) {
       try {
-        pane.search.clearDecorations();
+        viewOf(pane).search.clearDecorations();
       } catch {
         /* ignore */
       }
@@ -4121,13 +4145,13 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     const opts = {
-      caseSensitive: pane.findEl.querySelector(".term-find-case")?.getAttribute("aria-pressed") === "true",
+      caseSensitive: viewOf(pane).findEl.querySelector(".term-find-case")?.getAttribute("aria-pressed") === "true",
       incremental: !!incremental,
       decorations: searchDecorations(),
     };
     let found = false;
     try {
-      found = dir === "prev" ? pane.search.findPrevious(term, opts) : pane.search.findNext(term, opts);
+      found = dir === "prev" ? viewOf(pane).search.findPrevious(term, opts) : viewOf(pane).search.findNext(term, opts);
     } catch {
       found = false;
     }
@@ -4135,26 +4159,26 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function openFind(pane) {
-    if (!pane?.findEl || !pane.search) return;
+    if (!viewOf(pane)?.findEl || !viewOf(pane).search) return;
     for (const other of state.panes.values()) {
       if (other !== pane && isFindOpen(other)) closeFind(other, false);
     }
-    pane.findEl.hidden = false;
-    const input = pane.findEl.querySelector(".term-find-input");
+    viewOf(pane).findEl.hidden = false;
+    const input = viewOf(pane).findEl.querySelector(".term-find-input");
     input?.focus({ preventScroll: true });
     input?.select();
     if (input?.value) runPaneFind(pane, "next", true);
   }
 
   function closeFind(pane, refocus) {
-    if (!pane?.findEl) return;
-    pane.findEl.hidden = true;
+    if (!viewOf(pane)?.findEl) return;
+    viewOf(pane).findEl.hidden = true;
     try {
-      pane.search?.clearDecorations();
+      viewOf(pane).search?.clearDecorations();
     } catch {
       /* ignore */
     }
-    const count = pane.findEl.querySelector(".term-find-count");
+    const count = viewOf(pane).findEl.querySelector(".term-find-count");
     if (count) count.textContent = "";
     if (refocus) {
       try {
@@ -4371,14 +4395,6 @@ import { openExternal } from "./lib/openlink.js";
       status: info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "",
       term: shell.term,
       fit: shell.fit,
-      host: shell.host,
-      wrap: shell.wrap,
-      banner: shell.banner,
-      search: shell.search,
-      cmdMarks: shell.marks,
-      findEl: shell.findEl,
-      failEl: shell.failEl,
-      inputEl: shell.inputEl,
       failLog: [],
       failKind: info.status === "exited" ? "ended" : info.status === "error" ? "fail" : "",
       wasReady: info.status === "ready",
@@ -4390,8 +4406,9 @@ import { openExternal } from "./lib/openlink.js";
       ownerId: info.ownerId,
       remote: false,
     };
+    setPaneView(pane, shell);
     wirePaneTerminal(pane);
-    shareControl.wireFollowerNotice(pane);
+    shareControl.wireFollowerNotice(pane, viewOf(pane).wrap);
 
     let tab = opts.tab;
     if (!tab && !opts.splitDir && !opts.freshTab) tab = fillableStartTab();
@@ -4454,7 +4471,7 @@ import { openExternal } from "./lib/openlink.js";
 
     const applyPresence = (msg) => {
       W.updatePane(state, pane, presenceFields(msg));
-      pane.banner.hidden = isDriving(pane);
+      viewOf(pane).banner.hidden = isDriving(pane);
       const herd = state.herd.find((h) => h.id === pane.runtimeId);
       if (herd) {
         herd.attached = pane.attached;
@@ -4472,9 +4489,9 @@ import { openExternal } from "./lib/openlink.js";
       agentType: (msg) => settleAgentType(pane, msg),
       typeDirect: (msg) => settleDirect(pane, msg),
       typeCheck: (msg) => settleDirect(pane, msg),
-      agentDetect: (msg) => pane.suggest?.onDetect(msg),
-      agentSuggest: (msg) => pane.suggest?.onSuggest(msg),
-      agentSuggestRisk: (msg) => pane.suggest?.onRisk(msg),
+      agentDetect: (msg) => viewOf(pane).suggest?.onDetect(msg),
+      agentSuggest: (msg) => viewOf(pane).suggest?.onSuggest(msg),
+      agentSuggestRisk: (msg) => viewOf(pane).suggest?.onRisk(msg),
       agentInsert: (msg) => settleAgentInsert(pane, msg),
       joinRequest: (msg) =>
         joinPrompts.request({ sessionId: pane.runtimeId, peerId: msg.peerId, name: msg.message, title: pane.title }),
@@ -4648,13 +4665,13 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function syncPaneFail(pane) {
-    const el = pane?.failEl;
+    const el = viewOf(pane)?.failEl;
     if (!el) return;
     const host = failHost(pane);
     const connecting = pane.status === "is-connecting" && host?.authType !== "local";
     const show = !pane.remote && (pane.status === "is-error" || connecting);
-    pane.wrap.classList.toggle("is-fail", show && !connecting);
-    pane.wrap.classList.toggle("is-connecting-fail", show && connecting);
+    viewOf(pane).wrap.classList.toggle("is-fail", show && !connecting);
+    viewOf(pane).wrap.classList.toggle("is-connecting-fail", show && connecting);
     el.hidden = !show;
     if (!show) {
       if (pane.status === "is-ready") reflowPane(pane);
@@ -4747,20 +4764,20 @@ import { openExternal } from "./lib/openlink.js";
     // pane right after typing used to lose the last 400 ms of edits).
     pane._autosave?.flush();
     try {
-      pane.mdEditor?.destroy?.();
+      viewOf(pane).mdEditor?.destroy?.();
     } catch {
       /* ignore */
     }
-    pane.mdEditor = null;
-    if (pane._docEl) pane._docEl.replaceChildren();
-    pane._docEl = null;
+    viewOf(pane).mdEditor = null;
+    if (viewOf(pane)._docEl) viewOf(pane)._docEl.replaceChildren();
+    viewOf(pane)._docEl = null;
   }
 
   function disposePane(pane) {
     pane.closing = true;
     disposeNotebookEditor(pane);
-    pane.fitObs?.disconnect();
-    pane.fitObs = null;
+    viewOf(pane).fitObs?.disconnect();
+    viewOf(pane).fitObs = null;
     dropWebgl(pane);
     pane.ws?.close();
     try {
@@ -4773,7 +4790,7 @@ import { openExternal } from "./lib/openlink.js";
     } catch {
       /* ignore */
     }
-    pane.wrap.remove();
+    viewOf(pane).wrap.remove();
     W.removePane(state, pane.id);
   }
 
@@ -5003,11 +5020,10 @@ import { openExternal } from "./lib/openlink.js";
       subtitle: sibling?.subtitle || "notebook",
       pinned: !!saved?.pinned,
       status: "",
-      wrap: shell.wrap,
-      body: shell.body,
       cells: copyNotebookCells(saved?.cells),
       remote: !!tab.remote,
     };
+    paneViews.set(pane, { wrap: shell.wrap, body: shell.body });
     W.addPane(state, tab, pane);
     paintNotebook(pane);
     return pane;
@@ -5232,12 +5248,12 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function paintNotebook(pane) {
-    const body = pane.body || pane.wrap?.querySelector(".notebook-pane");
+    const body = viewOf(pane).body || viewOf(pane).wrap?.querySelector(".notebook-pane");
     if (!body || !isNotebookPane(pane) || pane.closing) return;
     if (!Array.isArray(pane.cells) || !pane.cells.length) {
       pane.cells = [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     }
-    const live = pane.mdEditor && pane._docEl && body.contains(pane._docEl);
+    const live = viewOf(pane).mdEditor && viewOf(pane)._docEl && body.contains(viewOf(pane)._docEl);
     if (live) {
       const titleEl = body.querySelector("[data-notebook-title]");
       if (titleEl && document.activeElement !== titleEl) titleEl.value = pane.title || "Notebook";
@@ -5253,7 +5269,7 @@ import { openExternal } from "./lib/openlink.js";
       <hr class="notebook-rule" />
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
     </article>`;
-    pane._docEl = body.querySelector("[data-notebook-doc]");
+    viewOf(pane)._docEl = body.querySelector("[data-notebook-doc]");
     pane._metaKey = null;
     mountNotebookEditor(pane);
     syncNotebookMeta(pane);
@@ -5320,7 +5336,7 @@ import { openExternal } from "./lib/openlink.js";
   // syncNotebookReview is the banner on a notebook the agent edited that
   // the user has not reviewed yet.
   function syncNotebookReview(pane) {
-    const box = pane.body?.querySelector("[data-notebook-review]");
+    const box = viewOf(pane).body?.querySelector("[data-notebook-review]");
     if (!box) return;
     const nb = notebookById(pane.notebookId);
     if (!nb?.agentUnreviewed) {
@@ -5496,6 +5512,7 @@ import { openExternal } from "./lib/openlink.js";
     tab: (id) => state.tabs.get(id),
     isTermPane,
     isDriving,
+    canFind: (p) => !!viewOf(p).search,
     copyText,
     toast,
     act: {
@@ -5561,8 +5578,8 @@ import { openExternal } from "./lib/openlink.js";
     const key = `${target?.name || ""}\n${target?.color || ""}\n${updated}\n${rec ? `${!!rec.private}${!!rec.agentUnreviewed}` : ""}`;
     if (pane._metaKey === key) return;
     pane._metaKey = key;
-    pane.mdEditor?.setTarget?.(target?.name || "");
-    const meta = pane.body?.querySelector("[data-notebook-meta]");
+    viewOf(pane).mdEditor?.setTarget?.(target?.name || "");
+    const meta = viewOf(pane).body?.querySelector("[data-notebook-meta]");
     if (!meta) return;
     const parts = ["<span>Notebook</span>"];
     if (updated) parts.push(`<span>${escapeHtml(updated)}</span>`);
@@ -5589,14 +5606,14 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function mountNotebookEditor(pane) {
-    const host = pane._docEl;
+    const host = viewOf(pane)._docEl;
     if (!host || !isNotebookPane(pane) || pane.closing) return;
     try {
-      pane.mdEditor?.destroy?.();
+      viewOf(pane).mdEditor?.destroy?.();
     } catch {
       /* ignore */
     }
-    pane.mdEditor = null;
+    viewOf(pane).mdEditor = null;
     const KeelMD = window.KeelMarkdownEditor;
     if (!KeelMD || typeof KeelMD.mount !== "function") {
       host.innerHTML = `<textarea autocapitalize="off" autocorrect="off" class="notebook-source" data-notebook-source="${pane.id}" spellcheck="false" placeholder="Markdown document">${escapeHtml(notebookMarkdown(pane))}</textarea>`;
@@ -5604,11 +5621,11 @@ import { openExternal } from "./lib/openlink.js";
     }
     // Shell fences say "Type into <pane>" (target) and go through
     // runNotebookFence: the CLI input, then approve-before-type.
-    pane.mdEditor = KeelMD.mount(host, {
+    viewOf(pane).mdEditor = KeelMD.mount(host, {
       markdown: notebookMarkdown(pane),
       target: notebookTarget(pane)?.name || "",
       onChange: (md) => {
-        if (pane.closing || !pane.mdEditor) return;
+        if (pane.closing || !viewOf(pane).mdEditor) return;
         setNotebookMarkdown(pane, md);
         scheduleNotebookSave(pane);
       },
@@ -5636,11 +5653,11 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function showTermInput(pane, text) {
-    if (!isTermPane(pane) || !pane.inputEl) return;
-    const area = pane.inputEl.querySelector("[data-term-input]");
+    if (!isTermPane(pane) || !viewOf(pane).inputEl) return;
+    const area = viewOf(pane).inputEl.querySelector("[data-term-input]");
     if (area) area.value = String(text || "");
-    pane.inputEl.hidden = false;
-    pane.wrap?.classList.add("has-term-input");
+    viewOf(pane).inputEl.hidden = false;
+    viewOf(pane).wrap?.classList.add("has-term-input");
     pane.term?.blur?.();
     pane.term?.clearSelection?.();
     area?.focus({ preventScroll: true });
@@ -5650,13 +5667,13 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function closeTermInput(pane) {
-    if (!isTermPane(pane) || !pane.inputEl) return;
-    const area = pane.inputEl.querySelector("[data-term-input]");
+    if (!isTermPane(pane) || !viewOf(pane).inputEl) return;
+    const area = viewOf(pane).inputEl.querySelector("[data-term-input]");
     if (area) area.value = "";
     pane._inputFromNotebook = false;
     pane._inputAgentNote = "";
-    pane.inputEl.hidden = true;
-    pane.wrap?.classList.remove("has-term-input");
+    viewOf(pane).inputEl.hidden = true;
+    viewOf(pane).wrap?.classList.remove("has-term-input");
     syncSessionSurface();
     fitVisiblePanes();
   }
@@ -5747,7 +5764,7 @@ import { openExternal } from "./lib/openlink.js";
 
   async function confirmTermInput(pane) {
     if (!isTermPane(pane) || !termInputOpen(pane)) return;
-    const area = pane.inputEl.querySelector("[data-term-input]");
+    const area = viewOf(pane).inputEl.querySelector("[data-term-input]");
     const line = (area?.value || "").trim();
     if (!line) {
       toast("Write a command first");
@@ -6758,13 +6775,6 @@ import { openExternal } from "./lib/openlink.js";
       status: "",
       term: shell.term,
       fit: shell.fit,
-      host: shell.host,
-      wrap: shell.wrap,
-      banner: shell.banner,
-      search: shell.search,
-      cmdMarks: shell.marks,
-      findEl: shell.findEl,
-      inputEl: shell.inputEl,
       ws: null,
       joinPeer: null,
       dc: null,
@@ -6774,15 +6784,16 @@ import { openExternal } from "./lib/openlink.js";
       driverId: 0,
       ownerId: 0,
     };
+    setPaneView(pane, { ...shell, failEl: null });
     wirePaneTerminal(pane);
-    shareControl.wireFollowerNotice(pane);
+    shareControl.wireFollowerNotice(pane, viewOf(pane).wrap);
     const tab = createTab(pane);
     tab.remote = true;
     tab.hostId = "";
 
     const applyPresence = (msg) => {
       W.updatePane(state, pane, presenceFields(msg));
-      pane.banner.hidden = isDriving(pane);
+      viewOf(pane).banner.hidden = isDriving(pane);
     };
 
     const fail = (message, writeLine = true) => {
@@ -7517,7 +7528,7 @@ import { openExternal } from "./lib/openlink.js";
           paneDrag.moved = true;
           document.body.classList.add("is-pane-dragging");
           const pane = state.panes.get(paneDrag.paneId);
-          pane?.wrap?.classList.add("is-dragging");
+          viewOf(pane)?.wrap?.classList.add("is-dragging");
           const tab = pane && state.tabs.get(pane.tabId);
           if (tab?.zoomedPaneId) {
             W.zoom(state, tab, "");

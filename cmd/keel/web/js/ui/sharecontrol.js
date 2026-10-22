@@ -45,8 +45,8 @@ export function createShareControl({ doc = document, sendSessionJSON, toast, isD
   // A follower who types gets told why nothing happens. Feedback only: it
   // listens in the capture phase and never stops the event, so xterm and
   // wirePaneTerminal (isDriving, ptyWritesBlocked) still decide, as before.
-  function wireFollowerNotice(pane) {
-    pane.wrap?.addEventListener(
+  function wireFollowerNotice(pane, wrap = pane.wrap) {
+    wrap?.addEventListener(
       "keydown",
       (ev) => {
         if (!Share.isTypingKey(ev)) return;
