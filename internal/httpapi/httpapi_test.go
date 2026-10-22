@@ -1092,7 +1092,9 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("vault sidebar notebook chrome must not mention inject")
 	}
 
-	ser := sliceJSFunc(term, "function savedLeaf")
+	ser := readWebLib(t, "lib/savedworkspace.js")
+	ser = ser[strings.Index(ser, "export function savedLeaf"):]
+	ser = ser[:strings.Index(ser, "\n}\n")]
 	prune := readWebLib(t, "lib/layout.js")
 	prune = prune[strings.Index(prune, "export function pruneLayout"):]
 	restore := sliceJSFunc(term, "function restoreSavedTab")
@@ -2733,7 +2735,7 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "killRuntimeIfOwned") || !strings.Contains(string(termBody), "restoreOpenSessions") {
 		t.Fatal("term.js must kill on tab close and restore sessions on boot")
 	}
-	if !strings.Contains(string(termBody), `WORKSPACE_KEY = "keel-workspace"`) ||
+	if !strings.Contains(readWebLib(t, "lib/savedworkspace.js"), `WORKSPACE_KEY = "keel-workspace"`) ||
 		!strings.Contains(string(termBody), "function persistWorkspace") ||
 		!strings.Contains(string(termBody), "function restoreSavedTab") ||
 		!strings.Contains(string(termBody), "pruneLayout(") ||

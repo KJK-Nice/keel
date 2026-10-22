@@ -28,7 +28,6 @@ import {
   leafCount,
   pruneLayout,
   remapLayout,
-  serializeLayout as serializeLayoutWith,
   walkLeaves,
 } from "./lib/layout.js";
 import { parseJoinLink } from "./lib/joinlink.js";
@@ -48,6 +47,7 @@ import { createDrag } from "./ui/drag.js";
 import { createPty } from "./pty.js";
 import * as Share from "./lib/share.js";
 import * as W from "./lib/workspace.js";
+import * as SW from "./lib/savedworkspace.js";
 import { kbdHint, tabStripHTML } from "./lib/tabstrip.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -1149,65 +1149,17 @@ import { openExternal } from "./lib/openlink.js";
     });
   }
 
-  const WORKSPACE_KEY = "keel-workspace";
   let restoringWorkspace = false;
   let workspaceReady = false;
 
-  function paneRuntimeId(paneId) {
-    return state.panes.get(paneId)?.runtimeId || "";
-  }
-
-  // savedLeaf is how a pane is stored in the saved workspace layout.
-  function savedLeaf(paneId) {
-    const pane = state.panes.get(paneId);
-    if (isNotebookPane(pane) && pane.notebookId) {
-      return { type: "leaf", kind: "notebook", notebookId: pane.notebookId };
-    }
-    const runtimeId = pane?.runtimeId || paneRuntimeId(paneId);
-    return runtimeId ? { type: "leaf", runtimeId } : null;
-  }
-
   function persistWorkspace() {
     if (restoringWorkspace || !workspaceReady) return;
-    const tabs = [];
-    const pages = [];
-    for (const tab of state.tabs.values()) {
-      if (tab.page) {
-        pages.push(tab.page);
-        continue;
-      }
-      if (tab.start || tab.remote || !tab.layout) continue;
-      const layout = serializeLayoutWith(tab.layout, savedLeaf);
-      if (!layout) continue;
-      const focused = state.panes.get(tab.focusedPaneId);
-      const zoomed = state.panes.get(tab.zoomedPaneId);
-      tabs.push({
-        title: tab.customTitle || "",
-        sync: !!tab.sync,
-        focusedRuntimeId: focused?.runtimeId || "",
-        zoomedRuntimeId: zoomed?.runtimeId || "",
-        focusedNotebookId: isNotebookPane(focused) ? focused.notebookId || "" : "",
-        zoomedNotebookId: isNotebookPane(zoomed) ? zoomed.notebookId || "" : "",
-        layout,
-      });
-    }
-    // active is a runtime id, "nb:<notebook>", "page:<name>", or "" (a
-    // New tab or nothing).
-    const activeTab = state.tabs.get(state.activeId);
-    const activePane = activeTab && !activeTab.page ? focusedPane() : null;
-    const activeTerm = activePane && (activePane.runtimeId ? activePane : termTarget(activePane));
-    let active = "";
-    if (activeTab?.page) active = activeTab.id;
-    else if (activeTerm?.runtimeId) active = activeTerm.runtimeId;
-    else if (isNotebookPane(activePane) && activePane.notebookId) active = "nb:" + activePane.notebookId;
-    const payload = {
-      v: 1,
-      active,
-      tabs,
-      pages,
-    };
+    const tab = state.tabs.get(state.activeId);
+    const pane = tab && !tab.page ? focusedPane() : null;
+    const term = pane && (pane.runtimeId ? pane : termTarget(pane));
+    const payload = SW.workspaceSnapshot({ tabs: state.tabs.values(), panes: state.panes, active: SW.activeKey({ tab, pane, term }) });
     try {
-      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(payload));
+      localStorage.setItem(SW.WORKSPACE_KEY, JSON.stringify(payload));
     } catch {
       /* ignore quota */
     }
@@ -1215,9 +1167,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function loadWorkspace() {
     try {
-      const raw = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || "null");
-      if (!raw || raw.v !== 1 || !Array.isArray(raw.tabs)) return null;
-      return raw;
+      return SW.parseWorkspace(localStorage.getItem(SW.WORKSPACE_KEY));
     } catch {
       return null;
     }
@@ -1293,14 +1243,14 @@ import { openExternal } from "./lib/openlink.js";
       for (const name of Array.isArray(saved?.pages) ? saved.pages : []) {
         if (PAGES[name]) openPage(name, { activate: false, render: false });
       }
-      if (typeof saved?.active === "string" && saved.active.startsWith(PAGE_PREFIX)) {
-        if (state.tabs.has(saved.active)) setActive(saved.active);
-      } else if (typeof saved?.active === "string" && saved.active.startsWith("nb:")) {
-        const nbId = saved.active.slice(3);
-        const pane = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === nbId);
+      const active = SW.savedActive(saved?.active, PAGE_PREFIX);
+      if (active?.pageId) {
+        if (state.tabs.has(active.pageId)) setActive(active.pageId);
+      } else if (active?.notebookId) {
+        const pane = [...state.panes.values()].find((p) => isNotebookPane(p) && p.notebookId === active.notebookId);
         if (pane) showPane(pane);
-      } else if (saved?.active) {
-        const pane = findPaneByRuntime(saved.active);
+      } else if (active?.runtimeId) {
+        const pane = findPaneByRuntime(active.runtimeId);
         if (pane) showPane(pane);
       }
       settleTabs();
