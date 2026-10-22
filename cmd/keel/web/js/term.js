@@ -40,6 +40,7 @@ import { openJoinPeer } from "./lib/joinpeer.js";
 import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSocketURL, statusClass } from "./lib/session.js";
 import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createActionToasts } from "./ui/actiontoast.js";
+import { createSharePopover } from "./ui/sharepop.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -845,6 +846,33 @@ import { openExternal } from "./lib/openlink.js";
     ptyInjectModal: document.getElementById("pty-inject-modal"),
     ptyInjectForm: document.getElementById("pty-inject-form"),
   };
+
+  // ---- Share popover (docs/ui-redesign.md §5.6, ui/sharepop.js) ------------
+  const sharePopover = createSharePopover({
+    pop: els.sharePop,
+    button: els.btnShare,
+    badge: els.controlWidget,
+    pane: (id) => state.panes.get(id),
+    shareTarget: () => {
+      const pane = termTarget(focusedPane()) || focusedPane();
+      return pane && !pane.remote && isTermPane(pane) && pane.runtimeId ? pane : null;
+    },
+    stopTarget: () => focusedPane(),
+    caps: (pane) => ({
+      people: Share.sharePeople(pane),
+      canGrant: isDriving(pane) || !!isOwner(pane),
+      canTake: !!isOwner(pane) && !isDriving(pane),
+      canAsk: !isOwner(pane) && !isDriving(pane),
+    }),
+    api,
+    copyText,
+    toast,
+    onStopped: (pane) => {
+      joinPrompts.forget(pane.runtimeId);
+      controlToasts.dismissWhere(`${pane.runtimeId}\n`);
+    },
+    refocus: () => focusedPane()?.term?.focus(),
+  });
 
   function on(el, type, fn, opts) {
     if (!el) return;
@@ -2175,14 +2203,12 @@ import { openExternal } from "./lib/openlink.js";
     if (!pane || !activeSessionTab()) {
       els.controlWidget.hidden = true;
       els.btnShare.hidden = true;
-      closeSharePop();
+      sharePopover.close();
       return;
     }
     const attached = pane.attached || [];
     els.btnShare.hidden = !!pane.remote;
-    if (pane.remote) closeSharePop();
-    else if (sharePop.paneId && sharePop.paneId !== pane.id) closeSharePop();
-    else renderSharePop();
+    sharePopover.follow(pane);
     // Titlebar badge: how many watch through a share link; opens the
     // Share popover with the people list and Pass control.
     const watching = Share.watchingCount(attached);
@@ -3364,8 +3390,8 @@ import { openExternal } from "./lib/openlink.js";
     add({ id: "font-up", group: "Terminal", title: "Larger text", keys: keysFor("font-up", isMac), run: () => runShortcut("zoom-in") });
     add({ id: "font-down", group: "Terminal", title: "Smaller text", keys: keysFor("font-down", isMac), run: () => runShortcut("zoom-out") });
     add({ id: "font-reset", group: "Terminal", title: "Reset text size", keys: keysFor("font-reset", isMac), run: () => runShortcut("zoom-reset") });
-    add({ id: "share", group: "Terminal", title: "Share session (join link)", run: () => openSharePop() });
-    add({ id: "stop-share", group: "Terminal", title: "Stop sharing this session", run: () => stopShareActive() });
+    add({ id: "share", group: "Terminal", title: "Share session (join link)", run: () => sharePopover.open() });
+    add({ id: "stop-share", group: "Terminal", title: "Stop sharing this session", run: () => sharePopover.stop() });
     add({
       id: "stop-runtime",
       group: "Terminal",
@@ -5703,7 +5729,7 @@ import { openExternal } from "./lib/openlink.js";
     else if (act === "zoom") togglePaneZoom(pane.id);
     else if (act === "share") {
       markFocusedPane(pane);
-      openSharePop();
+      sharePopover.open();
     } else if (act === "reconnect") reconnectPane(pane);
     else if (act === "close") closePane(pane.id);
   }
@@ -7147,141 +7173,6 @@ import { openExternal } from "./lib/openlink.js";
     onError: (err) => toast(err.message, true),
   });
 
-  // ---- Share popover (docs/ui-redesign.md §5.6) ----------------------------
-  // Opening it shares the focused session, as the Share button always did
-  // (POST /api/share returns the live link when there already is one). The
-  // popover only shows that state and offers the actions that existed
-  // before: copy the link, pass or take control, stop sharing.
-  const sharePop = { paneId: "", runtimeId: "", status: "", url: "", error: "", copied: false, seq: 0, html: "" };
-  const shareLinks = new Map(); // runtimeId -> join link this window was given
-
-  function sharePopOpen() {
-    return !!els.sharePop && !els.sharePop.hidden;
-  }
-
-  function openSharePop() {
-    const pane = termTarget(focusedPane()) || focusedPane();
-    if (!els.sharePop || !pane || pane.remote || !isTermPane(pane) || !pane.runtimeId) return;
-    const known = shareLinks.get(pane.runtimeId) || "";
-    Object.assign(sharePop, { paneId: pane.id, runtimeId: pane.runtimeId, status: known ? "ready" : "pending", url: known, error: "", copied: false, html: "" });
-    els.sharePop.hidden = false;
-    els.btnShare?.setAttribute("aria-expanded", "true");
-    renderSharePop();
-    // Focus moves into the popover (Escape closes it; keys no longer reach
-    // the terminal while it is open).
-    queueMicrotask(() => els.sharePop.focus({ preventScroll: true }));
-    if (!known) startShare(pane);
-  }
-
-  function closeSharePop({ refocus = false } = {}) {
-    if (!els.sharePop || els.sharePop.hidden) return;
-    els.sharePop.hidden = true;
-    els.btnShare?.setAttribute("aria-expanded", "false");
-    sharePop.paneId = "";
-    sharePop.html = "";
-    if (refocus) focusedPane()?.term?.focus();
-  }
-
-  function positionSharePop() {
-    const anchor = els.btnShare && !els.btnShare.hidden ? els.btnShare : els.controlWidget;
-    if (!anchor || !els.sharePop) return;
-    const r = anchor.getBoundingClientRect();
-    els.sharePop.style.top = `${Math.round(r.bottom + 6)}px`;
-    els.sharePop.style.right = `${Math.max(8, Math.round(window.innerWidth - r.right))}px`;
-  }
-
-  function renderSharePop() {
-    if (!sharePopOpen()) return;
-    const pane = state.panes.get(sharePop.paneId);
-    if (!pane) {
-      closeSharePop();
-      return;
-    }
-    const html = Share.sharePopoverHTML({
-      title: pane.title || "session",
-      status: sharePop.status,
-      url: sharePop.url,
-      error: sharePop.error,
-      copied: sharePop.copied,
-      people: Share.sharePeople(pane),
-      canGrant: isDriving(pane) || !!isOwner(pane),
-      canTake: !!isOwner(pane) && !isDriving(pane),
-      canAsk: !isOwner(pane) && !isDriving(pane),
-    });
-    positionSharePop();
-    if (html === sharePop.html) return;
-    const focusKey = document.activeElement?.closest?.("#share-pop") ? document.activeElement.getAttribute("data-grant") || (document.activeElement.id ? `#${document.activeElement.id}` : "") : null;
-    sharePop.html = html;
-    els.sharePop.innerHTML = html;
-    if (focusKey != null) {
-      const again = focusKey.startsWith("#") ? els.sharePop.querySelector(focusKey) : focusKey ? els.sharePop.querySelector(`[data-grant="${CSS.escape(focusKey)}"]`) : null;
-      (again || els.sharePop.querySelector("button"))?.focus({ preventScroll: true });
-    }
-  }
-
-  async function startShare(pane) {
-    const seq = ++sharePop.seq;
-    const current = () => sharePop.seq === seq && sharePop.runtimeId === pane.runtimeId && sharePopOpen();
-    try {
-      const out = await api("/api/share", {
-        method: "POST",
-        body: JSON.stringify({ sessionId: pane.runtimeId }),
-      });
-      const url = out.url || "";
-      if (url) shareLinks.set(pane.runtimeId, url);
-      if (current()) Object.assign(sharePop, { status: url ? "ready" : "error", url, error: url ? "" : "The share started but returned no link." });
-      renderSharePop();
-      // keel serve also puts the link on the macOS pasteboard; WKWebView
-      // often refuses a clipboard write this long after the click.
-      if (url && (await copyText(url)) && current()) {
-        sharePop.copied = true;
-        renderSharePop();
-      }
-    } catch (err) {
-      if (current()) {
-        Object.assign(sharePop, { status: "error", error: err.message });
-        renderSharePop();
-      } else {
-        toast(err.message, true);
-      }
-    }
-  }
-
-  function shareActive() {
-    if (sharePopOpen()) {
-      closeSharePop({ refocus: true });
-      return;
-    }
-    openSharePop();
-  }
-
-  async function copyShareLink() {
-    if (!sharePop.url) return;
-    const ok = await copyText(sharePop.url);
-    if (ok) {
-      sharePop.copied = true;
-      renderSharePop();
-    } else {
-      els.sharePop?.querySelector("#share-link")?.select();
-      toast("Copy failed: the link is selected, press ⌘C", true);
-    }
-  }
-
-  async function stopShareActive() {
-    const pane = sharePopOpen() ? state.panes.get(sharePop.paneId) : focusedPane();
-    if (!pane || pane.remote) return;
-    try {
-      await api(`/api/share/${encodeURIComponent(pane.runtimeId)}`, { method: "DELETE" });
-      joinPrompts.forget(pane.runtimeId);
-      shareLinks.delete(pane.runtimeId);
-      controlToasts.dismissWhere(`${pane.runtimeId}\n`);
-      closeSharePop({ refocus: true });
-      toast("Sharing stopped. The join link no longer works.");
-    } catch (err) {
-      toast(err.message, true);
-    }
-  }
-
   // ---- Control requests and follower feedback (§5.6, §5.7) -----------------
   const controlToasts = createActionToasts({ className: "join-prompts", label: "Share requests" });
   const followToasts = createActionToasts({ className: "k-toasts--center", label: "Following" });
@@ -8472,30 +8363,7 @@ import { openExternal } from "./lib/openlink.js";
     });
     on(document.getElementById("settings-search"), "input", (ev) => filterSettings(ev.target.value));
     on(document.getElementById("btn-welcome-local"), "click", () => newLocalTab());
-    on(els.btnShare, "click", shareActive);
-    on(els.controlWidget, "click", shareActive);
-    on(els.sharePop, "click", (ev) => {
-      if (ev.target.closest("[data-share-copy]")) copyShareLink();
-      else if (ev.target.closest("[data-share-stop]")) stopShareActive();
-      // data-grant / data-take / data-request are the body handler's, as
-      // they were on the old titlebar people chips.
-    });
-    on(els.sharePop, "keydown", (ev) => {
-      if (ev.key !== "Escape") return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      closeSharePop({ refocus: true });
-    });
-    document.addEventListener(
-      "pointerdown",
-      (ev) => {
-        if (!sharePopOpen() || !(ev.target instanceof Element)) return;
-        if (ev.target.closest("#share-pop, #btn-share, #control-widget")) return;
-        closeSharePop();
-      },
-      true,
-    );
-    window.addEventListener("resize", () => positionSharePop());
+    sharePopover.bind();
     on(document.getElementById("set-theme"), "select-change", (ev) => setTheme(ev.detail?.value));
     on(document.getElementById("settings-form"), "submit", (ev) => ev.preventDefault());
     on(document.getElementById("set-ui-size"), "slider-change", (ev) => {

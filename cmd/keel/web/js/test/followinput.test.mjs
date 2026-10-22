@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 // ErrReadOnly for anyone but the driver); this pins the client side.
 
 const src = readFileSync(new URL("../term.js", import.meta.url), "utf8");
+const sharePopSrc = readFileSync(new URL("../ui/sharepop.js", import.meta.url), "utf8");
 
 // body returns the source of `function name(...) { ... }` (brace matched).
 function body(name) {
@@ -51,9 +52,14 @@ test("keystrokes reach a PTY only through ptyWritesBlocked and isDriving", () =>
   assert.ok(wire.includes("if (isDriving(p) && isTermPane(p)) sendSessionBytes(p, bytes);"), "sync input no longer checks isDriving per pane");
   // Only wirePaneTerminal, the approved inject path and the notebook's
   // confirmed CLI input send bytes; the share and follow code never does.
-  for (const fn of ["wireFollowerNotice", "noteControl", "syncFollowBanner", "syncJoinBanner", "renderSharePop", "openSharePop", "startShare"]) {
+  for (const fn of ["wireFollowerNotice", "noteControl", "syncFollowBanner", "syncJoinBanner"]) {
     assert.doesNotMatch(body(fn), /sendSessionBytes|\.send\(|term\.write|paste\(/, `${fn} must not write to a session`);
   }
+  // The Share popover lives in ui/sharepop.js: nothing in it writes to a
+  // session, and term.js hands it no way to.
+  assert.doesNotMatch(sharePopSrc, /sendSession|\.send\(|term\.write|paste\(/, "ui/sharepop.js must not write to a session");
+  const wiring = src.slice(src.indexOf("createSharePopover({"), src.indexOf("});", src.indexOf("createSharePopover({")));
+  assert.doesNotMatch(wiring, /sendSession|\.send\(|term\.write|paste\(/, "the Share popover must get no way to write to a session");
 });
 
 test("a follower's xterm stays read-only", () => {
