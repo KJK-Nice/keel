@@ -42,7 +42,7 @@ func TestHostRoundTrip(t *testing.T) {
 		Username: "ubuntu",
 		AuthType: "password",
 		Password: "secret",
-		Color:    "#6ea8ff",
+		Color:    "var(--ansi-12)",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestHostTagsPersistAndNormalize(t *testing.T) {
 		Username: "ubuntu",
 		AuthType: "password",
 		Password: "x",
-		Color:    "#6ea8ff",
+		Color:    "var(--ansi-12)",
 		Tags:     []string{" prod ", "#GPU", "prod", "gpu", "", strings.Repeat("z", 40)},
 	})
 	if err != nil {
@@ -323,7 +323,7 @@ func TestIdentityConnectAndTunnelPersist(t *testing.T) {
 	}
 	host, err := st.UpsertHost(Host{
 		Name: "api", Address: "10.0.0.3", Port: 22, Username: "",
-		AuthType: "identity", IdentityID: ident.ID, Color: "#6ea8ff",
+		AuthType: "identity", IdentityID: ident.ID, Color: "var(--ansi-12)",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestKeepAliveSecRoundTrip(t *testing.T) {
 	st := testStore(t)
 	saved, err := st.UpsertHost(Host{
 		Name: "box", Address: "10.0.0.8", Username: "ubuntu", AuthType: "password",
-		Password: "x", Color: "#6ea8ff", KeepAliveSec: -1, NoAutoReconnect: true,
+		Password: "x", Color: "var(--ansi-12)", KeepAliveSec: -1, NoAutoReconnect: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -447,7 +447,7 @@ func TestDuplicateHost(t *testing.T) {
 		Username:     "ubuntu",
 		AuthType:     "password",
 		Password:     "secret",
-		Color:        "#6ea8ff",
+		Color:        "var(--ansi-12)",
 		KeepAliveSec: 45,
 	})
 	if err != nil {
@@ -469,7 +469,7 @@ func TestDuplicateHost(t *testing.T) {
 	if copy1.Password != "secret" {
 		t.Fatal("duplicate should copy the saved secret")
 	}
-	if copy1.KeepAliveSec != 45 || copy1.Color != "#6ea8ff" {
+	if copy1.KeepAliveSec != 45 || copy1.Color != "var(--ansi-12)" {
 		t.Fatalf("hygiene fields not copied: %+v", copy1)
 	}
 
