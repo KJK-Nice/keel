@@ -3094,6 +3094,9 @@ func dialSession(t *testing.T, base, id, name, kind string) *websocket.Conn {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Closed before the fixture's cleanups (registered earlier) wait for
+	// the server's sockets to end.
+	t.Cleanup(func() { _ = conn.Close() })
 	return conn
 }
 

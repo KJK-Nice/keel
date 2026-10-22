@@ -61,6 +61,10 @@ type Server struct {
 	agentDetectWindow time.Duration
 	// streams are the open /ui/stream connections (uistream.go).
 	streams *uiStreams
+	// sockets counts the open session sockets and the work they start
+	// off their read loop (suggestions, type-checks, direct types), which
+	// can still be logging after the socket closes (waitSockets).
+	sockets sync.WaitGroup
 }
 
 func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
@@ -1032,7 +1036,26 @@ func (s *Server) herdWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// goSocket runs a session socket's work off its read loop, counted in
+// s.sockets. Call it only from a session socket's handler.
+func (s *Server) goSocket(fn func()) {
+	s.sockets.Add(1)
+	go func() {
+		defer s.sockets.Done()
+		fn()
+	}()
+}
+
+// waitSockets waits for the session sockets and the work they started,
+// such as a suggestion's Jev check logging agent.suggest after its card
+// was sent. Call it after the listener is closed and the clients are gone.
+func (s *Server) waitSockets() { s.sockets.Wait() }
+
 func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
+	// Counted before the upgrade, while the HTTP server still tracks the
+	// request; the socket's own work is counted while this is held.
+	s.sockets.Add(1)
+	defer s.sockets.Done()
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		id = r.URL.Query().Get("sessionId")
@@ -1195,7 +1218,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					_ = ws.writeJSON(map[string]any{"type": "type-check", "ref": ctl.Direct.Ref, "ok": false, "direct": false, "dialog": true, "reason": reasonBusy})
 					break
 				}
-				go s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent)
+				s.goSocket(func() { s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent) })
 			case "agent-detect":
 				sug.detect(ctl.Seq, ctl.Line)
 			case "agent-suggest":
@@ -1209,7 +1232,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 					// One click, no dialog, no Enter (§6 rule 13): keel
 					// serve checks again, off this loop (a snippet or a
 					// notebook block may be rated by Jev), then writes.
-					go s.typeDirect(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent)
+					s.goSocket(func() { s.typeDirect(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })
 					break
 				}
 				if ctl.Suggestion != nil {
