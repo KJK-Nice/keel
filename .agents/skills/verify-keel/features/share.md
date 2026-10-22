@@ -4,7 +4,7 @@ Sharing one session over WebRTC and following someone else's
 (docs/ui-redesign.md §5.6, §5.7). The behaviour (admission, roles, hand-over,
 what a joiner receives) lives in `internal/share`, `internal/runtime` and
 `lib/joinpeer.js`; the UI is `lib/share.js` (markup), `ui/joinprompt.js`,
-`ui/actiontoast.js`, the Share popover in `ui/sharepop.js` and the rest of the share code in `term.js`.
+`ui/actiontoast.js`, the Share popover in `ui/sharepop.js`, control requests and the follower notice in `ui/sharecontrol.js`, and the rest of the share code in `term.js`.
 
 ## Sub-features
 
