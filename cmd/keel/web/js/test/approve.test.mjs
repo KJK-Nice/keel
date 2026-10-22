@@ -12,17 +12,22 @@ import { fileURLToPath } from "node:url";
 // term.js as text because it is one closure with no seams to call.
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "..", "term.js"), "utf8");
+// pty.js holds the writes themselves (sendApprovedInject, typeDirect, the
+// socket sends); term.js keeps same-named wrappers, so every caller is
+// still found in term.js and every write's body in pty.js.
+const ptySrc = readFileSync(join(dir, "..", "pty.js"), "utf8");
 
 // Top-level functions of the term.js closure (two-space indent), name -> body.
-function functions() {
+function functions(text = src) {
   const out = new Map();
   const re = /^ {2}(?:async )?function (\w+)\(/gm;
   const starts = [];
-  for (let m; (m = re.exec(src)); ) starts.push([m[1], m.index]);
-  starts.forEach(([name, at], i) => out.set(name, src.slice(at, i + 1 < starts.length ? starts[i + 1][1] : src.length)));
+  for (let m; (m = re.exec(text)); ) starts.push([m[1], m.index]);
+  starts.forEach(([name, at], i) => out.set(name, text.slice(at, i + 1 < starts.length ? starts[i + 1][1] : text.length)));
   return out;
 }
 const fns = functions();
+const ptyFns = functions(ptySrc);
 const calls = (name, text = src) => [...text.matchAll(new RegExp(`(?<![\\w.])${name}\\(`, "g"))].map((m) => m.index);
 
 test("every caller of sendApprovedInject awaits approveBeforeType first and aborts on no", () => {
@@ -40,14 +45,14 @@ test("every caller of sendApprovedInject awaits approveBeforeType first and abor
 });
 
 test("only sendApprovedInject and typeDirect send an inject message, and only with a server nonce", () => {
-  const holders = [...fns].filter(([, body]) => body.includes('type: "inject"'));
+  const holders = [...fns, ...ptyFns].filter(([, body]) => body.includes('type: "inject"'));
   assert.deepEqual(holders.map(([name]) => name).sort(), ["sendApprovedInject", "typeDirect"]);
   for (const name of ["sendApprovedInject", "typeDirect"]) {
-    const body = fns.get(name);
+    const body = ptyFns.get(name);
     assert.match(body, /await requestInjectTicket\(/);
     assert.match(body, /type: "inject", command, nonce/);
   }
-  assert.ok(!src.includes("approved: true"), "the client must never claim approval itself");
+  assert.ok(!src.includes("approved: true") && !ptySrc.includes("approved: true"), "the client must never claim approval itself");
 });
 
 // §6 rule 13 (for review): a read-only command of one line may be typed
@@ -56,7 +61,7 @@ test("only sendApprovedInject and typeDirect send an inject message, and only wi
 // the normal screen, with a server nonce and the "direct" marker, and on
 // any other answer than ok it opens the dialog (or reports the refusal).
 test("typeDirect types one line, to one driven pane, never with a newline", () => {
-  const body = fns.get("typeDirect");
+  const body = ptyFns.get("typeDirect");
   const ready = body.indexOf("if (!directReady(pane, command)) return { dialog: true");
   const ticket = body.indexOf("await requestInjectTicket(pane, command)");
   assert.ok(ready >= 0 && ready < ticket, "typeDirect checks the pane and the line before it asks for a ticket");
@@ -66,7 +71,7 @@ test("typeDirect types one line, to one driven pane, never with a newline", () =
   // No answer is not a dialog: it may have been typed.
   assert.match(body, /if \(!msg\) return \{ ok: false/);
   assert.match(body, /if \(msg\.dialog\) return \{ dialog: true/);
-  const gate = fns.get("directReady");
+  const gate = ptyFns.get("directReady");
   for (const want of ["isTermPane(pane)", "!pane.remote", "isDriving(pane)", "TD.altScreen(viewOf(pane).term)", "TD.directLine(command)"]) {
     assert.ok(gate.includes(want), `directReady must check ${want}`);
   }
@@ -101,8 +106,8 @@ test("agent proposals are typed only through approve-before-type, to one pane", 
   const body = fns.get("typeAgentProposal");
   assert.ok(body.indexOf("await approveBeforeType(proposal.bytes") < calls("sendApprovedInject", body)[0]);
   assert.match(body, /if \(!isDriving\(pane\)\) return/);
-  assert.match(fns.get("sendApprovedInject"), /const single = !!\(opts\.agent \|\| opts\.suggestion\);/);
-  assert.match(fns.get("sendApprovedInject"), /single \? \[pane\]/);
+  assert.match(ptyFns.get("sendApprovedInject"), /const single = !!\(opts\.agent \|\| opts\.suggestion\);/);
+  assert.match(ptyFns.get("sendApprovedInject"), /single \? \[pane\]/);
   // The panel, its thread views and the Agent page (§5.4.2) reach a pane
   // only through deps.typeProposal.
   for (const file of ["agentpanel.js", "agentthread.js", "agentpage.js"]) {
@@ -243,4 +248,21 @@ test("held keys after a direct type cannot get stuck", () => {
   assert.match(block, /heldTimer = setTimeout\(clearHeldKeys, HELD_KEYS_MS\);/);
   assert.match(block, /if \(ev\.key === "Meta" \|\| ev\.key === "OS"\) return clearHeldKeys\(\);/);
   assert.match(block, /window\.addEventListener\("blur", clearHeldKeys\);/);
+});
+
+// pty.js is the one place the page sends on a session: the socket and the
+// share channel. term.js reaches them only through its wrappers.
+test("only pty.js sends on a session, and only through its two senders", () => {
+  assert.doesNotMatch(src, /\.send\(/, "term.js must not call send on a socket or channel");
+  assert.doesNotMatch(src, /type: "inject/, "term.js must not build an inject frame");
+  const senders = [...ptyFns].filter(([, body]) => /\.send\(/.test(body)).map(([name]) => name);
+  assert.deepEqual(senders.sort(), ["sendSessionBytes", "sendSessionJSON"]);
+  // Raw bytes: pty.js never calls its own sendSessionBytes; term.js's
+  // wrapper is the way in, and only wirePaneTerminal calls that.
+  assert.deepEqual([...ptyFns].filter(([name, body]) => name !== "sendSessionBytes" && calls("sendSessionBytes", body).length).map(([n]) => n), []);
+  assert.match(ptyFns.get("sendSessionBytes"), /if \(!isTermPane\(pane\) \|\| !pane\?\.runtimeId\) return;/);
+  // Every wrapper only hands over to pty.js.
+  for (const name of ["sendSessionJSON", "sendSessionBytes", "sendApprovedInject", "typeDirect", "checkDirect", "settleInjectTicket", "settleDirect"]) {
+    assert.match(fns.get(name), new RegExp(`pty\\.${name}\\(`), `${name} in term.js must hand over to pty.js`);
+  }
 });

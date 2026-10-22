@@ -45,6 +45,7 @@ import { createAgentCardMenu } from "./ui/agentcardmenu.js";
 import { createTabMenu } from "./ui/tabmenu.js";
 import { createTabRename } from "./ui/tabrename.js";
 import { createDrag } from "./ui/drag.js";
+import { createPty } from "./pty.js";
 import * as Share from "./lib/share.js";
 import * as W from "./lib/workspace.js";
 import { kbdHint, tabStripHTML } from "./lib/tabstrip.js";
@@ -4532,30 +4533,42 @@ import { openExternal } from "./lib/openlink.js";
     openModal(els.hostModal);
   }
 
-  // settleInjectTicket hands the server's nonce to whoever is waiting for
-  // it (requestInjectTicket).
-  function settleInjectTicket(pane, nonce) {
-    const done = connOf(pane).injectTicketWaiter;
-    connOf(pane).injectTicketWaiter = null;
-    if (typeof done === "function") done(nonce);
-  }
-
+  // Writing to a session (pty.js). These keep their names so the
+  // approve-before-type guards (test/approve.test.mjs) still find every
+  // caller here; what they do is in pty.js.
+  const pty = createPty({
+    isTermPane,
+    isDriving,
+    isNotebookPane,
+    connOf,
+    viewOf,
+    termTarget,
+    focusedPane,
+    tabOf: (pane) => state.tabs.get(pane.tabId),
+    tabPanes,
+    holdPtyFromChrome,
+    toast,
+  });
   function sendSessionJSON(pane, obj) {
-    const raw = JSON.stringify(obj);
-    if (pane?.remote) {
-      if (connOf(pane).dc?.readyState === "open") connOf(pane).dc.send(raw);
-      return;
-    }
-    if (connOf(pane)?.ws?.readyState === WebSocket.OPEN) connOf(pane).ws.send(raw);
+    pty.sendSessionJSON(pane, obj);
   }
-
   function sendSessionBytes(pane, bytes) {
-    if (!isTermPane(pane) || !pane?.runtimeId) return;
-    if (pane?.remote) {
-      if (connOf(pane).dc?.readyState === "open") connOf(pane).dc.send(bytes);
-      return;
-    }
-    if (connOf(pane)?.ws?.readyState === WebSocket.OPEN) connOf(pane).ws.send(bytes);
+    pty.sendSessionBytes(pane, bytes);
+  }
+  function settleInjectTicket(pane, nonce) {
+    pty.settleInjectTicket(pane, nonce);
+  }
+  function sendApprovedInject(command, targetPane, opts = {}) {
+    return pty.sendApprovedInject(command, targetPane, opts);
+  }
+  function settleDirect(pane, msg) {
+    pty.settleDirect(pane, msg);
+  }
+  function typeDirect(pane, command, direct, agent = null) {
+    return pty.typeDirect(pane, command, direct, agent);
+  }
+  function checkDirect(pane, command, direct, agent = null) {
+    return pty.checkDirect(pane, command, direct, agent);
   }
 
   function sendResize(pane) {
@@ -5638,76 +5651,6 @@ import { openExternal } from "./lib/openlink.js";
   // when it cannot already tell the answer is the dialog: a pane it drives
   // on this keel serve, on the normal screen, and a command of one line.
 
-  let directSeq = 0;
-
-  function settleDirect(pane, msg) {
-    const done = connOf(pane).directWaiters?.get(msg?.ref);
-    if (!done) return;
-    connOf(pane).directWaiters.delete(msg.ref);
-    done(msg);
-  }
-
-  // askDirect sends a type-check or a direct inject and waits for its
-  // answer (null when keel serve did not answer in time).
-  function askDirect(pane, frame, ms) {
-    return new Promise((resolve) => {
-      const ref = `d${++directSeq}`;
-      if (!connOf(pane).directWaiters) connOf(pane).directWaiters = new Map();
-      const timer = setTimeout(() => {
-        if (connOf(pane).directWaiters.delete(ref)) resolve(null);
-      }, ms);
-      connOf(pane).directWaiters.set(ref, (msg) => {
-        clearTimeout(timer);
-        resolve(msg);
-      });
-      sendSessionJSON(pane, { ...frame, direct: { ...frame.direct, ref } });
-    });
-  }
-
-  function directReady(pane, command) {
-    return !!pane && isTermPane(pane) && !pane.remote && isDriving(pane) && connOf(pane).ws?.readyState === WebSocket.OPEN && !TD.altScreen(viewOf(pane).term) && TD.directLine(command);
-  }
-
-  // typeDirect asks keel serve to type command into pane, without Enter.
-  // direct is {kind, snippetId?, notebookId?}; agent is the agent part of
-  // an inject ({conversationId | groupRunId, proposalId}). Answers
-  // {ok: true} (typed), {dialog: true, reason} (nothing typed: Approve
-  // before type decides) or {ok: false, message} (refused).
-  async function typeDirect(pane, command, direct, agent = null) {
-    if (!directReady(pane, command)) return { dialog: true, reason: "" };
-    // One at a time per pane: a second click while the first is on its
-    // way would type the command twice on the prompt line.
-    if (connOf(pane).directBusy) return { ok: false, message: "Still typing the last command into this pane." };
-    connOf(pane).directBusy = true;
-    try {
-      const nonce = await requestInjectTicket(pane, command);
-      if (!nonce) return { dialog: true, reason: "" };
-      holdPtyFromChrome();
-      // What this terminal shows goes with it: keel serve ORs it with its
-      // own view (alternate screen, an input prompt on the cursor line).
-      const frame = { type: "inject", command, nonce, direct: { ...direct, altScreen: TD.altScreen(viewOf(pane).term), promptLine: TD.cursorLine(viewOf(pane).term) } };
-      if (agent) frame.agent = agent;
-      const msg = await askDirect(pane, frame, 8000);
-      // No answer: it may have been typed. Never open a dialog that could
-      // type it a second time.
-      if (!msg) return { ok: false, message: "keel serve did not answer. Check the pane before you press Type again." };
-      if (msg.dialog) return { dialog: true, reason: msg.reason || "" };
-      if (!msg.ok) return { ok: false, message: msg.message || "Not typed." };
-      return { ok: true };
-    } finally {
-      connOf(pane).directBusy = false;
-    }
-  }
-
-  // checkDirect asks whether typeDirect would type now (nothing written).
-  async function checkDirect(pane, command, direct, agent = null) {
-    if (!directReady(pane, command)) return false;
-    const frame = { type: "type-check", command, direct: { ...direct, altScreen: TD.altScreen(viewOf(pane).term), promptLine: TD.cursorLine(viewOf(pane).term) } };
-    if (agent) frame.agent = agent;
-    const msg = await askDirect(pane, frame, 8000);
-    return !!msg?.direct;
-  }
-
   // focusForReview shows and focuses the pane a command was just typed
   // into, so the user reads it on the prompt line and presses Enter. The
   // key that pressed Type (↵ on the button) must not reach the pane.
@@ -5718,59 +5661,6 @@ import { openExternal } from "./lib/openlink.js";
     markFocusedPane(pane);
     renderTabs();
     requestAnimationFrame(() => viewOf(pane).term?.focus?.());
-  }
-
-  function requestInjectTicket(pane, command) {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        if (connOf(pane).injectTicketWaiter) {
-          connOf(pane).injectTicketWaiter = null;
-          resolve("");
-        }
-      }, 2500);
-      connOf(pane).injectTicketWaiter = (nonce) => {
-        clearTimeout(timer);
-        connOf(pane).injectTicketWaiter = null;
-        resolve(nonce || "");
-      };
-      sendSessionJSON(pane, { type: "inject-challenge", command });
-    });
-  }
-
-  // opts.agent marks the bytes as an agent proposal the user approved
-  // ({conversationId, proposalId, shift}): they go to that one pane only
-  // (never to the panes Sync input would add), and keel serve checks the
-  // proposal with the agent service before writing them. opts.suggestion
-  // ({suggestionId, option, shift}) does the same for ⇥ / ⇧⇥ on an in-pane
-  // suggestion (§5.5).
-  async function sendApprovedInject(command, targetPane, opts = {}) {
-    const pane = termTarget(targetPane || focusedPane());
-    if (!pane || !isTermPane(pane)) {
-      toast("Open a session first");
-      return false;
-    }
-    const tab = state.tabs.get(pane.tabId);
-    const single = !!(opts.agent || opts.suggestion);
-    const targets = single ? [pane] : tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
-    let sent = false;
-    for (const p of targets) {
-      const open = p.remote ? connOf(p).dc?.readyState === "open" : connOf(p).ws?.readyState === WebSocket.OPEN;
-      if (!open || !isDriving(p) || !isTermPane(p) || (single && p.remote)) continue;
-      const nonce = await requestInjectTicket(p, command);
-      if (!nonce) continue;
-      const msg = { type: "inject", command, nonce };
-      if (opts.agent) msg.agent = opts.agent;
-      if (opts.suggestion) msg.suggestion = opts.suggestion;
-      if (opts.notebook) msg.notebook = true;
-      sendSessionJSON(p, msg);
-      sent = true;
-    }
-    if (!sent) {
-      toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
-      return false;
-    }
-    if (!isNotebookPane(focusedPane())) viewOf(pane).term?.focus?.();
-    return true;
   }
 
   // The picker's secondary line: the kind and the user, never a secret.
