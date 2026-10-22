@@ -2732,7 +2732,7 @@ func TestIndexServesVault(t *testing.T) {
 		t.Fatal("workspace restore must rebuild split trees instead of spreading panes onto tabs")
 	}
 	bootFn := termBody[bytes.Index(termBody, []byte("async function boot()")):]
-	bootFn = bootFn[:bytes.Index(bootFn, []byte("function finishTabPointer"))]
+	bootFn = bootFn[:bytes.Index(bootFn, []byte("function bindChrome"))]
 	if bytes.Index(bootFn, []byte("restoreOpenSessions()")) > bytes.Index(bootFn, []byte("if (info) attachRuntime(info)")) &&
 		bytes.Contains(bootFn, []byte("if (info) attachRuntime(info)")) {
 		t.Fatal("boot must restore split workspace before attaching a pending session as its own tab")

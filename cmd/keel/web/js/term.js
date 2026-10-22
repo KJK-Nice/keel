@@ -44,6 +44,7 @@ import { createFenceMenu } from "./ui/fencemenu.js";
 import { createAgentCardMenu } from "./ui/agentcardmenu.js";
 import { createTabMenu } from "./ui/tabmenu.js";
 import { createTabRename } from "./ui/tabrename.js";
+import { createDrag } from "./ui/drag.js";
 import * as Share from "./lib/share.js";
 import * as W from "./lib/workspace.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
@@ -1591,52 +1592,9 @@ import { openExternal } from "./lib/openlink.js";
     return W.activeSessionTab(state);
   }
 
-  let tabDrag = null;
-  let paneDrag = null;
-  let ignoreTabClick = false;
-  let dropOverlay = null;
 
   function moveTabToIndex(fromId, toIndex) {
     return W.moveTab(state, fromId, toIndex);
-  }
-
-  function tabStripInsertIndex(clientX) {
-    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")];
-    for (let i = 0; i < buttons.length; i++) {
-      const r = buttons[i].getBoundingClientRect();
-      if (clientX < r.left + r.width / 2) return i;
-    }
-    return buttons.length;
-  }
-
-  function clearTabDropMarks() {
-    for (const el of els.tabs.querySelectorAll(".is-drop-before, .is-drop-after, .is-dragging")) {
-      el.classList.remove("is-drop-before", "is-drop-after", "is-dragging");
-    }
-  }
-
-  function paintTabDrop(toIndex) {
-    clearTabDropMarks();
-    els.tabs._keelHTML = null; // drop marks change the strip in place
-    if (!tabDrag) return;
-    const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
-    src?.classList.add("is-dragging");
-    src?.setAttribute("aria-grabbed", "true");
-    const buttons = [...els.tabs.querySelectorAll(".tab[data-tab]")];
-    if (!buttons.length) return;
-    if (toIndex >= buttons.length) {
-      buttons[buttons.length - 1]?.classList.add("is-drop-after");
-      return;
-    }
-    buttons[toIndex]?.classList.add("is-drop-before");
-  }
-
-  function autoScrollTabs(clientX) {
-    const r = els.tabs.getBoundingClientRect();
-    const edge = 36;
-    if (clientX < r.left + edge) els.tabs.scrollLeft -= 14;
-    else if (clientX > r.right - edge) els.tabs.scrollLeft += 14;
-    syncTabOverflow();
   }
 
   function syncTabOverflow() {
@@ -1682,26 +1640,6 @@ import { openExternal } from "./lib/openlink.js";
     close: (ids) => ids.forEach((id) => closeTab(id)),
   });
 
-  function endTabDrag() {
-    if (!tabDrag) return;
-    const src = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
-    src?.removeAttribute("aria-grabbed");
-    tabDrag = null;
-    document.body.classList.remove("is-tab-dragging");
-    clearTabDropMarks();
-    hidePaneDrop();
-  }
-
-  function endPaneDrag() {
-    if (!paneDrag) return;
-    const pane = state.panes.get(paneDrag.paneId);
-    viewOf(pane)?.wrap?.classList.remove("is-dragging");
-    paneDrag = null;
-    document.body.classList.remove("is-pane-dragging");
-    hidePaneDrop();
-    clearTabDropMarks();
-  }
-
   function paneGlyph(name) {
     const icons = {
       splitH: '<path d="M11.9922 21L11.9922 20L11.9922 4L11.9922 3" /><path d="M7.99219 19.9995C6.69208 19.8699 5.81694 19.5772 5.16376 18.9157C3.99219 17.7291 3.99219 15.8193 3.99219 11.9997C3.99219 8.18016 3.99219 6.27038 5.16376 5.08379C5.81694 4.42224 6.69207 4.12952 7.99219 4" /><path d="M15.9922 19.9998C17.2923 19.8703 18.1674 19.5776 18.8206 18.916C19.9922 17.7294 19.9922 15.8196 19.9922 12.0001C19.9922 8.1805 19.9922 6.27072 18.8206 5.08413C18.192 4.44741 17.3577 4.15236 16.1368 4.01562" />',
@@ -1721,72 +1659,34 @@ import { openExternal } from "./lib/openlink.js";
     return hugeicon(icons[name] || "");
   }
 
-  function ensurePaneDrop() {
-    if (dropOverlay) return dropOverlay;
-    dropOverlay = document.createElement("div");
-    dropOverlay.className = "pane-drop";
-    dropOverlay.hidden = true;
-    dropOverlay.innerHTML = `<div class="pane-drop-region"></div>`;
-    document.body.appendChild(dropOverlay);
-    return dropOverlay;
-  }
-
-  function hidePaneDrop() {
-    if (dropOverlay) dropOverlay.hidden = true;
-  }
-
-  function paintPaneDrop(target) {
-    const overlay = ensurePaneDrop();
-    if (!target?.paneId || !target.edge) {
-      overlay.hidden = true;
-      return;
-    }
-    const pane = state.panes.get(target.paneId);
-    const wrap = viewOf(pane)?.wrap;
-    if (!wrap?.isConnected) {
-      overlay.hidden = true;
-      return;
-    }
-    const r = wrap.getBoundingClientRect();
-    overlay.hidden = false;
-    overlay.style.left = `${r.left}px`;
-    overlay.style.top = `${r.top}px`;
-    overlay.style.width = `${r.width}px`;
-    overlay.style.height = `${r.height}px`;
-    overlay.dataset.edge = target.edge;
-  }
-
-  function dropEdgeForRect(rect, x, y) {
-    const relX = (x - rect.left) / Math.max(1, rect.width);
-    const relY = (y - rect.top) / Math.max(1, rect.height);
-    const dist = { left: relX, right: 1 - relX, top: relY, bottom: 1 - relY };
-    const edge = Object.keys(dist).reduce((best, key) => (dist[key] < dist[best] ? key : best), "left");
-    if (dist[edge] > 0.28) return "center";
-    return edge;
-  }
-
-  function hitTabStrip(x, y) {
-    const strip = els.tabs?.closest(".tab-strip") || els.tabs;
-    if (!strip) return false;
-    const r = strip.getBoundingClientRect();
-    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom + 10;
-  }
-
-  function paneDropAt(x, y, opts = {}) {
-    const excludePaneId = opts.excludePaneId || "";
-    const fromTabId = opts.fromTabId || "";
-    const tab = state.tabs.get(state.activeId);
-    if (!tab || tab.start || !tab.layout) return null;
-    for (const pane of tabPanes(tab)) {
-      if (!viewOf(pane).wrap?.isConnected) continue;
-      const r = viewOf(pane).wrap.getBoundingClientRect();
-      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
-      if (pane.id === excludePaneId) return { paneId: pane.id, edge: null, self: true };
-      if (fromTabId && pane.tabId === fromTabId) return { paneId: pane.id, edge: null, self: true };
-      return { paneId: pane.id, edge: dropEdgeForRect(r, x, y), self: false };
-    }
-    return null;
-  }
+  // Dragging tabs and panes (ui/drag.js): term.js says what a drop does.
+  const drag = createDrag({
+    strip: els.tabs,
+    terminals: els.terminals,
+    shownPanes: () => {
+      const tab = state.tabs.get(state.activeId);
+      if (!tab || tab.start || !tab.layout) return [];
+      return tabPanes(tab).map((p) => ({ id: p.id, tabId: p.tabId, wrap: viewOf(p).wrap }));
+    },
+    canDragTab: (id) => state.tabs.has(id),
+    canDragPane: (id) => state.panes.has(id),
+    paneWrap: (id) => viewOf(state.panes.get(id)).wrap,
+    paneSplits: (id) => {
+      const tab = state.tabs.get(state.panes.get(id)?.tabId);
+      return !!tab && leafCount(tab.layout) > 1;
+    },
+    paneDragStart: (id) => {
+      const tab = state.tabs.get(state.panes.get(id)?.tabId);
+      if (tab?.zoomedPaneId) W.zoom(state, tab, "");
+    },
+    syncOverflow: () => syncTabOverflow(),
+    act: {
+      moveTab: (id, index) => moveTabToIndex(id, index),
+      dockTab: (id, paneId, edge) => dockTabIntoPane(id, paneId, edge),
+      extractPane: (id, index) => extractPaneToTab(id, index),
+      movePane: (id, paneId, edge) => movePaneTo(id, paneId, edge),
+    },
+  });
 
   function syncPaneChrome(tab, pane) {
     if (!tab || !viewOf(pane)?.wrap) return;
@@ -2603,11 +2503,7 @@ import { openExternal } from "./lib/openlink.js";
     applySidebarSeg();
     syncActivePage();
     renderStatusBar();
-    if (tabDrag?.id) {
-      const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
-      dragging?.classList.add("is-dragging");
-      dragging?.setAttribute("aria-grabbed", "true");
-    }
+    drag.markDragging();
     if (tab && !tab.page) {
       requestAnimationFrame(() => {
         if (tab?.start) {
@@ -7190,40 +7086,6 @@ import { openExternal } from "./lib/openlink.js";
     renderTabs();
   }
 
-  function finishTabPointer(ev) {
-    if (!tabDrag || ev.pointerId !== tabDrag.pointerId) return;
-    const drag = tabDrag;
-    const overStrip = hitTabStrip(ev.clientX, ev.clientY);
-    const dock = drag.moved && !overStrip ? paneDropAt(ev.clientX, ev.clientY, { fromTabId: drag.id }) : null;
-    const toIndex = drag.moved && overStrip ? tabStripInsertIndex(ev.clientX) : -1;
-    endTabDrag();
-    if (!drag.moved) return;
-    ignoreTabClick = true;
-    window.setTimeout(() => {
-      ignoreTabClick = false;
-    }, 50);
-    if (dock && !dock.self && dock.edge) {
-      dockTabIntoPane(drag.id, dock.paneId, dock.edge);
-      return;
-    }
-    if (overStrip) moveTabToIndex(drag.id, toIndex);
-  }
-
-  function finishPanePointer(ev) {
-    if (!paneDrag || ev.pointerId !== paneDrag.pointerId) return;
-    const drag = paneDrag;
-    const overStrip = hitTabStrip(ev.clientX, ev.clientY);
-    const dock = drag.moved && !overStrip ? paneDropAt(ev.clientX, ev.clientY, { excludePaneId: drag.paneId }) : null;
-    const toIndex = drag.moved && overStrip ? tabStripInsertIndex(ev.clientX) : -1;
-    endPaneDrag();
-    if (!drag.moved) return;
-    if (overStrip) {
-      extractPaneToTab(drag.paneId, toIndex);
-      return;
-    }
-    if (dock && !dock.self && dock.edge) movePaneTo(drag.paneId, dock.paneId, dock.edge);
-  }
-
   function bindChrome() {
     if (window.__keelChromeBound) return;
     window.__keelChromeBound = true;
@@ -7246,15 +7108,8 @@ import { openExternal } from "./lib/openlink.js";
         } else if (!isHoldModKey(ev)) {
           clearTimeout(kbdTimer);
         }
-        if (ev.key === "Escape" && tabDrag) {
+        if (ev.key === "Escape" && drag.cancel()) {
           ev.preventDefault();
-          ignoreTabClick = tabDrag.moved;
-          endTabDrag();
-          return;
-        }
-        if (ev.key === "Escape" && paneDrag) {
-          ev.preventDefault();
-          endPaneDrag();
           return;
         }
         if (ev.key === "Escape") {
@@ -7291,11 +7146,7 @@ import { openExternal } from "./lib/openlink.js";
     window.addEventListener("blur", () => {
       clearTimeout(kbdTimer);
       showKbdHints(false);
-      if (tabDrag) {
-        ignoreTabClick = tabDrag.moved;
-        endTabDrag();
-      }
-      if (paneDrag) endPaneDrag();
+      drag.cancel();
     });
     window.addEventListener("resize", () => {
       fitVisiblePanes();
@@ -7328,7 +7179,7 @@ import { openExternal } from "./lib/openlink.js";
         if (ev.target.closest(`.tab[data-tab="${CSS.escape(renaming)}"]`)) return;
         tabRename.keep();
       }
-      if (ignoreTabClick) {
+      if (drag.ignoreClick()) {
         ev.preventDefault();
         ev.stopPropagation();
         return;
@@ -7342,93 +7193,7 @@ import { openExternal } from "./lib/openlink.js";
       const tab = ev.target.closest("[data-tab]");
       if (tab) activateTab(tab.dataset.tab);
     });
-    on(els.tabs, "pointerdown", (ev) => {
-      if (ev.button !== 0) return;
-      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-      if (ev.target.closest("[data-close], .tab-rename")) return;
-      const tab = ev.target.closest(".tab[data-tab]");
-      if (!tab || !state.tabs.has(tab.dataset.tab)) return;
-      tabDrag = { id: tab.dataset.tab, startX: ev.clientX, startY: ev.clientY, pointerId: ev.pointerId, moved: false };
-    });
-    on(els.tabs, "dragstart", (ev) => ev.preventDefault());
-    on(els.terminals, "pointerdown", (ev) => {
-      if (ev.button !== 0) return;
-      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-      if (ev.target.closest("button")) return;
-      const bar = ev.target.closest(".pane-bar");
-      if (!bar) return;
-      const wrap = bar.closest(".term-wrap");
-      const paneId = wrap?.dataset.paneId;
-      if (!paneId || !state.panes.has(paneId)) return;
-      paneDrag = { paneId, startX: ev.clientX, startY: ev.clientY, pointerId: ev.pointerId, moved: false };
-      try {
-        bar.setPointerCapture(ev.pointerId);
-      } catch {
-        /* ignore */
-      }
-    });
-    document.addEventListener(
-      "pointermove",
-      (ev) => {
-        if (tabDrag && ev.pointerId === tabDrag.pointerId) {
-          const dy = ev.clientY - (tabDrag.startY ?? tabDrag.startX);
-          if (!tabDrag.moved && Math.hypot(ev.clientX - tabDrag.startX, dy) < 6) return;
-          if (!tabDrag.moved) {
-            tabDrag.moved = true;
-            document.body.classList.add("is-tab-dragging");
-          }
-          ev.preventDefault();
-          autoScrollTabs(ev.clientX);
-          if (hitTabStrip(ev.clientX, ev.clientY)) {
-            hidePaneDrop();
-            paintTabDrop(tabStripInsertIndex(ev.clientX));
-          } else {
-            clearTabDropMarks();
-            const dragging = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(tabDrag.id)}"]`);
-            dragging?.classList.add("is-dragging");
-            paintPaneDrop(paneDropAt(ev.clientX, ev.clientY, { fromTabId: tabDrag.id }));
-          }
-          return;
-        }
-        if (!paneDrag || ev.pointerId !== paneDrag.pointerId) return;
-        if (!paneDrag.moved && Math.hypot(ev.clientX - paneDrag.startX, ev.clientY - paneDrag.startY) < 6) return;
-        if (!paneDrag.moved) {
-          paneDrag.moved = true;
-          document.body.classList.add("is-pane-dragging");
-          const pane = state.panes.get(paneDrag.paneId);
-          viewOf(pane)?.wrap?.classList.add("is-dragging");
-          const tab = pane && state.tabs.get(pane.tabId);
-          if (tab?.zoomedPaneId) {
-            W.zoom(state, tab, "");
-          }
-        }
-        ev.preventDefault();
-        if (hitTabStrip(ev.clientX, ev.clientY)) {
-          hidePaneDrop();
-          const src = state.panes.get(paneDrag.paneId);
-          const tab = src && state.tabs.get(src.tabId);
-          if (tab && leafCount(tab.layout) > 1) paintTabDrop(tabStripInsertIndex(ev.clientX));
-          else clearTabDropMarks();
-        } else {
-          clearTabDropMarks();
-          paintPaneDrop(paneDropAt(ev.clientX, ev.clientY, { excludePaneId: paneDrag.paneId }));
-        }
-      },
-      { capture: true, passive: false }
-    );
-    document.addEventListener("pointerup", finishTabPointer, true);
-    document.addEventListener("pointerup", finishPanePointer, true);
-    document.addEventListener(
-      "pointercancel",
-      (ev) => {
-        if (tabDrag && ev.pointerId === tabDrag.pointerId) {
-          ignoreTabClick = tabDrag.moved;
-          endTabDrag();
-        }
-        if (paneDrag && ev.pointerId === paneDrag.pointerId) endPaneDrag();
-      },
-      true
-    );
+    drag.bind();
 
     on(document.getElementById("btn-new-tab"), "click", () => newTab());
     on(document.getElementById("btn-sidebar"), "click", () => toggleSidebar());
