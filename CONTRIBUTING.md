@@ -30,9 +30,10 @@ The same ones CI runs on every PR:
 make test              # go test, desktop tags
 make lint              # gofmt, go vet, staticcheck, govulncheck
 make check-generated   # committed *_templ.go and output.css match the pinned tools
+make build && make e2e # the e2e suite in WebKit (macOS: the tests press ⌘)
 ```
 
-UI changes are verified end to end with e2e (`npm install`, then `npx e2e run`) against an isolated `keel serve`; see `.claude/skills/verify-keel/SKILL.md`.
+UI changes are verified end to end with e2e (`npm install`, then `make e2e`, or `npx e2e run <file>` for one file) against an isolated `keel serve`; see `.claude/skills/verify-keel/SKILL.md`. CI runs `make e2e` on macOS in the `e2e (webkit)` job; on a failure it uploads the report, traces and `keel serve` logs as the `e2e-report` artifact.
 
 ## UI work
 
