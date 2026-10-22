@@ -50,6 +50,7 @@ test('OSC 133 marks draw a gutter mark per command and an exit chip on failure',
   await expect(screen.getByText(/sends no command marks/)).toBeHidden();
 
   await screen.getByRole('button', 'Close tab').tap();
+  await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
 });
 
 // §6.2 / §6.7 with marks: the agent reads the last command, its output and
