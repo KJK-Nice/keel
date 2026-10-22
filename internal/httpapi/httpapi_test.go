@@ -2435,11 +2435,24 @@ func TestIndexServesVault(t *testing.T) {
 	if !strings.Contains(string(termBody), "tui.toast.add") || strings.Contains(string(termBody), `getElementById("toast")`) {
 		t.Fatal("term.js should raise toasts through tui.toast.add")
 	}
-	if !strings.Contains(string(termBody), "syncTabContextMenu") || !strings.Contains(string(termBody), "beginTabRename") {
+	tabMenuJS, err := http.Get(srv.URL + "/js/ui/tabmenu.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tabMenuJS.Body.Close()
+	tabMenuBody, _ := io.ReadAll(tabMenuJS.Body)
+	tabRenameJS, err := http.Get(srv.URL + "/js/ui/tabrename.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tabRenameJS.Body.Close()
+	tabRenameBody, _ := io.ReadAll(tabRenameJS.Body)
+	if !strings.Contains(string(termBody), "createTabMenu") || !strings.Contains(string(termBody), "createTabRename") ||
+		tabMenuJS.StatusCode != http.StatusOK || !strings.Contains(string(tabMenuBody), "data-tab-action") {
 		t.Fatal("term.js missing tab context menu handlers")
 	}
-	if !strings.Contains(string(termBody), "fitTabRename") || !strings.Contains(string(termBody), "input.size = 1") ||
-		!strings.Contains(string(termBody), "setRangeText") ||
+	if tabRenameJS.StatusCode != http.StatusOK || !strings.Contains(string(tabRenameBody), "input.size = 1") ||
+		!strings.Contains(string(tabRenameBody), "setRangeText") ||
 		!strings.Contains(string(cssBody), "field-sizing: content") {
 		t.Fatal("tab rename must size to text, keep spaces, and not use a focus ring")
 	}
@@ -2462,7 +2475,7 @@ func TestIndexServesVault(t *testing.T) {
 		!strings.Contains(string(termBody), `class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}`) {
 		t.Fatal("session tab and pane close glyphs must use Hugeicons computer-terminal-01 and cancel-01")
 	}
-	if !strings.Contains(string(termBody), `ev.button !== 2`) || !strings.Contains(string(termBody), `getElementById("tab-ctx")`) {
+	if !strings.Contains(string(tabMenuBody), `ev.button !== 2`) || !strings.Contains(string(tabMenuBody), `getElementById("tab-ctx")`) {
 		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
 	}
 	// The xterm palette is read from the --term-* and --ansi-* tokens; under
