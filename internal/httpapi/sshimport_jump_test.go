@@ -10,6 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"keel/internal/hostimport"
 	"keel/internal/runtime"
 	"keel/internal/store"
 )
@@ -84,11 +85,11 @@ func TestSSHImportMapsProxyJump(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var p importPreview
+	var p hostimport.Preview
 	if code := f.get(t, "/api/ssh-config/preview", &p); code != http.StatusOK {
 		t.Fatalf("preview %d", code)
 	}
-	plan := map[string]importHost{}
+	plan := map[string]hostimport.Host{}
 	for _, h := range p.Hosts {
 		plan[h.Alias] = h
 	}
@@ -174,7 +175,7 @@ func TestSSHImportAmbiguousSavedJumpIsNotLinked(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var p importPreview
+	var p hostimport.Preview
 	f.get(t, "/api/ssh-config/preview", &p)
 	for _, h := range p.Hosts {
 		if h.Alias == "via-saved" && (h.JumpSaved != "" || !strings.Contains(h.JumpProblem, "several saved hosts")) {
