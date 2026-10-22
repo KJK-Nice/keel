@@ -29,7 +29,7 @@ func benchStore(b *testing.B) (*Store, Notebook) {
 			Username: "ubuntu",
 			AuthType: "password",
 			Password: "secret",
-			Color:    "#6ea8ff",
+			Color:    "var(--ansi-12)",
 		}); err != nil {
 			b.Fatal(err)
 		}

@@ -61,7 +61,7 @@ func TestLocalForward(t *testing.T) {
 	st := testStore(t)
 	host, err := st.UpsertHost(store.Host{
 		Name: "box", Address: "10.0.0.9", Port: 22, Username: "u",
-		AuthType: "password", Password: "x", Color: "#6ea8ff",
+		AuthType: "password", Password: "x", Color: "var(--ansi-12)",
 	})
 	if err != nil {
 		t.Fatal(err)
