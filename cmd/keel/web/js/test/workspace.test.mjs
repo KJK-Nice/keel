@@ -228,3 +228,30 @@ test("a layout change marks the tab dirty for a repaint", () => {
   W.splitPane(ws, "a", pane("c"));
   assert.equal(t1.dirty, true);
 });
+
+test("updatePane sets record fields, tells onChange once, and refuses other fields", () => {
+  const { ws, t1 } = sample();
+  const seen = [];
+  ws.onChange = (what, tab) => seen.push(`${what}:${tab?.id}`);
+  const a = ws.panes.get("a");
+  assert.equal(W.updatePane(ws, a, { status: "is-ready", failKind: "" }), true);
+  assert.equal(a.status, "is-ready");
+  assert.equal(W.updatePane(ws, a, { status: "is-ready" }), false, "no change");
+  assert.deepEqual(seen, ["pane:t1"]);
+  assert.throws(() => W.updatePane(ws, a, { wrap: {} }), /not a pane record field/);
+  assert.equal(t1.dirty, true, "set by the split in sample, not by updatePane");
+});
+
+test("logPane drops blanks and repeats and keeps the last 40 lines", () => {
+  const { ws } = sample();
+  const a = ws.panes.get("a");
+  W.logPane(ws, a, "user", "  Starting   a local shell ");
+  W.logPane(ws, a, "work", "Starting a local shell");
+  W.logPane(ws, a, "fail", "   ");
+  assert.deepEqual(a.failLog, [{ kind: "user", text: "Starting a local shell" }]);
+  const before = a.failLog;
+  for (let i = 0; i < 45; i++) W.logPane(ws, a, "", `line ${i}`);
+  assert.equal(a.failLog.length, 40);
+  assert.deepEqual(a.failLog.at(-1), { kind: "work", text: "line 44" });
+  assert.equal(before.length, 1, "a new array each time, the old one untouched");
+});

@@ -50,3 +50,12 @@ test("the model's changes schedule a render, but a change of focus alone does no
   assert.match(hook, /queueMicrotask\(/);
   assert.match(fns.get("renderTabs"), /renderQueued = false/);
 });
+
+test("term.js changes a pane's session record only through lib/workspace.js", () => {
+  // tab.title, a button's title and the herd's copy are not the record.
+  const record = /\b(\w+)\.(status|failKind|failLog|wasReady|title|you|attached|driverId|ownerId)\s*=(?!=)/;
+  const other = /^(tab|dest|src|herd|cur|el|dotEl|panesBtn|controlWidget|\w+Btn)$/;
+  const bad = lines(record).filter((l) => !other.test(l.match(record)[1]));
+  assert.deepEqual(bad, []);
+  assert.deepEqual(lines(/Object\.assign\(pane\b|failLog\.(push|shift|splice)\(/), []);
+});

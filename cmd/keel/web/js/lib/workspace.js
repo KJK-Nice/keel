@@ -7,7 +7,8 @@
 // (term.js passes its state). The model reads and writes only these fields
 // of the records; everything else on them is the caller's:
 //   tab   { id, layout, focusedPaneId, zoomedPaneId, dirty, start?, page? }
-//   pane  { id, tabId }
+//   pane  { id, tabId } and its session record, PANE_FIELDS, which only
+//         updatePane and logPane change
 // A layout is a lib/layout.js tree of pane ids.
 //
 // Every change that shows calls ws.onChange(what, tab), so the caller can
@@ -17,6 +18,7 @@
 //   "layout"  a tab's panes or focus view changed; the tab is marked dirty
 //             (its panes need laying out again)
 //   "focus"   only which pane of a tab has focus
+//   "pane"    a pane's session record (its status, log or presence)
 // A call that changes nothing calls nothing.
 import { insertBeside, leafCount, removeLeaf, replaceLeaf, swapLeaves, walkLeaves } from "./layout.js";
 
@@ -131,6 +133,42 @@ export function moveTab(ws, id, toIndex) {
 }
 
 // ---- Panes ---------------------------------------------------------------
+
+// PANE_FIELDS is a pane's session record, what its tab and its chrome show:
+//   status    "is-connecting", "is-ready", "is-error" or ""
+//   failKind  why it is down: "fail", "lost", "ended" or ""
+//   failLog   the connect log ({kind, text} lines) a failed pane shows
+//   wasReady  it was connected once (a drop is "lost", not "fail")
+//   title     the session or notebook name
+//   you, attached, driverId, ownerId   who is attached and who drives
+export const PANE_FIELDS = ["status", "failKind", "failLog", "wasReady", "title", "you", "attached", "driverId", "ownerId"];
+const FAIL_LOG_MAX = 40;
+
+// updatePane sets fields of a pane's record (only PANE_FIELDS; others
+// throw, so a typo or a view field does not slip in). It tells onChange
+// when a value changed.
+export function updatePane(ws, pane, fields) {
+  if (!pane) return false;
+  let any = false;
+  for (const [k, v] of Object.entries(fields)) {
+    if (!PANE_FIELDS.includes(k)) throw new Error(`updatePane: ${k} is not a pane record field`);
+    if (pane[k] === v) continue;
+    pane[k] = v;
+    any = true;
+  }
+  if (any) changed(ws, "pane", ws.tabs.get(pane.tabId));
+  return any;
+}
+
+// logPane adds a line to a pane's connect log: blanks and a repeat of the
+// last line are dropped, and it keeps the last FAIL_LOG_MAX lines.
+export function logPane(ws, pane, kind, text) {
+  const line = String(text || "").replace(/\s+/g, " ").trim();
+  if (!pane || !line) return false;
+  const log = pane.failLog || [];
+  if (log.at(-1)?.text === line) return false;
+  return updatePane(ws, pane, { failLog: [...log, { kind: kind || "work", text: line }].slice(-FAIL_LOG_MAX) });
+}
 
 // addPane makes pane one of tab's panes. It is not in the layout yet:
 // fillTab, splitPane or setLayout place it, and tell onChange.

@@ -1637,7 +1637,7 @@ import { openExternal } from "./lib/openlink.js";
       else delete tab.customTitle;
       const nb = tabPanes(tab).find(isNotebookPane);
       if (nb && next) {
-        nb.title = next;
+        W.updatePane(state, nb, { title: next });
         tab.title = next;
         saveNotebookNow(nb);
         paintNotebook(nb);
@@ -2542,10 +2542,14 @@ import { openExternal } from "./lib/openlink.js";
   // onChange): one render covers a burst of them, at the end of the task
   // that made them, so the DOM is current before the next event. A
   // change of focus alone repaints nothing here: markFocusedPane updates
-  // the pane chrome itself. A direct renderTabs in between makes the
+  // the pane chrome itself, and a pane's record (status, log, presence)
+  // renders on the next frame. A direct renderTabs in between makes the
   // queued one a no-op.
   let renderQueued = false;
   state.onChange = (what) => {
+    // A pane's status and presence come in bursts from its socket (joined,
+    // status, ready): one render per frame covers them.
+    if (what === "pane") return scheduleRenderTabs();
     if (what === "focus" || renderQueued) return;
     renderQueued = true;
     queueMicrotask(() => {
@@ -4449,7 +4453,7 @@ import { openExternal } from "./lib/openlink.js";
     let live = !opts.skipSnapshot;
 
     const applyPresence = (msg) => {
-      Object.assign(pane, presenceFields(msg));
+      W.updatePane(state, pane, presenceFields(msg));
       pane.banner.hidden = isDriving(pane);
       const herd = state.herd.find((h) => h.id === pane.runtimeId);
       if (herd) {
@@ -4459,8 +4463,7 @@ import { openExternal } from "./lib/openlink.js";
         herd.clients = pane.attached.length;
         if (msg.status) herd.status = msg.status;
       }
-      // A new session sends joined, status and ready in quick succession;
-      // one render per frame covers them all.
+      // The herd's copy shows on the host rows (syncHostLive).
       scheduleRenderTabs();
     };
 
@@ -4479,22 +4482,20 @@ import { openExternal } from "./lib/openlink.js";
       joinFailed: (msg) => toast(msg.message || "A viewer could not be connected", true),
       status: (msg) => {
         recordFailStatus(pane, msg);
-        pane.status = statusClass(msg.status, pane.status);
+        W.updatePane(state, pane, { status: statusClass(msg.status, pane.status) });
         applyPresence(msg);
       },
       presence: (msg) => {
         recordFailStatus(pane, msg);
-        pane.status = statusClass(msg.status, "is-ready");
+        W.updatePane(state, pane, { status: statusClass(msg.status, "is-ready") });
         applyPresence(msg);
         if (msg.type === "ready") live = true;
         if (msg.type === "control" && msg.message) shareControl.noteControl(pane, msg);
       },
       error: (msg) => {
-        pane.status = "is-error";
-        pane.failKind = "fail";
+        W.updatePane(state, pane, { status: "is-error", failKind: "fail" });
         pushFailLog(pane, "fail", msg.message || "Connection failed");
         pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
-        renderTabs();
         if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
           toast(msg.message, true);
         }
@@ -4514,10 +4515,8 @@ import { openExternal } from "./lib/openlink.js";
     });
     ws.addEventListener("error", () => {
       if (pane.wsGen !== gen || pane.closing) return;
-      pane.status = "is-error";
-      pane.failKind = "lost";
+      W.updatePane(state, pane, { status: "is-error", failKind: "lost" });
       pushFailLog(pane, "fail", "WebSocket error");
-      renderTabs();
     });
   }
 
@@ -4535,22 +4534,18 @@ import { openExternal } from "./lib/openlink.js";
 
   async function noteSessionClosed(pane, gen) {
     if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
-    pane.status = "is-error";
-    renderTabs();
+    W.updatePane(state, pane, { status: "is-error" });
     const ended = await sessionEnded(pane.runtimeId);
     if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
     if (ended) {
-      pane.status = "is-error";
-      pane.failKind = "ended";
+      W.updatePane(state, pane, { status: "is-error", failKind: "ended" });
       pushFailLog(pane, "fail", "Runtime stopped — this session ended.");
       pane.term.writeln("\r\n\x1b[90mRuntime stopped — this session ended.\x1b[0m");
-      renderTabs();
       return;
     }
-    pane.failKind = pane.wasReady ? "lost" : "fail";
+    W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail" });
     pushFailLog(pane, "fail", pane.wasReady ? "Connection lost" : "Connection failed");
     pane.term.writeln("\r\n\x1b[90mConnection lost — click Reconnect to attach.\x1b[0m");
-    renderTabs();
   }
 
   function replaySessionSnapshot(pane) {
@@ -4566,11 +4561,9 @@ import { openExternal } from "./lib/openlink.js";
     if (!isTermPane(pane) || !pane?.runtimeId || pane.remote) return;
     const socketWasOpen = sessionSocketOpen(pane);
     pane.startingOver = true;
-    pane.failKind = pane.wasReady ? "lost" : "fail";
-    pane.failLog = [];
+    W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail", failLog: [] });
     seedConnectLog(pane);
-    pane.status = "is-connecting";
-    renderTabs();
+    W.updatePane(state, pane, { status: "is-connecting" });
     // Local xterm is often empty after a flap (WebGL remount, overlay, or a
     // fresh attach). Skipping the Subscribe snapshot dropped the server ring
     // and left a blank terminal. Reset and replay those raw bytes instead.
@@ -4579,10 +4572,8 @@ import { openExternal } from "./lib/openlink.js";
     const herd = state.herd.find((s) => s.id === pane.runtimeId);
     if (socketWasOpen || !herd || herd.status !== "ready") {
       api(`/api/sessions/${pane.runtimeId}/reconnect`, { method: "POST" }).catch((err) => {
-        pane.status = "is-error";
-        pane.failKind = "fail";
+        W.updatePane(state, pane, { status: "is-error", failKind: "fail" });
         pushFailLog(pane, "fail", err.message || "Reconnect failed");
-        renderTabs();
         toast(err.message, true);
       });
     }
@@ -4612,14 +4603,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function pushFailLog(pane, kind, text) {
-    if (!pane || !text) return;
-    const line = String(text).replace(/\s+/g, " ").trim();
-    if (!line) return;
-    pane.failLog = pane.failLog || [];
-    const last = pane.failLog[pane.failLog.length - 1];
-    if (last && last.text === line) return;
-    pane.failLog.push({ kind: kind || "work", text: line });
-    if (pane.failLog.length > 40) pane.failLog.shift();
+    W.logPane(state, pane, kind, text);
   }
 
   function seedConnectLog(pane) {
@@ -4639,27 +4623,25 @@ import { openExternal } from "./lib/openlink.js";
   function recordFailStatus(pane, msg) {
     if (!msg) return;
     if (msg.status === "ready") {
-      pane.wasReady = true;
-      pane.failKind = "";
-      pane.failLog = [];
+      W.updatePane(state, pane, { wasReady: true, failKind: "", failLog: [] });
       pane.startingOver = false;
       return;
     }
     if (failNoise(msg.message)) return;
     if (msg.status === "connecting") {
-      if (/reconnect/i.test(msg.message || "") && !pane.startingOver && pane.wasReady) pane.failKind = "lost";
+      if (/reconnect/i.test(msg.message || "") && !pane.startingOver && pane.wasReady) W.updatePane(state, pane, { failKind: "lost" });
       const fail = /fail|error|refused|timed out|timeout/i.test(msg.message);
       pushFailLog(pane, fail ? "fail" : "work", msg.message);
       return;
     }
     if (msg.status === "exited") {
-      pane.failKind = "ended";
+      W.updatePane(state, pane, { failKind: "ended" });
       pane.startingOver = false;
       pushFailLog(pane, "fail", msg.message || "Session ended");
       return;
     }
     if (msg.status === "error") {
-      pane.failKind = pane.wasReady ? "lost" : "fail";
+      W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail" });
       pane.startingOver = false;
       pushFailLog(pane, "fail", msg.message || "Connection failed");
     }
@@ -5051,7 +5033,7 @@ import { openExternal } from "./lib/openlink.js";
         ? await api(`/api/notebooks/${pane.notebookId}`, { method: "PUT", body, keepalive })
         : await api("/api/notebooks", { method: "POST", body, keepalive });
       pane.notebookId = rec.id;
-      pane.title = rec.name;
+      W.updatePane(state, pane, { title: rec.name });
       pane.pinned = !!rec.pinned;
       pane.rev = rec.rev || 0;
       pane._saveFailed = false;
@@ -5183,7 +5165,7 @@ import { openExternal } from "./lib/openlink.js";
       rememberNotebook(saved);
       for (const pane of state.panes.values()) {
         if (isNotebookPane(pane) && pane.notebookId === id) {
-          pane.title = saved.name;
+          W.updatePane(state, pane, { title: saved.name });
           pane.rev = saved.rev || 0;
           const tab = state.tabs.get(pane.tabId);
           if (tab) {
@@ -5316,7 +5298,7 @@ import { openExternal } from "./lib/openlink.js";
         continue;
       }
       pane.rev = rec.rev || 0;
-      pane.title = rec.name || "Notebook";
+      W.updatePane(state, pane, { title: rec.name || "Notebook" });
       pane.pinned = !!rec.pinned;
       pane.cells = copyNotebookCells(rec.cells);
       disposeNotebookEditor(pane);
@@ -6799,16 +6781,14 @@ import { openExternal } from "./lib/openlink.js";
     tab.hostId = "";
 
     const applyPresence = (msg) => {
-      Object.assign(pane, presenceFields(msg));
+      W.updatePane(state, pane, presenceFields(msg));
       pane.banner.hidden = isDriving(pane);
-      renderTabs();
     };
 
     const fail = (message, writeLine = true) => {
-      pane.status = "is-error";
+      W.updatePane(state, pane, { status: "is-error" });
       if (writeLine) pane.term.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
       toast(message, true);
-      renderTabs();
     };
     const peer = openJoinPeer({
       origin,
@@ -6836,29 +6816,26 @@ import { openExternal } from "./lib/openlink.js";
   function attachFollowChannel(pane, dc, applyPresence) {
     pane.dc = dc;
     dc.onopen = () => {
-      pane.status = "is-ready";
+      W.updatePane(state, pane, { status: "is-ready" });
       sendResize(pane);
-      renderTabs();
     };
     dc.onclose = () => {
-      if (pane.status !== "is-error") pane.status = "";
+      if (pane.status !== "is-error") W.updatePane(state, pane, { status: "" });
       pane.term.writeln("\r\n\x1b[90mHost detached.\x1b[0m");
-      renderTabs();
     };
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
       error: (msg) => {
-        pane.status = "is-error";
+        W.updatePane(state, pane, { status: "is-error" });
         pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
-        renderTabs();
         toast(msg.message, true);
       },
       status: (msg) => {
-        pane.status = statusClass(msg.status, pane.status);
+        W.updatePane(state, pane, { status: statusClass(msg.status, pane.status) });
         applyPresence(msg);
       },
       presence: (msg) => {
-        pane.status = statusClass(msg.status, pane.status);
+        W.updatePane(state, pane, { status: statusClass(msg.status, pane.status) });
         applyPresence(msg);
         if (msg.type === "control" && msg.message) shareControl.noteControl(pane, msg);
       },
@@ -7770,7 +7747,7 @@ import { openExternal } from "./lib/openlink.js";
       if (title) {
         const pane = state.panes.get(title.dataset.notebookTitle);
         if (pane && isNotebookPane(pane)) {
-          pane.title = title.value;
+          W.updatePane(state, pane, { title: title.value });
           const tab = state.tabs.get(pane.tabId);
           if (tab) {
             tab.customTitle = title.value.trim() || tab.customTitle;
