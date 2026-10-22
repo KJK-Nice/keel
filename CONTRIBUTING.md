@@ -43,7 +43,7 @@ The UI is being redesigned. Read [`docs/ui-redesign.md`](docs/ui-redesign.md) fi
 The desktop UI script is `cmd/keel/web/js/term.js`, loaded as an ES module. It holds app state and wiring; the rest lives beside it and is tested with `node --test` (`make test-js`, also part of `make test`):
 
 - `lib/` has no DOM or state: split layouts and their geometry (`layout.js`), vault groups and list markup (`groups.js`, `vaultview.js`), the command palette's filtering (`palette.js`), the session socket protocol (`session.js`), shortcuts, join links, the share joiner (`joinpeer.js`, `sharemac.js`), and the Share popover, people list and follower banner markup (`share.js`).
-- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`, `actiontoast.js`, `sharepop.js` (the Share popover), `sharecontrol.js` (control requests and the follower notice), and `gate.js`: Unlock, First run and the host import, with their markup in `lib/onboard.js`).
+- `ui/` holds small DOM widgets that take their elements and callbacks as arguments (`palette.js`, `joinprompt.js`, `actiontoast.js`, `sharepop.js` (the Share popover), `sharecontrol.js` (control requests and the follower notice), `notebookhistory.js` (a notebook's History and Recently deleted), and `gate.js`: Unlock, First run and the host import, with their markup in `lib/onboard.js`).
 
 README and docs screenshots come from `tests/readme.e2e.ts` (the file says how to refresh them).
 

@@ -41,6 +41,7 @@ import { dispatchSessionMessage, parseSessionMessage, presenceFields, sessionSoc
 import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createSharePopover } from "./ui/sharepop.js";
 import { createShareControl } from "./ui/sharecontrol.js";
+import { createNotebookHistory } from "./ui/notebookhistory.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -5492,170 +5493,19 @@ import { openExternal } from "./lib/openlink.js";
     }
   }
 
-  // --- History and Recently deleted (one dialog) ---
-
-  const nbHist = { mode: "history", id: "", versions: [], selected: "", texts: new Map(), busy: false };
-
-  async function openNotebookHistory(id, opts = {}) {
-    await flushNotebookSaves(id);
-    const rec = notebookById(id);
-    if (!rec) return;
-    Object.assign(nbHist, { mode: "history", id, versions: [], selected: "", texts: new Map(), busy: false });
-    setText(document.getElementById("notebook-history-title"), `History · ${rec.name || "Notebook"}`);
-    setText(
-      document.getElementById("notebook-history-desc"),
-      "Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days.",
-    );
-    paintNotebookHistory("Loading…");
-    openModal(els.notebookHistoryModal);
-    try {
-      const res = await api(`/api/notebooks/${encodeURIComponent(id)}/history`);
-      nbHist.versions = res?.versions || [];
-      const pick = opts.agentEdit ? nbHist.versions.find((v) => v.event === "before-agent-edit") : nbHist.versions[0];
-      paintNotebookHistory(nbHist.versions.length ? "" : "No earlier versions yet. Keel keeps one before every agent edit and restore, and when you start editing again.");
-      if (pick) await selectNotebookVersion(pick.id);
-    } catch (err) {
-      paintNotebookHistory(err.message || "Could not load History");
-    }
-  }
-
-  async function openNotebookTrash() {
-    Object.assign(nbHist, { mode: "trash", id: "", versions: [], selected: "", texts: new Map(), busy: false });
-    setText(document.getElementById("notebook-history-title"), "Recently deleted");
-    setText(document.getElementById("notebook-history-desc"), "Deleted notebooks stay here for 30 days (at most 50). Restore puts one back in Notebooks.");
-    paintNotebookHistory("Loading…");
-    openModal(els.notebookHistoryModal);
-    try {
-      const res = await api("/api/notebook-trash");
-      nbHist.versions = res?.versions || [];
-      paintNotebookHistory(nbHist.versions.length ? "" : "Nothing was deleted in the last 30 days.");
-      if (nbHist.versions[0]) await selectNotebookVersion(nbHist.versions[0].id);
-    } catch (err) {
-      paintNotebookHistory(err.message || "Could not load Recently deleted");
-    }
-  }
-
-  function paintNotebookHistory(empty) {
-    const list = document.getElementById("notebook-history-list");
-    const restore = document.getElementById("notebook-history-restore");
-    if (restore) {
-      restore.disabled = !nbHist.selected || nbHist.busy;
-      restore.textContent = nbHist.mode === "trash" ? "Restore notebook" : "Restore this version";
-    }
-    const purge = document.getElementById("notebook-history-purge");
-    if (purge) {
-      purge.disabled = !nbHist.selected || nbHist.busy;
-      purge.textContent = nbHist.mode === "trash" ? "Delete forever" : "Delete this version";
-    }
-    if (!list) return;
-    if (empty) {
-      list.innerHTML = `<p class="k-help notebook-history-empty">${escapeHtml(empty)}</p>`;
-      const diff = document.getElementById("notebook-history-diff");
-      if (diff) diff.innerHTML = "";
-      return;
-    }
-    list.innerHTML = nbHist.versions
-      .map((v) => {
-        const l = NB.versionLabel(v);
-        const title = nbHist.mode === "trash" ? v.name || "Notebook" : l.what;
-        const who = nbHist.mode === "trash" ? `Deleted ${NB.whenText(v.keptAt)}` : l.when;
-        return `<button type="button" class="notebook-history-row" role="option" aria-selected="${v.id === nbHist.selected}" data-notebook-version="${escapeHtml(v.id)}">
-          <span class="notebook-history-who"><span class="k-badge${v.by === "agent" ? " k-badge--outline" : ""}">${escapeHtml(nbHist.mode === "trash" ? "Deleted" : l.who)}</span><span class="notebook-history-what">${escapeHtml(title)}</span></span>
-          <span class="notebook-history-when">${escapeHtml(who)}</span>${l.summary ? `<span class="notebook-history-summary">${escapeHtml(l.summary)}</span>` : ""}
-        </button>`;
-      })
-      .join("");
-  }
-
-  async function selectNotebookVersion(vid) {
-    nbHist.selected = vid;
-    paintNotebookHistory("");
-    const diff = document.getElementById("notebook-history-diff");
-    if (!diff) return;
-    let text = nbHist.texts.get(vid);
-    if (text == null) {
-      const v = nbHist.versions.find((x) => x.id === vid);
-      try {
-        const full = await api(nbHist.mode === "trash" ? `/api/notebook-trash/${encodeURIComponent(vid)}` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`);
-        text = NB.versionText(full || v);
-      } catch (err) {
-        diff.innerHTML = `<p class="k-help">${escapeHtml(err.message || "Could not load this version")}</p>`;
-        return;
-      }
-      nbHist.texts.set(vid, text);
-    }
-    if (nbHist.selected !== vid) return;
-    if (nbHist.mode === "trash") {
-      diff.innerHTML = `<pre class="notebook-diff notebook-diff--plain">${escapeHtml(text)}</pre>`;
-      return;
-    }
-    const cur = notebookById(nbHist.id);
-    const now = (cur?.cells || []).map((c) => String(c.body || "")).join("\n\n");
-    const d = NB.diffLines(text, now);
-    const rows = NB.diffView(d)
-      .map((l) =>
-        l.op === "gap"
-          ? `<div class="notebook-diff-gap">${escapeHtml(`${l.count} unchanged ${l.count === 1 ? "line" : "lines"}`)}</div>`
-          : `<div class="notebook-diff-line notebook-diff-line--${l.op}"><span class="notebook-diff-mark" aria-hidden="true">${l.op === "add" ? "+" : l.op === "del" ? "−" : " "}</span><span class="notebook-diff-text">${escapeHtml(l.text) || " "}</span></div>`,
-      )
-      .join("");
-    diff.innerHTML = `<p class="notebook-diff-head">${escapeHtml(`From this version to now: ${NB.diffSummary(d)}`)}</p><div class="notebook-diff" role="region" aria-label="Changes from this version to now">${rows}</div>`;
-  }
-
-  // purgeNotebookVersion removes the selected version (or deleted
-  // notebook) for good: History is plain text on disk like the notebooks.
-  async function purgeNotebookVersion() {
-    const vid = nbHist.selected;
-    if (!vid || nbHist.busy) return;
-    const trash = nbHist.mode === "trash";
-    const ok = await askConfirm(trash ? "Delete this notebook for good? It cannot be restored." : "Delete this version for good? It cannot be restored.", {
-      title: trash ? "Delete forever" : "Delete version",
-      action: "Delete",
-    });
-    if (!ok) return;
-    nbHist.busy = true;
-    try {
-      await api(trash ? `/api/notebook-trash/${encodeURIComponent(vid)}` : `/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}`, { method: "DELETE" });
-      nbHist.versions = nbHist.versions.filter((v) => v.id !== vid);
-      nbHist.texts.delete(vid);
-      nbHist.selected = "";
-      nbHist.busy = false;
-      paintNotebookHistory(nbHist.versions.length ? "" : trash ? "Nothing was deleted in the last 30 days." : "No earlier versions left.");
-      if (nbHist.versions[0]) await selectNotebookVersion(nbHist.versions[0].id);
-    } catch (err) {
-      toast(err.message || "Could not delete", true);
-    } finally {
-      nbHist.busy = false;
-      paintNotebookHistory(nbHist.versions.length ? "" : trash ? "Nothing was deleted in the last 30 days." : "No earlier versions left.");
-    }
-  }
-
-  async function restoreNotebookVersion() {
-    const vid = nbHist.selected;
-    if (!vid || nbHist.busy) return;
-    nbHist.busy = true;
-    paintNotebookHistory("");
-    try {
-      if (nbHist.mode === "trash") {
-        const saved = await api(`/api/notebook-trash/${encodeURIComponent(vid)}/restore`, { method: "POST" });
-        rememberNotebook(saved);
-        closeModal(els.notebookHistoryModal);
-        toast(`Restored “${saved.name || "Notebook"}” to Notebooks.`);
-        return;
-      }
-      await flushNotebookSaves(nbHist.id);
-      const rec = notebookById(nbHist.id);
-      const saved = await api(`/api/notebooks/${encodeURIComponent(nbHist.id)}/history/${encodeURIComponent(vid)}/restore`, { method: "POST", body: JSON.stringify({ rev: rec?.rev || 0 }) });
-      notebookChanged(saved);
-      closeModal(els.notebookHistoryModal);
-      toast("Restored. The version it replaced is in History.");
-    } catch (err) {
-      toast(err.message || "Could not restore", true);
-    } finally {
-      nbHist.busy = false;
-      paintNotebookHistory("");
-    }
-  }
+  // --- History and Recently deleted (one dialog, ui/notebookhistory.js) ---
+  const notebookHistory = createNotebookHistory({
+    modal: els.notebookHistoryModal,
+    api,
+    toast,
+    confirm: askConfirm,
+    openModal,
+    closeModal,
+    notebook: notebookById,
+    flush: flushNotebookSaves,
+    remember: rememberNotebook,
+    changed: notebookChanged,
+  });
 
   // askAboutNotebook is the notebook pane's Ask the agent about this
   // notebook: the panel opens with the notebook attached. Nothing is sent
@@ -8128,13 +7978,13 @@ import { openExternal } from "./lib/openlink.js";
       const nbHistory = ev.target.closest("[data-notebook-history-open]");
       if (nbHistory) {
         ev.preventDefault();
-        openNotebookHistory(nbHistory.dataset.notebookHistoryOpen);
+        notebookHistory.openHistory(nbHistory.dataset.notebookHistoryOpen);
         return;
       }
       const nbChanges = ev.target.closest("[data-notebook-review-changes]");
       if (nbChanges) {
         ev.preventDefault();
-        openNotebookHistory(nbChanges.dataset.notebookReviewChanges, { agentEdit: true });
+        notebookHistory.openHistory(nbChanges.dataset.notebookReviewChanges, { agentEdit: true });
         return;
       }
       const nbUndo = ev.target.closest("[data-notebook-review-undo]");
@@ -8576,7 +8426,7 @@ import { openExternal } from "./lib/openlink.js";
       const histNb = ev.target.closest("[data-notebook-history]");
       if (histNb) {
         ev.preventDefault();
-        openNotebookHistory(histNb.dataset.notebookHistory);
+        notebookHistory.openHistory(histNb.dataset.notebookHistory);
         return;
       }
       const delNb = ev.target.closest("[data-delete-notebook]");
@@ -8765,14 +8615,8 @@ import { openExternal } from "./lib/openlink.js";
       openModal(els.snippetModal);
     });
     on(document.getElementById("btn-new-notebook"), "click", () => newNotebook());
-    on(document.getElementById("btn-notebook-trash"), "click", () => openNotebookTrash());
-    on(document.getElementById("notebook-history-close"), "click", () => closeModal(els.notebookHistoryModal));
-    on(document.getElementById("notebook-history-restore"), "click", () => restoreNotebookVersion());
-    on(document.getElementById("notebook-history-purge"), "click", () => purgeNotebookVersion());
-    on(document.getElementById("notebook-history-list"), "click", (ev) => {
-      const row = ev.target.closest("[data-notebook-version]");
-      if (row) selectNotebookVersion(row.dataset.notebookVersion);
-    });
+    on(document.getElementById("btn-notebook-trash"), "click", () => notebookHistory.openTrash());
+    notebookHistory.bind();
     on(document.getElementById("btn-new-identity"), "click", () => {
       fillIdentityForm(null);
       openModal(els.identityModal);
