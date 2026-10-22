@@ -15,8 +15,6 @@ import (
 	"keel/internal/tunnel"
 )
 
-var hostColors = []string{"#5ee0b5", "#6ea8ff", "#c084fc", "#f5c15d", "#ff6b7a", "#67e8f9"}
-
 func mergeAttrs(parts ...templ.Attributes) templ.Attributes {
 	out := templ.Attributes{}
 	for _, p := range parts {

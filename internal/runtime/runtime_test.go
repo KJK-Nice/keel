@@ -860,7 +860,7 @@ func sshHost(t *testing.T, st *store.Store) store.Host {
 	t.Helper()
 	h, err := st.UpsertHost(store.Host{
 		Name: "box", Address: "10.0.0.1", Username: "u", AuthType: "password",
-		Password: "x", Color: "#6ea8ff",
+		Password: "x", Color: "var(--ansi-12)",
 	})
 	if err != nil {
 		t.Fatal(err)

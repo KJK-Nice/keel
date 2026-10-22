@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"keel/internal/hostimport"
 	"keel/internal/runtime"
 	"keel/internal/store"
 )
@@ -162,14 +163,14 @@ func TestSSHConfigPreview(t *testing.T) {
 	if _, err := f.st.UpsertHost(store.Host{Name: "already", Address: "db.example.net", Port: 22, Username: "deploy", AuthType: "password", Password: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	var p importPreview
+	var p hostimport.Preview
 	if code := f.get(t, "/api/ssh-config/preview", &p); code != http.StatusOK {
 		t.Fatalf("preview = %d", code)
 	}
 	if !p.Found || p.Path != "~/.ssh/config" {
 		t.Fatalf("preview = %+v", p)
 	}
-	got := map[string]importHost{}
+	got := map[string]hostimport.Host{}
 	for _, h := range p.Hosts {
 		got[h.Alias] = h
 	}
@@ -316,7 +317,7 @@ func TestSSHConfigImportCopiesOnlyChosenKeysAndLeavesOriginals(t *testing.T) {
 	}
 
 	// A second preview marks the imported hosts as saved.
-	var p importPreview
+	var p hostimport.Preview
 	f.get(t, "/api/ssh-config/preview", &p)
 	for _, h := range p.Hosts {
 		if want := h.Alias != "db"; h.Saved != want {
@@ -349,7 +350,7 @@ func TestSSHConfigMissing(t *testing.T) {
 	if err := os.Remove(filepath.Join(f.sshDir, "config")); err != nil {
 		t.Fatal(err)
 	}
-	var p importPreview
+	var p hostimport.Preview
 	if code := f.get(t, "/api/ssh-config/preview", &p); code != http.StatusOK || p.Found || len(p.Hosts) != 0 {
 		t.Fatalf("missing = %d %+v", code, p)
 	}
