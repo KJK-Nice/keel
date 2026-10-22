@@ -43,6 +43,7 @@ import { createSharePopover } from "./ui/sharepop.js";
 import { createShareControl } from "./ui/sharecontrol.js";
 import { createNotebookHistory } from "./ui/notebookhistory.js";
 import { createPaneMenu } from "./ui/panemenu.js";
+import { createTerminalMenu } from "./ui/terminalmenu.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -63,7 +64,7 @@ import * as TD from "./lib/typedirect.js";
 import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
-import { rightClickMode, termMenuItems, termRightClick } from "./lib/termmenu.js";
+import { rightClickMode, termRightClick } from "./lib/termmenu.js";
 import { actionLive, cardActions, cardMenuHTML } from "./lib/cardmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
@@ -3804,8 +3805,7 @@ import { openExternal } from "./lib/openlink.js";
       if (pane?.term && isTermPane(pane)) {
         ev.preventDefault();
         const anchor = pane.term.textarea || pane.host;
-        termMenu.keyAt = Date.now();
-        openTermMenu(pane, { anchor, returnFocus: pane.term.textarea || null, focusFirst: true });
+        termMenu.open(pane, { anchor, returnFocus: pane.term.textarea || null, focusFirst: true }, { fromKey: true });
         return false;
       }
     }
@@ -3931,7 +3931,7 @@ import { openExternal } from "./lib/openlink.js";
       if (ev.target.closest?.(".pane-bar")) return;
       // The Menu key already opened the menu (some engines then fire
       // contextmenu too; a mouse right-click has button 2).
-      if (ev.button !== 2 && Date.now() - termMenu.keyAt < 600) {
+      if (ev.button !== 2 && termMenu.keyJustOpened()) {
         ev.preventDefault();
         return;
       }
@@ -3947,7 +3947,7 @@ import { openExternal } from "./lib/openlink.js";
       if (own && !own.closest(".xterm")) return;
       if (act === "menu") {
         ev.preventDefault();
-        openTermMenu(pane, { x: ev.clientX, y: ev.clientY, returnFocus: pane.term?.textarea || null, focusFirst: false });
+        termMenu.open(pane, { x: ev.clientX, y: ev.clientY, returnFocus: pane.term?.textarea || null, focusFirst: false });
       } else if (act === "none") {
         ev.preventDefault();
       }
@@ -5595,51 +5595,26 @@ import { openExternal } from "./lib/openlink.js";
     }
   }
 
-  // The terminal menu (TermMenu in internal/ui/rowmenus.templ): a
-  // right-click on a terminal body when the setting says Menu, or the Menu
-  // key in a terminal. termMenu.paneId is the pane it acts on.
-  const termMenu = { paneId: "", keyAt: 0 };
-
-  function openTermMenu(pane, detail) {
-    const trigger = document.getElementById("term-menu-trigger");
-    const content = menuContent(trigger);
-    const tab = pane && state.tabs.get(pane.tabId);
-    if (!pane?.term || !tab || !content) return;
-    termMenu.paneId = pane.id;
-    const items = termMenuItems({
-      selection: !!pane.term.hasSelection?.(),
-      driving: isDriving(pane) && isTermPane(pane),
-      canSplit: !tab.remote && !pane.remote,
-      find: !!pane.search,
-    });
-    content.querySelectorAll("[data-term-act]").forEach((item) => {
-      const it = items[item.dataset.termAct];
-      item.hidden = !it?.show;
-      item.disabled = !!it?.disabled;
-    });
-    const sep = content.querySelector('[data-term-sep="split"]');
-    if (sep) sep.hidden = !items["split-h"].show;
-    openMenuAt(trigger, detail);
-  }
-
-  function runTermMenuAction(act) {
-    const pane = state.panes.get(termMenu.paneId);
-    const term = pane?.term;
-    if (!term) return;
-    if (act === "copy") {
-      const sel = term.getSelection();
-      if (sel) copyText(sel).then((ok) => ok || toast("Copy blocked", true));
-    } else if (act === "paste") pasteIntoPane(pane);
-    else if (act === "select-all") term.selectAll();
-    // Clear drops this window's scrollback; nothing is sent to the shell.
-    else if (act === "clear") term.clear();
-    else if (act === "find") {
-      markFocusedPane(pane);
-      openFind(pane);
-    } else if (act === "split-h") splitPane(pane.id, "h");
-    else if (act === "split-v") splitPane(pane.id, "v");
-    else if (act === "close") closePane(pane.id);
-  }
+  // The terminal menu (TermMenu in internal/ui/rowmenus.templ,
+  // ui/terminalmenu.js). Paste stays here: it types into the PTY.
+  const termMenu = createTerminalMenu({
+    pane: (id) => state.panes.get(id),
+    tab: (id) => state.tabs.get(id),
+    isTermPane,
+    isDriving,
+    copyText,
+    toast,
+    act: {
+      paste: (pane) => pasteIntoPane(pane),
+      find: (pane) => {
+        markFocusedPane(pane);
+        openFind(pane);
+      },
+      splitH: (pane) => splitPane(pane.id, "h"),
+      splitV: (pane) => splitPane(pane.id, "v"),
+      close: (pane) => closePane(pane.id),
+    },
+  });
 
   // The notebook code block menu (FenceMenu): its items click the fence's
   // own Copy and Type buttons (notebook-editor.mjs), so Type still asks
@@ -8273,7 +8248,7 @@ import { openExternal } from "./lib/openlink.js";
       const termAct = ev.target.closest("[data-term-act]");
       if (termAct) {
         ev.preventDefault();
-        if (!termAct.disabled) keepActionFocus(() => runTermMenuAction(termAct.dataset.termAct));
+        if (!termAct.disabled) keepActionFocus(() => termMenu.run(termAct.dataset.termAct));
         return;
       }
       const fenceAct = ev.target.closest("[data-fence-act]");
