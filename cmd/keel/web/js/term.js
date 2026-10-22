@@ -42,6 +42,7 @@ import { createJoinPrompts } from "./ui/joinprompt.js";
 import { createSharePopover } from "./ui/sharepop.js";
 import { createShareControl } from "./ui/sharecontrol.js";
 import { createNotebookHistory } from "./ui/notebookhistory.js";
+import { createPaneMenu } from "./ui/panemenu.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -5536,56 +5537,25 @@ import { openExternal } from "./lib/openlink.js";
     agentPanel.attachNotebook(id);
   }
 
-  // The pane menu (PaneMenu in internal/ui/rowmenus.templ): one menu for
-  // every pane, opened from a pane bar (its More button, a right-click,
-  // ⇧F10) or a row of the sidebar's Panes section. paneMenu.paneId is the
-  // pane it acts on; which items show depends on where it opened and on
-  // the pane.
-  const paneMenu = { paneId: "" };
-
-  function preparePaneMenu(paneId, where) {
-    const pane = state.panes.get(paneId);
-    const tab = pane && state.tabs.get(pane.tabId);
-    const trigger = document.getElementById("pane-menu-trigger");
-    const content = trigger && document.getElementById(trigger.getAttribute("aria-controls"));
-    if (!pane || !tab || !content) return null;
-    paneMenu.paneId = paneId;
-    const term = isTermPane(pane);
-    const live = term && !!pane.runtimeId && !pane.remote && !tab.remote;
-    const show = {
-      focus: where === "row",
-      "split-h": !tab.remote && !pane.remote,
-      "split-v": !tab.remote && !pane.remote,
-      zoom: where === "bar" && (leafCount(tab.layout) > 1 || tab.zoomedPaneId === paneId),
-      share: live,
-      reconnect: live && pane.status === "is-error",
-      close: true,
-    };
-    content.querySelectorAll("[data-pane-act]").forEach((item) => {
-      item.hidden = !show[item.dataset.paneAct];
-    });
-    return trigger;
-  }
-
-  function openPaneMenu(paneId, where, detail) {
-    const trigger = preparePaneMenu(paneId, where);
-    if (!trigger) return;
-    trigger.dispatchEvent(new CustomEvent("tui-dropdownmenu-open-at", { bubbles: true, detail }));
-  }
-
-  function runPaneMenuAction(act) {
-    const pane = state.panes.get(paneMenu.paneId);
-    if (!pane) return;
-    if (act === "focus") pickPane(pane.id);
-    else if (act === "split-h") splitPane(pane.id, "h");
-    else if (act === "split-v") splitPane(pane.id, "v");
-    else if (act === "zoom") togglePaneZoom(pane.id);
-    else if (act === "share") {
-      markFocusedPane(pane);
-      sharePopover.open();
-    } else if (act === "reconnect") reconnectPane(pane);
-    else if (act === "close") closePane(pane.id);
-  }
+  // The pane menu (PaneMenu in internal/ui/rowmenus.templ, ui/panemenu.js).
+  const paneMenu = createPaneMenu({
+    pane: (id) => state.panes.get(id),
+    tab: (id) => state.tabs.get(id),
+    isTermPane,
+    panesIn: (tab) => leafCount(tab.layout),
+    act: {
+      focus: (pane) => pickPane(pane.id),
+      splitH: (pane) => splitPane(pane.id, "h"),
+      splitV: (pane) => splitPane(pane.id, "v"),
+      zoom: (pane) => togglePaneZoom(pane.id),
+      share: (pane) => {
+        markFocusedPane(pane);
+        sharePopover.open();
+      },
+      reconnect: (pane) => reconnectPane(pane),
+      close: (pane) => closePane(pane.id),
+    },
+  });
 
   // menuContent is the content a hidden menu trigger opens.
   function menuContent(trigger) {
@@ -7966,7 +7936,7 @@ import { openExternal } from "./lib/openlink.js";
       if (more) {
         ev.preventDefault();
         // Keyboard activation (Enter / Space) puts focus on the first item.
-        openPaneMenu(more.dataset.paneMore, "bar", { anchor: more, returnFocus: more, focusFirst: ev.detail === 0 });
+        paneMenu.open(more.dataset.paneMore, "bar", { anchor: more, returnFocus: more, focusFirst: ev.detail === 0 });
         return;
       }
       const nbPriv = ev.target.closest("[data-notebook-private-toggle]");
@@ -8297,7 +8267,7 @@ import { openExternal } from "./lib/openlink.js";
       const paneAct = ev.target.closest("[data-pane-act]");
       if (paneAct) {
         ev.preventDefault();
-        runPaneMenuAction(paneAct.dataset.paneAct);
+        paneMenu.run(paneAct.dataset.paneAct);
         return;
       }
       const termAct = ev.target.closest("[data-term-act]");
@@ -8749,7 +8719,7 @@ import { openExternal } from "./lib/openlink.js";
       if (row.dataset.rowMenu === "card") return prepareCardMenu(row, at) || false;
       if (row.dataset.rowMenu !== "pane") return undefined;
       const paneId = row.dataset.paneRow || row.closest(".term-wrap")?.dataset.paneId || "";
-      return preparePaneMenu(paneId, row.dataset.paneRow ? "row" : "bar") || false;
+      return paneMenu.prepare(paneId, row.dataset.paneRow ? "row" : "bar") || false;
     },
   });
   // Notebook code blocks: right-click, ⇧F10 and the Menu key on the bar.
