@@ -74,8 +74,8 @@ test("keystrokes reach a PTY only through ptyWritesBlocked and isDriving", () =>
 
 test("a follower's xterm stays read-only", () => {
   const rc = squash(body("renderControl"));
-  assert.ok(rc.includes("if (pane.term) pane.term.options.disableStdin = !isDriving(pane);"), "disableStdin no longer follows the role");
-  assert.ok(squash(body("sendResize")).startsWith("function sendResize(pane) { if (!pane || !isDriving(pane) || !pane.term) return;"));
+  assert.ok(rc.includes("if (viewOf(pane).term) viewOf(pane).term.options.disableStdin = !isDriving(pane);"), "disableStdin no longer follows the role");
+  assert.ok(squash(body("sendResize")).startsWith("function sendResize(pane) { if (!pane || !isDriving(pane) || !viewOf(pane).term) return;"));
 });
 
 test("the typing toast only listens: it neither cancels nor sends keys", () => {

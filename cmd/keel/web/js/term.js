@@ -283,7 +283,7 @@ import { openExternal } from "./lib/openlink.js";
   function restoreTermKeyboard() {
     releaseSidebarFocus();
     const pane = focusedPane();
-    if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) pane.term?.focus?.();
+    if (pane && !isNotebookPane(pane) && !termInputOpen(pane)) viewOf(pane).term?.focus?.();
   }
 
   function applySidebar() {
@@ -724,14 +724,14 @@ import { openExternal } from "./lib/openlink.js";
     const size = state.prefs.size;
     const glass = isVibrant();
     for (const p of state.panes.values()) {
-      if (!p.term) continue;
-      p.term.options.allowTransparency = glass;
-      p.term.options.theme = theme;
-      p.term.options.fontFamily = family;
-      p.term.options.fontSize = size;
-      p.term.options.lineHeight = 1;
-      p.term.options.letterSpacing = 0;
-      p.term.options.customGlyphs = true;
+      if (!viewOf(p).term) continue;
+      viewOf(p).term.options.allowTransparency = glass;
+      viewOf(p).term.options.theme = theme;
+      viewOf(p).term.options.fontFamily = family;
+      viewOf(p).term.options.fontSize = size;
+      viewOf(p).term.options.lineHeight = 1;
+      viewOf(p).term.options.letterSpacing = 0;
+      viewOf(p).term.options.customGlyphs = true;
       if (isFindOpen(p)) runPaneFind(p, "next", true);
     }
     fitVisiblePanes();
@@ -744,10 +744,10 @@ import { openExternal } from "./lib/openlink.js";
   // until a window resize happens to re-measure. Re-measure once fonts load.
   function remeasureTerminalFonts() {
     for (const p of state.panes.values()) {
-      if (!p.term) continue;
-      const family = p.term.options.fontFamily;
-      p.term.options.fontFamily = `${family} `;
-      p.term.options.fontFamily = family;
+      if (!viewOf(p).term) continue;
+      const family = viewOf(p).term.options.fontFamily;
+      viewOf(p).term.options.fontFamily = `${family} `;
+      viewOf(p).term.options.fontFamily = family;
     }
     fitVisiblePanes();
   }
@@ -871,7 +871,7 @@ import { openExternal } from "./lib/openlink.js";
       joinPrompts.forget(pane.runtimeId);
       shareControl.forgetSession(pane.runtimeId);
     },
-    refocus: () => focusedPane()?.term?.focus(),
+    refocus: () => viewOf(focusedPane())?.term?.focus(),
   });
 
   // ---- Control requests and follower feedback (§5.6, §5.7, ui/sharecontrol.js)
@@ -1451,19 +1451,43 @@ import { openExternal } from "./lib/openlink.js";
     return W.focusedPane(state);
   }
 
-  // A pane's view: its elements and what draws into them, apart from its
-  // record (lib/workspace.js). Keyed by the record, so a callback that
-  // still holds a closed pane finds the same elements it did before.
+  // A pane is three parts, each keyed by the pane's record (lib/workspace.js
+  // holds the record): its view and its connection. Keyed by the record,
+  // so a callback that still holds a closed pane finds what it did before;
+  // of no pane, each is an empty object.
+  //
+  // The view: what shows the pane.
+  //   term, fit, pending                            xterm, its fit addon, bytes not yet written
   //   wrap, host, banner, findEl, failEl, inputEl   the pane's elements
   //   search, cmdMarks                              xterm addons
-  //   body, mdEditor, _docEl                        a notebook's
-  //   fitObs, webglGuard, suggest                   set up later
+  //   body, mdEditor, _docEl, _metaKey              a notebook's
+  //   fitObs, webglGuard, suggest, _invalidate,     set up later
+  //   restoreWords
+  //   _inputFromNotebook, _inputAgentNote           what the CLI input holds
   const paneViews = new WeakMap();
   function viewOf(pane) {
-    return (pane && paneViews.get(pane)) || {};
+    if (!pane) return {};
+    let v = paneViews.get(pane);
+    if (!v) paneViews.set(pane, (v = {}));
+    return v;
+  }
+  // The connection: how the pane reaches its session or its notebook.
+  //   ws, wsGen, dc, joinPeer      the session socket, its generation, a joined share's channel and peer
+  //   closing, startingOver        the pane is going; a reconnect is under way
+  //   agentTypeWaiter, injectTicketWaiter, agentInsertWaiter, directWaiters, directBusy
+  //                                answers keel serve owes the pane
+  //   _autosave, _saveFailed       a notebook's saving
+  const paneConns = new WeakMap();
+  function connOf(pane) {
+    if (!pane) return {};
+    let c = paneConns.get(pane);
+    if (!c) paneConns.set(pane, (c = {}));
+    return c;
   }
   function setPaneView(pane, shell) {
     paneViews.set(pane, {
+      term: shell.term,
+      fit: shell.fit,
       host: shell.host,
       wrap: shell.wrap,
       banner: shell.banner,
@@ -1988,7 +2012,7 @@ import { openExternal } from "./lib/openlink.js";
     const pane = tab ? focusedPane() : null;
     const paneEl = document.getElementById("sb-pane");
     const syncEl = document.getElementById("sb-sync");
-    const term = pane && isTermPane(pane) ? pane.term : null;
+    const term = pane && isTermPane(pane) ? viewOf(pane).term : null;
     if (paneEl) {
       paneEl.hidden = !term;
       if (term) setText(paneEl, `${pane.title || "session"} · ${term.cols}×${term.rows} · UTF-8`);
@@ -2014,7 +2038,7 @@ import { openExternal } from "./lib/openlink.js";
     applySidebarSeg();
     if (!isNotebookPane(pane) && !termInputOpen(pane)) {
       releaseSidebarFocus();
-      pane.term?.focus();
+      viewOf(pane).term?.focus();
     }
     syncSessionSurface();
   }
@@ -2028,26 +2052,26 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function flushPanePending(pane) {
-    if (!pane?.pending?.length || !pane.term?.element) return;
-    const chunks = pane.pending;
-    pane.pending = [];
+    if (!viewOf(pane)?.pending?.length || !viewOf(pane).term?.element) return;
+    const chunks = viewOf(pane).pending;
+    viewOf(pane).pending = [];
     // Invalidate once xterm has parsed the last chunk, as writePaneBytes does.
     const last = chunks.pop();
-    for (const chunk of chunks) pane.term.write(chunk);
-    pane.term.write(last, () => schedulePaneInvalidate(pane));
+    for (const chunk of chunks) viewOf(pane).term.write(chunk);
+    viewOf(pane).term.write(last, () => schedulePaneInvalidate(pane));
   }
 
   function writePaneBytes(pane, data) {
     if (!isTermPane(pane)) return;
     const chunk = data instanceof Uint8Array ? data : new Uint8Array(data);
-    if (!pane.term?.element) {
-      if (!pane.pending) pane.pending = [];
-      pane.pending.push(chunk);
+    if (!viewOf(pane).term?.element) {
+      if (!viewOf(pane).pending) viewOf(pane).pending = [];
+      viewOf(pane).pending.push(chunk);
       return;
     }
     // Invalidate once xterm has parsed the chunk; scheduling before the parse
     // would spend the throttle's first slot on a frame without the new text.
-    pane.term.write(chunk, () => schedulePaneInvalidate(pane));
+    viewOf(pane).term.write(chunk, () => schedulePaneInvalidate(pane));
   }
 
   // WKWebView often keeps a stale compositor layer for the WebGL canvas after
@@ -2055,10 +2079,10 @@ import { openExternal } from "./lib/openlink.js";
   // whole grid and blinks on every keystroke. Refresh + a subpixel canvas
   // layer nudge republishes the GPU texture without changing PTY size.
   function invalidatePaneRender(pane) {
-    if (!isNativeWindow() || !pane?.term?.element) return;
+    if (!isNativeWindow() || !viewOf(pane)?.term?.element) return;
     try {
-      const rows = pane.term.rows;
-      pane.term.refresh(0, Math.max(0, (rows || 1) - 1));
+      const rows = viewOf(pane).term.rows;
+      viewOf(pane).term.refresh(0, Math.max(0, (rows || 1) - 1));
       kickNativeCanvasCompositor(pane);
     } catch {
       /* ignore */
@@ -2066,7 +2090,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function kickNativeCanvasCompositor(pane) {
-    const root = pane.term?.element;
+    const root = viewOf(pane).term?.element;
     if (!root) return;
     for (const canvas of root.querySelectorAll("canvas")) {
       const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
@@ -2084,32 +2108,32 @@ import { openExternal } from "./lib/openlink.js";
   const PANE_INVALIDATE_MS = 50;
 
   function schedulePaneInvalidate(pane) {
-    if (!isNativeWindow() || !pane || !pane.term?._keelWebgl) return;
-    if (!pane._invalidate) pane._invalidate = createFrameThrottle({ intervalMs: PANE_INVALIDATE_MS });
-    pane._invalidate.schedule(() => {
+    if (!isNativeWindow() || !pane || !viewOf(pane).term?._keelWebgl) return;
+    if (!viewOf(pane)._invalidate) viewOf(pane)._invalidate = createFrameThrottle({ intervalMs: PANE_INVALIDATE_MS });
+    viewOf(pane)._invalidate.schedule(() => {
       if (viewOf(pane).wrap?.isConnected) invalidatePaneRender(pane);
     });
   }
 
   function reflowPane(pane) {
-    if (!viewOf(pane)?.wrap?.isConnected || !pane.term || !pane.fit) return;
+    if (!viewOf(pane)?.wrap?.isConnected || !viewOf(pane).term || !viewOf(pane).fit) return;
     try {
-      if (!pane.term.element) return;
-      let cell = pane.term._core?._renderService?.dimensions?.css?.cell;
+      if (!viewOf(pane).term.element) return;
+      let cell = viewOf(pane).term._core?._renderService?.dimensions?.css?.cell;
       if (!cell?.width || !cell?.height) {
-        pane.term.resize(80, 24);
-        cell = pane.term._core?._renderService?.dimensions?.css?.cell;
+        viewOf(pane).term.resize(80, 24);
+        cell = viewOf(pane).term._core?._renderService?.dimensions?.css?.cell;
       }
       const box = paneBodyBox(pane);
       if (box && cell?.width && cell?.height) {
-        const ruler = pane.term.options.overviewRuler?.width || 0;
+        const ruler = viewOf(pane).term.options.overviewRuler?.width || 0;
         const cols = Math.max(2, Math.floor((box.width - ruler) / cell.width));
         const rows = Math.max(1, Math.floor(box.height / cell.height));
-        if (cols !== pane.term.cols || rows !== pane.term.rows) pane.term.resize(cols, rows);
+        if (cols !== viewOf(pane).term.cols || rows !== viewOf(pane).term.rows) viewOf(pane).term.resize(cols, rows);
       } else {
-        pane.fit.fit();
+        viewOf(pane).fit.fit();
       }
-      pane.term.refresh(0, Math.max(0, (pane.term.rows || 1) - 1));
+      viewOf(pane).term.refresh(0, Math.max(0, (viewOf(pane).term.rows || 1) - 1));
       sendResize(pane);
       flushPanePending(pane);
     } catch {
@@ -2118,22 +2142,22 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function syncNativeSplitTheme(pane) {
-    if (!isNativeWindow() || !pane?.term) return;
+    if (!isNativeWindow() || !viewOf(pane)?.term) return;
     // Split panes draw with WebGL like a solo pane and take the same
     // theme: under vibrancy a clear background over the
     // tinted .term-body (keel.css), otherwise the opaque --term-bg.
     const theme = { ...xtermTheme() };
     const glass = isVibrant();
-    if (pane.term.options.allowTransparency !== glass) pane.term.options.allowTransparency = glass;
+    if (viewOf(pane).term.options.allowTransparency !== glass) viewOf(pane).term.options.allowTransparency = glass;
     // renderTabs calls this for every pane on every render. A new theme
     // object, even with the same colors, makes xterm clear and re-upload the
     // WebGL glyph atlas, so only assign when a color actually changes.
-    if (JSON.stringify(pane.term.options.theme || {}) === JSON.stringify(theme)) return;
-    pane.term.options.theme = theme;
+    if (JSON.stringify(viewOf(pane).term.options.theme || {}) === JSON.stringify(theme)) return;
+    viewOf(pane).term.options.theme = theme;
   }
 
   function refreshPaneRender(pane) {
-    if (!pane?.term?.element) return;
+    if (!viewOf(pane)?.term?.element) return;
     syncNativeSplitTheme(pane);
     reflowPane(pane);
     invalidatePaneRender(pane);
@@ -2147,10 +2171,10 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function ensurePaneTerm(pane) {
-    if (!isTermPane(pane) || !pane?.term || !viewOf(pane).wrap?.isConnected) return;
-    if (!pane.term.element) {
+    if (!isTermPane(pane) || !viewOf(pane)?.term || !viewOf(pane).wrap?.isConnected) return;
+    if (!viewOf(pane).term.element) {
       if (!viewOf(pane).host) return;
-      pane.term.open(viewOf(pane).host);
+      viewOf(pane).term.open(viewOf(pane).host);
       observePaneFit(pane);
     }
     if (paneWantsWebgl(pane)) attachWebgl(pane);
@@ -2188,7 +2212,7 @@ import { openExternal } from "./lib/openlink.js";
     }
     if (!attached.length && !pane.you) return;
     viewOf(pane).wrap?.classList.toggle("is-follow", !isDriving(pane));
-    if (pane.term) pane.term.options.disableStdin = !isDriving(pane);
+    if (viewOf(pane).term) viewOf(pane).term.options.disableStdin = !isDriving(pane);
   }
 
   function setSettingsSection(id) {
@@ -2693,7 +2717,7 @@ import { openExternal } from "./lib/openlink.js";
         fitVisiblePanes();
         // Typing in the agent panel keeps the keyboard there.
         if (agentPanel?.focused()) return;
-        if (!isNotebookPane(pane) && !termInputOpen(pane)) pane?.term?.focus();
+        if (!isNotebookPane(pane) && !termInputOpen(pane)) viewOf(pane)?.term?.focus();
       });
     }
     agentPanel?.refresh();
@@ -2900,7 +2924,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function liveCount(hostId) {
     let n = 0;
-    for (const p of state.panes.values()) if (isTermPane(p) && p.hostId === hostId && !p.closing) n++;
+    for (const p of state.panes.values()) if (isTermPane(p) && p.hostId === hostId && !connOf(p).closing) n++;
     return n;
   }
 
@@ -3262,7 +3286,7 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     if (!viewOf(pane).cmdMarks.jump(dir)) toast(dir < 0 ? "No earlier command" : "No later command");
-    pane.term?.focus();
+    viewOf(pane).term?.focus();
   }
 
   function paletteCatalog() {
@@ -3551,7 +3575,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!els.cmdPalette) return;
     if (state.openModal && state.openModal !== els.cmdPalette) closeModal();
     paletteList.reset();
-    focusedPane()?.term?.blur?.();
+    viewOf(focusedPane())?.term?.blur?.();
     openModal(els.cmdPalette);
     setSessionSurface("palette");
     requestAnimationFrame(() => els.cmdPaletteInput?.focus({ preventScroll: true }));
@@ -3585,8 +3609,8 @@ import { openExternal } from "./lib/openlink.js";
     }
     if (sess) sess.textContent = sessionLabel || "the focused session";
     if (preview) preview.textContent = command;
-    focusedPane()?.term?.blur?.();
-    focusedPane()?.term?.clearSelection?.();
+    viewOf(focusedPane())?.term?.blur?.();
+    viewOf(focusedPane())?.term?.clearSelection?.();
     return new Promise((resolve) => {
       ptyInjectWaiter = resolve;
       openModal(modal);
@@ -3624,7 +3648,7 @@ import { openExternal } from "./lib/openlink.js";
     if (TD.directHint(line)) {
       const r = await typeDirect(pane, line, { kind: "snippet", snippetId: sn.id });
       if (r.ok) {
-        pane.term?.clearSelection?.();
+        viewOf(pane).term?.clearSelection?.();
         focusForReview(pane);
         toast(TD.typedNote(pane.title || pane.subtitle || "the pane"));
         return;
@@ -3638,7 +3662,7 @@ import { openExternal } from "./lib/openlink.js";
     const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session");
     if (!ok) return;
     holdPtyFromChrome();
-    pane.term?.clearSelection?.();
+    viewOf(pane).term?.clearSelection?.();
     await sendApprovedInject("\u0015" + command, pane);
   }
 
@@ -3798,10 +3822,10 @@ import { openExternal } from "./lib/openlink.js";
     // htop read it.
     if (ev.key === "ContextMenu" && isMenuKey(ev) && state.prefs.rightClick === "menu") {
       const pane = focusedPane();
-      if (pane?.term && isTermPane(pane)) {
+      if (viewOf(pane)?.term && isTermPane(pane)) {
         ev.preventDefault();
-        const anchor = pane.term.textarea || viewOf(pane).host;
-        termMenu.open(pane, { anchor, returnFocus: pane.term.textarea || null, focusFirst: true }, { fromKey: true });
+        const anchor = viewOf(pane).term.textarea || viewOf(pane).host;
+        termMenu.open(pane, { anchor, returnFocus: viewOf(pane).term.textarea || null, focusFirst: true }, { fromKey: true });
         return false;
       }
     }
@@ -3815,25 +3839,25 @@ import { openExternal } from "./lib/openlink.js";
   function canSuggestIn(pane) {
     if (!pane || pane.remote || !isTermPane(pane) || !pane.runtimeId || !isDriving(pane)) return false;
     if (state.tabs.get(pane.tabId)?.remote) return false;
-    return pane.ws?.readyState === WebSocket.OPEN;
+    return connOf(pane).ws?.readyState === WebSocket.OPEN;
   }
 
   function wirePaneSuggest(pane) {
     if (pane.remote || !viewOf(pane).host?.parentElement) return;
     viewOf(pane).suggest = createPaneSuggest({
-      term: pane.term,
+      term: viewOf(pane).term,
       body: viewOf(pane).host.parentElement,
       mac: isMac,
       canSuggest: () => canSuggestIn(pane) && focusedPane() === pane && !ptyWritesBlocked(),
       send: (obj) => sendSessionJSON(pane, obj),
       insert: (sug, index, shift, words) => insertSuggestion(pane, sug, index, shift, words),
       // ⌘Z: the user's own words back, as their keystrokes (wirePaneTerminal).
-      restore: (bytes) => pane.restoreWords?.(bytes),
+      restore: (bytes) => viewOf(pane).restoreWords?.(bytes),
     });
     const follow = () => viewOf(pane).suggest?.onRender();
-    pane.term.onRender?.(follow);
-    pane.term.onScroll?.(follow);
-    pane.term.onResize?.(follow);
+    viewOf(pane).term.onRender?.(follow);
+    viewOf(pane).term.onScroll?.(follow);
+    viewOf(pane).term.onResize?.(follow);
     // The native window's Edit › Undo (⌘Z) may reach the page as an undo
     // of xterm's hidden textarea instead of a keydown.
     viewOf(pane).host.addEventListener(
@@ -3846,8 +3870,8 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function settleAgentInsert(pane, msg) {
-    const done = pane.agentInsertWaiter;
-    pane.agentInsertWaiter = null;
+    const done = connOf(pane).agentInsertWaiter;
+    connOf(pane).agentInsertWaiter = null;
     if (typeof done === "function") done({ ok: msg.ok === true, message: msg.message || "" });
   }
 
@@ -3865,18 +3889,18 @@ import { openExternal } from "./lib/openlink.js";
     // Right before the write: still at a shell prompt (not a full-screen
     // app), still the words the suggestion was for, and no dialog holding
     // the keyboard. Otherwise drop the card and write nothing.
-    const line = readPromptLine(pane.term);
-    if (ptyWritesBlocked() || pane.term?.buffer?.active?.type !== "normal" || !line || line.input !== words) {
+    const line = readPromptLine(viewOf(pane).term);
+    if (ptyWritesBlocked() || viewOf(pane).term?.buffer?.active?.type !== "normal" || !line || line.input !== words) {
       return { ok: false, dropped: true };
     }
     const result = new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (pane.agentInsertWaiter) {
-          pane.agentInsertWaiter = null;
+        if (connOf(pane).agentInsertWaiter) {
+          connOf(pane).agentInsertWaiter = null;
           resolve({ ok: false, message: "keel serve did not answer." });
         }
       }, 4000);
-      pane.agentInsertWaiter = (r) => {
+      connOf(pane).agentInsertWaiter = (r) => {
         clearTimeout(timer);
         resolve(r);
       };
@@ -3887,7 +3911,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function wirePaneTerminal(pane) {
-    const term = pane.term;
+    const term = viewOf(pane).term;
     wirePaneSuggest(pane);
     term.attachCustomKeyEventHandler(termKeyHandler);
     term.onData((data) => {
@@ -3906,7 +3930,7 @@ import { openExternal } from "./lib/openlink.js";
     });
     // ⌘Z after an insert (§5.5): the user's own words back, as their
     // keystrokes, to this pane only (the insert went to this pane only).
-    pane.restoreWords = (text) => {
+    viewOf(pane).restoreWords = (text) => {
       if (ptyWritesBlocked()) return;
       if (!isDriving(pane) || !isTermPane(pane) || pane.remote) return;
       sendSessionBytes(pane, new TextEncoder().encode(text));
@@ -3943,7 +3967,7 @@ import { openExternal } from "./lib/openlink.js";
       if (own && !own.closest(".xterm")) return;
       if (act === "menu") {
         ev.preventDefault();
-        termMenu.open(pane, { x: ev.clientX, y: ev.clientY, returnFocus: pane.term?.textarea || null, focusFirst: false });
+        termMenu.open(pane, { x: ev.clientX, y: ev.clientY, returnFocus: viewOf(pane).term?.textarea || null, focusFirst: false });
       } else if (act === "none") {
         ev.preventDefault();
       }
@@ -3968,7 +3992,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function paneWantsWebgl(pane) {
-    if (!pane?.term) return false;
+    if (!viewOf(pane)?.term) return false;
     return webglGuard(pane).allowed();
   }
 
@@ -3978,7 +4002,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function attachWebgl(pane) {
-    const term = pane?.term;
+    const term = viewOf(pane)?.term;
     if (!term || term._keelWebgl || !paneWantsWebgl(pane)) return;
     const Ctor = window.WebglAddon?.WebglAddon || window.WebglAddon;
     if (typeof Ctor !== "function" || typeof term.loadAddon !== "function") return;
@@ -4000,7 +4024,7 @@ import { openExternal } from "./lib/openlink.js";
           return;
         }
         requestAnimationFrame(() => {
-          if (pane.closing || !viewOf(pane).wrap?.isConnected) return;
+          if (connOf(pane).closing || !viewOf(pane).wrap?.isConnected) return;
           attachWebgl(pane);
           invalidatePaneRender(pane);
         });
@@ -4025,9 +4049,9 @@ import { openExternal } from "./lib/openlink.js";
   function releaseOffscreenWebgl() {
     const active = state.tabs.get(state.activeId);
     const shown = new Set(active && !active.page ? visiblePanes(active).map((p) => p.id) : []);
-    const panes = [...state.panes.values()].filter((p) => p.term);
+    const panes = [...state.panes.values()].filter((p) => viewOf(p).term);
     const { drop } = webglPlan(
-      panes.map((p) => ({ id: p.id, visible: shown.has(p.id), allowed: paneWantsWebgl(p), attached: !!p.term._keelWebgl })),
+      panes.map((p) => ({ id: p.id, visible: shown.has(p.id), allowed: paneWantsWebgl(p), attached: !!viewOf(p).term._keelWebgl })),
     );
     for (const id of drop) dropWebgl(state.panes.get(id));
   }
@@ -4036,10 +4060,10 @@ import { openExternal } from "./lib/openlink.js";
   // the addon's dispose only removes the canvas, and WebKit would count the
   // context against its cap until garbage collection.
   function dropWebgl(pane) {
-    const addon = pane?.term?._keelWebgl;
+    const addon = viewOf(pane)?.term?._keelWebgl;
     if (!addon) return;
     addon._keelDropped = true;
-    pane.term._keelWebgl = null;
+    viewOf(pane).term._keelWebgl = null;
     const gl = addon._renderer?._gl;
     try {
       addon.dispose();
@@ -4182,7 +4206,7 @@ import { openExternal } from "./lib/openlink.js";
     if (count) count.textContent = "";
     if (refocus) {
       try {
-        pane.term?.focus();
+        viewOf(pane).term?.focus();
       } catch {
         /* ignore */
       }
@@ -4378,7 +4402,7 @@ import { openExternal } from "./lib/openlink.js";
       if (leftover) closeTab(leftover.id);
       renderTabs();
       if (!sessionSocketOpen(existing)) reconnectPane(existing);
-      existing.term?.focus();
+      viewOf(existing).term?.focus();
       return existing;
     }
 
@@ -4393,13 +4417,10 @@ import { openExternal } from "./lib/openlink.js";
       title: info.title,
       subtitle: info.subtitle,
       status: info.status === "ready" ? "is-ready" : info.status === "connecting" ? "is-connecting" : info.status === "error" || info.status === "exited" ? "is-error" : "",
-      term: shell.term,
-      fit: shell.fit,
       failLog: [],
       failKind: info.status === "exited" ? "ended" : info.status === "error" ? "fail" : "",
       wasReady: info.status === "ready",
       color: info.color || "",
-      ws: null,
       you: null,
       attached: info.attached || [],
       driverId: info.driverId,
@@ -4436,15 +4457,15 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function sessionSocketOpen(pane) {
-    return pane?.ws?.readyState === WebSocket.OPEN;
+    return connOf(pane)?.ws?.readyState === WebSocket.OPEN;
   }
 
   function connectSessionWS(pane, opts = {}) {
     if (!isTermPane(pane) || !pane?.runtimeId || pane.remote) return;
-    const gen = (pane.wsGen || 0) + 1;
-    pane.wsGen = gen;
-    const prev = pane.ws;
-    pane.ws = null;
+    const gen = (connOf(pane).wsGen || 0) + 1;
+    connOf(pane).wsGen = gen;
+    const prev = connOf(pane).ws;
+    connOf(pane).ws = null;
     if (prev && prev.readyState < WebSocket.CLOSING) {
       try {
         prev.close();
@@ -4456,13 +4477,13 @@ import { openExternal } from "./lib/openlink.js";
     const ws = new WebSocket(
       sessionSocketURL(location, {
         runtimeId: pane.runtimeId,
-        cols: pane.term?.cols,
-        rows: pane.term?.rows,
+        cols: viewOf(pane).term?.cols,
+        rows: viewOf(pane).term?.rows,
         name: state.name,
       }),
     );
     ws.binaryType = "arraybuffer";
-    pane.ws = ws;
+    connOf(pane).ws = ws;
     ws.addEventListener("open", () => {
       if (isCommandPaletteOpen()) sendSessionJSON(pane, { type: "focus", surface: "palette" });
       else if (els.ptyInjectModal?.open || sidebarFocused() || isNotebookPane(focusedPane()) || termInputOpen()) sendSessionJSON(pane, { type: "focus", surface: "chrome" });
@@ -4512,14 +4533,14 @@ import { openExternal } from "./lib/openlink.js";
       error: (msg) => {
         W.updatePane(state, pane, { status: "is-error", failKind: "fail" });
         pushFailLog(pane, "fail", msg.message || "Connection failed");
-        pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
+        viewOf(pane).term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
         if (!promptHostKey(msg, { hostId: pane.hostId || msg.hostId, sessionId: pane.runtimeId || msg.sessionId })) {
           toast(msg.message, true);
         }
       },
     };
     ws.addEventListener("message", (ev) => {
-      if (pane.wsGen !== gen) return;
+      if (connOf(pane).wsGen !== gen) return;
       if (typeof ev.data === "string") {
         dispatchSessionMessage(parseSessionMessage(ev.data), handlers);
         return;
@@ -4527,11 +4548,11 @@ import { openExternal } from "./lib/openlink.js";
       if (live) writePaneBytes(pane, ev.data);
     });
     ws.addEventListener("close", () => {
-      if (pane.wsGen !== gen || pane.closing || !state.panes.has(pane.id)) return;
+      if (connOf(pane).wsGen !== gen || connOf(pane).closing || !state.panes.has(pane.id)) return;
       noteSessionClosed(pane, gen);
     });
     ws.addEventListener("error", () => {
-      if (pane.wsGen !== gen || pane.closing) return;
+      if (connOf(pane).wsGen !== gen || connOf(pane).closing) return;
       W.updatePane(state, pane, { status: "is-error", failKind: "lost" });
       pushFailLog(pane, "fail", "WebSocket error");
     });
@@ -4550,34 +4571,34 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   async function noteSessionClosed(pane, gen) {
-    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
+    if (connOf(pane).closing || (gen != null && connOf(pane).wsGen !== gen) || !state.panes.has(pane.id)) return;
     W.updatePane(state, pane, { status: "is-error" });
     const ended = await sessionEnded(pane.runtimeId);
-    if (pane.closing || (gen != null && pane.wsGen !== gen) || !state.panes.has(pane.id)) return;
+    if (connOf(pane).closing || (gen != null && connOf(pane).wsGen !== gen) || !state.panes.has(pane.id)) return;
     if (ended) {
       W.updatePane(state, pane, { status: "is-error", failKind: "ended" });
       pushFailLog(pane, "fail", "Runtime stopped — this session ended.");
-      pane.term.writeln("\r\n\x1b[90mRuntime stopped — this session ended.\x1b[0m");
+      viewOf(pane).term.writeln("\r\n\x1b[90mRuntime stopped — this session ended.\x1b[0m");
       return;
     }
     W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail" });
     pushFailLog(pane, "fail", pane.wasReady ? "Connection lost" : "Connection failed");
-    pane.term.writeln("\r\n\x1b[90mConnection lost — click Reconnect to attach.\x1b[0m");
+    viewOf(pane).term.writeln("\r\n\x1b[90mConnection lost — click Reconnect to attach.\x1b[0m");
   }
 
   function replaySessionSnapshot(pane) {
     try {
-      pane.term?.reset();
+      viewOf(pane).term?.reset();
     } catch {
       /* ignore */
     }
-    pane.pending = [];
+    viewOf(pane).pending = [];
   }
 
   function reconnectPane(pane) {
     if (!isTermPane(pane) || !pane?.runtimeId || pane.remote) return;
     const socketWasOpen = sessionSocketOpen(pane);
-    pane.startingOver = true;
+    connOf(pane).startingOver = true;
     W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail", failLog: [] });
     seedConnectLog(pane);
     W.updatePane(state, pane, { status: "is-connecting" });
@@ -4641,25 +4662,25 @@ import { openExternal } from "./lib/openlink.js";
     if (!msg) return;
     if (msg.status === "ready") {
       W.updatePane(state, pane, { wasReady: true, failKind: "", failLog: [] });
-      pane.startingOver = false;
+      connOf(pane).startingOver = false;
       return;
     }
     if (failNoise(msg.message)) return;
     if (msg.status === "connecting") {
-      if (/reconnect/i.test(msg.message || "") && !pane.startingOver && pane.wasReady) W.updatePane(state, pane, { failKind: "lost" });
+      if (/reconnect/i.test(msg.message || "") && !connOf(pane).startingOver && pane.wasReady) W.updatePane(state, pane, { failKind: "lost" });
       const fail = /fail|error|refused|timed out|timeout/i.test(msg.message);
       pushFailLog(pane, fail ? "fail" : "work", msg.message);
       return;
     }
     if (msg.status === "exited") {
       W.updatePane(state, pane, { failKind: "ended" });
-      pane.startingOver = false;
+      connOf(pane).startingOver = false;
       pushFailLog(pane, "fail", msg.message || "Session ended");
       return;
     }
     if (msg.status === "error") {
       W.updatePane(state, pane, { failKind: pane.wasReady ? "lost" : "fail" });
-      pane.startingOver = false;
+      connOf(pane).startingOver = false;
       pushFailLog(pane, "fail", msg.message || "Connection failed");
     }
   }
@@ -4726,32 +4747,32 @@ import { openExternal } from "./lib/openlink.js";
   // settleInjectTicket hands the server's nonce to whoever is waiting for
   // it (requestInjectTicket).
   function settleInjectTicket(pane, nonce) {
-    const done = pane.injectTicketWaiter;
-    pane.injectTicketWaiter = null;
+    const done = connOf(pane).injectTicketWaiter;
+    connOf(pane).injectTicketWaiter = null;
     if (typeof done === "function") done(nonce);
   }
 
   function sendSessionJSON(pane, obj) {
     const raw = JSON.stringify(obj);
     if (pane?.remote) {
-      if (pane.dc?.readyState === "open") pane.dc.send(raw);
+      if (connOf(pane).dc?.readyState === "open") connOf(pane).dc.send(raw);
       return;
     }
-    if (pane?.ws?.readyState === WebSocket.OPEN) pane.ws.send(raw);
+    if (connOf(pane)?.ws?.readyState === WebSocket.OPEN) connOf(pane).ws.send(raw);
   }
 
   function sendSessionBytes(pane, bytes) {
     if (!isTermPane(pane) || !pane?.runtimeId) return;
     if (pane?.remote) {
-      if (pane.dc?.readyState === "open") pane.dc.send(bytes);
+      if (connOf(pane).dc?.readyState === "open") connOf(pane).dc.send(bytes);
       return;
     }
-    if (pane?.ws?.readyState === WebSocket.OPEN) pane.ws.send(bytes);
+    if (connOf(pane)?.ws?.readyState === WebSocket.OPEN) connOf(pane).ws.send(bytes);
   }
 
   function sendResize(pane) {
-    if (!pane || !isDriving(pane) || !pane.term) return;
-    sendSessionJSON(pane, { type: "resize", cols: pane.term.cols, rows: pane.term.rows });
+    if (!pane || !isDriving(pane) || !viewOf(pane).term) return;
+    sendSessionJSON(pane, { type: "resize", cols: viewOf(pane).term.cols, rows: viewOf(pane).term.rows });
   }
 
   function sendControl(type, extra = {}) {
@@ -4762,7 +4783,7 @@ import { openExternal } from "./lib/openlink.js";
     if (!pane) return;
     // The edit is in pane.cells: save it rather than drop it (closing the
     // pane right after typing used to lose the last 400 ms of edits).
-    pane._autosave?.flush();
+    connOf(pane)._autosave?.flush();
     try {
       viewOf(pane).mdEditor?.destroy?.();
     } catch {
@@ -4774,19 +4795,19 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function disposePane(pane) {
-    pane.closing = true;
+    connOf(pane).closing = true;
     disposeNotebookEditor(pane);
     viewOf(pane).fitObs?.disconnect();
     viewOf(pane).fitObs = null;
     dropWebgl(pane);
-    pane.ws?.close();
+    connOf(pane).ws?.close();
     try {
-      pane.joinPeer?.close();
+      connOf(pane).joinPeer?.close();
     } catch {
       /* ignore */
     }
     try {
-      pane.term?.dispose?.();
+      viewOf(pane).term?.dispose?.();
     } catch {
       /* ignore */
     }
@@ -4796,7 +4817,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function killRuntimeIfOwned(pane, opts = {}) {
     if (opts.fromHerd || opts.remote || pane.remote || !pane.runtimeId) return;
-    pane.closing = true;
+    connOf(pane).closing = true;
     api(`/api/sessions/${pane.runtimeId}`, { method: "DELETE" }).catch(() => {});
   }
 
@@ -5052,7 +5073,7 @@ import { openExternal } from "./lib/openlink.js";
       W.updatePane(state, pane, { title: rec.name });
       pane.pinned = !!rec.pinned;
       pane.rev = rec.rev || 0;
-      pane._saveFailed = false;
+      connOf(pane)._saveFailed = false;
       if (rec.replacedAgentEdit) toast("Saved your typing over an agent edit this pane had not loaded. The agent's version is in History.");
       if (Array.isArray(rec.cells) && rec.cells.length === pane.cells.length) {
         rec.cells.forEach((cell, i) => {
@@ -5061,13 +5082,13 @@ import { openExternal } from "./lib/openlink.js";
       }
       rememberNotebook(rec);
       // A pane closed with an edit pending saves after it is gone.
-      if (pane.closing) return;
+      if (connOf(pane).closing) return;
       const tab = state.tabs.get(pane.tabId);
       if (tab) syncPaneChrome(tab, pane);
       persistWorkspace();
       paintSidebar();
     } catch (err) {
-      pane._saveFailed = true;
+      connOf(pane)._saveFailed = true;
       toast(err.message || "Could not save notebook", true);
     }
   }
@@ -5077,8 +5098,8 @@ import { openExternal } from "./lib/openlink.js";
   // The pane's autosave runs one save at a time, the first POST included,
   // so a new notebook is never created twice.
   function notebookAutosave(pane) {
-    if (!pane._autosave) pane._autosave = createAutosave({ save: () => persistNotebook(pane) });
-    return pane._autosave;
+    if (!connOf(pane)._autosave) connOf(pane)._autosave = createAutosave({ save: () => persistNotebook(pane) });
+    return connOf(pane)._autosave;
   }
 
   function scheduleNotebookSave(pane) {
@@ -5097,8 +5118,8 @@ import { openExternal } from "./lib/openlink.js";
   // id, or of every notebook pane. Rename and pin send the stored cells, so
   // they flush first; so does an ask, so the agent reads what was typed.
   function flushNotebookSaves(id) {
-    const panes = [...state.panes.values()].filter((p) => isNotebookPane(p) && p._autosave && (!id || p.notebookId === id));
-    return Promise.all(panes.map((p) => p._autosave.flush()));
+    const panes = [...state.panes.values()].filter((p) => isNotebookPane(p) && connOf(p)._autosave && (!id || p.notebookId === id));
+    return Promise.all(panes.map((p) => connOf(p)._autosave.flush()));
   }
 
   let pageHiding = false;
@@ -5249,7 +5270,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function paintNotebook(pane) {
     const body = viewOf(pane).body || viewOf(pane).wrap?.querySelector(".notebook-pane");
-    if (!body || !isNotebookPane(pane) || pane.closing) return;
+    if (!body || !isNotebookPane(pane) || connOf(pane).closing) return;
     if (!Array.isArray(pane.cells) || !pane.cells.length) {
       pane.cells = [{ id: uid("cell"), body: DEFAULT_NOTEBOOK_MD }];
     }
@@ -5270,7 +5291,7 @@ import { openExternal } from "./lib/openlink.js";
       <div class="notebook-doc" data-notebook-doc="${pane.id}"></div>
     </article>`;
     viewOf(pane)._docEl = body.querySelector("[data-notebook-doc]");
-    pane._metaKey = null;
+    viewOf(pane)._metaKey = null;
     mountNotebookEditor(pane);
     syncNotebookMeta(pane);
     syncNotebookReview(pane);
@@ -5290,7 +5311,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function notebookDirty(pane) {
     // A save that failed leaves typing that is only in the page.
-    return !!(pane?._autosave?.pending || pane?._saveFailed);
+    return !!(connOf(pane)?._autosave?.pending || connOf(pane)?._saveFailed);
   }
 
   function editingNotebooks() {
@@ -5305,10 +5326,10 @@ import { openExternal } from "./lib/openlink.js";
     if (!rec?.id) return;
     rememberNotebook(rec);
     for (const pane of state.panes.values()) {
-      if (!isNotebookPane(pane) || pane.notebookId !== rec.id || pane.closing) continue;
+      if (!isNotebookPane(pane) || pane.notebookId !== rec.id || connOf(pane).closing) continue;
       if (notebookDirty(pane)) {
         if (opts.byAgent) toast("The agent edited a notebook you are typing in. Your typing is kept; the agent's version is in History.");
-        pane._metaKey = null;
+        viewOf(pane)._metaKey = null;
         syncNotebookMeta(pane);
         syncNotebookReview(pane);
         continue;
@@ -5371,7 +5392,7 @@ import { openExternal } from "./lib/openlink.js";
     rememberNotebook(cur ? { ...cur, private: rec.private, agentUnreviewed: rec.agentUnreviewed, agentEditedAt: rec.agentEditedAt } : rec);
     for (const pane of state.panes.values()) {
       if (!isNotebookPane(pane) || pane.notebookId !== rec.id) continue;
-      pane._metaKey = null;
+      viewOf(pane)._metaKey = null;
       syncNotebookMeta(pane);
       syncNotebookReview(pane);
     }
@@ -5499,7 +5520,7 @@ import { openExternal } from "./lib/openlink.js";
     }
     try {
       const text = await navigator.clipboard.readText();
-      if (text) pane.term?.paste(text);
+      if (text) viewOf(pane).term?.paste(text);
     } catch {
       toast("Clipboard paste blocked", true);
     }
@@ -5512,6 +5533,7 @@ import { openExternal } from "./lib/openlink.js";
     tab: (id) => state.tabs.get(id),
     isTermPane,
     isDriving,
+    termOf: (p) => viewOf(p).term,
     canFind: (p) => !!viewOf(p).search,
     copyText,
     toast,
@@ -5571,13 +5593,13 @@ import { openExternal } from "./lib/openlink.js";
   // fences' Type button when the target pane or the save date changes.
   // syncPaneChrome calls it, so splits, closes and connects keep it true.
   function syncNotebookMeta(pane) {
-    if (!isNotebookPane(pane) || pane.closing) return;
+    if (!isNotebookPane(pane) || connOf(pane).closing) return;
     const target = notebookTarget(pane);
     const updated = notebookUpdated(pane);
     const rec = notebookById(pane.notebookId);
     const key = `${target?.name || ""}\n${target?.color || ""}\n${updated}\n${rec ? `${!!rec.private}${!!rec.agentUnreviewed}` : ""}`;
-    if (pane._metaKey === key) return;
-    pane._metaKey = key;
+    if (viewOf(pane)._metaKey === key) return;
+    viewOf(pane)._metaKey = key;
     viewOf(pane).mdEditor?.setTarget?.(target?.name || "");
     const meta = viewOf(pane).body?.querySelector("[data-notebook-meta]");
     if (!meta) return;
@@ -5607,7 +5629,7 @@ import { openExternal } from "./lib/openlink.js";
 
   function mountNotebookEditor(pane) {
     const host = viewOf(pane)._docEl;
-    if (!host || !isNotebookPane(pane) || pane.closing) return;
+    if (!host || !isNotebookPane(pane) || connOf(pane).closing) return;
     try {
       viewOf(pane).mdEditor?.destroy?.();
     } catch {
@@ -5625,7 +5647,7 @@ import { openExternal } from "./lib/openlink.js";
       markdown: notebookMarkdown(pane),
       target: notebookTarget(pane)?.name || "",
       onChange: (md) => {
-        if (pane.closing || !viewOf(pane).mdEditor) return;
+        if (connOf(pane).closing || !viewOf(pane).mdEditor) return;
         setNotebookMarkdown(pane, md);
         scheduleNotebookSave(pane);
       },
@@ -5658,8 +5680,8 @@ import { openExternal } from "./lib/openlink.js";
     if (area) area.value = String(text || "");
     viewOf(pane).inputEl.hidden = false;
     viewOf(pane).wrap?.classList.add("has-term-input");
-    pane.term?.blur?.();
-    pane.term?.clearSelection?.();
+    viewOf(pane).term?.blur?.();
+    viewOf(pane).term?.clearSelection?.();
     area?.focus({ preventScroll: true });
     area?.setSelectionRange?.(area.value.length, area.value.length);
     syncSessionSurface();
@@ -5670,8 +5692,8 @@ import { openExternal } from "./lib/openlink.js";
     if (!isTermPane(pane) || !viewOf(pane).inputEl) return;
     const area = viewOf(pane).inputEl.querySelector("[data-term-input]");
     if (area) area.value = "";
-    pane._inputFromNotebook = false;
-    pane._inputAgentNote = "";
+    viewOf(pane)._inputFromNotebook = false;
+    viewOf(pane)._inputAgentNote = "";
     viewOf(pane).inputEl.hidden = true;
     viewOf(pane).wrap?.classList.remove("has-term-input");
     syncSessionSurface();
@@ -5709,10 +5731,10 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     showTermInput(term, line);
-    term._inputFromNotebook = true;
+    viewOf(term)._inputFromNotebook = true;
     // An agent edit the user has not reviewed (§6 rule 12): the approve
     // dialog says so above the exact bytes.
-    term._inputAgentNote = notebookById(nbPane?.notebookId)?.agentUnreviewed
+    viewOf(term)._inputAgentNote = notebookById(nbPane?.notebookId)?.agentUnreviewed
       ? "The agent edited this notebook and you have not reviewed that edit. Read this command before you approve it: it may be the agent's."
       : "";
     markFocusedPane(term);
@@ -5775,14 +5797,14 @@ import { openExternal } from "./lib/openlink.js";
       return;
     }
     const command = line.endsWith("\n") ? line : line + "\n";
-    if (pane._inputFromNotebook && NB.hasPlaceholder(command)) {
+    if (viewOf(pane)._inputFromNotebook && NB.hasPlaceholder(command)) {
       toast(NB.PLACEHOLDER_REFUSED, true);
       return;
     }
-    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session", pane._inputFromNotebook ? pane._inputAgentNote || "" : "");
+    const ok = await approveBeforeType(command, pane.subtitle || pane.title || "session", viewOf(pane)._inputFromNotebook ? viewOf(pane)._inputAgentNote || "" : "");
     if (!ok) return;
     holdPtyFromChrome();
-    await sendApprovedInject(command, pane, pane._inputFromNotebook ? { notebook: true } : {});
+    await sendApprovedInject(command, pane, viewOf(pane)._inputFromNotebook ? { notebook: true } : {});
     closeTermInput(pane);
   }
 
@@ -5831,9 +5853,9 @@ import { openExternal } from "./lib/openlink.js";
   let directSeq = 0;
 
   function settleDirect(pane, msg) {
-    const done = pane.directWaiters?.get(msg?.ref);
+    const done = connOf(pane).directWaiters?.get(msg?.ref);
     if (!done) return;
-    pane.directWaiters.delete(msg.ref);
+    connOf(pane).directWaiters.delete(msg.ref);
     done(msg);
   }
 
@@ -5842,11 +5864,11 @@ import { openExternal } from "./lib/openlink.js";
   function askDirect(pane, frame, ms) {
     return new Promise((resolve) => {
       const ref = `d${++directSeq}`;
-      if (!pane.directWaiters) pane.directWaiters = new Map();
+      if (!connOf(pane).directWaiters) connOf(pane).directWaiters = new Map();
       const timer = setTimeout(() => {
-        if (pane.directWaiters.delete(ref)) resolve(null);
+        if (connOf(pane).directWaiters.delete(ref)) resolve(null);
       }, ms);
-      pane.directWaiters.set(ref, (msg) => {
+      connOf(pane).directWaiters.set(ref, (msg) => {
         clearTimeout(timer);
         resolve(msg);
       });
@@ -5855,7 +5877,7 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function directReady(pane, command) {
-    return !!pane && isTermPane(pane) && !pane.remote && isDriving(pane) && pane.ws?.readyState === WebSocket.OPEN && !TD.altScreen(pane.term) && TD.directLine(command);
+    return !!pane && isTermPane(pane) && !pane.remote && isDriving(pane) && connOf(pane).ws?.readyState === WebSocket.OPEN && !TD.altScreen(viewOf(pane).term) && TD.directLine(command);
   }
 
   // typeDirect asks keel serve to type command into pane, without Enter.
@@ -5867,15 +5889,15 @@ import { openExternal } from "./lib/openlink.js";
     if (!directReady(pane, command)) return { dialog: true, reason: "" };
     // One at a time per pane: a second click while the first is on its
     // way would type the command twice on the prompt line.
-    if (pane.directBusy) return { ok: false, message: "Still typing the last command into this pane." };
-    pane.directBusy = true;
+    if (connOf(pane).directBusy) return { ok: false, message: "Still typing the last command into this pane." };
+    connOf(pane).directBusy = true;
     try {
       const nonce = await requestInjectTicket(pane, command);
       if (!nonce) return { dialog: true, reason: "" };
       holdPtyFromChrome();
       // What this terminal shows goes with it: keel serve ORs it with its
       // own view (alternate screen, an input prompt on the cursor line).
-      const frame = { type: "inject", command, nonce, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
+      const frame = { type: "inject", command, nonce, direct: { ...direct, altScreen: TD.altScreen(viewOf(pane).term), promptLine: TD.cursorLine(viewOf(pane).term) } };
       if (agent) frame.agent = agent;
       const msg = await askDirect(pane, frame, 8000);
       // No answer: it may have been typed. Never open a dialog that could
@@ -5885,14 +5907,14 @@ import { openExternal } from "./lib/openlink.js";
       if (!msg.ok) return { ok: false, message: msg.message || "Not typed." };
       return { ok: true };
     } finally {
-      pane.directBusy = false;
+      connOf(pane).directBusy = false;
     }
   }
 
   // checkDirect asks whether typeDirect would type now (nothing written).
   async function checkDirect(pane, command, direct, agent = null) {
     if (!directReady(pane, command)) return false;
-    const frame = { type: "type-check", command, direct: { ...direct, altScreen: TD.altScreen(pane.term), promptLine: TD.cursorLine(pane.term) } };
+    const frame = { type: "type-check", command, direct: { ...direct, altScreen: TD.altScreen(viewOf(pane).term), promptLine: TD.cursorLine(viewOf(pane).term) } };
     if (agent) frame.agent = agent;
     const msg = await askDirect(pane, frame, 8000);
     return !!msg?.direct;
@@ -5907,20 +5929,20 @@ import { openExternal } from "./lib/openlink.js";
     reviewHold = heldKeys.size > 0;
     markFocusedPane(pane);
     renderTabs();
-    requestAnimationFrame(() => pane.term?.focus?.());
+    requestAnimationFrame(() => viewOf(pane).term?.focus?.());
   }
 
   function requestInjectTicket(pane, command) {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (pane.injectTicketWaiter) {
-          pane.injectTicketWaiter = null;
+        if (connOf(pane).injectTicketWaiter) {
+          connOf(pane).injectTicketWaiter = null;
           resolve("");
         }
       }, 2500);
-      pane.injectTicketWaiter = (nonce) => {
+      connOf(pane).injectTicketWaiter = (nonce) => {
         clearTimeout(timer);
-        pane.injectTicketWaiter = null;
+        connOf(pane).injectTicketWaiter = null;
         resolve(nonce || "");
       };
       sendSessionJSON(pane, { type: "inject-challenge", command });
@@ -5944,7 +5966,7 @@ import { openExternal } from "./lib/openlink.js";
     const targets = single ? [pane] : tab?.sync ? tabPanes(tab).filter((p) => isTermPane(p) && p.runtimeId) : [pane];
     let sent = false;
     for (const p of targets) {
-      const open = p.remote ? p.dc?.readyState === "open" : p.ws?.readyState === WebSocket.OPEN;
+      const open = p.remote ? connOf(p).dc?.readyState === "open" : connOf(p).ws?.readyState === WebSocket.OPEN;
       if (!open || !isDriving(p) || !isTermPane(p) || (single && p.remote)) continue;
       const nonce = await requestInjectTicket(p, command);
       if (!nonce) continue;
@@ -5959,7 +5981,7 @@ import { openExternal } from "./lib/openlink.js";
       toast(isDriving(pane) ? "Session is not connected" : "You are following — take or request control to type");
       return false;
     }
-    if (!isNotebookPane(focusedPane())) pane.term?.focus?.();
+    if (!isNotebookPane(focusedPane())) viewOf(pane).term?.focus?.();
     return true;
   }
 
@@ -6753,7 +6775,7 @@ import { openExternal } from "./lib/openlink.js";
     }
     if (existing) {
       activateTab(existing.tabId);
-      existing.term.focus();
+      viewOf(existing).term.focus();
       return;
     }
     const info = {
@@ -6773,11 +6795,6 @@ import { openExternal } from "./lib/openlink.js";
       title: "Follow",
       subtitle: info.subtitle,
       status: "",
-      term: shell.term,
-      fit: shell.fit,
-      ws: null,
-      joinPeer: null,
-      dc: null,
       remote: true,
       you: null,
       attached: [],
@@ -6798,7 +6815,7 @@ import { openExternal } from "./lib/openlink.js";
 
     const fail = (message, writeLine = true) => {
       W.updatePane(state, pane, { status: "is-error" });
-      if (writeLine) pane.term.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
+      if (writeLine) viewOf(pane).term.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
       toast(message, true);
     };
     const peer = openJoinPeer({
@@ -6807,7 +6824,7 @@ import { openExternal } from "./lib/openlink.js";
       key,
       name: state.name || "guest",
       on: {
-        waiting: () => pane.term.writeln("\x1b[90mWaiting for the host to let you in…\x1b[0m"),
+        waiting: () => viewOf(pane).term.writeln("\x1b[90mWaiting for the host to let you in…\x1b[0m"),
         failed: (message) => fail(message),
         hostLeft: () => toast("Host left"),
         signalingError: (message) => toast(message, true),
@@ -6818,27 +6835,27 @@ import { openExternal } from "./lib/openlink.js";
         channel: (dc) => attachFollowChannel(pane, dc, applyPresence),
       },
     });
-    pane.joinPeer = peer;
+    connOf(pane).joinPeer = peer;
     renderTabs();
   }
 
   // attachFollowChannel wires a joined share's data channel to its pane:
   // PTY bytes in, presence and control messages to the pane chrome.
   function attachFollowChannel(pane, dc, applyPresence) {
-    pane.dc = dc;
+    connOf(pane).dc = dc;
     dc.onopen = () => {
       W.updatePane(state, pane, { status: "is-ready" });
       sendResize(pane);
     };
     dc.onclose = () => {
       if (pane.status !== "is-error") W.updatePane(state, pane, { status: "" });
-      pane.term.writeln("\r\n\x1b[90mHost detached.\x1b[0m");
+      viewOf(pane).term.writeln("\r\n\x1b[90mHost detached.\x1b[0m");
     };
     const handlers = {
       injectChallenge: (nonce) => settleInjectTicket(pane, nonce),
       error: (msg) => {
         W.updatePane(state, pane, { status: "is-error" });
-        pane.term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
+        viewOf(pane).term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`);
         toast(msg.message, true);
       },
       status: (msg) => {
@@ -6918,8 +6935,8 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   function settleAgentType(pane, msg) {
-    const done = pane.agentTypeWaiter;
-    pane.agentTypeWaiter = null;
+    const done = connOf(pane).agentTypeWaiter;
+    connOf(pane).agentTypeWaiter = null;
     if (typeof done === "function") done({ ok: msg.ok === true, message: msg.message || "" });
   }
 
@@ -6947,12 +6964,12 @@ import { openExternal } from "./lib/openlink.js";
     holdPtyFromChrome();
     const result = new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (pane.agentTypeWaiter) {
-          pane.agentTypeWaiter = null;
+        if (connOf(pane).agentTypeWaiter) {
+          connOf(pane).agentTypeWaiter = null;
           resolve({ ok: false, message: "keel serve did not answer." });
         }
       }, 4000);
-      pane.agentTypeWaiter = (r) => {
+      connOf(pane).agentTypeWaiter = (r) => {
         clearTimeout(timer);
         resolve(r);
       };
@@ -7151,12 +7168,12 @@ import { openExternal } from "./lib/openlink.js";
     holdPtyFromChrome();
     const result = new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (pane.agentTypeWaiter) {
-          pane.agentTypeWaiter = null;
+        if (connOf(pane).agentTypeWaiter) {
+          connOf(pane).agentTypeWaiter = null;
           resolve({ ok: false, message: "keel serve did not answer" });
         }
       }, 4000);
-      pane.agentTypeWaiter = (r) => {
+      connOf(pane).agentTypeWaiter = (r) => {
         clearTimeout(timer);
         resolve(r);
       };

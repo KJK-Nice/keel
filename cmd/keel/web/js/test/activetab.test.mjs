@@ -60,7 +60,16 @@ test("term.js changes a pane's session record only through lib/workspace.js", ()
   assert.deepEqual(lines(/Object\.assign\(pane\b|failLog\.(push|shift|splice)\(/), []);
 });
 
-test("a pane's elements live in its view, not on the record", () => {
-  const field = /\b(pane|p)\??\.(host|wrap|banner|search|cmdMarks|findEl|failEl|inputEl|fitObs|webglGuard|suggest|_docEl|mdEditor|body)\b/;
-  assert.deepEqual(lines(field), []);
+test("a pane's view and connection live apart from its record", () => {
+  const view = "term|fit|pending|host|wrap|banner|search|cmdMarks|findEl|failEl|inputEl|fitObs|webglGuard|suggest|_docEl|mdEditor|body|_metaKey|_invalidate|restoreWords|_inputFromNotebook|_inputAgentNote";
+  const conn = "ws|wsGen|dc|joinPeer|closing|startingOver|agentTypeWaiter|injectTicketWaiter|agentInsertWaiter|directWaiters|directBusy|_autosave|_saveFailed";
+  assert.deepEqual(lines(new RegExp(`\\b(pane|p|existing)\\??\\.(${view}|${conn})\\b`)), []);
+  // A pane record is built with record fields only (session, notebook and join panes).
+  const built = [...src.matchAll(/const pane = \{\n([\s\S]*?)\n {4}\};/g)];
+  assert.equal(built.length, 3);
+  for (const at of [...src.matchAll(/const pane = \{\n([\s\S]*?)\n {4}\};/g)]) {
+    const keys = [...at[1].matchAll(/^ {6}(\w+)[:,]/gm)].map((m) => m[1]);
+    const bad = keys.filter((k) => new RegExp(`^(${view}|${conn})$`).test(k));
+    assert.deepEqual(bad, [], `a pane record has ${bad}`);
+  }
 });
