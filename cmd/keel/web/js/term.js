@@ -42,6 +42,8 @@ import { createPaneMenu } from "./ui/panemenu.js";
 import { createTerminalMenu } from "./ui/terminalmenu.js";
 import { createFenceMenu } from "./ui/fencemenu.js";
 import { createAgentCardMenu } from "./ui/agentcardmenu.js";
+import { createTabMenu } from "./ui/tabmenu.js";
+import { createTabRename } from "./ui/tabrename.js";
 import * as Share from "./lib/share.js";
 import * as W from "./lib/workspace.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
@@ -1592,8 +1594,6 @@ import { openExternal } from "./lib/openlink.js";
   let tabDrag = null;
   let paneDrag = null;
   let ignoreTabClick = false;
-  let tabRenaming = null;
-  let tabMenuTarget = "";
   let dropOverlay = null;
 
   function moveTabToIndex(fromId, toIndex) {
@@ -1648,37 +1648,10 @@ import { openExternal } from "./lib/openlink.js";
     wrap.toggleAttribute("data-overflow-right", max - el.scrollLeft > 1);
   }
 
-  function setTabMenuItem(sel, { hidden = false, disabled = false } = {}) {
-    const el = document.querySelector(sel);
-    if (!el) return;
-    el.hidden = hidden;
-    if ("disabled" in el) el.disabled = disabled;
-    if (disabled) el.setAttribute("aria-disabled", "true");
-    else el.removeAttribute("aria-disabled");
-  }
-
-  function syncTabContextMenu(id) {
-    // Tab pages keep their names: no Rename.
-    const fixed = !!state.tabs.get(id)?.page;
-    const ids = [...state.tabs.keys()];
-    const idx = ids.indexOf(id);
-    const others = ids.filter((tid) => tid !== id).length;
-    const right = idx < 0 ? 0 : ids.length - idx - 1;
-    setTabMenuItem('[data-tab-action="rename"]', { hidden: fixed, disabled: fixed });
-    setTabMenuItem('[data-tab-menu-sep="rename"]', { hidden: fixed });
-    setTabMenuItem('[data-tab-action="close"]', { disabled: !state.tabs.has(id) });
-    setTabMenuItem('[data-tab-action="close-others"]', { disabled: others === 0 });
-    setTabMenuItem('[data-tab-action="close-right"]', { disabled: right === 0 });
-    setTabMenuItem('[data-tab-action="close-all"]', { disabled: ids.length === 0 });
-  }
-
-  function closeTabs(ids) {
-    for (const id of ids) closeTab(id);
-  }
-
+  // applyTabRename keeps a tab's new name (ui/tabrename.js): a notebook tab
+  // renames its notebook too.
   function applyTabRename(id, raw, ok) {
     const tab = state.tabs.get(id);
-    tabRenaming = null;
     if (ok && tab) {
       const next = String(raw || "").trim();
       if (next) tab.customTitle = next;
@@ -1693,92 +1666,21 @@ import { openExternal } from "./lib/openlink.js";
     }
   }
 
-  function fitTabRename(input) {
-    input.style.width = "0px";
-    input.style.width = `${Math.max(1, Math.ceil(input.scrollWidth))}px`;
-  }
+  const tabRename = createTabRename({
+    strip: els.tabs,
+    title: (id) => tabTitle(state.tabs.get(id)),
+    canRename: (id) => state.tabs.has(id) && !state.tabs.get(id).page,
+    apply: applyTabRename,
+    done: () => renderTabs(),
+    prepareInput: noTextAssist,
+  });
 
-  function beginTabRename(id) {
-    if (!state.tabs.has(id) || state.tabs.get(id).page || tabRenaming) return;
-    const tab = state.tabs.get(id);
-    const btn = els.tabs.querySelector(`.tab[data-tab="${CSS.escape(id)}"]`);
-    const label = btn?.querySelector(".tab-label");
-    if (!label) return;
-    tabRenaming = id;
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "tab-rename";
-    input.size = 1;
-    noTextAssist(input);
-    input.value = tabTitle(tab);
-    input.setAttribute("aria-label", "Rename tab");
-    label.replaceWith(input);
-    els.tabs._keelHTML = null; // the strip no longer matches its markup
-    input.focus({ preventScroll: true });
-    input.select();
-    fitTabRename(input);
-    let done = false;
-    const finish = (ok) => {
-      if (done) return;
-      done = true;
-      applyTabRename(id, input.value, ok);
-      renderTabs();
-    };
-    btn.addEventListener("click", (ev) => {
-      if (ev.target === btn) {
-        ev.preventDefault();
-        ev.stopPropagation();
-      }
-    }, true);
-    input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-    input.addEventListener("keyup", (ev) => {
-      ev.stopPropagation();
-      if (ev.key === " " || ev.code === "Space") ev.preventDefault();
-    });
-    input.addEventListener("keypress", (ev) => ev.stopPropagation());
-    input.addEventListener("input", () => fitTabRename(input));
-    input.addEventListener("keydown", (ev) => {
-      ev.stopPropagation();
-      if (ev.key === " " || ev.code === "Space") {
-        ev.preventDefault();
-        const start = input.selectionStart ?? input.value.length;
-        const end = input.selectionEnd ?? start;
-        input.setRangeText(" ", start, end, "end");
-        fitTabRename(input);
-        return;
-      }
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        input.blur();
-      } else if (ev.key === "Escape") {
-        ev.preventDefault();
-        finish(false);
-      }
-    });
-    input.addEventListener("blur", () => finish(true));
-  }
-
-  function runTabContextAction(action, id) {
-    if (action === "rename") {
-      requestAnimationFrame(() => beginTabRename(id));
-      return;
-    }
-    if (action === "close") {
-      closeTab(id);
-      return;
-    }
-    const ids = [...state.tabs.keys()];
-    if (action === "close-others") {
-      closeTabs(ids.filter((tid) => tid !== id));
-      return;
-    }
-    if (action === "close-right") {
-      const idx = ids.indexOf(id);
-      if (idx >= 0) closeTabs(ids.slice(idx + 1));
-      return;
-    }
-    if (action === "close-all") closeTabs(ids);
-  }
+  const tabMenu = createTabMenu({
+    tabIds: () => [...state.tabs.keys()],
+    isPage: (id) => !!state.tabs.get(id)?.page,
+    rename: (id) => tabRename.begin(id),
+    close: (ids) => ids.forEach((id) => closeTab(id)),
+  });
 
   function endTabDrag() {
     if (!tabDrag) return;
@@ -2613,7 +2515,7 @@ import { openExternal } from "./lib/openlink.js";
     const sessionOn = isSessionTab(activeTab);
 
     const keepScroll = els.tabs.scrollLeft;
-    if (!tabRenaming) {
+    if (!tabRename.editing()) {
       // setHTML: presence and status messages re-render the strip several
       // times per opened tab, mostly with identical markup.
       setHTML(els.tabs, ids
@@ -4859,7 +4761,7 @@ import { openExternal } from "./lib/openlink.js";
   function closeTab(id, opts = {}) {
     const tab = state.tabs.get(id);
     if (!tab) return;
-    if (tabRenaming === id) tabRenaming = null;
+    tabRename.forget(id);
     if (tab.page) parkPage(tab);
     const panes = tabPanes(tab);
     // A tab the user closed can be reopened (⌘⇧T, New tab page). Tabs that
@@ -7418,64 +7320,13 @@ import { openExternal } from "./lib/openlink.js";
       }
     });
 
-    document.addEventListener(
-      "contextmenu",
-      (ev) => {
-        if (!(ev.target instanceof Element)) return;
-        const trigger = ev.target.closest("#tab-ctx-trigger");
-        if (!trigger) return;
-        const tab = ev.target.closest(".tab[data-tab]");
-        if (!tab) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          return;
-        }
-        tabMenuTarget = tab.dataset.tab;
-        syncTabContextMenu(tabMenuTarget);
-      },
-      true
-    );
-    document.addEventListener(
-      "pointerup",
-      (ev) => {
-        if (ev.button !== 2) return;
-        if (!(ev.target instanceof Element)) return;
-        if (!ev.target.closest("#tab-ctx-trigger")) return;
-        const tab = ev.target.closest(".tab[data-tab]");
-        if (!tab) return;
-        tabMenuTarget = tab.dataset.tab;
-        syncTabContextMenu(tabMenuTarget);
-        const x = ev.clientX;
-        const y = ev.clientY;
-        requestAnimationFrame(() => {
-          const menu = document.getElementById("tab-ctx");
-          if (menu && menu.hasAttribute("data-open")) return;
-          tab.dispatchEvent(
-            new MouseEvent("contextmenu", {
-              bubbles: true,
-              cancelable: true,
-              clientX: x,
-              clientY: y,
-              view: window,
-              button: 2,
-            })
-          );
-        });
-      },
-      true
-    );
-    document.addEventListener("click", (ev) => {
-      if (!(ev.target instanceof Element)) return;
-      const item = ev.target.closest("[data-tab-action]");
-      if (!item || item.disabled || item.getAttribute("aria-disabled") === "true") return;
-      runTabContextAction(item.dataset.tabAction, tabMenuTarget);
-    });
+    tabMenu.bind();
     on(els.tabs, "click", (ev) => {
       if (ev.target.closest(".tab-rename")) return;
-      if (tabRenaming) {
-        if (ev.target.closest(`.tab[data-tab="${CSS.escape(tabRenaming)}"]`)) return;
-        const input = els.tabs.querySelector(".tab-rename");
-        applyTabRename(tabRenaming, input?.value, true);
+      const renaming = tabRename.editing();
+      if (renaming) {
+        if (ev.target.closest(`.tab[data-tab="${CSS.escape(renaming)}"]`)) return;
+        tabRename.keep();
       }
       if (ignoreTabClick) {
         ev.preventDefault();
