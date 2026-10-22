@@ -666,19 +666,19 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 		t.Fatal(err)
 	}
 	term := string(js)
-	injStart := strings.Index(term, "function sendApprovedInject")
-	injEndRel := strings.Index(term[injStart+1:], "\n  function ")
-	if injStart < 0 || injEndRel < 0 {
+	// The writes live in pty.js; term.js keeps same-named wrappers.
+	pty := readPtyJS(t)
+	inj := sliceJSFunc(pty, "async function sendApprovedInject")
+	if inj == "" {
 		t.Fatal("missing sendApprovedInject")
 	}
-	inj := term[injStart : injStart+1+injEndRel]
 	if strings.Contains(inj, "sendSessionBytes") {
 		t.Fatal("palette inject must not send live websocket binary")
 	}
 	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
 		t.Fatal("palette inject must send a server nonce, not client approved:true")
 	}
-	if !strings.Contains(term, `type: "inject-challenge"`) {
+	if !strings.Contains(pty, `type: "inject-challenge"`) {
 		t.Fatal("palette inject must request a server inject-challenge")
 	}
 	if strings.Count(term, "function ptyWritesBlocked") != 1 {
@@ -802,14 +802,15 @@ func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("paletteRunSnippet must not silent-Write or recurse through sendSnippet")
 	}
 
-	inj := sliceJSFunc(term, "function sendApprovedInject")
+	pty := readPtyJS(t)
+	inj := sliceJSFunc(pty, "async function sendApprovedInject")
 	if inj == "" || strings.Contains(inj, "sendSessionBytes") {
 		t.Fatal("approved inject must not send live websocket binary")
 	}
 	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") {
 		t.Fatal("approved inject must use a server nonce, not client approved:true")
 	}
-	if !strings.Contains(term, `type: "inject-challenge"`) {
+	if !strings.Contains(pty, `type: "inject-challenge"`) {
 		t.Fatal("snippet inject must request a server inject-challenge")
 	}
 
@@ -858,6 +859,17 @@ func cssRulesMatching(css, sel string) []string {
 		}
 	}
 	return out
+}
+
+// readPtyJS is cmd/keel/web/js/pty.js, the page's one way to write to a
+// session (the approve-before-type writes moved there from term.js).
+func readPtyJS(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "pty.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func sliceJSFunc(src, sig string) string {
@@ -961,12 +973,13 @@ func TestNotebookCannotSilentWritePTY(t *testing.T) {
 		t.Fatal("confirm path must not call sendSnippet or raw session bytes")
 	}
 
-	bytesFn := sliceJSFunc(term, "function sendSessionBytes")
+	pty := readPtyJS(t)
+	bytesFn := sliceJSFunc(pty, "function sendSessionBytes")
 	if bytesFn == "" || !strings.Contains(bytesFn, "if (!isTermPane(pane) || !pane?.runtimeId) return") {
 		t.Fatal("sendSessionBytes must refuse non-term panes")
 	}
 
-	inj := sliceJSFunc(term, "function sendApprovedInject")
+	inj := sliceJSFunc(pty, "async function sendApprovedInject")
 	if inj == "" || !strings.Contains(inj, "termTarget") {
 		t.Fatal("approved inject must resolve a term pane, never a notebook")
 	}
@@ -1129,7 +1142,7 @@ func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
 	cancelOpen := sliceJSFunc(term, "function closeOpenTermInput")
 	confirm := sliceJSFunc(term, "function confirmTermInput")
 	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
-	inj := sliceJSFunc(term, "function sendApprovedInject")
+	inj := sliceJSFunc(readPtyJS(t), "async function sendApprovedInject")
 	runFn := sliceJSFunc(term, "function runNotebookFence")
 	copyFn := sliceJSFunc(term, "function copyNotebookFence")
 	if insert == "" || show == "" || cancel == "" || cancelOpen == "" || confirm == "" || blocked == "" || inj == "" || runFn == "" || copyFn == "" {
@@ -3036,7 +3049,8 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	if strings.Contains(fn, "sendSnippet") || strings.Contains(fn, "sendSessionBytes") {
 		t.Fatal("palette inject must not call sendSnippet or raw session bytes")
 	}
-	if !strings.Contains(js, `type: "inject"`) || !strings.Contains(js, `type: "inject-challenge"`) || strings.Contains(js, "approved: true") {
+	if pty := readPtyJS(t); !strings.Contains(pty, `type: "inject"`) || !strings.Contains(pty, `type: "inject-challenge"`) ||
+		strings.Contains(pty, "approved: true") || strings.Contains(js, "approved: true") {
 		t.Fatal("palette inject must send WS inject with a server nonce")
 	}
 	if !strings.Contains(js, `type: "focus", surface`) && !strings.Contains(js, `type: "focus", surface:`) {
