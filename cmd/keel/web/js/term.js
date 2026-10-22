@@ -45,6 +45,7 @@ import { createNotebookHistory } from "./ui/notebookhistory.js";
 import { createPaneMenu } from "./ui/panemenu.js";
 import { createTerminalMenu } from "./ui/terminalmenu.js";
 import { createFenceMenu } from "./ui/fencemenu.js";
+import { createAgentCardMenu } from "./ui/agentcardmenu.js";
 import * as Share from "./lib/share.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
 import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
@@ -66,7 +67,6 @@ import { createAgentPage } from "./ui/agentpage.js";
 import { keysFor } from "./lib/shortcutmap.js";
 import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
 import { rightClickMode, termRightClick } from "./lib/termmenu.js";
-import { actionLive, cardActions, cardMenuHTML } from "./lib/cardmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
@@ -5558,15 +5558,6 @@ import { openExternal } from "./lib/openlink.js";
     },
   });
 
-  // menuContent is the content a hidden menu trigger opens.
-  function menuContent(trigger) {
-    return trigger && document.getElementById(trigger.getAttribute("aria-controls"));
-  }
-
-  function openMenuAt(trigger, detail) {
-    trigger.dispatchEvent(new CustomEvent("tui-dropdownmenu-open-at", { bubbles: true, detail }));
-  }
-
   // keepActionFocus runs a menu item's action where the click happened
   // (Copy and Paste need the user's gesture) and, when the action moved
   // focus (Find, a dialog, an edit box), keeps it there: the menu gives
@@ -5620,57 +5611,8 @@ import { openExternal } from "./lib/openlink.js";
   // The notebook code block menu (FenceMenu, ui/fencemenu.js).
   const fenceMenu = createFenceMenu();
 
-  // The text selection as it was when the right button went down: WebKit
-  // selects the word under the pointer before contextmenu, so the
-  // selection then says nothing about what the user had selected.
-  let rightDownSelection = null;
-
-  function onRightDown(ev) {
-    if (ev.button !== 2) return;
-    const sel = window.getSelection?.();
-    rightDownSelection = sel && !sel.isCollapsed ? sel.anchorNode : null;
-  }
-
-  function selectedBeforeRightClick(el) {
-    return !!(rightDownSelection && el.contains(rightDownSelection));
-  }
-
-  // The agent card menu (CardMenu, lib/cardmenu.js): the card's own
-  // buttons. cardMenu.card is the card, cardMenu.buttons the very buttons
-  // offered; cardMenu.shift whether ⇧ is down while it is open (WebKit
-  // does not set shiftKey reliably on a keyboard-made click, so ⇧↵ on an
-  // item is read from the keys, as agentthread.js does).
-  const cardMenu = { card: null, buttons: [], shift: false };
-
-  function prepareCardMenu(card, at) {
-    const trigger = document.getElementById("card-menu-trigger");
-    const popup = menuContent(trigger)?.querySelector("[data-card-menu-items]");
-    if (!popup) return null;
-    // Text selected in the card (the exact bytes, a note): the system's
-    // menu copies it.
-    if (at && "x" in at && selectedBeforeRightClick(card)) return null;
-    const actions = cardActions(card);
-    if (!actions.length) return null;
-    cardMenu.card = card;
-    cardMenu.buttons = actions.map((a) => a.button);
-    cardMenu.shift = false;
-    popup.innerHTML = cardMenuHTML(actions, THREAD_ICON);
-    return trigger;
-  }
-
-  // runCardMenuAction clicks the very button the item was made from. A
-  // card repaints with innerHTML, so if it repainted while the menu was
-  // open (a runbook step marked done, a new status) the button is gone and
-  // nothing runs: labels repeat across steps ("Skip", "Mark done").
-  function runCardMenuAction(index, shiftKey) {
-    const btn = cardMenu.buttons[index];
-    if (!actionLive(cardMenu.card, btn)) return;
-    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: !!(shiftKey || cardMenu.shift) }));
-  }
-
-  function trackCardMenuShift(ev) {
-    if (ev.key === "Shift") cardMenu.shift = ev.type === "keydown";
-  }
+  // The agent card menu (CardMenu, ui/agentcardmenu.js).
+  const cardMenu = createAgentCardMenu({ icons: THREAD_ICON });
 
   // newHostIn opens New host with the folder already picked (a folder
   // menu's New host).
@@ -8214,7 +8156,7 @@ import { openExternal } from "./lib/openlink.js";
       const cardAct = ev.target.closest("[data-card-act]");
       if (cardAct) {
         ev.preventDefault();
-        keepActionFocus(() => runCardMenuAction(Number(cardAct.dataset.cardAct), ev.shiftKey));
+        keepActionFocus(() => cardMenu.run(Number(cardAct.dataset.cardAct), ev.shiftKey));
         return;
       }
       const groupRename = ev.target.closest("[data-group-rename]");
@@ -8645,7 +8587,7 @@ import { openExternal } from "./lib/openlink.js";
   bindRowMenus(document, {
     mac: isMac,
     resolve: (row, at) => {
-      if (row.dataset.rowMenu === "card") return prepareCardMenu(row, at) || false;
+      if (row.dataset.rowMenu === "card") return cardMenu.prepare(row, at) || false;
       if (row.dataset.rowMenu !== "pane") return undefined;
       const paneId = row.dataset.paneRow || row.closest(".term-wrap")?.dataset.paneId || "";
       return paneMenu.prepare(paneId, row.dataset.paneRow ? "row" : "bar") || false;
@@ -8653,13 +8595,9 @@ import { openExternal } from "./lib/openlink.js";
   });
   // Notebook code blocks: right-click, ⇧F10 and the Menu key on the bar.
   fenceMenu.bind();
-  document.addEventListener("pointerdown", onRightDown, true);
-  // ⇧ held on a card menu item (⇧↵, ⇧-click) reaches the card's Type.
-  document.addEventListener("keydown", trackCardMenuShift, true);
-  document.addEventListener("keyup", trackCardMenuShift, true);
-  window.addEventListener("blur", () => {
-    cardMenu.shift = false;
-  });
+  // Agent cards: the right button's selection, and ⇧ held on an item
+  // (⇧↵, ⇧-click) reaching the card's Type.
+  cardMenu.bind();
   // ⌥↵ on a host row opens it in a split of the focused pane, as in the
   // palette and the host menu's Open in split.
   document.getElementById("host-list")?.addEventListener("keydown", (ev) => {
