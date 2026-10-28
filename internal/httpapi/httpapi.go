@@ -50,6 +50,8 @@ type Server struct {
 	// authToken, when set, is required on privileged routes (auth.go).
 	authToken string
 	build     string
+	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
+	mcpToken string
 	// sshDir is ~/.ssh (KEEL_SSH_DIR), read by the first-run host import.
 	sshDir string
 	// The agent panel (agentask.go). agent is nil without a log.
@@ -184,6 +186,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/agent/keys/{provider}", s.putAgentKey)
 	mux.HandleFunc("DELETE /api/agent/keys/{provider}", s.deleteAgentKey)
 	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
+	mux.HandleFunc("GET /api/mcp/panes", s.mcpPanes)
+	mux.HandleFunc("POST /api/mcp/read", s.mcpRead)
+	mux.HandleFunc("POST /api/mcp/propose", s.mcpPropose)
+	mux.HandleFunc("GET /api/mcp/proposals/{id}", s.mcpProposal)
 	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
 	mux.HandleFunc("GET /api/agent/conversations", s.agentSessions)
 	mux.HandleFunc("GET /api/agent/conversations/{id}", s.agentTranscript)
@@ -363,6 +369,9 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}
 	if proof, ok := s.healthProof(r); ok {
 		out["proof"] = proof
+	}
+	if proof, ok := s.mcpHealthProof(r); ok {
+		out["mcpProof"] = proof
 	}
 	writeJSON(w, http.StatusOK, out)
 }

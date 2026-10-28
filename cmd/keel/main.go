@@ -51,10 +51,16 @@ func main() {
 		if err := app.RunServe(web, addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
+	case "mcp":
+		// stdout carries MCP messages only: logs go to stderr.
+		log.SetOutput(os.Stderr)
+		if err := app.RunMCP(web, addr, dataDir); err != nil {
+			log.Fatal(err)
+		}
 	case "help", "-h", "--help":
 		fmt.Print(helpText)
 	default:
-		log.Fatalf("unknown command %q (try keel, keel app, or keel serve)", cmd)
+		log.Fatalf("unknown command %q (try keel, keel app, keel serve, or keel mcp)", cmd)
 	}
 }
 
@@ -86,6 +92,9 @@ in a background keel serve process. Closing a session tab kills that PTY.
   keel app        same
   keel serve      run the runtime daemon in the foreground
   keel serve stop stop the daemon and kill leftover sessions
+  keel mcp        MCP server on stdio for Claude Code: claude mcp add keel -- keel mcp
+                  (lists and reads panes the agent may read; proposes commands
+                  that wait in the agent panel; never types)
 
 Internet follow (no LAN) needs a public signaling server:
 

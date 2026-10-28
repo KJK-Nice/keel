@@ -112,6 +112,13 @@ func (c CommandEnd) reported() string {
 // lines), its exit status and what the pane printed after it; otherwise
 // the last lines of the scrollback.
 func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
+	return a.ReadPaneFrom(src, scope, p, lines, r, "")
+}
+
+// ReadPaneFrom is ReadPane for a reader other than the agent panel: source
+// names it ("claude-code" for keel mcp), and the agent.read entry records
+// it (Source, and "for <source>" in the message).
+func (a *Auditor) ReadPaneFrom(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, source string) (Excerpt, error) {
 	if !scope.Allows(p) {
 		return Excerpt{}, ErrNotReadable
 	}
@@ -120,10 +127,10 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	}
 	if cs, ok := src.(CommandSource); ok {
 		if blk, ok := cs.LastCommand(p.SessionID); ok {
-			return a.readCommand(p, blk, lines, r), nil
+			return a.readCommand(p, blk, lines, r, source), nil
 		}
 	}
-	return a.readPane(src, scope, p, lines, r, false)
+	return a.readPane(src, scope, p, lines, r, false, source)
 }
 
 // readCommand turns a command block into an excerpt, as one plain text
@@ -140,7 +147,7 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 // push real text out of what the agent reads; at worst they change how
 // it is labelled. In the normal case that earlier part is just the
 // context before the command, and nothing is sent twice.
-func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.Redactor) Excerpt {
+func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.Redactor, source string) Excerpt {
 	end := CommandEnd{Running: !blk.Done, Abandoned: blk.Abandoned, Exit: blk.Exit, HasExit: blk.HasExit}
 	budget := ClampLines(lines)
 	var marked strings.Builder
@@ -196,11 +203,12 @@ func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.
 	}
 	a.log.Append(applog.Entry{
 		Kind:       EventRead,
-		Message:    fmt.Sprintf("agent read %s · last command, %s · %d lines of output%s · %s", hostLabel(p), end.Label(), n, extra, redactionNote(rep)),
+		Message:    fmt.Sprintf("agent read %s%s · last command, %s · %d lines of output%s · %s", hostLabel(p), forSource(source), end.Label(), n, extra, redactionNote(rep)),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
 		Lines:      earlierLines + n + afterLines,
 		Redactions: rep.Strings(),
+		Source:     source,
 	})
 	return Excerpt{Pane: p, Lines: n, Text: safe, Report: rep, LastCommand: true, Command: end}
 }
@@ -240,7 +248,7 @@ func oneLine(s string) string {
 // first, so a line that was redrawn, moved over or erased is not read as
 // it was first written. Logged the same way.
 func (a *Auditor) ReadPaneScreen(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
-	return a.readPane(src, scope, p, lines, r, true)
+	return a.readPane(src, scope, p, lines, r, true, "")
 }
 
 var csiRe = regexp.MustCompile(`\x1b\[([0-?]*)[ -/]*([@-~])`)
@@ -335,7 +343,7 @@ func motions(ln string) (up int, above, touched bool) {
 	return up, above, touched
 }
 
-func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, screen bool) (Excerpt, error) {
+func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, screen bool, source string) (Excerpt, error) {
 	if !scope.Allows(p) {
 		return Excerpt{}, ErrNotReadable
 	}
@@ -356,11 +364,12 @@ func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	rep := diff(before, r.Report())
 	a.log.Append(applog.Entry{
 		Kind:       EventRead,
-		Message:    fmt.Sprintf("agent read %s · last %d lines · %s", hostLabel(p), n, redactionNote(rep)),
+		Message:    fmt.Sprintf("agent read %s%s · last %d lines · %s", hostLabel(p), forSource(source), n, redactionNote(rep)),
 		HostID:     p.HostID,
 		SessionID:  p.SessionID,
 		Lines:      n,
 		Redactions: rep.Strings(),
+		Source:     source,
 	})
 	return Excerpt{Pane: p, Lines: n, Text: safe, Report: rep}, nil
 }
@@ -548,6 +557,15 @@ func diff(before, after redact.Report) redact.Report {
 		}
 	}
 	return out
+}
+
+// forSource is " for <source>" in a log message when a reader other than
+// the agent panel read the pane, "" otherwise.
+func forSource(source string) string {
+	if source == "" {
+		return ""
+	}
+	return " for " + source
 }
 
 func hostLabel(p Pane) string {

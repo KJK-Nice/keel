@@ -47,6 +47,11 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("auth token: %w", err)
 	}
+	// keel mcp's own token: it opens /api/mcp/ and nothing else.
+	mcpToken, err := authtoken.LoadOrCreateMCP(dataDir)
+	if err != nil {
+		return fmt.Errorf("mcp token: %w", err)
+	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
@@ -62,7 +67,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	var once sync.Once
 	shutdown := func() { once.Do(func() { close(stop) }) }
 
-	api := httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
+	api := httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithMCPAuth(mcpToken).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
 	httpSrv := &http.Server{
 		Addr:              addr,
 		Handler:           api.Handler(),

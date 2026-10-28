@@ -50,6 +50,18 @@ func (a agentPanes) Pane(id string) (agent.Pane, bool) {
 
 func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.ReadScrollback(id) }
 
+// PaneIDs lists the running sessions, oldest first (service.PaneLister),
+// for keel mcp's pane list. Ids only: the service resolves each through
+// Pane and keeps the ones the agent may read.
+func (a agentPanes) PaneIDs() []string {
+	list := a.rt.List()
+	out := make([]string, 0, len(list))
+	for _, info := range list {
+		out = append(out, info.ID)
+	}
+	return out
+}
+
 // LastCommand passes on the pane's last command from its shell's OSC 133
 // marks (agent.CommandSource), with the same mask as ReadScrollback.
 func (a agentPanes) LastCommand(id string) (shellmark.Block, bool) { return a.rt.LastCommand(id) }

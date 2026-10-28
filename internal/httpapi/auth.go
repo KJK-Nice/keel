@@ -56,8 +56,38 @@ func authCookieName(r *http.Request) string {
 	return "keel_auth_" + port
 }
 
+// WithMCPAuth sets keel mcp's token (authtoken.LoadOrCreateMCP). /api/mcp/
+// answers only requests that carry it in authtoken.MCPHeader, and with no
+// token set /api/mcp/ answers nothing.
+func (s *Server) WithMCPAuth(token string) *Server {
+	s.mcpToken = token
+	return s
+}
+
+// isMCPPath reports whether p is one of keel mcp's routes (mcp.go).
+func isMCPPath(p string) bool {
+	return strings.HasPrefix(p, "/api/mcp/")
+}
+
+// mcpAuthorized checks a request to /api/mcp/: keel mcp's token in its own
+// header, and no Origin (keel mcp is a native client; a page always sends
+// one on a POST). The UI's token and cookie do not open these routes, and
+// keel mcp's token opens no other route, so neither can stand in for the
+// other.
+func (s *Server) mcpAuthorized(r *http.Request) bool {
+	return r.Header.Get("Origin") == "" && authtoken.Equal(r.Header.Get(authtoken.MCPHeader), s.mcpToken)
+}
+
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isMCPPath(r.URL.Path) {
+			if !s.mcpAuthorized(r) {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		if s.authToken == "" || !needsAuth(r) {
 			next.ServeHTTP(w, r)
 			return
@@ -97,6 +127,17 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		}
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 	})
+}
+
+// mcpHealthProof answers ?mcpNonce= on /api/health with HMAC(mcp token,
+// nonce), so keel mcp can check the server holds its token before sending
+// it.
+func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
+	nonce := r.URL.Query().Get("mcpNonce")
+	if s.mcpToken == "" || nonce == "" || len(nonce) > 128 {
+		return "", false
+	}
+	return authtoken.Proof(s.mcpToken, nonce), true
 }
 
 // healthProof answers ?nonce= on /api/health with HMAC(token, nonce), so a

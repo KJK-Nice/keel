@@ -23,6 +23,12 @@ func TokenFile(dataDir string) string {
 	return filepath.Join(dataDir, "keel-serve.token")
 }
 
+// MCPTokenFile holds the secret keel mcp (the Claude Code bridge) sends.
+// It opens only /api/mcp/, never the rest of the API.
+func MCPTokenFile(dataDir string) string {
+	return filepath.Join(dataDir, "keel-mcp.token")
+}
+
 func DataDir() string {
 	if v := os.Getenv("KEEL_DATA"); v != "" {
 		return v
