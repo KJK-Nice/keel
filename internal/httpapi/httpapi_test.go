@@ -2992,7 +2992,8 @@ func TestIndexServesCommandPalette(t *testing.T) {
 	js := string(jsBody)
 	// Keys map to actions in lib/shortcuts.js; term.js runs them.
 	keyTable := readShortcutsJS(t)
-	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "runShortcut(action.name)") {
+	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "run: runShortcut") ||
+		!strings.Contains(readWebLib(t, "ui/keyrouter.js"), "else run(action.name)") {
 		t.Fatal("term.js must open the command palette through runShortcut")
 	}
 	kIdx := strings.Index(keyTable, `if (key === "k" && !ev.shiftKey)`)
@@ -3256,22 +3257,24 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if bind == "" || !strings.Contains(bind, "if (window.__keelChromeBound) return") {
 		t.Fatal("bindChrome must register window keydown once")
 	}
-	handle := sliceJSFunc(term, "function handleShortcut")
-	if handle == "" {
-		t.Fatal("missing handleShortcut")
+	// ui/keyrouter.js runs the chords; runShortcut in term.js is what each does.
+	router := readWebLib(t, "ui/keyrouter.js")
+	handle := sliceJSFunc(router, "function handle(ev)")
+	if handle == "" || !strings.Contains(term, "keyRouter.handle(ev)") {
+		t.Fatal("missing the key router's handle")
 	}
 	if strings.Contains(handle, "nativeMenuOwnsShortcut") {
-		t.Fatal("handleShortcut must run chrome keys in JS; deferring to the File menu leaves most shortcuts dead when the accelerator does not fire")
+		t.Fatal("the key router's handle must run chrome keys in JS; deferring to the File menu leaves most shortcuts dead when the accelerator does not fire")
 	}
 	// The key -> action table lives in lib/shortcuts.js (behaviour tests in
-	// cmd/keel/web/js/test/shortcuts.test.mjs); handleShortcut runs it.
+	// cmd/keel/web/js/test/shortcuts.test.mjs); ui/keyrouter.js runs it.
 	shortcutsSrc, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	shortcuts := string(shortcutsSrc)
-	if !strings.Contains(handle, "classifyShortcut(ev") || !strings.Contains(handle, "runShortcut(action.name)") {
-		t.Fatal("handleShortcut must classify keys with classifyShortcut and run the action in JS")
+	if !strings.Contains(handle, "classifyShortcut(ev") || !strings.Contains(handle, "run(action.name)") {
+		t.Fatal("the key router's handle must classify keys with classifyShortcut and run the action in JS")
 	}
 	if !strings.Contains(shortcuts, `key === "w" && !ev.shiftKey`) {
 		t.Fatal("Cmd+W closes a pane or tab; Cmd+Shift+W must still reach Close Window")
@@ -3290,7 +3293,8 @@ func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
 	if run == "" || strings.Contains(run, "lastShortcutAt") {
 		t.Fatal("runShortcut must not de-duplicate by time")
 	}
-	if !strings.Contains(term, "if (!chordGuard.menu(name))") || !strings.Contains(handle, "chordGuard.keyboard(name)") {
+	if !strings.Contains(router, "if (!guard.menu(name))") || !strings.Contains(handle, "guard.keyboard(name)") ||
+		!strings.Contains(term, "window.__keelShortcut = keyRouter.menu") {
 		t.Fatal("the menu path must drop an echo of a chord the keyboard ran (chordGuard)")
 	}
 	for _, name := range []string{
@@ -3354,8 +3358,9 @@ func TestCmdAngleCycleTabs(t *testing.T) {
 	}
 	term := string(js)
 	if !strings.Contains(term, `import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";`) ||
-		!strings.Contains(term, `import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";`) {
-		t.Fatal("term.js must take tab cycling from lib/keys.js and the shortcut table from lib/shortcuts.js")
+		!strings.Contains(term, `import { chromeChordName, isAppMod } from "./lib/shortcuts.js";`) ||
+		!strings.Contains(readWebLib(t, "ui/keyrouter.js"), `import { chromeChordName, classifyShortcut, menuShortcutAllowed } from "../lib/shortcuts.js";`) {
+		t.Fatal("term.js must take tab cycling from lib/keys.js, and term.js and ui/keyrouter.js the shortcut table from lib/shortcuts.js")
 	}
 	keys, err := filepath.Abs(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "keys.js"))
 	if err != nil {
@@ -3410,7 +3415,7 @@ console.log("ok");
 		t.Fatalf("tab cycle eval missing ok: %s", out)
 	}
 
-	handle := sliceJSFunc(term, "function handleShortcut")
+	handle := sliceJSFunc(readWebLib(t, "ui/keyrouter.js"), "function handle(ev)")
 	run := sliceJSFunc(term, "function runShortcut")
 	if handle == "" || run == "" {
 		t.Fatal("missing shortcut helpers")
@@ -3421,7 +3426,7 @@ console.log("ok");
 	}
 	shortcuts := string(shortcutsSrc)
 	if !strings.Contains(handle, "classifyShortcut(ev") {
-		t.Fatal("handleShortcut must classify keys with classifyShortcut")
+		t.Fatal("the key router's handle must classify keys with classifyShortcut")
 	}
 	if !strings.Contains(shortcuts, "tabCycleDelta(ev)") {
 		t.Fatal("classifyShortcut must classify Cmd+< / Cmd+> through tabCycleDelta")
@@ -3444,7 +3449,7 @@ console.log("ok");
 		t.Fatal("hold-to-repeat must keep cycling tabs and run no other chord twice (REPEATS in lib/shortcuts.js)")
 	}
 	bind := sliceJSFunc(term, "function bindChrome")
-	if !strings.Contains(bind, "if (handleShortcut(ev)) ev.stopPropagation()") {
+	if !strings.Contains(bind, "if (keyRouter.handle(ev)) ev.stopPropagation()") {
 		t.Fatal("bindChrome must stop the keydown after JS handles it so xterm does not run it again")
 	}
 
