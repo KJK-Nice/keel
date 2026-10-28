@@ -74,6 +74,25 @@ test("history, lines and models", () => {
   assert.deepEqual(S.modelChoices(gemini, "a"), ["a", "b"]);
 });
 
+test("models of every model provider, labelled with the provider, and the provider each picks", () => {
+  const claude = { id: "anthropic", name: "Anthropic Claude", shortName: "Claude", kind: "model", models: ["c1", "c2"] };
+  const items = S.modelItems([gemini, claude, jev], { provider: "gemini", model: "a" });
+  assert.deepEqual(
+    items.map((it) => [it.value, it.provider]),
+    [["a", "gemini"], ["b", "gemini"], ["c1", "anthropic"], ["c2", "anthropic"]],
+  );
+  assert.equal(items[0].label, "a · Google Gemini");
+  assert.equal(items[2].label, "c1 · Claude");
+  // A custom model stays first, under the saved provider.
+  const custom = S.modelItems([gemini, claude], { provider: "anthropic", model: "x" });
+  assert.deepEqual(custom[0], { value: "x", label: "x · Claude", provider: "anthropic" });
+  // One model provider: bare model names.
+  assert.deepEqual(
+    S.modelItems([gemini, jev], { provider: "gemini", model: "a" }).map((it) => it.label),
+    ["a", "b"],
+  );
+});
+
 test("palette: the ask row names the query, escapes it, and has no group heading", () => {
   const row = askRow("  <img src=x> ", "⌘↵", () => {});
   assert.equal(row.title, "Ask the agent about “<img src=x>”");

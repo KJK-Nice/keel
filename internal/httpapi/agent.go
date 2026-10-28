@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"keel/internal/agent/provider"
@@ -82,6 +83,13 @@ func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 	if cur.Provider != "" && (!ok || d.Kind != provider.KindModel) {
 		writeError(w, http.StatusBadRequest, "unknown agent provider")
 		return
+	}
+	// A provider switch that kept the old provider's model (a client that
+	// sent only the provider) takes the new provider's default model: a
+	// Gemini model is never sent to Anthropic, nor the other way round. A
+	// model no provider lists (a custom one) is kept.
+	if ok && cur.Model != "" && !slices.Contains(d.Models, cur.Model) && provider.ListedElsewhere(d.ID, cur.Model) {
+		cur.Model = d.DefaultModel
 	}
 	saved, err := s.store.SetAgentSettings(cur)
 	if err != nil {

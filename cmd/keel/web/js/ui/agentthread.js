@@ -87,7 +87,7 @@ export function stepHTML(step) {
 
 export function errorHTML(err) {
   if (err?.code === 412 || err?.data?.reason === "no-key") {
-    return `<div class="k-agent-error" role="alert"><b>Gemini is not connected.</b><span>Add a key to ask the agent.</span></div>`;
+    return `<div class="k-agent-error" role="alert"><b>No model is connected.</b><span>Add a key to ask the agent.</span></div>`;
   }
   if (err?.code === 423) return `<div class="k-agent-error" role="alert"><b>The vault is locked.</b><span>Unlock it, then ask again.</span></div>`;
   const msg = err?.message || String(err);

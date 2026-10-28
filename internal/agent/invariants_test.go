@@ -235,7 +235,7 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 
 // clientPkgs are the provider clients: the only packages in the agent tree
 // that open a network connection or hold a key.
-var clientPkgs = []string{module + "/internal/agent/provider/gemini", module + "/internal/agent/provider/jev"}
+var clientPkgs = []string{module + "/internal/agent/provider/gemini", module + "/internal/agent/provider/anthropic", module + "/internal/agent/provider/jev"}
 
 func isClientPkg(pkg string) bool {
 	for _, p := range clientPkgs {
@@ -253,13 +253,14 @@ func TestRolesMatchRuntime(t *testing.T) {
 	}
 }
 
-// geminiImporters is the list of packages allowed to build the real Gemini
-// client: exactly the agent service (phase 6b), which builds it only for a
-// user's Ask (service.Real, called from providerFor).
-var geminiImporters = []string{module + "/internal/agent/service"}
+// clientImporters is the list of packages allowed to build a real provider
+// client (Gemini, Anthropic, Jev): exactly the agent service (phase 6b),
+// which builds one only for a user's Ask or ⇥ (service.Real and
+// service.RealJudge, called from providerFor and judgeFor).
+var clientImporters = []string{module + "/internal/agent/service"}
 
-// Only the agent service imports the Gemini and Jev clients, so no other
-// route, timer or UI path can construct or call them.
+// Only the agent service imports the Gemini, Anthropic and Jev clients, so
+// no other route, timer or UI path can construct or call them.
 func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 	for _, client := range clientPkgs {
 		var got []string
@@ -275,21 +276,22 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 		}
 		sort.Strings(got)
 		allowed := map[string]bool{}
-		for _, p := range geminiImporters {
+		for _, p := range clientImporters {
 			allowed[p] = true
 		}
 		for _, p := range got {
 			if !allowed[p] {
-				t.Errorf("%s imports %s; only %v may", p, client, geminiImporters)
+				t.Errorf("%s imports %s; only %v may", p, client, clientImporters)
 			}
 		}
-		if len(got) != len(geminiImporters) {
-			t.Errorf("%s importers = %v, want exactly %v", client, got, geminiImporters)
+		if len(got) != len(clientImporters) {
+			t.Errorf("%s importers = %v, want exactly %v", client, got, clientImporters)
 		}
 	}
 }
 
-// In the agent service, the Gemini client is built only in Real, the Jev
+// In the agent service, the Gemini and Anthropic clients are built only in
+// Real, the Jev
 // client only in RealJudge, the test fakes only in FromEnv; a model
 // provider is called (Generate) only from Ask, the in-pane model
 // suggester and the key-scrubbing wrapper; and a judge (Jev) only from
@@ -329,10 +331,10 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 				}
 				x, _ := sel.X.(*ast.Ident)
 				switch {
-				case x != nil && x.Name == "gemini" && sel.Sel.Name == "New":
-					seen["gemini.New"]++
+				case x != nil && (x.Name == "gemini" || x.Name == "anthropic") && sel.Sel.Name == "New":
+					seen[x.Name+".New"]++
 					if f.pkg != svc || fn != "Real" {
-						t.Errorf("%s: gemini.New called in %q; only service.Real may", f.rel, fn)
+						t.Errorf("%s: %s.New called in %q; only service.Real may", f.rel, x.Name, fn)
 					}
 				case x != nil && x.Name == "jev" && sel.Sel.Name == "New":
 					seen["jev.New"]++
@@ -358,8 +360,8 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 			})
 		}
 	}
-	if seen["gemini.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 4 || seen["Judge"] != 4 {
-		t.Errorf("calls found: %v; want gemini.New and jev.New once, Generate 4 times (Ask twice: the question and the notebook read rounds; modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
+	if seen["gemini.New"] != 1 || seen["anthropic.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 4 || seen["Judge"] != 4 {
+		t.Errorf("calls found: %v; want gemini.New, anthropic.New and jev.New once, Generate 4 times (Ask twice: the question and the notebook read rounds; modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
 	}
 }
 
@@ -482,12 +484,13 @@ func TestAgentReadsOnlyAgentUsableSnippets(t *testing.T) {
 	}
 }
 
-// The Gemini and Jev endpoints appear in no source but their client
-// packages, so no other code can talk to them directly.
+// The Gemini, Anthropic and Jev endpoints appear in no source but their
+// client packages, so no other code can talk to them directly.
 func TestProviderEndpointsOnlyInClients(t *testing.T) {
 	root := moduleRoot(t)
 	endpoints := map[string]string{
 		"generativelanguage.googleapis.com": "internal/agent/provider/gemini/",
+		"api.anthropic.com":                 "internal/agent/provider/anthropic/",
 		"api.typesafe.ai":                   "internal/agent/provider/jev/",
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -552,7 +555,7 @@ func TestAgentNeverUsesHTTPScrollback(t *testing.T) {
 
 // The agent core, redaction and provider interface packages open no
 // network connection; only a client package (provider/gemini,
-// provider/jev) may.
+// provider/anthropic, provider/jev) may.
 func TestAgentCoreHasNoNetwork(t *testing.T) {
 	net := map[string]bool{"net": true, "net/http": true, "net/rpc": true, "net/smtp": true, "crypto/tls": true, "net/http/httputil": true}
 	for _, f := range parseModule(t) {

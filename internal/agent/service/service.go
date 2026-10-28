@@ -64,7 +64,7 @@ type Panes interface {
 }
 
 var (
-	ErrNoKey       = errors.New("agent: no provider key; connect Gemini first")
+	ErrNoKey       = errors.New("agent: no provider key; connect a model provider first")
 	ErrBusy        = errors.New("agent: this conversation is still answering")
 	ErrBadRequest  = errors.New("agent: bad request")
 	ErrNotFound    = errors.New("agent: no such conversation or proposal")

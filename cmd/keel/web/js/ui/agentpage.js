@@ -68,7 +68,7 @@ export function createAgentPage(deps) {
     const s = conv.snapshot();
     if (s.keyConfigured === false) {
       return `<div class="k-agent-empty">${ICON.ai}
-        <p class="k-agent-empty-title">Connect Gemini first</p>
+        <p class="k-agent-empty-title">Connect ${escapeHtml(s.providerName || "a model")} first</p>
         <p class="k-help">Add a key in the agent panel or in Settings · Agent. Nothing is sent until then.</p>
         <button type="button" class="k-btn k-btn--sm k-agentpage-empty-action" data-agentpage-open-panel>Open the agent panel</button>
       </div>`;

@@ -27,6 +27,7 @@ export const ICON = {
 // models, warning and links; the purpose is Keel's own wording.
 const PURPOSE = {
   gemini: "Answers questions about the panes you pick and writes command suggestions. Keel sends your message and their redacted scrollback, nothing else.",
+  anthropic: "Answers questions about the panes you pick and writes command suggestions. Keel sends your message and their redacted scrollback, nothing else.",
   jev: "Plain-language detection: notices when the line you are typing is plain language, so a suggestion can start by itself. That line is sent, redacted, and when you press ⇥ so are recent commands from the pane (unless scrollback suggestions are off) and snippets you marked for the agent.",
 };
 
@@ -149,6 +150,28 @@ export function modelChoices(d, current) {
   const models = (d?.models || []).slice();
   if (current && !models.includes(current)) models.unshift(current);
   return models;
+}
+
+// modelItems is the Model select of Settings · Agent: the models of every
+// model provider, each labelled with its provider when there is more than
+// one, and the saved model first when no provider lists it (a custom value
+// set through the API, kept under the saved provider). Picking one sets
+// both the provider and the model.
+export function modelItems(providers, settings) {
+  const models = (providers || []).filter((d) => d.kind === "model");
+  const many = models.length > 1;
+  const out = [];
+  for (const d of models) {
+    for (const m of d.models || []) {
+      out.push({ value: m, label: many ? `${m} · ${d.shortName || d.name}` : m, provider: d.id });
+    }
+  }
+  const cur = settings?.model;
+  if (cur && !out.some((it) => it.value === cur)) {
+    const d = models.find((p) => p.id === settings?.provider);
+    out.unshift({ value: cur, label: many && d ? `${cur} · ${d.shortName || d.name}` : cur, provider: settings?.provider || "" });
+  }
+  return out;
 }
 
 // keyError turns a failed key save into a line for the card.

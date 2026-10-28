@@ -233,7 +233,7 @@ export function createAgentPanel(deps) {
     setOpen(!state.open);
   }
 
-  // --- settings and the Connect Gemini state ---
+  // --- settings and the Connect <provider> state ---
 
   async function loadSettings() {
     try {
@@ -244,7 +244,7 @@ export function createAgentPanel(deps) {
       state.historyDays = state.settings?.historyDays ?? null;
       paintTitle();
       if (state.scopeAuto) state.scope = A.defaultScope(state.settings?.defaultScope, panes());
-      if (!state.keyConfigured && !state.provider) {
+      if (!state.keyConfigured && state.provider?.id !== pid) {
         const list = await deps.api("/api/agent/providers");
         state.provider = (list || []).find((d) => d.id === pid) || null;
       }
@@ -258,17 +258,18 @@ export function createAgentPanel(deps) {
   }
 
   function connectHTML() {
-    const d = state.provider || { name: "Google Gemini", keyLabel: "Gemini API key" };
+    const d = state.provider || { name: "Google Gemini", shortName: "Gemini", keyLabel: "Gemini API key" };
+    const short = d.shortName || d.name || "the model";
     const warn = d.warning
       ? `<div class="k-agent-warning" role="note">${ICON.alert}<p>${escapeHtml(d.warning)}${
-          d.termsUrl ? ` <a href="${escapeHtml(d.termsUrl)}" target="_blank" rel="noopener noreferrer" data-k-external>Gemini API terms</a>` : ""
+          d.termsUrl ? ` <a href="${escapeHtml(d.termsUrl)}" target="_blank" rel="noopener noreferrer" data-k-external>${escapeHtml(short)} API terms</a>` : ""
         }</p></div>`
       : "";
     const help = d.keyHelpUrl
       ? `<a href="${escapeHtml(d.keyHelpUrl)}" target="_blank" rel="noopener noreferrer" data-k-external>Get a key</a>`
       : "";
     return `<form class="k-agent-connect" id="agent-connect" autocomplete="off">
-      <h2 class="k-agent-connect-title">Connect Gemini</h2>
+      <h2 class="k-agent-connect-title">Connect ${escapeHtml(short)}</h2>
       <p class="k-help">When you ask, the agent sends the panes in scope, redacted, and your question to ${escapeHtml(d.name || "Google Gemini")}. The key is kept in the vault.</p>
       ${warn}
       <label class="k-field"><span class="k-label">${escapeHtml(d.keyLabel || "API key")}</span>
@@ -305,7 +306,7 @@ export function createAgentPanel(deps) {
       await deps.api(`/api/agent/keys/${encodeURIComponent(pid)}`, { method: "PUT", body: JSON.stringify({ key }) });
       if (input) input.value = "";
       state.keyConfigured = true;
-      deps.toast("Gemini connected. The key is in the vault.");
+      deps.toast(`${state.provider?.shortName || "Gemini"} connected. The key is in the vault.`);
       eachView((v) => v.paintEmpty());
       emit("settings");
       el.input?.focus({ preventScroll: true });
@@ -1467,6 +1468,7 @@ export function createAgentPanel(deps) {
       busy: !!state.busy,
       scope: scopePanes(),
       keyConfigured: state.keyConfigured,
+      providerName: state.provider?.shortName || "",
       historyDays: state.historyDays,
       saveError: state.saveError,
       unreadable: state.unreadable,

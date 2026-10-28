@@ -21,6 +21,14 @@ func TestDescriptors(t *testing.T) {
 			t.Fatalf("warning lacks %q: %s", want, d.Warning)
 		}
 	}
+	a, ok := provider.Lookup("anthropic")
+	if !ok || a.Kind != provider.KindModel || a.ShortName != "Claude" || a.DefaultModel == "" || a.SuggestModel == "" || a.TermsURL == "" {
+		t.Fatalf("anthropic = %+v", a)
+	}
+	if !provider.ListedElsewhere("anthropic", d.DefaultModel) || !provider.ListedElsewhere("gemini", a.DefaultModel) ||
+		provider.ListedElsewhere("gemini", d.DefaultModel) || provider.ListedElsewhere("gemini", "custom-model") {
+		t.Fatal("ListedElsewhere is wrong")
+	}
 	if j, ok := provider.Lookup("jev"); !ok || j.Kind != provider.KindDetector {
 		t.Fatalf("jev = %+v", j)
 	}
