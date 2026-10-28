@@ -1,6 +1,10 @@
-import { describe, test } from '@e2e-dev/web';
+import { afterEach, describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, keelSend, openKeel } from './keel.ts';
+import { keelApi, keelSend, killSessions, openKeel } from './keel.ts';
+
+// A test that fails before closing its tabs must not leave its session
+// for the next test to restore as a tab (killSessions).
+afterEach(({ app }) => killSessions(app.baseUrl));
 
 // Context menus, part 2: the terminal body (Settings · Terminal ·
 // Right-click in the terminal: Paste, Menu or Nothing), notebook code
@@ -115,6 +119,9 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     expect((await prefs(browser)).rightClickPaste).toBeUndefined();
     await app.screenshot('settings-right-click');
     await screen.getByRole('button', /^Local Shell\b/).first().tap();
+    // Back on the terminal's tab, it takes the keyboard on the next frame;
+    // right-click once it has, as a user does after switching tabs.
+    await expect(term).toBeFocused();
     const readsBefore = await reads(browser);
     await browser.evaluate(`window.__clip = 'echo keel-rc-paste-' + 'ok'`);
     await term.secondaryTap();
@@ -129,6 +136,7 @@ describe('context menus, part 2', { tags: ['context-menus'], serial: true }, () 
     await seg.getByRole('button', 'Nothing').tap();
     await expect.poll(async () => (await prefs(browser)).rightClick).toBe('nothing');
     await screen.getByRole('button', /^Local Shell\b/).first().tap();
+    await expect(term).toBeFocused();
     const readsNow = await reads(browser);
     await term.secondaryTap();
     await expect(menu).toHaveCount(0);

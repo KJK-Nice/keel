@@ -14,7 +14,7 @@ import (
 //
 // On macOS the page tells the window which theme the user chose, and the
 // window takes the matching NSAppearance, so the backdrop follows Keel.
-// Wails v3 (beta.15) sets an appearance only at window creation
+// Wails v3 (still in v3.0.0) sets an appearance only at window creation
 // (MacWindow.Appearance) and has no runtime setter on any platform, so
 // appearance_darwin.go sets it through public AppKit. Elsewhere the page
 // drops translucency instead when the choice differs from the OS

@@ -23,9 +23,9 @@ export function isAppMod(ev, mac) {
 // A held key's auto-repeat (ev.repeat) runs only the actions meant to
 // repeat (REPEATS): tab cycling, text size and find next/previous. Every
 // other chord runs once per press: a held ⌘⇧↵ toggles focus view once, a
-// held ⌘⇧D adds one split, a held ⌘W closes one pane. term.js swallows the
+// held ⌘⇧D adds one split, a held ⌘W closes one pane. ui/keyrouter.js swallows the
 // repeats it declines (isChromeChord), so they reach neither the terminal
-// nor the native menu.
+// nor the native menu (ui/keyrouter.js).
 export function classifyShortcut(ev, ctx) {
   const action = classifyKey(ev, ctx);
   if (action && ev.repeat && !REPEATS.has(action.name)) return null;
@@ -81,21 +81,21 @@ function classifyKey(ev, ctx) {
 // The native window's menu items carry the same accelerators (File and
 // View in internal/desktop/desktop.go). On macOS WKWebView offers a ⌘-key
 // to the page first and hands it to the menu only when keydown was not
-// preventDefault-ed. handleShortcut preventDefaults every chord it runs, so
+// preventDefault-ed. ui/keyrouter.js preventDefaults every chord it runs, so
 // the menu should not run it again; lib/chordguard.js drops the menu call
 // if it does anyway. A chord the page declines (a dialog is open, the gate
 // is up, a tab is being renamed, a held key's repeat) would be run by the
-// menu instead, so term.js preventDefaults those too (isChromeChord).
+// menu instead, so ui/keyrouter.js preventDefaults those too (isChromeChord).
 
 // isChromeChord reports a key that classifyShortcut runs in the plain
-// state: no dialog, no repeat. term.js swallows such a key when it
+// state: no dialog, no repeat. ui/keyrouter.js swallows such a key when it
 // declines it, so the native menu does not run it either.
 export function isChromeChord(ev, mac) {
   return chromeChordName(ev, mac) !== "";
 }
 
 // chromeChordName is the action a key runs in the plain state (no dialog,
-// no repeat), or "" when it is not a chrome chord. term.js logs it.
+// no repeat), or "" when it is not a chrome chord. ui/keyrouter.js logs it.
 export function chromeChordName(ev, mac) {
   const plain = {
     key: ev.key,

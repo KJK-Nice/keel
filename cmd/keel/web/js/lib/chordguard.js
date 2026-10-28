@@ -3,13 +3,13 @@
 // The native window's menu items carry the same accelerators as the chords
 // term.js runs (internal/desktop/desktop.go). WKWebView hands a ⌘ chord to
 // the menu only when the page did not preventDefault its keydown, and
-// handleShortcut does, so one press should run once. Keel has seen the
+// ui/keyrouter.js does, so one press should run once. Keel has seen the
 // menu run a chord the page had already run (Cmd+T opened two tabs, fixed
 // in a0f9127), so this guard drops such an echo should one still come.
 //
 // It works on source and sequence, never on time:
 //
-//   keyboard(name)  the keyboard ran chord `name` (handleShortcut)
+//   keyboard(name)  the keyboard ran chord `name` (ui/keyrouter.js)
 //   input()         any other input: a keydown that is not a chrome chord
 //                   (nor a held key's repeat), a keyup or a mousedown.
 //                   Clears every pending chord: a menu call after it is
