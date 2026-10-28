@@ -1,6 +1,10 @@
-import { test } from '@e2e-dev/web';
+import { afterEach, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelToken } from './keel.ts';
+import { keelToken, killSessions } from './keel.ts';
+
+// A test that fails before closing its tabs must not leave its session
+// for the next test to restore as a tab (killSessions).
+afterEach(({ app }) => killSessions(app.baseUrl));
 
 // Focus view (⌘⇧↵ on macOS, Ctrl+Shift+Enter elsewhere) toggles: one press
 // zooms the focused pane, the next brings the split back. A held chord
