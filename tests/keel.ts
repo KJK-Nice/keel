@@ -61,6 +61,21 @@ export async function keelSend<T = unknown>(baseUrl: string | undefined, method:
   return (res.status === 204 ? null : await res.json()) as T;
 }
 
+// killSessions ends every session keel serve still runs. Files whose
+// tests count terminals call it after each test (afterEach), so a test
+// that fails before closing its tabs does not leave a session for the next
+// file's page load to restore as a tab, failing that test too.
+export async function killSessions(baseUrl: string | undefined): Promise<void> {
+  const sessions = await keelApi<{ id: string }[]>(baseUrl, '/api/sessions');
+  for (const s of sessions) {
+    try {
+      await keelSend(baseUrl, 'DELETE', `/api/sessions/${encodeURIComponent(s.id)}`);
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
 // keelJson is the scratch keel.json as keel serve last wrote it.
 export function keelJson(): string {
   return readFileSync(join(keelData, 'keel.json'), 'utf8');
