@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -54,6 +55,20 @@ func mcpDo(t *testing.T, base, method, path, token string, body any, extra map[s
 	return res.StatusCode, out
 }
 
+// allowClaudeCode turns on "Allow Claude Code (keel mcp)", which /api/mcp/
+// needs (off by default).
+func allowClaudeCode(t *testing.T, st *store.Store) {
+	t.Helper()
+	set, err := st.AgentSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.ClaudeCode = true
+	if _, err := st.SetAgentSettings(set); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // keel mcp's token opens /api/mcp/ and nothing else; the UI's token and
 // cookie do not open /api/mcp/; a request with an Origin (a page) is
 // refused there even with the token.
@@ -71,6 +86,7 @@ func TestMCPRoutesTakeOnlyTheirOwnToken(t *testing.T) {
 	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
 	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithLogs(logs).WithAuth(testToken).WithMCPAuth(askMCPToken).Handler())
 	t.Cleanup(srv.Close)
+	allowClaudeCode(t, st)
 
 	if code, _ := mcpDo(t, srv.URL, "GET", "/api/mcp/panes", askMCPToken, nil, nil); code != 200 {
 		t.Fatalf("mcp token on /api/mcp/panes → %d", code)
@@ -127,6 +143,7 @@ func TestMCPRoutesClosedWithoutToken(t *testing.T) {
 // approved Type; nothing calls a provider.
 func TestMCPListReadPropose(t *testing.T) {
 	f := newAskFixture(t, true)
+	allowClaudeCode(t, f.st)
 	web := f.open(t, f.webID, "uptime-out 3 days\n"+askPaneToken+"\nmy pass is "+askHostPass+"\n")
 	off := f.open(t, f.offID, "SECRET-BOX-MARKER\n")
 	prod := f.open(t, f.prodID, "prod ready\n")
@@ -240,6 +257,111 @@ func TestMCPListReadPropose(t *testing.T) {
 	suggests := f.logEntries(agent.EventSuggest)
 	if len(suggests) != 2 || suggests[0].Source != service.ExternalSource {
 		t.Fatalf("agent.suggest entries = %+v", suggests)
+	}
+}
+
+// §6 rule 14: until the user turns on "Allow Claude Code (keel mcp)"
+// (off by default), every /api/mcp/ route is refused with keel mcp's
+// token, before anything is read, proposed or logged; /api/health still
+// proves the token so keel mcp can say Claude Code is off. Settings · Agent
+// turns it on through PUT /api/agent/settings, and off again.
+func TestMCPRoutesRefusedUntilClaudeCodeIsOn(t *testing.T) {
+	f := newAskFixture(t, true)
+	web := f.open(t, f.webID, "uptime-out 3 days\n")
+
+	settings := func(body string) map[string]any {
+		t.Helper()
+		method := "GET"
+		var rd io.Reader
+		if body != "" {
+			method, rd = "PUT", strings.NewReader(body)
+		}
+		req, _ := http.NewRequest(method, f.srv.URL+"/api/agent/settings", rd)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var out map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&out)
+		if res.StatusCode != 200 {
+			t.Fatalf("%s settings → %d %v", method, res.StatusCode, out)
+		}
+		return out["settings"].(map[string]any)
+	}
+	if got := settings(""); got["claudeCode"] != false {
+		t.Fatalf("claudeCode by default = %v", got["claudeCode"])
+	}
+
+	routes := []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/api/mcp/panes", nil},
+		{"POST", "/api/mcp/read", map[string]any{"paneId": web.ID, "lines": 50}},
+		{"POST", "/api/mcp/propose", map[string]any{"paneId": web.ID, "command": "echo hi"}},
+		{"GET", "/api/mcp/proposals/p_any", nil},
+		{"GET", "/api/mcp/unknown", nil},
+	}
+	refused := func(when string) {
+		t.Helper()
+		for _, r := range routes {
+			code, out := mcpDo(t, f.srv.URL, r.method, r.path, askMCPToken, r.body, nil)
+			if code != http.StatusForbidden || out["error"] != errClaudeCodeOff {
+				t.Fatalf("%s: %s %s → %d %v", when, r.method, r.path, code, out)
+			}
+			raw, _ := json.Marshal(out)
+			if strings.Contains(string(raw), "uptime-out") || strings.Contains(string(raw), web.ID) {
+				t.Fatalf("%s: %s answered with pane data: %s", when, r.path, raw)
+			}
+		}
+		for _, kind := range []string{agent.EventRead, agent.EventSuggest} {
+			if n := len(f.logEntries(kind)); n != 0 {
+				t.Fatalf("%s: %d %s entries", when, n, kind)
+			}
+		}
+	}
+	refused("off by default")
+
+	// The proof still answers, so keel mcp gets the refusal above rather
+	// than "not proven".
+	res, err := http.Get(f.srv.URL + "/api/health?mcpNonce=n0nce")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&h)
+	res.Body.Close()
+	if p, _ := h["mcpProof"].(string); !authtoken.CheckProof(askMCPToken, "n0nce", p) {
+		t.Fatalf("health = %v", h)
+	}
+
+	// A PUT that does not name the field keeps it off.
+	if got := settings(`{"historyDays":7}`); got["claudeCode"] != false {
+		t.Fatalf("claudeCode after an unrelated PUT = %v", got["claudeCode"])
+	}
+	refused("after an unrelated PUT")
+
+	if got := settings(`{"claudeCode":true}`); got["claudeCode"] != true {
+		t.Fatalf("claudeCode after turning on = %v", got["claudeCode"])
+	}
+	if code, out := mcpDo(t, f.srv.URL, "GET", "/api/mcp/panes", askMCPToken, nil, nil); code != 200 || !strings.Contains(fmt.Sprint(out), web.ID) {
+		t.Fatalf("panes while on → %d %v", code, out)
+	}
+	// While on, the token is still required.
+	if code, _ := mcpDo(t, f.srv.URL, "GET", "/api/mcp/panes", "", nil, nil); code != 401 {
+		t.Fatalf("no token while on → %d", code)
+	}
+
+	if got := settings(`{"claudeCode":false}`); got["claudeCode"] != false {
+		t.Fatalf("claudeCode after turning off = %v", got["claudeCode"])
+	}
+	before := len(f.logEntries(agent.EventRead))
+	if code, out := mcpDo(t, f.srv.URL, "POST", "/api/mcp/read", askMCPToken, map[string]any{"paneId": web.ID}, nil); code != http.StatusForbidden || out["error"] != errClaudeCodeOff {
+		t.Fatalf("read after turning off → %d %v", code, out)
+	}
+	if n := len(f.logEntries(agent.EventRead)); n != before {
+		t.Fatalf("a refused read was logged: %d → %d", before, n)
 	}
 }
 

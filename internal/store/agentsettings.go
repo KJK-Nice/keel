@@ -61,6 +61,13 @@ type AgentSettings struct {
 	ScrollbackLines    int            `json:"scrollbackLines"`
 	Redact             AgentRedaction `json:"redact"`
 	HistoryDays        int            `json:"historyDays"`
+	// ClaudeCode lets keel mcp (Claude Code) use keel serve's /api/mcp/
+	// routes: list and read panes on hosts the agent may read, and propose
+	// commands that wait in the agent panel (docs/ui-redesign.md §6 rule
+	// 14). Off by default, and a keel.json saved without the field reads
+	// as off: Claude Code asks on its own, not on the user's Ask, so the
+	// user turns it on in Settings · Agent.
+	ClaudeCode bool `json:"claudeCode"`
 }
 
 // DefaultAgentSettings are the settings before the user changes any.
@@ -155,6 +162,12 @@ func (a AgentSettings) SuggestionsEnabled() bool {
 // commands from the pane's scrollback (the default).
 func (a AgentSettings) HistorySuggestionsEnabled() bool {
 	return a.HistorySuggestions != SuggestionsOff
+}
+
+// ClaudeCodeEnabled reports whether keel mcp may use /api/mcp/ (off by
+// default).
+func (a AgentSettings) ClaudeCodeEnabled() bool {
+	return a.ClaudeCode
 }
 
 // AgentSettings returns the saved settings, or the defaults.

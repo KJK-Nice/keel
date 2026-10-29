@@ -26,7 +26,7 @@
 - **Port forwarding**: local, remote and SOCKS5, on and off per forward.
 - **Snippets and notebooks**, with approve-before-type: nothing is written to a terminal until you see the bytes and click **Type**.
 - **Command marks** for bash, zsh and fish (OSC 133): exit status in the gutter, jump between commands. [More →](docs/shell-integration.md)
-- **Agent (in progress).** Ask about your panes; it reads redacted output, proposes commands, never types on its own, never sees the vault, and logs every read. Claude Code can join in through `keel mcp`, under the same rules. [More →](docs/agent.md)
+- **Agent (in progress).** Ask about your panes; it reads redacted output, proposes commands, never types on its own, never sees the vault, and logs every read. Claude Code can join in through `keel mcp`, under the same rules, once you allow it in Settings · Agent. [More →](docs/agent.md)
 
 <p align="center">
   <img src="docs/images/palette-dark.png" width="49%" alt="The command palette">

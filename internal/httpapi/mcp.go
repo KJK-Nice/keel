@@ -12,8 +12,11 @@ import (
 )
 
 // keel mcp's routes (docs/agent.md, Claude Code): the bridge that lets
-// Claude Code list and read panes and propose commands. Only keel mcp's own
-// token opens them (auth.go), and they reach the agent service only:
+// Claude Code list and read panes and propose commands. They are closed
+// (403) until the user turns on "Allow Claude Code (keel mcp)" in Settings ·
+// Agent (store.AgentSettings.ClaudeCode, off by default); then only keel
+// mcp's own token opens them (auth.go), and they reach the agent service
+// only:
 //
 //	GET  /api/mcp/panes            panes on hosts the agent may read
 //	POST /api/mcp/read             one pane, redacted, logged agent.read

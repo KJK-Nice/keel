@@ -1,11 +1,13 @@
 package httpapi
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"strings"
 
 	"keel/internal/authtoken"
+	"keel/internal/store"
 )
 
 // tokenParam carries the token on the desktop app's first page load. The
@@ -81,6 +83,16 @@ func (s *Server) mcpAuthorized(r *http.Request) bool {
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isMCPPath(r.URL.Path) {
+			if s.mcpToken == "" || r.Header.Get("Origin") != "" {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			// The user's switch comes before the token: while Claude Code
+			// is off nothing under /api/mcp/ looks at the token, a pane or
+			// the log.
+			if !s.mcpAllowed(w) {
+				return
+			}
 			if !s.mcpAuthorized(r) {
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
@@ -129,9 +141,37 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 	})
 }
 
+// errClaudeCodeOff is what keel mcp passes on to Claude Code while the
+// user has not turned Claude Code on in Settings · Agent.
+const errClaudeCodeOff = `Claude Code is off in Keel: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`
+
+// mcpAllowed checks the user's "Allow Claude Code (keel mcp)" switch
+// (store.AgentSettings.ClaudeCode, off by default) and answers the request
+// itself when /api/mcp/ is closed: 403 while off, 423 while the vault is
+// locked (the setting cannot be read, so it counts as off).
+func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
+	set, err := s.store.AgentSettings()
+	if errors.Is(err, store.ErrLocked) {
+		writeError(w, http.StatusLocked, "the Keel vault is locked: unlock it in Keel")
+		return false
+	}
+	if err != nil {
+		writeStoreErr(w, err)
+		return false
+	}
+	if !set.ClaudeCodeEnabled() {
+		writeError(w, http.StatusForbidden, errClaudeCodeOff)
+		return false
+	}
+	return true
+}
+
 // mcpHealthProof answers ?mcpNonce= on /api/health with HMAC(mcp token,
 // nonce), so keel mcp can check the server holds its token before sending
-// it.
+// it. It answers while Claude Code is off too: the proof shows nothing but
+// that this server holds the token, and keel mcp then gets the clear
+// "Claude Code is off" refusal from /api/mcp/ (which does not look at the
+// token while off) instead of "the server did not prove it".
 func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
 	nonce := r.URL.Query().Get("mcpNonce")
 	if s.mcpToken == "" || nonce == "" || len(nonce) > 128 {
