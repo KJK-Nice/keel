@@ -323,6 +323,17 @@ func TestMCPRoutesRefusedUntilClaudeCodeIsOn(t *testing.T) {
 	}
 	refused("off by default")
 
+	// Without the token a caller learns nothing, not even that the switch
+	// is off: 401, as with Claude Code on.
+	for _, r := range routes {
+		for _, tok := range []string{"", "wrong"} {
+			code, out := mcpDo(t, f.srv.URL, r.method, r.path, tok, r.body, nil)
+			if code != http.StatusUnauthorized || out["error"] == errClaudeCodeOff {
+				t.Fatalf("no token: %s %s with %q → %d %v", r.method, r.path, tok, code, out)
+			}
+		}
+	}
+
 	// The proof still answers, so keel mcp gets the refusal above rather
 	// than "not proven".
 	res, err := http.Get(f.srv.URL + "/api/health?mcpNonce=n0nce")

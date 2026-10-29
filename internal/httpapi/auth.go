@@ -87,14 +87,15 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
-			// The user's switch comes before the token: while Claude Code
-			// is off nothing under /api/mcp/ looks at the token, a pane or
-			// the log.
-			if !s.mcpAllowed(w) {
-				return
-			}
+			// The token comes first, so a caller without it learns nothing,
+			// not even whether Claude Code is on or the vault is locked.
+			// Then the user's switch: while Claude Code is off nothing
+			// under /api/mcp/ reads a pane or writes the log.
 			if !s.mcpAuthorized(r) {
 				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			if !s.mcpAllowed(w) {
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -170,8 +171,8 @@ func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
 // nonce), so keel mcp can check the server holds its token before sending
 // it. It answers while Claude Code is off too: the proof shows nothing but
 // that this server holds the token, and keel mcp then gets the clear
-// "Claude Code is off" refusal from /api/mcp/ (which does not look at the
-// token while off) instead of "the server did not prove it".
+// "Claude Code is off" refusal from /api/mcp/ instead of "the server did
+// not prove it".
 func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
 	nonce := r.URL.Query().Get("mcpNonce")
 	if s.mcpToken == "" || nonce == "" || len(nonce) > 128 {
