@@ -4,7 +4,8 @@
 //
 //   GET/PUT /api/agent/settings       provider, model, detection, suggestions,
 //                                     defaultScope, scrollbackLines, redact,
-//                                     historyDays (the response is the saved value)
+//                                     historyDays, claudeCode (the response is the
+//                                     saved value)
 //   GET     /api/agent/providers      descriptors: warning, links, models
 //   PUT/DELETE /api/agent/keys/{id}   gemini, anthropic and jev
 //   DELETE  /api/agent/conversations  Delete all history
@@ -27,6 +28,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
     modelRow: $("agent-set-model-row"),
     suggest: $("agent-set-suggest"),
     scrollbackSuggest: $("agent-set-history-suggest"),
+    claudeCode: $("agent-set-claude-code"),
     detection: $("agent-set-detection"),
     detectionNote: $("agent-set-detection-note"),
     scope: $("agent-set-scope"),
@@ -86,6 +88,8 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
     if (!s) return;
     setOn(el.suggest, s.suggestions !== "off");
     setOn(el.scrollbackSuggest, s.historySuggestions !== "off");
+    // Off unless saved on (§6 rule 14).
+    setOn(el.claudeCode, s.claudeCode === true);
     paintRadios(el.detection, "data-agent-detection", s.detection);
     if (el.detection) el.detection.toggleAttribute("data-disabled", s.suggestions === "off");
     for (const r of el.detection?.querySelectorAll("[data-agent-detection]") || []) {
@@ -267,6 +271,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
       setOn(sw, on);
       if (sw === el.suggest) put({ suggestions: on ? "on" : "off" });
       else if (sw === el.scrollbackSuggest) put({ historySuggestions: on ? "on" : "off" });
+      else if (sw === el.claudeCode) put({ claudeCode: on });
       else if (sw === el.ips) put({ redact: { secrets: true, ips: on, hostnames: isOn(el.hosts) } });
       else if (sw === el.hosts) put({ redact: { secrets: true, ips: isOn(el.ips), hostnames: on } });
       return;

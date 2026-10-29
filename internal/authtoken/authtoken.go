@@ -26,13 +26,27 @@ import (
 // Header carries the token on requests from native clients.
 const Header = "X-Keel-Token"
 
+// MCPHeader carries keel mcp's own token (paths.MCPTokenFile). keel serve
+// accepts it on /api/mcp/ only, and only it there.
+const MCPHeader = "X-Keel-MCP-Token"
+
 const tokenBytes = 32
 
 // LoadOrCreate returns the token for dataDir, creating it if it is missing.
 // Concurrent callers (the desktop app and keel serve) agree on one token:
 // the file is published with a hard link, which fails if it already exists.
 func LoadOrCreate(dataDir string) (string, error) {
-	if tok, err := Read(dataDir); err == nil {
+	return loadOrCreate(dataDir, paths.TokenFile(dataDir))
+}
+
+// LoadOrCreateMCP is LoadOrCreate for keel mcp's token, a separate secret
+// in its own file (paths.MCPTokenFile).
+func LoadOrCreateMCP(dataDir string) (string, error) {
+	return loadOrCreate(dataDir, paths.MCPTokenFile(dataDir))
+}
+
+func loadOrCreate(dataDir, path string) (string, error) {
+	if tok, err := read(path); err == nil {
 		return tok, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -46,7 +60,7 @@ func LoadOrCreate(dataDir string) (string, error) {
 	}
 	tok := hex.EncodeToString(buf)
 
-	tmp, err := os.CreateTemp(dataDir, ".keel-serve.token-*")
+	tmp, err := os.CreateTemp(dataDir, "."+filepath.Base(path)+"-*")
 	if err != nil {
 		return "", err
 	}
@@ -67,17 +81,17 @@ func LoadOrCreate(dataDir string) (string, error) {
 	if err := tmp.Close(); err != nil {
 		return "", err
 	}
-	if err := os.Link(tmpName, paths.TokenFile(dataDir)); err != nil {
+	if err := os.Link(tmpName, path); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			// Another process won the race; use its token.
-			return Read(dataDir)
+			return read(path)
 		}
 		// Filesystems without hard links: fall back to rename, which can
 		// lose a simultaneous race but still leaves one complete token.
-		if rerr := os.Rename(tmpName, paths.TokenFile(dataDir)); rerr != nil {
+		if rerr := os.Rename(tmpName, path); rerr != nil {
 			return "", err
 		}
-		return Read(dataDir)
+		return read(path)
 	}
 	return tok, nil
 }
@@ -85,7 +99,16 @@ func LoadOrCreate(dataDir string) (string, error) {
 // Read returns the token stored for dataDir. The error wraps os.ErrNotExist
 // when there is none yet.
 func Read(dataDir string) (string, error) {
-	path := paths.TokenFile(dataDir)
+	return read(paths.TokenFile(dataDir))
+}
+
+// ReadMCP returns keel mcp's token for dataDir. The error wraps
+// os.ErrNotExist when keel serve has not made one yet.
+func ReadMCP(dataDir string) (string, error) {
+	return read(paths.MCPTokenFile(dataDir))
+}
+
+func read(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

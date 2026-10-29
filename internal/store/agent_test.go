@@ -468,3 +468,28 @@ func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
 		t.Fatalf("model = %q (%v), want %q", got.Model, err, DefaultAgentModel)
 	}
 }
+
+// Claude Code (keel mcp) is off until the user turns it on, and settings
+// saved before the field existed read as off (§6 rule 14).
+func TestAgentSettingsClaudeCodeOffByDefault(t *testing.T) {
+	st, path := agentStore(t)
+	if DefaultAgentSettings().ClaudeCodeEnabled() {
+		t.Fatal("Claude Code on by default")
+	}
+	var old AgentSettings
+	if err := json.Unmarshal([]byte(`{"provider":"gemini","model":"gemini-3.8-flash","suggestions":"on"}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := old.Normalize(); err != nil || n.ClaudeCodeEnabled() {
+		t.Fatalf("older settings → %+v (%v)", n, err)
+	}
+	on := DefaultAgentSettings()
+	on.ClaudeCode = true
+	if _, err := st.SetAgentSettings(on); err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopen(t, path).AgentSettings()
+	if err != nil || !got.ClaudeCodeEnabled() {
+		t.Fatalf("reload = %+v (%v)", got, err)
+	}
+}

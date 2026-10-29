@@ -485,6 +485,15 @@ templ agentSettingsPanel() {
 				</div>
 			</div>
 		}
+		@settingsGroup("Claude Code") {
+			<div class="pref-row">
+				<div class="pref-copy">
+					<div class="pref-title">Allow Claude Code (keel mcp)</div>
+					<p class="pref-desc">Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.</p>
+				</div>
+				@agentSwitch("agent-set-claude-code", "Allow Claude Code (keel mcp)")
+			</div>
+		}
 		@settingsGroup("Notes for the agent") {
 			<div class="pref-row pref-row-stack">
 				<div class="pref-copy">

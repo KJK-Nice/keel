@@ -97,7 +97,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		}
 		return f.fake, nil
 	}
-	server := New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil })
+	server := New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
 	f.srv = httptest.NewServer(server.Handler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {
@@ -417,18 +417,19 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 }
 
 // §6.1 at the source: the agent routes cannot write to a session. The
-// files that hold them (the ask, and the runbooks of §16) call no write,
-// inject, spawn or resize method, and touch the runtime only through Get,
-// ReadScrollback, LastCommand, CommandsAfter and CommandOutput (reads).
+// files that hold them (the ask, the runbooks of §16, and keel mcp's
+// routes) call no write, inject, spawn or resize method, and touch the
+// runtime only through Get, List, ReadScrollback, LastCommand,
+// CommandsAfter and CommandOutput (reads).
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
-	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go"} {
+	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go", "mcp.go"} {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, file, nil, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
 		banned := map[string]bool{"Write": true, "Inject": true, "InjectTicket": true, "IssueInjectTicket": true, "Keystroke": true, "Spawn": true, "Resize": true, "SetFocus": true, "Kill": true}
-		reads := map[string]bool{"Get": true, "ReadScrollback": true, "LastCommand": true, "CommandsAfter": true, "CommandOutput": true}
+		reads := map[string]bool{"Get": true, "List": true, "ReadScrollback": true, "LastCommand": true, "CommandsAfter": true, "CommandOutput": true}
 		ast.Inspect(f, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
 			if !ok {
