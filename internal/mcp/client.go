@@ -19,23 +19,27 @@ import (
 
 // Client asks keel serve's /api/mcp/ routes on loopback with keel mcp's
 // token. It reads the token when it first needs it (keel serve makes it on
-// start), and checks that the server on the address holds the same token
-// before it sends it: a program that took the port gets a nonce, never the
-// token.
+// start), and before every request checks that the server on the address
+// holds the same token: a program that took the port (after keel serve
+// stopped, say) gets a nonce, never the token. It never follows a
+// redirect, so the token header is sent only to the address it checked.
 type Client struct {
 	addr    string
 	dataDir string
 	http    *http.Client
 
-	mu       sync.Mutex
-	token    string
-	verified bool
+	mu    sync.Mutex
+	token string
 }
 
 // NewClient returns a client for the keel serve on addr whose data
 // directory is dataDir.
 func NewClient(addr, dataDir string) *Client {
-	return &Client{addr: addr, dataDir: dataDir, http: &http.Client{Timeout: 30 * time.Second}}
+	return &Client{addr: addr, dataDir: dataDir, http: &http.Client{
+		Timeout: 30 * time.Second,
+		// A redirect would carry X-Keel-MCP-Token to wherever it points.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}}
 }
 
 // errNotRunning says how to get keel serve up.
@@ -43,28 +47,36 @@ var errNotRunning = errors.New("keel serve is not running: open the Keel app (or
 
 func (c *Client) base() string { return "http://" + c.addr }
 
-// ready returns the token once it is read and the server proved it holds
-// it.
+// ready returns the token once it is read and the server on the address
+// proved, for this request, that it holds it.
 func (c *Client) ready(ctx context.Context) (string, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.token == "" {
 		tok, err := authtoken.ReadMCP(c.dataDir)
 		if errors.Is(err, os.ErrNotExist) {
+			c.mu.Unlock()
 			return "", errors.New("no keel-mcp.token yet: open the Keel app once (keel serve makes it on start), then try again")
 		}
 		if err != nil {
+			c.mu.Unlock()
 			return "", err
 		}
 		c.token = tok
 	}
-	if !c.verified {
-		if err := c.verify(ctx, c.token); err != nil {
-			return "", err
-		}
-		c.verified = true
+	tok := c.token
+	c.mu.Unlock()
+	if err := c.verify(ctx, tok); err != nil {
+		return "", err
 	}
-	return c.token, nil
+	return tok, nil
+}
+
+// forget drops the token, so the next request reads it again (keel serve
+// may have restarted with a new one).
+func (c *Client) forget() {
+	c.mu.Lock()
+	c.token = ""
+	c.mu.Unlock()
 }
 
 // verify asks /api/health for HMAC(token, nonce), sending the nonce only.
@@ -119,12 +131,9 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	req.Header.Set(authtoken.MCPHeader, tok)
 	res, err := c.http.Do(req)
 	if err != nil {
-		// keel serve may have restarted on another token: check again
+		// keel serve may have restarted on another token: read it again
 		// next time.
-		c.mu.Lock()
-		c.verified = false
-		c.token = ""
-		c.mu.Unlock()
+		c.forget()
 		return errNotRunning
 	}
 	defer res.Body.Close()
@@ -138,10 +147,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 		}
 		_ = json.Unmarshal(raw, &e)
 		if res.StatusCode == http.StatusUnauthorized {
-			c.mu.Lock()
-			c.verified = false
-			c.token = ""
-			c.mu.Unlock()
+			c.forget()
 		}
 		msg := strings.TrimSpace(e.Error)
 		if msg == "" {

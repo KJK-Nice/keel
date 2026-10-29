@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"keel/internal/authtoken"
@@ -258,5 +259,99 @@ func TestClientWithoutToken(t *testing.T) {
 	c := NewClient("127.0.0.1:1", t.TempDir())
 	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, nil); err == nil || !strings.Contains(err.Error(), "open the Keel app") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// The proof is checked before every request: a server that proved the
+// token once and then stops proving it (keel serve stopped and another
+// program took the port) never gets the token again.
+func TestClientVerifiesBeforeEveryRequest(t *testing.T) {
+	dir := t.TempDir()
+	tok, err := authtoken.LoadOrCreateMCP(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var (
+		mu     sync.Mutex
+		proofs int
+		tokens []string
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		if r.URL.Path == "/api/health" {
+			out := map[string]any{"status": "ok"}
+			if proofs == 0 {
+				out["mcpProof"] = authtoken.Proof(tok, r.URL.Query().Get("mcpNonce"))
+			}
+			proofs++
+			_ = json.NewEncoder(w).Encode(out)
+			return
+		}
+		tokens = append(tokens, r.Header.Get(authtoken.MCPHeader))
+		_ = json.NewEncoder(w).Encode(map[string]any{"panes": []any{}})
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u.Host, dir)
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, &map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, &map[string]any{}); err == nil || !strings.Contains(err.Error(), "did not prove") {
+		t.Fatalf("second call to a server that stopped proving: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if proofs != 2 || len(tokens) != 1 || tokens[0] != tok {
+		t.Fatalf("health asked %d times, tokens sent %q", proofs, tokens)
+	}
+}
+
+// The client never follows a redirect, so the token header is never sent
+// to another server, whether the proven server or its health check points
+// there.
+func TestClientDoesNotFollowRedirects(t *testing.T) {
+	dir := t.TempDir()
+	tok, err := authtoken.LoadOrCreateMCP(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var (
+		mu   sync.Mutex
+		hits []string
+	)
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits = append(hits, r.URL.Path+" "+r.Header.Get(authtoken.MCPHeader))
+		mu.Unlock()
+		out := map[string]any{"status": "ok", "panes": []any{}}
+		if n := r.URL.Query().Get("mcpNonce"); n != "" {
+			out["mcpProof"] = authtoken.Proof(tok, n)
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	}))
+	defer other.Close()
+	var redirectHealth atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/health" && !redirectHealth.Load() {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "mcpProof": authtoken.Proof(tok, r.URL.Query().Get("mcpNonce"))})
+			return
+		}
+		http.Redirect(w, r, other.URL+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u.Host, dir)
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, &map[string]any{}); err == nil {
+		t.Fatal("a redirected request succeeded")
+	}
+	redirectHealth.Store(true)
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, &map[string]any{}); err == nil || !strings.Contains(err.Error(), "did not prove") {
+		t.Fatalf("redirected health: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(hits) != 0 {
+		t.Fatalf("the other server got %q", hits)
 	}
 }
