@@ -1,0 +1,25 @@
+name: Install GTK4 and WebKitGTK 6
+description: >
+  The Linux libraries Wails v3 builds against, from a cache of the .debs
+  when there is one, with timeouts and retries so a slow mirror cannot
+  hold the job until it is cancelled (scripts/ci-apt.sh).
+runs:
+  using: composite
+  steps:
+    # A new cache each week picks up security updates; until then the
+    # last one is restored and only what changed is downloaded.
+    - name: Cache week
+      id: week
+      shell: sh
+      run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache the .debs
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/apt-archives
+        key: apt-gtk-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ hashFiles('scripts/ci-apt.sh', '.github/actions/gtk/action.yml') }}
+        restore-keys: apt-gtk-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: apt-get install
+      shell: sh
+      run: sh scripts/ci-apt.sh libgtk-4-dev libwebkitgtk-6.0-dev

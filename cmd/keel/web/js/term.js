@@ -50,8 +50,8 @@ import * as W from "./lib/workspace.js";
 import * as SW from "./lib/savedworkspace.js";
 import { kbdHint, tabStripHTML } from "./lib/tabstrip.js";
 import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";
-import { chromeChordName, classifyShortcut, isAppMod, menuShortcutAllowed } from "./lib/shortcuts.js";
-import { createChordGuard } from "./lib/chordguard.js";
+import { chromeChordName, isAppMod } from "./lib/shortcuts.js";
+import { createKeyRouter } from "./ui/keyrouter.js";
 import { pinScroll } from "./lib/scrollpin.js";
 import { runtimeIsStale } from "./lib/runtimecheck.js";
 import { createAutosave } from "./lib/autosave.js";
@@ -2952,23 +2952,6 @@ import { openExternal } from "./lib/openlink.js";
   }
 
   let kbdTimer = 0;
-  const chordGuard = createChordGuard();
-
-  // Shortcut debug log: off unless localStorage["keel-debug-keys"] is "1"
-  // (the palette's "Log shortcut keys (debug)" toggles it; ?debug=keys in
-  // the URL turns it on for that load). Each chrome chord then logs one
-  // line, also shown as a toast so it is readable in the native window,
-  // which has no console: source (keyboard or menu), name, repeat, and what
-  // happened (ran, repeat skipped, echo dropped, declined). The last 50
-  // lines stay in window.__keelKeyLog whether or not the log is on.
-  const keyLog = [];
-  window.__keelKeyLog = keyLog;
-  let keyDebug = false;
-  try {
-    keyDebug = localStorage.getItem("keel-debug-keys") === "1" || new URLSearchParams(location.search).get("debug") === "keys";
-  } catch {
-    keyDebug = false;
-  }
   let ptyInjectWaiter = null;
   let ptyChromeHoldUntil = 0;
   // Keys held down now. After a Type without the dialog (§6 rule 13) the
@@ -3172,8 +3155,8 @@ import { openExternal } from "./lib/openlink.js";
     add({
       id: "debug-keys",
       group: "Terminal",
-      title: keyDebug ? "Stop logging shortcut keys (debug)" : "Log shortcut keys (debug)",
-      run: () => toggleKeyDebug(),
+      title: keyRouter.debugging() ? "Stop logging shortcut keys (debug)" : "Log shortcut keys (debug)",
+      run: () => keyRouter.toggleDebug(),
     });
     // Open now: every tab, and the panes of tabs with more than one. Picking
     // one focuses it; it never starts a second session.
@@ -3418,7 +3401,7 @@ import { openExternal } from "./lib/openlink.js";
   // runShortcut runs a chrome action once. There is no time-based
   // de-duplication: two presses are two actions. A held key repeats only
   // what classifyShortcut lets repeat, and a native menu echo of a chord
-  // the keyboard ran is dropped by chordGuard (window.__keelShortcut).
+  // the keyboard ran is dropped (ui/keyrouter.js).
   function runShortcut(name) {
     if (name === "new-tab") newTab();
     else if (name === "close-tab") {
@@ -3467,84 +3450,34 @@ import { openExternal } from "./lib/openlink.js";
     return !!els.gate && !els.gate.hidden;
   }
 
-  function logChord(source, name, repeat, outcome) {
-    const line = `keel keys: ${source} ${name} repeat=${!!repeat} ${outcome}`;
-    keyLog.push(line);
-    if (keyLog.length > 50) keyLog.shift();
-    if (!keyDebug) return;
-    console.info(line);
-    toast(line.slice("keel keys: ".length));
-  }
-
-  function toggleKeyDebug() {
-    keyDebug = !keyDebug;
-    try {
-      if (keyDebug) localStorage.setItem("keel-debug-keys", "1");
-      else localStorage.removeItem("keel-debug-keys");
-    } catch {
-      /* the log stays on for this window only */
-    }
-    toast(keyDebug ? "Logging shortcut keys" : "Stopped logging shortcut keys");
-  }
-
-  function handleShortcut(ev) {
-    const declined = ev.target?.closest?.(".tab-rename") || isGateOpen();
-    const action = declined
-      ? null
-      : classifyShortcut(ev, {
-          mac: isMac,
-          modalOpen: !!state.openModal,
-          findOpen: () => isFindOpen(focusedPane()),
-          startPage: !!state.tabs.get(state.activeId)?.start && !state.openModal,
-        });
-    if (!action) {
-      const chord = chromeChordName(ev, isMac);
-      if (!chord) return false;
-      // A held chord's repeat runs nothing (classifyShortcut) and goes
-      // nowhere else either: not to the terminal, not to the native menu.
-      if (ev.repeat && !declined && !state.openModal) {
-        ev.preventDefault();
-        logChord("keyboard", chord, true, "repeat skipped");
-        return true;
+  // Chrome shortcuts from the keyboard and the native menu (ui/keyrouter.js);
+  // runShortcut is what each one does.
+  const keyRouter = createKeyRouter({
+    mac: isMac,
+    native: isNativeWindow,
+    ctx: {
+      gateOpen: isGateOpen,
+      modalOpen: () => !!state.openModal,
+      findOpen: () => isFindOpen(focusedPane()),
+      startPage: () => !!state.tabs.get(state.activeId)?.start && !state.openModal,
+      renaming: () => !!document.activeElement?.closest?.(".tab-rename"),
+    },
+    run: runShortcut,
+    find: (dir) => runPaneFind(focusedPane(), dir, false),
+    tabIndex: activateTabIndex,
+    recentHost: openRecent,
+    storage: (() => {
+      try {
+        return localStorage;
+      } catch {
+        return null;
       }
-      // In the native window a chrome chord declined here must not reach
-      // the menu's accelerator, which would run it anyway (shortcuts.js).
-      if (isNativeWindow()) ev.preventDefault();
-      logChord("keyboard", chord, ev.repeat, "declined");
-      return false;
-    }
-    ev.preventDefault();
-    const name = action.name === "tab-index" || action.name === "recent-host" ? `${action.name}-${action.index}` : action.name;
-    chordGuard.keyboard(name);
-    logChord("keyboard", name, ev.repeat, "ran");
-    if (action.name === "find-next" || action.name === "find-prev") {
-      runPaneFind(focusedPane(), action.name === "find-prev" ? "prev" : "next", false);
-    } else if (action.name === "tab-index") {
-      activateTabIndex(action.index);
-    } else if (action.name === "recent-host") {
-      openRecent(action.index);
-    } else {
-      runShortcut(action.name);
-    }
-    return true;
-  }
-
-  // The native menu (internal/desktop) runs its items through here. A call
-  // that echoes a chord the keyboard just ran, with no input since, is
-  // dropped (lib/chordguard.js); any other call runs.
-  window.__keelShortcut = (name) => {
-    if (!chordGuard.menu(name)) {
-      logChord("menu", name, false, "echo dropped");
-      return;
-    }
-    const ok = menuShortcutAllowed(name, {
-      gateOpen: isGateOpen(),
-      renaming: !!document.activeElement?.closest?.(".tab-rename"),
-      modalOpen: !!state.openModal,
-    });
-    logChord("menu", name, false, ok ? "ran" : "declined");
-    if (ok) runShortcut(name);
-  };
+    })(),
+    debugParam: new URLSearchParams(location.search).get("debug") === "keys",
+    toast,
+  });
+  window.__keelKeyLog = keyRouter.log;
+  window.__keelShortcut = keyRouter.menu;
 
   function termKeyHandler(ev) {
     // A noticed line or a suggestion card in the focused pane takes ⇥, ⇧⇥,
@@ -3570,7 +3503,7 @@ import { openExternal } from "./lib/openlink.js";
     }
     // Unmodified keys (including hold-to-repeat in vim) must reach xterm.
     if (!hasAppMod(ev) || ev.altKey) return true;
-    return !handleShortcut(ev);
+    return !keyRouter.handle(ev);
   }
 
   // canSuggestIn: in-pane suggestions (§5.5) only for the client driving a
@@ -6924,14 +6857,14 @@ import { openExternal } from "./lib/openlink.js";
     // Any input after a chord ends it for the menu echo guard: a menu call
     // after it is the user's own (lib/chordguard.js). A held key's repeat
     // is the same press, and another chrome chord (⌘⇧D then ⌘⇧↵, ⌘ held)
-    // adds itself in handleShortcut instead of clearing. Capture phase, so
+    // adds itself in keyRouter.handle instead of clearing. Capture phase, so
     // a field that stops the event still counts.
-    window.addEventListener("keyup", () => chordGuard.input(), true);
-    window.addEventListener("mousedown", () => chordGuard.input(), true);
+    window.addEventListener("keyup", () => keyRouter.input(), true);
+    window.addEventListener("mousedown", () => keyRouter.input(), true);
     window.addEventListener(
       "keydown",
       (ev) => {
-        if (!ev.repeat && !chromeChordName(ev, isMac)) chordGuard.input();
+        if (!ev.repeat && !chromeChordName(ev, isMac)) keyRouter.input();
         if (isHoldModKey(ev) && !ev.repeat) {
           clearTimeout(kbdTimer);
           kbdTimer = window.setTimeout(() => showKbdHints(true), 280);
@@ -6963,7 +6896,7 @@ import { openExternal } from "./lib/openlink.js";
           closeModal();
           return;
         }
-        if (handleShortcut(ev)) ev.stopPropagation();
+        if (keyRouter.handle(ev)) ev.stopPropagation();
       },
       true
     );

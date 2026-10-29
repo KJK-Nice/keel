@@ -1,6 +1,10 @@
-import { describe, test } from '@e2e-dev/web';
+import { afterEach, describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { keelApi, keelSend, openKeel, sshTest } from './keel.ts';
+import { keelApi, keelSend, killSessions, openKeel, sshTest } from './keel.ts';
+
+// A test that fails before closing its tabs must not leave its session
+// for the next test to restore as a tab (killSessions).
+afterEach(({ app }) => killSessions(app.baseUrl));
 
 // Row context menus (k-menu, docs/design/components.css). A right-click on
 // a row, ⇧F10 or the ContextMenu key opens the same items as the row's "…"
