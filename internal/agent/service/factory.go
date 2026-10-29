@@ -2,6 +2,7 @@ package service
 
 import (
 	"keel/internal/agent/provider"
+	"keel/internal/agent/provider/anthropic"
 	"keel/internal/agent/provider/gemini"
 	"keel/internal/agent/provider/jev"
 	"keel/internal/agent/provider/providertest"
@@ -12,12 +13,15 @@ import (
 type Factory func(providerID, key string) (provider.Provider, error)
 
 // Real builds the real client for a provider. This package is the only one
-// allowed to import provider/gemini (internal/agent/invariants_test.go),
-// and Ask is the only caller, so Google is reached only on a user's Ask.
+// allowed to import provider/gemini and provider/anthropic
+// (internal/agent/invariants_test.go), and Ask is the only caller, so
+// Google and Anthropic are reached only on a user's Ask.
 func Real(providerID, key string) (provider.Provider, error) {
 	switch providerID {
 	case "gemini":
 		return gemini.New(key)
+	case "anthropic":
+		return anthropic.New(key)
 	}
 	return nil, provider.ErrUnknown
 }

@@ -147,7 +147,7 @@ type Suggester interface {
 	Suggest(ctx context.Context, in SuggestInput) ([]Candidate, error)
 }
 
-// modelSuggester asks the model provider (Gemini) to write the command.
+// modelSuggester asks the model provider (Gemini or Claude) to write the command.
 type modelSuggester struct {
 	p        provider.Provider
 	model    string

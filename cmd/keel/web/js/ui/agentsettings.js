@@ -6,7 +6,7 @@
 //                                     defaultScope, scrollbackLines, redact,
 //                                     historyDays (the response is the saved value)
 //   GET     /api/agent/providers      descriptors: warning, links, models
-//   PUT/DELETE /api/agent/keys/{id}   gemini and jev
+//   PUT/DELETE /api/agent/keys/{id}   gemini, anthropic and jev
 //   DELETE  /api/agent/conversations  Delete all history
 //
 // A key is write-only. It is read from the password field, sent once, and
@@ -73,8 +73,8 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
   function paintModel() {
     const d = state.providers.find((p) => p.kind === "model" && p.id === state.settings?.provider) || state.providers.find((p) => p.kind === "model");
     if (!d || !el.model) return;
-    const models = S.modelChoices(d, state.settings?.model);
-    widgets.fillSelectItems?.(el.model.id, models.map((m) => ({ value: m, label: m })), state.settings?.model || d.defaultModel, "Default");
+    const items = S.modelItems(state.providers, state.settings);
+    widgets.fillSelectItems?.(el.model.id, items.map(({ value, label }) => ({ value, label })), state.settings?.model || d.defaultModel, "Default");
   }
 
   function paintRadios(group, attr, value) {
@@ -119,7 +119,7 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
       const [res, list] = await Promise.all([api("/api/agent/settings"), state.providers.length ? Promise.resolve(state.providers) : api("/api/agent/providers")]);
       state.settings = res.settings || null;
       state.keys = res.keys || {};
-      state.providers = (list || []).filter((d) => d.id === "gemini" || d.id === "jev");
+      state.providers = (list || []).filter((d) => d.kind === "model" || d.id === "jev");
       state.loaded = true;
       paintAll();
     } catch (err) {
@@ -304,7 +304,11 @@ export function createAgentSettings({ doc = document, api, toast, confirm, widge
 
   el.model?.addEventListener("select-change", (ev) => {
     const v = ev.detail?.value;
-    if (v && v !== state.settings?.model) put({ model: v });
+    if (!v || v === state.settings?.model) return;
+    // A model names its provider: picking a Claude model switches the
+    // agent to Anthropic, and the other way round.
+    const item = S.modelItems(state.providers, state.settings).find((it) => it.value === v);
+    put(item?.provider && item.provider !== state.settings?.provider ? { provider: item.provider, model: v } : { model: v });
   });
   el.history?.addEventListener("select-change", (ev) => {
     const v = ev.detail?.value;

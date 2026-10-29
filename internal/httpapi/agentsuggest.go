@@ -188,7 +188,7 @@ func suggestErr(err error) (string, string) {
 	case errors.Is(err, agent.ErrFollower), errors.Is(err, agent.ErrNotDriving):
 		return "You follow this pane. Suggestions are for the driver.", "following"
 	case errors.Is(err, service.ErrNoKey):
-		return "Connect Gemini in the agent panel to get suggestions.", "no-key"
+		return "Connect a model provider in the agent panel to get suggestions.", "no-key"
 	case errors.Is(err, service.ErrSuggestOff):
 		return "Suggestions in panes are off.", "off"
 	case errors.Is(err, agent.ErrNotReadable):

@@ -2,9 +2,10 @@
 //
 // A Provider takes only redacted text (redact.Safe), so terminal output
 // cannot reach one without going through internal/agent/redact first. Real
-// clients live in their own sub-packages (provider/gemini) and are built
-// only by the agent service in phase 6b, on a user action; in phase 6a no
-// code outside tests builds or calls one (see egress_test.go).
+// clients live in their own sub-packages (provider/gemini,
+// provider/anthropic) and are built only by the agent service in phase 6b,
+// on a user action; in phase 6a no code outside tests builds or calls one
+// (see egress_test.go).
 package provider
 
 import (
@@ -98,6 +99,7 @@ const (
 type Descriptor struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
+	ShortName    string   `json:"shortName,omitempty"` // in short UI lines ("Connect Gemini")
 	Kind         Kind     `json:"kind"`
 	KeyLabel     string   `json:"keyLabel"`
 	KeyHelpURL   string   `json:"keyHelpUrl,omitempty"`
@@ -126,6 +128,7 @@ var descriptors = []Descriptor{
 	{
 		ID:           "gemini",
 		Name:         "Google Gemini",
+		ShortName:    "Gemini",
 		Kind:         KindModel,
 		KeyLabel:     "Gemini API key",
 		KeyHelpURL:   "https://aistudio.google.com/apikey",
@@ -139,6 +142,21 @@ var descriptors = []Descriptor{
 		SuggestThinking: ThinkingMinimal,
 		Warning:         GeminiWarning,
 		TermsURL:        "https://ai.google.dev/gemini-api/terms",
+	},
+	{
+		ID:           "anthropic",
+		Name:         "Anthropic Claude",
+		ShortName:    "Claude",
+		Kind:         KindModel,
+		KeyLabel:     "Claude API key",
+		KeyHelpURL:   "https://platform.claude.com/docs/en/get-api-key",
+		DefaultModel: "claude-sonnet-5-5",
+		Models:       []string{"claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"},
+		// The smallest, fastest model at its lowest effort: in-pane
+		// suggestions are waited on after ⇥.
+		SuggestModel:    "claude-haiku-5-5",
+		SuggestThinking: ThinkingLow,
+		TermsURL:        "https://www.anthropic.com/legal/commercial-terms",
 	},
 	{
 		ID:       "jev",
@@ -166,6 +184,22 @@ func Lookup(id string) (Descriptor, bool) {
 		}
 	}
 	return Descriptor{}, false
+}
+
+// ListedElsewhere reports whether a model provider other than id lists
+// model: a model that belongs to another provider.
+func ListedElsewhere(id, model string) bool {
+	for _, d := range descriptors {
+		if d.ID == id || d.Kind != KindModel {
+			continue
+		}
+		for _, m := range d.Models {
+			if m == model {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Judge answers typed questions about a state (phase 6c, TypeSafe Jev). It

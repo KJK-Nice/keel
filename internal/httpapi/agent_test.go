@@ -107,6 +107,38 @@ func TestAgentSettingsAPI(t *testing.T) {
 	}
 }
 
+// Switching the model provider never keeps the other provider's model:
+// a client that sends only the provider gets the new provider's default,
+// one that sends both keeps its pick, and a custom model is kept.
+func TestAgentSettingsProviderSwitch(t *testing.T) {
+	f := newAgentFixture(t, testToken)
+	put := func(body map[string]any) store.AgentSettings {
+		t.Helper()
+		code, b := f.do(t, "PUT", "/api/agent/settings", body)
+		if code != 200 {
+			t.Fatalf("PUT %v → %d %s", body, code, b)
+		}
+		var got agentSettingsResp
+		_ = json.Unmarshal(b, &got)
+		return got.Settings
+	}
+	if s := put(map[string]any{"provider": "anthropic"}); s.Provider != "anthropic" || s.Model != "claude-sonnet-5-5" {
+		t.Fatalf("provider only → %+v", s)
+	}
+	if s := put(map[string]any{"provider": "anthropic", "model": "claude-haiku-5-5"}); s.Model != "claude-haiku-5-5" {
+		t.Fatalf("provider and model → %+v", s)
+	}
+	if s := put(map[string]any{"provider": "gemini"}); s.Provider != "gemini" || s.Model != store.DefaultAgentModel {
+		t.Fatalf("back to gemini → %+v", s)
+	}
+	if s := put(map[string]any{"provider": "anthropic", "model": "claude-custom-1"}); s.Model != "claude-custom-1" {
+		t.Fatalf("custom model → %+v", s)
+	}
+	if s := put(map[string]any{"model": "gemini-3.6-flash"}); s.Provider != "anthropic" || s.Model != "claude-sonnet-5-5" {
+		t.Fatalf("a Gemini model under anthropic → %+v", s)
+	}
+}
+
 func TestAgentProvidersAPI(t *testing.T) {
 	f := newAgentFixture(t, testToken)
 	code, b := f.do(t, "GET", "/api/agent/providers", nil)
