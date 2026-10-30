@@ -10,6 +10,7 @@ keel app             # same
 keel serve           # runtime daemon (PTYs)
 keel serve stop      # kill leftover sessions and stop the daemon
 keel mcp             # MCP server on stdio for Claude Code (see docs/agent.md)
+keel version         # the version this binary was released as (dev when built from source)
 ```
 
 ## Environment variables

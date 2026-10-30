@@ -1,4 +1,6 @@
 /bin/
+/dist/
+/THIRD_PARTY_NOTICES
 /build/bin/
 /data/*.json
 /data/*.pid

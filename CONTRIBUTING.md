@@ -35,6 +35,18 @@ make build && make e2e # the e2e suite in WebKit (macOS: the tests press ⌘)
 
 UI changes are verified end to end with e2e (`npm install`, then `make e2e`, or `npx e2e run <file>` for one file) against an isolated `keel serve`; see `.claude/skills/verify-keel/SKILL.md`. CI runs `make e2e` on macOS in the `e2e (webkit)` job; on a failure it uploads the report, traces and `keel serve` logs as the `e2e-report` artifact.
 
+## Releasing
+
+Releases are cut from `main` by pushing a tag; `.github/workflows/release.yml` does the rest:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+It builds `Keel-<v>-macos-universal.zip` (arm64 + x86_64, ad-hoc signed, not notarized), `keel-<v>-linux-{x86_64,arm64}.tar.gz` and `keel-signal` for macOS, Linux and Windows with `scripts/release.sh`, puts `LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) in each archive, and publishes a GitHub Release with `SHA256SUMS`, the install notes in `.github/release-notes.md` and notes generated from the merged PRs. A tag with a hyphen (`v0.2.0-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`.
+
+A PR that changes the release tooling runs the same builds as a dry run and keeps the archives as workflow artifacts. Locally, `sh scripts/release.sh v0.0.0-test app` builds this machine's archive into `dist/`.
+
 ## UI work
 
 The UI is being redesigned. Read [`docs/ui-redesign.md`](docs/ui-redesign.md) first, and [`CLAUDE.md`](CLAUDE.md) for the rules on tokens, components and the Datastar stream.
