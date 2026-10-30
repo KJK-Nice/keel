@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"os"
 	stdruntime "runtime"
 	"strings"
 	"testing"
@@ -142,6 +143,26 @@ func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
 	if opts.Windows.BackdropType != application.Acrylic {
 		t.Fatalf("windows backdrop = %v, want acrylic", opts.Windows.BackdropType)
 	}
+}
+
+// Since Wails v3.0.0 the call that clears the WKWebView background (so the
+// backdrop shows through) is compiled only with private_mac_apis; without it
+// the window is opaque whatever the backdrop. Every build reads its tags
+// from scripts/go-tags.sh.
+func TestBuildTagsKeepMacWebviewTransparent(t *testing.T) {
+	b, err := os.ReadFile("../../scripts/go-tags.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "echo ") {
+			if !strings.Contains(line, "private_mac_apis") {
+				t.Fatalf("build tags %q lack private_mac_apis", line)
+			}
+			return
+		}
+	}
+	t.Fatal("no echo line in scripts/go-tags.sh")
 }
 
 func TestMacTitleBarPresetMatchesHiddenInset(t *testing.T) {
