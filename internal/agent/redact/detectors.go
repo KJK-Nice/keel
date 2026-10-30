@@ -82,7 +82,10 @@ var (
 	// .env and `env` output: an upper-case NAME=value line. The value
 	// runs to the end of the line, as dotenv reads it.
 	envLineRe = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?([A-Z_][A-Z0-9_]*)=(.*)$`)
-	assignRe  = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.-])["']?(-{0,2}[A-Za-z_][A-Za-z0-9_.-]{0,63})["']?[ \t]*[:=][ \t]*("(?:[^"\\\n]|\\.)*"|'[^'\n]*'|[^\s"',;&)}\]]+)`)
+	// A value is quoted, a mask or placeholder already in the text
+	// ([redacted] from scrollback, [secret:2]) read whole so its "]" is not
+	// left behind, or a bare word.
+	assignRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.-])["']?(-{0,2}[A-Za-z_][A-Za-z0-9_.-]{0,63})["']?[ \t]*[:=][ \t]*("(?:[^"\\\n]|\\.)*"|'[^'\n]*'|\[(?:redacted|secret:\d+)\]|[^\s"',;&)}\]]+)`)
 
 	entropyCandRe = regexp.MustCompile(`[A-Za-z0-9+/=_-]{24,}`)
 )

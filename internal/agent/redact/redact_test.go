@@ -170,6 +170,11 @@ func cases() []tcase {
 		{name: "saved host names", in: "connected to bastion-7 (Bastion-7)", opts: Options{Hostnames: true, Hosts: []string{"bastion-7", "localhost"}}, want: "connected to [host:1] ([host:1])"},
 		{name: "npm version not a host", in: "react@18.3.1", opts: Options{Hostnames: true}, want: "react@18.3.1"},
 
+		// A value scrollback already masked, or a placeholder, is one whole
+		// value: no stray "]" left behind.
+		{name: "scrollback mask kept", in: "password=[redacted] echo [redacted]", want: "password=[redacted] echo [redacted]"},
+		{name: "placeholder kept whole", in: "token: [secret:2]; next", want: "token: [secret:2]; next"},
+
 		// Secrets win over ip and host.
 		{name: "secret beats ip", in: "password=10.1.2.3", opts: Options{IPs: true}, want: "password=[secret:1]"},
 		{name: "url with password and host", in: "redis://u:pw-9876@cache.example.com:6379", opts: Options{Hostnames: true}, want: "redis://u:[secret:1]@[host:1]:6379"},
