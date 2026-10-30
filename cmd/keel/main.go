@@ -106,8 +106,9 @@ in a background keel serve process. Closing a session tab kills that PTY.
 Internet follow (no LAN) needs a public signaling server:
 
   keel-signal                 # listen :47242
-  KEEL_SIGNAL=https://… keel  # host copies a join link from Share
-  make build KEEL_SIGNAL=https://…   bake URL into Keel.app (Finder has no shell env)
+  Settings · Sharing · Signal server: its URL (saved; host copies a join link from Share)
+  KEEL_SIGNAL=https://… keel  # or for one run (wins over the saved server)
+  make build KEEL_SIGNAL=https://…   or bake a default into the build
 
   Host: Share. Other Keel: Join session, paste the link.
   Two apps on one Mac: KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
@@ -116,7 +117,7 @@ Environment:
   KEEL_ADDR       local webview bind (default 127.0.0.1:47241)
   KEEL_DATA       data directory (default: OS config dir / keel)
   KEEL_NAME       display name
-  KEEL_SIGNAL     public URL of keel-signal (runtime override of the baked default)
+  KEEL_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
   KEEL_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
 
 The desktop window is a native WebKit/WebView2 webview (Wails). Build:

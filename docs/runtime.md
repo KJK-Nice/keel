@@ -20,7 +20,7 @@ keel version         # the version this binary was released as (dev when built f
 | `KEEL_ADDR` | `127.0.0.1:47241` | Local webview bind (loopback) |
 | `KEEL_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
 | `KEEL_NAME` | `$USER` | Display name |
-| `KEEL_SIGNAL` | (unset, or baked via `make build KEEL_SIGNAL=…`) | Public URL of `keel-signal` for internet join ([Sharing](sharing.md)). Runtime env overrides the compile-time default. |
+| `KEEL_SIGNAL` | (unset) | Public URL of `keel-signal` for internet join ([Sharing](sharing.md)) for this run. It wins over the server saved in Settings · Sharing, which wins over one baked in with `make build KEEL_SIGNAL=…`. |
 | `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable (a scripted setup: no first-run screens) |
 | `KEEL_KEYRING` | (unset) | `off`: never read or write the OS keychain item (`keel`/`vault`), as if the keychain did not answer. For tests and machines without a keychain |
 | `KEEL_SSH_DIR` | `~/.ssh` | Where the host import reads `config` and the keys it names; `~` in that config is the folder above it. Tests point it at a fixture |

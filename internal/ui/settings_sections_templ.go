@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 // The Settings sections beyond Appearance, Terminal and Agent
 // (docs/ui-redesign.md §5.9, the board's section list). Each shows only what
 // Keel can do today: Keyboard, Vault & security and About are read-only;
-// Sharing has one editable value; Runtime has Stop. The values are filled by
+// Sharing has two editable values; Runtime has Stop. The values are filled by
 // js/ui/settingspages.js.
 
 // keyboardSettingsPanel is Settings · Keyboard. The groups come from
@@ -46,10 +46,11 @@ func keyboardSettingsPanel() templ.Component {
 	})
 }
 
-// sharingSettingsPanel is Settings · Sharing. The display name is the one
-// editable value (kept in this browser's storage; the desktop app passes
-// KEEL_NAME as the default). The signal server is keel serve's KEEL_SIGNAL.
-// The two access rows describe rules the share code enforces.
+// sharingSettingsPanel is Settings · Sharing. The display name is kept in
+// this browser's storage (the desktop app passes KEEL_NAME as the default).
+// The signal server is saved in keel.json by keel serve (PUT
+// /api/share/signal); KEEL_SIGNAL overrides it for a run. The two access
+// rows describe rules the share code enforces.
 func sharingSettingsPanel() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -109,7 +110,7 @@ func sharingSettingsPanel() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"pref-row\"><div class=\"pref-copy\"><div class=\"pref-title\">Server for internet join links</div><p class=\"pref-desc\" id=\"share-set-signal-help\"></p></div><span class=\"k-mono k-pref-value\" id=\"share-set-signal\"></span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"pref-row pref-row-stack\"><div class=\"pref-copy\"><label class=\"pref-title\" for=\"share-set-signal\">Server for internet join links</label><p class=\"pref-desc\" id=\"share-set-signal-help\"></p></div><input autocapitalize=\"off\" autocorrect=\"off\" id=\"share-set-signal\" class=\"k-input k-mono\" type=\"url\" inputmode=\"url\" maxlength=\"2048\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"https://signal.example.com\" aria-describedby=\"share-set-signal-help\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -518,7 +519,7 @@ func statRow(title, id string) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/settings_sections.templ`, Line: 180, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/settings_sections.templ`, Line: 181, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -531,7 +532,7 @@ func statRow(title, id string) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/settings_sections.templ`, Line: 182, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/settings_sections.templ`, Line: 183, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
