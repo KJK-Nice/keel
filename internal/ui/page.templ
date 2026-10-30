@@ -52,15 +52,21 @@ templ Page(p PageProps) {
 						// Where the window cannot take the theme, a theme that
 						// differs from the OS drops translucency (opaque --stage)
 						// instead of showing the opposite vibrancy (#59).
-						// Settings · Appearance · Window translucency: Off keeps the
-						// opaque rendering; Low/Medium/High pick the tint (keel.css).
+						// Settings · Appearance · Window opacity: 100 keeps the opaque
+						// rendering; below it is the tint (keel.css). Window blur
+						// (macOS) goes to the window, 0 while it is opaque.
 						if (nativeAppearance) postNative("keel:appearance:" + t);
-						var off = document.documentElement.dataset.translucency === "off";
-						if (!off && (nativeAppearance || dark === osDark)) document.documentElement.dataset.vibrancy = "1";
+						var opacity = Number(document.documentElement.dataset.opacity);
+						var vibrant = !(opacity >= 100) && (nativeAppearance || dark === osDark);
+						if (vibrant) document.documentElement.dataset.vibrancy = "1";
 						else delete document.documentElement.dataset.vibrancy;
+						if (nativeAppearance) postNative("keel:blur:" + (vibrant ? Number(document.documentElement.dataset.blur) || 0 : 0));
 					}
 					window.__keelApplyTheme = applyTheme;
-					var uiSize = 12, smooth = "antialiased", sidebar = "open", agent = "closed", translucency = "medium";
+					// Window opacity 30–100 (66 when none is saved, the
+					// vibrancy-tint-default token); Window blur 0–64. Before
+					// the sliders, "translucency" was a step.
+					var uiSize = 12, smooth = "antialiased", sidebar = "open", agent = "closed", opacity = 66, blur = 20;
 					try {
 						var ui = JSON.parse(localStorage.getItem("keel-ui") || "{}");
 						var n = Math.round(Number(ui.size));
@@ -68,9 +74,16 @@ templ Page(p PageProps) {
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
 						if (ui.vaultSidebar === false) sidebar = "closed";
 						if (ui.agentPanel === true) agent = "open";
-						if (ui.translucency === "off" || ui.translucency === "low" || ui.translucency === "high") translucency = ui.translucency;
+						var steps = { off: 100, low: 80, medium: 66, high: 50 };
+						var o = Math.round(Number(ui.opacity));
+						if (o >= 30 && o <= 100) opacity = o;
+						else if (Object.prototype.hasOwnProperty.call(steps, ui.translucency)) opacity = steps[ui.translucency];
+						var b = Math.round(Number(ui.blur));
+						if (ui.blur != null && b >= 0 && b <= 64) blur = b;
 					} catch (e) {}
-					document.documentElement.dataset.translucency = translucency;
+					document.documentElement.dataset.opacity = String(opacity);
+					document.documentElement.dataset.blur = String(blur);
+					document.documentElement.style.setProperty("--window-opacity", opacity + "%");
 					if (nativeAppearance) document.documentElement.dataset.appearance = "native";
 					applyTheme(localStorage.getItem("keel-theme") || "system");
 					document.documentElement.style.setProperty("--ui-size", uiSize + "px");
