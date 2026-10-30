@@ -116,41 +116,70 @@ describe('settings sections', { tags: ['settings'], serial: true }, () => {
     await expect(again.getByLabel('Display name')).toHaveValue('');
   });
 
-  // Window translucency is a native-window setting: a browser tab has no
-  // backdrop and never shows it. The step is kept and applied before first
+  // Window opacity and blur are native-window settings: a browser tab has
+  // no backdrop and never shows them, and only the macOS window
+  // (appearance=native) sets a blur. Both are kept and applied before first
   // paint on the next load.
-  test('window translucency shows only in the native window and persists', async ({ app, screen, browser }) => {
+  test('window opacity and blur show only in the native window and persist', async ({ app, screen, browser }) => {
     await openKeel(app);
     let page = await openSettings(screen);
     await expect(page.getByRole('heading', 'Appearance')).toBeVisible();
-    await expect(page.getByRole('group', 'Window translucency')).toBeHidden();
-    await page.getByRole('searchbox', 'Search settings').fill('translucency');
+    await expect(page.getByRole('slider', 'Window opacity')).toBeHidden();
+    await expect(page.getByRole('slider', 'Window blur')).toBeHidden();
+    for (const q of ['opacity', 'blur']) {
+      await page.getByRole('searchbox', 'Search settings').fill(q);
+      await expect(page).toContainText('No settings match.');
+    }
+    await page.getByRole('searchbox', 'Search settings').fill('');
+
+    // Windows and Linux: opacity, no blur.
+    await app.open(`/?keel_token=${keelToken()}&name=e2e&native=1`);
+    page = await openSettings(screen);
+    await expect(page.getByRole('slider', 'Window opacity')).toBeVisible();
+    await expect(page.getByRole('slider', 'Window blur')).toBeHidden();
+    await page.getByRole('searchbox', 'Search settings').fill('blur');
     await expect(page).toContainText('No settings match.');
     await page.getByRole('searchbox', 'Search settings').fill('');
 
     const native = `/?keel_token=${keelToken()}&name=e2e&native=1&appearance=native&chrome=titlebar`;
     await app.open(native);
     page = await openSettings(screen);
-    const steps = page.getByRole('group', 'Window translucency');
-    await expect(steps).toBeVisible();
-    await expect(steps.getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'true');
-    await steps.getByRole('button', 'High').tap();
-    await expect(steps.getByRole('button', 'High')).toHaveAttribute('aria-pressed', 'true');
-    await expect(steps.getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'false');
-    expect(await browser.evaluate('document.documentElement.dataset.translucency')).toBe('high');
-    await app.screenshot('settings-translucency-native');
+    const opacity = page.getByRole('slider', 'Window opacity');
+    const blur = page.getByRole('slider', 'Window blur');
+    await expect(opacity).toBeVisible();
+    await expect(opacity).toHaveAttribute('aria-valuenow', '66');
+    await expect(blur).toHaveAttribute('aria-valuenow', '20');
+    await opacity.focus();
+    await opacity.press('ArrowLeft');
+    await expect(opacity).toHaveAttribute('aria-valuenow', '65');
+    await expect(page).toContainText('65');
+    expect(await browser.evaluate('document.documentElement.dataset.opacity')).toBe('65');
+    expect(await browser.evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--window-opacity').trim()`)).toBe('65%');
+    await blur.focus();
+    await blur.press('Home');
+    await expect(blur).toHaveAttribute('aria-valuenow', '0');
+    await app.screenshot('settings-opacity-blur-native');
 
-    // Off is applied live: the opaque rendering, no data-vibrancy.
-    await steps.getByRole('button', 'Off').tap();
+    // 100 is applied live: the opaque rendering, no data-vibrancy.
+    await opacity.focus();
+    await opacity.press('End');
+    await expect(opacity).toHaveAttribute('aria-valuenow', '100');
     expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe(null);
 
     await app.open(native);
-    expect(await browser.evaluate('document.documentElement.dataset.translucency')).toBe('off');
+    expect(await browser.evaluate('document.documentElement.dataset.opacity')).toBe('100');
+    expect(await browser.evaluate('document.documentElement.dataset.blur')).toBe('0');
     expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe(null);
     page = await openSettings(screen);
-    await expect(page.getByRole('group', 'Window translucency').getByRole('button', 'Off')).toHaveAttribute('aria-pressed', 'true');
-    // Back to the default for the tests after this one.
-    await page.getByRole('group', 'Window translucency').getByRole('button', 'Medium').tap();
+    await expect(page.getByRole('slider', 'Window opacity')).toHaveAttribute('aria-valuenow', '100');
+    await expect(page.getByRole('slider', 'Window blur')).toHaveAttribute('aria-valuenow', '0');
+    // Back to the defaults for the tests after this one.
+    await browser.evaluate(`(() => {
+      const ui = JSON.parse(localStorage.getItem('keel-ui') || '{}');
+      delete ui.opacity; delete ui.blur; delete ui.translucency;
+      localStorage.setItem('keel-ui', JSON.stringify(ui));
+    })()`);
+    await app.open(native);
     expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe('1');
   });
 });

@@ -26,7 +26,8 @@ body {
   letter-spacing: -0.011em;
 }
 
-/* Desktop webview: NSVisualEffect / Acrylic shows through tinted chrome.
+/* Desktop webview: the blurred desktop (macOS, blur.go) or Acrylic shows
+   through tinted chrome.
    Mix is theme tokens so light stays light; fully-clear --background made
    the OS dark vibrancy leak into light UI. data-vibrancy (page.templ) is
    set only while the backdrop matches the theme: macOS gives the window
@@ -40,13 +41,14 @@ html[data-vibrancy],
 html[data-vibrancy] body {
   background: transparent !important;
 }
-/* Settings · Appearance · Window translucency picks the tint step
-   (data-translucency, set before first paint by page.templ); Off drops
-   data-vibrancy instead. Values are the vibrancy-tint-* tokens, and the
-   themed vibrancy-term-* tokens for the terminal body. */
-html[data-vibrancy] { --vibrancy-tint: var(--vibrancy-tint-medium); --vibrancy-term: var(--vibrancy-term-medium); }
-html[data-vibrancy][data-translucency="low"] { --vibrancy-tint: var(--vibrancy-tint-low); --vibrancy-term: var(--vibrancy-term-low); }
-html[data-vibrancy][data-translucency="high"] { --vibrancy-tint: var(--vibrancy-tint-high); --vibrancy-term: var(--vibrancy-term-high); }
+/* Settings · Appearance · Window opacity is the tint (--window-opacity,
+   set before first paint by page.templ; vibrancy-tint-default when none
+   is saved); 100 drops data-vibrancy instead. The terminal body lets
+   through vibrancy-term-share of what the chrome lets through (themed). */
+html[data-vibrancy] {
+  --vibrancy-tint: var(--window-opacity, var(--vibrancy-tint-default));
+  --vibrancy-term: calc(100% - (100% - var(--vibrancy-tint)) * var(--vibrancy-term-share));
+}
 html[data-vibrancy] .app,
 html[data-vibrancy] .main {
   background: transparent;
@@ -73,8 +75,8 @@ html[data-vibrancy] .term-tab,
 html[data-vibrancy] .term-wrap {
   background: transparent;
 }
-/* Every pane's glass is its body, solo or split: --term-bg at the step's
-   vibrancy-term-* share, denser in light (a large empty light surface
+/* Every pane's glass is its body, solo or split: --term-bg at
+   --vibrancy-term, denser in light (a large empty light surface
    shows the blurred desktop as dark blotches; dark matches the chrome).
    xterm paints a clear background over it (term.js xtermTheme), so the
    terminal is tinted once like the chrome. Nothing behind a split tab's
@@ -2419,10 +2421,12 @@ button.k-rail-item[aria-selected="true"] { background: var(--hover); color: var(
 .settings-group-body .pref-row:last-child { border-bottom: 0; }
 .settings-group-body .pref-row-preview { display: block; }
 .settings-group[hidden], .settings-panel .pref-row[hidden] { display: none; }
-/* Window translucency: only the native window has a backdrop. Where the
-   window cannot take the theme (Windows, Linux), say that a theme unlike
-   the system's stays opaque. */
+/* Window opacity and blur: only the native window has a backdrop, and only
+   the macOS one (data-appearance=native) sets its blur. Where the window
+   cannot take the theme (Windows, Linux), say that a theme unlike the
+   system's stays opaque. */
 html:not([data-native]) .pref-row[data-native-only] { display: none; }
+html:not([data-appearance="native"]) .pref-row[data-blur-only] { display: none; }
 html[data-appearance="native"] .pref-desc-os { display: none; }
 .pref-seg { flex: 0 0 var(--size-rail); }
 

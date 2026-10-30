@@ -57,4 +57,4 @@ Palette actions that would type into a live session (**Type snippet**) always sh
 ## Settings
 
 - Font, text size, copy-on-select, right-click paste (stored in `localStorage`).
-- Appearance · **Window translucency** (desktop window only): Off, Low, Medium (default) or High, how much of the desktop shows through the window. Off is opaque. On Windows and Linux the window stays opaque while the theme differs from the system's. Stored in `localStorage` with the other window preferences and applied before the first paint.
+- Appearance · **Window opacity** (desktop window only): 30–100 (default 66), how much of the desktop the window covers; 100 is opaque. On Windows and Linux the window stays opaque while the theme differs from the system's. **Window blur** (macOS only): 0–64 (default 20), how much the desktop behind the window is blurred; 0 is clear. Both are stored in `localStorage` with the other window preferences and applied before the first paint; an older Window translucency step becomes its opacity (Off 100, Low 80, Medium 66, High 50).

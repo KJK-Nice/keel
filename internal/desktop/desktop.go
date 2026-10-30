@@ -191,10 +191,13 @@ func webviewOptions(url string) application.WebviewWindowOptions {
 	}
 }
 
+// macWindowChrome draws a clear window: the page tints it at Window
+// opacity, and the window server blurs what is behind it at Window blur
+// (blur.go). NSVisualEffectView (MacBackdropTranslucent) has a fixed blur.
 func macWindowChrome() application.MacWindow {
 	return application.MacWindow{
 		TitleBar: overlayTitleBar(),
-		Backdrop: application.MacBackdropTranslucent,
+		Backdrop: application.MacBackdropTransparent,
 	}
 }
 

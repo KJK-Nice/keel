@@ -85,3 +85,33 @@ func TestRawMessageWithoutWindowIsIgnored(t *testing.T) {
 	// No window yet: nothing to set, and no panic.
 	w.rawMessage(nil, "keel:appearance:light", &application.OriginInfo{Origin: "http://127.0.0.1:47241/", IsMainFrame: true})
 }
+
+func TestParseBlurTakesOnlyARadiusInRange(t *testing.T) {
+	for msg, want := range map[string]int{
+		"keel:blur:0":  0,
+		"keel:blur:7":  7,
+		"keel:blur:64": 64,
+	} {
+		got, ok := parseBlur(msg)
+		if !ok || got != want {
+			t.Errorf("parseBlur(%q) = %d, %v", msg, got, ok)
+		}
+	}
+	for _, msg := range []string{
+		"",
+		"keel:blur:",
+		"keel:blur:65",
+		"keel:blur:-1",
+		"keel:blur:07",
+		"keel:blur:+7",
+		"keel:blur:7 ",
+		"keel:blur:7.5",
+		"keel:blur:100",
+		"blur:7",
+		"keel:appearance:dark",
+	} {
+		if got, ok := parseBlur(msg); ok {
+			t.Errorf("parseBlur(%q) = %d, want rejected", msg, got)
+		}
+	}
+}

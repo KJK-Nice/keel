@@ -166,10 +166,18 @@ import { openExternal } from "./lib/openlink.js";
     system: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
   };
 
-  // Settings · Appearance · Window translucency (native window only). The
-  // inline script in page.templ reads the same keel-ui key before first
-  // paint; keel.css maps the step to a vibrancy-tint-* token.
-  const TRANSLUCENCY_STEPS = ["off", "low", "medium", "high"];
+  // Settings · Appearance · Window opacity and Window blur (native window
+  // only; blur on macOS). The inline script in page.templ reads the same
+  // keel-ui keys before first paint (and turns an older "translucency"
+  // step into an opacity); keel.css tints by the opacity, the window blurs
+  // by the radius (internal/desktop/blur.go).
+  const OPACITY_MIN = 30;
+  const OPACITY_MAX = 100;
+  const OPACITY_DEFAULT = 66; // the vibrancy-tint-default token
+  const OPACITY_STEPS = { off: 100, low: 80, medium: 66, high: 50 };
+  const BLUR_MIN = 0;
+  const BLUR_MAX = 64;
+  const BLUR_DEFAULT = 20;
 
   const state = {
     hosts: [],
@@ -244,14 +252,17 @@ import { openExternal } from "./lib/openlink.js";
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false, translucency: "medium" };
+    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false, opacity: OPACITY_DEFAULT, blur: BLUR_DEFAULT };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
       const smoothing = raw.smoothing === "subpixel" || raw.smoothing === "none" ? raw.smoothing : fallback.smoothing;
       const sidebarSeg = SIDEBAR_SEGS.includes(raw.sidebarSeg) ? raw.sidebarSeg : "hosts";
-      const translucency = TRANSLUCENCY_STEPS.includes(raw.translucency) ? raw.translucency : "medium";
-      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true, translucency };
+      const o = Math.round(Number(raw.opacity));
+      const opacity = o >= OPACITY_MIN && o <= OPACITY_MAX ? o : Object.hasOwn(OPACITY_STEPS, raw.translucency) ? OPACITY_STEPS[raw.translucency] : OPACITY_DEFAULT;
+      const b = Math.round(Number(raw.blur));
+      const blur = raw.blur != null && b >= BLUR_MIN && b <= BLUR_MAX ? b : BLUR_DEFAULT;
+      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true, opacity, blur };
     } catch {
       return fallback;
     }
@@ -567,17 +578,38 @@ import { openExternal } from "./lib/openlink.js";
     syncSettingsForm();
   }
 
-  function setTranslucency(next) {
-    const step = TRANSLUCENCY_STEPS.includes(next) ? next : "medium";
-    if (step === state.ui.translucency) return;
-    state.ui.translucency = step;
+  function setOpacity(next) {
+    const opacity = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, Math.round(Number(next) || OPACITY_DEFAULT)));
+    if (opacity === state.ui.opacity) return;
+    const wasOpaque = state.ui.opacity >= OPACITY_MAX;
+    state.ui.opacity = opacity;
     saveUiPrefs();
-    document.documentElement.dataset.translucency = step;
-    // Off drops data-vibrancy (the opaque rendering); the theme script
-    // decides it, then xterm follows (allowTransparency is isVibrant()).
-    if (typeof window.__keelApplyTheme === "function") window.__keelApplyTheme(themeChoice());
+    document.documentElement.dataset.opacity = String(opacity);
+    document.documentElement.style.setProperty("--window-opacity", `${opacity}%`);
     syncSettingsForm();
+    // 100 drops data-vibrancy (the opaque rendering); the theme script
+    // decides it, then xterm follows (allowTransparency is isVibrant()).
+    // Between two see-through values only the tint changes.
+    if (wasOpaque === opacity >= OPACITY_MAX) return;
+    applyWindowBackdrop();
     applyTerminalPrefs();
+  }
+
+  function setBlur(next) {
+    const n = Math.round(Number(next));
+    const blur = Number.isFinite(n) ? Math.min(BLUR_MAX, Math.max(BLUR_MIN, n)) : BLUR_DEFAULT;
+    if (blur === state.ui.blur) return;
+    state.ui.blur = blur;
+    saveUiPrefs();
+    document.documentElement.dataset.blur = String(blur);
+    syncSettingsForm();
+    applyWindowBackdrop();
+  }
+
+  // The inline theme script sets data-vibrancy and tells the macOS window
+  // its blur (page.templ); a reload would do the same.
+  function applyWindowBackdrop() {
+    if (typeof window.__keelApplyTheme === "function") window.__keelApplyTheme(themeChoice());
   }
 
   function setSmoothing(next) {
@@ -637,11 +669,11 @@ import { openExternal } from "./lib/openlink.js";
     "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
   ];
   // Under native vibrancy keel.css tints every pane's body once, solo or
-  // split (--term-bg at the step's vibrancy-term-* share; termOpts and
+  // split (--term-bg at --vibrancy-term, from Window opacity; termOpts and
   // applyTerminalPrefs give every pane, new or restored, the same clear
   // theme and allowTransparency), like the chrome; xterm paints a clear
   // background over it. A second tint here (or an opaque WebGL cell) would
-  // hide the backdrop (#75). Off drops data-vibrancy: opaque, as before.
+  // hide the backdrop (#75). Opacity 100 drops data-vibrancy: opaque, as before.
   const NATIVE_TERM_ALPHA = 0;
   let termThemeCache = { key: "", theme: null };
 
@@ -804,9 +836,12 @@ import { openExternal } from "./lib/openlink.js";
     });
     if (uiOut) uiOut.textContent = String(state.ui.size);
     setSelectValue("set-smooth", state.ui.smoothing);
-    document.querySelectorAll("#set-translucency [data-translucency-step]").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.dataset.translucencyStep === state.ui.translucency));
-    });
+    const opacityOut = document.getElementById("set-opacity-out");
+    const blurOut = document.getElementById("set-blur-out");
+    if (opacityOut) opacityOut.textContent = String(state.ui.opacity);
+    if (blurOut) blurOut.textContent = String(state.ui.blur);
+    setSliderValue("set-opacity", state.ui.opacity);
+    setSliderValue("set-blur", state.ui.blur);
     setSliderValue("set-ui-size", state.ui.size);
     setSliderValue("set-size", state.prefs.size);
     syncThemeSwitch();
@@ -922,6 +957,15 @@ import { openExternal } from "./lib/openlink.js";
   function fillSelectItems(id, entries, selected, emptyLabel, opts) {
     const p = pickerOf(id);
     if (p?.box) setComboboxOptions(p.box, entries, selected, emptyLabel, "", opts);
+  }
+
+  // The slider's thumb is its role="slider": name it by the row's title and
+  // help (#<id>-title, #<id>-help).
+  function labelSlider(id) {
+    const thumb = document.getElementById(id)?.querySelector("[data-tui-slider-thumb]");
+    if (!thumb) return;
+    thumb.setAttribute("aria-labelledby", `${id}-title`);
+    if (document.getElementById(`${id}-help`)) thumb.setAttribute("aria-describedby", `${id}-help`);
   }
 
   function setSliderValue(id, value) {
@@ -1998,8 +2042,11 @@ import { openExternal } from "./lib/openlink.js";
     document.querySelectorAll(".settings-panel").forEach((panel) => {
       let hits = 0;
       panel.querySelectorAll(".pref-row:not(.pref-row-preview)").forEach((row) => {
-        // Native-only rows (Window translucency) never match in a browser tab.
-        const absent = row.dataset.nativeOnly !== undefined && !isNativeWindow();
+        // Native-only rows (Window opacity, Window blur) never match in a
+        // browser tab, and Window blur only in the macOS window.
+        const absent =
+          (row.dataset.nativeOnly !== undefined && !isNativeWindow()) ||
+          (row.dataset.blurOnly !== undefined && document.documentElement.dataset.appearance !== "native");
         row.hidden = absent || (q !== "" && !rowText(row).includes(q));
         if (!row.hidden) hits++;
       });
@@ -7106,10 +7153,16 @@ import { openExternal } from "./lib/openlink.js";
       if (v != null) setUiSize(v);
     });
     on(document.getElementById("set-smooth"), "select-change", (ev) => setSmoothing(ev.detail?.value));
-    on(document.getElementById("set-translucency"), "click", (ev) => {
-      const b = ev.target.closest?.("[data-translucency-step]");
-      if (b) setTranslucency(b.dataset.translucencyStep);
+    on(document.getElementById("set-opacity"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setOpacity(v);
     });
+    on(document.getElementById("set-blur"), "slider-change", (ev) => {
+      const v = ev.detail?.values?.[0];
+      if (v != null) setBlur(v);
+    });
+    labelSlider("set-opacity");
+    labelSlider("set-blur");
     on(document.getElementById("set-font"), "select-change", (ev) => {
       if (!ev.detail?.value) return;
       state.prefs.font = ev.detail.value;

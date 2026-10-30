@@ -128,10 +128,12 @@ func TestAppMenuHasTabShortcuts(t *testing.T) {
 	}
 }
 
-func TestMacWindowUsesTranslucentBackdrop(t *testing.T) {
+// The mac window is clear so Window blur can set its own radius; the page
+// paints the tint (Window opacity).
+func TestMacWindowUsesClearBackdrop(t *testing.T) {
 	mac := macWindowChrome()
-	if mac.Backdrop != application.MacBackdropTranslucent {
-		t.Fatalf("mac backdrop = %v, want translucent", mac.Backdrop)
+	if mac.Backdrop != application.MacBackdropTransparent {
+		t.Fatalf("mac backdrop = %v, want transparent", mac.Backdrop)
 	}
 	opts := webviewOptions("http://127.0.0.1:47241/?native=1")
 	if opts.BackgroundType != application.BackgroundTypeTranslucent {

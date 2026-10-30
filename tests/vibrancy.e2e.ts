@@ -102,8 +102,8 @@ test('native vibrancy tints each area once, so the backdrop shows through', asyn
   await vault.getByRole('button', /^Local Shell\b/).tap();
   await expect(screen.getByRole('textbox', 'Terminal input')).toBeFocused();
   expect(await cover(browser, ['.term-tab.is-active .pane-bar'])).toEqual([]);
-  // The body has its own vibrancy-term-* step (light Medium is 90%); the
-  // per-step and per-theme bands are checked below.
+  // The body has its own share (light at the default opacity is about
+  // 90%); the per-opacity and per-theme bands are checked below.
   expect(
     await cover(
       browser,
@@ -118,32 +118,46 @@ test('native vibrancy tints each area once, so the backdrop shows through', asyn
   await expect(screen.getByRole('textbox', 'Terminal input')).toBeHidden();
 });
 
-// Settings · Appearance · Window translucency: each step tints the chrome
-// and the stage with its vibrancy-tint-* token, once; Off is opaque.
-const setStep = (browser: any, step: string) =>
+// Settings · Appearance · Window opacity: the chrome and the stage are
+// tinted at the opacity, once; 100 is opaque. Window blur goes to the
+// macOS window, 0 while it is opaque.
+const setPrefs = (browser: any, prefs: Record<string, unknown>) =>
   browser.evaluate(`(() => {
     const ui = JSON.parse(localStorage.getItem('keel-ui') || '{}');
-    ui.translucency = ${JSON.stringify(step)};
+    Object.assign(ui, ${JSON.stringify(prefs)});
+    for (const k of Object.keys(ui)) if (ui[k] === null) delete ui[k];
     localStorage.setItem('keel-ui', JSON.stringify(ui));
   })()`);
+const setOpacity = (browser: any, opacity: number) => setPrefs(browser, { opacity, translucency: null });
 
-const token = (browser: any, name: string) =>
-  browser.evaluate(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--${name}')) / 100`) as Promise<number>;
+// A share token is a plain number; the tint is a percentage of 1.
+const tokenNumber = (browser: any, name: string) =>
+  browser.evaluate(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--${name}'))`) as Promise<number>;
+const termShare = async (browser: any, opacity: number) =>
+  1 - (1 - opacity / 100) * (await tokenNumber(browser, 'vibrancy-term-share'));
 
-test('each translucency step tints the window by its token; Off is opaque', async ({ app, browser }) => {
-  for (const step of ['low', 'medium', 'high'] as const) {
+// The messages the page posts to the window (window.webkit stands in for
+// the native message handler).
+const recordNative = (browser: any) =>
+  browser.addInitScript(`(() => {
+    window.__keelPosted = [];
+    window.webkit = { messageHandlers: { external: { postMessage: (m) => window.__keelPosted.push(m) } } };
+  })()`);
+const posted = (browser: any) => browser.evaluate(`window.__keelPosted || []`) as Promise<string[]>;
+
+test('window opacity tints the window once; 100 is opaque', async ({ app, browser }) => {
+  for (const opacity of [80, 66, 50, 30]) {
     await open(app, '&native=1&appearance=native&chrome=titlebar');
-    await setStep(browser, step);
+    await setOpacity(browser, opacity);
     await open(app, '&native=1&appearance=native&chrome=titlebar');
     const s = await state(browser);
     expect(s.vibrancy).toBe('1');
     expect(s.opaque).toBe(false);
-    const tint = await token(browser, `vibrancy-tint-${step}`);
-    expect(tint).toBeGreaterThan(0);
-    // The tab strip, status bar and New tab carry the step's tint, once.
+    const tint = opacity / 100;
+    // The tab strip, status bar and New tab carry the opacity's tint, once.
     expect(await cover(browser, ['.workspace-bar', '.k-status', '.start-page'], [tint - 0.02, tint + 0.02])).toEqual([]);
   }
-  await setStep(browser, 'off');
+  await setOpacity(browser, 100);
   await open(app, '&native=1&appearance=native&chrome=titlebar');
   for (const choice of ['dark', 'light'] as const) {
     await apply(browser, choice);
@@ -151,7 +165,37 @@ test('each translucency step tints the window by its token; Off is opaque', asyn
     expect(s.vibrancy).toBe(null);
     expect(s.opaque).toBe(true);
   }
-  await setStep(browser, 'medium');
+  await setOpacity(browser, 66);
+});
+
+test('a saved translucency step becomes its opacity', async ({ app, browser }) => {
+  for (const [step, opacity] of [['off', 100], ['low', 80], ['medium', 66], ['high', 50], ['toString', 66]] as const) {
+    await open(app, '&native=1&appearance=native&chrome=titlebar');
+    await setPrefs(browser, { translucency: step, opacity: null });
+    await open(app, '&native=1&appearance=native&chrome=titlebar');
+    expect(await browser.evaluate('document.documentElement.dataset.opacity')).toBe(String(opacity));
+    expect((await state(browser)).vibrancy).toBe(opacity < 100 ? '1' : null);
+  }
+  await setPrefs(browser, { translucency: null, opacity: 66 });
+});
+
+test('the macOS window is told its blur, 0 while it is opaque', async ({ app, browser }) => {
+  await recordNative(browser);
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await setPrefs(browser, { opacity: 66, blur: 7 });
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  expect(await posted(browser)).toContain('keel:blur:7');
+  await setPrefs(browser, { opacity: 100 });
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  expect(await posted(browser)).toContain('keel:blur:0');
+  expect(await posted(browser)).not.toContain('keel:blur:7');
+  // No saved blur: the default radius.
+  await setPrefs(browser, { opacity: 66, blur: null });
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  expect(await posted(browser)).toContain('keel:blur:20');
+  // A window that cannot take the theme (Windows, Linux) has no blur.
+  await open(app, '&native=1');
+  expect((await posted(browser)).filter((m: string) => m.startsWith('keel:blur:'))).toEqual([]);
 });
 
 test('a browser tab never sets vibrancy', async ({ app, browser }) => {
@@ -250,10 +294,12 @@ const groundProbe = (browser: any) =>
     }
   })()`) as Promise<{ ground: boolean; tiles?: number; corners?: number; outer?: number; crossings?: number; crossingsMissed?: number; gaps?: number; gapsMissed?: number; underTiles?: number }>;
 
-// Live: the inline theme script reads data-translucency, as a reload would.
-const live = (browser: any, choice: string, step: string) =>
+// Live: the opacity as Settings sets it, then the inline theme script, as
+// a reload would.
+const live = (browser: any, choice: string, opacity: number) =>
   browser.evaluate(`(() => {
-    document.documentElement.dataset.translucency = ${JSON.stringify(step)};
+    document.documentElement.dataset.opacity = ${JSON.stringify(String(opacity))};
+    document.documentElement.style.setProperty('--window-opacity', ${JSON.stringify(opacity + '%')});
     window.__keelApplyTheme(${JSON.stringify(choice)});
   })()`);
 
@@ -275,13 +321,13 @@ const canvasBackgrounds = (browser: any) =>
     .map((c) => getComputedStyle(c).backgroundColor)
     .filter((bg) => !/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(bg))`) as Promise<string[]>;
 
-// Every pane's body, solo or split, carries the step's vibrancy-term-*
-// share of --term-bg once (denser in light, where the blurred desktop
+// Every pane's body, solo or split, carries --term-bg once at the
+// opacity's terminal share (denser in light, where the blurred desktop
 // otherwise shows as dark shapes); xterm's own layers add nothing.
-async function expectPanesAt(browser: any, panes: number, theme: string, step: string) {
+async function expectPanesAt(browser: any, panes: number, theme: string, step: number) {
   await live(browser, theme, step);
   expect((await state(browser)).vibrancy).toBe('1');
-  const want = await token(browser, `vibrancy-term-${step}`);
+  const want = await termShare(browser, step);
   for (const layer of PANE_LAYERS) {
     const got = await covers(browser, `.term-tab.is-active ${layer}`);
     expect(got.length, `${theme} ${step} ${layer} count`).toBe(panes);
@@ -297,16 +343,18 @@ async function expectPanesAt(browser: any, panes: number, theme: string, step: s
   expect(await browser.evaluate(`document.querySelectorAll('.term-tab.is-active .term-wrap.is-focused .pane-bar').length`)).toBe(1);
 }
 
-test('solo and split panes are translucent at every step; light tints the terminal denser', async ({ app, browser, screen }) => {
+const STEPS = [80, 66, 50];
+
+test('solo and split panes are translucent at every opacity; light tints the terminal denser', async ({ app, browser, screen }) => {
   await open(app, '&native=1&appearance=native&chrome=titlebar');
-  await setStep(browser, 'medium');
+  await setOpacity(browser, 66);
   await open(app, '&native=1&appearance=native&chrome=titlebar');
-  for (const step of ['low', 'medium', 'high'] as const) {
+  for (const step of STEPS) {
     await live(browser, 'dark', step);
-    const dark = await token(browser, `vibrancy-term-${step}`);
-    expect(dark).toBeCloseTo(await token(browser, `vibrancy-tint-${step}`), 3);
+    const dark = await termShare(browser, step);
+    expect(dark).toBeCloseTo(step / 100, 3);
     await live(browser, 'light', step);
-    expect(await token(browser, `vibrancy-term-${step}`)).toBeGreaterThan(dark);
+    expect(await termShare(browser, step)).toBeGreaterThan(dark);
   }
 
   const vault = screen.getByRole('complementary', 'Vault');
@@ -315,7 +363,7 @@ test('solo and split panes are translucent at every step; light tints the termin
   const terms = screen.getByRole('textbox', 'Terminal input');
   await expect(terms.first()).toBeFocused();
   for (const theme of ['dark', 'light'] as const) {
-    for (const step of ['low', 'medium', 'high'] as const) await expectPanesAt(browser, 1, theme, step);
+    for (const step of STEPS) await expectPanesAt(browser, 1, theme, step);
   }
 
   // Split: both panes keep WebGL and the clear theme.
@@ -327,7 +375,7 @@ test('solo and split panes are translucent at every step; light tints the termin
     for (const c of await covers(browser, `.term-tab.is-active ${layer}`)) expect(c.opaque, `split ${layer} opaque by${c.by}`).toBe(false);
   }
   for (const theme of ['dark', 'light'] as const) {
-    for (const step of ['low', 'medium', 'high'] as const) {
+    for (const step of STEPS) {
       await expectPanesAt(browser, 2, theme, step);
       const gutters = await sashes(browser);
       expect(gutters.length).toBe(1);
@@ -335,7 +383,7 @@ test('solo and split panes are translucent at every step; light tints the termin
       expect(gutters[0].clear).toBe(true);
       const g = await groundProbe(browser);
       expect(g, `${theme} ${step} tile ground`).toEqual({ ground: true, tiles: 2, corners: 0, outer: 0, crossings: 0, crossingsMissed: 0, gaps: 1, gapsMissed: 0, underTiles: 0 });
-      const tint = await token(browser, `vibrancy-tint-${step}`);
+      const tint = step / 100;
       for (const c of await covers(browser, '.term-tab.is-active .tile-ground')) {
         expect(c.opaque, `${theme} ${step} ground opaque by${c.by}`).toBe(false);
         expect(Math.abs(c.cover - tint), `${theme} ${step} ground covers ${c.cover}, want ${tint}`).toBeLessThan(0.02);
@@ -347,12 +395,12 @@ test('solo and split panes are translucent at every step; light tints the termin
   await screen.getByRole('button', 'Close pane', { visible: true }).nth(1).tap();
   await expect(terms).toHaveCount(1);
   await expect.poll(() => renderers(browser)).toEqual(['webgl']);
-  await expectPanesAt(browser, 1, 'dark', 'medium');
+  await expectPanesAt(browser, 1, 'dark', 66);
   await terms.first().press('Meta+Shift+D');
   await expect(terms).toHaveCount(2);
   await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl']);
   expect(await canvasBackgrounds(browser)).toEqual([]);
-  await expectPanesAt(browser, 2, 'light', 'high');
+  await expectPanesAt(browser, 2, 'light', 50);
 
   // Text over a loud stand-in backdrop (the page has no OS backdrop): the
   // glyphs must stay crisp on the tinted, clear-backed panes.
@@ -369,7 +417,7 @@ test('solo and split panes are translucent at every step; light tints the termin
     await expect(terms).toHaveCount(2);
     await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl']);
     expect(await canvasBackgrounds(browser)).toEqual([]);
-    await expectPanesAt(browser, 2, theme, 'medium');
+    await expectPanesAt(browser, 2, theme, 66);
     await browser.evaluate(`(() => {
       const s = document.createElement('style');
       s.id = 'e2e-backdrop';
@@ -381,8 +429,8 @@ test('solo and split panes are translucent at every step; light tints the termin
   }
   await browser.evaluate(`localStorage.removeItem('keel-theme')`);
 
-  // Off: every pane is opaque again, in both themes.
-  await setStep(browser, 'off');
+  // Opacity 100: every pane is opaque again, in both themes.
+  await setOpacity(browser, 100);
   await open(app, '&native=1&appearance=native&chrome=titlebar');
   await expect(terms).toHaveCount(2);
   for (const theme of ['dark', 'light'] as const) {
@@ -394,7 +442,7 @@ test('solo and split panes are translucent at every step; light tints the termin
       for (const c of got) expect(c.opaque, `off ${theme} ${layer}`).toBe(true);
     }
   }
-  await setStep(browser, 'medium');
+  await setOpacity(browser, 66);
   await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();
   await expect(terms).toHaveCount(1);
   await screen.getByRole('button', 'Close tab', { visible: true }).tap();
@@ -406,9 +454,9 @@ test('solo and split panes are translucent at every step; light tints the termin
 // and never lies under a tile. All four panes keep WebGL and clear canvases.
 test('a 2x2 split tints its gaps, crossing and tile corners, never under a tile', async ({ app, browser, screen }) => {
   await open(app, '&native=1&appearance=native&chrome=titlebar');
-  await setStep(browser, 'medium');
+  await setOpacity(browser, 66);
   await open(app, '&native=1&appearance=native&chrome=titlebar');
-  await live(browser, 'dark', 'medium');
+  await live(browser, 'dark', 66);
   const vault = screen.getByRole('complementary', 'Vault');
   await vault.getByRole('button', 'Hosts').tap();
   await vault.getByRole('button', /^Local Shell\b/).tap();
@@ -423,10 +471,10 @@ test('a 2x2 split tints its gaps, crossing and tile corners, never under a tile'
   await expect.poll(() => renderers(browser)).toEqual(['webgl', 'webgl', 'webgl', 'webgl']);
   expect(await canvasBackgrounds(browser)).toEqual([]);
   for (const theme of ['dark', 'light'] as const) {
-    await live(browser, theme, 'medium');
+    await live(browser, theme, 66);
     const g = await groundProbe(browser);
     expect(g, `${theme} 2x2 tile ground`).toEqual({ ground: true, tiles: 4, corners: 0, outer: 0, crossings: 1, crossingsMissed: 0, gaps: 3, gapsMissed: 0, underTiles: 0 });
-    await expectPanesAt(browser, 4, theme, 'medium');
+    await expectPanesAt(browser, 4, theme, 66);
   }
   for (let n = 4; n > 1; n--) {
     await screen.getByRole('button', 'Close pane', { visible: true }).first().tap();

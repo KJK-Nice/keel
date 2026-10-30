@@ -949,8 +949,8 @@ describe('group variables', { tags: ['visual'], serial: true }, () => {
   }
 });
 
-// Settings · Appearance as the native window shows it: Window translucency
-// is there only with data-native. (Playwright cannot show the OS backdrop;
+// Settings · Appearance as the native window shows it: Window opacity and
+// Window blur are there only with data-native (blur on macOS). (Playwright cannot show the OS backdrop;
 // this is the page's half.)
 describe('native appearance settings', { tags: ['visual'], serial: true }, () => {
   for (const theme of ['dark', 'light'] as const) {
@@ -959,7 +959,8 @@ describe('native appearance settings', { tags: ['visual'], serial: true }, () =>
       await app.open(`/?keel_token=${keelToken()}&name=e2e&native=1&appearance=native&chrome=titlebar`);
       await screen.getByRole('complementary', 'Vault').getByRole('button', 'Settings').tap();
       await expect(screen.getByRole('heading', 'Appearance')).toBeVisible();
-      await expect(screen.getByRole('group', 'Window translucency').getByRole('button', 'Medium')).toHaveAttribute('aria-pressed', 'true');
+      await expect(screen.getByRole('slider', 'Window opacity')).toHaveAttribute('aria-valuenow', '66');
+      await expect(screen.getByRole('slider', 'Window blur')).toHaveAttribute('aria-valuenow', '20');
       await app.screenshot(`${theme}-settings-appearance-native`);
     });
   }
