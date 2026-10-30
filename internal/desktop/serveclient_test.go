@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"keel/internal/authtoken"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // fakeServe stands in for keel serve: /api/health (with the token's proof
@@ -180,5 +182,25 @@ func TestMenuBarItemOnlyOnMac(t *testing.T) {
 func TestTrayIconIsATemplatePNG(t *testing.T) {
 	if len(trayIcon) < 8 || string(trayIcon[1:4]) != "PNG" {
 		t.Fatal("tray-template.png is not a PNG")
+	}
+}
+
+// Before the app runs, Wails has no platform app and any main-thread call
+// panics (globalApplication is nil here, as it was before app.Run at
+// launch). A refresh then must not reach Wails at all.
+func TestTrayRefreshWaitsForTheApp(t *testing.T) {
+	f := &fakeServe{token: "tok", proves: true, sessions: 2}
+	w := &nativeWindow{
+		serve: newFake(t, f),
+		tray: &trayItems{
+			status: application.NewMenuItem("status"),
+			toggle: application.NewMenuItem("toggle"),
+			claude: application.NewMenuItemCheckbox("claude", false),
+		},
+	}
+	w.syncTray()
+	w.refreshTray()
+	if f.sawToken != 0 {
+		t.Fatal("the menu read keel serve before the app started")
 	}
 }

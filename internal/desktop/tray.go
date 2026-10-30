@@ -75,17 +75,26 @@ func (w *nativeWindow) startTray() {
 	tray.SetMenu(menu)
 
 	w.tray = &trayItems{status: status, toggle: toggle, claude: claude}
-	w.refreshTray()
-	go func() {
-		t := time.NewTicker(trayRefresh)
-		defer t.Stop()
-		for range t.C {
-			if w.quitting.Load() {
-				return
-			}
-			w.syncTray()
+	// startTray runs before app.Run, and Wails cannot take a main-thread
+	// call (InvokeAsync, IsVisible) until Run has made the platform app: a
+	// refresh before then dereferenced nil and took Keel down at launch.
+	// Refresh only once the app has started.
+	w.app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if w.started.Swap(true) {
+			return
 		}
-	}()
+		w.refreshTray()
+		go func() {
+			t := time.NewTicker(trayRefresh)
+			defer t.Stop()
+			for range t.C {
+				if w.quitting.Load() {
+					return
+				}
+				w.syncTray()
+			}
+		}()
+	})
 }
 
 type trayItems struct {
@@ -95,12 +104,16 @@ type trayItems struct {
 // refreshTray re-reads keel serve and the window into the menu, off the
 // calling (often main) thread: the reads are HTTP calls.
 func (w *nativeWindow) refreshTray() {
-	if w.tray != nil {
+	if w.tray != nil && w.started.Load() {
 		go w.syncTray()
 	}
 }
 
+// syncTray does nothing until the app has started (startTray).
 func (w *nativeWindow) syncTray() {
+	if w.tray == nil || !w.started.Load() {
+		return
+	}
 	s := runtimeStatus{}
 	if w.serve != nil {
 		s = w.serve.status()
