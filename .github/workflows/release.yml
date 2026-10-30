@@ -1,0 +1,182 @@
+name: release
+
+# Pushing a tag vX.Y.Z builds Keel for macOS (universal) and Linux (x86_64,
+# arm64), keel-signal for every OS, and publishes them as a GitHub Release
+# with SHA256SUMS and notes generated from the merged PRs. A tag with a
+# hyphen (v0.2.0-rc.1) is published as a pre-release.
+#
+# A pull request that changes the release tooling runs the same builds as a
+# dry run (version v0.0.0-pr<N>, nothing published), and keeps the archives
+# as workflow artifacts for a few days.
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/release-notes.md
+      - scripts/release.sh
+      - scripts/notices.sh
+      - scripts/go.sh
+      - scripts/go-tags.sh
+      - Makefile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-pr{0}', github.event.number) }}
+
+jobs:
+  # The license of every Go module and JS package Keel ships, once for all
+  # archives (scripts/notices.sh).
+  notices:
+    name: third-party notices
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: sh scripts/notices.sh THIRD_PARTY_NOTICES
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notices
+          path: THIRD_PARTY_NOTICES
+
+  macos:
+    name: Keel (macOS universal)
+    needs: notices
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: notices
+
+      - run: sh scripts/release.sh "$VERSION" app
+
+      # The universal binary has both slices and runs here (arm64).
+      - name: Check the app
+        run: |
+          archs=$(lipo -archs bin/Keel.app/Contents/MacOS/keel)
+          echo "$archs" | grep -qw x86_64 && echo "$archs" | grep -qw arm64
+          bin/Keel.app/Contents/MacOS/keel version | grep -qx "keel $VERSION"
+          test "$(plutil -extract CFBundleShortVersionString raw bin/Keel.app/Contents/Info.plist)" = "${VERSION#v}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keel-macos
+          path: dist/*
+          retention-days: 5
+
+  linux:
+    name: Keel (Linux ${{ matrix.arch }})
+    needs: notices
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK4 and WebKitGTK 6 (Wails v3)
+        uses: ./.github/actions/gtk
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: notices
+
+      - run: sh scripts/release.sh "$VERSION" app
+
+      - name: Check the binary
+        run: bin/keel version | grep -qx "keel $VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keel-linux-${{ matrix.arch }}
+          path: dist/*
+          retention-days: 5
+
+  signal:
+    name: keel-signal (all OSes)
+    needs: notices
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: notices
+
+      - run: sh scripts/release.sh "$VERSION" signal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keel-signal
+          path: dist/*
+          retention-days: 5
+
+  publish:
+    name: publish the release
+    if: github.ref_type == 'tag'
+    needs: [macos, linux, signal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: keel-*
+          merge-multiple: true
+
+      - name: SHA256SUMS
+        run: cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+
+      - name: gh release create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=
+          case "$VERSION" in *-*) pre=--prerelease ;; esac
+          gh release create "$VERSION" dist/* --verify-tag $pre \
+            --title "Keel $VERSION" \
+            --notes-file .github/release-notes.md --generate-notes

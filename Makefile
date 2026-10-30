@@ -23,11 +23,18 @@ TAILWIND_BIN := bin/tailwindcss-$(TAILWIND_VERSION)
 TAILWIND ?= $(TAILWIND_BIN)
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
+# Release builds stamp the version (keel version, Keel.app's Info.plist):
+#   make build KEEL_VERSION=v0.1.0
+KEEL_VERSION ?= dev
+KEEL_X := -X main.version=$(KEEL_VERSION)
 # Finder-launched Keel.app has no shell env. Bake the public signal URL:
 #   make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ifneq ($(strip $(KEEL_SIGNAL)),)
-KEEL_LDFLAGS := -ldflags "-X keel/internal/share.DefaultSignal=$(KEEL_SIGNAL)"
+KEEL_X += -X keel/internal/share.DefaultSignal=$(KEEL_SIGNAL)
 endif
+KEEL_LDFLAGS := -ldflags "$(KEEL_X)"
+# A THIRD_PARTY_NOTICES file to put in Keel.app (scripts/notices.sh makes it).
+KEEL_NOTICES ?=
 
 $(TAILWIND_BIN):
 	mkdir -p bin
@@ -56,6 +63,11 @@ macos-app:
 	mkdir -p bin/Keel.app/Contents/MacOS bin/Keel.app/Contents/Resources
 	cp bin/keel bin/Keel.app/Contents/MacOS/keel
 	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
+ifneq ($(KEEL_VERSION),dev)
+	plutil -replace CFBundleShortVersionString -string $(patsubst v%,%,$(KEEL_VERSION)) bin/Keel.app/Contents/Info.plist
+endif
+	if [ -f LICENSE ]; then cp LICENSE bin/Keel.app/Contents/Resources/LICENSE; fi
+	if [ -n "$(KEEL_NOTICES)" ]; then cp "$(KEEL_NOTICES)" bin/Keel.app/Contents/Resources/THIRD_PARTY_NOTICES; fi
 	cp internal/desktop/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
 	rm -rf bin/Keel.app/Contents/Resources/Keel.icon
 	cp -R internal/desktop/macos/Keel.icon bin/Keel.app/Contents/Resources/Keel.icon

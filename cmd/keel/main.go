@@ -22,6 +22,10 @@ func init() {
 //go:embed all:web
 var embeddedWeb embed.FS
 
+// version is the release this binary was built as, set by the release
+// build: make build VERSION=v0.1.0 (-X main.version).
+var version = "dev"
+
 func main() {
 	args := os.Args[1:]
 	cmd := "app"
@@ -57,6 +61,8 @@ func main() {
 		if err := app.RunMCP(web, addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
+	case "version", "--version":
+		fmt.Println("keel", version)
 	case "help", "-h", "--help":
 		fmt.Print(helpText)
 	default:
@@ -92,6 +98,7 @@ in a background keel serve process. Closing a session tab kills that PTY.
   keel app        same
   keel serve      run the runtime daemon in the foreground
   keel serve stop stop the daemon and kill leftover sessions
+  keel version    print the version
   keel mcp        MCP server on stdio for Claude Code: claude mcp add keel -- keel mcp
                   (lists and reads panes the agent may read; proposes commands
                   that wait in the agent panel; never types)

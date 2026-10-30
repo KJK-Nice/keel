@@ -36,7 +36,22 @@
 
 ## Install
 
-Prebuilt downloads are coming with the first release. Until then, build from source with Go (the version in `go.mod`):
+Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/releases/latest)**.
+
+**macOS 13+** (Apple Silicon and Intel): unzip `Keel-*-macos-universal.zip` and move **Keel.app** to Applications. Keel is not notarized by Apple yet, so macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`.
+
+**Linux** (Ubuntu 24.04+ or another distro with GTK 4 and WebKitGTK 6), x86_64 or arm64:
+
+```bash
+sudo apt install libgtk-4-1 libwebkitgtk-6.0-4
+tar -xzf keel-*-linux-x86_64.tar.gz && ./keel-*/keel
+```
+
+Windows is not supported yet. Each release lists its files' checksums in `SHA256SUMS`; `keel version` prints the version you run.
+
+### Build from source
+
+With Go (the version in `go.mod`):
 
 ```bash
 git clone https://github.com/KJK-Nice/keel.git && cd keel
@@ -44,7 +59,7 @@ make build
 ./bin/keel            # macOS: or open bin/Keel.app
 ```
 
-Linux needs Ubuntu 24.04+ (or another distro with GTK4 and WebKitGTK 6): `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`. macOS needs the Xcode Command Line Tools (`xcode-select --install`). Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+Linux needs `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`; macOS needs the Xcode Command Line Tools (`xcode-select --install`). Details in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 
