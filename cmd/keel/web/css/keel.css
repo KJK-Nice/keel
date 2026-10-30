@@ -2279,7 +2279,12 @@ button.k-side-item {
   display: flex; flex-direction: column; min-width: 0; min-height: 0;
   overflow: auto; background: var(--surface);
 }
-html[data-vibrancy] .k-page { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+/* Under vibrancy a tab page is tinted at Window opacity, once (#75): a
+   page made of regions (Settings: rail and main; split pages: list and
+   detail) stays clear and each region carries its own tint. */
+html[data-vibrancy] .k-page { background: color-mix(in srgb, var(--surface) var(--vibrancy-tint), transparent); }
+html[data-vibrancy] .k-page--settings,
+html[data-vibrancy] .k-page--split { background: transparent; }
 .k-page-head { display: flex; align-items: flex-end; gap: var(--space-3); padding: var(--space-6) var(--space-8) var(--space-4); }
 .k-page-intro { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
 .k-page-title {
@@ -2341,6 +2346,7 @@ button.k-rowitem-main {
 .k-page--split { overflow: hidden; }
 .k-split { display: grid; grid-template-columns: var(--size-list) minmax(0, 1fr); flex: 1; min-height: 0; }
 .k-split-list { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-right: 1px solid var(--line); }
+html[data-vibrancy] .k-split-list { background: color-mix(in srgb, var(--surface) var(--vibrancy-tint), transparent); }
 .k-split-head { display: grid; gap: var(--space-3); flex: none; padding: var(--space-6) var(--space-4) var(--space-3); border-bottom: 1px solid var(--line); }
 .k-split-titlerow { display: flex; align-items: center; gap: var(--space-2); }
 .k-split-title { flex: 1; margin: 0; font: 600 1.385rem/1.692rem var(--font-display); color: var(--ink); }
@@ -2362,6 +2368,7 @@ button.k-item[hidden] { display: none; }
 .k-item-name { font: 500 1rem/1.231 var(--font-sans); letter-spacing: 0; }
 .k-item-sub { font: 400 0.846rem/1.077 var(--font-mono); color: var(--ink-muted); }
 .k-split-detail { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; overflow: auto; padding: var(--space-6) var(--space-8); background: var(--stage); }
+html[data-vibrancy] .k-split-detail { background: color-mix(in srgb, var(--stage) var(--vibrancy-tint), transparent); }
 .k-detail-head { display: flex; align-items: center; gap: var(--space-3); }
 .k-detail-title { display: grid; gap: var(--space-0\.5); flex: 1; min-width: 0; }
 .k-detail-title h2 { margin: 0; font: 600 1.385rem/1.692rem var(--font-display); color: var(--ink); overflow-wrap: anywhere; }
@@ -2408,6 +2415,7 @@ button.k-rail-item {
 button.k-rail-item:hover { background: var(--hover); color: var(--ink); }
 button.k-rail-item[aria-selected="true"] { background: var(--hover); color: var(--ink); font-weight: 500; }
 .k-settings-main { flex: 1; min-width: 0; overflow: auto; background: var(--surface); }
+html[data-vibrancy] .k-settings-main { background: color-mix(in srgb, var(--surface) var(--vibrancy-tint), transparent); }
 .k-settings-form { max-width: 90ch; padding: var(--space-8) var(--space-8) var(--space-8); }
 .settings-panel { display: none; }
 .settings-panel.is-active { display: grid; gap: var(--space-6); }
@@ -2590,7 +2598,7 @@ button.k-switch:disabled { opacity: .45; cursor: default; }
 html[data-agent="closed"] .k-agent,
 html[data-joined] .k-agent,
 html[data-joined] #btn-agent { display: none; }
-html[data-vibrancy] .k-agent { background: color-mix(in srgb, var(--surface) 82%, transparent); }
+html[data-vibrancy] .k-agent { background: color-mix(in srgb, var(--surface) var(--vibrancy-tint), transparent); }
 button.k-agent-toggle[aria-pressed="true"] { background: var(--hover); color: var(--ink); }
 .k-agent-toggle svg { display: block; width: 1.077rem; height: 1.077rem; }
 .k-agent-toggle .k-kbd { height: var(--space-4); min-width: var(--space-4); font-size: 0.769rem; }
@@ -2988,14 +2996,16 @@ html.is-agent-resizing iframe, html.is-agent-resizing .xterm { pointer-events: n
 @container (max-width: 660px) {
   .k-agentpage { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 }
-html[data-vibrancy] .k-agentpage { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+/* The agent page is its columns: the page box stays clear. */
+html[data-vibrancy] .k-agentpage { background: transparent; }
 .k-agentpage-col { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--chrome); }
 .k-agentpage-list-col { border-right: 1px solid var(--line); }
 .k-agentpage-ctx-col {
   gap: calc(var(--space-4) + var(--space-1)); padding: var(--space-4) calc(var(--space-3) + var(--space-0\.5));
   border-left: 1px solid var(--line);
 }
-html[data-vibrancy] .k-agentpage-col { background: color-mix(in srgb, var(--chrome) 86%, transparent); }
+html[data-vibrancy] .k-agentpage-col { background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent); }
+html[data-vibrancy] .k-agentpage-main { background: color-mix(in srgb, var(--surface) var(--vibrancy-tint), transparent); }
 
 /* Left: the conversation list */
 .k-agentpage-list-head { display: grid; gap: var(--space-2); flex: none; padding: var(--space-3) calc(var(--space-2) + var(--space-0\.5)) var(--space-2); }

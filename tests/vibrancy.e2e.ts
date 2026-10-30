@@ -198,6 +198,31 @@ test('the macOS window is told its blur, 0 while it is opaque', async ({ app, br
   expect((await posted(browser)).filter((m: string) => m.startsWith('keel:blur:'))).toEqual([]);
 });
 
+// Tab pages follow Window opacity too, each area once: a page made of
+// regions (Settings' rail and main, a split page's list and detail) stays
+// clear and each region carries the tint. They had sat at a fixed 86%, with
+// opaque regions inside, whatever the opacity.
+test('tab pages are tinted at the window opacity, once', async ({ app, browser, screen }) => {
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  await setOpacity(browser, 50);
+  await open(app, '&native=1&appearance=native&chrome=titlebar');
+  const vault = screen.getByRole('complementary', 'Vault');
+  const pages: [string, string[], [number, number]][] = [
+    ['Settings', ['.k-settings-main'], [0.48, 0.52]],
+    ['Settings', ['.settings-rail'], [0.4, 0.44]],
+    ['Keychain', ['#page-keychain .k-split-list', '#page-keychain .k-split-detail'], [0.48, 0.52]],
+    ['Logs', ['#page-logs'], [0.48, 0.52]],
+  ];
+  for (const [name, selectors, band] of pages) {
+    await vault.getByRole('button', name).tap();
+    for (const choice of ['dark', 'light'] as const) {
+      await apply(browser, choice);
+      expect(await cover(browser, selectors, band), `${name} ${choice}`).toEqual([]);
+    }
+  }
+  await setOpacity(browser, 66);
+});
+
 test('a browser tab never sets vibrancy', async ({ app, browser }) => {
   await open(app, '&appearance=native');
   for (const choice of ['light', 'dark', 'system'] as const) {
