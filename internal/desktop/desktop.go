@@ -29,6 +29,7 @@ type nativeWindow struct {
 	serve    *serveClient
 	tray     *trayItems
 	menuBar  bool
+	started  atomic.Bool // the app is running: Wails takes main-thread calls
 	quitting atomic.Bool
 }
 
