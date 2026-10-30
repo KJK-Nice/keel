@@ -2,6 +2,8 @@
 
 `keel` opens the desktop window; PTYs live in a separate daemon, `keel serve`. Closing the window detaches and sessions keep running; closing a session tab kills that PTY.
 
+On macOS Keel also lives in the menu bar (the Keel mark). Closing the window hides it and the Dock icon instead of quitting; the menu bar item brings it back. Its menu shows keel serve's status (`keel serve · 2 sessions`, or vault locked, or not running), **Show Keel** / **Hide Keel**, **New Tab**, **Quick Connect…**, the **Allow Claude Code (keel mcp)** switch (the same setting as Settings · Agent; see docs/agent.md) and **Quit Keel**. ⌘Q quits too. Quitting the app leaves `keel serve` and its sessions running, as closing the window always did. The menu re-reads keel serve every few seconds; it sends the UI token (for the Claude Code switch) only to a keel serve that proves it holds it.
+
 ```bash
 keel                 # desktop app (starts keel serve if needed)
 keel app             # same

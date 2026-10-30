@@ -26,7 +26,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 | ⌘J | Ctrl+J | Join session |
 | ⌘, | Ctrl+, | Settings |
 | ⌘+ / ⌘- / ⌘0 | Ctrl++ / Ctrl+- / Ctrl+0 | Terminal text bigger / smaller (10–22px) / reset to 12 |
-| ⌘⇧W | Ctrl+Shift+W | Close the window (sessions stay in `keel serve`) |
+| ⌘⇧W | Ctrl+Shift+W | Close the window (sessions stay in `keel serve`; on macOS Keel stays in the menu bar, ⌘Q quits) |
 | ⌥1 … ⌥6 | Alt+1 … Alt+6 | On the New tab page: open a recent host |
 
 Drag tabs to reorder; numbered shortcuts follow the current order.

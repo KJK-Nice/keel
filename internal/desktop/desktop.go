@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/url"
 	stdruntime "runtime"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -21,6 +22,14 @@ type nativeWindow struct {
 	app  *application.App
 	win  *application.WebviewWindow
 	exec jsExec // runs script in the page; nil until the window exists
+
+	// The menu bar item (tray.go, macOS): keel serve's status and the
+	// Claude Code switch come from serve; quitting is set once Keel quits,
+	// so closing the window then closes it instead of hiding it.
+	serve    *serveClient
+	tray     *trayItems
+	menuBar  bool
+	quitting atomic.Bool
 }
 
 func Run(url, _ string) error {
@@ -28,7 +37,11 @@ func Run(url, _ string) error {
 	if err != nil {
 		return err
 	}
-	w := &nativeWindow{url: desktopURL(url, stdruntime.GOOS)}
+	w := &nativeWindow{
+		url:     desktopURL(url, stdruntime.GOOS),
+		serve:   newServeClient(url),
+		menuBar: menuBarItem(stdruntime.GOOS),
+	}
 	app := application.New(application.Options{
 		Name:        "Keel",
 		Description: "Local SSH workspace",
@@ -38,7 +51,8 @@ func Run(url, _ string) error {
 			DisableLogging: true,
 		},
 		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
+			// With the menu bar item, closing the window hides it.
+			ApplicationShouldTerminateAfterLastWindowClosed: !w.menuBar,
 		},
 		Linux: application.LinuxOptions{
 			ProgramName: "Keel",
@@ -56,6 +70,10 @@ func Run(url, _ string) error {
 	// queue. A WindowRuntimeReady hook never fired: the page has no runtime.
 	if stdruntime.GOOS == "darwin" {
 		watchChrome(win)
+	}
+	if w.menuBar {
+		w.keepInMenuBar()
+		w.startTray()
 	}
 	return app.Run()
 }
@@ -97,7 +115,8 @@ type menuEntry struct {
 	action string
 }
 
-// actionQuit closes the window, and the app quits with its last window.
+// actionQuit closes the window. The app quits with it, except where Keel
+// lives in the menu bar (menuBarItem), which keeps it until Quit.
 const actionQuit = "quit"
 
 var fileMenu = []menuEntry{
@@ -157,7 +176,10 @@ func (w *nativeWindow) addItems(menu *application.Menu, entries []menuEntry) {
 func (w *nativeWindow) menuAction(name string) func(*application.Context) {
 	return func(*application.Context) {
 		if name == actionQuit {
-			if w.app != nil {
+			switch {
+			case w.menuBar && w.win != nil:
+				w.hideWindow()
+			case w.app != nil:
 				w.app.Quit()
 			}
 			return

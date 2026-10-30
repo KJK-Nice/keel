@@ -7725,6 +7725,11 @@ import { openExternal } from "./lib/openlink.js";
       if (stateFollow.shouldRefresh(ev.detail)) refreshState();
       if (state.tabs.get(state.activeId)?.page === "group") groupPage?.refresh();
     });
+    // The macOS menu bar item turned Allow Claude Code on or off
+    // (internal/desktop/tray.go): an open Settings · Agent shows it.
+    on(window, "keel-agent-settings-changed", () => {
+      if (document.querySelector('[data-settings-panel="agent"]:not([hidden])')) agentSettings?.load();
+    });
     on(els.quickForm, "submit", (ev) => saveQuick(ev).catch((err) => toast(err.message, true)));
     on(els.notebookRenameForm, "submit", (ev) => saveNotebookRename(ev).catch((err) => toast(err.message, true)));
     on(els.joinForm, "submit", (ev) => submitJoin(ev));
