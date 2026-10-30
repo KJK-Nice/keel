@@ -9,6 +9,7 @@
 [![CI](https://github.com/KJK-Nice/keel/actions/workflows/test.yml/badge.svg)](https://github.com/KJK-Nice/keel/actions/workflows/test.yml)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555)
 ![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/keel)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.png">
@@ -68,3 +69,7 @@ Close the window whenever you like: sessions keep running in `keel serve` until 
 ## How it works
 
 Go owns SSH and PTYs in a local daemon, `keel serve`. The window is a [Wails v3](https://v3.wails.io) webview on a loopback-only, token-protected HTTP server; the UI is [templ](https://templ.guide) + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev), and terminals are [xterm.js](https://xtermjs.org). Shared sessions travel over WebRTC, so the local API never leaves your machine.
+
+## License
+
+[MIT](LICENSE)
