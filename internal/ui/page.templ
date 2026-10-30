@@ -73,6 +73,9 @@ templ Page(p PageProps) {
 						if (n >= 11 && n <= 16) uiSize = n;
 						if (ui.smoothing === "subpixel" || ui.smoothing === "none") smooth = ui.smoothing;
 						if (ui.vaultSidebar === false) sidebar = "closed";
+						// The sidebar's width (keel.css clamps it to its bounds).
+						var sw = Number(ui.sidebarWidth);
+						if (ui.sidebarWidth != null && isFinite(sw)) document.documentElement.style.setProperty("--sidebar-width", Math.round(sw) + "px");
 						if (ui.agentPanel === true) agent = "open";
 						var steps = { off: 100, low: 80, medium: 66, high: 50 };
 						var o = Math.round(Number(ui.opacity));
@@ -182,6 +185,7 @@ templ Page(p PageProps) {
 					<div class="k-share-pop" id="share-pop" role="dialog" aria-labelledby="share-pop-title" tabindex="-1" hidden></div>
 					<div class="workspace">
 						@VaultSidebar(p)
+						<div class="k-sidebar-sash" id="sidebar-sash" role="separator" aria-orientation="vertical" aria-controls="vault-sidebar" aria-label="Resize vault sidebar" title="Drag to resize · double-click to reset" tabindex="0"></div>
 						<section class="stage" id="stage">
 							<div class="terminals" id="terminals"></div>
 							@Pages(p)

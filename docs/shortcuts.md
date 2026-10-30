@@ -14,7 +14,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 | ⌘1 … ⌘8 | Ctrl+1 … Ctrl+8 | Switch tabs by position (⌘1 is the first tab: the Vault is a sidebar, not a tab) |
 | ⌘9 | Ctrl+9 | Last tab |
 | ⌘< / ⌘> (or ⌘⇧[ / ⌘⇧]) | Ctrl+< / Ctrl+> (or Ctrl+Shift+[ / Ctrl+Shift+]) | Previous / next tab (wraps) |
-| ⌘B | Ctrl+B | Show or hide the Vault sidebar |
+| ⌘B | Ctrl+B | Show or hide the Vault sidebar (drag its right edge to resize it: arrows, Home and End on the focused edge; double-click goes back to the default width) |
 | ⌘I | Ctrl+Shift+I | Show or hide the agent panel (Ctrl+I is Tab in a terminal, so it stays with the shell) |
 | ⌘K / ⌘⇧P | Ctrl+K / Ctrl+Shift+P | Command palette |
 | ⌘⇧D | Ctrl+Shift+D | Split → |

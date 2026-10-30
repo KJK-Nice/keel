@@ -72,6 +72,7 @@ import { keysFor } from "./lib/shortcutmap.js";
 import { bindRowMenus, isMenuKey } from "./lib/rowmenu.js";
 import { rightClickMode, termRightClick } from "./lib/termmenu.js";
 import { createAgentSettings } from "./ui/agentsettings.js";
+import { createSidebarResize } from "./ui/sidebarresize.js";
 import { createNotesEditor } from "./ui/notes.js";
 import { createRunbooksPage } from "./ui/runbooks.js";
 import { createGroupPage } from "./ui/groups.js";
@@ -252,7 +253,7 @@ import { openExternal } from "./lib/openlink.js";
   const UI_SIZE_DEFAULT = 12;
 
   function loadUiPrefs() {
-    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false, opacity: OPACITY_DEFAULT, blur: BLUR_DEFAULT };
+    const fallback = { size: 12, smoothing: "antialiased", vaultSidebar: true, sidebarSeg: "hosts", agentPanel: false, opacity: OPACITY_DEFAULT, blur: BLUR_DEFAULT, sidebarWidth: null };
     try {
       const raw = JSON.parse(localStorage.getItem("keel-ui") || "{}");
       const size = Math.min(16, Math.max(11, Math.round(Number(raw.size) || 12)));
@@ -262,7 +263,11 @@ import { openExternal } from "./lib/openlink.js";
       const opacity = o >= OPACITY_MIN && o <= OPACITY_MAX ? o : Object.hasOwn(OPACITY_STEPS, raw.translucency) ? OPACITY_STEPS[raw.translucency] : OPACITY_DEFAULT;
       const b = Math.round(Number(raw.blur));
       const blur = raw.blur != null && b >= BLUR_MIN && b <= BLUR_MAX ? b : BLUR_DEFAULT;
-      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true, opacity, blur };
+      // The dragged sidebar width, or null for the default; ui/sidebarresize.js
+      // holds it to the token bounds.
+      const sw = Number(raw.sidebarWidth);
+      const sidebarWidth = raw.sidebarWidth != null && Number.isFinite(sw) ? Math.round(sw) : null;
+      return { size, smoothing, vaultSidebar: raw.vaultSidebar !== false, sidebarSeg, agentPanel: raw.agentPanel === true, opacity, blur, sidebarWidth };
     } catch {
       return fallback;
     }
@@ -6454,6 +6459,22 @@ import { openExternal } from "./lib/openlink.js";
     if (open === null) agentPanel.toggle();
     else agentPanel.setOpen(open);
   }
+
+  // The vault sidebar's resize handle. Its bounds are tokens: size-rail up
+  // to twice size-sidebar (keel.css clamps to the same), stepping by space-4.
+  createSidebarResize({
+    bounds: () => {
+      const css = getComputedStyle(document.documentElement);
+      const px = (name) => parseFloat(css.getPropertyValue(name)) || 0;
+      return { min: px("--size-rail"), max: px("--size-sidebar") * 2, def: px("--size-sidebar"), step: px("--space-4") };
+    },
+    width: () => state.ui.sidebarWidth,
+    save: (w) => {
+      state.ui.sidebarWidth = w;
+      saveUiPrefs();
+    },
+    live: () => fitVisiblePanes(),
+  });
 
   agentSettings = createAgentSettings({
     api,
