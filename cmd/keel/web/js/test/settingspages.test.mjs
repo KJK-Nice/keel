@@ -62,8 +62,21 @@ test("formatting", () => {
   assert.equal(displayName("", ""), "guest");
   assert.equal(vaultModeText({ mode: "keychain" }).label, "OS keychain");
   assert.match(vaultModeText({ mode: "passphrase", keyringOff: true }).help, /KEEL_KEYRING=off/);
-  assert.equal(signalText("").value, "Not configured");
-  assert.equal(signalText("https://x.example").value, "https://x.example");
+  // No server: the field is empty and the help says Share is off.
+  assert.equal(signalText({ signalURL: "", signalSource: "", signalSaved: "" }).value, "");
+  assert.match(signalText(null).help, /Share is off/);
+  // Saved in Settings: the field shows it.
+  const saved = signalText({ signalURL: "https://x.example", signalSource: "settings", signalSaved: "https://x.example" });
+  assert.equal(saved.value, "https://x.example");
+  assert.match(saved.help, /never sees the terminal/);
+  // KEEL_SIGNAL wins for the run; the field still edits the saved server.
+  const env = signalText({ signalURL: "https://env.example", signalSource: "env", signalSaved: "https://x.example" });
+  assert.equal(env.value, "https://x.example");
+  assert.match(env.help, /KEEL_SIGNAL is set for this run, so Keel uses https:\/\/env\.example/);
+  // Built in: shown as the placeholder, the field stays empty.
+  const build = signalText({ signalURL: "https://baked.example", signalSource: "build", signalSaved: "" });
+  assert.equal(build.value, "");
+  assert.equal(build.placeholder, "https://baked.example");
   assert.match(stopMessage(3), /all 3 running sessions/);
   assert.match(stopMessage(1), /1 running session/);
 });

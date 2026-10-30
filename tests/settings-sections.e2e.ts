@@ -39,11 +39,13 @@ describe('settings sections', { tags: ['settings'], serial: true }, () => {
       await expect(page.getByRole('img', process.platform === 'darwin' ? '⌘Z' : 'Ctrl+Shift+Z')).toBeVisible();
       await app.screenshot(`${theme}-settings-keyboard`);
 
-      // Sharing: the signal server e2e-serve.sh started is shown.
+      // Sharing: the signal server e2e-serve.sh started (KEEL_SIGNAL) is
+      // named in the Signal server field's help.
       await page.getByRole('tab', 'Sharing').tap();
       await expect(page.getByRole('heading', 'Sharing')).toBeVisible();
       await expect(page.getByLabel('Display name')).toBeVisible();
-      await expect(page.getByText(/^http:\/\/127\.0\.0\.1:\d+$/)).toBeVisible();
+      await expect(page.getByLabel('Server for internet join links')).toBeVisible();
+      await expect(page).toContainText(/KEEL_SIGNAL is set for this run, so Keel uses http:\/\/127\.0\.0\.1:\d+/);
       await expect(page).toContainText('Joining needs your approval');
       await app.screenshot(`${theme}-settings-sharing`);
 
@@ -181,5 +183,32 @@ describe('settings sections', { tags: ['settings'], serial: true }, () => {
     })()`);
     await app.open(native);
     expect(await browser.evaluate('document.documentElement.dataset.vibrancy ?? null')).toBe('1');
+  });
+  // The Signal server field saves the server in keel.json (PUT
+  // /api/share/signal). e2e runs with KEEL_SIGNAL, which wins for the run,
+  // so the server in use stays the test one; a bad URL is refused.
+  test('the signal server field saves and clears', async ({ app, screen }) => {
+    await openKeel(app);
+    const page = await openSettings(screen);
+    await page.getByRole('tab', 'Sharing').tap();
+    const field = page.getByLabel('Server for internet join links');
+    try {
+      await field.fill('signal.example');
+      await field.press('Enter');
+      await expect(screen.getByText(/must be an http:\/\/ or https:\/\/ URL/)).toBeVisible();
+      expect((await keelApi<{ signalSaved: string }>(app.baseUrl, '/api/runtime')).signalSaved).toBe('');
+
+      await field.fill('https://signal.example/');
+      await field.press('Enter');
+      await expect(screen.getByText('Signal server saved')).toBeVisible();
+      await expect.poll(async () => (await keelApi<{ signalSaved: string }>(app.baseUrl, '/api/runtime')).signalSaved).toBe('https://signal.example');
+      const rt = await keelApi<{ signalSource: string; signalURL: string }>(app.baseUrl, '/api/runtime');
+      expect(rt.signalSource).toBe('env');
+      await expect(field).toHaveValue('https://signal.example');
+    } finally {
+      await field.fill('');
+      await field.press('Enter');
+      await expect.poll(async () => (await keelApi<{ signalSaved: string }>(app.baseUrl, '/api/runtime')).signalSaved).toBe('');
+    }
   });
 });

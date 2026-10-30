@@ -326,6 +326,8 @@ type persistData struct {
 	// Agent holds the agent settings. No secret lives here: provider keys
 	// are vault secrets (agentkeys.go).
 	Agent *AgentSettings `json:"agent,omitempty"`
+	// Share holds Settings · Sharing's saved values (sharesettings.go).
+	Share *ShareSettings `json:"share,omitempty"`
 }
 
 type Store struct {
@@ -469,6 +471,7 @@ func loadPlain(b []byte) (loaded, error) {
 		KnownHosts map[string]string `json:"knownHosts"`
 		KeyTypes   map[string]string `json:"knownHostTypes"`
 		Agent      *AgentSettings    `json:"agent"`
+		Share      *ShareSettings    `json:"share"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return loaded{}, fmt.Errorf("parse store: %w", err)
@@ -484,6 +487,7 @@ func loadPlain(b []byte) (loaded, error) {
 		Groups:     raw.Groups,
 		KnownHosts: raw.KnownHosts,
 		Agent:      raw.Agent,
+		Share:      raw.Share,
 
 		KnownHostTypes: raw.KeyTypes,
 	}

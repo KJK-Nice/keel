@@ -10,7 +10,8 @@
 #
 # LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every archive
 # when they exist at the repo root. No KEEL_SIGNAL is baked in: Share stays
-# off until the user points Keel at a keel-signal (docs/sharing.md).
+# off until the user enters a keel-signal in Settings · Sharing
+# (docs/sharing.md).
 set -eu
 
 tag=${1:?usage: scripts/release.sh vX.Y.Z app|signal}
