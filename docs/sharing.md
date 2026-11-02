@@ -11,16 +11,18 @@ Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling 
 # or: KEEL_SIGNAL_ADDR=:8080 ./bin/keel-signal
 ```
 
-2. On the host desktop, either bake the URL into the app or set it at runtime:
+2. On the host desktop, open **Settings → Sharing** and enter the server's URL under **Signal server** (for example `https://your-signal.example`), then press Enter. keel serve saves it in `keel.json` and uses it for the next share; shares already running keep their link. Clear the field to turn Share off.
+
+Two other ways set the server, for scripts and builds:
 
 ```bash
-make build KEEL_SIGNAL=https://your-signal.example
-open bin/Keel.app
-# or, from a shell only:
+# for one run, from a shell (wins over the saved server):
 KEEL_SIGNAL=https://your-signal.example ./bin/keel
+# built into the app (used when nothing is saved and KEEL_SIGNAL is unset):
+make build KEEL_SIGNAL=https://your-signal.example
 ```
 
-A Finder-launched `Keel.app` has no shell environment, so bake the URL in for it. A runtime `KEEL_SIGNAL` overrides the baked one.
+Order: `KEEL_SIGNAL` for the run, then the server saved in Settings, then the one built in. Release builds have none built in. Settings · Sharing says which one is in use.
 
 ## Share and join
 

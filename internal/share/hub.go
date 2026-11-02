@@ -23,21 +23,34 @@ import (
 )
 
 type Hub struct {
-	signal string
-	rt     *runtime.Runtime
-	mu     sync.Mutex
-	bySess map[string]*liveShare
+	// The signal server comes from, strongest first: env (KEEL_SIGNAL for
+	// this run, or New's argument), saved (Settings · Sharing, SetSaved)
+	// and build (DefaultSignal). saved changes at run time, under mu.
+	env, saved, build string
+	rt                *runtime.Runtime
+	mu                sync.Mutex
+	bySess            map[string]*liveShare
 }
+
+// Where the signal server in use comes from (Hub.Source).
+const (
+	SourceEnv      = "env"
+	SourceSettings = "settings"
+	SourceBuild    = "build"
+)
 
 type liveShare struct {
 	sessionID string
-	roomID    string
-	hostKey   string
-	joinURL   string // set under Hub.mu once the host is connected
-	ctx       context.Context
-	cancel    context.CancelFunc
-	ready     chan struct{} // closed when the share is up or has failed
-	err       error         // set before ready is closed
+	// signal is the server the share was made on. A share keeps it when the
+	// saved server changes; the next one uses the new server.
+	signal  string
+	roomID  string
+	hostKey string
+	joinURL string // set under Hub.mu once the host is connected
+	ctx     context.Context
+	cancel  context.CancelFunc
+	ready   chan struct{} // closed when the share is up or has failed
+	err     error         // set before ready is closed
 
 	// secret goes in the join link's #fragment and authenticates both
 	// WebRTC peers (verify.go); the signal server never sees it.
@@ -96,31 +109,92 @@ var (
 //	go build -ldflags "-X keel/internal/share.DefaultSignal=https://…"
 var DefaultSignal string
 
+// New makes a hub on signalURL, which no saved setting overrides.
 func New(signalURL string, rt *runtime.Runtime) *Hub {
 	return &Hub{
-		signal: strings.TrimRight(strings.TrimSpace(signalURL), "/"),
+		env:    trimSignal(signalURL),
 		rt:     rt,
 		bySess: map[string]*liveShare{},
 	}
 }
 
+// FromEnv makes a hub on KEEL_SIGNAL, falling back to the saved server
+// (SetSaved) and then DefaultSignal.
 func FromEnv(rt *runtime.Runtime) *Hub {
-	u := os.Getenv("KEEL_SIGNAL")
-	if strings.TrimSpace(u) == "" {
-		u = DefaultSignal
+	h := New(os.Getenv("KEEL_SIGNAL"), rt)
+	h.build = trimSignal(DefaultSignal)
+	return h
+}
+
+func trimSignal(u string) string {
+	return strings.TrimRight(strings.TrimSpace(u), "/")
+}
+
+// SetSaved sets the server saved in Settings · Sharing ("" for none).
+// Shares already running keep the server they were made on.
+func (h *Hub) SetSaved(u string) {
+	if h == nil {
+		return
 	}
-	return New(u, rt)
+	h.mu.Lock()
+	h.saved = trimSignal(u)
+	h.mu.Unlock()
+}
+
+// current is the signal server in use and where it comes from.
+func (h *Hub) current() (string, string) {
+	if h == nil {
+		return "", ""
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	switch {
+	case h.env != "":
+		return h.env, SourceEnv
+	case h.saved != "":
+		return h.saved, SourceSettings
+	case h.build != "":
+		return h.build, SourceBuild
+	}
+	return "", ""
 }
 
 func (h *Hub) Enabled() bool {
-	return h != nil && h.signal != ""
+	u, _ := h.current()
+	return u != ""
 }
 
 func (h *Hub) URL() string {
-	if h == nil {
-		return ""
+	u, _ := h.current()
+	return u
+}
+
+// Source says where URL comes from: SourceEnv, SourceSettings, SourceBuild,
+// or "" when there is no server.
+func (h *Hub) Source() string {
+	_, src := h.current()
+	return src
+}
+
+// NormalizeSignal checks a signal server URL typed in Settings: an absolute
+// http or https URL with a host and no user, query or fragment (join links
+// are built on it). "" stays "" (no server). Trailing slashes are dropped.
+func NormalizeSignal(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
 	}
-	return h.signal
+	if len(raw) > 2048 {
+		return "", errors.New("signal server URL is too long")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.Opaque != "" {
+		return "", errors.New("signal server must be an http:// or https:// URL, like https://signal.example.com")
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.ForceQuery || strings.Contains(raw, "#") {
+		return "", errors.New("signal server URL cannot have a user, ?query or #fragment")
+	}
+	return trimSignal(u.String()), nil
 }
 
 func (h *Hub) JoinURL(sessionID string) string {
@@ -139,8 +213,9 @@ func (h *Hub) JoinURL(sessionID string) string {
 // none. Concurrent calls for one session wait for the same share instead of
 // each creating a room.
 func (h *Hub) Share(sessionID string) (string, error) {
-	if h == nil || h.signal == "" {
-		return "", errors.New("set KEEL_SIGNAL to a public signaling server (keel-signal)")
+	signal := h.URL()
+	if signal == "" {
+		return "", errors.New("set a signal server in Settings · Sharing (or KEEL_SIGNAL) to share")
 	}
 	sess, err := h.rt.Get(sessionID)
 	if err != nil {
@@ -158,6 +233,7 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	live := &liveShare{
 		sessionID: sessionID,
+		signal:    signal,
 		ctx:       ctx,
 		cancel:    cancel,
 		ready:     make(chan struct{}),
@@ -168,13 +244,13 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	h.bySess[sessionID] = live
 	h.mu.Unlock()
 
-	roomID, hostKey, err := createRoom(h.signal)
+	roomID, hostKey, err := createRoom(signal)
 	if err != nil {
 		h.fail(live, err)
 		return "", err
 	}
 	live.roomID, live.hostKey = roomID, hostKey
-	go h.hostLoop(ctx, live, h.signal+"/join?room="+url.QueryEscape(roomID)+"#k="+secret)
+	go h.hostLoop(ctx, live, signal+"/join?room="+url.QueryEscape(roomID)+"#k="+secret)
 	return h.await(live, true)
 }
 
@@ -305,7 +381,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	// session no longer has a share: drop the entry so the next Share makes
 	// a fresh room instead of handing out a dead link.
 	defer h.end(live)
-	wsURL := wsBase(h.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID) +
+	wsURL := wsBase(live.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID) +
 		"&key=" + url.QueryEscape(live.hostKey)
 	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = 8 * time.Second // DefaultDialer allows 45s

@@ -54,6 +54,8 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
+	// Settings · Sharing's server; KEEL_SIGNAL still wins for this run.
+	hub.SetSaved(st.SignalURL())
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	// KEEL_AGENT_PROVIDER=fake is for end-to-end tests only: the agent then
@@ -84,7 +86,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	base := "http://" + ln.Addr().String()
 	log.Printf("Keel serve on %s — sessions keep running until keel serve stop", base)
 	if hub.Enabled() {
-		log.Printf("Internet share via %s", hub.URL())
+		log.Printf("Internet share via %s (%s)", hub.URL(), hub.Source())
 	}
 
 	go func() {

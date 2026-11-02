@@ -40,11 +40,23 @@ export function vaultModeText(v) {
   return { label: "Not set up", help: "The vault is created on first run." };
 }
 
-// signalText: what to show for the signaling server from /api/runtime.
-export function signalText(url) {
-  const u = String(url || "").trim();
-  if (!u) return { value: "Not configured", help: "Share is off. Start Keel with KEEL_SIGNAL set to a keel-signal server (see the README), or build with one baked in." };
-  return { value: u, help: "Join links go through this server. It never sees the terminal or the key in the link's #fragment." };
+// signalText: the Signal server field from /api/runtime or PUT
+// /api/share/signal ({signalURL, signalSource, signalSaved}): the input's
+// value (the saved server), its placeholder and the help line.
+export function signalText(info) {
+  const url = String(info?.signalURL || "").trim();
+  const saved = String(info?.signalSaved || "").trim();
+  const placeholder = "https://signal.example.com";
+  const relay = "Join links go through this server. It never sees the terminal or the key in the link's #fragment.";
+  switch (info?.signalSource) {
+    case "env":
+      return { value: saved, placeholder, help: `KEEL_SIGNAL is set for this run, so Keel uses ${url}. The server saved here is used when it is not set.` };
+    case "settings":
+      return { value: saved, placeholder, help: relay };
+    case "build":
+      return { value: saved, placeholder: url, help: `This copy of Keel was built with ${url}. Enter another server to use it instead. ${relay}` };
+  }
+  return { value: saved, placeholder, help: "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you." };
 }
 
 // stopMessage: the alertdialog text for Stop runtime.

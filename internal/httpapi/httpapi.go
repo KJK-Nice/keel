@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -130,6 +131,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/ssh-config/preview", s.sshConfigPreview)
 	mux.HandleFunc("POST /api/ssh-config/import", s.sshConfigImport)
 	mux.HandleFunc("POST /api/share", s.shareSession)
+	mux.HandleFunc("PUT /api/share/signal", s.putSignal)
 	mux.HandleFunc("DELETE /api/share/{id}", s.stopShare)
 	mux.HandleFunc("POST /api/share/{id}/admit", s.admitShare)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
@@ -389,12 +391,55 @@ func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
 		"startedAt": s.started.UTC().Format(time.RFC3339),
 		"uptimeSec": int64(time.Since(s.started).Seconds()),
 		"canStop":   s.onStop != nil,
-		"signalURL": "",
 	}
-	if s.share != nil && s.share.Enabled() {
-		out["signalURL"] = s.share.URL()
+	for k, v := range s.signalInfo() {
+		out[k] = v
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// signalInfo is the signal server for Settings · Sharing: the one in use
+// (signalURL), where it comes from (signalSource: env, settings, build or
+// ""), and the one saved in Settings (signalSaved), which KEEL_SIGNAL
+// overrides for the run.
+func (s *Server) signalInfo() map[string]any {
+	return map[string]any{
+		"signalURL":    s.share.URL(),
+		"signalSource": s.share.Source(),
+		"signalSaved":  s.store.SignalURL(),
+	}
+}
+
+// putSignal saves Settings · Sharing's signal server ({"url": ""} removes
+// it) and uses it for the next share. Shares already running keep theirs.
+func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
+	if s.share == nil {
+		writeError(w, http.StatusServiceUnavailable, "sharing is not available")
+		return
+	}
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	u, err := share.NormalizeSignal(req.URL)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.store.SetSignalURL(u); err != nil {
+		writeStoreErr(w, err)
+		return
+	}
+	s.share.SetSaved(u)
+	if u == "" {
+		s.note("share", "signal server removed", "", "", "")
+	} else {
+		s.note("share", "signal server set to "+u, "", "", "")
+	}
+	writeJSON(w, http.StatusOK, s.signalInfo())
 }
 
 func (s *Server) stopRuntime(w http.ResponseWriter, _ *http.Request) {
@@ -448,7 +493,7 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 	if s.share == nil || !s.share.Enabled() {
-		writeError(w, http.StatusServiceUnavailable, "set KEEL_SIGNAL to a public signaling server")
+		writeError(w, http.StatusServiceUnavailable, "set a signal server in Settings · Sharing to share")
 		return
 	}
 	var req struct {
