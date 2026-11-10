@@ -276,18 +276,28 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 		current = p.host.ID == host.ID
 	}
 	r := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).
-		Label("host " + host.Name).Cursor(ui.CursorPointer).Key(host.ID)
-	if current || r.Hovered() {
+		Label("host " + host.Name).Cursor(ui.CursorPointer).Key(host.ID).Focusable()
+	hover := r.Hovered()
+	if current || hover {
 		r.Background(hoverGround)
 	}
+	r.PopoverMenu(w.hostMenu(host))
+	// ⌥↵ on a focused row opens it in a split of the focused pane (term.js host-list keydown); ↵ alone clicks the
+	// focused row, which opens it.
+	r.ObserveInput(func(ev ui.InputEvent) {
+		if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEnter && ev.Mods == ui.Alt {
+			w.act(func() { w.openHostInSplit(host) })
+		}
+	})
 	r.Children(func() {
 		ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).
 			Background(hostTint(host.Color).Alpha(tileTintAlpha)).Children(func() {
 			iconSized(c, "server", hostTint(host.Color), iconSizeSm)
 		})
-		body(c, host.Name, ink)
-		if current {
-			ui.Spacer(c)
+		body(c, host.Name, ink).Grow(1).Shrink(1).MinWidth(0)
+		if hover || r.FocusWithin() {
+			iconMenuBtn(c, "more-horizontal", "Actions for "+host.Name, sizeControlSm, w.hostMenu(host))
+		} else if current {
 			dot(c, tide)
 			caption(c, fmt.Sprint(w.panesOn(host.ID)), inkMuted)
 		}
