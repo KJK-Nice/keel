@@ -115,39 +115,83 @@ const (
 	radiusMd         = 8
 	radiusLg         = 12
 	radiusFull       = 999
-	uiFontSize       = 13   // type body
-	captionSize      = 12   // type label / caption
 	windowOpacity    = 0.66 // vibrancy-tint-default
 	weightRegular    = 400
 	weightMedium     = 500
 	weightSemibold   = 600
-	titleSize        = 15 // type title
-	displaySize      = 28 // type display
-	kbdSize          = 11 // type kbd
 	monoFamily       = "JetBrains Mono"
 	monoFallback     = "monospace"
 	statusbarSize    = 24 // not a token: "about 24" in the plan
 	focusRingWidth   = 3  // shadow-tile-focus
 	focusRingAlpha   = 0.30
 	dimAlpha         = 0.70 // unfocused terminals in a split tab
-	iconSize         = 16
-	iconSizeSm       = 12   // k-tile--sm svg, 0.923rem
-	sizeTileSm       = 20   // k-tile--sm, 1.538rem
 	tileTintAlpha    = 0.16 // k-tile: 16% of the host colour
-	tabMaxWidth      = 200  // not a token: the widest a tab grows before its name is cut
 	minTileWidth     = 240  // not a token: narrowest a split tile may be dragged to
 	minTileHeight    = 120  // not a token: shortest a stacked tile may be dragged to
-	roleChipHeight   = 20   // k-role, components.css
-	roleChipSize     = 11   // k-role font size
 	dialogWidth      = 420  // .modal width in keel.css
-	kbdBox           = 18   // k-kbd min-width and height, components.css
-	dotSize          = 7    // k-dot, components.css
-	dotRing          = 3    // k-dot--live ring
-	paletteWidth     = 560  // k-palette, components.css
-	paletteSearch    = 46   // k-palette-search height
 	paletteTop       = 0.16 // .cmd-palette top: 16vh
 	termShareLight   = 0.3  // vibrancy-term-share, light: the share of the chrome's see-through the terminal body keeps (dark is 1)
 )
+
+// The app writes these in rem (px ÷ 13, keel.css) so Settings · Appearance · UI size scales them; the px sizes above,
+// the spacing and the radii stay as they are. The design value is tokens.json's, at its 13px base; the app's default UI
+// size is 12px (term.js UI_SIZE_DEFAULT), so a rem is 12/13 of the design px until the setting moves.
+const (
+	uiSizeMin, uiSizeMax, uiSizeDefault = 11, 16, 12 // term.js UI_SIZE_MIN, UI_SIZE_MAX, UI_SIZE_DEFAULT
+	uiSizeBase                          = 13         // what the design px are written at
+)
+
+// Design values in px at uiSizeBase.
+const (
+	bodyPx                            = 13         // type body
+	captionPx                         = 12         // type label / caption
+	titlePx                           = 15         // type title
+	displayPx                         = 28         // type display
+	kbdPx                             = 11         // type kbd
+	roleChipFontPx                    = 11         // k-role font size
+	iconPx                            = 16         // .k-i svg
+	iconSmPx                          = 12         // k-tile--sm svg, 0.923rem
+	tileSmPx                          = 20         // k-tile--sm, 1.538rem
+	roleChipHeightPx                  = 20         // k-role, components.css
+	kbdBoxPx                          = 18         // k-kbd min-width and height
+	dotPx                             = 7          // k-dot, components.css
+	dotRingPx                         = 3          // k-dot--live ring
+	paletteWidthPx                    = 560        // k-palette, 43rem
+	paletteSearchPx                   = 46         // k-palette-search height, 3.538rem
+	tabMaxPx                          = 200        // tab max-width 15.4rem
+	radioPx, radioDotPx               = 15, 7      // k-radio 1.154rem, its dot 0.538rem
+	tileLgPx, tileLgIconPx, titleLgPx = 44, 22, 18 // k-tile--lg 3.385rem, its glyph 1.692rem, .k-detail-title 1.385rem
+	itemSubPx, keyhintPx              = 11, 10     // .k-item-sub 0.846rem, k-keyhint
+)
+
+// The scaled sizes views draw with: setUISize sets them.
+var (
+	uiFontSize, captionSize, titleSize, displaySize, kbdSize, roleChipSize     float32
+	iconSize, iconSizeSm, sizeTileSm, roleChipHeight, kbdBox, dotSize, dotRing float32
+	paletteWidth, paletteSearch, tabMaxWidth                                   float32
+	radioSize, radioDot, tileLgSize, tileLgIcon, titleLg, itemSub, keyhintSize float32
+	uiSize                                                                     = uiSizeDefault
+)
+
+func init() { setUISize(uiSizeDefault) }
+
+// uiScale is how many px a design px is at a UI size.
+func uiScale(n int) float32 { return float32(n) / uiSizeBase }
+
+// rem is a design px at the UI size in use.
+func rem(px float32) float32 { return px * uiScale(uiSize) }
+
+// setUISize makes the scaled sizes those of a UI size, clamped to the app's bounds.
+func setUISize(n int) {
+	n = min(max(n, uiSizeMin), uiSizeMax)
+	uiSize = n
+	uiFontSize, captionSize, titleSize, displaySize, kbdSize = rem(bodyPx), rem(captionPx), rem(titlePx), rem(displayPx), rem(kbdPx)
+	roleChipSize, iconSize, iconSizeSm, sizeTileSm = rem(roleChipFontPx), rem(iconPx), rem(iconSmPx), rem(tileSmPx)
+	roleChipHeight, kbdBox, dotSize, dotRing = rem(roleChipHeightPx), rem(kbdBoxPx), rem(dotPx), rem(dotRingPx)
+	paletteWidth, paletteSearch, tabMaxWidth = rem(paletteWidthPx), rem(paletteSearchPx), rem(tabMaxPx)
+	radioSize, radioDot, tileLgSize, tileLgIcon = rem(radioPx), rem(radioDotPx), rem(tileLgPx), rem(tileLgIconPx)
+	titleLg, itemSub, keyhintSize = rem(titleLgPx), rem(itemSubPx), rem(keyhintPx)
+}
 
 func tok(hex string) ui.Color { return ui.Hex(hex) }
 

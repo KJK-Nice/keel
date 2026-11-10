@@ -18,10 +18,7 @@ import (
 // setFontSize, the Copy on select and Right-click rows) and ui/settingspages.js.
 //
 // In the app and not here, each for a reason:
-//   - Appearance · UI size and Font smoothing: both are the webview's (CSS font size and -webkit-font-smoothing); the native
-//     views take their sizes from tokens.go constants.
-//   - Terminal · Font: the app offers JetBrains Mono, IBM Plex Mono, Menlo, Consolas and the system's; this client ships
-//     JetBrains Mono only (fonts/ is a copy of the webview's JetBrains files), so a choice would have one entry.
+//   - Appearance · Font smoothing: the webview's -webkit-font-smoothing; MyGo draws its own text.
 //   - Agent: the agent phase (N7). The webview's section is filled from /api/agent/settings; it has no empty state without
 //     a provider, so the nav item is left out.
 //   - Sharing · Display name is stored in keel-native.json ("name"), not in the webview's localStorage; it is read by the
@@ -45,8 +42,8 @@ type settingsPage struct {
 	loadFail string // the read failed: the sections show what they have
 
 	// The sliders are bound to floats; a change is told from the value last applied.
-	opacityV, blurV, sizeV                   float64
-	opacityApplied, blurApplied, sizeApplied int
+	opacityV, blurV, sizeV, uiV                         float64
+	opacityApplied, blurApplied, sizeApplied, uiApplied int
 
 	name, signal         string // the two inputs while they are edited
 	nameH, signalH       ui.Handle
@@ -132,6 +129,16 @@ func (w *workspace) setOpacity(n int) {
 		w.alpha = alphaFor(n)
 	}
 	w.applyBlur()
+}
+
+// setUIPref is term.js setUiSize: the size is kept and every view draws at it from the next frame (setUISize).
+func (w *workspace) setUIPref(n int) {
+	n = min(max(n, uiSizeMin), uiSizeMax)
+	if n == w.win.UISize {
+		return
+	}
+	w.win.UISize = n
+	w.savePref("uiSize", n)
 }
 
 // setBlur is term.js setBlur.
@@ -290,6 +297,7 @@ func (w *workspace) syncSliders(p *settingsPage) {
 	step(&p.opacityV, &p.opacityApplied, w.win.Opacity, w.setOpacity)
 	step(&p.blurV, &p.blurApplied, w.win.Blur, w.setBlur)
 	step(&p.sizeV, &p.sizeApplied, w.termSize, w.setTermSize)
+	step(&p.uiV, &p.uiApplied, w.win.UISize, w.setUIPref)
 }
 
 // hasBlur reports a window that has the blur row (macOS only, as data-blur-only).
@@ -300,4 +308,5 @@ func (w *workspace) initSliders(p *settingsPage) {
 	p.opacityV, p.opacityApplied = float64(w.win.Opacity), w.win.Opacity
 	p.blurV, p.blurApplied = float64(w.win.Blur), w.win.Blur
 	p.sizeV, p.sizeApplied = float64(w.termSize), w.termSize
+	p.uiV, p.uiApplied = float64(w.win.UISize), w.win.UISize
 }

@@ -62,7 +62,7 @@ func TestSettingsNavIsTheAppsWithoutAgent(t *testing.T) {
 	}
 	r.texts(t, "Display", "Theme", "Light, dark, or follow the system.", "Window opacity")
 	// What is in the app and not here is not drawn.
-	for _, s := range []string{"UI size", "Font smoothing"} {
+	for _, s := range []string{"Font smoothing"} {
 		if r.has("setting " + s) {
 			t.Errorf("%q is drawn; this client has no counterpart", s)
 		}
@@ -216,10 +216,8 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	if !r.w.term.CopyOnSelect || r.w.term.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.term)
 	}
-	if r.has("setting Font") {
-		t.Error("a Font row with one font to offer")
-	}
-	r.w.openHost(testHosts[1]) // a pane to change live
+	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the app's five, chosen by default
+	r.w.openHost(testHosts[1])                                                 // a pane to change live
 	r.w.openPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")

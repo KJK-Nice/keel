@@ -23,7 +23,6 @@ const (
 	startMaxWidth = sizeSidebar * 3
 	startInputH   = sizeControlLg * 3 / 2
 	startActionH  = sizeControlLg * 5 / 4
-	keyhintSize   = 10 // k-keyhint font size, components.css
 )
 
 // startPageView is the stage for a New tab.

@@ -124,7 +124,7 @@ func TestTokensMatchJSON(t *testing.T) {
 	if err := json.Unmarshal(raw, &typ); err != nil {
 		t.Fatal(err)
 	}
-	sizes := map[string]float64{"display": displaySize, "title": titleSize, "body": uiFontSize, "caption": captionSize, "kbd": kbdSize}
+	sizes := map[string]float64{"display": displayPx, "title": titlePx, "body": bodyPx, "caption": captionPx, "kbd": kbdPx}
 	for _, g := range typ.Type.Groups {
 		for _, st := range g.Styles {
 			if want, ok := sizes[st.Name]; ok {

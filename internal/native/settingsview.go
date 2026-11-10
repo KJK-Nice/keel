@@ -71,7 +71,7 @@ func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
 		w.settingsRail(c, p)
 		ui.Scroll(c).Grow(1).FillHeight().Shrink(1).MinWidth(0).Background(w.ground(surface)).Label("settings").Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(settingsMaxWidth).Padding(space8).Gap(space6).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(rem(settingsMaxWidth)).Padding(space8).Gap(space6).Children(func() {
 				switch {
 				case q != "" && len(shown) == 0:
 					help(c, "No settings match.")
@@ -147,7 +147,7 @@ func (w *workspace) settingsPanel(c *ui.Context, s settingsSection, p *settingsP
 		ui.Column(c).FillWidth().Gap(space3).Children(func() { // .k-settings-lead sits half a gap under the title
 			ui.Text(c, s.title).TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold)
 			if s.lead != "" {
-				ui.Text(c, s.lead).TextColor(inkMuted).FontSize(uiFontSize).MaxWidth(leadWidth)
+				ui.Text(c, s.lead).TextColor(inkMuted).FontSize(uiFontSize).MaxWidth(rem(leadWidth))
 			}
 		})
 		for _, g := range s.groups {
@@ -259,23 +259,35 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 			segControl(c, "Color theme", validTheme(w.win.Theme), themeChoices, func(v string) { w.act(func() { w.setTheme(v) }) })
 		})
 	}}
+	uiSizeRow := prefRow{title: "UI size", desc: "Tabs, settings, and chrome. 11–16px. Terminal size is separate.",
+		ctl: func(c *ui.Context) { sliderCtl(c, "UI size", &p.uiV, uiSizeMin, uiSizeMax, w.win.UISize)(c) }}
 	rows := []prefRow{theme, opacity}
 	if hasBlur() {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
 			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.win.Blur)(c) }})
 	}
+	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, UI size, as the app orders them
 	return settingsSection{id: "appearance", title: "Appearance", groups: []prefGroup{{title: "Display", rows: rows}}}
 }
 
 func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 	session := []prefGroup{{title: "Session", rows: []prefRow{
+		{title: "Font", desc: "Monospace face used in every pane.", ctl: func(c *ui.Context) {
+			entries := make([]pickEntry, len(termFonts))
+			for i, f := range termFonts {
+				entries[i] = pickEntry{value: f.value, label: f.label, desc: f.desc}
+			}
+			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+				picker(c, "Terminal font", validTermFont(w.win.TermFont), entries, func(v string) { w.act(func() { w.setTermFont(v) }) })
+			})
+		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
 			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.termSize)(c)
 			kbd(c, "⌘+").Label("shortcut hint")
 		}},
 		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
 			ui.Row(c).FillWidth().Height(3*24).Padding(0, space3).AlignItems(ui.Center).Radius(radiusSm).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
-				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.termSize)).Font(monoStack)
+				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.termSize)).Font(termStack(w.win.TermFont))
 			})
 		}},
 	}}}

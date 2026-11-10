@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,14 +25,18 @@ func terminalTheme() *terminal.Theme {
 //go:embed fonts/*.woff2
 var fontFiles embed.FS
 
-// registerFonts adds the embedded JetBrains Mono (woff2) as the mono family. fonts/ is a copy of
+// registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ is a copy of
 // cmd/keel/web/fonts (TestEmbeddedFontsMatchTheWebviews keeps them equal).
 func registerFonts() {
 	files, _ := fontFiles.ReadDir("fonts")
 	for _, f := range files {
+		family := monoFamily
+		if strings.HasPrefix(f.Name(), "ibm-plex-mono") {
+			family = plexFamily
+		}
 		b, err := fontFiles.ReadFile("fonts/" + f.Name())
 		if err == nil {
-			err = ui.RegisterFont(b, monoFamily)
+			err = ui.RegisterFont(b, family)
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "font "+f.Name()+":", err)
@@ -59,7 +64,7 @@ func liveBodyT(p *pane, transparent bool) {
 	th := terminalTheme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
 	term, err := terminal.New(terminal.Options{
 		Conn: p.conn, Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
-		Font: terminal.Font{Family: monoStack, Size: p.fontSize},
+		Font: terminal.Font{Family: p.fontFamily, Size: p.fontSize},
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
 			if p.zoom != nil {
@@ -87,7 +92,7 @@ func liveBodyT(p *pane, transparent bool) {
 		}
 	}
 	p.setTheme = func() { t := terminalTheme(); term.SetTheme(t, t) }
-	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: monoStack, Size: size}) }
+	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: p.fontFamily, Size: size}) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,
 		status: func() (int, int) { s := term.SearchStatus(); return s.Selected, s.Total },

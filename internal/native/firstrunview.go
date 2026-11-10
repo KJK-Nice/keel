@@ -15,8 +15,6 @@ import (
 const (
 	onbWidth     = sizeSidebar * 5 / 2 // .k-onb-col: size-sidebar · 2.5, inside its padding
 	onbWideWidth = sizeSidebar * 3     // data-step="hosts": size-sidebar · 3
-	radioSize    = 15                  // k-radio, 1.154rem
-	radioDot     = 7                   // 0.538rem
 	stepDotSize  = 20
 	kvKeyWidth   = space8*3 + space4 // .k-onb .k-kv first column
 	impCheckCol  = space6 + space4   // the table's first column

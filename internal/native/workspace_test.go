@@ -944,19 +944,19 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 }
 
 func TestLoadPrefs(t *testing.T) {
-	def := prefs{Opacity: 66, Blur: 20, TermSize: 12, Theme: "system"}
+	def := prefs{Opacity: 66, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}
 	for _, tc := range []struct {
 		name, file string
 		want       prefs
 	}{
 		{"missing", "", def},
 		{"bad json", "{", def},
-		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system"}},
-		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system"}},
-		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system"}},
-		{"blur too high", `{"opacity":50,"blur":99}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system"}},
-		{"only blur", `{"blur":0}`, prefs{Opacity: 66, Blur: 0, TermSize: 12, Theme: "system"}},
-		{"valid", `{"opacity":100,"blur":64}`, prefs{Opacity: 100, Blur: 64, TermSize: 12, Theme: "system"}},
+		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"blur too high", `{"opacity":50,"blur":99}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"only blur", `{"blur":0}`, prefs{Opacity: 66, Blur: 0, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"valid", `{"opacity":100,"blur":64}`, prefs{Opacity: 100, Blur: 64, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
 	} {
 		dir := t.TempDir()
 		if tc.file != "" {

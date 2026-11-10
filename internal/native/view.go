@@ -16,6 +16,7 @@ import (
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
 	w.resolveTheme(c)
+	setUISize(w.win.UISize)
 	windowTheme(c, w.dark)
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha

@@ -18,7 +18,10 @@ type prefs struct {
 
 	TermSize int `json:"termSize"` // terminal text size, 10–22, set by ⌘+ ⌘- ⌘0
 
-	Theme string `json:"theme"` // system | light | dark: Settings · Appearance · Theme
+	Theme  string `json:"theme"`  // system | light | dark: Settings · Appearance · Theme
+	UISize int    `json:"uiSize"` // 11–16: Settings · Appearance · UI size (text and rem sizes; the terminal is separate)
+
+	TermFont string `json:"termFont"` // Settings · Terminal · Font: jetbrains | ibmplex | menlo | consolas | system
 }
 
 const (
@@ -29,19 +32,22 @@ const (
 // loadPrefs reads <dataDir>/keel-native.json. A missing or unreadable file, or a value out of range,
 // gives the default, field by field.
 func loadPrefs(dataDir string) prefs {
-	p := prefs{Opacity: opacityDefault, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeSystem}
+	p := prefs{Opacity: opacityDefault, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeSystem, UISize: uiSizeDefault, TermFont: fontJetBrains}
 	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
 	if err != nil {
 		return p
 	}
 	var f struct {
-		Opacity, Blur, TermSize *int
-		Theme                   string
+		Opacity, Blur, TermSize, UISize *int
+		Theme, TermFont                 string
 	}
 	if json.Unmarshal(b, &f) != nil {
 		return p
 	}
-	p.Theme = validTheme(f.Theme)
+	p.Theme, p.TermFont = validTheme(f.Theme), validTermFont(f.TermFont)
+	if f.UISize != nil && *f.UISize >= uiSizeMin && *f.UISize <= uiSizeMax {
+		p.UISize = *f.UISize
+	}
 	if f.TermSize != nil && *f.TermSize >= termSizeMin && *f.TermSize <= termSizeMax {
 		p.TermSize = *f.TermSize
 	}

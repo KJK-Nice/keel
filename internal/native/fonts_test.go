@@ -47,8 +47,8 @@ func errString(err error) string {
 // The embedded fonts are copies of the webview's; they must not drift.
 func TestEmbeddedFontsMatchTheWebviews(t *testing.T) {
 	files, err := fontFiles.ReadDir("fonts")
-	if err != nil || len(files) != 4 {
-		t.Fatalf("embedded fonts: %d files, err %v; want 4 woff2", len(files), err)
+	if err != nil || len(files) != 8 {
+		t.Fatalf("embedded fonts: %d files, err %v; want 8 woff2 (JetBrains Mono and IBM Plex Mono, 400 and 500, latin and latin-ext)", len(files), err)
 	}
 	for _, f := range files {
 		mine, _ := fontFiles.ReadFile("fonts/" + f.Name())
@@ -57,9 +57,35 @@ func TestEmbeddedFontsMatchTheWebviews(t *testing.T) {
 			t.Errorf("%s differs from cmd/keel/web/fonts (err %v)", f.Name(), err)
 		}
 	}
-	mine, _ := os.ReadFile(filepath.Join("fonts", "OFL-jetbrains-mono.txt"))
-	orig, _ := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "fonts", "OFL-jetbrains-mono.txt"))
-	if len(mine) == 0 || !bytes.Equal(mine, orig) {
-		t.Error("OFL-jetbrains-mono.txt is missing or differs")
+	for _, name := range []string{"OFL-jetbrains-mono.txt", "OFL-ibm-plex-mono.txt"} {
+		mine, _ := os.ReadFile(filepath.Join("fonts", name))
+		orig, _ := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "fonts", name))
+		if len(mine) == 0 || !bytes.Equal(mine, orig) {
+			t.Errorf("%s is missing or differs", name)
+		}
+	}
+}
+
+// Each shipped family, once registered as run.go does, renders differently from a missing family and from the other.
+func TestShippedFamiliesRenderDifferently(t *testing.T) {
+	registerFonts()
+	missing, jb, plex := renderIn("keel-test-missing-5d1e"), renderIn(monoFamily), renderIn(plexFamily)
+	if bytes.Equal(jb, missing) {
+		t.Error("JetBrains Mono renders as a missing family")
+	}
+	if bytes.Equal(plex, missing) {
+		t.Error("IBM Plex Mono renders as a missing family")
+	}
+	if bytes.Equal(jb, plex) {
+		t.Error("the two families render alike")
+	}
+	// The stacks the terminal is given start with the family the option names.
+	for _, f := range termFonts {
+		if f.stack == "" || f.label == "" || f.desc == "" {
+			t.Errorf("option %+v is incomplete", f)
+		}
+	}
+	if !bytes.Equal(renderIn(termStack(fontPlex)), plex) || !bytes.Equal(renderIn(termStack(fontJetBrains)), jb) {
+		t.Error("a stack does not draw in its first family")
 	}
 }

@@ -9,12 +9,7 @@ import (
 // The Keychain page drawn as KeychainPage and IdentityList (internal/ui) with .k-split, .k-item and .k-detail-* of
 // keel.css, and the detail of lib/vaultview.js identityDetailHTML.
 
-const (
-	tileLgSize = 44 // k-tile--lg, 3.385rem
-	tileLgIcon = 22 // its glyph, 1.692rem
-	titleLg    = 18 // .k-split-title and .k-detail-title h2, 1.385rem
-	itemSub    = 11 // .k-item-sub, 0.846rem
-)
+const ()
 
 // splitHead is the list column's head: the title with its New button, and the filter.
 func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *string, filterLabel string, h *ui.Handle, onNew func()) {

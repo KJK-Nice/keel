@@ -120,11 +120,12 @@ type pane struct {
 
 	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
 	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
-	fontSize float32
-	zoom     func(steps int, reset bool)
-	search   *termSearch
-	setFont  func(size float32)
-	setTheme func() // gives the terminal the colours of the theme in use
+	fontSize   float32
+	fontFamily string // the terminal's family list (termfont.go)
+	zoom       func(steps int, reset bool)
+	search     *termSearch
+	setFont    func(size float32)
+	setTheme   func() // gives the terminal the colours of the theme in use
 
 	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
 	// Right-click in the terminal (read when the terminal is made).
@@ -280,7 +281,7 @@ func (w *workspace) termGround() ui.Color {
 func newWorkspace(be backend) *workspace {
 	return &workspace{
 		be: be, alpha: 1, themeNative: followsNatively(), sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
-		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
+		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark, UISize: uiSizeDefault, TermFont: fontJetBrains}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 	}
@@ -407,7 +408,7 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize), copyOnSelect: w.term.CopyOnSelect, rightClick: w.term.RightClick}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize), fontFamily: termStack(w.win.TermFont), copyOnSelect: w.term.CopyOnSelect, rightClick: w.term.RightClick}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)
