@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -59,27 +61,47 @@ func freePort(t *testing.T) int {
 	}
 }
 
+// e2ePass is the scratch vault passphrase of these tests (KEEL_VAULT_PASSPHRASE of a daemon, typed by the one
+// that tests Unlock). It opens nothing but a vault under .scratch-native; no test prints it.
+const e2ePass = "native-e2e-scratch"
+
+// scratchDir is the test's own directory under .scratch-native/e2e, emptied.
+func scratchDir(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(repoRoot(t), ".scratch-native", "e2e", t.Name())
+	os.RemoveAll(dir)
+	if err := os.MkdirAll(filepath.Join(dir, "data"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 // startServe runs a scratch keel serve (bin/keel) and stops it when the test ends. A passphrase
 // opens a scratch vault; without one the vault is locked.
 func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
+	t.Helper()
+	dir := scratchDir(t)
+	addr, _ = startServeAt(t, dir, "serve", passphrase)
+	return addr, filepath.Join(dir, "data")
+}
+
+// startServeAt runs a keel serve on dir/data, with its log in dir/<name>.log, and returns its address and a
+// function that stops it (the cleanup does too). With a passphrase the daemon opens, or creates, the scratch
+// vault; without one a vault that exists stays locked.
+func startServeAt(t *testing.T, dir, name string, passphrase bool) (addr string, stop func()) {
 	t.Helper()
 	root := repoRoot(t)
 	bin := filepath.Join(root, "bin", "keel")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-e2e (it builds bin/keel first)", bin)
 	}
-	dir := filepath.Join(root, ".scratch-native", "e2e", t.Name())
-	os.RemoveAll(dir)
-	dataDir = filepath.Join(dir, "data")
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	dataDir := filepath.Join(dir, "data")
 	addr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir, "KEEL_KEYRING=off", "SHELL=/bin/sh")
 	if passphrase {
-		env = append(env, "KEEL_VAULT_PASSPHRASE=native-e2e-scratch")
+		env = append(env, "KEEL_VAULT_PASSPHRASE="+e2ePass)
 	}
-	logf, err := os.Create(filepath.Join(dir, "serve.log"))
+	logf, err := os.Create(filepath.Join(dir, name+".log"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,33 +112,37 @@ func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 	}
 	done := make(chan struct{})
 	go func() { cmd.Wait(); close(done) }()
-	t.Cleanup(func() {
-		stop := exec.Command(bin, "serve", "stop")
-		stop.Env = env
-		stop.Run()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			cmd.Process.Kill() // our own child, by handle
-			<-done
-		}
-		logf.Close()
-	})
+	var once sync.Once
+	stop = func() {
+		once.Do(func() {
+			s := exec.Command(bin, "serve", "stop")
+			s.Env = env
+			s.Run()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				cmd.Process.Kill() // our own child, by handle
+				<-done
+			}
+			logf.Close()
+		})
+	}
+	t.Cleanup(stop)
 	deadline := time.Now().Add(e2eWait)
 	for time.Now().Before(deadline) {
 		if r, err := http.Get("http://" + addr + "/api/health"); err == nil {
 			r.Body.Close()
 			if r.StatusCode == 200 {
-				return addr, dataDir
+				return addr, stop
 			}
 		}
 		select {
 		case <-done:
-			t.Fatalf("keel serve exited early; see %s", filepath.Join(dir, "serve.log"))
+			t.Fatalf("keel serve exited early; see %s", filepath.Join(dir, name+".log"))
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	t.Fatalf("keel serve did not come up; see %s", filepath.Join(dir, "serve.log"))
+	t.Fatalf("keel serve did not come up; see %s", filepath.Join(dir, name+".log"))
 	return
 }
 
@@ -601,6 +627,33 @@ type sshFixture struct {
 // read from the file keel-sshtest writes and goes only into that request.
 func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	t.Helper()
+	f := startSSHOnly(t, dataDir)
+	tok, err := authtoken.Read(dataDir)
+	if err != nil {
+		t.Fatal("read token: ", err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"name": "e2e-ssh", "address": f.host, "port": f.port, "username": f.user,
+		"authType": "password", "password": f.password, "noAutoReconnect": true,
+	})
+	req, _ := http.NewRequest("POST", "http://"+addr+"/api/hosts", strings.NewReader(string(body)))
+	req.Header.Set(authtoken.Header, tok)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/hosts: %s", resp.Status) // the body is not printed: it could echo the request
+	}
+	return f
+}
+
+// startSSHOnly runs bin/keel-sshtest and reads its target; no host is saved. The password is in the fixture,
+// for a test that types it into a field. It is never printed or logged.
+func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
+	t.Helper()
 	root := repoRoot(t)
 	bin := filepath.Join(root, "bin", "keel-sshtest")
 	if _, err := os.Stat(bin); err != nil {
@@ -634,25 +687,6 @@ func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	}
 	f.fingerprint = info.Target.Fingerprint
 	f.host, f.port, f.user, f.password = info.Target.Host, info.Target.Port, info.Target.User, info.Target.Password
-	tok, err := authtoken.Read(dataDir)
-	if err != nil {
-		t.Fatal("read token: ", err)
-	}
-	body, _ := json.Marshal(map[string]any{
-		"name": "e2e-ssh", "address": info.Target.Host, "port": info.Target.Port, "username": info.Target.User,
-		"authType": "password", "password": info.Target.Password, "noAutoReconnect": true,
-	})
-	req, _ := http.NewRequest("POST", "http://"+addr+"/api/hosts", strings.NewReader(string(body)))
-	req.Header.Set(authtoken.Header, tok)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		t.Fatalf("POST /api/hosts: %s", resp.Status) // the body is not printed: it could echo the request
-	}
 	return f
 }
 
@@ -1389,4 +1423,269 @@ func TestE2EPastedSSHCommand(t *testing.T) {
 		t.Fatalf("saved quick hosts %+v", saved)
 	}
 	e.shot("TestE2EPastedSSHCommand")
+}
+
+// ---- N5a: Unlock and the host dialog ----
+
+// raw is one request to the daemon with the token (a test that creates or reads state behind the window's back).
+// It returns the status and the body.
+func (e *win) raw(method, path string, body any) (int, string) {
+	e.t.Helper()
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	req, _ := http.NewRequest(method, "http://"+e.addr+path, rd)
+	req.Header.Set(authtoken.Header, e.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
+func (e *win) hostNamed(name string) (keelclient.Host, bool) {
+	e.t.Helper()
+	c, cancel := ctx()
+	defer cancel()
+	hosts, err := e.cl.Hosts(c)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	for _, h := range hosts {
+		if h.Name == name {
+			return h, true
+		}
+	}
+	return keelclient.Host{}, false
+}
+
+func (e *win) texts() string { return strings.Join(e.tt.Texts(), "\n") }
+
+// fillField clicks a field's label (which gives the field the keyboard), replaces what it holds and types s.
+func (e *win) fillField(label, s string) {
+	e.t.Helper()
+	e.click(label)
+	e.key(ui.Cmd, ui.KeyA)
+	e.tt.Type(s)
+	e.step()
+}
+
+func TestE2EUnlock(t *testing.T) {
+	// A daemon with the scratch passphrase creates the vault; a second one on the same data does not get it.
+	// The first run is finished first: a vault whose first run is open reports firstRun while it is locked, and
+	// that screen is a later phase (the window then keeps its message).
+	dir := scratchDir(t)
+	dataDir := filepath.Join(dir, "data")
+	first, stopFirst := startServeAt(t, dir, "serve", true)
+	tok, err := authtoken.Read(dataDir)
+	if err != nil {
+		t.Fatal("read token: ", err)
+	}
+	req, _ := http.NewRequest("POST", "http://"+first+"/api/first-run/done", nil)
+	req.Header.Set(authtoken.Header, tok)
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("first-run/done: %v", err)
+	}
+	stopFirst()
+	addr, _ := startServeAt(t, dir, "serve-locked", false)
+	var cb *countingBackend
+	e := newWin(t, addr, dataDir, func(b backend) backend { cb = &countingBackend{backend: b}; return cb })
+	e.pump(func() bool { return e.tt.HasText("Unlock your vault") }, "the Unlock screen")
+	if e.tt.HasText(lockedMessage) || e.tt.HasText("Filter hosts") {
+		t.Fatal("the old message or the workspace shows with the Unlock screen")
+	}
+	if !e.tt.HasText("Keel was started with KEEL_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
+		t.Error("the banner of a vault opened without the keychain, or the focused field, is missing")
+	}
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EUnlock-locked")
+
+	vaultLocked := func() bool {
+		c, cancel := ctx()
+		defer cancel()
+		v, err := e.cl.Vault(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.Locked
+	}
+	// A wrong passphrase: the error shows, the keyboard stays in the field and the daemon still says locked.
+	e.tt.Type("wrong-" + e2ePass)
+	e.key(0, ui.KeyEnter)
+	e.pump(func() bool { return e.tt.HasText("That passphrase doesn't open the vault.") }, "the wrong passphrase error")
+	if !vaultLocked() || !e.tt.Focused("Vault passphrase") || e.tt.HasText("Filter hosts") {
+		t.Fatal("after a wrong passphrase: the vault is open, the focus left the field, or the workspace shows")
+	}
+	// The right one opens the workspace.
+	e.tt.Type(e2ePass)
+	e.key(0, ui.KeyEnter)
+	e.pump(func() bool { return e.hasLabel("host Local Shell") && e.tt.HasText("Filter hosts") }, "the host tree with Local Shell")
+	if vaultLocked() || e.w.gate != nil {
+		t.Fatal("the vault is still locked, or the screen stayed")
+	}
+	if e.w.gate != nil || strings.Contains(fmt.Sprintf("%+v", e.w.gate), e2ePass) {
+		t.Error("the passphrase is on the window")
+	}
+	e.settle(200 * time.Millisecond)
+	e.shot("TestE2EUnlock")
+}
+
+func TestE2EHostDialogCreateTestEditDelete(t *testing.T) {
+	addr, dir := startServe(t, true)
+	f := startSSHOnly(t, dir)
+	e := newWin(t, addr, dir, nil)
+	e.openLocal() // a session tab: the New tab page's own New host is not on screen, so "New host" is the sidebar's +
+	e.click("New host")
+	e.pump(func() bool { return e.hasLabel("dialog New host") }, "the New host dialog")
+	if !e.tt.Focused("Label") {
+		t.Error("the Label field does not have the keyboard")
+	}
+	e.fillField("Label", "e2e-new")
+	e.fillField("Hostname / IP", f.host)
+	e.fillField("Port", fmt.Sprint(f.port))
+	e.fillField("Username", f.user)
+	e.fillField("Host password", f.password)
+	if strings.Contains(e.texts(), f.password) {
+		t.Fatal("the typed password is drawn: the field is not masked")
+	}
+
+	// Test connection: an unknown key, with the fixture's fingerprint; nothing is trusted by the test.
+	e.click("Test connection")
+	e.pump(func() bool { return e.tt.HasText("Host key unknown") }, "the unknown host key result")
+	if !strings.Contains(e.texts(), f.fingerprint) || !e.hasLabel("Trust and save") {
+		t.Fatal("the result does not show the fixture's fingerprint and the trust button")
+	}
+	e.settle(300 * time.Millisecond)
+	if e.tt.HasText("Connected in") {
+		t.Fatal("the test went on to connect without the key being trusted")
+	}
+	e.shot("TestE2EHostDialogCreateTestEditDelete-test-unknown")
+	// Trust from the result (the user's click), which tests again.
+	e.click("Trust and save")
+	e.pump(func() bool { return strings.Contains(e.texts(), "Connected in") }, "the Connected result")
+	e.shot("TestE2EHostDialogCreateTestEditDelete-test-ok")
+
+	// Save: the server has the host with those fields, and the response carries no password.
+	e.click("Save host")
+	e.pump(func() bool { return e.w.hostDlg == nil && e.hasLabel("host e2e-new") }, "the saved host in the tree")
+	h, ok := e.hostNamed("e2e-new")
+	if !ok || h.Address != f.host || h.Port != f.port || h.Username != f.user || h.AuthType != "password" {
+		t.Fatalf("saved host %+v", h)
+	}
+	if _, body := e.raw("GET", "/api/hosts", nil); strings.Contains(body, f.password) {
+		t.Fatal("GET /api/hosts returns the password")
+	}
+
+	// Open it: ready with no host key dialog (the key was trusted from the test result).
+	e.click("host e2e-new")
+	e.pump(func() bool { return e.snap().Status == "ready" || e.hasLabel("dialog Unknown host key") }, "the session to be ready")
+	if e.hasLabel("dialog Unknown host key") || e.snap().Status != "ready" {
+		t.Fatalf("status %q, host key dialog %v", e.snap().Status, e.hasLabel("dialog Unknown host key"))
+	}
+
+	// Edit from the host menu: rename, leave the password blank. The saved password is kept.
+	if err := e.tt.RightClick("host e2e-new"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	if err := e.tt.ChooseMenuItem("Edit"); err != nil {
+		t.Fatal(err)
+	}
+	e.pump(func() bool { return e.hasLabel("dialog Edit host") }, "the Edit host dialog")
+	e.pump(func() bool { return e.tt.HasText("Trusted") }, "the saved host key line")
+	if strings.Contains(e.texts(), f.password) || e.w.hostDlg.f.password != "" {
+		t.Fatal("the edit dialog shows or holds the saved password")
+	}
+	e.fillField("Label", "e2e-renamed")
+	e.shot("TestE2EHostDialogCreateTestEditDelete-edit")
+	e.click("Save host")
+	e.pump(func() bool { _, ok := e.hostNamed("e2e-renamed"); return e.w.hostDlg == nil && ok }, "the renamed host on the server")
+	e.pump(func() bool { return e.hasLabel("host e2e-renamed") && !e.hasLabel("host e2e-new") }, "the renamed host in the tree")
+	n := len(e.w.tabs)
+	e.click("host e2e-renamed")
+	e.pump(func() bool { return len(e.w.tabs) == n+1 && (e.snap().Status == "ready" || e.snap().Status == "error") }, "the second session")
+	if e.snap().Status != "ready" {
+		t.Fatalf("after the rename the host no longer connects: %q %q", e.snap().Status, e.snap().Message)
+	}
+
+	// Delete with the confirm: gone from the server and the tree; the open sessions stay.
+	sessions := len(e.sessions())
+	if err := e.tt.RightClick("host e2e-renamed"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	e.tt.ChooseMenuItem("Edit")
+	e.pump(func() bool { return e.hasLabel("dialog Edit host") }, "the Edit host dialog again")
+	e.click("Delete host")
+	e.pump(func() bool { return e.tt.HasText("Remove e2e-renamed?") }, "the confirm")
+	if _, ok := e.hostNamed("e2e-renamed"); !ok {
+		t.Fatal("the host was deleted before the confirm")
+	}
+	e.click("Remove")
+	e.pump(func() bool {
+		_, ok := e.hostNamed("e2e-renamed")
+		return !ok && !e.hasLabel("host e2e-renamed") && e.w.hostDlg == nil
+	}, "the host gone")
+	if got := len(e.sessions()); got != sessions {
+		t.Errorf("deleting the host changed the sessions: %d → %d", sessions, got)
+	}
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EHostDialogCreateTestEditDelete")
+}
+
+func TestE2ESaveAsHostFromPastedCommand(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.pump(e.onStartPage, "the New tab page")
+	count := func() int {
+		c, cancel := ctx()
+		defer cancel()
+		hosts, err := e.cl.Hosts(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(hosts)
+	}
+	before := count()
+	port := freePort(t)
+	e.tt.Type(fmt.Sprintf("ssh -p %d deploy@127.0.0.1", port))
+	e.pump(func() bool { return e.hasLabel("Save as host") }, "the offer with Save as host")
+	e.click("Save as host")
+	e.pump(func() bool { return e.hasLabel("dialog New host") }, "New host")
+	d := e.w.hostDlg
+	if d.f.address != "127.0.0.1" || d.f.port != fmt.Sprint(port) || d.f.username != "deploy" || d.f.name != "127.0.0.1" || d.id != "" {
+		t.Fatalf("prefill %v", d.f)
+	}
+	e.shot("TestE2ESaveAsHostFromPastedCommand")
+	e.click("Cancel")
+	e.pump(func() bool { return e.w.hostDlg == nil }, "the dialog to close")
+	e.settle(300 * time.Millisecond)
+	if got := count(); got != before || len(e.sessions()) != 0 {
+		t.Fatalf("hosts %d → %d, sessions %d: Cancel sent something", before, got, len(e.sessions()))
+	}
+}
+
+func TestE2EHostListFollowsTheVault(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.pump(func() bool { return e.hasLabel("host Local Shell") }, "the host tree")
+	e.w.startPoll(200 * time.Millisecond) // Run's poll, a faster tick
+	defer e.w.closeWindow()
+	code, body := e.raw("POST", "/api/hosts", map[string]any{"name": "made-elsewhere", "address": "10.9.9.9", "port": 22, "username": "u", "authType": "password", "password": "x"})
+	if code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create: %d", code)
+	}
+	var made struct{ ID string }
+	json.Unmarshal([]byte(body), &made)
+	e.pump(func() bool { return e.hasLabel("host made-elsewhere") }, "the tree to show a host created behind the window's back")
+	if code, _ := e.raw("DELETE", "/api/hosts/"+made.ID, nil); code != http.StatusNoContent && code != http.StatusOK {
+		t.Fatalf("delete: %d", code)
+	}
+	e.pump(func() bool { return !e.hasLabel("host made-elsewhere") }, "the host to leave the tree")
+	e.shot("TestE2EHostListFollowsTheVault")
 }

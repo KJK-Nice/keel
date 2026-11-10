@@ -288,7 +288,7 @@ func (w *workspace) hostKeyBlock(c *ui.Context, d *hostDialog) {
 			}
 		})
 		if known {
-			mono(c, d.key.Fingerprint, inkMuted)
+			ui.Text(c, d.key.Fingerprint).Font(monoStack).TextColor(inkMuted).FontSize(captionSize) // wraps: it is long
 			help(c, "Saved for "+d.key.Hostname+". Keel refuses a different key until you replace it.")
 		} else {
 			help(c, "Trusted on first connect; Keel asks again if it changes.")
@@ -321,7 +321,7 @@ func (w *workspace) hostTestView(c *ui.Context, d *hostDialog) {
 			return
 		}
 		if fp := fingerprintText(*t.res); fp != "" {
-			mono(c, fp, inkMuted)
+			ui.Text(c, fp).Font(monoStack).TextColor(inkMuted).FontSize(captionSize)
 		}
 		if _, ok := t.res.HostKeyOffer(); ok {
 			name := "Trust and save"
