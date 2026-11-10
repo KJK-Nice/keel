@@ -191,30 +191,41 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 func TestRoleChipAndFollowerBannerOnlyWhenShared(t *testing.T) {
 	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
 	for _, tc := range []struct {
-		name         string
-		st           keelclient.State
-		chip, banner bool
-		chipLabel    string
+		name      string
+		st        keelclient.State
+		chipLabel string // "" when no chip
+		button    string // "" when no follower banner
+		notice    string
 	}{
-		{"alone", keelclient.State{Status: "ready", Role: "driver", Attached: two[:1]}, false, false, ""},
-		{"driving", keelclient.State{Status: "ready", Role: "driver", Attached: two, DriverID: 2}, true, false, "role Driving"},
-		{"following", keelclient.State{Status: "ready", Role: "follower", Attached: two, DriverID: 1}, true, true, "role Following"},
-		{"owner", keelclient.State{Status: "ready", Role: "owner", Attached: two, DriverID: 2}, true, false, "role Owner"},
+		{"alone", keelclient.State{Status: "ready", Role: "driver", Attached: two[:1], OwnerID: 1, YouID: 1, DriverID: 1}, "", "", ""},
+		{"driving", keelclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}, "role Driving", "", ""},
+		{"following", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "role Following", "Ask for control", "Following · ann is driving · read-only"},
+		{"owner", keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "role Owner", "Take control", "Following · ann is driving · read-only"},
+		{"nobody", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2}, "role Following", "Ask for control", "Following · Nobody is driving · read-only"},
 	} {
 		r := failedRig(t, tc.st, "h-api")
-		if got := r.has(tc.chipLabel); tc.chip && !got || !tc.chip && (r.has("role Driving") || r.has("role Following") || r.has("role Owner")) {
-			t.Errorf("%s: chip %q present=%v", tc.name, tc.chipLabel, got)
+		for _, l := range []string{"role Driving", "role Following", "role Owner"} {
+			if r.has(l) != (l == tc.chipLabel) {
+				t.Errorf("%s: chip %q present=%v", tc.name, l, r.has(l))
+			}
 		}
-		if r.has("banner following") != tc.banner || r.has("Take control") != tc.banner {
-			t.Errorf("%s: follower banner present=%v", tc.name, r.has("banner following"))
+		for _, b := range []string{"Take control", "Ask for control"} {
+			if r.has(b) != (b == tc.button) {
+				t.Errorf("%s: button %q present=%v", tc.name, b, r.has(b))
+			}
 		}
-		if tc.banner && !r.tt.HasText("Following · ann is driving · read-only") {
-			t.Errorf("%s: follower notice missing", tc.name)
+		if r.has("banner following") != (tc.button != "") || tc.notice != "" && !r.tt.HasText(tc.notice) {
+			t.Errorf("%s: follower banner present=%v, notice %q", tc.name, r.has("banner following"), tc.notice)
 		}
 	}
-	r := failedRig(t, keelclient.State{Status: "ready", Role: "follower", Attached: two, DriverID: 1}, "h-api")
+	r := failedRig(t, keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "h-api")
+	r.click(t, "Ask for control")
+	if c := r.fb.conns[0]; c.asked != 1 || c.took != 0 {
+		t.Errorf("Ask for control: asked %d took %d", c.asked, c.took)
+	}
+	r = failedRig(t, keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "h-api")
 	r.click(t, "Take control")
-	if r.fb.conns[0].took != 1 {
-		t.Errorf("TakeControl called %d times", r.fb.conns[0].took)
+	if c := r.fb.conns[0]; c.took != 1 || c.asked != 0 {
+		t.Errorf("Take control: asked %d took %d", c.asked, c.took)
 	}
 }

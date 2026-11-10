@@ -674,15 +674,13 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role != "" && a.snap().Role != "" && len(a.snap().Attached) == 2
-	}, "both windows attached")
-	pumpAll(t, both, func() bool {
-		return b.hasLabel("role Following") && b.hasLabel("banner following") && a.hasLabel("role Driving")
-	}, "the chips and the follower banner")
-	if a.hasLabel("banner following") {
-		t.Error("the driver shows the follower banner")
+		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("role Following") &&
+			b.hasLabel("banner following") && b.hasLabel("Ask for control") && a.hasLabel("role Driving")
+	}, "B following with Ask for control, A driving")
+	if a.hasLabel("banner following") || b.hasLabel("Take control") {
+		t.Error("the driver shows the follower banner, or a non-owner offers Take control")
 	}
-	b.shot("TestE2EFollowerAndTakeControl")
+	b.shot("TestE2EFollowerAndTakeControl-following")
 
 	// The follower's keystrokes are dropped by keel serve.
 	b.clickBody("1")
@@ -695,17 +693,25 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 		t.Fatal("a follower's keystrokes reached the PTY")
 	}
 
-	// keel serve lets only the session's owner take control (runtime.Session.TakeControl: ErrNotOwner), and
-	// window A, which opened the session, owns it. So B's click must change nothing.
-	b.click("Take control")
-	for end := time.Now().Add(1 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
-		a.step()
-		b.step()
+	// A (the owner) passes control to B with a control frame, not a PTY write.
+	conn := a.w.focusedPane().conn.(*keelclient.Conn)
+	if err := conn.GrantControl(b.snap().YouID); err != nil {
+		t.Fatal(err)
 	}
-	if b.snap().Role != "follower" || a.snap().Role != "driver" {
-		t.Fatalf("roles after Take control: b %q a %q", b.snap().Role, a.snap().Role)
-	}
-	t.Skip("plan 006 step 4.1 cannot pass as written: B is not the owner, so keel serve refuses take-control (ErrNotOwner); the rest of the scenario (B drives after Take control, A shows the follower banner) needs the owner to be the follower, which needs grant-control (phase N6)")
+	pumpAll(t, both, func() bool {
+		return b.snap().Role == "driver" && a.snap().Role == "owner" && a.hasLabel("banner following") && a.hasLabel("Take control")
+	}, "B driving, A following as the owner with Take control")
+	a.shot("TestE2EFollowerAndTakeControl-owner")
+	b.clickBody("1")
+	b.typeLine("echo b-drives")
+	a.waitScrollback(sid, "b-drives")
+
+	// A takes control back.
+	a.click("Take control")
+	pumpAll(t, both, func() bool { return a.snap().Role == "driver" && b.snap().Role == "follower" }, "A driving again")
+	a.clickBody("1")
+	a.typeLine("echo a-again")
+	a.waitScrollback(sid, "a-again")
 }
 
 func TestE2EUnknownHostKeyTrustAndConnect(t *testing.T) {

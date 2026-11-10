@@ -29,6 +29,7 @@ type session interface {
 	SessionID() string
 	Snapshot() keelclient.State
 	TakeControl() error
+	RequestControl() error
 	OnChange(fn func())
 }
 

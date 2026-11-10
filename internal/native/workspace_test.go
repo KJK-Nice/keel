@@ -23,8 +23,9 @@ type fakeConn struct {
 	status   string
 	onChange func()
 
-	st   *keelclient.State // when set, Snapshot returns it (its Status wins over status)
-	took int               // TakeControl calls
+	st    *keelclient.State // when set, Snapshot returns it (its Status wins over status)
+	took  int               // TakeControl calls
+	asked int               // RequestControl calls
 }
 
 func (c *fakeConn) state() keelclient.State {
@@ -40,6 +41,7 @@ func (c *fakeConn) Close() error                { c.closed = true; return nil }
 func (c *fakeConn) Resize(int, int) error       { return nil }
 func (c *fakeConn) SessionID() string           { return c.id }
 func (c *fakeConn) Snapshot() keelclient.State  { return c.state() }
+func (c *fakeConn) RequestControl() error       { c.asked++; return nil }
 func (c *fakeConn) TakeControl() error          { c.took++; return nil }
 func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
 
@@ -221,11 +223,15 @@ func TestClickingAHostSpawnsOnceAndAddsATab(t *testing.T) {
 	if !r.tt.HasText("deploy@10.0.0.1") {
 		t.Error("the pane bar does not show user@address")
 	}
-	if !r.tt.HasText("keel serve · 1 sessions") {
-		t.Error("status bar session count")
+	if !r.tt.HasText("keel serve · 1 session") || r.tt.HasText("keel serve · 1 sessions") {
+		t.Error("status bar session count must be singular for one")
 	}
 	if !r.tt.Focused("body 1") {
 		t.Error("the new pane does not have keyboard focus")
+	}
+	r.click(t, "Split right")
+	if !r.tt.HasText("keel serve · 2 sessions") {
+		t.Error("status bar session count must be plural for two")
 	}
 }
 

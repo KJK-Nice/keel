@@ -87,7 +87,7 @@ func TestSnapshotRolePeersAndDriver(t *testing.T) {
 	s.out <- ready
 	waitFor(t, func() bool { return c.Snapshot().Role == "follower" })
 	st := c.Snapshot()
-	if len(st.Attached) != 2 || st.Attached[0].Name != "a" || st.Attached[1].Role != "follower" || st.DriverID != 1 || !st.WasReady {
+	if len(st.Attached) != 2 || st.Attached[0].Name != "a" || st.Attached[1].Role != "follower" || st.DriverID != 1 || st.OwnerID != 1 || st.YouID != 2 || !st.WasReady {
 		t.Fatalf("snapshot %+v", st)
 	}
 	// A presence frame that makes this client the driver.
@@ -143,6 +143,37 @@ func TestTakeControlSendsTheFrame(t *testing.T) {
 	fr := <-s.got
 	var m struct{ Type string }
 	if fr.typ != websocket.TextMessage || json.Unmarshal(fr.data, &m) != nil || m.Type != "take-control" {
+		t.Fatalf("%v %q", fr.typ, fr.data)
+	}
+}
+
+func TestRequestAndGrantControlSendTheirFrames(t *testing.T) {
+	s := newScript(t)
+	c, err := s.c.Spawn("h1", 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.RequestControl(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.GrantControl(7); err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Type     string
+		TargetID uint64
+	}
+	fr := <-s.got
+	if fr.typ != websocket.TextMessage || json.Unmarshal(fr.data, &m) != nil || m.Type != "request-control" {
+		t.Fatalf("%v %q", fr.typ, fr.data)
+	}
+	fr = <-s.got
+	m = struct {
+		Type     string
+		TargetID uint64
+	}{}
+	if fr.typ != websocket.TextMessage || json.Unmarshal(fr.data, &m) != nil || m.Type != "grant-control" || m.TargetID != 7 {
 		t.Fatalf("%v %q", fr.typ, fr.data)
 	}
 }

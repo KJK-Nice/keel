@@ -75,8 +75,9 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   capability: never log it, never put it in a failure message.
 - Two windows on one daemon: call `newWin` twice with the same `addr` and `dir`, and drive both with
   `pumpAll(t, []*win{a, b}, cond, what)` (each window's posted work runs on the test goroutine).
-- keel serve lets only the session's owner take control, and the window that opened a session owns it,
-  so a second window is a follower that cannot take control (`TestE2EFollowerAndTakeControl` skips there).
+- keel serve lets only the session's owner take control, and the window that opened a session owns it. A
+  second window is a follower with "Ask for control"; `TestE2EFollowerAndTakeControl` has the owner pass
+  control with `GrantControl` (a control frame, never a PTY write), then take it back with "Take control".
 
 ## Not covered
 

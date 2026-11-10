@@ -384,7 +384,11 @@ func (w *workspace) statusbar(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Height(statusbarSize).Shrink(0).Padding(0, space3).Gap(space4).Background(w.ground(chrome)), 1, 0, 0, 0).Children(func() {
 		ui.Row(c).Gap(space1_5).Children(func() {
 			dot(c, tide)
-			caption(c, fmt.Sprintf("keel serve · %d sessions", w.paneCount()), inkMuted)
+			noun := "sessions"
+			if w.paneCount() == 1 {
+				noun = "session" // term.js:573
+			}
+			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
 		if w.err != "" {
 			caption(c, w.err, flare)

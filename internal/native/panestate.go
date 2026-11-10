@@ -117,16 +117,20 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		})
 	case st.Status == "connecting" && p.host.AuthType != "local":
 		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", func() {})
-	case st.Role == "follower":
+	case st.Role == "follower" || st.Role == "owner": // anyone who is not driving
 		who := "Nobody is driving"
 		for _, a := range st.Attached {
-			if a.ID == st.DriverID && a.Name != "" {
+			if st.DriverID != 0 && a.ID == st.DriverID && a.Name != "" {
 				who = a.Name + " is driving"
 			}
 		}
+		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control (term.js syncFollowBanner)
 		w.bannerRow(c, "banner following", hazeSoft, haze, "Following · "+who+" · read-only", "", "", func() {
-			if textBtn(c, "Take control", btnDefault) {
-				w.act(func() { w.takeControl(p) })
+			switch {
+			case owner && textBtn(c, "Take control", btnDefault):
+				w.act(func() { w.sendControl(p.conn.TakeControl, "take control") })
+			case !owner && textBtn(c, "Ask for control", btnDefault):
+				w.act(func() { w.sendControl(p.conn.RequestControl, "ask for control") })
 			}
 		})
 	}
@@ -153,12 +157,12 @@ func roleChip(c *ui.Context, role string) {
 	r.Children(func() { ui.Text(c, text).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1) })
 }
 
-// takeControl asks keel serve to make this window the driver; only the owner is allowed, and the server's
-// answer is the role the socket reports next.
-func (w *workspace) takeControl(p *pane) {
+// sendControl sends one control frame (take or request control) off the UI thread; the server's answer
+// is the role the socket reports next.
+func (w *workspace) sendControl(send func() error, what string) {
 	w.work(func() {
-		if err := p.conn.TakeControl(); err != nil {
-			w.post(func() { w.fail("take control", err) })
+		if err := send(); err != nil {
+			w.post(func() { w.fail(what, err) })
 		}
 	})
 }

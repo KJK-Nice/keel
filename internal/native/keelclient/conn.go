@@ -46,6 +46,8 @@ type State struct {
 	Role                             string // owner | driver | follower; "" before ready
 	Attached                         []Peer
 	DriverID                         uint64
+	OwnerID                          uint64  // the client that may take control back
+	YouID                            uint64  // this client's id (Peer.ID of the Attached entry that is us)
 	HostKey                          HostKey // zero when there is no host-key problem
 	WasReady                         bool    // the session was ready at some point (a later failure is a lost connection)
 }
@@ -89,6 +91,7 @@ func (c *Conn) control(data []byte) {
 		Message     string `json:"message"`
 		Attached    []Peer `json:"attached"`
 		DriverID    uint64 `json:"driverId"`
+		OwnerID     uint64 `json:"ownerId"`
 		You         *Peer  `json:"you"`
 		ErrorKind   string `json:"errorKind"`
 		Hostname    string `json:"hostname"`
@@ -123,7 +126,7 @@ func (c *Conn) control(data []byte) {
 	if m.Type != "error" {
 		if m.You != nil {
 			s.Role = m.You.Role
-			s.Attached, s.DriverID = m.Attached, m.DriverID
+			s.Attached, s.DriverID, s.OwnerID, s.YouID = m.Attached, m.DriverID, m.OwnerID, m.You.ID
 		}
 	}
 	switch {
@@ -148,7 +151,7 @@ func (c *Conn) control(data []byte) {
 
 func sameState(a, b State) bool {
 	return a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
-		a.Role == b.Role && a.DriverID == b.DriverID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
+		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
 		slices.Equal(a.Attached, b.Attached)
 }
 
@@ -194,6 +197,17 @@ func (c *Conn) Snapshot() State {
 // TakeControl asks the server to make this client the driver (it refuses unless this client owns the session).
 func (c *Conn) TakeControl() error {
 	return c.write(websocket.TextMessage, []byte(`{"type":"take-control"}`))
+}
+
+// RequestControl asks the driver to pass control to this client.
+func (c *Conn) RequestControl() error {
+	return c.write(websocket.TextMessage, []byte(`{"type":"request-control"}`))
+}
+
+// GrantControl makes the attached client peerID the driver (the driver or the owner may).
+func (c *Conn) GrantControl(peerID uint64) error {
+	b, _ := json.Marshal(map[string]any{"type": "grant-control", "targetId": peerID})
+	return c.write(websocket.TextMessage, b)
 }
 
 // OnChange sets fn, called (on the reader goroutine) when State changes or the id is learned.

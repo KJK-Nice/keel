@@ -34,7 +34,7 @@ make native             # builds bin/keel-native (pure Go, no cgo)
 - A locked or unset vault shows a message: unlock it in Keel, then reopen the window.
 - Pane states, with the webview's words. A session that is down (exited, or failed) shows a flare banner, "Session ended", "Connection lost" or "Connection failed", with its endpoint and the server's last message, and **Close** and **Reconnect**. Sessions that were already down when the window opened come back as tabs with that banner. A non-local session that is connecting shows a signal "Connecting…" banner.
 - A first connection to an unknown host key, or a changed key, opens a dialog for the focused pane: host, key type, fingerprint (and the saved one for a changed key). **Trust and connect** sends the server's own offer back and reconnects; **Abort** or Escape leaves the pane with its banner. Nothing else trusts a key.
-- A session another window also attached shows a role chip (Driving, Owner, Following) in the pane bar. A follower sees a haze banner ("Following · <name> is driving · read-only") with **Take control**; keel serve drops a follower's keystrokes and only the session's owner may take control.
+- A session another window also attached shows a role chip (Driving, Owner, Following) in the pane bar. Anyone who is not driving sees a haze banner ("Following · <name> is driving · read-only", or "Nobody is driving") with **Take control** for the session's owner and **Ask for control** for everyone else; keel serve drops a follower's keystrokes. Passing control (Grant) has no UI yet: it is part of the share phase.
 - The area outside a tile's rounded corners is chrome under window translucency, once.
 
 ## What is missing
@@ -42,7 +42,7 @@ make native             # builds bin/keel-native (pure Go, no cgo)
 | Phase | Scope |
 |---|---|
 | N2 | Linux build and packaging; release packaging (universal binary, notices, `scripts/release.sh`) is the cutover |
-| N3 | Still to do: the banner's Copy logs and Edit host and its connection log, the follower's Ask for control and Leave (N6), the role chip's icon, pane menu, terminal menu, zoom, tab rename and drag, saved workspace layout |
+| N3 | Still to do: the banner's Copy logs and Edit host and its connection log, the follower's Leave and passing control (N6), the role chip's icon, pane menu, terminal menu, zoom, tab rename and drag, saved workspace layout |
 | N4 | Command palette, New tab page (`+` opens the first local host until then), full shortcuts map |
 | N5 | Vault: Unlock, First run, Edit host, Keychain, Forwards, Snippets, Logs, Settings pages; live updates; sidebar sections and bottom bar |
 | N6 | Share popover, control requests, watchers badge |
