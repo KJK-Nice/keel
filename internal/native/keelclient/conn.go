@@ -28,12 +28,15 @@ type Conn struct {
 
 	ticket chan string   // the approval request waiting for keel serve's nonce (inject.go), or nil
 	wait   time.Duration // how long it waits; 0 is the default (tests shorten it)
+
+	events []Event // what the share hub announced, until Events hands it over
 }
 
 // Peer is a client attached to a session. Role is owner, driver or follower.
 type Peer struct {
 	ID               uint64 `json:"id"`
 	Name, Kind, Role string
+	AttachedAt       string `json:"attachedAt"` // RFC 3339; "" when the server did not say
 }
 
 // HostKey is a host-key refusal. Kind is "unknown-host", "host-key-mismatch" or "" (none).
@@ -52,6 +55,7 @@ type State struct {
 	DriverID                         uint64
 	OwnerID                          uint64  // the client that may take control back
 	YouID                            uint64  // this client's id (Peer.ID of the Attached entry that is us)
+	Blocked                          uint64  // keystrokes dropped because this client was not driving (the "Typing is off" notice)
 	HostKey                          HostKey // zero when there is no host-key problem
 	WasReady                         bool    // the session was ready at some point (a later failure is a lost connection)
 }
@@ -86,10 +90,14 @@ func (c *Conn) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// control applies a ready, status, presence, control or error frame; other types are ignored.
+// control applies a ready, status, presence, control or error frame, and queues the share hub's join frames as
+// Events; other types are ignored.
 func (c *Conn) control(data []byte) {
 	var m struct {
 		Type        string `json:"type"`
+		PeerID      string `json:"peerId"`
+		FromID      uint64 `json:"fromId"`
+		TargetID    uint64 `json:"targetId"`
 		ID          string `json:"id"`
 		Status      string `json:"status"`
 		Title       string `json:"title"`
@@ -110,9 +118,20 @@ func (c *Conn) control(data []byte) {
 		return
 	}
 	switch m.Type {
+	case "join-request", "join-resolved", "join-failed":
+		c.push(Event{Kind: m.Type, PeerID: m.PeerID, Message: m.Message})
+		return
 	case "ready", "status", "presence", "control", "error":
 	default:
 		return
+	}
+	if m.Type == "control" {
+		switch {
+		case m.FromID != 0 && m.TargetID == 0: // a request for control (lib/share.js isControlRequest)
+			c.push(Event{Kind: EventControlRequest, FromID: m.FromID, Message: m.Message})
+		case m.Message != "":
+			c.push(Event{Kind: EventControlNote, Message: m.Message})
+		}
 	}
 	c.mu.Lock()
 	before := c.state
@@ -156,7 +175,7 @@ func (c *Conn) control(data []byte) {
 }
 
 func sameState(a, b State) bool {
-	return a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
+	return a.Blocked == b.Blocked && a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
 		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
 		slices.Equal(a.Attached, b.Attached)
 }
@@ -167,8 +186,13 @@ func (c *Conn) write(typ int, b []byte) error {
 	return c.ws.WriteMessage(typ, b)
 }
 
-// Write sends keystrokes to the PTY.
+// Write sends keystrokes to the PTY. A client that is not driving sends nothing (keel serve would drop it as well):
+// the count of dropped keystrokes is State.Blocked, which the window turns into "Typing is off while you follow".
 func (c *Conn) Write(p []byte) (int, error) {
+	if c.following() {
+		c.block()
+		return len(p), nil
+	}
 	if err := c.write(websocket.BinaryMessage, p); err != nil {
 		return 0, err
 	}
