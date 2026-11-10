@@ -95,6 +95,8 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	if w.findPane != nil {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
 		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
+		// Escape closes the bar from anywhere in the window, as in the webview (term.js closeOpenFind).
+		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
 	}
 	// Terminal text size: ⌘+ is ⌘= with or without ⇧.
 	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })

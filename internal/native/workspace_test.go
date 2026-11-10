@@ -23,6 +23,7 @@ type fakeConn struct {
 	status   string
 	onChange func()
 
+	wrote int               // bytes written to the session
 	st    *keelclient.State // when set, Snapshot returns it (its Status wins over status)
 	took  int               // TakeControl calls
 	asked int               // RequestControl calls
@@ -36,7 +37,7 @@ func (c *fakeConn) state() keelclient.State {
 }
 
 func (c *fakeConn) Read([]byte) (int, error)    { return 0, io.EOF }
-func (c *fakeConn) Write(p []byte) (int, error) { return len(p), nil }
+func (c *fakeConn) Write(p []byte) (int, error) { c.wrote += len(p); return len(p), nil }
 func (c *fakeConn) Close() error                { c.closed = true; return nil }
 func (c *fakeConn) Resize(int, int) error       { return nil }
 func (c *fakeConn) SessionID() string           { return c.id }
