@@ -431,6 +431,21 @@ func TestE2EGapDragResizes(t *testing.T) {
 	e.tt.Release(x+200, y)
 	e.step()
 	e.pump(func() bool { a, b := cols(); return a > a0 && b < b0 }, fmt.Sprintf("first session wider than %d cols and second narrower than %d", a0, b0))
+	// Drag the gap to the far left: the first tile is as narrow as it gets and its tools must all be inside it.
+	g, _ = e.tt.Find("split handle")
+	x, y = g.X+g.W/2, g.Y+g.H/2
+	e.tt.Press(x, y)
+	e.tt.Move(x-3000, y)
+	e.tt.Move(x-3000, y)
+	e.tt.Release(x-3000, y)
+	e.step()
+	tile, _ := e.tt.Find("pane 1")
+	for _, tool := range []string{"Split right", "Split down", "Close pane"} {
+		b, ok := e.tt.Find(tool)
+		if !ok || b.W == 0 || b.X < tile.X || b.X+b.W > tile.X+tile.W {
+			t.Errorf("%s %v is not inside the narrow tile %v", tool, b, tile)
+		}
+	}
 	e.shot("TestE2EGapDragResizes")
 }
 

@@ -474,3 +474,26 @@ func TestHostTint(t *testing.T) {
 		t.Error("hostTint")
 	}
 }
+
+// A narrow pane bar keeps its tools whole: user@address and the host name give way, not the buttons.
+func TestNarrowPaneBarKeepsItsTools(t *testing.T) {
+	long := keelclient.Host{ID: "h-long", Name: "a-very-long-production-host-name", Address: "very-long-address.internal.example.com", Username: "deploy-user", AuthType: "key"}
+	r := newRig(t, &fakeBackend{hosts: []keelclient.Host{long}})
+	r.tt.Frame()
+	r.click(t, "host "+long.Name)
+	r.click(t, "Split right")
+	g, _ := r.tt.Find("split handle")
+	x, y := g.X+g.W/2, g.Y+g.H/2
+	r.tt.Press(x, y)
+	r.tt.Move(x-2000, y)
+	r.tt.Move(x-2000, y)
+	r.tt.Release(x-2000, y)
+	r.tt.Frame()
+	tile, _ := r.tt.Find("pane 1")
+	for _, tool := range []string{"Split right", "Split down", "Close pane"} {
+		b, ok := r.tt.Find(tool)
+		if !ok || b.W == 0 || b.X < tile.X || b.X+b.W > tile.X+tile.W {
+			t.Errorf("%s %v is not inside the tile %v", tool, b, tile)
+		}
+	}
+}

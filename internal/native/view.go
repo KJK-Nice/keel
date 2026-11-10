@@ -263,16 +263,17 @@ func (w *workspace) tile(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui
 		bar.Children(func() {
 			status, _, sub := p.conn.State()
 			dot(c, statusColor(status))
-			bodyStrong(c, p.host.Name, hostCol)
+			// The tools never shrink; user gives way first, then the host name (Shrink is the weight).
+			bodyStrong(c, p.host.Name, hostCol).Shrink(2).MinWidth(0)
 			if sub == "" {
 				sub = p.host.Address
 				if p.host.Username != "" {
 					sub = p.host.Username + "@" + sub
 				}
 			}
-			mono(c, sub, inkMuted)
+			mono(c, sub, inkMuted).Shrink(8).MinWidth(0)
 			ui.Spacer(c)
-			ui.Row(c).Gap(space0_5).Children(func() {
+			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
 				if iconBtn(c, "split-h", "Split right", sizeControlSm, false) {
 					w.act(func() { w.split(t, p.id, layout.Row) })
 				}
