@@ -219,8 +219,12 @@ func (w *workspace) paletteItems() []palItem {
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
-	for _, name := range pageNames { // Keychain, then Logs (Forwards, Snippets and Notebooks sit between them in the webview)
-		add("Vault", pageDefs[name].title, "", "", func() { w.openPage(name) })
+	for _, name := range pageNames { // Keychain, Port forwarding, Snippets, Logs, Settings (Notebooks sit before Logs in the webview)
+		keys := ""
+		if name == "settings" {
+			keys = "⌘,"
+		}
+		add("Vault", pageDefs[name].title, keys, "", func() { w.openPage(name) })
 	}
 	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
 	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
@@ -229,6 +233,8 @@ func (w *workspace) paletteItems() []palItem {
 	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
 	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
 	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })
+	// The webview stops the runtime from here at once; this client asks first, as Settings · Runtime does.
+	add("Terminal", "Stop Keel runtime", "", "", w.askStopRuntime)
 
 	// Open now: every tab, and the panes of tabs with more than one. Picking one focuses it; it never starts
 	// a second session.

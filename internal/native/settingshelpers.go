@@ -1,0 +1,184 @@
+package native
+
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+
+	"keel/internal/native/keelclient"
+)
+
+// The pure helpers of Settings, ported from cmd/keel/web/js/lib/settingspages.js and lib/shortcutmap.js (their tests are
+// ported in settingshelpers_test.go). No UI here.
+
+// uptimeText is settingspages.js uptimeText: "45 s", "12 min", "3 h 05 min", "2 d 4 h".
+func uptimeText(sec int64) string {
+	s := max(sec, 0)
+	if s < 60 {
+		return fmt.Sprintf("%d s", s)
+	}
+	m := s / 60
+	if m < 60 {
+		return fmt.Sprintf("%d min", m)
+	}
+	h := m / 60
+	if h < 24 {
+		return fmt.Sprintf("%d h %02d min", h, m%60)
+	}
+	return fmt.Sprintf("%d d %d h", h/24, h%24)
+}
+
+// versionOf is settingspages.js versionOf: the revision part of a build id "<revision>-<web hash>", shortened to 7
+// characters ("dev" when the binary has no VCS info).
+func versionOf(build string) string {
+	rev, _, _ := strings.Cut(build, "-")
+	if rev == "" {
+		return ""
+	}
+	base, dirty := strings.CutSuffix(rev, "+dirty")
+	if utf8.RuneCountInString(base) > 7 {
+		base = string([]rune(base)[:7])
+	}
+	if dirty {
+		return base + "+dirty"
+	}
+	return base
+}
+
+// displayName is settingspages.js displayName: the custom name when set, else the default, else "guest".
+func displayName(custom, fallback string) string {
+	if s := strings.TrimSpace(custom); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(fallback); s != "" {
+		return s
+	}
+	return "guest"
+}
+
+// nameMax is the display name's length (term.js setDisplayName: slice(0, 40); the field's maxlength).
+const nameMax = 40
+
+// vaultMode is settingspages.js vaultModeText: how the vault is unlocked, from GET /api/vault.
+func vaultMode(v keelclient.Vault) (label, help string) {
+	switch v.Mode {
+	case "keychain":
+		return "OS keychain", "The key that opens the vault is kept in your operating system's keychain. No passphrase to type."
+	case "passphrase":
+		if v.KeyringOff {
+			return "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Keel asks for the passphrase."
+		}
+		return "Passphrase", "Keel asks for the passphrase when it starts."
+	}
+	return "Not set up", "The vault is created on first run."
+}
+
+// signalFields is settingspages.js signalText: the Signal server field from /api/runtime or PUT /api/share/signal: the
+// input's value (the saved server), its placeholder and the help line.
+func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
+	url, saved := strings.TrimSpace(info.SignalURL), strings.TrimSpace(info.SignalSaved)
+	placeholder = "https://signal.example.com"
+	relay := "Join links go through this server. It never sees the terminal or the key in the link's #fragment."
+	switch info.SignalSource {
+	case "env":
+		return saved, placeholder, "KEEL_SIGNAL is set for this run, so Keel uses " + url + ". The server saved here is used when it is not set."
+	case "settings":
+		return saved, placeholder, relay
+	case "build":
+		return saved, url, "This copy of Keel was built with " + url + ". Enter another server to use it instead. " + relay
+	}
+	return saved, placeholder, "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you."
+}
+
+// stopMessage is settingspages.js stopMessage: the alertdialog text for Stop runtime.
+func stopMessage(sessions int) string {
+	what := "every running session"
+	switch {
+	case sessions == 1:
+		what = "the 1 running session"
+	case sessions > 1:
+		what = fmt.Sprintf("all %d running sessions", sessions)
+	}
+	return "This ends " + what + " and every port forward, then closes keel serve. Reopen Keel to start it again."
+}
+
+// shortcut is a row of lib/shortcutmap.js SHORTCUTS, with the macOS label. later names the phase that gives this client
+// the key; "" means it has it now, and only those are listed on the Keyboard page.
+type shortcut struct{ group, title, keys, later string }
+
+var shortcutGroupNames = []string{"General", "Tabs", "Vault", "Panes", "Terminal", "Agent"}
+
+var shortcuts = []shortcut{
+	{"Tabs", "New tab", "⌘T", ""},
+	{"Tabs", "Close pane or tab", "⌘W", ""},
+	{"Tabs", "Reopen last tab", "⌘⇧T", ""},
+	{"Tabs", "Previous tab", "⌘<", ""},
+	{"Tabs", "Next tab", "⌘>", ""},
+	{"Tabs", "First tab", "⌘1", ""},
+	{"Tabs", "Last tab", "⌘9", ""},
+	{"General", "Command palette", "⌘K", ""},
+	{"Vault", "Toggle vault sidebar", "⌘B", ""},
+	{"Vault", "New host", "⌘N", ""},
+	{"Vault", "Quick connect", "⌘⇧O", ""},
+	{"Vault", "Join session", "⌘J", "share"},
+	{"Vault", "Settings", "⌘,", ""},
+	{"Panes", "Split right", "⌘⇧D", ""},
+	{"Panes", "Split down", "⌘⇧E", ""},
+	{"Panes", "Focus view (zoom pane)", "⌘⇧↵", ""},
+	{"Panes", "Find in terminal", "⌘F", ""},
+	{"Terminal", "Larger text", "⌘+", ""},
+	{"Terminal", "Smaller text", "⌘-", ""},
+	{"Terminal", "Reset text size", "⌘0", ""},
+	{"Agent", "Toggle agent panel", "⌘I", "agent"},
+	{"Agent", "Ask the agent (from the palette)", "⌘↵", "agent"},
+	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", "agent"},
+}
+
+// shortcutGroup is a group of the Keyboard page.
+type shortcutGroup struct {
+	name  string
+	items []shortcut
+}
+
+// shortcutGroups is shortcutmap.js shortcutGroups for the keys this client has, in group order; a group with none (Agent
+// for now) is left out.
+func shortcutGroups() (out []shortcutGroup) {
+	for _, g := range shortcutGroupNames {
+		var items []shortcut
+		for _, s := range shortcuts {
+			if s.group == g && s.later == "" {
+				items = append(items, s)
+			}
+		}
+		if len(items) > 0 {
+			out = append(out, shortcutGroup{g, items})
+		}
+	}
+	return out
+}
+
+// splitKeyCaps is shortcutmap.js keyCaps: a label split into the caps to draw: "Ctrl+Shift+I" is Ctrl, Shift, I; "⌘⇧T" is
+// ⌘, ⇧, T; "Ctrl++" is Ctrl, +.
+func splitKeyCaps(label string) (caps []string) {
+	rest := label
+	for _, mod := range []string{"Ctrl+", "Shift+"} {
+		if strings.HasPrefix(rest, mod) && len(rest) > len(mod) {
+			caps = append(caps, strings.TrimSuffix(mod, "+"))
+			rest = rest[len(mod):]
+		}
+	}
+	chars := []rune(rest)
+	isMod := func(r rune) bool { return strings.ContainsRune("⌘⇧⌥⌃", r) }
+	switch {
+	case len(chars) > 1 && isMod(chars[0]):
+		i := 0
+		for i < len(chars)-1 && isMod(chars[i]) {
+			caps = append(caps, string(chars[i]))
+			i++
+		}
+		caps = append(caps, string(chars[i:]))
+	case rest != "":
+		caps = append(caps, rest)
+	}
+	return caps
+}

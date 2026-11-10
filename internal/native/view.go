@@ -119,6 +119,7 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() { w.act(func() { w.openPage("settings") }) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newItem) }) // New host, or the page's own New (docs/shortcuts.md)
 	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
 		for i, k := range altDigits {
@@ -301,8 +302,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 	})
 }
 
-// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages. Settings has its place on the right and waits
-// for its phase (docs/native.md).
+// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages; Settings is the icon button on the right, with ⌘,.
 func (w *workspace) sidebarFoot(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2).Gap(space1), 1, 0, 0, 0).Children(func() {
 		for _, name := range footPages {
@@ -314,6 +314,19 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 			if textBtnIcon(c, glyph, def.title, btnGhost) {
 				w.act(func() { w.openPage(name) })
 			}
+		}
+		ui.Spacer(c)
+		b := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Settings").
+			Tooltip("Settings").Cursor(ui.CursorPointer)
+		if b.Hovered() {
+			b.Background(hoverGround)
+		}
+		b.Children(func() {
+			icon(c, "settings-01", inkMuted)
+			kbd(c, ",")
+		})
+		if b.Clicked() {
+			w.act(func() { w.openPage("settings") })
 		}
 	})
 }

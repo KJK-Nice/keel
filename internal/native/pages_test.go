@@ -55,10 +55,10 @@ func writeSaved(t *testing.T, dir, doc string) {
 	}
 }
 
-func TestSidebarFooterOpensKeychainAndLogsAndLeavesSettingsOut(t *testing.T) {
+func TestSidebarFooterOpensKeychainLogsAndSettings(t *testing.T) {
 	r := pageRig(t, keychainBackend())
-	if !r.has("Keychain") || !r.has("Logs") || r.has("Settings") {
-		t.Fatal("the footer is not Keychain · Logs")
+	if !r.has("Keychain") || !r.has("Logs") || !r.has("Settings") {
+		t.Fatal("the footer is not Keychain · Logs · Settings")
 	}
 	r.click(t, "Keychain")
 	if got := tabNames(r); !slices.Equal(got, []string{"New Tab", "Keychain"}) || r.w.active != 1 {

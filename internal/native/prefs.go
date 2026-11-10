@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -144,3 +145,48 @@ func (p prefs) withEnv() (prefs, error) {
 }
 
 func (p prefs) alpha() float32 { return float32(p.Opacity) / 100 }
+
+// termPrefs are Settings · Terminal · Copy on select and Right-click in the terminal, and the Sharing display name
+// (term.js keel-term and keel-name-custom, kept in the webview's localStorage; here in keel-native.json).
+type termPrefs struct {
+	CopyOnSelect bool   // copy the terminal selection to the clipboard (the app's default is on)
+	RightClick   string // paste | menu | nothing (the app's default is menu)
+	Name         string // the custom display name, "" for the default
+}
+
+const (
+	rightPaste, rightMenu, rightNothing = "paste", "menu", "nothing"
+	nameKey                             = "name"
+)
+
+var rightClickModes = [][2]string{{rightPaste, "Paste"}, {rightMenu, "Menu"}, {rightNothing, "Nothing"}}
+
+// loadTermPrefs reads them, field by field: a missing or invalid value is the default.
+func loadTermPrefs(dataDir string) termPrefs {
+	p := termPrefs{CopyOnSelect: true, RightClick: rightMenu}
+	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	if err != nil {
+		return p
+	}
+	var f struct {
+		CopyOnSelect *bool
+		RightClick   string
+		Name         string
+	}
+	if json.Unmarshal(b, &f) != nil {
+		return p
+	}
+	if f.CopyOnSelect != nil {
+		p.CopyOnSelect = *f.CopyOnSelect
+	}
+	for _, m := range rightClickModes {
+		if f.RightClick == m[0] {
+			p.RightClick = f.RightClick
+		}
+	}
+	p.Name = strings.TrimSpace(f.Name)
+	if r := []rune(p.Name); len(r) > nameMax {
+		p.Name = string(r[:nameMax])
+	}
+	return p
+}

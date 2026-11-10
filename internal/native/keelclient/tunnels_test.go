@@ -63,3 +63,34 @@ func TestStartTunnelRefusedForAnUnknownKeyCarriesTheOfferWithoutPrintingTheToken
 		t.Errorf("the token is printed: %s", s)
 	}
 }
+
+func TestRuntimeCallsAndTheAcceptedStop(t *testing.T) {
+	r := newRec(t)
+	ctx := context.Background()
+	r.reply = `{"build":"9d62912abcde-0123","pid":42,"addr":"127.0.0.1:1","dataDir":"/d","sessions":2,"uptimeSec":125,"canStop":true,"signalURL":"https://s","signalSource":"settings","signalSaved":"https://s"}`
+	rt, err := r.c.Runtime(ctx)
+	if err != nil || rt.Build != "9d62912abcde-0123" || rt.Sessions != 2 || rt.UptimeSec != 125 || rt.CanStop == nil || !*rt.CanStop || rt.SignalSaved != "https://s" {
+		t.Fatalf("runtime %+v %v", rt, err)
+	}
+	if got, _ := r.last(); got != "GET /api/runtime" {
+		t.Errorf("got %s", got)
+	}
+	if _, err := r.c.SetSignal(ctx, "https://x.example"); err != nil {
+		t.Fatal(err)
+	}
+	if got, body := r.last(); got != "PUT /api/share/signal" || body != `{"url":"https://x.example"}` {
+		t.Errorf("signal %s %s", got, body)
+	}
+	r.status, r.reply = 202, ""
+	if err := r.c.StopRuntime(ctx); err != nil {
+		t.Fatalf("a 202 is the answer to a stop: %v", err)
+	}
+	if got, _ := r.last(); got != "POST /api/runtime/stop" {
+		t.Errorf("got %s", got)
+	}
+	r.status, r.reply = 400, `{"error":"not a valid signal server"}`
+	var se *StatusError
+	if _, err := r.c.SetSignal(ctx, "nope"); !errors.As(err, &se) || se.Msg != "not a valid signal server" {
+		t.Errorf("refusal %v", err)
+	}
+}

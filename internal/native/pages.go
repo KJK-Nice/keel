@@ -26,10 +26,11 @@ var pageDefs = map[string]pageDef{
 	"forwards": {title: "Port forwarding", tabIcon: "forwards"},
 	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
 	"logs":     {title: "Logs", tabIcon: "logs-tab"},
+	"settings": {title: "Settings", tabIcon: "settings-01"},
 }
 
 // pageNames is every page this client has, in the order the sidebar and the palette list them.
-var pageNames = []string{"keychain", "forwards", "snippets", "logs"}
+var pageNames = []string{"keychain", "forwards", "snippets", "logs", "settings"}
 
 // footPages are the sidebar footer's page buttons (the webview's footer is Keychain · Logs).
 var footPages = []string{"keychain", "logs"}
@@ -41,6 +42,7 @@ type tabPage struct {
 	logs     *logsPage
 	snippets *snippetsPage
 	forwards *forwardsPage
+	settings *settingsPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -54,6 +56,8 @@ func newTabPage(name string) *tabPage {
 		p.snippets = &snippetsPage{}
 	case "forwards":
 		p.forwards = &forwardsPage{show: tunnelAll}
+	case "settings":
+		p.settings = newSettingsPage()
 	}
 	return p
 }
@@ -78,6 +82,9 @@ func (w *workspace) addPageTab(name string) *tab {
 		return nil
 	}
 	t := &tab{panes: map[string]*pane{}, pg: newTabPage(name)}
+	if t.pg.settings != nil {
+		w.initSliders(t.pg.settings)
+	}
 	w.tabs = append(w.tabs, t)
 	return t
 }
@@ -105,6 +112,8 @@ func (w *workspace) loadPage(t *tab) {
 		w.reloadSnippets()
 	case t.pg.forwards != nil:
 		w.reloadTunnels()
+	case t.pg.settings != nil:
+		w.loadSettings()
 	}
 }
 
@@ -144,6 +153,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.snippetsView(c, t.pg.snippets)
 	case t.pg.forwards != nil:
 		w.forwardsView(c, t.pg.forwards)
+	case t.pg.settings != nil:
+		w.settingsView(c, t.pg.settings)
 	}
 }
 

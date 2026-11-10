@@ -127,6 +127,13 @@ type fakeBackend struct {
 	tunSaveErr  error
 	tunCalls    int
 
+	// Settings.
+	runtime      keelclient.Runtime
+	signalSet    []string // SetSignal, as sent
+	signalErr    error
+	runtimeStops int
+	stopErr      error
+
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
 }
 
@@ -421,6 +428,32 @@ func (f *fakeBackend) StopTunnel(_ context.Context, id string) (keelclient.Tunne
 	f.rec("stop tunnel " + id)
 	f.tunStopped = append(f.tunStopped, id)
 	return f.setTunnel(id, "stopped"), nil
+}
+
+func (f *fakeBackend) Runtime(context.Context) (keelclient.Runtime, error) {
+	f.rec("runtime")
+	r := f.runtime
+	r.Sessions = len(f.conns)
+	return r, nil
+}
+
+func (f *fakeBackend) SetSignal(_ context.Context, url string) (keelclient.Runtime, error) {
+	f.rec("set signal")
+	f.signalSet = append(f.signalSet, url)
+	if f.signalErr != nil {
+		return keelclient.Runtime{}, f.signalErr
+	}
+	f.runtime.SignalSaved, f.runtime.SignalURL, f.runtime.SignalSource = url, url, "settings"
+	if url == "" {
+		f.runtime.SignalSource = ""
+	}
+	return f.runtime, nil
+}
+
+func (f *fakeBackend) StopRuntime(context.Context) error {
+	f.rec("stop runtime")
+	f.runtimeStops++
+	return f.stopErr
 }
 
 func (f *fakeBackend) Groups(context.Context) ([]keelclient.Group, error) { return f.groups, nil }

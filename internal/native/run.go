@@ -52,8 +52,19 @@ func liveBody(p *pane) { liveBodyT(p, false) }
 // liveBodyT is liveBody; transparent leaves the terminal's background undrawn so the pane's translucent
 // ground shows through.
 func liveBodyT(p *pane, transparent bool) {
+	copySel := terminal.CopyOnSelectNone
+	if p.copyOnSelect {
+		copySel = terminal.CopyOnSelectClipboard
+	}
+	right := terminal.RightClickContextMenu
+	switch p.rightClick {
+	case rightPaste:
+		right = terminal.RightClickPaste
+	case rightNothing:
+		right = terminal.RightClickIgnore
+	}
 	term, err := terminal.New(terminal.Options{
-		Conn: p.conn, Theme: terminalTheme(), Transparent: transparent,
+		Conn: p.conn, Theme: terminalTheme(), Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
 		Font: terminal.Font{Family: monoStack, Size: p.fontSize},
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
@@ -74,6 +85,13 @@ func liveBodyT(p *pane, transparent bool) {
 	p.view = func(c *ui.Context) ui.Element { return terminal.View(c, term).Fill() }
 	p.size = term.Size
 	p.release = func() { term.Close() }
+	p.setCopy = func(on bool) {
+		if on {
+			term.SetCopyOnSelect(terminal.CopyOnSelectClipboard)
+		} else {
+			term.SetCopyOnSelect(terminal.CopyOnSelectNone)
+		}
+	}
 	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: monoStack, Size: size}) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,
@@ -94,7 +112,11 @@ func Run() error {
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
 	w.dataDir, w.termSize = paths.DataDir(), pr.TermSize
+	w.win, w.term = pr, loadTermPrefs(paths.DataDir())
+	// Transparent cannot change on an open window: Window opacity applies live only when it starts below 100
+	// (settings.go).
 	translucent := pr.Opacity < opacityMax
+	w.translucentWin = translucent
 	if translucent {
 		w.alpha = pr.alpha()
 	}
@@ -111,6 +133,11 @@ func Run() error {
 			Content:              ui.View(w.view),
 		})
 		w.post = win.Update
+		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
+			blur := func(radius int) { blurOnce(win, radius)() }
+			w.blurHook = blur
+			win.OnShow(func() { w.post(w.applyBlur) })
+		}
 		win.OnClosed(w.closeWindow)
 		w.start()
 		w.startPoll(pollEvery)

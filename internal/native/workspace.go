@@ -78,6 +78,11 @@ type backend interface {
 	DeleteTunnel(ctx context.Context, id string) error
 	StartTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
 	StopTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
+
+	// Settings.
+	Runtime(ctx context.Context) (keelclient.Runtime, error)
+	SetSignal(ctx context.Context, url string) (keelclient.Runtime, error)
+	StopRuntime(ctx context.Context) error
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -119,6 +124,12 @@ type pane struct {
 	zoom     func(steps int, reset bool)
 	search   *termSearch
 	setFont  func(size float32)
+
+	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
+	// Right-click in the terminal (read when the terminal is made).
+	copyOnSelect bool
+	rightClick   string
+	setCopy      func(on bool)
 
 	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 }
@@ -173,30 +184,34 @@ type workspace struct {
 	post   func(fn func())
 	mkBody func(p *pane)
 
-	hosts      []keelclient.Host
-	snippets   []keelclient.Snippet
-	sideSeg    string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
-	snipQuery  string // the sidebar's Snippets filter
-	snipH      ui.Handle
-	snipDlg    *snippetDialog      // New snippet / Edit snippet
-	tunnels    []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
-	tunReading bool                // the 2 s read of them is in flight
-	fwdQuery   string              // the sidebar's Forwards filter
-	paneQuery  string              // the sidebar's Panes filter
-	paneH      ui.Handle
-	fwdH       ui.Handle
-	fwdDlg     *forwardDialog // New forward / Edit forward
-	fwdKey     *fwdKeyOffer   // "Unknown host key" for a forward that could not start
-	tabs       []*tab
-	active     int
-	filter     string
-	sidebar    bool
-	collapsed  map[string]bool
-	queued     []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked    string      // a message that replaces the workspace (locked vault, no keel serve)
-	gate       *unlockGate // the Unlock screen, over the whole window
-	first      *firstRun   // the First run screens (or the palette's host import), over the whole window
-	closed     bool
+	hosts          []keelclient.Host
+	snippets       []keelclient.Snippet
+	sideSeg        string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
+	snipQuery      string // the sidebar's Snippets filter
+	snipH          ui.Handle
+	snipDlg        *snippetDialog      // New snippet / Edit snippet
+	tunnels        []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
+	tunReading     bool                // the 2 s read of them is in flight
+	fwdQuery       string              // the sidebar's Forwards filter
+	paneQuery      string              // the sidebar's Panes filter
+	win            prefs               // Window opacity and blur as saved (settings.go)
+	term           termPrefs           // Copy on select, Right-click in the terminal, the display name
+	translucentWin bool                // the window was created Transparent: only then can opacity change live
+	blurHook       func(radius int)    // sets the window's blur; nil in tests
+	paneH          ui.Handle
+	fwdH           ui.Handle
+	fwdDlg         *forwardDialog // New forward / Edit forward
+	fwdKey         *fwdKeyOffer   // "Unknown host key" for a forward that could not start
+	tabs           []*tab
+	active         int
+	filter         string
+	sidebar        bool
+	collapsed      map[string]bool
+	queued         []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
+	blocked        string      // a message that replaces the workspace (locked vault, no keel serve)
+	gate           *unlockGate // the Unlock screen, over the whole window
+	first          *firstRun   // the First run screens (or the palette's host import), over the whole window
+	closed         bool
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool          // a poll is in flight
@@ -251,6 +266,7 @@ func (w *workspace) ground(c ui.Color) ui.Color {
 func newWorkspace(be backend) *workspace {
 	return &workspace{
 		be: be, alpha: 1, sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
+		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 	}
@@ -377,7 +393,7 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize)}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize), copyOnSelect: w.term.CopyOnSelect, rightClick: w.term.RightClick}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)
