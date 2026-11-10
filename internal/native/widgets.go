@@ -47,7 +47,17 @@ func dot(c *ui.Context, col ui.Color) ui.Element {
 
 // iconBtn is a square icon button named for the tester and assistive tech; it reports a click.
 func iconBtn(c *ui.Context, name, tip string, size float32, pressed bool) bool {
+	return iconBtnOff(c, name, tip, size, pressed, false)
+}
+
+// iconBtnOff is iconBtn that can be disabled: .pane-bar .icon-btn:disabled is 32% opaque and takes no pointer.
+func iconBtnOff(c *ui.Context, name, tip string, size float32, pressed, off bool) bool {
 	b := ui.Row(c).Size(size, size).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Cursor(ui.CursorPointer)
+	if off {
+		b.Opacity(disabledAlpha).Disabled(true)
+		b.Children(func() { icon(c, name, inkMuted) })
+		return false
+	}
 	col := inkMuted
 	switch {
 	case pressed:

@@ -125,6 +125,7 @@ const (
 	focusRingWidth   = 3  // shadow-tile-focus
 	focusRingAlpha   = 0.30
 	dimAlpha         = 0.70 // unfocused terminals in a split tab
+	disabledAlpha    = 0.32 // .pane-bar .icon-btn:disabled
 	tileTintAlpha    = 0.16 // k-tile: 16% of the host colour
 	minTileWidth     = 240  // not a token: narrowest a split tile may be dragged to
 	minTileHeight    = 120  // not a token: shortest a stacked tile may be dragged to
@@ -159,6 +160,8 @@ const (
 	paletteWidthPx                    = 560        // k-palette, 43rem
 	paletteSearchPx                   = 46         // k-palette-search height, 3.538rem
 	tabMaxPx                          = 200        // tab max-width 15.4rem
+	barMetaPx                         = 11.9       // .bar-meta, 0.917rem
+	tabCountPx, tabCountFontPx        = 16, 10     // .tab-count: height 1.231rem, font 0.769rem
 	radioPx, radioDotPx               = 15, 7      // k-radio 1.154rem, its dot 0.538rem
 	tileLgPx, tileLgIconPx, titleLgPx = 44, 22, 18 // k-tile--lg 3.385rem, its glyph 1.692rem, .k-detail-title 1.385rem
 	itemSubPx, keyhintPx              = 11, 10     // .k-item-sub 0.846rem, k-keyhint

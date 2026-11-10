@@ -172,7 +172,45 @@ func (w *workspace) titlebar(c *ui.Context) {
 		if iconBtn(c, "add-01", "New tab", sizeControlSm, false) {
 			w.act(w.newTab)
 		}
+		ui.Spacer(c)
+		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
+			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
+		}
 	})
+}
+
+// barStatus is #bar-status (term.js renderTabs): what the window shows at the right of the title bar. A page shows
+// nothing; the New tab page says "New tab" (or "Connecting…" while it connects); a session says whose hands are on it.
+func (w *workspace) barStatus() string {
+	t := w.tab()
+	switch {
+	case t == nil || t.isPage():
+		return ""
+	case t.isNew():
+		if t.page.connecting != "" {
+			return "Connecting…"
+		}
+		return "New tab"
+	}
+	p := t.panes[t.focused]
+	if p == nil {
+		return "No session"
+	}
+	if st := p.conn.Snapshot(); st.Role == "driver" {
+		return paneSubtitle(p, st) + " · driving"
+	}
+	return paneSubtitle(p, p.conn.Snapshot()) + " · following"
+}
+
+// paneSubtitle is the mono line after the host's name in a pane's bar: the title the shell set, else user@address.
+func paneSubtitle(p *pane, st keelclient.State) string {
+	if st.Subtitle != "" {
+		return st.Subtitle
+	}
+	if p.host.Username != "" {
+		return p.host.Username + "@" + p.host.Address
+	}
+	return p.host.Address
 }
 
 func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
@@ -227,7 +265,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		}
 		if n := len(t.panes); n > 1 {
 			ui.Spacer(c)
-			caption(c, fmt.Sprint(n), inkMuted)
+			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround). // k-badge--mono tab-count
+																			Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
 		}
 	})
 	if r.Clicked() && !renaming {
@@ -252,8 +291,9 @@ func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
 
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Column(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
-		ui.Column(c).Grow(1).Shrink(1).Padding(space2).Gap(space2).Children(func() {
-			ui.Row(c).FillWidth().Shrink(0).Gap(space1).Children(func() {
+		// .k-sidebar-head: 12 8 8, the tools row and the section switch 8 apart.
+		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
+			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
 				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
 					Background(stage).Border(1, lineStrong).Children(func() {
 					icon(c, "search-01", inkFaint)
@@ -272,41 +312,65 @@ func (w *workspace) sidebarView(c *ui.Context) {
 							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
 					}
 				})
-				if iconBtn(c, "add-01", "New host", sizeControl, false) { // btn-new-host
-					w.act(w.newHost)
-				}
+				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {
+					if iconBtn(c, "add-01", "New host", sizeControlSm, false) { // btn-new-host: k-btn--sm k-btn--icon
+						w.act(w.newHost)
+					}
+					iconMenuBtn(c, "more-horizontal", "More host actions", sizeControlSm, w.hostActionsMenu)
+				})
 			})
 			// k-seg "Vault section": Hosts · Panes · Snippets · Forwards. Panes shows only while the tab has 2+ panes.
 			segs := [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}, {"forwards", "Forwards"}}
 			if pt := w.panesTab(); pt != nil {
 				segs = slices.Insert(segs, 1, [2]string{"panes", "Panes " + strconv.Itoa(len(pt.panes))})
 			}
-			segControl(c, "Vault section", w.sideSeg, segs, func(v string) { w.sideSeg = v })
-			if w.sidePanes() {
-				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar panes").Children(func() { w.sidebarPanes(c, w.panesTab()) })
-				return
+			cur := w.sideSeg
+			if cur == "" { // Hosts is the default section, and the one pressed
+				cur = "hosts"
 			}
-			if w.sideSnippets() {
-				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar snippets").Children(func() { w.sidebarSnippets(c) })
-				return
-			}
-			if w.sideForwards() {
-				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar forwards").Children(func() { w.sidebarForwards(c) })
-				return
-			}
-			ui.Column(c).FillWidth().Grow(1).Gap(space2).Children(func() {
-				for _, g := range w.groups() {
-					w.group(c, g)
-				}
-			})
+			segControl(c, "Vault section", cur, segs, func(v string) { w.sideSeg = v })
 		})
+		// .k-sidebar-body: 0 6 8, scrolling.
+		body := func(label string, kids func()) {
+			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label(label).Children(func() {
+				ui.Column(c).FillWidth().Padding(0, space1_5, space2).Children(kids)
+			})
+		}
+		switch {
+		case w.sidePanes():
+			body("sidebar panes", func() { w.sidebarPanes(c, w.panesTab()) })
+		case w.sideSnippets():
+			body("sidebar snippets", func() { w.sidebarSnippets(c) })
+		case w.sideForwards():
+			body("sidebar forwards", func() { w.sidebarForwards(c) })
+		default:
+			body("sidebar hosts", func() {
+				ui.Column(c).FillWidth().Gap(space2).Children(func() {
+					for _, g := range w.groups() {
+						w.group(c, g)
+					}
+				})
+			})
+		}
 		w.sidebarFoot(c)
 	})
 }
 
-// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages; Settings is the icon button on the right, with ⌘,.
+// hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect and Local terminal.
+// Join session (N6) and New group are in the app's menu and not here.
+func (w *workspace) hostActionsMenu(m *ui.Menu) {
+	if m.Item("Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
+		w.act(func() { w.openQuick("", nil) })
+	}
+	if m.Item("Local terminal").Chosen() {
+		w.act(w.newLocalTab)
+	}
+}
+
+// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages; Settings is the icon button on the right, with ⌘,
+// (its key cap shows only while ⌘ is held in the app).
 func (w *workspace) sidebarFoot(c *ui.Context) {
-	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2).Gap(space1), 1, 0, 0, 0).Children(func() {
+	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space1_5).Gap(space0_5), 1, 0, 0, 0).Children(func() {
 		for _, name := range footPages {
 			def := pageDefs[name]
 			glyph := "key-01"
@@ -318,16 +382,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		b := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Settings").
-			Tooltip("Settings").Cursor(ui.CursorPointer)
-		if b.Hovered() {
-			b.Background(hoverGround)
-		}
-		b.Children(func() {
-			icon(c, "settings-01", inkMuted)
-			kbd(c, ",")
-		})
-		if b.Clicked() {
+		if iconBtn(c, "settings-01", "Settings", sizeControlSm, false) {
 			w.act(func() { w.openPage("settings") })
 		}
 	})
@@ -569,7 +624,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				if zoomed {
 					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
 				}
-				if iconBtn(c, zoomGlyph, zoomTip, sizeControlSm, zoomed) {
+				if iconBtnOff(c, zoomGlyph, zoomTip, sizeControlSm, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
 					w.act(func() { w.toggleZoom(t, p.id) })
 				}
 				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
@@ -645,12 +700,6 @@ func (w *workspace) statusbar(c *ui.Context) {
 		if p := w.focusedPane(); p != nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.host.Name, cols, rows), inkMuted)
-		} else if t := w.tab(); t != nil && t.isNew() {
-			status := "New tab" // term.js renderTabs
-			if t.page.connecting != "" {
-				status = "Connecting…"
-			}
-			caption(c, status, inkMuted)
 		}
 	})
 }

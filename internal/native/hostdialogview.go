@@ -87,8 +87,8 @@ func segControl(c *ui.Context, name string, current string, opts [][2]string, on
 			r := ui.Row(c).Grow(1).Height(sizeControlSm).Justify(ui.Center).Radius(radiusXs).Label(o[1]).Cursor(ui.CursorPointer)
 			col := inkMuted
 			switch {
-			case on:
-				r.Background(raised)
+			case on: // aria-pressed: the raised ground with a 1px line ring (box-shadow in keel.css)
+				r.Background(raised).Shadow(0, 0, 0, 1, line)
 				col = ink
 			case r.Hovered():
 				r.Background(hoverGround)

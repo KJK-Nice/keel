@@ -70,8 +70,8 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 				}
 				w.section(c, "Start", "", func() {
 					ui.Grid(c).Columns(startGrid).Gap(space2).FillWidth().Children(func() {
-						w.startAction(c, "Quick connect", "⌘⇧O", func() { w.openQuick("", nil) })
-						w.startAction(c, "New host", "⌘N", w.newHost)
+						w.startAction(c, "action", "Quick connect", "⌘⇧O", func() { w.openQuick("", nil) })
+						w.startAction(c, "add-01", "New host", "⌘N", w.newHost)
 					})
 				})
 				if closed := w.closedList(); len(closed) > 0 {
@@ -196,7 +196,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 func cardSub(c *ui.Context, s string) { text(c, s, inkMuted, kbdSize, weightRegular).Font(monoStack) }
 
 // startAction is a k-start-action button: icon, label, key cap.
-func (w *workspace) startAction(c *ui.Context, name, keys string, run func()) {
+func (w *workspace) startAction(c *ui.Context, glyph, name, keys string, run func()) {
 	r := ui.Row(c).FillWidth().Height(startActionH).Padding(0, space3).Gap(space3).Radius(radiusMd).Border(1, line).Label(name).Cursor(ui.CursorPointer)
 	col := inkMuted
 	if r.Hovered() {
@@ -204,7 +204,7 @@ func (w *workspace) startAction(c *ui.Context, name, keys string, run func()) {
 		col = ink
 	}
 	r.Children(func() {
-		icon(c, "action", inkMuted)
+		icon(c, glyph, inkMuted)
 		text(c, name, col, uiFontSize, weightMedium)
 		ui.Spacer(c)
 		kbd(c, keys)

@@ -14,7 +14,7 @@ import (
 
 const (
 	settingsMaxWidth = 90 * 7 // .k-settings-form: max-width 90ch
-	sliderWidth      = 144    // w-36
+	sliderPx         = 117    // w-36: 9rem, which is 9 UI-size px (Tailwind spacing is rem)
 	prefInputWidth   = sizeRail
 	leadWidth        = 60 * 7 // .k-settings-lead: 60ch
 )
@@ -219,7 +219,7 @@ func statValue(c *ui.Context, s string) {
 func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int) func(*ui.Context) {
 	return func(c *ui.Context) {
 		ui.Row(c).Gap(space3).AlignItems(ui.Center).Shrink(0).Children(func() {
-			ui.StepSlider(c, v, lo, hi, 1).Label(name + " slider").Width(sliderWidth)
+			ui.StepSlider(c, v, lo, hi, 1).Label(name + " slider").Width(rem(sliderPx))
 			ui.Row(c).MinWidth(space6).Justify(ui.Center).Children(func() { body(c, fmt.Sprint(shown), ink).Label(name + " value") })
 		})
 	}

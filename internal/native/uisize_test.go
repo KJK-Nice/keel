@@ -21,7 +21,7 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 			t.Fatalf("UI size %d after moving the slider to %d", r.w.win.UISize, size)
 		}
 		tab, _ := r.tt.Find("tab Settings")
-		nh, _ := r.tt.Find("New host")
+		nh, _ := r.tt.Find("More host actions") // the last control of the sidebar's head, 8 px from its edge
 		st, _ := r.tt.Find("keel serve · 0 sessions")
 		foot, _ := r.tt.Find("Settings") // the sidebar footer's button
 		return measure{tab: tab.H, newHost: nh.H, sidebarEdge: nh.X + nh.W + space2 + 1, status: st.H, kbdH: foot.H, text: uiFontSize}
@@ -31,8 +31,8 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	if small.tab != sizeTab || large.tab != sizeTab {
 		t.Errorf("tab height %v and %v, want %v at both sizes", small.tab, large.tab, float32(sizeTab))
 	}
-	if small.newHost != sizeControl || large.newHost != sizeControl {
-		t.Errorf("control height %v and %v, want %v", small.newHost, large.newHost, float32(sizeControl))
+	if small.newHost != sizeControlSm || large.newHost != sizeControlSm {
+		t.Errorf("control height %v and %v, want %v", small.newHost, large.newHost, float32(sizeControlSm))
 	}
 	if small.sidebarEdge != sizeSidebar || large.sidebarEdge != sizeSidebar {
 		t.Errorf("sidebar width %v and %v, want %v", small.sidebarEdge, large.sidebarEdge, float32(sizeSidebar))
