@@ -154,6 +154,24 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   follower's dialog says "You are following — take or request control to type"; `Type` does nothing.
 - `guard_test.go` keeps one writer and one caller (`-run 'TestOnly|TestApprovedInject|TestConnWrite'`).
 
+## Forwards, Panes, Settings and toasts (`e2e_n5d_test.go`)
+
+- A forward needs a daemon, a host whose SSH server allows forwarding and a target. `startSSHOnly` runs the fixture and
+  `addJumpHost` saves its **jump** server (the target refuses direct-tcpip) as `e2e-jump`. Every port is on 127.0.0.1 and from
+  `freePort(t)` or `net.Listen("127.0.0.1:0")`: the forward's local port, the test's `startPong` listener (it answers
+  `pong-<n>`) and the daemon. Never a wildcard bind, never 47241, 47298 or 47299. Trust the key first by opening the host and
+  clicking "Trust and connect", then close the pane. Prove it on the wire: `dialPong(local)` answers while on and is refused off.
+- Page and rows: `e.openForwardsPage()`; labels `forward <name>`, `<name> on` (the switch), `sidebar forward <name>`,
+  `status forwards`, the dialog's fields `Forward name`, `Forward host picker`, `Bind port`, `Dest port`. The sidebar section and
+  the page both hold a `<name> on` switch: a click takes the first (the sidebar's). A failed start also shows the cause in a toast.
+- Panes: `Panes 3` is the segment, `Focus pane 2, <host>` a map cell, `pane row <host>` a row (rows of one host share the
+  label: tell them apart by position, `paneRowHeight+space1`). Clicking into a body shows Panes; a split does not.
+- Settings: ⌘, opens it; `settings nav <Section>`, sliders `<Name> slider` (a click puts one in the middle, the arrows step it),
+  `Copy on select switch`, `Display name input`, `Signal server input`, `Stop runtime…` then the dialog's `Stop runtime`. Window
+  opacity needs a translucent window: `e.useSavedWindowPrefs()` does what `Run` does. Read the title bar's alpha from `tt.Image()`.
+  Only ever stop the test's own daemon.
+- Toasts: label `toast <text>`; `e.tt.Advance(toastTimeout+time.Second)` expires them (the clock is the Tester's, not real time).
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
