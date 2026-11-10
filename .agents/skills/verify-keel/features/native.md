@@ -202,7 +202,7 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   the same daemon. Admitting, reading the host's terminal, typing after a hand-over and a wrong key run in
   `joinpeer`'s tests against the real signal server and a pion peer (loopback). Do not add an Allow to the e2e until the hub
   takes its ICE servers from a test hook.
-- The link: `tt.Clipboard()` holds it; keep it in a variable, never print or write it. The popover draws it without its key.
+- The link: `tt.Clipboard()` holds it; keep it in a variable, never print or write it. The popover shows the whole link (as the app does), so a shot holds the scratch room's.
 - Labels: the title bar's `Share` and `N watching`, `dialog Share session`, `Join link field`, `share foot` (the foot's
   buttons share their names with the pane's banner: click by position), `Share requests` and `alertdialog <name>` for
   the prompts, `Allow`, `Deny`, `Hand over`, `Keep driving`; B's `dialog Join a session` (⌘J, field `Join link`), `banner

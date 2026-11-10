@@ -141,7 +141,7 @@ func (w *workspace) shareBody(c *ui.Context, s *sharePop) {
 			if s.link.url == "" {
 				mono(c, "Creating link…", inkFaint).Grow(1).Shrink(1).MinWidth(0)
 			} else {
-				mono(c, s.link.redacted(), ink).Grow(1).Shrink(1).MinWidth(0)
+				mono(c, s.link.url, ink).Grow(1).Shrink(1).MinWidth(0)
 			}
 			name := "Copy"
 			if s.copied {

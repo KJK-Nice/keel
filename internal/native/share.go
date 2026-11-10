@@ -24,16 +24,6 @@ type shareLink struct{ url string }
 func (shareLink) String() string     { return "{share link}" }
 func (l shareLink) GoString() string { return l.String() }
 
-// redacted is the link as the popover's field shows it: the key's value is not drawn. Copy puts the whole link on the
-// clipboard.
-func (l shareLink) redacted() string {
-	before, _, ok := strings.Cut(l.url, "#k=")
-	if !ok {
-		return l.url
-	}
-	return before + "#k=…"
-}
-
 // sharePop is the open Share popover: the pane it shares and what keel serve answered.
 type sharePop struct {
 	open     bool

@@ -110,9 +110,6 @@ func TestTheShareLinkNeverPrintsItsKey(t *testing.T) {
 			}
 		}
 	}
-	if got := l.redacted(); strings.Contains(got, shareTestKey) || !strings.HasSuffix(got, "#k=…") {
-		t.Errorf("redacted %q", got)
-	}
 }
 
 func TestShareButtonOpensThePopoverAndCopiesTheLink(t *testing.T) {
@@ -144,10 +141,8 @@ func TestShareButtonOpensThePopoverAndCopiesTheLink(t *testing.T) {
 	if r.tt.Clipboard() != shareTestURL {
 		t.Errorf("the link was not put on the clipboard")
 	}
-	for _, s := range r.tt.Texts() {
-		if strings.Contains(s, shareTestKey) {
-			t.Fatalf("the key is on screen: %q", s)
-		}
+	if !r.tt.HasText(shareTestURL) { // the Join link field shows the whole link, as the app does
+		t.Errorf("the Join link field does not hold the link: %q", r.tt.Texts())
 	}
 	if !r.has("Pass control to Ann") {
 		t.Error("one person to hand over to: the foot says Pass control to Ann")

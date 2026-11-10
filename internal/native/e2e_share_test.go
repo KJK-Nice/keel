@@ -181,10 +181,8 @@ func TestE2EShareAndAdmissionPrompt(t *testing.T) {
 			t.Errorf("the popover lacks %q", s)
 		}
 	}
-	for _, s := range r.a.tt.Texts() {
-		if strings.Contains(s, "#k=") && !strings.HasSuffix(s, "#k=…") && strings.Contains(s, "127.0.0.1") {
-			t.Fatalf("the popover shows the link's key")
-		}
+	if !r.a.tt.HasText(link) { // the field shows the whole link; the shot holds a scratch room's link
+		t.Fatalf("the Join link field does not show the link")
 	}
 	r.a.shot("TestE2EShareAndAdmissionPrompt-popover")
 
