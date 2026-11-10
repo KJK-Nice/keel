@@ -43,6 +43,7 @@ type backend interface {
 	Kill(ctx context.Context, id string) error
 	Reconnect(ctx context.Context, id string) error
 	TrustHostKey(ctx context.Context, k keelclient.HostKey, replace bool) error
+	CreateHost(ctx context.Context, h keelclient.NewHost) (keelclient.Host, error)
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -106,14 +107,19 @@ type tab struct {
 	title   string // the name the user gave the tab, or ""
 
 	h ui.Handle // the tab in the strip, for where a dragged tab lands
+
+	page *startPage // set while the tab is the New tab page: it has no panes
 }
 
-// isNew reports a tab with no panes: the New tab page.
-func (t *tab) isNew() bool { return t.root == nil }
+// isNew reports the New tab page.
+func (t *tab) isNew() bool { return t.page != nil }
 
 func (t *tab) name() string {
 	if t.title != "" {
 		return t.title
+	}
+	if t.isNew() {
+		return "New Tab"
 	}
 	if p := t.panes[t.focused]; p != nil {
 		return p.host.Name
@@ -166,6 +172,10 @@ type workspace struct {
 	pal       *palette // the open command palette
 	palH      ui.Handle
 	recentIDs []string // host ids, newest first: the New tab page's recent hosts (keel-native.json)
+
+	live            bool      // the first listing has been read: the window keeps a tab from now on
+	newTabLockUntil time.Time // ⌘T repeats inside this are ignored
+	quick           *quickDialog
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -284,6 +294,8 @@ func (w *workspace) start() {
 			if failed != nil {
 				w.fail("attach", failed)
 			}
+			w.live = true
+			w.settle() // an empty window shows a New tab
 			w.saved.ready = true
 		})
 	})
@@ -316,24 +328,9 @@ func (w *workspace) selectTab(i int) {
 	}
 	w.active = i
 	w.wantFocus = w.tabs[i].focused
-}
-
-// openHost starts a session on h in a new tab.
-func (w *workspace) openHost(h keelclient.Host) {
-	w.rememberRecent(h.ID)
-	w.work(func() {
-		conn, err := w.be.Spawn(h.ID, startCols, startRows)
-		w.post(func() {
-			switch {
-			case err != nil:
-				w.fail("open "+h.Name, err)
-			case w.closed:
-				conn.Close()
-			default:
-				w.addTab(w.newPane(h, conn))
-			}
-		})
-	})
+	if p := w.tabs[i].page; p != nil {
+		p.focus = true // the New tab page's input has the keyboard
+	}
 }
 
 // newLocalTab opens the first local host in a new tab (term.js newLocalTab).
@@ -346,9 +343,6 @@ func (w *workspace) newLocalTab() {
 	}
 	w.err = "Local shell is not available"
 }
-
-// newTab is the + button and ⌘T.
-func (w *workspace) newTab() { w.newLocalTab() }
 
 // split starts another session to the same host as target and inserts it after target.
 func (w *workspace) split(t *tab, target string, d layout.Dir) {
@@ -497,8 +491,17 @@ func (w *workspace) killWhenNamed(conn session) {
 	time.AfterFunc(callTimeout, finish)
 }
 
+// closeFocused is ⌘W: the focused pane, whose last one closes the tab. The lone New tab is what an empty
+// window shows: closing it would only open another (term.js closeActivePaneOrTab).
 func (w *workspace) closeFocused() {
-	if t := w.tab(); t != nil {
+	t := w.tab()
+	switch {
+	case t == nil:
+	case t.isNew():
+		if len(w.tabs) > 1 {
+			w.closeTab(t)
+		}
+	default:
 		w.closePane(t, t.focused)
 	}
 }

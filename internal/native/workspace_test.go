@@ -61,6 +61,8 @@ type fakeBackend struct {
 	reconnected []string
 	trusted     []keelclient.HostKey
 	replaced    []bool
+
+	created []keelclient.NewHost // what CreateHost was asked for
 }
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }
@@ -104,6 +106,14 @@ func (f *fakeBackend) TrustHostKey(_ context.Context, k keelclient.HostKey, repl
 	f.trusted = append(f.trusted, k)
 	f.replaced = append(f.replaced, replace)
 	return nil
+}
+
+func (f *fakeBackend) CreateHost(_ context.Context, h keelclient.NewHost) (keelclient.Host, error) {
+	f.calls = append(f.calls, "create host")
+	f.created = append(f.created, h)
+	out := keelclient.Host{ID: fmt.Sprintf("h-new%d", len(f.created)), Name: h.Name, Group: h.Group, Address: h.Address, Username: h.Username, AuthType: h.AuthType, Color: h.Color, Port: h.Port}
+	f.hosts = append(f.hosts, out)
+	return out, nil
 }
 
 var testHosts = []keelclient.Host{
@@ -236,12 +246,13 @@ func TestClickingAHostSpawnsOnceAndAddsATab(t *testing.T) {
 	}
 }
 
-func TestPlusOpensTheLocalHost(t *testing.T) {
+func TestPlusOpensANewTabPage(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
+	r.click(t, "host api-1") // fills the New tab the empty window showed
 	r.click(t, "New tab")
-	if !slices.Equal(r.fb.spawned, []string{"h-local"}) {
-		t.Fatalf("spawned %v", r.fb.spawned)
+	if len(r.fb.spawned) != 1 || len(r.w.tabs) != 2 || !r.w.tabs[1].isNew() || r.w.active != 1 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
 	}
 }
 
@@ -349,11 +360,11 @@ func TestClosingPanesKillsTheirSessions(t *testing.T) {
 		t.Errorf("focus %q after closing pane 1", r.w.tabs[0].focused)
 	}
 	r.click(t, "Close pane")
-	if len(r.w.tabs) != 0 || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
+	if len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
 		t.Fatalf("tabs %d killed %v", len(r.w.tabs), r.fb.killed)
 	}
-	if !r.tt.HasText("No sessions") {
-		t.Error("no empty-state message")
+	if !r.tt.HasText("Where to?") {
+		t.Error("the empty window does not show the New tab page")
 	}
 }
 

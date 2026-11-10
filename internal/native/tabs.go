@@ -43,6 +43,7 @@ func (w *workspace) removeTab(t *tab) {
 	if len(w.tabs) > 0 {
 		w.selectTab(w.active)
 	}
+	w.settle()
 }
 
 // closeTab kills every pane's session and removes the tab. It is recorded once, as the tab.
@@ -179,18 +180,29 @@ func (w *workspace) recordClosed(p *pane, kind string) {
 	}
 }
 
-// reopenClosed opens the newest closed entry whose host still exists as a new session in a new tab (⌘⇧T).
-func (w *workspace) reopenClosed() {
-	for i, e := range w.recent {
-		for _, h := range w.hosts {
-			if h.ID == e.hostID {
-				w.recent = slices.Delete(slices.Clone(w.recent), i, i+1)
+// reopenClosed opens the newest closed entry whose host still exists as a new session (⌘⇧T).
+func (w *workspace) reopenClosed() { w.reopenClosedAt(w.tab(), 0) }
+
+// reopenClosedAt opens entry i of the closed list (the live ones, newest first): in the New tab t when that
+// is one, else in a new tab. The entry leaves the list (term.js reopenClosed).
+func (w *workspace) reopenClosedAt(t *tab, i int) {
+	list := w.closedList()
+	if i < 0 || i >= len(list) {
+		w.err = "Nothing to reopen"
+		return
+	}
+	e := list[i]
+	w.recent = slices.DeleteFunc(slices.Clone(w.recent), func(o closedEntry) bool { return o == e })
+	for _, h := range w.hosts {
+		if h.ID == e.hostID {
+			if t != nil && t.isNew() {
+				w.openFrom(t, h)
+			} else {
 				w.openHost(h)
-				return
 			}
+			return
 		}
 	}
-	w.err = "Nothing to reopen" // term.js reopenClosed
 }
 
 // ---- recent hosts ----

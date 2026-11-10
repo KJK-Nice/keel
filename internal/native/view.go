@@ -36,8 +36,9 @@ func (w *workspace) view(c *ui.Context) {
 		w.statusbar(c)
 	})
 	w.hostKeyDialog(c)
+	w.quickDialogView(c)
 	w.paletteView(c)
-	if t := w.tab(); t != nil && w.wantFocus != "" && w.pal == nil {
+	if t := w.tab(); t != nil && w.wantFocus != "" && w.pal == nil && w.quick == nil {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			p.handle.Focus(c)
 			w.wantFocus = ""
@@ -73,6 +74,9 @@ func (w *workspace) view(c *ui.Context) {
 
 // shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken
 // before the terminal sees the key.
+// altDigits are the keys of the New tab page's cards, ⌥1 to ⌥6.
+var altDigits = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6}
+
 func (w *workspace) shortcuts(c *ui.Context) {
 	// ⌘K and ⌘⇧P open the palette (the palette's own dialog closes it again). Shortcuts built here wait
 	// while a dialog shows, so while the palette is open no other window key acts.
@@ -84,6 +88,13 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	}
 	c.OnWindowShortcut(ui.Cmd, ui.Key9, func() { w.act(func() { w.selectTab(len(w.tabs) - 1) }) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTab) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
+	if t := w.tab(); t != nil && t.isNew() { // ⌥1 to ⌥6 open the nth card of the New tab page
+		for i, k := range altDigits {
+			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
+		}
+	}
 	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(func() { w.sidebar = !w.sidebar }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
@@ -148,7 +159,11 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		if p := t.panes[t.focused]; p != nil {
 			status = p.status()
 		}
-		dot(c, statusColor(status))
+		if t.isNew() {
+			icon(c, "computer-terminal-01", inkMuted)
+		} else {
+			dot(c, statusColor(status))
+		}
 		col := inkMuted
 		if selected {
 			col = ink
@@ -271,7 +286,9 @@ func (w *workspace) stage(c *ui.Context) {
 	case w.blocked != "":
 		w.centered(c, w.blocked)
 	case t == nil:
-		w.centered(c, "No sessions. Pick a host in the sidebar to open one.")
+		w.centered(c, "") // the window keeps a tab: this is only the moment before the first listing
+	case t.isNew():
+		w.startPageView(c, t)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {
 			t.zoomed = ""
@@ -495,6 +512,12 @@ func (w *workspace) statusbar(c *ui.Context) {
 		if p := w.focusedPane(); p != nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.host.Name, cols, rows), inkMuted)
+		} else if t := w.tab(); t != nil && t.isNew() {
+			status := "New tab" // term.js renderTabs
+			if t.page.connecting != "" {
+				status = "Connecting…"
+			}
+			caption(c, status, inkMuted)
 		}
 	})
 }

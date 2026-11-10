@@ -236,7 +236,7 @@ func TestTabMenuClosesExactlyTheSessionsNamed(t *testing.T) {
 		{"close", "b", "Close", []string{"a", "c", "d"}, []string{"s2"}},
 		{"others", "b", "Close others", []string{"b"}, []string{"s1", "s3", "s4"}},
 		{"right", "b", "Close to the right", []string{"a", "b"}, []string{"s3", "s4"}},
-		{"all", "c", "Close all", nil, []string{"s1", "s2", "s3", "s4"}},
+		{"all", "c", "Close all", []string{"New Tab"}, []string{"s1", "s2", "s3", "s4"}}, // the window keeps a tab
 	} {
 		r := named(t, 4)
 		if got := menuLabels(t, r, "tab "+tc.tab); !slices.Equal(got, []string{"Rename tab", "-", "Close", "Close others", "Close to the right", "Close all"}) {

@@ -215,6 +215,7 @@ func (w *workspace) paletteItems() []palItem {
 	add("Tabs", "First tab", "⌘1", "", func() { w.selectTab(0) })
 	add("Tabs", "Last tab", "⌘9", "", func() { w.selectTab(len(w.tabs) - 1) })
 	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
+	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
 	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
 	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)

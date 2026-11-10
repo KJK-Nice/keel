@@ -231,3 +231,38 @@ func TestReadySetsIDAndStatusFiresOnChange(t *testing.T) {
 		t.Fatal("OnChange did not fire")
 	}
 }
+
+func TestCreateHostPostsTheHostAndReadsItBackWithItsID(t *testing.T) {
+	var body string
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/hosts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Keel-Token") != tok {
+			http.Error(w, "no", http.StatusUnauthorized)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.WriteHeader(http.StatusCreated) // as keel serve answers a new host
+		io.WriteString(w, `{"id":"h-new","name":"deploy@10.0.0.5","group":"Quick connect","address":"10.0.0.5","port":2222,"username":"deploy","authType":"password"}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := NewAt(strings.TrimPrefix(srv.URL, "http://"), tok)
+	nh := NewHost{Name: "deploy@10.0.0.5", Group: "Quick connect", Address: "10.0.0.5", Port: 2222, Username: "deploy", AuthType: "password", Password: "pw-typed-by-the-user", Color: "var(--ansi-12)"}
+	h, err := c.CreateHost(context.Background(), nh)
+	if err != nil || h.ID != "h-new" || h.Port != 2222 {
+		t.Fatalf("%+v %v", h, err)
+	}
+	var sent map[string]any
+	if json.Unmarshal([]byte(body), &sent) != nil || sent["password"] != "pw-typed-by-the-user" || sent["authType"] != "password" || sent["group"] != "Quick connect" {
+		t.Errorf("body %s", body)
+	}
+	if strings.Contains(nh.String(), "pw-typed") {
+		t.Error("a NewHost prints its password")
+	}
+	// An error names the method, path and status, never the body.
+	bad := NewAt(strings.TrimPrefix(srv.URL, "http://"), "wrong")
+	if _, err := bad.CreateHost(context.Background(), nh); err == nil || strings.Contains(err.Error(), "pw-typed") {
+		t.Errorf("error %v", err)
+	}
+}

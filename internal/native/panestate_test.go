@@ -40,8 +40,8 @@ func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 		t.Fatalf("reconnected %v killed %v", r.fb.reconnected, r.fb.killed)
 	}
 	r.click(t, "Close")
-	if !slices.Equal(r.fb.killed, []string{"s-x"}) || len(r.w.tabs) != 0 {
-		t.Fatalf("killed %v tabs %d", r.fb.killed, len(r.w.tabs))
+	if !slices.Equal(r.fb.killed, []string{"s-x"}) || len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() {
+		t.Fatalf("killed %v tabs %d: closing the last tab leaves a New tab", r.fb.killed, len(r.w.tabs))
 	}
 }
 

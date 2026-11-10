@@ -89,7 +89,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return fmt.Errorf("%s %s: %w", method, path, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("%s %s: %s", method, path, resp.Status)
 	}
 	if out == nil || resp.StatusCode == http.StatusNoContent {
@@ -113,6 +113,29 @@ func (c *Client) Vault(ctx context.Context) (v Vault, err error) {
 func (c *Client) Hosts(ctx context.Context) (h []Host, err error) {
 	err = c.do(ctx, http.MethodGet, "/api/hosts", nil, &h)
 	return h, err
+}
+
+// NewHost is the body of POST /api/hosts. Password is a secret the user typed: String leaves it out, so that
+// printing a NewHost never shows it, and nothing in this package logs a request body.
+type NewHost struct {
+	Name     string `json:"name"`
+	Group    string `json:"group"`
+	Address  string `json:"address"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	AuthType string `json:"authType"`
+	Password string `json:"password"`
+	Color    string `json:"color"`
+}
+
+func (h NewHost) String() string {
+	return fmt.Sprintf("{%s %s %s:%d %s}", h.Name, h.Group, h.Address, h.Port, h.AuthType)
+}
+
+// CreateHost is POST /api/hosts: it saves a host and returns it (secrets redacted, with its id).
+func (c *Client) CreateHost(ctx context.Context, h NewHost) (out Host, err error) {
+	err = c.do(ctx, http.MethodPost, "/api/hosts", h, &out)
+	return out, err
 }
 
 // Sessions is GET /api/sessions.
