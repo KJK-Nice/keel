@@ -81,6 +81,7 @@ func (w *workspace) pollOnce() {
 		case v.Rev != w.rev && w.live:
 			w.rev = v.Rev
 			w.reloadHosts()
+			w.refreshPages()
 		}
 	})
 }

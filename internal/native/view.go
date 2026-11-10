@@ -51,6 +51,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
 	w.hostDialogView(c)
+	w.identityDialogView(c)
 	w.confirmView(c)
 	w.paletteView(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
@@ -110,7 +111,7 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newHost) }) // New host (docs/shortcuts.md)
+	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newItem) }) // New host, or the page's own New (docs/shortcuts.md)
 	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
 		for i, k := range altDigits {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
@@ -180,9 +181,12 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		if p := t.panes[t.focused]; p != nil {
 			status = p.status()
 		}
-		if t.isNew() {
+		switch {
+		case t.isNew():
 			icon(c, "computer-terminal-01", inkMuted)
-		} else {
+		case t.isPage():
+			icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
+		default:
 			dot(c, statusColor(status))
 		}
 		col := inkMuted
@@ -230,8 +234,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 }
 
 func (w *workspace) sidebarView(c *ui.Context) {
-	hairline(ui.Box(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
-		ui.Column(c).Grow(1).Padding(space2).Gap(space2).Children(func() {
+	hairline(ui.Column(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).Padding(space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Shrink(0).Gap(space1).Children(func() {
 				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
 					Background(stage).Border(1, lineStrong).Children(func() {
@@ -249,6 +253,24 @@ func (w *workspace) sidebarView(c *ui.Context) {
 				}
 			})
 		})
+		w.sidebarFoot(c)
+	})
+}
+
+// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages. Settings has its place on the right and waits
+// for its phase (docs/native.md).
+func (w *workspace) sidebarFoot(c *ui.Context) {
+	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2).Gap(space1), 1, 0, 0, 0).Children(func() {
+		for _, name := range pageNames {
+			def := pageDefs[name]
+			glyph := "key-01"
+			if name == "logs" {
+				glyph = "logs"
+			}
+			if textBtnIcon(c, glyph, def.title, btnGhost) {
+				w.act(func() { w.openPage(name) })
+			}
+		}
 	})
 }
 
@@ -325,6 +347,8 @@ func (w *workspace) stage(c *ui.Context) {
 		w.centered(c, "") // the window keeps a tab: this is only the moment before the first listing
 	case t.isNew():
 		w.startPageView(c, t)
+	case t.isPage():
+		w.pageView(c, t)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {
 			t.zoomed = ""

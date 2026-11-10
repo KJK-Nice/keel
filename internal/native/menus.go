@@ -44,7 +44,7 @@ func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) {
 func (w *workspace) tabMenu(t *tab) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		i := slices.Index(w.tabs, t)
-		if m.Item("Rename tab").Chosen() {
+		if m.Item("Rename tab").Disabled(t.isPage()).Chosen() {
 			w.act(func() { w.beginRename(t) })
 		}
 		m.Separator()

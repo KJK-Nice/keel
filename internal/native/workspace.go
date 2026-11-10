@@ -128,12 +128,16 @@ type tab struct {
 	h ui.Handle // the tab in the strip, for where a dragged tab lands
 
 	page *startPage // set while the tab is the New tab page: it has no panes
+	pg   *tabPage   // set while the tab is a page (Keychain, Logs…): it has no panes either
 }
 
 // isNew reports the New tab page.
 func (t *tab) isNew() bool { return t.page != nil }
 
 func (t *tab) name() string {
+	if t.pg != nil { // a page is named by what it is: no rename
+		return pageDefs[t.pg.name].title
+	}
 	if t.title != "" {
 		return t.title
 	}
@@ -203,8 +207,9 @@ type workspace struct {
 	live            bool      // the first listing has been read: the window keeps a tab from now on
 	newTabLockUntil time.Time // ⌘T repeats inside this are ignored
 	quick           *quickDialog
-	hostDlg         *hostDialog  // New host / Edit host
-	confirm         *hostConfirm // a confirm dialog on its own (the host menu's Delete)
+	hostDlg         *hostDialog     // New host / Edit host
+	identDlg        *identityDialog // New identity / Edit identity (the Keychain page)
+	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -365,6 +370,9 @@ func (w *workspace) selectTab(i int) {
 	w.wantFocus = w.tabs[i].focused
 	if p := w.tabs[i].page; p != nil {
 		p.focus = true // the New tab page's input has the keyboard
+	}
+	if w.tabs[i].pg != nil {
+		w.loadPage(w.tabs[i]) // a page shows what the server has now
 	}
 }
 
@@ -536,6 +544,8 @@ func (w *workspace) closeFocused() {
 		if len(w.tabs) > 1 {
 			w.closeTab(t)
 		}
+	case t.isPage():
+		w.closeTab(t)
 	default:
 		w.closePane(t, t.focused)
 	}

@@ -136,7 +136,7 @@ func (w *workspace) zoomFocused() {
 // ---- the tab's name ----
 
 func (w *workspace) beginRename(t *tab) {
-	if w.renaming != nil || !slices.Contains(w.tabs, t) {
+	if w.renaming != nil || t.isPage() || !slices.Contains(w.tabs, t) {
 		return
 	}
 	w.renaming, w.renameText, w.renameSeen = t, t.name(), false

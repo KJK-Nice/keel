@@ -30,6 +30,11 @@ type savedDoc struct {
 	V      int        `json:"v"`
 	Active int        `json:"active"` // index into Tabs
 	Tabs   []savedTab `json:"tabs"`
+	// Pages are the page tabs (Keychain, Logs…) by name, in strip order; they come back after the session tabs.
+	// ActivePage names the page that was shown, when one was (Active is then not used). Nothing of a page's
+	// content is kept: a page reads the server when it opens.
+	Pages      []string `json:"pages,omitempty"`
+	ActivePage string   `json:"activePage,omitempty"`
 }
 
 type savedTab struct {
@@ -70,6 +75,13 @@ func (s *saveState) stop() {
 func (w *workspace) snapshot() savedDoc {
 	d := savedDoc{V: savedVersion, Tabs: []savedTab{}}
 	for i, t := range w.tabs {
+		if t.pg != nil {
+			d.Pages = append(d.Pages, t.pg.name)
+			if i == w.active {
+				d.ActivePage = t.pg.name
+			}
+			continue
+		}
 		root := t.snapNode(t.root)
 		if root == nil {
 			continue
@@ -223,10 +235,26 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 			w.tabs = append(w.tabs, &tab{root: layout.Leaf(p.id), panes: map[string]*pane{p.id: p}, focused: p.id})
 		}
 	}
+	var pages []*tab
+	if doc != nil {
+		for _, name := range doc.Pages {
+			if t := w.addPageTab(name); t != nil {
+				pages = append(pages, t)
+				if name == doc.ActivePage {
+					active = len(w.tabs) - 1
+				}
+			}
+		}
+	}
 	if active < 0 {
 		active = len(w.tabs) - 1
 	}
-	w.selectTab(active)
+	w.selectTab(active) // reads the page when it is a page
+	for _, t := range pages {
+		if t != w.tab() {
+			w.loadPage(t)
+		}
+	}
 }
 
 func (w *workspace) buildTab(st savedTab, bySID map[string]*pane, used map[string]bool) *tab {

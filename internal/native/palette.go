@@ -218,6 +218,9 @@ func (w *workspace) paletteItems() []palItem {
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
+	for _, name := range pageNames { // Keychain, then Logs (Forwards, Snippets and Notebooks sit between them in the webview)
+		add("Vault", pageDefs[name].title, "", "", func() { w.openPage(name) })
+	}
 	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
 	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
 	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)
@@ -240,6 +243,10 @@ func (w *workspace) paletteItems() []palItem {
 		focusTab := func() { w.selectTab(i) }
 		if t.isNew() {
 			items = append(items, palItem{group: "Open now", title: "New tab", hint: fmt.Sprintf("tab %d", n), keys: keys, icon: "add-01", run: func(bool) { focusTab() }})
+			continue
+		}
+		if t.isPage() {
+			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: pageDefs[t.pg.name].paletteTag, run: func(bool) { focusTab() }})
 			continue
 		}
 		leaves := t.root.Leaves()
