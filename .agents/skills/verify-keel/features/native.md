@@ -35,6 +35,23 @@ values with `KEEL_NATIVE_OPACITY` (30-100) and `KEEL_NATIVE_BLUR` (0-64) or the
 `keel-native.json` prefs file in the data dir. The blur and the real
 see-through window are person-only checks.
 
+## Themes, UI size and the look
+
+Both themes are tested by pixels: `theme_test.go` sets the choice (`setTheme`)
+and reads the title bar, sidebar, a tile, the palette, Unlock and First run
+against `lightHex` and `darkHex`; `system` follows `ui.Tester.SetDark`;
+`TestTokensMatchJSON` checks both sets; `TestNoHexColourOutsideTokens` keeps
+hex out of views. `uisize_test.go` checks UI size scales rem sizes, not px ones;
+`TestSplitsTileTheStage` and `assertFits` check that splits fit the window.
+Check a new view in both themes (`TestE2EThemeSwitch` writes the `-light` shots).
+
+**Look at the reference image next to the native shot before claiming a screen
+matches**: open `docs/images/<screen>.png` and `.scratch-native/e2e/<Test>.png`
+with the image reader and list every difference (layout, spacing, size, colour,
+icon, wording, missing elements). Read the app's templ and `keel.css` too: the
+images are older than the code. Record it in "Compared with the app" in
+`docs/native.md`: fixed, known gap (phase) or needs a decision.
+
 ## The bundle
 
 `make native-app`, then each as its own command: `"bin/Keel Native.app/Contents/MacOS/keel-native" --library-path`
