@@ -79,6 +79,21 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   second window is a follower with "Ask for control"; `TestE2EFollowerAndTakeControl` has the owner pass
   control with `GrantControl` (a control frame, never a PTY write), then take it back with "Take control".
 
+## Menus, tab drags and the saved workspace
+
+- Menus: `tt.RightClick("pane bar 1")` (a pane bar), `tt.RightClickAt(x, y)` (a tab pill: equal names are
+  equally wide, so `tabRect(i)` offsets the first), then `tt.Menu()` lists the labels (`-` is a separator)
+  and `tt.ChooseMenuItem("Close pane")` picks one; a disabled item returns an error, which is how the
+  tab menu's disabled items are tested. The More tool is `tt.Click("More pane actions")`.
+- Reorder: `Press`, two `Move`s, `Release` from one pill to another's left or right half.
+- The saved workspace: close the window with `w.closeWindow()` (it writes the file), then `newWin` again on
+  the same `addr` and `dir`: the second window restores from `<dir>/keel-native-workspace.json`. Compare
+  trees by session id (`structure`), never by local pane id. `newWin` sets the data dir; a test that
+  must not restore uses a fresh `startServe`.
+- Find and text size: the find bar's count comes from the terminal (`p.search.status()`); the bar makes
+  the terminal a row shorter, so `sh` redraws its prompt: compare scrollbacks through the `redraw`
+  replacer. Text size shows on the server as the session's `cols`.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
