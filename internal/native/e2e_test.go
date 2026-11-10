@@ -1290,7 +1290,8 @@ func TestE2EPalette(t *testing.T) {
 			groups = append(groups, it.group)
 		}
 	}
-	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions"}) {
+	// A new vault is seeded with four snippets, so the Snippets group follows Actions.
+	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets"}) {
 		t.Fatalf("groups %q", groups)
 	}
 	for _, s := range []string{"Open now", "Hosts", "Actions", "logs", "New session on Local Shell", "Split down"} {
