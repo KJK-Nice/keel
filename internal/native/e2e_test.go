@@ -25,6 +25,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/authtoken"
+	"keel/internal/native/joinpeer"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 )
@@ -167,6 +168,7 @@ type win struct {
 	addr  string
 	token string
 	posts chan func()
+	peers []*joinpeer.Peer // the joins this window made: every one has no ICE server (e2eJoiner)
 }
 
 // newWin opens a window on the daemon: the real view, the real terminal, the real client.
@@ -192,6 +194,7 @@ func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, hei
 	e.w.mkBody = liveBody
 	e.w.work = func(fn func()) { go fn() }
 	e.w.post = func(fn func()) { e.posts <- fn }
+	e.w.joiner = e.joiner
 	e.w.start()
 	e.tt = ui.NewTester(e.w.view, 1280, height)
 	e.tt.Frame()

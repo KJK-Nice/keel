@@ -549,3 +549,26 @@ func TestPaneMenuAndPaletteShare(t *testing.T) {
 		t.Errorf("stopped %v", r.fb.stopped)
 	}
 }
+
+func TestAPromptOverThePopoverAnswersWithOneClickAndLeavesThePopoverOpen(t *testing.T) {
+	r := shareRig(t, ownerState())
+	r.click(t, "Share")
+	r.tt.Frame()
+	joinRequest(r, "p1", "Ann")
+	a, _ := r.tt.Find("Allow")
+	p, _ := r.tt.Find("dialog Share session")
+	if a.Y < p.Y || a.Y > p.Y+p.H {
+		t.Fatalf("the prompt (%v) does not lie over the popover (%v): the test would prove nothing", a, p)
+	}
+	r.tt.ClickAt(a.X+a.W/2, a.Y+a.H/2)
+	r.tt.Frame()
+	if !slices.Equal(r.fb.admitted, []string{"s1 p1 true"}) || r.w.share == nil {
+		t.Fatalf("admitted %v, popover open %v: a click on a prompt is one click, and not a click outside the popover", r.fb.admitted, r.w.share != nil)
+	}
+	// A click elsewhere still closes it.
+	r.tt.ClickAt(5, 400)
+	r.tt.Frame()
+	if r.w.share != nil {
+		t.Error("a click outside did not close the popover")
+	}
+}

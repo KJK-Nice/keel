@@ -103,6 +103,7 @@ native-app: native
 native-e2e:
 	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
+	go build -o bin/keel-signal ./cmd/keel-signal
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 test: ui test-js

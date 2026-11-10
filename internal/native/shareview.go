@@ -93,8 +93,12 @@ func (w *workspace) sharePopover(c *ui.Context, anchor ui.Element) {
 			}
 		})
 	})
-	if !open { // Escape or a click outside
-		w.act(w.closeShare)
+	if !open { // Escape or a click outside, unless the press was on a prompt: it is a click on Allow, not a dismissal
+		w.act(func() {
+			if !w.promptPressed {
+				w.closeShare()
+			}
+		})
 	}
 }
 
@@ -200,8 +204,12 @@ func (w *workspace) sharePrompt(c *ui.Context, s *sharePrompt) {
 	if title == "" {
 		title = "this session"
 	}
-	ui.Row(c).FillWidth().Padding(space3).Gap(space2).AlignItems(ui.Start).Radius(radiusMd).Background(raised).Border(1, line).
-		Shadow(0, 8, 24, 0, shadowPop).Label("alertdialog " + s.name).Key(s.key()).Children(func() {
+	row := ui.Row(c).FillWidth().Padding(space3).Gap(space2).AlignItems(ui.Start).Radius(radiusMd).Background(raised).Border(1, line).
+		Shadow(0, 8, 24, 0, shadowPop).Label("alertdialog " + s.name).Key(s.key())
+	if row.PressedInside() {
+		w.promptPressed = true
+	}
+	row.Children(func() {
 		ui.Row(c).Shrink(0).Children(func() {
 			if s.control {
 				icon(c, "steering", haze)
@@ -247,6 +255,7 @@ func (w *workspace) sharePrompt(c *ui.Context, s *sharePrompt) {
 // shareFrame runs once a frame, before the view is built: it reads what the sockets announced, closes a popover whose
 // pane is gone, and puts a link that has just arrived on the clipboard.
 func (w *workspace) shareFrame(c *ui.Context) {
+	w.promptPressed = false
 	w.drainEvents()
 	w.syncShare()
 	if s := w.share; s != nil && s.wantCopy {

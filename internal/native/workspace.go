@@ -280,11 +280,12 @@ type workspace struct {
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet (approve.go)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 
-	joinDlg    *joinDialog                                         // Join a session (join.go)
-	joiner     func(l joinpeer.Link, name string) (session, error) // opens the peer of a joined share
-	share      *sharePop                                           // the open Share popover (share.go)
-	shareLinks map[string]shareLink                                // the join link this window was given, by session id; never saved
-	prompts    []*sharePrompt                                      // the region "Share requests"
+	joinDlg       *joinDialog                                         // Join a session (join.go)
+	joiner        func(l joinpeer.Link, name string) (session, error) // opens the peer of a joined share
+	share         *sharePop                                           // the open Share popover (share.go)
+	shareLinks    map[string]shareLink                                // the join link this window was given, by session id; never saved
+	promptPressed bool                                                // a press this frame landed on a prompt: it does not dismiss the Share popover
+	prompts       []*sharePrompt                                      // the region "Share requests"
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.

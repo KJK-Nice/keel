@@ -278,12 +278,14 @@ func orElse(s, d string) string {
 
 // ---- the connection of a pane ----
 
-// Read returns the host's terminal bytes, and io.EOF once the peer is closed and they are read.
+// Read returns the host's terminal bytes and io.EOF once the peer is closed (Leave). A join that failed (declined, not
+// verified, lost) is not an end of the stream: Read waits, so the terminal stays blank instead of drawing its own
+// "[Disconnected]" over the app's error.
 func (p *Peer) Read(b []byte) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for len(p.queue) == 0 {
-		if p.closed || p.failed {
+		if p.closed {
 			return 0, io.EOF
 		}
 		p.cond.Wait()
