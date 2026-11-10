@@ -13,17 +13,24 @@ import (
 // of this window, opened from its bar), and #tab-ctx in internal/ui/parts.templ with which are disabled
 // from ui/tabmenu.js. Share waits for a later phase. A menu never types into a session.
 
-// paneMenu fills the menu of pane p of tab t.
-func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) {
+// paneMenu fills the menu of pane p of tab t, opened from its bar.
+func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) { return w.paneMenuFor(t, p, false) }
+
+// paneMenuFor is paneMenu for a bar (row false) or for a row of the sidebar's Panes section (row true): a row has
+// Focus and no Focus view (lib/termmenu.js paneMenuItems).
+func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		st := p.conn.Snapshot()
+		if row && m.Item("Focus").Chosen() {
+			w.act(func() { w.pickPane(t, p.id) })
+		}
 		if m.Item("Split right").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
 			w.act(func() { w.split(t, p.id, layout.Row) })
 		}
 		if m.Item("Split down").Shortcut(ui.Cmd|ui.Shift, ui.KeyE).Chosen() {
 			w.act(func() { w.split(t, p.id, layout.Col) })
 		}
-		if len(t.panes) > 1 || t.zoomed != "" {
+		if !row && (len(t.panes) > 1 || t.zoomed != "") {
 			if m.Item("Focus view").Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter).Chosen() {
 				w.act(func() { w.toggleZoom(t, p.id) })
 			}

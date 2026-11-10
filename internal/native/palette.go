@@ -275,11 +275,8 @@ func (w *workspace) paletteItems() []palItem {
 				}
 				items = append(items, palItem{group: "Open now", title: p.host.Name, hint: sub, icon: "computer-terminal-01", state: paneDot(p.status()), run: func(bool) {
 					focusTab()
-					t.focused = id
-					if t.zoomed != "" && t.zoomed != id {
-						t.zoomed = ""
-					}
-					w.wantFocus = id
+					w.pickPane(t, id)
+					w.revealPanes(t)
 				}})
 			}
 		}

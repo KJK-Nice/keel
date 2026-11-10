@@ -182,6 +182,8 @@ type workspace struct {
 	tunnels    []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
 	tunReading bool                // the 2 s read of them is in flight
 	fwdQuery   string              // the sidebar's Forwards filter
+	paneQuery  string              // the sidebar's Panes filter
+	paneH      ui.Handle
 	fwdH       ui.Handle
 	fwdDlg     *forwardDialog // New forward / Edit forward
 	fwdKey     *fwdKeyOffer   // "Unknown host key" for a forward that could not start

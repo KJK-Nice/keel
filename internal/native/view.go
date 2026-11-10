@@ -2,6 +2,8 @@ package native
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
@@ -30,6 +32,7 @@ func (w *workspace) view(c *ui.Context) {
 		w.runLater(c)
 		return
 	}
+	w.fallBackToHosts()
 	w.shortcuts(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
@@ -252,6 +255,9 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					Background(stage).Border(1, lineStrong).Children(func() {
 					icon(c, "search-01", inkFaint)
 					switch {
+					case w.sidePanes():
+						ui.TextInputBase(c, &w.paneQuery).Label("Filter panes").Placeholder("Filter panes").
+							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.paneH)
 					case w.sideSnippets(): // each section has its own filter (term.js sidebarQuery)
 						ui.TextInputBase(c, &w.snipQuery).Label("Filter snippets").Placeholder("Filter snippets").
 							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.snipH)
@@ -267,8 +273,16 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					w.act(w.newHost)
 				}
 			})
-			// k-seg "Vault section": Hosts · Snippets · Forwards. Panes comes with its step (docs/native.md).
-			segControl(c, "Vault section", w.sideSeg, [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}, {"forwards", "Forwards"}}, func(v string) { w.sideSeg = v })
+			// k-seg "Vault section": Hosts · Panes · Snippets · Forwards. Panes shows only while the tab has 2+ panes.
+			segs := [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}, {"forwards", "Forwards"}}
+			if pt := w.panesTab(); pt != nil {
+				segs = slices.Insert(segs, 1, [2]string{"panes", "Panes " + strconv.Itoa(len(pt.panes))})
+			}
+			segControl(c, "Vault section", w.sideSeg, segs, func(v string) { w.sideSeg = v })
+			if w.sidePanes() {
+				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar panes").Children(func() { w.sidebarPanes(c, w.panesTab()) })
+				return
+			}
 			if w.sideSnippets() {
 				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar snippets").Children(func() { w.sidebarSnippets(c) })
 				return
@@ -506,7 +520,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround).Label("pane bar " + p.id)
 		bar.PopoverMenu(w.paneMenu(t, p))
 		if bar.Clicked() {
-			w.act(func() { p.handle.Focus(c); t.focused = p.id })
+			w.act(func() { p.handle.Focus(c); t.focused = p.id; w.revealPanes(t) })
 		}
 		bar.Children(func() {
 			sub := st.Subtitle
@@ -550,6 +564,13 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			w.findBar(c, p)
 		}
 		pane := ui.Box(c).Grow(1).FillWidth().Background(w.ground(stage))
+		// A press into the terminal of a split tab shows the Panes section (term.js mousedown → revealPanes). The press
+		// is only watched: the terminal keeps the keyboard. The bar's buttons do not count; the bar itself does.
+		pane.ObserveInput(func(ev ui.InputEvent) {
+			if ev.Kind == ui.InputPointerDown {
+				w.act(func() { w.revealPanes(t) })
+			}
+		})
 		if multi && !focused {
 			pane.Opacity(dimAlpha)
 		}
