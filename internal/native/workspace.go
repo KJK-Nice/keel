@@ -213,6 +213,8 @@ type workspace struct {
 	hostDlg         *hostDialog     // New host / Edit host
 	identDlg        *identityDialog // New identity / Edit identity (the Keychain page)
 	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
+	approve         *approveDialog  // Approve before type: the one way Keel types a snippet (approve.go)
+	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -369,6 +371,9 @@ func (w *workspace) selectTab(i int) {
 		return
 	}
 	w.active = i
+	if len(w.tabs[i].panes) > 0 {
+		w.lastSession = w.tabs[i]
+	}
 	w.notice = ""
 	w.wantFocus = w.tabs[i].focused
 	if p := w.tabs[i].page; p != nil {

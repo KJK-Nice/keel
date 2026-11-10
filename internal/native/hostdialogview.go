@@ -10,7 +10,7 @@ import (
 
 // modalOpen reports a dialog that has the keyboard: no terminal or page input takes focus while one shows.
 func (w *workspace) modalOpen() bool {
-	return w.pal != nil || w.quick != nil || w.hostDlg != nil || w.identDlg != nil || w.confirm != nil
+	return w.pal != nil || w.quick != nil || w.hostDlg != nil || w.identDlg != nil || w.confirm != nil || w.approve != nil
 }
 
 // inputBox is a single-line input in a bordered box (k-input).

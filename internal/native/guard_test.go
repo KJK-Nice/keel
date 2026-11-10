@@ -82,8 +82,24 @@ func TestApprovedInjectHasOneCallerTheApproveDialog(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		got = append(got, calls(t, name, src, "ApprovedInject")...)
 	}
-	if len(got) > 1 || (len(got) == 1 && !strings.HasPrefix(got[0], "approve.go:")) {
+	if len(got) != 1 || !strings.HasPrefix(got[0], "approve.go:") {
 		t.Fatalf("ApprovedInject is called from %v; it must be called once, from approve.go (the dialog's Type action)", got)
+	}
+}
+
+// approveType is what the Type button presses. It is passed to act, not called, so the guard looks for the name
+// as a selector or an identifier: only approveview.go (the button) may name it.
+func TestOnlyTheTypeButtonAsksToType(t *testing.T) {
+	for name, src := range sourceFiles(t) {
+		if name == "approve.go" || name == "approveview.go" {
+			continue
+		}
+		if strings.Contains(src, "approveType") {
+			t.Errorf("%s names approveType: only the Approve dialog's Type button may start a type", name)
+		}
+	}
+	if n := strings.Count(sourceFiles(t)["approveview.go"], "w.approveType"); n != 1 {
+		t.Fatalf("approveview.go names approveType %d times, want once (the Type button)", n)
 	}
 }
 

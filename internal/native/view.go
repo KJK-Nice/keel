@@ -52,6 +52,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.quickDialogView(c)
 	w.hostDialogView(c)
 	w.identityDialogView(c)
+	w.approveView(c)
 	w.confirmView(c)
 	w.paletteView(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
