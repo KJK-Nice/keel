@@ -17,7 +17,7 @@ by the handle it started, never by name. Effects are checked on the server
 ## How to run
 
 ```bash
-make native-e2e    # builds bin/keel, then go test -tags nativee2e ... TestE2E
+make native-e2e    # builds bin/keel, bin/keel-sshtest and bin/keel-signal, then go test -tags nativee2e ... TestE2E
 go test -tags nativee2e -count=1 -run TestE2ESplitAndFocus ./internal/native/
 ```
 
@@ -188,6 +188,26 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   opacity needs a translucent window: `e.useSavedWindowPrefs()` does what `Run` does. Read the title bar's alpha from `tt.Image()`.
   Only ever stop the test's own daemon.
 - Toasts: label `toast <text>`; `e.tt.Advance(toastTimeout+time.Second)` expires them (the clock is the Tester's, not real time).
+
+## Share and Join (`e2e_share_test.go`)
+
+- Two daemons, as two machines: `newShareE2E(t, true)` starts `bin/keel-signal` on a free loopback port (`make native-e2e`
+  builds it), the owner's `keel serve` with `KEEL_SIGNAL` pointing at it, and the joiner's own `keel serve` and data dir.
+  Window A is the owner, B joins. A `pbcopy` that does nothing leads the owner's `PATH` (keel serve copies a new link to
+  the system pasteboard; a test must not).
+- **No public server, ever.** Every joiner peer is made by `win.joiner` with an empty ICE list and loopback candidates
+  (`noOffMachine` asserts both). keel serve's share hub (`internal/share/hub.go` `acceptPeer`) puts a public STUN
+  server in its own peer and gathers from it as soon as the owner allows a joiner, so **no test presses Allow**: the
+  scenarios end at Deny, Stop sharing, a link that no longer works, and a request for control from a second window on
+  the same daemon. Admitting, reading the host's terminal, typing after a hand-over and a wrong key run in
+  `joinpeer`'s tests against the real signal server and a pion peer (loopback). Do not add an Allow to the e2e until the hub
+  takes its ICE servers from a test hook.
+- The link: `tt.Clipboard()` holds it; keep it in a variable, never print or write it. The popover draws it without its key.
+- Labels: the title bar's `Share` and `N watching`, `dialog Share session`, `Join link field`, `share foot` (the foot's
+  buttons share their names with the pane's banner: click by position), `Share requests` and `alertdialog <name>` for
+  the prompts, `Allow`, `Deny`, `Hand over`, `Keep driving`; B's `dialog Join a session` (⌘J, field `Join link`), `banner
+  joining`, `banner failed`, `tab <title> · joined`. Joining is ⌘J, `e.fillField("Join link", link)`, `e.click("Join")`.
+- Person only: two real machines, NAT, STUN, a public signal server, the browser join page against a native owner.
 
 ## Not covered
 
