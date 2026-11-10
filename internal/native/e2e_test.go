@@ -629,6 +629,12 @@ type sshFixture struct {
 	host, user string
 	port       int
 	password   string // typed into a field by the test that needs it; never printed or logged
+
+	// The fixture's other server, the one that allows forwarding (the target refuses it): a forward goes through it.
+	jump struct {
+		host, user, password, fingerprint string
+		port                              int
+	}
 }
 
 // startSSH runs bin/keel-sshtest, creates a password host for its target on the daemon through
@@ -677,15 +683,14 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 	f := &sshFixture{cmd: cmd, done: make(chan struct{})}
 	go func() { cmd.Wait(); close(f.done) }()
 	t.Cleanup(f.stop)
-	var info struct {
-		Target struct {
-			Host        string
-			Port        int
-			User        string
-			Password    string
-			Fingerprint string
-		}
+	type server struct {
+		Host        string
+		Port        int
+		User        string
+		Password    string
+		Fingerprint string
 	}
+	var info struct{ Target, Jump server }
 	for end := time.Now().Add(e2eWait); ; time.Sleep(50 * time.Millisecond) {
 		if b, err := os.ReadFile(out); err == nil && json.Unmarshal(b, &info) == nil && info.Target.Port != 0 {
 			break
@@ -697,6 +702,7 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 	os.Remove(out) // it holds the fixture's password in the clear: it stays only in memory, never in a file of the run
 	f.fingerprint = info.Target.Fingerprint
 	f.host, f.port, f.user, f.password = info.Target.Host, info.Target.Port, info.Target.User, info.Target.Password
+	f.jump.host, f.jump.port, f.jump.user, f.jump.password, f.jump.fingerprint = info.Jump.Host, info.Jump.Port, info.Jump.User, info.Jump.Password, info.Jump.Fingerprint
 	return f
 }
 

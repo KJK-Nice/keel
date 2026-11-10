@@ -155,7 +155,7 @@ func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 		ui.Row(c).Width(fwdThroughCol).Shrink(0).Children(func() { caption(c, w.tunnelHostName(t.HostID), inkMuted).MinWidth(0) })
 		ui.Row(c).Width(fwdStatusCol).Shrink(0).Gap(space2).AlignItems(ui.Center).Children(func() {
 			stateDot(c, st.dot)
-			ui.Text(c, st.label).TextColor(ink).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0).MaxLines(1)
+			ui.Text(c, st.label).TextColor(ink).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
 			if t.Status == "error" && textBtn(c, "Retry", btnGhost) {
 				w.act(func() { w.setTunnelOn(t, true) })
 			}

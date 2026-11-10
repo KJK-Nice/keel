@@ -144,10 +144,12 @@ func (w *workspace) railItem(c *ui.Context, p *settingsPage, id, name, count str
 
 func (w *workspace) settingsPanel(c *ui.Context, s settingsSection, p *settingsPage) {
 	ui.Column(c).FillWidth().Gap(space6).Key(s.id).Label("settings " + s.title).Children(func() {
-		ui.Text(c, s.title).TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold)
-		if s.lead != "" {
-			ui.Text(c, s.lead).TextColor(inkMuted).FontSize(uiFontSize).MaxWidth(leadWidth)
-		}
+		ui.Column(c).FillWidth().Gap(space3).Children(func() { // .k-settings-lead sits half a gap under the title
+			ui.Text(c, s.title).TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold)
+			if s.lead != "" {
+				ui.Text(c, s.lead).TextColor(inkMuted).FontSize(uiFontSize).MaxWidth(leadWidth)
+			}
+		})
 		for _, g := range s.groups {
 			ui.Column(c).FillWidth().Gap(space1).Children(func() {
 				if g.title != "" {
@@ -167,14 +169,16 @@ func (w *workspace) prefRowView(c *ui.Context, r prefRow, last bool) {
 	if last {
 		bottom = 0
 	}
-	box := hairline(ui.Row(c).FillWidth().Padding(space3, 0).Gap(space4+space1).AlignItems(ui.Center).Label("setting "+r.title), 0, 0, bottom, 0)
-	if r.stack {
-		box = hairline(ui.Column(c).FillWidth().Padding(space3, 0).Gap(space2).Label("setting "+r.title), 0, 0, bottom, 0)
+	var box ui.Element
+	switch {
+	case r.preview:
+		box = ui.Column(c).FillWidth().Padding(space3, 0).Label("setting preview")
+	case r.stack:
+		box = ui.Column(c).FillWidth().Padding(space3, 0).Gap(space2).Label("setting " + r.title)
+	default:
+		box = ui.Row(c).FillWidth().Padding(space3, 0).Gap(space4 + space1).AlignItems(ui.Center).Label("setting " + r.title)
 	}
-	if r.preview {
-		box = hairline(ui.Column(c).FillWidth().Padding(space3, 0).Label("setting preview"), 0, 0, bottom, 0)
-	}
-	box.Children(func() {
+	hairline(box, 0, 0, bottom, 0).Children(func() {
 		if r.preview {
 			r.ctl(c)
 			return
