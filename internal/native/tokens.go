@@ -34,6 +34,8 @@ const (
 	hexHaze          = "#85b6e9"
 	hexHazeSoft      = "#85b6e926"
 	hexScrim         = "#020407b8"
+	hexTideSoft      = "#5dd2bd24"
+	hexShadowModal   = "#000000a6" // shadow-modal's drop shadow; its 1px ring is #ffffff0f
 	// focus = brass-ink, term-fg = ink, term-bg = stage, term-cursor = brass.
 	hexFocus      = hexBrassInk
 	hexTermFg     = hexInk
@@ -54,6 +56,7 @@ const (
 	sizePanebar   = 30
 	sizeControl   = 28
 	sizeControlSm = 24
+	sizeControlLg = 32
 	sizeRow       = 44
 	sizeSidebar   = 252
 	// Not tokens: the macOS traffic lights' close button is 14 DIPs tall (AppKit); TrafficLightPosition
@@ -65,15 +68,22 @@ const (
 	space2           = 8
 	space3           = 12
 	space4           = 16
+	space6           = 24
+	space8           = 32
 	radiusXs         = 3
 	radiusSm         = 5
 	radiusMd         = 8
+	radiusLg         = 12
 	radiusFull       = 999
 	uiFontSize       = 13   // type body
 	captionSize      = 12   // type label / caption
 	windowOpacity    = 0.66 // vibrancy-tint-default
 	weightRegular    = 400
 	weightMedium     = 500
+	weightSemibold   = 600
+	titleSize        = 15 // type title
+	displaySize      = 28 // type display
+	kbdSize          = 11 // type kbd
 	monoFamily       = "JetBrains Mono"
 	monoFallback     = "monospace"
 	statusbarSize    = 24 // not a token: "about 24" in the plan
@@ -90,6 +100,12 @@ const (
 	roleChipHeight   = 20   // k-role, components.css
 	roleChipSize     = 11   // k-role font size
 	dialogWidth      = 420  // .modal width in keel.css
+	kbdBox           = 18   // k-kbd min-width and height, components.css
+	dotSize          = 7    // k-dot, components.css
+	dotRing          = 3    // k-dot--live ring
+	paletteWidth     = 560  // k-palette, components.css
+	paletteSearch    = 46   // k-palette-search height
+	paletteTop       = 0.16 // .cmd-palette top: 16vh
 )
 
 func tok(hex string) ui.Color { return ui.Hex(hex) }
@@ -121,6 +137,8 @@ var (
 	haze          = tok(hexHaze)
 	hazeSoft      = tok(hexHazeSoft)
 	scrim         = tok(hexScrim)
+	tideSoft      = tok(hexTideSoft)
+	shadowModal   = tok(hexShadowModal)
 )
 
 // hostTint is the colour of a host's label. keel serve stores it as var(--ansi-N), a reference to

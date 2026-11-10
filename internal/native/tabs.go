@@ -193,6 +193,28 @@ func (w *workspace) reopenClosed() {
 	w.err = "Nothing to reopen" // term.js reopenClosed
 }
 
+// ---- recent hosts ----
+
+const recentMax = 12 // term.js RECENT_MAX
+
+// rememberRecent puts a host first in the recent hosts and keeps the list in keel-native.json: ids only
+// (term.js rememberRecent).
+func (w *workspace) rememberRecent(id string) {
+	if id == "" {
+		return
+	}
+	ids := append([]string{id}, slices.DeleteFunc(slices.Clone(w.recentIDs), func(o string) bool { return o == id })...)
+	w.recentIDs = ids[:min(len(ids), recentMax)]
+	if dir := w.dataDir; dir != "" {
+		keep := slices.Clone(w.recentIDs)
+		w.work(func() {
+			if err := savePrefs(dir, map[string]any{"recentHosts": keep}); err != nil {
+				w.post(func() { w.fail("save recent hosts", err) })
+			}
+		})
+	}
+}
+
 // ---- terminal text size ----
 
 const (

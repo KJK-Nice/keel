@@ -36,7 +36,8 @@ func (w *workspace) view(c *ui.Context) {
 		w.statusbar(c)
 	})
 	w.hostKeyDialog(c)
-	if t := w.tab(); t != nil && w.wantFocus != "" {
+	w.paletteView(c)
+	if t := w.tab(); t != nil && w.wantFocus != "" && w.pal == nil {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			p.handle.Focus(c)
 			w.wantFocus = ""
@@ -73,6 +74,10 @@ func (w *workspace) view(c *ui.Context) {
 // shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken
 // before the terminal sees the key.
 func (w *workspace) shortcuts(c *ui.Context) {
+	// ⌘K and ⌘⇧P open the palette (the palette's own dialog closes it again). Shortcuts built here wait
+	// while a dialog shows, so while the palette is open no other window key acts.
+	c.OnWindowShortcut(ui.Cmd, ui.KeyK, func() { w.act(w.togglePalette) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyP, func() { w.act(w.togglePalette) })
 	digits := [...]ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8}
 	for i, k := range digits {
 		c.OnWindowShortcut(ui.Cmd, k, func() { w.act(func() { w.selectTab(i) }) })

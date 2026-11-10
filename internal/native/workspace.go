@@ -108,6 +108,9 @@ type tab struct {
 	h ui.Handle // the tab in the strip, for where a dragged tab lands
 }
 
+// isNew reports a tab with no panes: the New tab page.
+func (t *tab) isNew() bool { return t.root == nil }
+
 func (t *tab) name() string {
 	if t.title != "" {
 		return t.title
@@ -159,6 +162,10 @@ type workspace struct {
 	findHandle ui.Handle
 
 	saved saveState
+
+	pal       *palette // the open command palette
+	palH      ui.Handle
+	recentIDs []string // host ids, newest first: the New tab page's recent hosts (keel-native.json)
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -255,6 +262,10 @@ func (w *workspace) start() {
 			live = append(live, attached{h, conn, s.ID})
 		}
 		doc := loadSaved(w.dataDir)
+		var recent []string
+		if w.dataDir != "" {
+			recent = loadRecentHosts(w.dataDir)
+		}
 		w.post(func() {
 			if w.closed {
 				for _, a := range live {
@@ -263,6 +274,7 @@ func (w *workspace) start() {
 				return
 			}
 			w.hosts = hosts
+			w.recentIDs = recent
 			panes := make([]*pane, len(live))
 			for i, a := range live {
 				panes[i] = w.newPane(a.host, a.conn)
@@ -308,6 +320,7 @@ func (w *workspace) selectTab(i int) {
 
 // openHost starts a session on h in a new tab.
 func (w *workspace) openHost(h keelclient.Host) {
+	w.rememberRecent(h.ID)
 	w.work(func() {
 		conn, err := w.be.Spawn(h.ID, startCols, startRows)
 		w.post(func() {
@@ -323,35 +336,44 @@ func (w *workspace) openHost(h keelclient.Host) {
 	})
 }
 
-// newTab is the + button: the New tab page is phase N4, so it opens the first local host.
-func (w *workspace) newTab() {
+// newLocalTab opens the first local host in a new tab (term.js newLocalTab).
+func (w *workspace) newLocalTab() {
 	for _, h := range w.hosts {
 		if h.AuthType == "local" {
 			w.openHost(h)
 			return
 		}
 	}
-	w.err = "No local host to open: pick a host in the sidebar"
+	w.err = "Local shell is not available"
 }
+
+// newTab is the + button and ⌘T.
+func (w *workspace) newTab() { w.newLocalTab() }
 
 // split starts another session to the same host as target and inserts it after target.
 func (w *workspace) split(t *tab, target string, d layout.Dir) {
-	p := t.panes[target]
-	if p == nil {
+	if p := t.panes[target]; p != nil {
+		w.splitOn(t, target, p.host, d)
+	}
+}
+
+// splitOn starts a session on h and inserts it after target.
+func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.Dir) {
+	if t.panes[target] == nil {
 		return
 	}
 	w.work(func() {
-		conn, err := w.be.Spawn(p.host.ID, startCols, startRows)
+		conn, err := w.be.Spawn(h.ID, startCols, startRows)
 		w.post(func() {
 			if err != nil {
-				w.fail("split "+p.host.Name, err)
+				w.fail("split "+h.Name, err)
 				return
 			}
 			if w.closed || t.panes[target] == nil { // the window or the pane went away meanwhile
 				conn.Close()
 				return
 			}
-			np := w.newPane(p.host, conn)
+			np := w.newPane(h, conn)
 			t.root = t.root.Split(target, np.id, d)
 			t.panes[np.id] = np
 			t.focused = np.id

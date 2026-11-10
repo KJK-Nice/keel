@@ -47,6 +47,25 @@ func loadPrefs(dataDir string) prefs {
 	return p
 }
 
+// loadRecentHosts reads the recent host ids (newest first, at most recentMax) from keel-native.json:
+// strings only, whatever else the file holds.
+func loadRecentHosts(dataDir string) (ids []string) {
+	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	if err != nil {
+		return nil
+	}
+	var f struct{ RecentHosts []any }
+	if json.Unmarshal(b, &f) != nil {
+		return nil
+	}
+	for _, v := range f.RecentHosts {
+		if id, ok := v.(string); ok && id != "" && len(ids) < recentMax {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 var prefsMu sync.Mutex
 
 // savePrefs sets these fields in <dataDir>/keel-native.json and leaves every other field as it is: the
