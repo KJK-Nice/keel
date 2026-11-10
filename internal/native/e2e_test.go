@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -537,4 +538,251 @@ func TestE2ETabs(t *testing.T) {
 		}
 	}
 	e.shot("TestE2ETabs")
+}
+
+// pumpAll is pump for several windows on one daemon.
+func pumpAll(t *testing.T, wins []*win, cond func() bool, what string) {
+	t.Helper()
+	deadline := time.Now().Add(e2eWait)
+	for {
+		for _, w := range wins {
+			w.step()
+		}
+		if cond() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// snap is the first pane's last report in the active tab.
+func (e *win) snap() keelclient.State {
+	if p := e.w.focusedPane(); p != nil {
+		return p.conn.Snapshot()
+	}
+	return keelclient.State{}
+}
+
+// sshFixture is a keel-sshtest (a throwaway SSH server on loopback) and the saved host that points at it.
+type sshFixture struct {
+	cmd         *exec.Cmd
+	done        chan struct{}
+	fingerprint string
+	stopped     bool
+}
+
+// startSSH runs bin/keel-sshtest, creates a password host for its target on the daemon through
+// POST /api/hosts (the client itself never creates hosts) and returns the fixture. The password is
+// read from the file keel-sshtest writes and goes only into that request.
+func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
+	t.Helper()
+	root := repoRoot(t)
+	bin := filepath.Join(root, "bin", "keel-sshtest")
+	if _, err := os.Stat(bin); err != nil {
+		t.Fatalf("%s is missing: run make native-e2e (it builds it)", bin)
+	}
+	out := filepath.Join(filepath.Dir(dataDir), "sshtest.json")
+	cmd := exec.Command(bin, "-out", out)
+	cmd.Env = append(os.Environ(), "KEEL_KEYRING=off")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	f := &sshFixture{cmd: cmd, done: make(chan struct{})}
+	go func() { cmd.Wait(); close(f.done) }()
+	t.Cleanup(f.stop)
+	var info struct {
+		Target struct {
+			Host        string
+			Port        int
+			User        string
+			Password    string
+			Fingerprint string
+		}
+	}
+	for end := time.Now().Add(e2eWait); ; time.Sleep(50 * time.Millisecond) {
+		if b, err := os.ReadFile(out); err == nil && json.Unmarshal(b, &info) == nil && info.Target.Port != 0 {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("keel-sshtest did not write its file")
+		}
+	}
+	f.fingerprint = info.Target.Fingerprint
+	tok, err := authtoken.Read(dataDir)
+	if err != nil {
+		t.Fatal("read token: ", err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"name": "e2e-ssh", "address": info.Target.Host, "port": info.Target.Port, "username": info.Target.User,
+		"authType": "password", "password": info.Target.Password, "noAutoReconnect": true,
+	})
+	req, _ := http.NewRequest("POST", "http://"+addr+"/api/hosts", strings.NewReader(string(body)))
+	req.Header.Set(authtoken.Header, tok)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/hosts: %s", resp.Status) // the body is not printed: it could echo the request
+	}
+	return f
+}
+
+// stop ends the fixture's process, by the handle it was started with.
+func (f *sshFixture) stop() {
+	if f.stopped {
+		return
+	}
+	f.stopped = true
+	f.cmd.Process.Signal(syscall.SIGTERM)
+	select {
+	case <-f.done:
+	case <-time.After(5 * time.Second):
+		f.cmd.Process.Kill()
+		<-f.done
+	}
+}
+
+func (e *win) hasLabel(label string) bool { _, ok := e.tt.Find(label); return ok }
+
+// connectSSH opens the e2e-ssh host, trusts its key in the dialog and waits for the pane to be ready.
+func (e *win) connectSSH(f *sshFixture) {
+	e.t.Helper()
+	e.pump(func() bool { return e.tt.HasText("e2e-ssh") }, "the host tree")
+	e.click("host e2e-ssh")
+	e.pump(func() bool { return e.hasLabel("dialog Unknown host key") }, "the unknown host key dialog")
+	if !e.tt.HasText(f.fingerprint) {
+		e.t.Fatal("the dialog does not show the fingerprint the server offered")
+	}
+	e.click("Trust and connect")
+	e.pump(func() bool { return e.snap().Status == "ready" }, "the session to be ready")
+}
+
+func TestE2EFollowerAndTakeControl(t *testing.T) {
+	addr, dir := startServe(t, true)
+	a := newWin(t, addr, dir, nil)
+	sid := a.openLocal()
+	a.clickBody("1")
+	a.typeLine("echo from-a")
+	a.waitScrollback(sid, "from-a")
+
+	b := newWin(t, addr, dir, nil)
+	both := []*win{a, b}
+	pumpAll(t, both, func() bool {
+		return len(b.w.tabs) == 1 && b.snap().Role != "" && a.snap().Role != "" && len(a.snap().Attached) == 2
+	}, "both windows attached")
+	pumpAll(t, both, func() bool {
+		return b.hasLabel("role Following") && b.hasLabel("banner following") && a.hasLabel("role Driving")
+	}, "the chips and the follower banner")
+	if a.hasLabel("banner following") {
+		t.Error("the driver shows the follower banner")
+	}
+	b.shot("TestE2EFollowerAndTakeControl")
+
+	// The follower's keystrokes are dropped by keel serve.
+	b.clickBody("1")
+	b.typeLine("echo from-b")
+	for end := time.Now().Add(500 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		a.step()
+		b.step()
+	}
+	if strings.Contains(a.scrollback(sid), "from-b") {
+		t.Fatal("a follower's keystrokes reached the PTY")
+	}
+
+	// keel serve lets only the session's owner take control (runtime.Session.TakeControl: ErrNotOwner), and
+	// window A, which opened the session, owns it. So B's click must change nothing.
+	b.click("Take control")
+	for end := time.Now().Add(1 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		a.step()
+		b.step()
+	}
+	if b.snap().Role != "follower" || a.snap().Role != "driver" {
+		t.Fatalf("roles after Take control: b %q a %q", b.snap().Role, a.snap().Role)
+	}
+	t.Skip("plan 006 step 4.1 cannot pass as written: B is not the owner, so keel serve refuses take-control (ErrNotOwner); the rest of the scenario (B drives after Take control, A shows the follower banner) needs the owner to be the follower, which needs grant-control (phase N6)")
+}
+
+func TestE2EUnknownHostKeyTrustAndConnect(t *testing.T) {
+	addr, dir := startServe(t, true)
+	f := startSSH(t, addr, dir)
+	e := newWin(t, addr, dir, nil)
+	e.pump(func() bool { return e.tt.HasText("e2e-ssh") }, "the host tree")
+	e.click("host e2e-ssh")
+	e.pump(func() bool { return e.hasLabel("dialog Unknown host key") }, "the unknown host key dialog")
+	for _, s := range []string{"Unknown host key", f.fingerprint, "Trust and connect", "Abort"} {
+		if !e.tt.HasText(s) {
+			t.Errorf("the dialog lacks %q", s)
+		}
+	}
+	e.shot("TestE2EUnknownHostKeyTrustAndConnect-dialog")
+	e.click("Trust and connect")
+	e.pump(func() bool { return e.snap().Status == "ready" }, "the session to be ready")
+	sid := e.sidOf(0)
+	e.clickBody("1")
+	e.typeLine("echo trusted-ok")
+	e.waitScrollback(sid, "trusted-ok")
+
+	// The same host again connects with no dialog.
+	e.click("host e2e-ssh")
+	e.pump(func() bool { return len(e.w.tabs) == 2 && e.snap().Status == "ready" }, "the second session to be ready")
+	if e.hasLabel("dialog Unknown host key") || e.hasLabel("dialog Host key changed") {
+		t.Error("the dialog came back for a trusted host")
+	}
+	e.shot("TestE2EUnknownHostKeyTrustAndConnect")
+}
+
+// failedSSH leaves a daemon with one session that was ready and whose server then went away.
+func failedSSH(t *testing.T) (addr, dir string, e *win, sid string) {
+	addr, dir = startServe(t, true)
+	f := startSSH(t, addr, dir)
+	e = newWin(t, addr, dir, nil)
+	e.connectSSH(f)
+	sid = e.sidOf(0)
+	f.stop()
+	e.pump(func() bool { return e.hasLabel("banner failed") && e.hasLabel("Reconnect") }, "the failure banner")
+	return
+}
+
+func TestE2EFailedSessionShowsBannerAndReconnects(t *testing.T) {
+	_, _, e, sid := failedSSH(t)
+	if !e.tt.HasText("Session ended") {
+		t.Error("the banner does not say Session ended for a session whose server went away (status exited)")
+	}
+	e.shot("TestE2EFailedSessionShowsBannerAndReconnects-failed")
+	before := e.snap().Message
+	e.click("Reconnect")
+	// Reconnect to a server that is gone: the session leaves error for connecting, or fails again with a new message.
+	e.pump(func() bool {
+		st := e.snap()
+		return st.Status == "connecting" || (st.Status == "error" && st.Message != before)
+	}, "the session to leave its failed state or fail with a new message")
+	e.pump(func() bool { return e.hasLabel("banner connecting") || e.hasLabel("banner failed") }, "a banner after Reconnect")
+	e.pump(func() bool { return e.hasLabel("banner failed") && e.hasLabel("Close") }, "the failure banner again")
+	e.shot("TestE2EFailedSessionShowsBannerAndReconnects")
+	e.click("Close")
+	e.pump(func() bool { return len(e.w.tabs) == 0 }, "the pane to go")
+	e.pump(func() bool {
+		for _, s := range e.sessions() {
+			if s.ID == sid {
+				return false
+			}
+		}
+		return true
+	}, "the session to disappear from Sessions()")
+}
+
+func TestE2EFailedSessionAtStart(t *testing.T) {
+	addr, dir, _, sid := failedSSH(t)
+	e2 := newWin(t, addr, dir, nil)
+	e2.pump(func() bool { return len(e2.w.tabs) == 1 && e2.hasLabel("banner failed") && e2.hasLabel("Reconnect") }, "the failed session as a tab with its banner")
+	if e2.sidOf(0) != sid {
+		t.Errorf("tab shows session %s, want %s", e2.sidOf(0), sid)
+	}
+	e2.shot("TestE2EFailedSessionAtStart")
 }

@@ -102,6 +102,7 @@ native-app: native
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
 native-e2e:
 	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
+	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 test: ui test-js
