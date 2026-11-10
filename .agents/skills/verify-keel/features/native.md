@@ -138,6 +138,22 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   (`startSSHOnly` deletes `sshtest.json` after reading it).
 - Pages: `e.click("Keychain")` or `"Logs"` (the sidebar footer), tabs are `tab Keychain`; `e.w.pageTab("logs")`.
 
+## Snippets and Approve before type (`e2e_snippets_test.go`)
+
+- "Nothing typed before Type" is asserted on the session's scrollback (`e.scrollback(sid)`): open the dialog
+  (`e.click("Type into pane…")`, `e.waitApprove()`), `e.settle(time.Second)` (it pumps frames; the one allowed
+  wait), then require the scrollback lacks the command's marker. Use `echo name-$((40+2))`: the echoed command
+  line holds `$((40+2))`, only the output holds `name-42`; "name-" before Type means a byte got through.
+- After Type the bytes are Ctrl-U plus the command and a newline (keel serve adds nothing), so the shell runs it
+  without an Enter: wait for the output with `e.waitScrollback`. `TestE2ETypeClearsTheLineFirst` types `garbage`
+  without Enter first and requires no `garbage echo` line.
+- A new vault holds four seeded snippets (list files, disk, memory, top cpu): look a snippet up by name
+  (`e.snippetNamed`, `e.inWindow`), never by count or position; `e.addSnippet` POSTs one.
+- Labels: the page's rows are `snippet <name>`, the sidebar's `sidebar snippet <name>`, the dialog's fields
+  `Snippet dialog name` / `Snippet dialog command`, the page's editor `Snippet name` / `Snippet commands`. A
+  follower's dialog says "You are following — take or request control to type"; `Type` does nothing.
+- `guard_test.go` keeps one writer and one caller (`-run 'TestOnly|TestApprovedInject|TestConnWrite'`).
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
