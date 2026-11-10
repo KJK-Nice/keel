@@ -28,6 +28,7 @@ node_modules/
 .e2e/ssh-home/
 .e2e/first-run-data/
 /perf-results.txt
+.scratch-native/
 # Scratch KEEL_E2E_DATA dirs and test leftovers (use .e2e/keel-data-<name>).
 .e2e/gx-*/
 .e2e/gx-marker-*

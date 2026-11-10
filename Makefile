@@ -1,4 +1,4 @@
-.PHONY: app build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app native build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -80,6 +80,10 @@ macos-icon:
 
 signal:
 	go run ./cmd/keel-signal
+
+# The native client (MyGo, pure Go). It attaches to a running keel serve.
+native:
+	CGO_ENABLED=0 go build -o bin/keel-native ./cmd/keel-native
 
 test: ui test-js
 	$(GO) test $(GO_TAGS) ./...
