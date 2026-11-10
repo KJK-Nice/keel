@@ -350,7 +350,7 @@ func TestQuickConnectRefusesWhatIsNotUserAtHost(t *testing.T) {
 	if r.w.quick == nil || !r.tt.Focused("Target") {
 		t.Fatal("⌘⇧O did not open Quick connect with the Target field focused")
 	}
-	for _, bad := range []string{"just-a-host", "ssh host; id", "a@b c"} {
+	for _, bad := range []string{"just-a-host", "ssh host; id", "a@b c", "ssh -J bastion user@host"} {
 		r.w.quick.target = bad
 		r.click(t, "Connect")
 		if r.w.quick == nil || !r.tt.HasText("Could not parse user@host") || len(r.fb.created) != 0 {

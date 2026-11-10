@@ -47,7 +47,8 @@ func (w *workspace) submitQuick() {
 		return
 	}
 	r := sshparse.ParseConnect(q.target)
-	if r == nil || !r.OK || r.User == "" {
+	// A typed ssh command with options Keel would drop is not a target: nothing is connected on a guess.
+	if r == nil || !r.OK || r.User == "" || len(r.Dropped) > 0 {
 		q.err = "Could not parse user@host"
 		return
 	}
