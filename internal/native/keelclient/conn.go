@@ -24,7 +24,7 @@ type Conn struct {
 }
 
 func dialWS(u, token string) (*Conn, error) {
-	h := http.Header{authtoken.Header: {token}} // no Origin: a native client
+	h := http.Header{authtoken.Header: {token}} // a native client sends no origin header
 	ws, _, err := websocket.DefaultDialer.Dial(u, h)
 	if err != nil {
 		// gorilla's error names the status, never the headers we sent.
