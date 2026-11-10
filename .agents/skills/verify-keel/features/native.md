@@ -111,8 +111,8 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 ## Unlock and the host dialog
 
 - A locked daemon: `scratchDir(t)`, then `startServeAt(t, dir, "serve", true)` creates the vault with
-  `KEEL_VAULT_PASSPHRASE` (the constant `e2ePass`), `POST /api/first-run/done` closes the first run (Unlock shows either way, but after it
-  an open first run keeps the window's message, so the workspace never appears), `stop()`, then
+  `KEEL_VAULT_PASSPHRASE` (the constant `e2ePass`; a vault made from the environment has no first run, and
+  `POST /api/first-run/done` is harmless), `stop()`, then
   `startServeAt(t, dir, "serve-locked", false)` on the same data stays locked. `TestE2EUnlock` types the
   passphrase with `e.tt.Type` and ↵ only; no test prints it, and the serve logs never hold it
   (`grep -rn native-e2e-scratch .scratch-native/e2e --include='*.log'` finds none).
@@ -122,6 +122,21 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   `e.fillField`; check `e.texts()` does not contain it and `GET /api/hosts` never returns it.
 - The host list poll: `e.w.startPoll(200*time.Millisecond)` runs Run's poll faster; create or delete a host
   with `e.raw` and `pump` until the tree follows. Close with `e.w.closeWindow()`.
+
+## First run, Keychain and Logs (`e2e_pages_test.go`)
+
+- First run needs a daemon with no vault and no passphrase: `startFirstRunServe(t)` starts one with
+  `KEEL_SSH_DIR` at `sshFixtureDir(t, dir)`, a copy of `tests/fixtures/ssh-home/.ssh` with two fresh keys made in
+  Go (one with a passphrase), as `scripts/e2e-serve.sh` does. Never the real `~/.ssh` or the OS keychain; the
+  harness runs `KEEL_KEYRING=off`, so only the passphrase vault is machine-tested (the keychain vault is a person's check).
+- Type the vault passphrase through `e.fillField("Passphrase", …)` (the scratch values are the constants in
+  `e2e_pages_test.go`); the import's key passphrase is the field `Passphrase for <key>`. `noSecretDrawn` checks the
+  window's text. A step is a scrolling page: use `newWinH(…, 1500)` to read a long one, or `shot` at 800.
+- Keychain: the identity dialog's fields are `Identity name`, `Identity username`, `Identity password` (the plain
+  names also appear on the page behind it, so a click by that name would land there). Used by N hosts is read from
+  the saved hosts; the fixture's password is the identity's password and is never written to a file
+  (`startSSHOnly` deletes `sshtest.json` after reading it).
+- Pages: `e.click("Keychain")` or `"Logs"` (the sidebar footer), tabs are `tab Keychain`; `e.w.pageTab("logs")`.
 
 ## Not covered
 
