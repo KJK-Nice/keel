@@ -124,6 +124,7 @@ type pane struct {
 	zoom     func(steps int, reset bool)
 	search   *termSearch
 	setFont  func(size float32)
+	setTheme func() // gives the terminal the colours of the theme in use
 
 	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
 	// Right-click in the terminal (read when the terminal is made).
@@ -198,6 +199,10 @@ type workspace struct {
 	term           termPrefs           // Copy on select, Right-click in the terminal, the display name
 	translucentWin bool                // the window was created Transparent: only then can opacity change live
 	blurHook       func(radius int)    // sets the window's blur; nil in tests
+	appearanceHook func(choice string) // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
+	dark, osDark   bool                // the theme in use, and whether the OS appearance is dark (theme.go)
+	themeSeen      bool                // the first frame has set the theme
+	themeNative    bool                // the window takes the theme as its own appearance: no opaque rule (theme.go)
 	paneH          ui.Handle
 	fwdH           ui.Handle
 	fwdDlg         *forwardDialog // New forward / Edit forward
@@ -263,10 +268,19 @@ func (w *workspace) ground(c ui.Color) ui.Color {
 	return c.Alpha(w.alpha)
 }
 
+// termGround is the terminal body's ground: the stage at the window's alpha. In the light theme the body keeps less of the
+// see-through (vibrancy-term-share), so the blurred desktop does not show as dark shapes behind the text.
+func (w *workspace) termGround() ui.Color {
+	if !w.dark && w.alpha < 1 {
+		return stage.Alpha(1 - (1-w.alpha)*termShareLight)
+	}
+	return w.ground(stage)
+}
+
 func newWorkspace(be backend) *workspace {
 	return &workspace{
-		be: be, alpha: 1, sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
-		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
+		be: be, alpha: 1, themeNative: followsNatively(), sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
+		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 	}

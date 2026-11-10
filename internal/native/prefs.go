@@ -17,6 +17,8 @@ type prefs struct {
 	Blur    int `json:"blur"`    // 0–64, macOS only, used below 100
 
 	TermSize int `json:"termSize"` // terminal text size, 10–22, set by ⌘+ ⌘- ⌘0
+
+	Theme string `json:"theme"` // system | light | dark: Settings · Appearance · Theme
 }
 
 const (
@@ -27,15 +29,19 @@ const (
 // loadPrefs reads <dataDir>/keel-native.json. A missing or unreadable file, or a value out of range,
 // gives the default, field by field.
 func loadPrefs(dataDir string) prefs {
-	p := prefs{Opacity: opacityDefault, Blur: blurDefault, TermSize: termSizeDefault}
+	p := prefs{Opacity: opacityDefault, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeSystem}
 	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
 	if err != nil {
 		return p
 	}
-	var f struct{ Opacity, Blur, TermSize *int }
+	var f struct {
+		Opacity, Blur, TermSize *int
+		Theme                   string
+	}
 	if json.Unmarshal(b, &f) != nil {
 		return p
 	}
+	p.Theme = validTheme(f.Theme)
 	if f.TermSize != nil && *f.TermSize >= termSizeMin && *f.TermSize <= termSizeMax {
 		p.TermSize = *f.TermSize
 	}

@@ -369,7 +369,7 @@ func (e *win) inked(r ui.Rect) (n int) {
 	return n
 }
 
-func termBgColor() ui.Color { return tok(hexTermBg) }
+func termBgColor() ui.Color { return termBg }
 
 // openPanes opens the Local Shell and splits it right until there are n sessions.
 func (e *win) openPanes(n int) {

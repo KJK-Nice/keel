@@ -18,8 +18,6 @@ import (
 // setFontSize, the Copy on select and Right-click rows) and ui/settingspages.js.
 //
 // In the app and not here, each for a reason:
-//   - Appearance · Theme and the light tokens: this client has the dark tokens only (docs/design/tokens.json has a light
-//     set the native views do not read yet).
 //   - Appearance · UI size and Font smoothing: both are the webview's (CSS font size and -webkit-font-smoothing); the native
 //     views take their sizes from tokens.go constants.
 //   - Terminal · Font: the app offers JetBrains Mono, IBM Plex Mono, Menlo, Consolas and the system's; this client ships

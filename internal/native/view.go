@@ -15,7 +15,8 @@ import (
 // view draws the whole screen (docs/ui-redesign.md §5.1). It reads and changes the workspace
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
-	windowTheme(c)
+	w.resolveTheme(c)
+	windowTheme(c, w.dark)
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
 	}
@@ -580,7 +581,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		if w.findPane == p {
 			w.findBar(c, p)
 		}
-		pane := ui.Box(c).Grow(1).FillWidth().Background(w.ground(stage))
+		pane := ui.Box(c).Grow(1).FillWidth().Background(w.termGround())
 		// A press into the terminal of a split tab shows the Panes section (term.js mousedown → revealPanes). The press
 		// is only watched: the terminal keeps the keyboard. The bar's buttons do not count; the bar itself does.
 		pane.ObserveInput(func(ev ui.InputEvent) {

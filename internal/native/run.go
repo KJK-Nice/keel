@@ -16,16 +16,9 @@ import (
 	"keel/internal/paths"
 )
 
-// terminalTheme is Keel's terminal palette from the tokens.
+// terminalTheme is Keel's terminal palette from the tokens of the theme in use.
 func terminalTheme() *terminal.Theme {
-	th := &terminal.Theme{
-		Foreground: tok(hexTermFg), Background: tok(hexTermBg),
-		Cursor: tok(hexTermCursor), Selection: termSelection,
-	}
-	for i, h := range hexAnsi {
-		th.Palette[i] = tok(h)
-	}
-	return th
+	return &terminal.Theme{Foreground: termFg, Background: termBg, Cursor: termCursor, Selection: termSelection, Palette: ansi}
 }
 
 //go:embed fonts/*.woff2
@@ -63,8 +56,9 @@ func liveBodyT(p *pane, transparent bool) {
 	case rightNothing:
 		right = terminal.RightClickIgnore
 	}
+	th := terminalTheme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
 	term, err := terminal.New(terminal.Options{
-		Conn: p.conn, Theme: terminalTheme(), Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
+		Conn: p.conn, Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
 		Font: terminal.Font{Family: monoStack, Size: p.fontSize},
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
@@ -92,6 +86,7 @@ func liveBodyT(p *pane, transparent bool) {
 			term.SetCopyOnSelect(terminal.CopyOnSelectNone)
 		}
 	}
+	p.setTheme = func() { t := terminalTheme(); term.SetTheme(t, t) }
 	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: monoStack, Size: size}) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,
@@ -121,6 +116,10 @@ func Run() error {
 		w.alpha = pr.alpha()
 	}
 	w.mkBody = func(p *pane) { liveBodyT(p, translucent) }
+	if w.themeNative { // the window takes the theme as its own appearance, so its chrome and backdrop follow it
+		w.appearanceHook = func(choice string) { go mygo.Theme.SetSource(mygo.ThemeSource(choice)) }
+		mygo.Theme.SetSource(mygo.ThemeSource(pr.Theme))
+	}
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{

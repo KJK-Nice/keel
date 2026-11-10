@@ -60,9 +60,9 @@ func TestSettingsNavIsTheAppsWithoutAgent(t *testing.T) {
 	if _, ok := r.tt.Find("tab Settings"); !ok {
 		t.Error("the tab is not named Settings")
 	}
-	r.texts(t, "Display", "Window opacity", "How much of the desktop the window covers. 30–100; 100 is opaque.")
+	r.texts(t, "Display", "Theme", "Light, dark, or follow the system.", "Window opacity")
 	// What is in the app and not here is not drawn.
-	for _, s := range []string{"Theme", "UI size", "Font smoothing"} {
+	for _, s := range []string{"UI size", "Font smoothing"} {
 		if r.has("setting " + s) {
 			t.Errorf("%q is drawn; this client has no counterpart", s)
 		}

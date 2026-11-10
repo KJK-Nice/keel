@@ -27,36 +27,45 @@ func TestTokensMatchJSON(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	dark := map[string]string{}
-	for _, tk := range doc.Color.Tokens {
-		var v struct{ Dark string }
-		if err := json.Unmarshal(tk.Value, &v); err != nil {
-			t.Fatal(err)
+	for _, th := range []struct {
+		id string
+		p  *hexPalette
+	}{{"dark", &darkHex}, {"light", &lightHex}} {
+		vals := map[string]string{}
+		for _, tk := range doc.Color.Tokens {
+			var v map[string]string
+			if err := json.Unmarshal(tk.Value, &v); err != nil {
+				t.Fatal(err)
+			}
+			vals[tk.Name] = v[th.id]
 		}
-		dark[tk.Name] = v.Dark
-	}
-	resolve := func(name string) string {
-		v := dark[name]
-		for strings.HasPrefix(v, "{") {
-			v = dark[strings.Trim(v, "{}")]
+		resolve := func(name string) string {
+			v := vals[name]
+			for strings.HasPrefix(v, "{") {
+				v = vals[strings.Trim(v, "{}")]
+			}
+			return v
 		}
-		return v
-	}
-	colors := map[string]string{
-		"chrome": hexChrome, "stage": hexStage, "surface": hexSurface, "raised": hexRaised,
-		"hover": hexHover, "line": hexLine, "line-strong": hexLineStrong, "ink": hexInk,
-		"ink-muted": hexInkMuted, "ink-faint": hexInkFaint, "brass": hexBrass,
-		"brass-ink": hexBrassInk, "brass-soft": hexBrassSoft, "tide": hexTide, "signal": hexSignal, "flare": hexFlare, "term-selection": hexTermSelection,
-		"brass-strong": hexBrassStrong, "on-brass": hexOnBrass, "signal-soft": hexSignalSoft, "flare-soft": hexFlareSoft,
-		"on-flare": hexOnFlare, "haze": hexHaze, "haze-soft": hexHazeSoft, "scrim": hexScrim, "tide-soft": hexTideSoft,
-		"focus": hexFocus, "term-fg": hexTermFg, "term-bg": hexTermBg, "term-cursor": hexTermCursor,
-	}
-	for i, h := range hexAnsi {
-		colors[fmt.Sprintf("ansi-%d", i)] = h
-	}
-	for name, got := range colors {
-		if want := resolve(name); got != want {
-			t.Errorf("color %s = %q, tokens.json dark = %q", name, got, want)
+		p := th.p
+		colors := map[string]string{
+			"chrome": p.chrome, "stage": p.stage, "surface": p.surface, "raised": p.raised,
+			"hover": p.hover, "line": p.line, "line-strong": p.lineStrong, "ink": p.ink,
+			"ink-muted": p.inkMuted, "ink-faint": p.inkFaint, "brass": p.brass,
+			"brass-ink": p.brassInk, "brass-soft": p.brassSoft, "tide": p.tide, "signal": p.signal, "flare": p.flare, "term-selection": p.termSelection,
+			"brass-strong": p.brassStrong, "on-brass": p.onBrass, "signal-soft": p.signalSoft, "flare-soft": p.flareSoft,
+			"on-flare": p.onFlare, "haze": p.haze, "haze-soft": p.hazeSoft, "scrim": p.scrim, "tide-soft": p.tideSoft,
+			"focus": p.focus, "term-fg": p.termFg, "term-bg": p.termBg, "term-cursor": p.termCursor,
+		}
+		for i, h := range p.ansi {
+			colors[fmt.Sprintf("ansi-%d", i)] = h
+		}
+		for name, got := range colors {
+			if want := resolve(name); got != want {
+				t.Errorf("%s color %s = %q, tokens.json = %q", th.id, name, got, want)
+			}
+		}
+		if len(colors) != len(doc.Color.Tokens) {
+			t.Errorf("%s: %d colours checked, tokens.json has %d", th.id, len(colors), len(doc.Color.Tokens))
 		}
 	}
 	px := map[string]float64{}
@@ -102,7 +111,13 @@ func TestTokensMatchJSON(t *testing.T) {
 		Shadow struct {
 			Tokens []struct {
 				Name  string
-				Value struct{ Dark string }
+				Value struct{ Dark, Light string }
+			}
+		}
+		Vibrancy struct {
+			Tokens []struct {
+				Name  string
+				Value json.RawMessage
 			}
 		}
 	}
@@ -124,11 +139,22 @@ func TestTokensMatchJSON(t *testing.T) {
 		t.Errorf("type styles not found in tokens.json: %v", sizes)
 	}
 	for _, tk := range typ.Shadow.Tokens {
-		if tk.Name == "shadow-pop" && !strings.HasPrefix(tk.Value.Dark, "0 8px 24px "+hexShadowPop+",") {
-			t.Errorf("shadow-pop = %q, want a 0 8px 24px %s drop shadow", tk.Value.Dark, hexShadowPop)
+		for _, th := range []struct {
+			id, got string
+			p       *hexPalette
+		}{{"dark", tk.Value.Dark, &darkHex}, {"light", tk.Value.Light, &lightHex}} {
+			if tk.Name == "shadow-pop" && !strings.Contains(th.got, " "+th.p.shadowPop+",") {
+				t.Errorf("shadow-pop %s = %q, want the drop shadow %s", th.id, th.got, th.p.shadowPop)
+			}
+			if tk.Name == "shadow-modal" && !strings.Contains(th.got, " "+th.p.shadowModal+",") {
+				t.Errorf("shadow-modal %s = %q, want the drop shadow %s", th.id, th.got, th.p.shadowModal)
+			}
 		}
-		if tk.Name == "shadow-modal" && !strings.HasPrefix(tk.Value.Dark, "0 24px 64px "+hexShadowModal+",") {
-			t.Errorf("shadow-modal = %q, want a 0 24px 64px %s drop shadow", tk.Value.Dark, hexShadowModal)
+	}
+	for _, tk := range typ.Vibrancy.Tokens {
+		var v struct{ Dark, Light string }
+		if tk.Name == "vibrancy-term-share" && (json.Unmarshal(tk.Value, &v) != nil || v.Dark != "1" || v.Light != fmt.Sprint(termShareLight)) {
+			t.Errorf("vibrancy-term-share = %s, want dark 1 and light %v", tk.Value, termShareLight)
 		}
 	}
 }

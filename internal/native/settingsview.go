@@ -251,7 +251,15 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	if !w.translucentWin && w.win.Opacity < opacityMax {
 		opacity.desc += " The window turns see-through the next time Keel starts."
 	}
-	rows := []prefRow{opacity}
+	if !w.themeNative { // .pref-desc-os is hidden where the window takes the theme as its appearance
+		opacity.desc += " When the theme differs from the system's, the window stays opaque."
+	}
+	theme := prefRow{title: "Theme", desc: "Light, dark, or follow the system.", ctl: func(c *ui.Context) {
+		ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+			segControl(c, "Color theme", validTheme(w.win.Theme), themeChoices, func(v string) { w.act(func() { w.setTheme(v) }) })
+		})
+	}}
+	rows := []prefRow{theme, opacity}
 	if hasBlur() {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
 			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.win.Blur)(c) }})

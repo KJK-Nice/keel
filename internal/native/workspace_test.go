@@ -866,7 +866,7 @@ func TestSelectingATabShowsItsPane(t *testing.T) {
 }
 
 func TestHostTint(t *testing.T) {
-	if hostTint("var(--ansi-10)") != tok(hexAnsi[10]) || hostTint("teal") != inkMuted || hostTint("var(--ansi-99)") != inkMuted {
+	if hostTint("var(--ansi-10)") != ansi[10] || hostTint("teal") != inkMuted || hostTint("var(--ansi-99)") != inkMuted {
 		t.Error("hostTint")
 	}
 }
@@ -944,19 +944,19 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 }
 
 func TestLoadPrefs(t *testing.T) {
-	def := prefs{Opacity: 66, Blur: 20, TermSize: 12}
+	def := prefs{Opacity: 66, Blur: 20, TermSize: 12, Theme: "system"}
 	for _, tc := range []struct {
 		name, file string
 		want       prefs
 	}{
 		{"missing", "", def},
 		{"bad json", "{", def},
-		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{66, 8, 12}},
-		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{66, 8, 12}},
-		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{50, 20, 12}},
-		{"blur too high", `{"opacity":50,"blur":99}`, prefs{50, 20, 12}},
-		{"only blur", `{"blur":0}`, prefs{66, 0, 12}},
-		{"valid", `{"opacity":100,"blur":64}`, prefs{100, 64, 12}},
+		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system"}},
+		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system"}},
+		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system"}},
+		{"blur too high", `{"opacity":50,"blur":99}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system"}},
+		{"only blur", `{"blur":0}`, prefs{Opacity: 66, Blur: 0, TermSize: 12, Theme: "system"}},
+		{"valid", `{"opacity":100,"blur":64}`, prefs{Opacity: 100, Blur: 64, TermSize: 12, Theme: "system"}},
 	} {
 		dir := t.TempDir()
 		if tc.file != "" {
@@ -977,7 +977,7 @@ func TestPrefsEnvOverridesAndRejects(t *testing.T) {
 	t.Setenv("KEEL_NATIVE_OPACITY", "50")
 	t.Setenv("KEEL_NATIVE_BLUR", "")
 	p, err := prefs{Opacity: 66, Blur: 20}.withEnv()
-	if err != nil || p != (prefs{50, 20, 0}) {
+	if err != nil || p != (prefs{Opacity: 50, Blur: 20}) {
 		t.Errorf("got %+v, %v", p, err)
 	}
 	t.Setenv("KEEL_NATIVE_BLUR", "lots")
