@@ -80,12 +80,12 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 		}
 	}
 	// What this client has is listed; what waits for the share and agent phases is not (it would promise a key that does nothing).
-	for _, want := range []string{"New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size"} {
+	for _, want := range []string{"New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size", "Join session"} {
 		if !titles[want] {
 			t.Errorf("%q is not listed", want)
 		}
 	}
-	for _, not := range []string{"Join session", "Toggle agent panel"} {
+	for _, not := range []string{"Toggle agent panel"} {
 		if titles[not] {
 			t.Errorf("%q is listed before its phase", not)
 		}

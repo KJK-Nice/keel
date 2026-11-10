@@ -102,7 +102,7 @@ func (w *workspace) typeTarget() (*pane, string) {
 		}
 	}
 	p := t.panes[t.focused]
-	if p == nil {
+	if p == nil || p.remote || t.remote { // a joined pane takes no snippet: Approve before type is for a local session
 		return nil, msgNoSession
 	}
 	return p, ""

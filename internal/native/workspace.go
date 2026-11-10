@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/native/joinpeer"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 )
@@ -125,7 +126,9 @@ type pane struct {
 
 	handle ui.Handle // the body's identity, for keyboard focus
 
-	remote bool // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
+	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
+	joinKey     string // which join it is (the origin and the room, never the key)
+	blockedSeen uint64 // State.Blocked as the window last showed the notice for
 
 	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
 	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
@@ -146,6 +149,9 @@ type pane struct {
 }
 
 func (p *pane) sessionID() string {
+	if p.remote { // a joined share is not a session of this machine's keel serve: nothing may kill, reconnect or save it by id
+		return ""
+	}
 	if id := p.conn.SessionID(); id != "" {
 		return id
 	}
@@ -184,6 +190,9 @@ func (t *tab) name() string {
 		return "New Tab"
 	}
 	if p := t.panes[t.focused]; p != nil {
+		if t.remote { // a joined tab says so, whoever drives (term.js tabName)
+			return p.title() + " · joined"
+		}
 		return p.host.Name
 	}
 	return ""
@@ -271,9 +280,11 @@ type workspace struct {
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet (approve.go)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 
-	share      *sharePop            // the open Share popover (share.go)
-	shareLinks map[string]shareLink // the join link this window was given, by session id; never saved
-	prompts    []*sharePrompt       // the region "Share requests"
+	joinDlg    *joinDialog                                         // Join a session (join.go)
+	joiner     func(l joinpeer.Link, name string) (session, error) // opens the peer of a joined share
+	share      *sharePop                                           // the open Share popover (share.go)
+	shareLinks map[string]shareLink                                // the join link this window was given, by session id; never saved
+	prompts    []*sharePrompt                                      // the region "Share requests"
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -299,6 +310,7 @@ func newWorkspace(be backend) *workspace {
 		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark, UISize: uiSizeDefault, TermFont: fontJetBrains}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
+		joiner: func(l joinpeer.Link, name string) (session, error) { return joinpeer.Open(l, name) },
 	}
 }
 
@@ -480,6 +492,10 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 // splitOn starts a session on h and inserts it after target.
 func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.Dir) {
 	if t.panes[target] == nil {
+		return
+	}
+	if t.remote || t.panes[target].remote {
+		w.say("Split needs a local host session") // term.js splitPane
 		return
 	}
 	w.work(func() {

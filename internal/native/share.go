@@ -371,6 +371,7 @@ func (w *workspace) drainEvents() {
 			for _, ev := range p.conn.Events() {
 				w.onEvent(p, ev)
 			}
+			w.noteBlocked(p, p.conn.Snapshot())
 		}
 	}
 }
@@ -402,6 +403,10 @@ func (w *workspace) onEvent(p *pane, ev keelclient.Event) {
 		} else if ev.Message != "" {
 			w.say(ev.Message)
 		}
+	case keelclient.EventNotice: // a joined share's plain toast (host left)
+		w.say(ev.Message)
+	case keelclient.EventNoticeError:
+		w.warn(ev.Message)
 	case keelclient.EventControlNote:
 		w.dropControlPrompts(p)
 		w.say(ev.Message)

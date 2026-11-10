@@ -105,6 +105,10 @@ func (w *workspace) bannerRow(c *ui.Context, name string, soft, fg ui.Color, hea
 
 // paneBanners draws the banners of a pane, between its bar and its body.
 func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.State) {
+	if p.remote { // a joined tab has its own banner and no host to reconnect or edit
+		w.joinBanner(c, t, p, st)
+		return
+	}
 	switch {
 	case st.Status == "error" || st.Status == "exited":
 		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), st.Message, func() {
@@ -137,6 +141,26 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 			}
 		})
 	}
+}
+
+// chip is a k-role chip with its own words: the driving one, or the quiet one with a ring (the owner's).
+func chip(c *ui.Context, text string, driving bool) {
+	bg, fg := ui.Transparent, inkMuted
+	if driving {
+		bg, fg = brassSoft, brassInk
+	}
+	r := ui.Row(c).Height(roleChipHeight).Padding(0, space2).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(bg).Label("role " + text)
+	if !driving {
+		r.Border(1, lineStrong)
+	}
+	r.Children(func() { ui.Text(c, text).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1) })
+}
+
+// chipFollow is the k-role--follower chip.
+func chipFollow(c *ui.Context, text string) {
+	ui.Row(c).Height(roleChipHeight).Padding(0, space2).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(hazeSoft).Label("role " + text).Children(func() {
+		ui.Text(c, text).TextColor(haze).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1)
+	})
 }
 
 // roleChip is the k-role chip of a shared session's pane bar; it never shrinks.

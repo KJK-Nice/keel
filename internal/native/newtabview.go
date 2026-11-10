@@ -71,6 +71,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 				w.section(c, "Start", "", func() {
 					ui.Grid(c).Columns(startGrid).Gap(space2).FillWidth().Children(func() {
 						w.startAction(c, "action", "Quick connect", "⌘⇧O", func() { w.openQuick("", nil) })
+						w.startAction(c, "link", "Join session", "⌘J", w.openJoin)
 						w.startAction(c, "add-01", "New host", "⌘N", w.newHost)
 					})
 				})

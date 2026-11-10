@@ -120,7 +120,7 @@ var shortcuts = []shortcut{
 	{"Vault", "Toggle vault sidebar", "⌘B", ""},
 	{"Vault", "New host", "⌘N", ""},
 	{"Vault", "Quick connect", "⌘⇧O", ""},
-	{"Vault", "Join session", "⌘J", "share"},
+	{"Vault", "Join session", "⌘J", ""},
 	{"Vault", "Settings", "⌘,", ""},
 	{"Panes", "Split right", "⌘⇧D", ""},
 	{"Panes", "Split down", "⌘⇧E", ""},

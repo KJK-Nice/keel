@@ -82,6 +82,9 @@ func (w *workspace) snapshot() savedDoc {
 			}
 			continue
 		}
+		if t.remote { // joined tabs are left out: the link is not kept, and nothing of the host's is
+			continue
+		}
 		root := t.snapNode(t.root)
 		if root == nil {
 			continue

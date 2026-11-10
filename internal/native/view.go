@@ -47,7 +47,7 @@ func (w *workspace) view(c *ui.Context) {
 	ui.Box(c).Fill().Children(func() {
 		w.titlebar(c)
 		ui.Row(c).FillWidth().Grow(1).Shrink(1).Children(func() {
-			if w.sidebar {
+			if w.sidebar && !w.joinedActive() { // a joined tab shows no Vault sidebar (§5.7)
 				w.sidebarView(c)
 			}
 			w.stage(c)
@@ -58,6 +58,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.sharePrompts(c)
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
+	w.joinDialogView(c)
 	w.hostDialogView(c)
 	w.identityDialogView(c)
 	w.snippetDialogView(c)
@@ -123,6 +124,7 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyJ, func() { w.act(w.openJoin) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() { w.act(func() { w.openPage("settings") }) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newItem) }) // New host, or the page's own New (docs/shortcuts.md)
 	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
@@ -130,7 +132,11 @@ func (w *workspace) shortcuts(c *ui.Context) {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
 		}
 	}
-	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(func() { w.sidebar = !w.sidebar }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() {
+		if !w.joinedActive() {
+			w.act(func() { w.sidebar = !w.sidebar })
+		}
+	})
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEnter, func() { w.act(w.zoomFocused) })
@@ -165,7 +171,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if iconBtn(c, "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar) {
+		if !w.joinedActive() && iconBtn(c, "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar) { // no toggle in a joined tab
 			w.act(func() { w.sidebar = !w.sidebar })
 		}
 		for i, t := range w.tabs {
@@ -238,6 +244,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			icon(c, "computer-terminal-01", inkMuted)
 		case t.isPage():
 			icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
+		case t.remote: // the joined-share link (lib/tabstrip.js)
+			icon(c, "link", inkMuted)
 		default:
 			dot(c, statusColor(status))
 		}
@@ -360,10 +368,13 @@ func (w *workspace) sidebarView(c *ui.Context) {
 }
 
 // hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect and Local terminal.
-// Join session (N6) and New group are in the app's menu and not here.
+// New group is in the app's menu and not here (folders).
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
 	if m.Item("Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
 		w.act(func() { w.openQuick("", nil) })
+	}
+	if m.Item("Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
+		w.act(w.openJoin)
 	}
 	if m.Item("Local terminal").Chosen() {
 		w.act(w.newLocalTab)
@@ -603,7 +614,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			sub := st.Subtitle
 			dot(c, statusColor(st.Status))
 			// The tools never shrink; user gives way first, then the host name (Shrink is the weight).
-			bodyStrong(c, p.host.Name, hostCol).Shrink(2).MinWidth(0)
+			bodyStrong(c, p.title(), hostCol).Shrink(2).MinWidth(0)
 			if sub == "" {
 				sub = p.host.Address
 				if p.host.Username != "" {
@@ -612,7 +623,10 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			}
 			mono(c, sub, inkMuted).Shrink(8).MinWidth(0)
 			ui.Spacer(c)
-			if len(st.Attached) > 1 {
+			switch {
+			case p.remote: // who drives, and "You follow" (§5.7)
+				joinChips(c, st)
+			case len(st.Attached) > 1:
 				roleChip(c, st.Role)
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
@@ -702,7 +716,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 		ui.Spacer(c)
 		if p := w.focusedPane(); p != nil {
 			cols, rows := p.size()
-			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.host.Name, cols, rows), inkMuted)
+			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
 		}
 	})
 }

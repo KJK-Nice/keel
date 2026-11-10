@@ -114,14 +114,14 @@ func TestEmptyWindowShowsTheNewTabPage(t *testing.T) {
 	if len(r.w.tabs) != 1 || !r.tt.Focused("Host to connect to") {
 		t.Fatalf("tabs %d, the input has the keyboard: %v", len(r.w.tabs), r.tt.Focused("Host to connect to"))
 	}
-	for _, s := range []string{"Where to?", "Recent", "Local Shell", "Start", "Quick connect", "New host", "New tab"} {
+	for _, s := range []string{"Where to?", "Recent", "Local Shell", "Start", "Quick connect", "Join session", "New host", "New tab"} {
 		if !r.tt.HasText(s) {
 			t.Errorf("no %q on the page", s)
 		}
 	}
-	// Join session works in a later phase: it is not offered.
-	if r.tt.HasText("Join session") {
-		t.Error("an action that does not work is offered")
+	r.click(t, "Join session")
+	if r.w.joinDlg == nil {
+		t.Error("Join session did not open the dialog")
 	}
 }
 

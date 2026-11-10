@@ -218,6 +218,7 @@ func (w *workspace) paletteItems() []palItem {
 	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
+	add("Vault", "Join session", "⌘J", "link", w.openJoin)
 	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
 	for _, name := range pageNames { // Keychain, Port forwarding, Snippets, Logs, Settings (Notebooks sit before Logs in the webview)
 		keys := ""

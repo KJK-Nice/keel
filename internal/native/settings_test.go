@@ -271,8 +271,11 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	if !r.has("keys ⌘⇧T") || !r.has("keys ⌘,") {
 		t.Errorf("key caps missing: %v", r.tt.Texts())
 	}
-	if r.has("Join session") || r.has("Toggle agent panel") || r.has("Agent") {
-		t.Error("a key that waits for the share or agent phase is listed")
+	if !r.has("Join session") || !r.has("keys ⌘J") {
+		t.Error("Join session ⌘J is not listed")
+	}
+	if r.has("Toggle agent panel") || r.has("Agent") {
+		t.Error("a key that waits for the agent phase is listed")
 	}
 }
 
