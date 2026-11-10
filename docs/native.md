@@ -12,6 +12,8 @@ make native             # builds bin/keel-native (pure Go, no cgo)
 ./bin/keel-native
 ```
 
+`make native-app` builds `bin/Keel Native.app`: `keel-native` with libghostty-vt beside it in `Contents/MacOS`, so the app never downloads the library. The library comes from MyGo's loader (SHA-256 checked); the bundle is ad-hoc signed, not notarized, and is a developer bundle until the cutover (N9).
+
 `KEEL_DATA` and `KEEL_ADDR` select the data directory and address, as for `keel serve`. From a checkout, run it in the repository root so it finds the JetBrains Mono fonts in `cmd/keel/web/fonts`; elsewhere it falls back to the system monospace. The first run downloads libghostty-vt into the user cache (SHA-256 checked by MyGo).
 
 ## Verifying
@@ -27,13 +29,15 @@ make native             # builds bin/keel-native (pure Go, no cgo)
 - Sessions already running in `keel serve` come back as one tab each. Closing the window detaches; sessions keep running.
 - Status bar: session count, focused pane size, encoding.
 - Keys: ⌘1…⌘8, ⌘9, ⌘W, ⌘⇧D, ⌘⇧E, ⌘B (Ctrl off macOS).
+- Window translucency: the window is see-through at the saved opacity (default 66, range 30-100) with a macOS background blur (default 20, range 0-64; a private window-server call that falls back to no blur and logs once to stderr). Both are read from `keel-native.json` in the data directory, `{"opacity": 66, "blur": 20}`, which the N5 Settings page will write; `KEEL_NATIVE_OPACITY` and `KEEL_NATIVE_BLUR` override them for development, and an out-of-range value is an error.
+- JetBrains Mono is embedded, so the bundle needs no font files beside it.
 - A locked or unset vault shows a message: unlock it in Keel, then reopen the window.
 
 ## What is missing
 
 | Phase | Scope |
 |---|---|
-| N2 | Packaging: libghostty-vt bundled and signed in `Keel.app`, fonts embedded, Linux build; translucency settings (Window opacity and blur) |
+| N2 | Linux build and packaging; release packaging (universal binary, notices, `scripts/release.sh`) is the cutover |
 | N3 | Pane states and control: banners (exited, reconnecting, host key), follower role and Take control, pane menu, terminal menu, zoom, tab rename and drag, saved workspace layout |
 | N4 | Command palette, New tab page (`+` opens the first local host until then), full shortcuts map |
 | N5 | Vault: Unlock, First run, Edit host, Keychain, Forwards, Snippets, Logs, Settings pages; live updates; sidebar sections and bottom bar |

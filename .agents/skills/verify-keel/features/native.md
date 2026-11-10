@@ -26,6 +26,23 @@ any change to `keel serve`. The first run fetches libghostty-vt into the user
 cache. A native change is working only when `make native-e2e` and
 `go test -count=1 ./internal/native/...` both pass.
 
+## Translucency
+
+Checked by pixel tests, not by eye: `TestGroundsFollowTheWindowAlphaWithoutStacking`
+(`internal/native/workspace_test.go`) reads rendered pixels and asserts the
+ground alpha equals the window alpha, so a tint painted twice fails. Try other
+values with `KEEL_NATIVE_OPACITY` (30-100) and `KEEL_NATIVE_BLUR` (0-64) or the
+`keel-native.json` prefs file in the data dir. The blur and the real
+see-through window are person-only checks.
+
+## The bundle
+
+`make native-app`, then each as its own command: `"bin/Keel Native.app/Contents/MacOS/keel-native" --library-path`
+prints a path inside the bundle; `codesign --verify --deep --strict "bin/Keel Native.app"`
+exits 0; `otool -L "bin/Keel Native.app/Contents/MacOS/keel-native" | grep -c libghostty`
+prints 0; with a scratch daemon, `env -u MYGO_GHOSTTY_VT KEEL_NATIVE_CAPTURE=.scratch-native/app.png`
+and the bundled binary exits 0 and the PNG shows a prompt. Opening it from Finder is person-only.
+
 ## Evidence
 
 `.scratch-native/e2e/<Test>.png` (one per test) and the daemon log
@@ -50,7 +67,7 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
-screen, title bar drag, the macOS menu), window translucency and blur, input
+screen, title bar drag, the macOS menu), the blur and the see-through window, input
 methods, the system clipboard, real GPU text rendering, Linux and Windows.
 `KEEL_NATIVE_CAPTURE=<png> ./bin/keel-native` on a real window is the only
 check of the page inside a real window, and it does not draw the window
