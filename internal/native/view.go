@@ -422,21 +422,23 @@ func (w *workspace) stage(c *ui.Context) {
 		case multi && w.alpha < 1:
 			// Translucent: the chrome ground is painted only in the inset and the gaps, never under a
 			// tile, so a tile's own ground is not tinted twice.
-			ui.Column(c).Grow(1).FillHeight().Children(func() {
+			// MinWidth/MinHeight 0 all the way down: the stage takes the room the window gives it, whatever the
+			// tiles' content (the pane bar's natural width) would like.
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).MinHeight(0).FillHeight().Children(func() {
 				w.inset(c, true)
-				ui.Row(c).FillWidth().Grow(1).Shrink(1).Children(func() {
+				ui.Row(c).FillWidth().Grow(1).Shrink(1).MinHeight(0).Children(func() {
 					w.inset(c, false)
-					ui.Box(c).Grow(1).FillHeight().Shrink(1).Children(tiles)
+					ui.Box(c).Grow(1).FillHeight().Shrink(1).MinWidth(0).Children(tiles)
 					w.inset(c, false)
 				})
 				w.inset(c, true)
 			})
 		case multi:
 			// The padding and the gaps between tiles are the chrome ground (the rings paint over it).
-			ui.Box(c).Grow(1).FillHeight().Padding(space1_5).Background(chrome).Children(tiles)
+			ui.Box(c).Grow(1).Shrink(1).MinWidth(0).MinHeight(0).FillHeight().Padding(space1_5).Background(chrome).Children(tiles)
 		default:
 			// A single pane paints its own stage ground once; the area is clear.
-			ui.Box(c).Grow(1).FillHeight().Children(tiles)
+			ui.Box(c).Grow(1).Shrink(1).MinWidth(0).MinHeight(0).FillHeight().Children(tiles)
 		}
 	}
 }
@@ -461,7 +463,9 @@ func (w *workspace) centered(c *ui.Context, msg string) {
 // parent is the direction of the split this node is a child of (what it fills across).
 func (w *workspace) node(c *ui.Context, t *tab, n *layout.Node, multi bool, parent layout.Dir, root bool, grow float32) {
 	fit := func(e ui.Element) ui.Element {
-		e = e.Grow(grow).Shrink(1)
+		// MinWidth/MinHeight 0: a tile's content (the pane bar's tools) must not hold a side at its natural
+		// width, or nested splits stop sharing the room in their ratio and run off the stage.
+		e = e.Grow(grow).Shrink(1).MinWidth(0).MinHeight(0)
 		switch {
 		case root:
 			return e.Fill()

@@ -308,6 +308,7 @@ func TestE2EPanesSection(t *testing.T) {
 			t.Errorf("the line typed after picking row 2 reached pane %s", id)
 		}
 	}
+	assertFits(t, e.w, e.tt, 1280, 800) // three whole tiles inside the window
 	e.shot("TestE2EPanesSection")
 	// Closing down to one pane hides the segment and falls back to Hosts.
 	for want := 2; want >= 1; want-- {

@@ -959,6 +959,7 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 	if e.w.tab().focused != "1" || e.w.active != 0 {
 		t.Fatalf("focused %q, active %d", e.w.tab().focused, e.w.active)
 	}
+	assertFits(t, e.w, e.tt, 1280, 800)
 	e.shot("TestE2EWorkspaceComesBack-before")
 	wantTree, wantRatios := structure(e.w.tabs[0])
 	wantFocus := e.w.tab().panes[e.w.tab().focused].sessionID()
@@ -999,6 +1000,7 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 		t.Errorf("%d sessions, want 4", len(got))
 	}
 	e2.settle(500 * time.Millisecond)
+	assertFits(t, e2.w, e2.tt, 1280, 800)
 	e2.shot("TestE2EWorkspaceComesBack")
 }
 
