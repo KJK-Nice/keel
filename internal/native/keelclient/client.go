@@ -130,6 +130,9 @@ type StatusError struct {
 	// ErrorKind and Key are what a refused host import adds ({"errorKind": "wrongPassphrase", "key": path}): the
 	// kind of the refusal and the path of the key it is about. Neither is a secret.
 	ErrorKind, Key string
+	// Offer is the host key a refused start of a forward offers (409 unknown-host or host-key-mismatch): what
+	// TrustHostKey sends back. Its Token is a one-time capability; HostKey.String leaves it out.
+	Offer HostKey
 }
 
 func (e *StatusError) Error() string { return fmt.Sprintf("%s %s: %s", e.Method, e.Path, e.Status) }
@@ -140,9 +143,17 @@ func statusError(method, path string, resp *http.Response) error {
 		Error     string `json:"error"`
 		ErrorKind string `json:"errorKind"`
 		Key       string `json:"key"`
+		Hostname  string `json:"hostname"`
+		Finger    string `json:"fingerprint"`
+		Expected  string `json:"expected"`
+		KeyType   string `json:"keyType"`
+		Token     string `json:"trustToken"`
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && len(body.Error) <= 300 {
 		e.Msg, e.ErrorKind, e.Key = body.Error, body.ErrorKind, body.Key
+		if k := body.ErrorKind; k == "unknown-host" || k == "host-key-mismatch" {
+			e.Offer = HostKey{k, body.Hostname, body.Finger, body.Expected, body.KeyType, body.Token}
+		}
 	}
 	return e
 }

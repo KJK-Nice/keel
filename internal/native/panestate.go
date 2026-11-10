@@ -182,6 +182,17 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 	if k.Kind == "" || k == p.declined {
 		return
 	}
+	if hostKeyModal(c, k, func() { w.act(func() { w.trustHostKey(p, k) }) }) {
+		p.declined = k
+		if t != nil {
+			w.wantFocus = t.focused
+		}
+	}
+}
+
+// hostKeyModal is #hostkey-modal: the offered key and Abort / Trust and connect (Replace for a changed key). It
+// reports that the dialog went away; onTrust runs when Trust and connect was clicked, and only then.
+func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed bool) {
 	open := true
 	mismatch := k.Kind == "host-key-mismatch"
 	title, hint := "Unknown host key", "Trust this key once to connect. Keel will reject a different key later."
@@ -210,14 +221,9 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 			}
 			if textBtn(c, "Trust and connect", trust) {
 				open = false
-				w.act(func() { w.trustHostKey(p, k) })
+				onTrust()
 			}
 		})
 	})
-	if !open {
-		p.declined = k
-		if t != nil {
-			w.wantFocus = t.focused
-		}
-	}
+	return !open
 }

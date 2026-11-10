@@ -117,6 +117,16 @@ type fakeBackend struct {
 	nextSnipSeq  int
 	snippetCalls int
 
+	// Port forwarding.
+	tunnels     []keelclient.Tunnel
+	tunSaved    []keelclient.TunnelInput
+	tunStarted  []string
+	tunStopped  []string
+	tunDeleted  []string
+	tunStartErr error // what StartTunnel answers
+	tunSaveErr  error
+	tunCalls    int
+
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
 }
 
@@ -349,6 +359,70 @@ func (f *fakeBackend) Logs(_ context.Context, limit int) ([]keelclient.LogEntry,
 	f.logLimit = limit
 	return append([]keelclient.LogEntry(nil), f.logs...), nil
 }
+func (f *fakeBackend) Tunnels(context.Context) ([]keelclient.Tunnel, error) {
+	f.tunCalls++
+	return append([]keelclient.Tunnel(nil), f.tunnels...), nil
+}
+
+func (f *fakeBackend) SaveTunnel(_ context.Context, in keelclient.TunnelInput) (keelclient.Tunnel, error) {
+	f.rec("save tunnel")
+	f.tunSaved = append(f.tunSaved, in)
+	if f.tunSaveErr != nil {
+		return keelclient.Tunnel{}, f.tunSaveErr
+	}
+	out := keelclient.Tunnel{ID: in.ID, Name: in.Name, HostID: in.HostID, Kind: in.Kind, BindAddr: in.BindAddr, BindPort: in.BindPort,
+		DestHost: in.DestHost, DestPort: in.DestPort, Status: "stopped"}
+	if in.ID == "" {
+		out.ID = fmt.Sprintf("t-new%d", len(f.tunSaved))
+		f.tunnels = append(f.tunnels, out)
+		return out, nil
+	}
+	for i := range f.tunnels {
+		if f.tunnels[i].ID == in.ID {
+			out.Status, out.Error, out.ListenAddr = f.tunnels[i].Status, f.tunnels[i].Error, f.tunnels[i].ListenAddr
+			f.tunnels[i] = out
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackend) DeleteTunnel(_ context.Context, id string) error {
+	f.rec("delete tunnel")
+	f.tunDeleted = append(f.tunDeleted, id)
+	for i, t := range f.tunnels {
+		if t.ID == id {
+			f.tunnels = append(f.tunnels[:i:i], f.tunnels[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackend) setTunnel(id, status string) keelclient.Tunnel {
+	for i := range f.tunnels {
+		if f.tunnels[i].ID == id {
+			f.tunnels[i].Status = status
+			return f.tunnels[i]
+		}
+	}
+	return keelclient.Tunnel{}
+}
+
+func (f *fakeBackend) StartTunnel(_ context.Context, id string) (keelclient.Tunnel, error) {
+	f.rec("start tunnel " + id)
+	f.tunStarted = append(f.tunStarted, id)
+	if f.tunStartErr != nil {
+		return keelclient.Tunnel{}, f.tunStartErr
+	}
+	return f.setTunnel(id, "ready"), nil
+}
+
+func (f *fakeBackend) StopTunnel(_ context.Context, id string) (keelclient.Tunnel, error) {
+	f.rec("stop tunnel " + id)
+	f.tunStopped = append(f.tunStopped, id)
+	return f.setTunnel(id, "stopped"), nil
+}
+
 func (f *fakeBackend) Groups(context.Context) ([]keelclient.Group, error) { return f.groups, nil }
 
 var testHosts = []keelclient.Host{

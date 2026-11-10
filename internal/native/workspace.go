@@ -71,6 +71,13 @@ type backend interface {
 	Snippets(ctx context.Context) ([]keelclient.Snippet, error)
 	SaveSnippet(ctx context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error)
 	DeleteSnippet(ctx context.Context, id string) error
+
+	// Port forwarding.
+	Tunnels(ctx context.Context) ([]keelclient.Tunnel, error)
+	SaveTunnel(ctx context.Context, in keelclient.TunnelInput) (keelclient.Tunnel, error)
+	DeleteTunnel(ctx context.Context, id string) error
+	StartTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
+	StopTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -166,22 +173,28 @@ type workspace struct {
 	post   func(fn func())
 	mkBody func(p *pane)
 
-	hosts     []keelclient.Host
-	snippets  []keelclient.Snippet
-	sideSeg   string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
-	snipQuery string // the sidebar's Snippets filter
-	snipH     ui.Handle
-	snipDlg   *snippetDialog // New snippet / Edit snippet
-	tabs      []*tab
-	active    int
-	filter    string
-	sidebar   bool
-	collapsed map[string]bool
-	queued    []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked   string      // a message that replaces the workspace (locked vault, no keel serve)
-	gate      *unlockGate // the Unlock screen, over the whole window
-	first     *firstRun   // the First run screens (or the palette's host import), over the whole window
-	closed    bool
+	hosts      []keelclient.Host
+	snippets   []keelclient.Snippet
+	sideSeg    string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
+	snipQuery  string // the sidebar's Snippets filter
+	snipH      ui.Handle
+	snipDlg    *snippetDialog      // New snippet / Edit snippet
+	tunnels    []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
+	tunReading bool                // the 2 s read of them is in flight
+	fwdQuery   string              // the sidebar's Forwards filter
+	fwdH       ui.Handle
+	fwdDlg     *forwardDialog // New forward / Edit forward
+	fwdKey     *fwdKeyOffer   // "Unknown host key" for a forward that could not start
+	tabs       []*tab
+	active     int
+	filter     string
+	sidebar    bool
+	collapsed  map[string]bool
+	queued     []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
+	blocked    string      // a message that replaces the workspace (locked vault, no keel serve)
+	gate       *unlockGate // the Unlock screen, over the whole window
+	first      *firstRun   // the First run screens (or the palette's host import), over the whole window
+	closed     bool
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool          // a poll is in flight
@@ -298,6 +311,7 @@ func (w *workspace) start() {
 			return
 		}
 		snippets, snipErr := w.be.Snippets(c)
+		tunnels, _ := w.be.Tunnels(c) // a failed read leaves none: the 2 s read and the next change fill them in
 		type attached struct {
 			host keelclient.Host
 			conn session
@@ -337,6 +351,7 @@ func (w *workspace) start() {
 			}
 			w.hosts = hosts
 			w.snippets = snippets
+			w.tunnels = tunnels
 			if snipErr != nil {
 				w.fail("snippets", snipErr)
 			}

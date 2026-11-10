@@ -23,12 +23,13 @@ type pageDef struct {
 
 var pageDefs = map[string]pageDef{
 	"keychain": {title: "Keychain", tabIcon: "key-01", paletteTag: "key-01"},
+	"forwards": {title: "Port forwarding", tabIcon: "forwards"},
 	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
 	"logs":     {title: "Logs", tabIcon: "logs-tab"},
 }
 
 // pageNames is every page this client has, in the order the sidebar and the palette list them.
-var pageNames = []string{"keychain", "snippets", "logs"}
+var pageNames = []string{"keychain", "forwards", "snippets", "logs"}
 
 // footPages are the sidebar footer's page buttons (the webview's footer is Keychain · Logs).
 var footPages = []string{"keychain", "logs"}
@@ -39,6 +40,7 @@ type tabPage struct {
 	keychain *keychainPage
 	logs     *logsPage
 	snippets *snippetsPage
+	forwards *forwardsPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -50,6 +52,8 @@ func newTabPage(name string) *tabPage {
 		p.logs = &logsPage{kind: "all"}
 	case "snippets":
 		p.snippets = &snippetsPage{}
+	case "forwards":
+		p.forwards = &forwardsPage{show: tunnelAll}
 	}
 	return p
 }
@@ -99,6 +103,8 @@ func (w *workspace) loadPage(t *tab) {
 		w.loadLogs()
 	case t.pg.snippets != nil:
 		w.reloadSnippets()
+	case t.pg.forwards != nil:
+		w.reloadTunnels()
 	}
 }
 
@@ -119,6 +125,9 @@ func (w *workspace) newItem() {
 		case t.pg.snippets != nil:
 			w.newSnippet()
 			return
+		case t.pg.forwards != nil:
+			w.newForward()
+			return
 		}
 	}
 	w.newHost()
@@ -133,6 +142,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.logsView(c, t.pg.logs)
 	case t.pg.snippets != nil:
 		w.snippetsView(c, t.pg.snippets)
+	case t.pg.forwards != nil:
+		w.forwardsView(c, t.pg.forwards)
 	}
 }
 

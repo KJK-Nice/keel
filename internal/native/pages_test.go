@@ -206,7 +206,7 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 	}
 	// A page this client does not have, or twice, is dropped.
 	r3.w.closeWindow()
-	writeSaved(t, dir, `{"v":1,"active":0,"tabs":[],"pages":["keychain","forwards","keychain","logs"],"activePage":"forwards"}`)
+	writeSaved(t, dir, `{"v":1,"active":0,"tabs":[],"pages":["keychain","notebooks","keychain","logs"],"activePage":"notebooks"}`)
 	r4 := newRigIn(t, okBackend(), dir)
 	if got := tabNames(r4); !slices.Equal(got, []string{"Keychain", "Logs"}) {
 		t.Fatalf("tabs %v", got)
@@ -564,6 +564,7 @@ func TestLogsPageRowsAreNewestFirstWithTimeKindTargetAndEvent(t *testing.T) {
 func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	r := pageRig(t, logsBackend())
 	r.w.openPage("logs")
+	r.w.sidebar = false // the sidebar's own Forwards segment shares the chip's name
 	r.tt.Frame()
 	has := func(s string) bool { return r.tt.HasText(s) }
 	r.click(t, "Vault")

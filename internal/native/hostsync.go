@@ -100,6 +100,7 @@ func (w *workspace) pollOnce() {
 			w.rev = v.Rev
 			w.reloadHosts()
 			w.reloadSnippets()
+			w.reloadTunnels()
 			w.refreshPages()
 		}
 	})
@@ -111,13 +112,17 @@ func (w *workspace) startPoll(every time.Duration) {
 	stop := w.pollStop
 	go func() {
 		t := time.NewTicker(every)
+		f := time.NewTicker(time.Duration(float64(every) * float64(forwardsEvery) / float64(pollEvery))) // the forwards read at forwardsEvery while pollEvery is the vault's
 		defer t.Stop()
+		defer f.Stop()
 		for {
 			select {
 			case <-stop:
 				return
 			case <-t.C:
 				w.post(w.pollTick)
+			case <-f.C:
+				w.post(w.tunnelTick)
 			}
 		}
 	}()

@@ -54,6 +54,8 @@ func (w *workspace) view(c *ui.Context) {
 	w.hostDialogView(c)
 	w.identityDialogView(c)
 	w.snippetDialogView(c)
+	w.forwardDialogView(c)
+	w.forwardKeyView(c)
 	w.approveView(c)
 	w.confirmView(c)
 	w.paletteView(c)
@@ -239,6 +241,9 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 // sideSnippets is the sidebar's Snippets section showing (Hosts is the default).
 func (w *workspace) sideSnippets() bool { return w.sideSeg == "snippets" }
 
+// sideForwards is the sidebar's Forwards section showing.
+func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
+
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Column(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).Padding(space2).Gap(space2).Children(func() {
@@ -246,10 +251,14 @@ func (w *workspace) sidebarView(c *ui.Context) {
 				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
 					Background(stage).Border(1, lineStrong).Children(func() {
 					icon(c, "search-01", inkFaint)
-					if w.sideSnippets() { // each section has its own filter (term.js sidebarQuery)
+					switch {
+					case w.sideSnippets(): // each section has its own filter (term.js sidebarQuery)
 						ui.TextInputBase(c, &w.snipQuery).Label("Filter snippets").Placeholder("Filter snippets").
 							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.snipH)
-					} else {
+					case w.sideForwards():
+						ui.TextInputBase(c, &w.fwdQuery).Label("Filter forwards").Placeholder("Filter forwards").
+							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.fwdH)
+					default:
 						ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
 							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
 					}
@@ -258,10 +267,14 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					w.act(w.newHost)
 				}
 			})
-			// k-seg "Vault section": Hosts · Snippets. Panes and Forwards come with their phases (docs/native.md).
-			segControl(c, "Vault section", w.sideSeg, [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}}, func(v string) { w.sideSeg = v })
+			// k-seg "Vault section": Hosts · Snippets · Forwards. Panes comes with its step (docs/native.md).
+			segControl(c, "Vault section", w.sideSeg, [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}, {"forwards", "Forwards"}}, func(v string) { w.sideSeg = v })
 			if w.sideSnippets() {
 				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar snippets").Children(func() { w.sidebarSnippets(c) })
+				return
+			}
+			if w.sideForwards() {
+				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar forwards").Children(func() { w.sidebarForwards(c) })
 				return
 			}
 			ui.Column(c).FillWidth().Grow(1).Gap(space2).Children(func() {
@@ -582,6 +595,12 @@ func (w *workspace) statusbar(c *ui.Context) {
 			}
 			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
+		if n := w.runningForwards(); n > 0 { // #sb-forwards is hidden with none running
+			ui.Row(c).Gap(space1_5).Label("status forwards").Children(func() {
+				iconSized(c, "forwards", inkMuted, iconSizeSm)
+				caption(c, forwardsLabel(n), inkMuted)
+			})
+		}
 		ui.Spacer(c)
 		if p := w.focusedPane(); p != nil {
 			cols, rows := p.size()
