@@ -44,6 +44,17 @@ type backend interface {
 	Reconnect(ctx context.Context, id string) error
 	TrustHostKey(ctx context.Context, k keelclient.HostKey, replace bool) error
 	CreateHost(ctx context.Context, h keelclient.NewHost) (keelclient.Host, error)
+
+	Unlock(ctx context.Context, passphrase string) error
+	SaveHost(ctx context.Context, h keelclient.HostDetail) (keelclient.Host, error)
+	DeleteHost(ctx context.Context, id string) error
+	DuplicateHost(ctx context.Context, id string) (keelclient.Host, error)
+	TestHost(ctx context.Context, h keelclient.HostDetail) (keelclient.TestResult, error)
+	HostKey(ctx context.Context, id string) (keelclient.KnownKey, error)
+	ForgetHostKey(ctx context.Context, id string) error
+	SetAgentReadable(ctx context.Context, id string, readable bool) error
+	Identities(ctx context.Context) ([]keelclient.Identity, error)
+	Groups(ctx context.Context) ([]keelclient.Group, error)
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -141,9 +152,14 @@ type workspace struct {
 	filter    string
 	sidebar   bool
 	collapsed map[string]bool
-	err       string // last user-facing error, shown in the status bar
-	blocked   string // a message that replaces the workspace (locked vault, no keel serve)
+	err       string      // last user-facing error, shown in the status bar
+	blocked   string      // a message that replaces the workspace (locked vault, no keel serve)
+	gate      *unlockGate // the Unlock screen, over the whole window
 	closed    bool
+
+	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
+	polling  bool          // a poll is in flight
+	pollStop chan struct{} // closed when the window closes
 
 	seq       int
 	wantFocus string                      // pane to give the keyboard to once it is on screen
@@ -232,7 +248,11 @@ func (w *workspace) start() {
 			w.post(func() { w.blocked = "Cannot reach keel serve: " + err.Error() })
 			return
 		}
-		if v.Locked || v.NeedsSetup || v.FirstRun {
+		if v.Locked && !v.NeedsSetup && !v.FirstRun {
+			w.post(func() { w.blocked = ""; w.showUnlock(v) })
+			return
+		}
+		if v.Locked || v.NeedsSetup || v.FirstRun { // First run is a later phase
 			w.post(func() { w.blocked = lockedMessage })
 			return
 		}
@@ -284,6 +304,7 @@ func (w *workspace) start() {
 				return
 			}
 			w.hosts = hosts
+			w.rev = v.Rev
 			w.recentIDs = recent
 			panes := make([]*pane, len(live))
 			for i, a := range live {
@@ -517,6 +538,10 @@ func (w *workspace) release(p *pane) {
 func (w *workspace) closeWindow() {
 	w.saveNow()
 	w.closed = true
+	if w.pollStop != nil {
+		close(w.pollStop)
+		w.pollStop = nil
+	}
 	w.saved.stop()
 	for _, t := range w.tabs {
 		for _, p := range t.panes {

@@ -17,6 +17,11 @@ func (w *workspace) view(c *ui.Context) {
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
 	}
+	if w.gate != nil { // Unlock replaces the window; no shortcut acts, sessions keep running
+		ui.Column(c).Fill().Children(func() { w.unlockView(c) })
+		w.runLater(c)
+		return
+	}
 	w.shortcuts(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
@@ -61,6 +66,12 @@ func (w *workspace) view(c *ui.Context) {
 			w.renameH.Focus(c)
 		}
 	}
+	w.runLater(c)
+	w.persist()
+}
+
+// runLater runs what the view queued, now that the frame is built.
+func (w *workspace) runLater(c *ui.Context) {
 	if len(w.later) > 0 {
 		run := w.later
 		w.later = nil
@@ -69,7 +80,6 @@ func (w *workspace) view(c *ui.Context) {
 		}
 		c.Invalidate()
 	}
-	w.persist()
 }
 
 // shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken

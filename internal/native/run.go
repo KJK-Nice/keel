@@ -113,6 +113,7 @@ func Run() error {
 		w.post = win.Update
 		win.OnClosed(w.closeWindow)
 		w.start()
+		w.startPoll(pollEvery)
 		if path := os.Getenv("KEEL_NATIVE_CAPTURE"); path != "" {
 			capture(win, w, path)
 		}

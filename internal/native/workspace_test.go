@@ -63,17 +63,40 @@ type fakeBackend struct {
 	replaced    []bool
 
 	created []keelclient.NewHost // what CreateHost was asked for
+
+	// The Unlock screen and the host dialog. unlockWant is the passphrase that opens the vault; the fake keeps
+	// no passphrase.
+	unlockWant  string
+	unlockCalls int
+	vaultCalls  int
+	hostsCalls  int
+
+	saved       []keelclient.HostDetail // SaveHost, as sent
+	deleted     []string
+	duplicated  []string
+	tests       []keelclient.HostDetail // TestHost, as sent
+	testReply   []keelclient.TestResult // answered in turn; the last repeats
+	testWait    chan struct{}           // when set, TestHost waits for it or its context
+	savedKey    keelclient.KnownKey
+	forgot      []string
+	readable    map[string]bool
+	identities  []keelclient.Identity
+	groups      []keelclient.Group
+	saveErr     error
+	nextHostSeq int
 }
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }
 
 func (f *fakeBackend) Vault(context.Context) (keelclient.Vault, error) {
 	f.rec("vault")
+	f.vaultCalls++
 	return f.vault, nil
 }
 func (f *fakeBackend) Hosts(context.Context) ([]keelclient.Host, error) {
 	f.rec("hosts")
-	return f.hosts, nil
+	f.hostsCalls++
+	return append([]keelclient.Host(nil), f.hosts...), nil
 }
 func (f *fakeBackend) Sessions(context.Context) ([]keelclient.Session, error) {
 	f.rec("sessions")
@@ -115,6 +138,110 @@ func (f *fakeBackend) CreateHost(_ context.Context, h keelclient.NewHost) (keelc
 	f.hosts = append(f.hosts, out)
 	return out, nil
 }
+
+func (f *fakeBackend) Unlock(_ context.Context, pass string) error {
+	f.rec("unlock")
+	f.unlockCalls++
+	if pass != f.unlockWant {
+		return keelclient.ErrPassphrase
+	}
+	f.vault.Locked = false
+	return nil
+}
+
+func (f *fakeBackend) SaveHost(_ context.Context, h keelclient.HostDetail) (keelclient.Host, error) {
+	f.rec("save host")
+	f.saved = append(f.saved, h)
+	if f.saveErr != nil {
+		return keelclient.Host{}, f.saveErr
+	}
+	out := keelclient.Host{ID: h.ID, Name: h.Name, GroupID: h.GroupID, Address: h.Address, Username: h.Username, AuthType: h.AuthType,
+		Color: h.Color, Port: h.Port, Tags: h.Tags, JumpHost: h.JumpHost, StartupCommand: h.StartupCommand, KeepAliveSec: h.KeepAliveSec,
+		NoAutoReconnect: h.NoAutoReconnect, IdentityID: h.IdentityID, AgentReadable: h.AgentReadable, Production: h.Production, AgentNotes: h.AgentNotes}
+	if out.ID == "" {
+		f.nextHostSeq++
+		out.ID = fmt.Sprintf("h-saved%d", f.nextHostSeq)
+		f.hosts = append(f.hosts, out)
+		return out, nil
+	}
+	for i := range f.hosts {
+		if f.hosts[i].ID == out.ID {
+			f.hosts[i] = out
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackend) DeleteHost(_ context.Context, id string) error {
+	f.rec("delete host")
+	f.deleted = append(f.deleted, id)
+	for i, h := range f.hosts {
+		if h.ID == id {
+			f.hosts = append(f.hosts[:i:i], f.hosts[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackend) DuplicateHost(_ context.Context, id string) (keelclient.Host, error) {
+	f.rec("duplicate host")
+	f.duplicated = append(f.duplicated, id)
+	for _, h := range f.hosts {
+		if h.ID == id {
+			h.ID, h.Name = id+"-copy", h.Name+" (copy)"
+			f.hosts = append(f.hosts, h)
+			return h, nil
+		}
+	}
+	return keelclient.Host{}, fmt.Errorf("not found")
+}
+
+func (f *fakeBackend) TestHost(ctx context.Context, h keelclient.HostDetail) (keelclient.TestResult, error) {
+	f.rec("test host")
+	f.tests = append(f.tests, h)
+	if f.testWait != nil {
+		select {
+		case <-f.testWait:
+		case <-ctx.Done():
+			return keelclient.TestResult{}, ctx.Err()
+		}
+	}
+	if len(f.testReply) == 0 {
+		return keelclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, nil
+	}
+	r := f.testReply[0]
+	if len(f.testReply) > 1 {
+		f.testReply = f.testReply[1:]
+	}
+	return r, nil
+}
+
+func (f *fakeBackend) HostKey(context.Context, string) (keelclient.KnownKey, error) {
+	f.rec("host key")
+	return f.savedKey, nil
+}
+
+func (f *fakeBackend) ForgetHostKey(_ context.Context, id string) error {
+	f.rec("forget host key")
+	f.forgot = append(f.forgot, id)
+	f.savedKey = keelclient.KnownKey{}
+	return nil
+}
+
+func (f *fakeBackend) SetAgentReadable(_ context.Context, id string, v bool) error {
+	f.rec("agent readable")
+	if f.readable == nil {
+		f.readable = map[string]bool{}
+	}
+	f.readable[id] = v
+	return nil
+}
+
+func (f *fakeBackend) Identities(context.Context) ([]keelclient.Identity, error) {
+	return f.identities, nil
+}
+func (f *fakeBackend) Groups(context.Context) ([]keelclient.Group, error) { return f.groups, nil }
 
 var testHosts = []keelclient.Host{
 	{ID: "h-pg", Name: "pg-primary", Group: "production", Address: "10.0.0.3", Username: "dba", AuthType: "key"},
@@ -166,12 +293,14 @@ func (r *rig) click(t *testing.T, name string) {
 }
 
 func TestLockedVaultMakesNoOtherCall(t *testing.T) {
-	for _, v := range []keelclient.Vault{{Locked: true}, {NeedsSetup: true}, {FirstRun: true}} {
+	for _, v := range []keelclient.Vault{{Locked: true}, {Locked: true, NeedsSetup: true}, {NeedsSetup: true}, {FirstRun: true}} {
 		fb := &fakeBackend{vault: v, hosts: testHosts}
 		r := newRig(t, fb)
 		r.tt.Frame()
-		if !r.tt.HasText(lockedMessage) {
-			t.Errorf("%+v: no locked message", v)
+		// A vault that only needs unlocking shows the Unlock screen; setup and first run keep the message
+		// (First run is a later phase).
+		if want := v.NeedsSetup || v.FirstRun; want != r.tt.HasText(lockedMessage) || want == r.tt.HasText("Unlock your vault") {
+			t.Errorf("%+v: message %v, unlock screen %v", v, r.tt.HasText(lockedMessage), r.tt.HasText("Unlock your vault"))
 		}
 		if !slices.Equal(fb.calls, []string{"vault"}) {
 			t.Errorf("%+v: calls %v", v, fb.calls)
