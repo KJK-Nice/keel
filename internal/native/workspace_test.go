@@ -109,6 +109,14 @@ type fakeBackend struct {
 	logLimit     int
 	nextIdentSeq int
 
+	// Snippets.
+	snippets     []keelclient.Snippet
+	snipSaved    []keelclient.SnippetInput
+	snipDeleted  []string
+	snipSaveErr  error
+	nextSnipSeq  int
+	snippetCalls int
+
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
 }
 
@@ -874,4 +882,43 @@ func TestPrefsEnvOverridesAndRejects(t *testing.T) {
 	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_OPACITY") {
 		t.Errorf("err %v", err)
 	}
+}
+
+func (f *fakeBackend) Snippets(context.Context) ([]keelclient.Snippet, error) {
+	f.snippetCalls++
+	return append([]keelclient.Snippet(nil), f.snippets...), nil
+}
+
+func (f *fakeBackend) SaveSnippet(_ context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error) {
+	f.rec("save snippet")
+	f.snipSaved = append(f.snipSaved, in)
+	if f.snipSaveErr != nil {
+		return keelclient.Snippet{}, f.snipSaveErr
+	}
+	out := keelclient.Snippet{ID: in.ID, Name: in.Name, Command: in.Command}
+	if in.ID == "" {
+		f.nextSnipSeq++
+		out.ID = fmt.Sprintf("sn-new%d", f.nextSnipSeq)
+		f.snippets = append(f.snippets, out)
+		return out, nil
+	}
+	for i := range f.snippets {
+		if f.snippets[i].ID == in.ID {
+			out.AgentUsable, out.CreatedAt = f.snippets[i].AgentUsable, f.snippets[i].CreatedAt // the server keeps them
+			f.snippets[i] = out
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackend) DeleteSnippet(_ context.Context, id string) error {
+	f.rec("delete snippet")
+	f.snipDeleted = append(f.snipDeleted, id)
+	for i, x := range f.snippets {
+		if x.ID == id {
+			f.snippets = append(f.snippets[:i:i], f.snippets[i+1:]...)
+			break
+		}
+	}
+	return nil
 }

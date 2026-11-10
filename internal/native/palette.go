@@ -12,10 +12,10 @@ import (
 
 // The command palette (docs/ui-redesign.md §5.2). The model here follows cmd/keel/web/js/lib/palette.js
 // (groups, matching, ordering, cursor, highlight) and the item list of term.js paletteCatalog: titles,
-// hints and key caps are the webview's. Choosing an item never types into a session. The Snippets group and
-// the "Ask the agent" row wait for later phases (docs/native.md).
+// hints and key caps are the webview's. Choosing an item never types into a session: a snippet opens Approve before type
+// (approve.go). The "Ask the agent" row waits for a later phase (docs/native.md).
 
-// groupOrder is lib/palette.js GROUP_ORDER. Snippets has no items yet.
+// groupOrder is lib/palette.js GROUP_ORDER.
 var groupOrder = []string{"Open now", "Hosts", "Actions", "Snippets"}
 
 // palItem is one row. run gets split = true for ⌥↵ (open in a split); rows with no split form ignore it.
@@ -23,6 +23,7 @@ type palItem struct {
 	group, title, hint, keys string
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
+	badge                    string // a brass label before the keys ("Approve first" on snippets)
 	run                      func(split bool)
 }
 
@@ -297,6 +298,12 @@ func (w *workspace) paletteItems() []palItem {
 				w.openHost(h)
 			}
 		}})
+	}
+	// Snippets only ever go through typeSnippet: Approve before type. The webview types a one-line, plainly read-only
+	// snippet with no dialog (rule 13); this client does not, so every row says "Approve first" (docs/native.md).
+	for _, sn := range w.snippets {
+		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: "Approve first",
+			run: func(bool) { w.typeSnippet(sn.ID) }})
 	}
 	return items
 }

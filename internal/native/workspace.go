@@ -66,6 +66,11 @@ type backend interface {
 	SaveIdentity(ctx context.Context, in keelclient.IdentityInput) (keelclient.Identity, error)
 	DeleteIdentity(ctx context.Context, id string) error
 	Logs(ctx context.Context, limit int) ([]keelclient.LogEntry, error)
+
+	// Snippets (they are typed only through Approve before type).
+	Snippets(ctx context.Context) ([]keelclient.Snippet, error)
+	SaveSnippet(ctx context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error)
+	DeleteSnippet(ctx context.Context, id string) error
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -162,6 +167,11 @@ type workspace struct {
 	mkBody func(p *pane)
 
 	hosts     []keelclient.Host
+	snippets  []keelclient.Snippet
+	sideSeg   string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
+	snipQuery string // the sidebar's Snippets filter
+	snipH     ui.Handle
+	snipDlg   *snippetDialog // New snippet / Edit snippet
 	tabs      []*tab
 	active    int
 	filter    string
@@ -289,6 +299,7 @@ func (w *workspace) start() {
 			w.post(func() { w.hosts = hosts; w.fail("sessions", err) })
 			return
 		}
+		snippets, snipErr := w.be.Snippets(c)
 		type attached struct {
 			host keelclient.Host
 			conn session
@@ -327,6 +338,10 @@ func (w *workspace) start() {
 				return
 			}
 			w.hosts = hosts
+			w.snippets = snippets
+			if snipErr != nil {
+				w.fail("snippets", snipErr)
+			}
 			w.rev = v.Rev
 			w.recentIDs = recent
 			panes := make([]*pane, len(live))

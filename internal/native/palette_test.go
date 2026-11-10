@@ -183,8 +183,8 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 			t.Errorf("the palette does not show %q", s)
 		}
 	}
-	if r.tt.HasText("Snippets") || r.tt.HasText("Ask the agent") {
-		t.Error("the Snippets group or the agent row is shown before their phases")
+	if r.tt.HasText("Ask the agent") { // the Snippets group is absent too, with no snippets: seen has no such group
+		t.Error("the agent row is shown before its phase")
 	}
 }
 

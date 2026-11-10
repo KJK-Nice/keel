@@ -52,6 +52,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.quickDialogView(c)
 	w.hostDialogView(c)
 	w.identityDialogView(c)
+	w.snippetDialogView(c)
 	w.approveView(c)
 	w.confirmView(c)
 	w.paletteView(c)
@@ -234,6 +235,9 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 	}
 }
 
+// sideSnippets is the sidebar's Snippets section showing (Hosts is the default).
+func (w *workspace) sideSnippets() bool { return w.sideSeg == "snippets" }
+
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Column(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).Padding(space2).Gap(space2).Children(func() {
@@ -241,13 +245,24 @@ func (w *workspace) sidebarView(c *ui.Context) {
 				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
 					Background(stage).Border(1, lineStrong).Children(func() {
 					icon(c, "search-01", inkFaint)
-					ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
-						PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
+					if w.sideSnippets() { // each section has its own filter (term.js sidebarQuery)
+						ui.TextInputBase(c, &w.snipQuery).Label("Filter snippets").Placeholder("Filter snippets").
+							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.snipH)
+					} else {
+						ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
+							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
+					}
 				})
 				if iconBtn(c, "add-01", "New host", sizeControl, false) { // btn-new-host
 					w.act(w.newHost)
 				}
 			})
+			// k-seg "Vault section": Hosts · Snippets. Panes and Forwards come with their phases (docs/native.md).
+			segControl(c, "Vault section", w.sideSeg, [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}}, func(v string) { w.sideSeg = v })
+			if w.sideSnippets() {
+				ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("sidebar snippets").Children(func() { w.sidebarSnippets(c) })
+				return
+			}
 			ui.Column(c).FillWidth().Grow(1).Gap(space2).Children(func() {
 				for _, g := range w.groups() {
 					w.group(c, g)
@@ -262,7 +277,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 // for its phase (docs/native.md).
 func (w *workspace) sidebarFoot(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2).Gap(space1), 1, 0, 0, 0).Children(func() {
-		for _, name := range pageNames {
+		for _, name := range footPages {
 			def := pageDefs[name]
 			glyph := "key-01"
 			if name == "logs" {

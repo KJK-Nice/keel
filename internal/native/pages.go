@@ -23,17 +23,22 @@ type pageDef struct {
 
 var pageDefs = map[string]pageDef{
 	"keychain": {title: "Keychain", tabIcon: "key-01", paletteTag: "key-01"},
+	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
 	"logs":     {title: "Logs", tabIcon: "logs-tab"},
 }
 
 // pageNames is every page this client has, in the order the sidebar and the palette list them.
-var pageNames = []string{"keychain", "logs"}
+var pageNames = []string{"keychain", "snippets", "logs"}
+
+// footPages are the sidebar footer's page buttons (the webview's footer is Keychain · Logs).
+var footPages = []string{"keychain", "logs"}
 
 // tabPage is the state of a page tab: the name and the page's own state (only the one for that name is set).
 type tabPage struct {
 	name     string
 	keychain *keychainPage
 	logs     *logsPage
+	snippets *snippetsPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -43,6 +48,8 @@ func newTabPage(name string) *tabPage {
 		p.keychain = &keychainPage{}
 	case "logs":
 		p.logs = &logsPage{kind: "all"}
+	case "snippets":
+		p.snippets = &snippetsPage{}
 	}
 	return p
 }
@@ -90,6 +97,8 @@ func (w *workspace) loadPage(t *tab) {
 		w.loadIdentities()
 	case t.pg.logs != nil:
 		w.loadLogs()
+	case t.pg.snippets != nil:
+		w.reloadSnippets()
 	}
 }
 
@@ -102,9 +111,15 @@ func (w *workspace) refreshPages() {
 
 // newItem is ⌘N: the page's own New on a tab page, New host elsewhere (term.js newItem).
 func (w *workspace) newItem() {
-	if t := w.tab(); t != nil && t.pg != nil && t.pg.keychain != nil {
-		w.newIdentity()
-		return
+	if t := w.tab(); t != nil && t.pg != nil {
+		switch {
+		case t.pg.keychain != nil:
+			w.newIdentity()
+			return
+		case t.pg.snippets != nil:
+			w.newSnippet()
+			return
+		}
 	}
 	w.newHost()
 }
@@ -116,6 +131,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.keychainView(c, t.pg.keychain)
 	case t.pg.logs != nil:
 		w.logsView(c, t.pg.logs)
+	case t.pg.snippets != nil:
+		w.snippetsView(c, t.pg.snippets)
 	}
 }
 

@@ -47,6 +47,24 @@ func (w *workspace) reloadHosts() {
 	})
 }
 
+// reloadSnippets reads the snippets again.
+func (w *workspace) reloadSnippets() {
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		snippets, err := w.be.Snippets(c)
+		w.post(func() {
+			switch {
+			case w.closed:
+			case err != nil:
+				w.fail("snippets", err)
+			default:
+				w.snippets = snippets
+			}
+		})
+	})
+}
+
 // pollTick is one tick of the poll: it starts a check, unless the window is closed or one is still running.
 func (w *workspace) pollTick() {
 	if w.closed || w.polling {
@@ -81,6 +99,7 @@ func (w *workspace) pollOnce() {
 		case v.Rev != w.rev && w.live:
 			w.rev = v.Rev
 			w.reloadHosts()
+			w.reloadSnippets()
 			w.refreshPages()
 		}
 	})
