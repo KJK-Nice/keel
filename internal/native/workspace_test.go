@@ -3,8 +3,12 @@ package native
 import (
 	"context"
 	"fmt"
+	"image"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -495,5 +499,92 @@ func TestNarrowPaneBarKeepsItsTools(t *testing.T) {
 		if !ok || b.W == 0 || b.X < tile.X || b.X+b.W > tile.X+tile.W {
 			t.Errorf("%s %v is not inside the tile %v", tool, b, tile)
 		}
+	}
+}
+
+// wantPixel checks one pixel of a Tester image against c at alpha a. The image holds premultiplied
+// alpha (color.RGBA): a pixel of c at 0.66 is {c.R*.66, c.G*.66, c.B*.66, 168}. A tile tinted twice
+// would show 0.88 alpha, which is what these checks rule out.
+func wantPixel(t *testing.T, what string, img *image.RGBA, x, y float32, c ui.Color, a float32) {
+	t.Helper()
+	got := img.RGBAAt(int(x), int(y))
+	near := func(g uint8, w float32) bool { d := float32(g) - w; return d >= -2 && d <= 2 }
+	if !near(got.R, float32(c.R)*a) || !near(got.G, float32(c.G)*a) || !near(got.B, float32(c.B)*a) || !near(got.A, 255*a) {
+		t.Errorf("%s at (%v,%v): got %v, want %v at alpha %v (premultiplied %v %v %v %v)", what, x, y, got, c, a,
+			float32(c.R)*a, float32(c.G)*a, float32(c.B)*a, 255*a)
+	}
+}
+
+func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
+	for _, a := range []float32{0.66, 1} {
+		r := newRig(t, okBackend())
+		r.w.alpha = a
+		r.tt = ui.NewTester(r.w.view, 1280, 720)
+		r.tt.Frame()
+		r.click(t, "host api-1")
+		img := r.tt.Image()
+		wantPixel(t, "title bar", img, 900, 10, chrome, a)
+		wantPixel(t, "sidebar", img, 100, 400, chrome, a)
+		// One pane: full bleed, its body is stage once.
+		p, _ := r.tt.Find("pane 1")
+		wantPixel(t, "single pane body", img, p.X+p.W/2, p.Y+p.H/2, stage, a)
+		wantPixel(t, "single pane bar", img, p.X+p.W/2, p.Y+sizePanebar/2, surface, a)
+		r.click(t, "Split right")
+		img = r.tt.Image()
+		g, _ := r.tt.Find("split handle")
+		wantPixel(t, "gap", img, g.X+1, g.Y+g.H/2, chrome, a)
+		wantPixel(t, "inset", img, g.X-100, 40, chrome, a)
+		// Pane 2 holds the keyboard: not dimmed.
+		p2, _ := r.tt.Find("pane 2")
+		wantPixel(t, "tile body", img, p2.X+p2.W/2, p2.Y+p2.H/2, stage, a)
+		wantPixel(t, "tile bar", img, p2.X+p2.W/2, p2.Y+sizePanebar/2, surface, a)
+	}
+}
+
+func TestLoadPrefs(t *testing.T) {
+	def := prefs{Opacity: 66, Blur: 20}
+	for _, tc := range []struct {
+		name, file string
+		want       prefs
+	}{
+		{"missing", "", def},
+		{"bad json", "{", def},
+		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{66, 8}},
+		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{66, 8}},
+		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{50, 20}},
+		{"blur too high", `{"opacity":50,"blur":99}`, prefs{50, 20}},
+		{"only blur", `{"blur":0}`, prefs{66, 0}},
+		{"valid", `{"opacity":100,"blur":64}`, prefs{100, 64}},
+	} {
+		dir := t.TempDir()
+		if tc.file != "" {
+			if err := os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(tc.file), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := loadPrefs(dir); got != tc.want {
+			t.Errorf("%s: got %+v, want %+v", tc.name, got, tc.want)
+		}
+	}
+	if got := (prefs{Opacity: 66}).alpha(); got != 0.66 {
+		t.Errorf("alpha %v", got)
+	}
+}
+
+func TestPrefsEnvOverridesAndRejects(t *testing.T) {
+	t.Setenv("KEEL_NATIVE_OPACITY", "50")
+	t.Setenv("KEEL_NATIVE_BLUR", "")
+	p, err := prefs{Opacity: 66, Blur: 20}.withEnv()
+	if err != nil || p != (prefs{50, 20}) {
+		t.Errorf("got %+v, %v", p, err)
+	}
+	t.Setenv("KEEL_NATIVE_BLUR", "lots")
+	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_BLUR") {
+		t.Errorf("err %v", err)
+	}
+	t.Setenv("KEEL_NATIVE_BLUR", "")
+	t.Setenv("KEEL_NATIVE_OPACITY", "5")
+	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_OPACITY") {
+		t.Errorf("err %v", err)
 	}
 }

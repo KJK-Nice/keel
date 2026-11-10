@@ -123,11 +123,21 @@ type workspace struct {
 	wantFocus string                      // pane to give the keyboard to once it is on screen
 	splits    map[*layout.Node]*ui.Handle // each split's container, for its size while dragging
 	later     []func()                    // actions queued by the view, run when the frame is built
+
+	alpha float32 // the window's opacity, 0–1; grounds are painted at it (see ground)
+}
+
+// ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
+func (w *workspace) ground(c ui.Color) ui.Color {
+	if w.alpha >= 1 {
+		return c
+	}
+	return c.Alpha(w.alpha)
 }
 
 func newWorkspace(be backend) *workspace {
 	return &workspace{
-		be: be, sidebar: true, collapsed: map[string]bool{},
+		be: be, alpha: 1, sidebar: true, collapsed: map[string]bool{},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 	}

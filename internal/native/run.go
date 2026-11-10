@@ -13,6 +13,7 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/paths"
 )
 
 // terminalTheme is Keel's terminal palette from the tokens.
@@ -46,9 +47,13 @@ func registerFonts() {
 }
 
 // liveBody gives p a libghostty terminal on its connection.
-func liveBody(p *pane) {
+func liveBody(p *pane) { liveBodyT(p, false) }
+
+// liveBodyT is liveBody; transparent leaves the terminal's background undrawn so the pane's translucent
+// ground shows through.
+func liveBodyT(p *pane, transparent bool) {
 	term, err := terminal.New(terminal.Options{
-		Conn: p.conn, Theme: terminalTheme(),
+		Conn: p.conn, Theme: terminalTheme(), Transparent: transparent,
 		Font: terminal.Font{Family: monoStack, Size: uiFontSize},
 	})
 	if err != nil {
@@ -70,9 +75,17 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	pr, err := loadPrefs(paths.DataDir()).withEnv()
+	if err != nil {
+		return err
+	}
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
-	w.mkBody = liveBody
+	translucent := pr.Opacity < opacityMax
+	if translucent {
+		w.alpha = pr.alpha()
+	}
+	w.mkBody = func(p *pane) { liveBodyT(p, translucent) }
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
@@ -81,6 +94,7 @@ func Run() error {
 			// Hidden, not HiddenInset: HiddenInset's toolbar makes a taller bar than sizeTitlebar. The position
 			// centres the lights vertically in that row; x is the usual window padding.
 			TrafficLightPosition: &mygo.Point{X: space3, Y: (sizeTitlebar - trafficLightSize) / 2},
+			Transparent:          translucent,
 			Content:              ui.View(w.view),
 		})
 		w.post = win.Update

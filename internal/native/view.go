@@ -13,6 +13,9 @@ import (
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
 	windowTheme(c)
+	if w.alpha < 1 {
+		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
+	}
 	w.shortcuts(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
@@ -68,7 +71,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 	if left := c.TitleBar().Left; left > 0 {
 		inset = left + space3
 	}
-	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(chrome), 0, 0, 1, 0).
+	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
 		if iconBtn(c, "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar) {
 			w.act(func() { w.sidebar = !w.sidebar })
@@ -114,7 +117,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 }
 
 func (w *workspace) sidebarView(c *ui.Context) {
-	hairline(ui.Box(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(chrome), 0, 1, 0, 0).Children(func() {
+	hairline(ui.Box(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Column(c).Grow(1).Padding(space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Height(sizeControl).Shrink(0).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
 				Background(stage).Border(1, lineStrong).Children(func() {
@@ -194,17 +197,42 @@ func (w *workspace) stage(c *ui.Context) {
 		w.centered(c, "No sessions. Pick a host in the sidebar to open one.")
 	default:
 		multi := len(t.panes) > 1
-		area := ui.Box(c).Grow(1).FillHeight().Background(stage)
-		if multi {
+		tiles := func() { w.node(c, t, t.root, multi, layout.Row, true, 1) }
+		switch {
+		case multi && w.alpha < 1:
+			// Translucent: the chrome ground is painted only in the inset and the gaps, never under a
+			// tile, so a tile's own ground is not tinted twice.
+			ui.Column(c).Grow(1).FillHeight().Children(func() {
+				w.inset(c, true)
+				ui.Row(c).FillWidth().Grow(1).Shrink(1).Children(func() {
+					w.inset(c, false)
+					ui.Box(c).Grow(1).FillHeight().Shrink(1).Children(tiles)
+					w.inset(c, false)
+				})
+				w.inset(c, true)
+			})
+		case multi:
 			// The padding and the gaps between tiles are the chrome ground (the rings paint over it).
-			area.Padding(space1_5).Background(chrome)
+			ui.Box(c).Grow(1).FillHeight().Padding(space1_5).Background(chrome).Children(tiles)
+		default:
+			// A single pane paints its own stage ground once; the area is clear.
+			ui.Box(c).Grow(1).FillHeight().Children(tiles)
 		}
-		area.Children(func() { w.node(c, t, t.root, multi, layout.Row, true, 1) })
+	}
+}
+
+// inset is a strip of chrome ground around the tiles: across the stage when wide, else down its side.
+func (w *workspace) inset(c *ui.Context, wide bool) {
+	b := ui.Box(c).Shrink(0).Background(w.ground(chrome))
+	if wide {
+		b.FillWidth().Height(space1_5)
+	} else {
+		b.FillHeight().Width(space1_5)
 	}
 }
 
 func (w *workspace) centered(c *ui.Context, msg string) {
-	ui.Column(c).Grow(1).FillHeight().Center().Background(stage).Children(func() {
+	ui.Column(c).Grow(1).FillHeight().Center().Background(w.ground(stage)).Children(func() {
 		body(c, msg, inkMuted)
 	})
 }
@@ -249,12 +277,12 @@ func (w *workspace) tile(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui
 		}
 	}
 	tl.Children(func() {
-		barGround, hostCol := surface, inkMuted
+		barGround, hostCol := w.ground(surface), inkMuted
 		if focused {
 			hostCol = ink
 		}
 		if !multi && !focused {
-			barGround = chrome
+			barGround = w.ground(chrome)
 		}
 		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround)
 		if bar.Clicked() {
@@ -285,7 +313,7 @@ func (w *workspace) tile(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui
 				}
 			})
 		})
-		pane := ui.Box(c).Grow(1).FillWidth().Background(stage)
+		pane := ui.Box(c).Grow(1).FillWidth().Background(w.ground(stage))
 		if multi && !focused {
 			pane.Opacity(dimAlpha)
 		}
@@ -297,6 +325,9 @@ func (w *workspace) tile(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui
 func (w *workspace) gap(c *ui.Context, n *layout.Node) {
 	row := n.Dir == layout.Row
 	g := ui.Box(c).Shrink(0).Label("split handle")
+	if w.alpha < 1 {
+		g.Background(w.ground(chrome)) // the area behind the tiles is clear when translucent
+	}
 	min := float32(minTileHeight)
 	if row {
 		g.Width(space1_5).FillHeight().Cursor(ui.CursorResizeColumn)
@@ -319,7 +350,7 @@ func (w *workspace) gap(c *ui.Context, n *layout.Node) {
 }
 
 func (w *workspace) statusbar(c *ui.Context) {
-	hairline(ui.Row(c).FillWidth().Height(statusbarSize).Shrink(0).Padding(0, space3).Gap(space4).Background(chrome), 1, 0, 0, 0).Children(func() {
+	hairline(ui.Row(c).FillWidth().Height(statusbarSize).Shrink(0).Padding(0, space3).Gap(space4).Background(w.ground(chrome)), 1, 0, 0, 0).Children(func() {
 		ui.Row(c).Gap(space1_5).Children(func() {
 			dot(c, tide)
 			caption(c, fmt.Sprintf("keel serve · %d sessions", w.paneCount()), inkMuted)
