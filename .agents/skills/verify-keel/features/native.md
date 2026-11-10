@@ -108,6 +108,21 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   the terminal a row shorter, so `sh` redraws its prompt: compare scrollbacks through the `redraw`
   replacer. Text size shows on the server as the session's `cols`.
 
+## Unlock and the host dialog
+
+- A locked daemon: `scratchDir(t)`, then `startServeAt(t, dir, "serve", true)` creates the vault with
+  `KEEL_VAULT_PASSPHRASE` (the constant `e2ePass`), `POST /api/first-run/done` closes the first run (a vault whose
+  first run is open reports `firstRun` while locked, and the window keeps its message), `stop()`, then
+  `startServeAt(t, dir, "serve-locked", false)` on the same data stays locked. `TestE2EUnlock` types the
+  passphrase with `e.tt.Type` and ↵ only; no test prints it, and the serve logs never hold it
+  (`grep -rn native-e2e-scratch .scratch-native/e2e --include='*.log'` finds none).
+- The host dialog: `startSSHOnly(t, dir)` runs the fixture without saving a host. Click a field's label to give
+  the field the keyboard (`e.fillField("Hostname / IP", …)`; the password field is `Host password`), pickers are
+  `Folder picker`, `Jump host picker`, `Identity picker`. Type the fixture's password only through
+  `e.fillField`; check `e.texts()` does not contain it and `GET /api/hosts` never returns it.
+- The host list poll: `e.w.startPoll(200*time.Millisecond)` runs Run's poll faster; create or delete a host
+  with `e.raw` and `pump` until the tree follows. Close with `e.w.closeWindow()`.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
