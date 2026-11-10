@@ -15,6 +15,14 @@ func (w *workspace) dropPane(p *pane) {
 	if w.findPane == p {
 		w.endFind()
 	}
+	w.forgetPrompts(p)
+	if w.share != nil && w.share.p == p {
+		w.share = nil
+	}
+	if p.remote { // a joined pane owns no session: leaving closes the peer and kills nothing
+		w.release(p)
+		return
+	}
 	if sid := p.sessionID(); sid == "" {
 		if p.release != nil {
 			p.release()

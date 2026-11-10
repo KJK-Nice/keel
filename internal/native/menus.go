@@ -11,7 +11,7 @@ import (
 // The pane menu and the tab menu. Their items, order and words are the webview's: PaneMenu in
 // internal/ui/rowmenus.templ with which items show from lib/termmenu.js paneMenuItems (for a terminal pane
 // of this window, opened from its bar), and #tab-ctx in internal/ui/parts.templ with which are disabled
-// from ui/tabmenu.js. Share waits for a later phase. A menu never types into a session.
+// from ui/tabmenu.js. A menu never types into a session.
 
 // paneMenu fills the menu of pane p of tab t, opened from its bar.
 func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) { return w.paneMenuFor(t, p, false) }
@@ -24,16 +24,21 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 		if row && m.Item("Focus").Chosen() {
 			w.act(func() { w.pickPane(t, p.id) })
 		}
-		if m.Item("Split right").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
-			w.act(func() { w.split(t, p.id, layout.Row) })
-		}
-		if m.Item("Split down").Shortcut(ui.Cmd|ui.Shift, ui.KeyE).Chosen() {
-			w.act(func() { w.split(t, p.id, layout.Col) })
+		if !p.remote { // splits need a pane of this window, not a joined one (lib/termmenu.js paneMenuItems)
+			if m.Item("Split right").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
+				w.act(func() { w.split(t, p.id, layout.Row) })
+			}
+			if m.Item("Split down").Shortcut(ui.Cmd|ui.Shift, ui.KeyE).Chosen() {
+				w.act(func() { w.split(t, p.id, layout.Col) })
+			}
 		}
 		if !row && (len(t.panes) > 1 || t.zoomed != "") {
 			if m.Item("Focus view").Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter).Chosen() {
 				w.act(func() { w.toggleZoom(t, p.id) })
 			}
+		}
+		if !p.remote && p.sessionID() != "" && m.Item("Share").Chosen() { // a live terminal of this window
+			w.act(func() { w.pickPane(t, p.id); w.openShare() })
 		}
 		if (st.Status == "error" || st.Status == "exited") && p.sessionID() != "" {
 			if m.Item("Reconnect").Chosen() {

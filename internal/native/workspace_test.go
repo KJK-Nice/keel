@@ -28,6 +28,9 @@ type fakeConn struct {
 	took  int               // TakeControl calls
 	asked int               // RequestControl calls
 
+	granted []uint64           // GrantControl, the peer ids in order
+	events  []keelclient.Event // what Events hands over once
+
 	injected  []string // what ApprovedInject was asked to type, in order
 	injectErr error    // what it answers
 }
@@ -48,6 +51,15 @@ func (c *fakeConn) Snapshot() keelclient.State  { return c.state() }
 func (c *fakeConn) RequestControl() error       { c.asked++; return nil }
 func (c *fakeConn) TakeControl() error          { c.took++; return nil }
 func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
+func (c *fakeConn) GrantControl(id uint64) error {
+	c.granted = append(c.granted, id)
+	return nil
+}
+func (c *fakeConn) Events() []keelclient.Event {
+	out := c.events
+	c.events = nil
+	return out
+}
 func (c *fakeConn) ApprovedInject(_ context.Context, command string) error {
 	c.injected = append(c.injected, command)
 	return c.injectErr
@@ -135,6 +147,33 @@ type fakeBackend struct {
 	stopErr      error
 
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
+
+	// Share.
+	shareURL     string   // what Share answers
+	shareErr     error    // what Share answers instead
+	shared       []string // Share, the session ids
+	admitted     []string // AdmitShare, "<session> <peer> <allow>"
+	admitErr     error
+	stopped      []string // StopShare, the session ids
+	shareStopErr error
+}
+
+func (f *fakeBackend) Share(_ context.Context, sid string) (string, error) {
+	f.rec("share")
+	f.shared = append(f.shared, sid)
+	return f.shareURL, f.shareErr
+}
+
+func (f *fakeBackend) AdmitShare(_ context.Context, sid, peer string, allow bool) error {
+	f.rec("admit")
+	f.admitted = append(f.admitted, fmt.Sprintf("%s %s %v", sid, peer, allow))
+	return f.admitErr
+}
+
+func (f *fakeBackend) StopShare(_ context.Context, sid string) error {
+	f.rec("stop share")
+	f.stopped = append(f.stopped, sid)
+	return f.shareStopErr
 }
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }

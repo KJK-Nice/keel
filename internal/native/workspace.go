@@ -29,6 +29,8 @@ type session interface {
 	Snapshot() keelclient.State
 	TakeControl() error
 	RequestControl() error
+	GrantControl(peerID uint64) error // the driver or the owner makes that attached client the driver
+	Events() []keelclient.Event       // what the share hub and the runtime announced since the last call
 	OnChange(fn func())
 	// ApprovedInject types bytes the user approved (keelclient/inject.go). Only the Approve before type
 	// dialog's Type action calls it.
@@ -83,6 +85,11 @@ type backend interface {
 	Runtime(ctx context.Context) (keelclient.Runtime, error)
 	SetSignal(ctx context.Context, url string) (keelclient.Runtime, error)
 	StopRuntime(ctx context.Context) error
+
+	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
+	Share(ctx context.Context, sessionID string) (string, error)
+	AdmitShare(ctx context.Context, sessionID, peerID string, allow bool) error
+	StopShare(ctx context.Context, sessionID string) error
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -117,6 +124,8 @@ type pane struct {
 	release func()
 
 	handle ui.Handle // the body's identity, for keyboard focus
+
+	remote bool // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
 
 	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
 	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
@@ -157,6 +166,8 @@ type tab struct {
 
 	page *startPage // set while the tab is the New tab page: it has no panes
 	pg   *tabPage   // set while the tab is a page (Keychain, Logs…): it has no panes either
+
+	remote bool // the tab joined someone else's share: a terminal and nothing else, never saved
 }
 
 // isNew reports the New tab page.
@@ -259,6 +270,10 @@ type workspace struct {
 	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet (approve.go)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
+
+	share      *sharePop            // the open Share popover (share.go)
+	shareLinks map[string]shareLink // the join link this window was given, by session id; never saved
+	prompts    []*sharePrompt       // the region "Share requests"
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.

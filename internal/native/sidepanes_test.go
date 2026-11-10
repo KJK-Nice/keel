@@ -210,7 +210,7 @@ func TestPaneRowMenuAndMetaIcons(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if got := r.tt.Menu(); !slices.Equal(got, []string{"Focus", "Split right", "Split down", "-", "Close pane"}) {
+	if got := r.tt.Menu(); !slices.Equal(got, []string{"Focus", "Split right", "Split down", "Share", "-", "Close pane"}) {
 		t.Errorf("row menu %v", got)
 	}
 	if err := r.tt.ChooseMenuItem("Focus"); err != nil {

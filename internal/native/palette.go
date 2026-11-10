@@ -233,6 +233,8 @@ func (w *workspace) paletteItems() []palItem {
 	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
 	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
 	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })
+	add("Terminal", "Share session (join link)", "", "", w.openShare)
+	add("Terminal", "Stop sharing this session", "", "", w.stopShare)
 	// The webview stops the runtime from here at once; this client asks first, as Settings · Runtime does.
 	add("Terminal", "Stop Keel runtime", "", "", w.askStopRuntime)
 

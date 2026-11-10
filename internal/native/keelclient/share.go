@@ -19,7 +19,7 @@ func (c *Client) Share(ctx context.Context, sessionID string) (link string, err 
 }
 
 // AdmitShare is POST /api/share/{id}/admit: the owner's answer to a join request. It is called only from the Allow and
-// Deny buttons of the join prompt (internal/native/sharepeople.go); nothing else may admit anyone.
+// Deny buttons of the join prompt (internal/native/share.go answerJoin); nothing else may admit anyone.
 func (c *Client) AdmitShare(ctx context.Context, sessionID, peerID string, allow bool) error {
 	return c.do(ctx, http.MethodPost, "/api/share/"+url.PathEscape(sessionID)+"/admit", map[string]any{"peerId": peerID, "allow": allow}, nil)
 }

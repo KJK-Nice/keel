@@ -119,7 +119,7 @@ func choose(t *testing.T, r *rig, label string) {
 func TestPaneMenuItems(t *testing.T) {
 	// The labels, order and visibility of PaneMenu (internal/ui/rowmenus.templ) for a terminal pane opened from
 	// its bar (lib/termmenu.js paneMenuItems): Focus is for a sidebar row, Focus view needs another pane or
-	// a zoom, Reconnect a failed session, Share is left out until its phase.
+	// a zoom, Reconnect a failed session, Share a live local session.
 	one := openTabs(t, 1)
 	split := splitRig(t)
 	zoomed := splitRig(t)
@@ -134,10 +134,10 @@ func TestPaneMenuItems(t *testing.T) {
 		bar  string
 		want []string
 	}{
-		{"one pane", one, "pane bar 1", []string{"Split right", "Split down", "-", "Close pane"}},
-		{"split", split, "pane bar 2", []string{"Split right", "Split down", "Focus view", "-", "Close pane"}},
-		{"zoomed", zoomed, "pane bar 2", []string{"Split right", "Split down", "Focus view", "-", "Close pane"}},
-		{"failed", failed, "pane bar 1", []string{"Split right", "Split down", "Reconnect", "-", "Close pane"}},
+		{"one pane", one, "pane bar 1", []string{"Split right", "Split down", "Share", "-", "Close pane"}},
+		{"split", split, "pane bar 2", []string{"Split right", "Split down", "Focus view", "Share", "-", "Close pane"}},
+		{"zoomed", zoomed, "pane bar 2", []string{"Split right", "Split down", "Focus view", "Share", "-", "Close pane"}},
+		{"failed", failed, "pane bar 1", []string{"Split right", "Split down", "Share", "Reconnect", "-", "Close pane"}},
 	} {
 		if got := menuLabels(t, tc.r, tc.bar); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: menu %q, want %q", tc.name, got, tc.want)
@@ -198,7 +198,7 @@ func TestMoreToolAndRightClickOpenTheSameMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	want := []string{"Split right", "Split down", "Focus view", "-", "Close pane"}
+	want := []string{"Split right", "Split down", "Focus view", "Share", "-", "Close pane"}
 	if got := r.tt.Menu(); !slices.Equal(got, want) {
 		t.Errorf("More menu %q, want %q", got, want)
 	}

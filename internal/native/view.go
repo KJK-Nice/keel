@@ -35,6 +35,7 @@ func (w *workspace) view(c *ui.Context) {
 		return
 	}
 	w.fallBackToHosts()
+	w.shareFrame(c)
 	w.shortcuts(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
@@ -54,6 +55,7 @@ func (w *workspace) view(c *ui.Context) {
 		w.statusbar(c)
 	})
 	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
+	w.sharePrompts(c)
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
 	w.hostDialogView(c)
@@ -176,6 +178,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
+		w.shareControls(c) // the watchers badge and the Share button of a session tab
 	})
 }
 
