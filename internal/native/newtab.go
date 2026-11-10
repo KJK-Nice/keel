@@ -310,7 +310,7 @@ func (w *workspace) submitStart(t *tab) {
 		w.openFrom(t, cards[0])
 		return
 	}
-	w.err = "No matching host"
+	w.warn("No matching host")
 }
 
 // movePick moves the highlighted card by delta (↑ ↓ in the input), stopping at the ends.

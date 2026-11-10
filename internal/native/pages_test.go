@@ -445,8 +445,9 @@ func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 	r.tt.CloseMenu()
 	// The server's refusal path (a direct ask) shows the rule's own words in the status bar.
 	r.w.askDeleteIdentity(fb.identities[0])
-	if !strings.Contains(r.w.err, "Remove deploy key from 2 hosts first") || r.w.confirm != nil {
-		t.Errorf("err %q", r.w.err)
+	r.tt.Frame()
+	if !r.tt.HasText("Remove deploy key from 2 hosts first") || r.w.confirm != nil {
+		t.Errorf("toast shown %v, confirm %v", r.tt.HasText("Remove deploy key from 2 hosts first"), r.w.confirm)
 	}
 	// An unused one asks with the webview's words, and Cancel deletes nothing.
 	r.click(t, "identity plain key")

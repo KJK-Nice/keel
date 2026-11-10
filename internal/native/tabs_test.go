@@ -422,7 +422,7 @@ func TestReopenClosedIsANewSessionOnTheSameHost(t *testing.T) {
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyT)
 	r.tt.Frame()
 	if len(r.w.tabs) != 2 || !r.tt.HasText("Nothing to reopen") {
-		t.Fatalf("nothing is closed yet: %d tabs, err %q", len(r.w.tabs), r.w.err)
+		t.Fatalf("nothing is closed yet: %d tabs", len(r.w.tabs))
 	}
 	r.tt.Key(ui.Cmd, ui.KeyW) // closes pg-primary, s2
 	r.tt.Frame()

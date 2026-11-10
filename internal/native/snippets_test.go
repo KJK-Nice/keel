@@ -267,8 +267,8 @@ func TestNoSessionMeansNoDialogFromASnippetRow(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "Snippets")
 	r.click(t, "sidebar snippet disk usage")
-	if r.w.approve != nil || r.w.err != "Open a session first" {
-		t.Fatalf("dialog %v err %q", r.w.approve, r.w.err)
+	if r.w.approve != nil || !r.tt.HasText("Open a session first") {
+		t.Fatalf("dialog %v, toast shown %v", r.w.approve, r.tt.HasText("Open a session first"))
 	}
 }
 

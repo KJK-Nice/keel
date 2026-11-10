@@ -188,7 +188,7 @@ func (w *workspace) reopenClosed() { w.reopenClosedAt(w.tab(), 0) }
 func (w *workspace) reopenClosedAt(t *tab, i int) {
 	list := w.closedList()
 	if i < 0 || i >= len(list) {
-		w.err = "Nothing to reopen"
+		w.say("Nothing to reopen")
 		return
 	}
 	e := list[i]

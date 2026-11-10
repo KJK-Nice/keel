@@ -411,7 +411,11 @@ func (w *workspace) afterHosts(f *firstRun) {
 	}
 	w.closeFirstRun()
 	if f.notice != "" {
-		w.notice, w.noticeBad = f.notice, f.noticeBad
+		if f.noticeBad {
+			w.warn(f.notice)
+		} else {
+			w.say(f.notice)
+		}
 	}
 }
 

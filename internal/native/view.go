@@ -48,6 +48,7 @@ func (w *workspace) view(c *ui.Context) {
 		})
 		w.statusbar(c)
 	})
+	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
 	w.hostDialogView(c)
@@ -581,16 +582,6 @@ func (w *workspace) statusbar(c *ui.Context) {
 			}
 			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
-		if w.err != "" {
-			caption(c, w.err, flare)
-		}
-		if w.notice != "" { // what an import added or refused, until the next tab change
-			col := tide
-			if w.noticeBad {
-				col = flare
-			}
-			caption(c, w.notice, col)
-		}
 		ui.Spacer(c)
 		if p := w.focusedPane(); p != nil {
 			cols, rows := p.size()

@@ -176,7 +176,7 @@ func (w *workspace) editPaneHost(p *pane) {
 			return
 		}
 	}
-	w.err = "Host not found"
+	w.warn("Host not found")
 }
 
 // openHostDialog opens the dialog. id is set for a saved host; h with no id only prefills New host.
@@ -370,6 +370,7 @@ func (w *workspace) saveHost() {
 			if w.hostDlg == d {
 				w.closeHostDialog()
 			}
+			w.say("Host saved")
 			w.afterHostWrite(saved)
 		})
 	})
@@ -410,7 +411,7 @@ func (w *workspace) afterHostWrite(saved keelclient.Host) {
 // `Remove ${host.name}?`). The local shell cannot be removed.
 func (w *workspace) askDeleteHost(h keelclient.Host) {
 	if h.AuthType == "local" {
-		w.err = "Local Shell is part of the workspace and cannot be removed"
+		w.warn("Local Shell is part of the workspace and cannot be removed")
 		return
 	}
 	run := func() { w.deleteHost(h) }
@@ -445,18 +446,23 @@ func (w *workspace) deleteHost(h keelclient.Host) {
 // duplicateHost is the host menu's Duplicate: the server copies the host as "name (copy)".
 func (w *workspace) duplicateHost(h keelclient.Host) {
 	if h.AuthType == "local" {
-		w.err = "Local Shell cannot be duplicated"
+		w.say("Local Shell cannot be duplicated") // toast(…) without the error flag, as term.js
 		return
 	}
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
-		_, err := w.be.DuplicateHost(c, h.ID)
+		dup, err := w.be.DuplicateHost(c, h.ID)
 		w.post(func() {
 			if err != nil {
 				w.fail("duplicate host", err)
 				return
 			}
+			name := dup.Name
+			if name == "" {
+				name = h.Name + " (copy)"
+			}
+			w.say("Duplicated as " + name)
 			w.reloadHosts()
 		})
 	})
@@ -513,7 +519,7 @@ func (w *workspace) forgetKey(d *hostDialog) {
 			if w.hostDlg == d {
 				d.key = &keelclient.KnownKey{}
 			}
-			w.err = ""
+			w.say("Host key forgotten")
 		})
 	})
 }
@@ -685,7 +691,7 @@ func (w *workspace) trustTest() {
 					w.fail("trust host key", err)
 					return
 				}
-				w.err = ""
+				w.say("Host key saved")
 				if w.hostDlg == d {
 					w.loadHostKey(d)
 					d.test = hostTest{gen: d.test.gen + 1}

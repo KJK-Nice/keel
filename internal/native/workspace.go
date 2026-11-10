@@ -177,12 +177,10 @@ type workspace struct {
 	filter    string
 	sidebar   bool
 	collapsed map[string]bool
-	err       string      // last user-facing error, shown in the status bar
+	queued    []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
 	blocked   string      // a message that replaces the workspace (locked vault, no keel serve)
 	gate      *unlockGate // the Unlock screen, over the whole window
 	first     *firstRun   // the First run screens (or the palette's host import), over the whole window
-	notice    string      // what the last import added or refused, in the status bar until the next tab change
-	noticeBad bool
 	closed    bool
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
@@ -268,8 +266,8 @@ func (w *workspace) paneCount() (n int) {
 	return n
 }
 
-// fail shows an error in the status bar.
-func (w *workspace) fail(what string, err error) { w.err = what + ": " + err.Error() }
+// fail shows a failed call as a toast (toast(err.message, true)).
+func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
 // start asks keel serve what exists. The vault answers first: a locked vault stops here.
 func (w *workspace) start() {
@@ -389,7 +387,6 @@ func (w *workspace) selectTab(i int) {
 	if len(w.tabs[i].panes) > 0 {
 		w.lastSession = w.tabs[i]
 	}
-	w.notice = ""
 	w.wantFocus = w.tabs[i].focused
 	if p := w.tabs[i].page; p != nil {
 		p.focus = true // the New tab page's input has the keyboard
@@ -407,7 +404,7 @@ func (w *workspace) newLocalTab() {
 			return
 		}
 	}
-	w.err = "Local shell is not available"
+	w.warn("Local shell is not available")
 }
 
 // split starts another session to the same host as target and inserts it after target.

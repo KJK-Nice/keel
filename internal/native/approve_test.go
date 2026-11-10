@@ -217,8 +217,9 @@ func TestNoSessionPaneMeansNoDialog(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.w.askType(fixed("ls"))
-	if r.w.approve != nil || r.w.err != "Open a session first" {
-		t.Fatalf("dialog %v err %q", r.w.approve, r.w.err)
+	r.tt.Frame()
+	if r.w.approve != nil || !r.tt.HasText("Open a session first") {
+		t.Fatalf("dialog %v, toast shown %v", r.w.approve, r.tt.HasText("Open a session first"))
 	}
 }
 

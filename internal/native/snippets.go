@@ -157,6 +157,7 @@ func (w *workspace) saveEditor() {
 				e.name, e.command = saved.Name, strings.TrimSuffix(saved.Command, "\n")
 				e.origName, e.origCommand = e.name, e.command
 			}
+			w.say("Snippet saved")
 			w.reloadSnippets()
 		})
 	})
@@ -213,6 +214,7 @@ func (w *workspace) saveSnippetDialog() {
 			if t := w.pageTab("snippets"); t != nil && d.id == "" {
 				t.pg.snippets.selected = saved.ID
 			}
+			w.say("Snippet saved")
 			w.reloadSnippets()
 		})
 	})

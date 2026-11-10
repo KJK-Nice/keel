@@ -247,6 +247,7 @@ func (w *workspace) saveIdentity() {
 			if t := w.pageTab("keychain"); t != nil && d.id == "" {
 				t.pg.keychain.selected = saved.ID
 			}
+			w.say("Identity saved")
 			w.loadIdentities()
 		})
 	})
@@ -258,7 +259,7 @@ func (w *workspace) saveIdentity() {
 // not asked about: the server would clear it from those hosts, so the page refuses (vaultview.js identityDetailHTML).
 func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 	if n := len(identityHostsOf(w.hosts, id.ID)); n > 0 {
-		w.err = "Remove " + id.Name + " from " + hostsWord(n) + " first"
+		w.warn("Remove " + id.Name + " from " + hostsWord(n) + " first")
 		return
 	}
 	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})

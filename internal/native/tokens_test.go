@@ -124,6 +124,9 @@ func TestTokensMatchJSON(t *testing.T) {
 		t.Errorf("type styles not found in tokens.json: %v", sizes)
 	}
 	for _, tk := range typ.Shadow.Tokens {
+		if tk.Name == "shadow-pop" && !strings.HasPrefix(tk.Value.Dark, "0 8px 24px "+hexShadowPop+",") {
+			t.Errorf("shadow-pop = %q, want a 0 8px 24px %s drop shadow", tk.Value.Dark, hexShadowPop)
+		}
 		if tk.Name == "shadow-modal" && !strings.HasPrefix(tk.Value.Dark, "0 24px 64px "+hexShadowModal+",") {
 			t.Errorf("shadow-modal = %q, want a 0 24px 64px %s drop shadow", tk.Value.Dark, hexShadowModal)
 		}

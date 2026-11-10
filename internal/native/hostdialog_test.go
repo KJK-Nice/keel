@@ -557,8 +557,9 @@ func TestDeletedHostKeepsItsOpenSession(t *testing.T) {
 	}
 	// Edit host from that pane's banner says the host is gone.
 	r.w.editPaneHost(r.w.focusedPane())
-	if r.w.err != "Host not found" || r.w.hostDlg != nil {
-		t.Errorf("err %q", r.w.err)
+	r.tt.Frame()
+	if !r.tt.HasText("Host not found") || r.w.hostDlg != nil {
+		t.Errorf("toast shown %v, dialog %v", r.tt.HasText("Host not found"), r.w.hostDlg)
 	}
 }
 

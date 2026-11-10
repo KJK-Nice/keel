@@ -36,6 +36,7 @@ const (
 	hexScrim         = "#020407b8"
 	hexTideSoft      = "#5dd2bd24"
 	hexShadowModal   = "#000000a6" // shadow-modal's drop shadow; its 1px ring is #ffffff0f
+	hexShadowPop     = "#00000080" // shadow-pop's drop shadow (menus, tooltips, toasts); its 1px ring is #ffffff0a
 	// focus = brass-ink, term-fg = ink, term-bg = stage, term-cursor = brass.
 	hexFocus      = hexBrassInk
 	hexTermFg     = hexInk
@@ -139,6 +140,7 @@ var (
 	scrim         = tok(hexScrim)
 	tideSoft      = tok(hexTideSoft)
 	shadowModal   = tok(hexShadowModal)
+	shadowPop     = tok(hexShadowPop)
 )
 
 // hostTint is the colour of a host's label. keel serve stores it as var(--ansi-N), a reference to

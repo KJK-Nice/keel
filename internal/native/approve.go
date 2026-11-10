@@ -113,7 +113,7 @@ func (w *workspace) typeTarget() (*pane, string) {
 func (w *workspace) askType(source func() (string, bool)) {
 	p, why := w.typeTarget()
 	if p == nil {
-		w.err = why
+		w.say(why)
 		return
 	}
 	if t := w.tabOf(p); t != nil && t != w.tab() {

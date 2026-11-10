@@ -616,8 +616,8 @@ func TestClosingAPaneBeforeItIsNamedKillsItWhenTheIdArrives(t *testing.T) {
 	c := r.fb.conns[0]
 	c.id = "" // the ready frame has not arrived
 	r.click(t, "Close pane")
-	if len(r.fb.killed) != 0 || c.closed || r.w.err != "" {
-		t.Fatalf("killed %v closed %v err %q before the id", r.fb.killed, c.closed, r.w.err)
+	if len(r.fb.killed) != 0 || c.closed || len(r.w.queued) != 0 {
+		t.Fatalf("killed %v closed %v toasts %v before the id", r.fb.killed, c.closed, r.w.queued)
 	}
 	c.id = "s-late"
 	c.onChange()
