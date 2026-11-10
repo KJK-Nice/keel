@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sync"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -30,7 +29,6 @@ func (c *fakeConn) OnChange(func())                 {}
 
 // fakeBackend records what the workspace asks of keel serve.
 type fakeBackend struct {
-	mu       sync.Mutex
 	vault    keelclient.Vault
 	hosts    []keelclient.Host
 	sessions []keelclient.Session
