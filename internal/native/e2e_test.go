@@ -88,7 +88,7 @@ func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 // startServeAt runs a keel serve on dir/data, with its log in dir/<name>.log, and returns its address and a
 // function that stops it (the cleanup does too). With a passphrase the daemon opens, or creates, the scratch
 // vault; without one a vault that exists stays locked.
-func startServeAt(t *testing.T, dir, name string, passphrase bool) (addr string, stop func()) {
+func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...string) (addr string, stop func()) {
 	t.Helper()
 	root := repoRoot(t)
 	bin := filepath.Join(root, "bin", "keel")
@@ -101,6 +101,7 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool) (addr string,
 	if passphrase {
 		env = append(env, "KEEL_VAULT_PASSPHRASE="+e2ePass)
 	}
+	env = append(env, extraEnv...)
 	logf, err := os.Create(filepath.Join(dir, name+".log"))
 	if err != nil {
 		t.Fatal(err)
@@ -171,6 +172,12 @@ type win struct {
 // newWin opens a window on the daemon: the real view, the real terminal, the real client.
 func newWin(t *testing.T, addr, dataDir string, wrap func(backend) backend) *win {
 	t.Helper()
+	return newWinH(t, addr, dataDir, wrap, 800)
+}
+
+// newWinH is newWin with a window of the given height.
+func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, height int) *win {
+	t.Helper()
 	tok, err := authtoken.Read(dataDir)
 	if err != nil {
 		t.Fatal("read token: ", err)
@@ -186,7 +193,7 @@ func newWin(t *testing.T, addr, dataDir string, wrap func(backend) backend) *win
 	e.w.work = func(fn func()) { go fn() }
 	e.w.post = func(fn func()) { e.posts <- fn }
 	e.w.start()
-	e.tt = ui.NewTester(e.w.view, 1280, 800)
+	e.tt = ui.NewTester(e.w.view, 1280, height)
 	e.tt.Frame()
 	return e
 }
@@ -687,6 +694,7 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 			t.Fatal("keel-sshtest did not write its file")
 		}
 	}
+	os.Remove(out) // it holds the fixture's password in the clear: it stays only in memory, never in a file of the run
 	f.fingerprint = info.Target.Fingerprint
 	f.host, f.port, f.user, f.password = info.Target.Host, info.Target.Port, info.Target.User, info.Target.Password
 	return f
@@ -1482,8 +1490,8 @@ func TestE2EUnlock(t *testing.T) {
 	dir := scratchDir(t)
 	dataDir := filepath.Join(dir, "data")
 	first, stopFirst := startServeAt(t, dir, "serve", true)
-	// Unlock no longer needs this (a locked vault shows it whatever firstRun says), but the workspace after it
-	// does: an open first run keeps the window's message until the First run phase. So it is finished here.
+	// Finish the first run, if one is open (a vault made from the environment has none), so that the workspace
+	// shows after Unlock instead of First run.
 	tok, err := authtoken.Read(dataDir)
 	if err != nil {
 		t.Fatal("read token: ", err)

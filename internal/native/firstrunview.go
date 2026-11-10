@@ -478,12 +478,13 @@ func (w *workspace) viaCell(c *ui.Context, f *firstRun, h keelclient.ConfigHost,
 	case "unused":
 		bg, fg = signalSoft, signal
 	}
-	r := ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(bg).Tooltip(v.tip).Label("via " + h.Alias)
+	// The flag wraps onto a second line when the column is narrow, so the row stays inside the table.
+	r := ui.Row(c).MinHeight(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(1).MinWidth(0).Background(bg).Tooltip(v.tip).Label("via " + h.Alias)
 	r.Children(func() {
 		if v.kind == "unused" {
 			iconSized(c, "alert", fg, iconSizeSm)
 		}
-		text(c, v.text, fg, kbdSize, weightSemibold)
+		ui.Text(c, v.text).TextColor(fg).FontSize(kbdSize).FontWeight(weightSemibold).Shrink(1).MinWidth(0)
 	})
 	if v.noJump {
 		ui.Row(c).Gap(space2).Children(func() {
