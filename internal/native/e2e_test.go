@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -22,6 +23,7 @@ import (
 
 	"keel/internal/authtoken"
 	"keel/internal/native/keelclient"
+	"keel/internal/native/layout"
 )
 
 const e2eWait = 15 * time.Second
@@ -152,6 +154,7 @@ func newWin(t *testing.T, addr, dataDir string, wrap func(backend) backend) *win
 		be = wrap(be)
 	}
 	e.w = newWorkspace(be)
+	e.w.dataDir, e.w.termSize = dataDir, loadPrefs(dataDir).TermSize
 	e.w.mkBody = liveBody
 	e.w.work = func(fn func()) { go fn() }
 	e.w.post = func(fn func()) { e.posts <- fn }
@@ -441,7 +444,7 @@ func TestE2EGapDragResizes(t *testing.T) {
 	e.tt.Release(x-3000, y)
 	e.step()
 	tile, _ := e.tt.Find("pane 1")
-	for _, tool := range []string{"Split right", "Split down", "Close pane"} {
+	for _, tool := range []string{"Split right", "Split down", "Focus view", "More pane actions", "Close pane"} {
 		b, ok := e.tt.Find(tool)
 		if !ok || b.W == 0 || b.X < tile.X || b.X+b.W > tile.X+tile.W {
 			t.Errorf("%s %v is not inside the narrow tile %v", tool, b, tile)
@@ -791,4 +794,334 @@ func TestE2EFailedSessionAtStart(t *testing.T) {
 		t.Errorf("tab shows session %s, want %s", e2.sidOf(0), sid)
 	}
 	e2.shot("TestE2EFailedSessionAtStart")
+}
+
+// ---- N3b: tabs, panes and the workspace ----
+
+// sessionIDs is the ids keel serve lists.
+func (e *win) sessionIDs() (ids []string) {
+	for _, s := range e.sessions() {
+		ids = append(ids, s.ID)
+	}
+	return
+}
+
+// tabRect is the pill of tab i (the pills of tabs with equal names are equally wide).
+func (e *win) tabRect(i int) ui.Rect {
+	e.t.Helper()
+	r, ok := e.tt.Find("tab Local Shell")
+	if !ok {
+		e.t.Fatal("no tab in the strip")
+	}
+	r.X += float32(i) * (r.W + space1_5)
+	return r
+}
+
+// namePanes waits until every pane of every tab has its session id.
+func (e *win) namePanes() {
+	e.t.Helper()
+	e.pump(func() bool {
+		for _, t := range e.w.tabs {
+			for _, p := range t.panes {
+				if p.sessionID() == "" {
+					return false
+				}
+			}
+		}
+		return true
+	}, "every pane to be named")
+}
+
+// structure is a tree with the session of each leaf and no ratios; ratios lists them in order.
+func structure(t *tab) (string, []float32) {
+	var ratios []float32
+	var f func(n *layout.Node) string
+	f = func(n *layout.Node) string {
+		if n.A == nil {
+			return t.panes[n.Pane].sessionID()
+		}
+		ratios = append(ratios, n.Ratio)
+		return fmt.Sprintf("%d(%s %s)", n.Dir, f(n.A), f(n.B))
+	}
+	return f(t.root), ratios
+}
+
+func TestE2EWorkspaceComesBack(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openPanes(2) // tab 1: pane 1 | pane 2
+	e.key(ui.Cmd|ui.Shift, ui.KeyE)
+	e.pump(func() bool { return len(e.sessions()) == 3 && e.w.paneCount() == 3 }, "3 sessions")
+	e.namePanes()
+	// Drag the first gap (between pane 1 and the column) to the right.
+	e.settle(300 * time.Millisecond)
+	g, ok := e.tt.Find("split handle")
+	if !ok {
+		t.Fatal("no split handle")
+	}
+	x, y := g.X+g.W/2, g.Y+g.H/2
+	e.tt.Press(x, y)
+	e.tt.Move(x+60, y)
+	e.tt.Move(x+120, y)
+	e.tt.Release(x+120, y)
+	e.step()
+	if r := e.w.tabs[0].root.Ratio; r < 0.55 {
+		t.Fatalf("the gap did not move: ratio %v", r)
+	}
+	// Tab 2: one pane, renamed logs.
+	e.click("New tab")
+	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" }, "tab 2")
+	p2 := e.tabRect(1)
+	e.tt.RightClickAt(p2.X+p2.W/2, p2.Y+p2.H/2)
+	e.step()
+	if err := e.tt.ChooseMenuItem("Rename tab"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	e.tt.Type("logs")
+	e.key(0, ui.KeyEnter)
+	if e.w.tabs[1].title != "logs" {
+		t.Fatalf("tab 2 is %q", e.w.tabs[1].title)
+	}
+	// Back to tab 1 with its first pane focused.
+	e.key(ui.Cmd, ui.Key1)
+	e.clickBody("1")
+	if e.w.tab().focused != "1" || e.w.active != 0 {
+		t.Fatalf("focused %q, active %d", e.w.tab().focused, e.w.active)
+	}
+	e.shot("TestE2EWorkspaceComesBack-before")
+	wantTree, wantRatios := structure(e.w.tabs[0])
+	wantFocus := e.w.tab().panes[e.w.tab().focused].sessionID()
+	wantTab2 := e.sidOf(1)
+	before := e.sessionIDs()
+	if len(before) != 4 {
+		t.Fatalf("%d sessions, want 4", len(before))
+	}
+
+	e.w.closeWindow()
+	e.settle(300 * time.Millisecond)
+	if n := len(e.sessions()); n != 4 {
+		t.Fatalf("%d sessions after the window closed, want 4", n)
+	}
+
+	e2 := newWin(t, addr, dir, nil)
+	e2.pump(func() bool { return len(e2.w.tabs) == 2 && e2.w.paneCount() == 4 }, "two tabs with four panes")
+	gotTree, gotRatios := structure(e2.w.tabs[0])
+	if gotTree != wantTree {
+		t.Errorf("tab 1 tree %s, want %s", gotTree, wantTree)
+	}
+	if len(gotRatios) != len(wantRatios) {
+		t.Fatalf("ratios %v, want %v", gotRatios, wantRatios)
+	}
+	for i := range gotRatios {
+		if d := gotRatios[i] - wantRatios[i]; d < -0.02 || d > 0.02 {
+			t.Errorf("ratio %d: %v, want %v", i, gotRatios[i], wantRatios[i])
+		}
+	}
+	if got := e2.w.tab().panes[e2.w.tab().focused].sessionID(); got != wantFocus || e2.w.active != 0 {
+		t.Errorf("focused session %s (want %s), active %d (want 0)", got, wantFocus, e2.w.active)
+	}
+	if e2.w.tabs[1].title != "logs" || e2.sidOf(1) != wantTab2 || e2.w.tabs[0].title != "" {
+		t.Errorf("tab 2: %q on %s, want logs on %s", e2.w.tabs[1].title, e2.sidOf(1), wantTab2)
+	}
+	e2.pump(func() bool { return e2.tt.HasText("logs") }, "the tab titled logs")
+	if got := e2.sessionIDs(); len(got) != 4 {
+		t.Errorf("%d sessions, want 4", len(got))
+	}
+	e2.settle(500 * time.Millisecond)
+	e2.shot("TestE2EWorkspaceComesBack")
+}
+
+func TestE2EFocusViewAndPaneMenu(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openPanes(2)
+	s1, s2 := e.paneSID("1"), e.paneSID("2")
+	e.clickBody("1")
+	e.key(ui.Cmd|ui.Shift, ui.KeyEnter)
+	if e.w.tab().zoomed != "1" || e.hasLabel("pane 2") {
+		t.Fatalf("zoomed %q, pane 2 on screen %v", e.w.tab().zoomed, e.hasLabel("pane 2"))
+	}
+	for _, s := range e.sessions() {
+		if (s.ID == s1 || s.ID == s2) && s.Status != "ready" {
+			t.Errorf("session %s is %s while another pane is zoomed", s.ID, s.Status)
+		}
+	}
+	if len(e.sessions()) != 2 {
+		t.Fatalf("%d sessions in focus view, want 2", len(e.sessions()))
+	}
+	e.typeLine("echo zoomed-$((3+4))")
+	e.waitScrollback(s1, "zoomed-7")
+	e.settle(300 * time.Millisecond)
+	if strings.Contains(e.scrollback(s2), "zoomed-7") {
+		t.Error("the line typed in the zoomed pane reached the hidden one")
+	}
+	e.shot("TestE2EFocusViewAndPaneMenu-zoomed")
+
+	// The pane menu by right-click: Focus view again leaves focus view.
+	r, _ := e.tt.Find("pane bar 1")
+	e.tt.RightClickAt(r.X+r.W/2, r.Y+r.H/2)
+	e.step()
+	if m := e.tt.Menu(); !strings.Contains(strings.Join(m, "|"), "Focus view") {
+		t.Fatalf("pane menu %q", m)
+	}
+	e.shot("TestE2EFocusViewAndPaneMenu-menu")
+	if err := e.tt.ChooseMenuItem("Focus view"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	if e.w.tab().zoomed != "" || !e.hasLabel("pane 1") || !e.hasLabel("pane 2") {
+		t.Fatalf("still zoomed: %q", e.w.tab().zoomed)
+	}
+
+	// Close pane from the menu of pane 2 kills that session and no other.
+	r, _ = e.tt.Find("pane bar 2")
+	e.tt.RightClickAt(r.X+r.W/2, r.Y+r.H/2)
+	e.step()
+	if err := e.tt.ChooseMenuItem("Close pane"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	e.pump(func() bool { return slices.Equal(e.sessionIDs(), []string{s1}) }, "only the first session left")
+	e.shot("TestE2EFocusViewAndPaneMenu")
+}
+
+func TestE2ETabMenuAndKeys(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openLocal()
+	for i := 2; i <= 4; i++ {
+		e.click("New tab")
+		e.pump(func() bool { return len(e.w.tabs) == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d", i))
+	}
+	sids := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2), e.sidOf(3)}
+
+	// Next and previous wrap.
+	e.key(ui.Cmd|ui.Shift, ui.KeyBracketRight)
+	if e.w.active != 0 {
+		t.Errorf("next from the last tab: %d", e.w.active)
+	}
+	e.key(ui.Cmd|ui.Shift, ui.KeyBracketLeft)
+	if e.w.active != 3 {
+		t.Errorf("previous from the first tab: %d", e.w.active)
+	}
+
+	// Drag tab 4 to the first place; ⌘1 now shows it.
+	a, d := e.tabRect(0), e.tabRect(3)
+	e.tt.Press(d.X+d.W/2, d.Y+d.H/2)
+	e.tt.Move(d.X+d.W/2-30, d.Y+d.H/2)
+	e.tt.Move(a.X+4, a.Y+a.H/2)
+	e.tt.Release(a.X+4, a.Y+a.H/2)
+	e.step()
+	if got := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2), e.sidOf(3)}; !slices.Equal(got, []string{sids[3], sids[0], sids[1], sids[2]}) {
+		t.Fatalf("order after the drag %v", got)
+	}
+	e.key(ui.Cmd, ui.Key2)
+	e.key(ui.Cmd, ui.Key1)
+	if got := e.w.focusedPane().sessionID(); got != sids[3] {
+		t.Errorf("⌘1 shows %s, want %s", got, sids[3])
+	}
+	e.shot("TestE2ETabMenuAndKeys-reordered")
+
+	// Close to the right of tab 2 kills the sessions of tabs 3 and 4 and no others.
+	order := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2), e.sidOf(3)}
+	p := e.tabRect(1)
+	e.tt.RightClickAt(p.X+p.W/2, p.Y+p.H/2)
+	e.step()
+	e.shot("TestE2ETabMenuAndKeys-menu")
+	if err := e.tt.ChooseMenuItem("Close to the right"); err != nil {
+		t.Fatal(err)
+	}
+	e.step()
+	e.pump(func() bool { return len(e.w.tabs) == 2 && slices.Equal(sorted(e.sessionIDs()), sorted(order[:2])) }, "tabs 3 and 4 and only their sessions gone")
+
+	// ⌘⇧T opens a new session on the closed tab's host.
+	before := e.sessionIDs()
+	e.key(ui.Cmd|ui.Shift, ui.KeyT)
+	e.pump(func() bool { return len(e.sessions()) == len(before)+1 && len(e.w.tabs) == 3 }, "a new session in a new tab")
+	for _, id := range e.sessionIDs() {
+		if !slices.Contains(before, id) && (id == order[2] || id == order[3]) {
+			t.Errorf("reopened as the old session %s", id)
+		}
+	}
+	e.shot("TestE2ETabMenuAndKeys")
+}
+
+func sorted(s []string) []string {
+	s = slices.Clone(s)
+	slices.Sort(s)
+	return s
+}
+
+func TestE2EFindAndTextSize(t *testing.T) {
+	addr, dir := startServe(t, true)
+	prefs := filepath.Join(dir, "keel-native.json")
+	if err := os.WriteFile(prefs, []byte(`{"opacity":100,"blur":10,"future":"kept"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e := newWin(t, addr, dir, nil)
+	sid := e.openLocal()
+	e.clickBody("1")
+	e.typeLine("for i in 1 2 3; do echo needle-$i; done")
+	e.waitScrollback(sid, "needle-3")
+	e.settle(300 * time.Millisecond)
+	// The find bar takes a row of height, so the terminal resizes and sh answers by redrawing its prompt;
+	// that is the only change find may cause (a key that reached the shell would echo or run).
+	redraw := strings.NewReplacer("\r\x1b[Ksh-3.2$ ", "")
+	before := redraw.Replace(e.scrollback(sid))
+
+	e.key(ui.Cmd, ui.KeyF)
+	e.pump(func() bool { return e.hasLabel("find bar") && e.tt.Focused("Find in terminal") }, "the find bar with the keyboard")
+	e.tt.Type("needle")
+	var total int
+	e.pump(func() bool {
+		_, total = e.w.focusedPane().search.status()
+		return total >= 3
+	}, "the terminal to find three needles")
+	e.pump(func() bool { return e.w.findCount(e.w.focusedPane()) != "" }, "the count in the bar")
+	e.shot("TestE2EFindAndTextSize-find")
+	e.settle(200 * time.Millisecond)
+	if after := redraw.Replace(e.scrollback(sid)); after != before {
+		t.Errorf("find changed the session's scrollback:\n%q\n%q", before, after)
+	}
+	e.key(0, ui.KeyEscape)
+	if e.hasLabel("find bar") {
+		t.Error("Escape did not close the find bar")
+	}
+	e.settle(300 * time.Millisecond)
+	if a := redraw.Replace(e.scrollback(sid)); a != before {
+		t.Errorf("closing find changed the scrollback: %q", a)
+	}
+
+	cols := func() int {
+		for _, s := range e.sessions() {
+			if s.ID == sid {
+				return s.Cols
+			}
+		}
+		return 0
+	}
+	var c0 int
+	e.pump(func() bool { c0 = cols(); return c0 > 0 && c0 != startCols }, "the session to take the pane's size")
+	e.settle(300 * time.Millisecond)
+	c0 = cols()
+	e.key(ui.Cmd, ui.KeyEqual)
+	e.key(ui.Cmd, ui.KeyEqual)
+	e.pump(func() bool { return cols() < c0 }, fmt.Sprintf("fewer than %d columns at the bigger size", c0))
+	c2 := cols()
+	e.shot("TestE2EFindAndTextSize")
+	e.key(ui.Cmd, ui.Key0)
+	e.pump(func() bool { return cols() == c0 }, fmt.Sprintf("%d columns back at the default size (was %d)", c0, c2))
+
+	e.pump(func() bool {
+		b, _ := os.ReadFile(prefs)
+		var f struct {
+			Opacity, Blur, TermSize int
+			Future                  string
+		}
+		return json.Unmarshal(b, &f) == nil && f.TermSize == 12 && f.Opacity == 100 && f.Blur == 10 && f.Future == "kept"
+	}, "keel-native.json with termSize 12 and its other fields intact")
+	if fi, _ := os.Stat(prefs); fi.Mode().Perm() != 0o600 {
+		t.Errorf("prefs mode %v", fi.Mode().Perm())
+	}
 }
