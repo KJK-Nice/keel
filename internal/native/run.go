@@ -1,9 +1,9 @@
 package native
 
 import (
+	"embed"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -28,20 +28,20 @@ func terminalTheme() *terminal.Theme {
 	return th
 }
 
-// registerFonts adds JetBrains Mono (woff2) as the mono family, read from cmd/keel/web/fonts when that
-// directory is under the working directory; otherwise the system monospace is used. Embedding is phase N2.
+//go:embed fonts/*.woff2
+var fontFiles embed.FS
+
+// registerFonts adds the embedded JetBrains Mono (woff2) as the mono family. fonts/ is a copy of
+// cmd/keel/web/fonts (TestEmbeddedFontsMatchTheWebviews keeps them equal).
 func registerFonts() {
-	dir := filepath.Join("cmd", "keel", "web", "fonts")
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return
-	}
-	for _, wt := range []string{"400", "500"} {
-		b, err := os.ReadFile(filepath.Join(dir, "jetbrains-mono-latin-"+wt+"-normal.woff2"))
+	files, _ := fontFiles.ReadDir("fonts")
+	for _, f := range files {
+		b, err := fontFiles.ReadFile("fonts/" + f.Name())
 		if err == nil {
 			err = ui.RegisterFont(b, monoFamily)
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "font "+wt+":", err)
+			fmt.Fprintln(os.Stderr, "font "+f.Name()+":", err)
 		}
 	}
 }
