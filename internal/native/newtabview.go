@@ -14,8 +14,8 @@ import (
 
 // The New tab page, laid out as the webview's (.k-start-* in keel.css): "Where to?", the input, the offer for a
 // pasted command, the recent cards, the Start actions and the recently closed rows. The words are term.js
-// paintStartPage and lib/newtab.js. Start has Quick connect only: Join session and New host wait for phases N6
-// and N5 (docs/native.md).
+// paintStartPage and lib/newtab.js. Start has Quick connect and New host: Join session waits for phase N6
+// (docs/native.md).
 
 const (
 	startGap      = space6 + space1 // calc(space-6 + space-1)
@@ -72,6 +72,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 				w.section(c, "Start", "", func() {
 					ui.Grid(c).Columns(startGrid).Gap(space2).FillWidth().Children(func() {
 						w.startAction(c, "Quick connect", "⌘⇧O", func() { w.openQuick("", nil) })
+						w.startAction(c, "New host", "⌘N", w.newHost)
 					})
 				})
 				if closed := w.closedList(); len(closed) > 0 {
@@ -87,7 +88,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 			})
 		})
 	})
-	if p.focus && w.quick == nil && w.pal == nil {
+	if p.focus && !w.modalOpen() {
 		p.input.Focus(c)
 		p.focus = false
 	}
@@ -238,7 +239,7 @@ func (w *workspace) closedRowView(c *ui.Context, t *tab, i int, e closedEntry, n
 }
 
 // offerView is the panel for a read command (offerHTML): what was read, what was left out, and Connect once.
-// Save as host would open the host dialog, which is phase N5. Nothing has run.
+// Save as host opens the host dialog filled from the command. Nothing has run.
 func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 	ui.Column(c).FillWidth().Padding(space3).Gap(space2).Background(surface).Border(1, line).Radius(radiusMd).Label("pasted command").Children(func() {
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).Children(func() {
@@ -248,6 +249,7 @@ func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 		})
 		w.notesView(c, r)
 		ui.Row(c).Gap(space2).Children(func() {
+			w.saveAsHostButton(c, r)
 			if r.User == "" {
 				caption(c, "Add a user (user@host) to connect once.", inkMuted)
 			} else if textBtn(c, "Connect once", btnDefault) {
@@ -255,6 +257,21 @@ func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 			}
 		})
 	})
+}
+
+// saveAsHostButton is the offer's primary button: it opens New host filled from the command (offerSaveHost).
+func (w *workspace) saveAsHostButton(c *ui.Context, r *sshparse.Result) {
+	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(brass).Label("Save as host").Cursor(ui.CursorPointer)
+	if b.Hovered() {
+		b.Background(brassStrong)
+	}
+	b.Children(func() {
+		label(c, "Save as host", onBrass)
+		text(c, "↵", onBrass, kbdSize, weightMedium).Font(monoStack)
+	})
+	if b.Clicked() {
+		w.act(func() { w.saveAsHost(r) })
+	}
 }
 
 // notesView is notesHTML: the options that were left out (and why) and the key-file note.

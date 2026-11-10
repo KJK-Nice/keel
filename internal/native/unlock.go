@@ -32,6 +32,11 @@ type unlockGate struct {
 	h     ui.Handle
 }
 
+// String prints the screen's state without the passphrase.
+func (g *unlockGate) String() string { return fmt.Sprintf("unlockGate{err=%q busy=%v}", g.err, g.busy) }
+
+func (g *unlockGate) GoString() string { return g.String() }
+
 const (
 	unlockCardWidth = sizeList + space6*2 + space3 // .k-unlock-card: size-list + 2·space-6 + space-3
 	markSize        = 48

@@ -111,6 +111,9 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 			if textBtn(c, "Close", btnGhost) {
 				w.act(func() { w.closePane(t, p.id) })
 			}
+			if p.host.ID != "" && textBtn(c, "Edit host", btnGhost) {
+				w.act(func() { w.editPaneHost(p) })
+			}
 			if textBtn(c, "Reconnect", btnPrimary) {
 				w.act(func() { w.reconnect(p) })
 			}

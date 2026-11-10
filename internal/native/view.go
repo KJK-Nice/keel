@@ -42,8 +42,10 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
+	w.hostDialogView(c)
+	w.confirmView(c)
 	w.paletteView(c)
-	if t := w.tab(); t != nil && w.wantFocus != "" && w.pal == nil && w.quick == nil {
+	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			p.handle.Focus(c)
 			w.wantFocus = ""
@@ -100,7 +102,8 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
-	if t := w.tab(); t != nil && t.isNew() { // ⌥1 to ⌥6 open the nth card of the New tab page
+	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newHost) }) // New host (docs/shortcuts.md)
+	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
 		for i, k := range altDigits {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
 		}
@@ -221,11 +224,16 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Box(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Column(c).Grow(1).Padding(space2).Gap(space2).Children(func() {
-			ui.Row(c).FillWidth().Height(sizeControl).Shrink(0).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
-				Background(stage).Border(1, lineStrong).Children(func() {
-				icon(c, "search-01", inkFaint)
-				ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
-					PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
+			ui.Row(c).FillWidth().Shrink(0).Gap(space1).Children(func() {
+				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
+					Background(stage).Border(1, lineStrong).Children(func() {
+					icon(c, "search-01", inkFaint)
+					ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
+						PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
+				})
+				if iconBtn(c, "add-01", "New host", sizeControl, false) { // btn-new-host
+					w.act(w.newHost)
+				}
 			})
 			ui.Column(c).FillWidth().Grow(1).Gap(space2).Children(func() {
 				for _, g := range w.groups() {

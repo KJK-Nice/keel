@@ -192,6 +192,8 @@ type workspace struct {
 	live            bool      // the first listing has been read: the window keeps a tab from now on
 	newTabLockUntil time.Time // ⌘T repeats inside this are ignored
 	quick           *quickDialog
+	hostDlg         *hostDialog  // New host / Edit host
+	confirm         *hostConfirm // a confirm dialog on its own (the host menu's Delete)
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.

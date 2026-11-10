@@ -287,13 +287,16 @@ func (w *workspace) openCard(t *tab, n int) {
 	}
 }
 
-// submitStart is ↵ in the page's input (term.js submitStartInput): a read command is only offered (the host
-// dialog that would save it is phase N5), a refused one shows its error, and otherwise the highlighted card, or
+// submitStart is ↵ in the page's input (term.js submitStartInput): a read command opens New host filled from it
+// (nothing is saved or connected until Save), a refused one shows its error, and otherwise the highlighted card, or
 // the first, opens.
 func (w *workspace) submitStart(t *tab) {
 	p := t.page
 	if r := sshparse.ParseConnect(p.query); r != nil {
 		p.showError = !r.OK
+		if r.OK {
+			w.saveAsHost(r)
+		}
 		return
 	}
 	cards := w.cards(t.page)
