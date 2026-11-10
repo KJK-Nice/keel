@@ -1,0 +1,224 @@
+package native
+
+import (
+	"slices"
+	"strings"
+	"time"
+)
+
+// Tab and pane handling the webview has: focus view, closing tabs, the tab order, the recently closed
+// list and tab names. The words and rules are the webview's: lib/workspace.js, term.js, ui/tabmenu.js,
+// ui/tabrename.js, lib/newtab.js.
+
+// dropPane ends p's session (Kill) and frees its terminal and connection. The caller removes it from its tab.
+func (w *workspace) dropPane(p *pane) {
+	if w.findPane == p {
+		w.endFind()
+	}
+	if sid := p.sessionID(); sid == "" {
+		if p.release != nil {
+			p.release()
+		}
+		w.killWhenNamed(p.conn)
+	} else {
+		w.release(p)
+		w.kill(sid)
+	}
+}
+
+// removeTab takes t out of the strip. The tab before it is shown when the active one went and it was last.
+func (w *workspace) removeTab(t *tab) {
+	i := slices.Index(w.tabs, t)
+	if i < 0 {
+		return
+	}
+	if w.renaming == t {
+		w.renaming = nil
+	}
+	w.tabs = slices.Delete(w.tabs, i, i+1)
+	if w.active > i || w.active >= len(w.tabs) {
+		w.active--
+	}
+	w.active = max(w.active, 0)
+	if len(w.tabs) > 0 {
+		w.selectTab(w.active)
+	}
+}
+
+// closeTab kills every pane's session and removes the tab. It is recorded once, as the tab.
+func (w *workspace) closeTab(t *tab) {
+	if !slices.Contains(w.tabs, t) {
+		return
+	}
+	leaves := t.root.Leaves()
+	if len(leaves) > 0 {
+		w.recordClosed(t.panes[leaves[0]], "tab")
+	}
+	for _, id := range leaves {
+		if p := t.panes[id]; p != nil {
+			w.dropPane(p)
+		}
+	}
+	t.panes = map[string]*pane{}
+	w.removeTab(t)
+}
+
+// closeTabs closes these tabs (the tab menu's Close, Close others, Close to the right and Close all).
+func (w *workspace) closeTabs(ts []*tab) {
+	for _, t := range ts {
+		w.closeTab(t)
+	}
+}
+
+// Which tabs each item of the tab menu closes for tab i (ui/tabmenu.js run).
+func (w *workspace) tabsOthers(t *tab) []*tab {
+	return slices.DeleteFunc(slices.Clone(w.tabs), func(o *tab) bool { return o == t })
+}
+
+func (w *workspace) tabsRight(t *tab) []*tab {
+	i := slices.Index(w.tabs, t)
+	if i < 0 {
+		return nil
+	}
+	return slices.Clone(w.tabs[i+1:])
+}
+
+// cycleTab shows the tab delta steps from the active one, wrapping at both ends (lib/keys.js tabCycleTarget).
+func (w *workspace) cycleTab(delta int) {
+	if n := len(w.tabs); n > 0 {
+		w.selectTab((w.active + delta%n + n) % n)
+	}
+}
+
+// moveTab puts t at the index it has among the other tabs when it lands at slot (0 to len(tabs)), counted
+// in the strip as it is now. The same tab stays active.
+func (w *workspace) moveTab(t *tab, slot int) {
+	from := slices.Index(w.tabs, t)
+	if from < 0 {
+		return
+	}
+	cur := w.tab()
+	slot = min(max(slot, 0), len(w.tabs))
+	if slot > from {
+		slot--
+	}
+	w.tabs = slices.Insert(slices.Delete(w.tabs, from, from+1), slot, t)
+	w.active = max(slices.Index(w.tabs, cur), 0)
+}
+
+// toggleZoom is focus view for pane id: it fills the tab, or the tab shows all its panes again. A tab of
+// one pane does not zoom. The zoomed pane has focus (workspace.js zoom).
+func (w *workspace) toggleZoom(t *tab, id string) {
+	if t.zoomed != "" {
+		t.zoomed = ""
+		if t == w.tab() {
+			w.wantFocus = t.focused
+		}
+		return
+	}
+	if t.panes[id] == nil || len(t.panes) < 2 {
+		return
+	}
+	t.zoomed = id
+	t.focused = id
+	if t == w.tab() {
+		w.wantFocus = id
+	}
+}
+
+func (w *workspace) zoomFocused() {
+	if t := w.tab(); t != nil {
+		w.toggleZoom(t, t.focused)
+	}
+}
+
+// ---- the tab's name ----
+
+func (w *workspace) beginRename(t *tab) {
+	if w.renaming != nil || !slices.Contains(w.tabs, t) {
+		return
+	}
+	w.renaming, w.renameText, w.renameSeen = t, t.name(), false
+}
+
+// endRename keeps the name typed (ok) or leaves the old one; an empty name clears the custom title.
+func (w *workspace) endRename(ok bool) {
+	t := w.renaming
+	if t == nil {
+		return
+	}
+	w.renaming = nil
+	if ok {
+		t.title = strings.TrimSpace(w.renameText)
+	}
+	if tt := w.tab(); tt != nil {
+		w.wantFocus = tt.focused
+	}
+}
+
+// ---- recently closed ----
+
+const closedMax = 10 // lib/newtab.js CLOSED_MAX
+
+// closedEntry is a closed tab or pane: the host, the name and the time, nothing else (lib/newtab.js).
+type closedEntry struct {
+	hostID, title, kind string // kind is "tab" or "pane"
+	at                  time.Time
+}
+
+// recordClosed puts p first. An older entry for the same host and kind goes (lib/newtab.js pushClosed).
+func (w *workspace) recordClosed(p *pane, kind string) {
+	if p == nil || p.host.ID == "" {
+		return
+	}
+	e := closedEntry{p.host.ID, p.host.Name, kind, time.Now()}
+	rest := slices.DeleteFunc(slices.Clone(w.recent), func(o closedEntry) bool { return o.hostID == e.hostID && o.kind == e.kind })
+	w.recent = append([]closedEntry{e}, rest...)
+	if len(w.recent) > closedMax {
+		w.recent = w.recent[:closedMax]
+	}
+}
+
+// reopenClosed opens the newest closed entry whose host still exists as a new session in a new tab (⌘⇧T).
+func (w *workspace) reopenClosed() {
+	for i, e := range w.recent {
+		for _, h := range w.hosts {
+			if h.ID == e.hostID {
+				w.recent = slices.Delete(slices.Clone(w.recent), i, i+1)
+				w.openHost(h)
+				return
+			}
+		}
+	}
+	w.err = "Nothing to reopen" // term.js reopenClosed
+}
+
+// ---- terminal text size ----
+
+const (
+	termSizeMin, termSizeMax, termSizeDefault = 10, 22, 12 // term.js SIZE_MIN, SIZE_MAX, SIZE_DEFAULT
+)
+
+// setTermSize sets the terminal font size of every pane, clamped, and keeps it in keel-native.json.
+func (w *workspace) setTermSize(n int) {
+	n = min(max(n, termSizeMin), termSizeMax)
+	if n == w.termSize {
+		return
+	}
+	w.termSize = n
+	for _, t := range w.tabs {
+		for _, p := range t.panes {
+			p.fontSize = float32(n)
+			if p.setFont != nil {
+				p.setFont(float32(n))
+			}
+		}
+	}
+	if dir := w.dataDir; dir != "" {
+		w.work(func() {
+			if err := savePrefs(dir, map[string]any{"termSize": n}); err != nil {
+				w.post(func() { w.fail("save text size", err) })
+			}
+		})
+	}
+}

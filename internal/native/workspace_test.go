@@ -526,7 +526,7 @@ func TestNarrowPaneBarKeepsItsTools(t *testing.T) {
 	r.tt.Release(x-2000, y)
 	r.tt.Frame()
 	tile, _ := r.tt.Find("pane 1")
-	for _, tool := range []string{"Split right", "Split down", "Close pane"} {
+	for _, tool := range []string{"Split right", "Split down", "Focus view", "More pane actions", "Close pane"} {
 		b, ok := r.tt.Find(tool)
 		if !ok || b.W == 0 || b.X < tile.X || b.X+b.W > tile.X+tile.W {
 			t.Errorf("%s %v is not inside the tile %v", tool, b, tile)
@@ -584,19 +584,19 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 }
 
 func TestLoadPrefs(t *testing.T) {
-	def := prefs{Opacity: 66, Blur: 20}
+	def := prefs{Opacity: 66, Blur: 20, TermSize: 12}
 	for _, tc := range []struct {
 		name, file string
 		want       prefs
 	}{
 		{"missing", "", def},
 		{"bad json", "{", def},
-		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{66, 8}},
-		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{66, 8}},
-		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{50, 20}},
-		{"blur too high", `{"opacity":50,"blur":99}`, prefs{50, 20}},
-		{"only blur", `{"blur":0}`, prefs{66, 0}},
-		{"valid", `{"opacity":100,"blur":64}`, prefs{100, 64}},
+		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{66, 8, 12}},
+		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{66, 8, 12}},
+		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{50, 20, 12}},
+		{"blur too high", `{"opacity":50,"blur":99}`, prefs{50, 20, 12}},
+		{"only blur", `{"blur":0}`, prefs{66, 0, 12}},
+		{"valid", `{"opacity":100,"blur":64}`, prefs{100, 64, 12}},
 	} {
 		dir := t.TempDir()
 		if tc.file != "" {
@@ -617,7 +617,7 @@ func TestPrefsEnvOverridesAndRejects(t *testing.T) {
 	t.Setenv("KEEL_NATIVE_OPACITY", "50")
 	t.Setenv("KEEL_NATIVE_BLUR", "")
 	p, err := prefs{Opacity: 66, Blur: 20}.withEnv()
-	if err != nil || p != (prefs{50, 20}) {
+	if err != nil || p != (prefs{50, 20, 0}) {
 		t.Errorf("got %+v, %v", p, err)
 	}
 	t.Setenv("KEEL_NATIVE_BLUR", "lots")

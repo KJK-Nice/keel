@@ -54,7 +54,14 @@ func liveBody(p *pane) { liveBodyT(p, false) }
 func liveBodyT(p *pane, transparent bool) {
 	term, err := terminal.New(terminal.Options{
 		Conn: p.conn, Theme: terminalTheme(), Transparent: transparent,
-		Font: terminal.Font{Family: monoStack, Size: uiFontSize},
+		Font: terminal.Font{Family: monoStack, Size: p.fontSize},
+		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
+		OnZoom: func(z terminal.Zoom) bool {
+			if p.zoom != nil {
+				p.zoom(z.Steps, z.Reset)
+			}
+			return true
+		},
 	})
 	if err != nil {
 		msg := "terminal: " + err.Error()
@@ -67,6 +74,11 @@ func liveBodyT(p *pane, transparent bool) {
 	p.view = func(c *ui.Context) ui.Element { return terminal.View(c, term).Fill() }
 	p.size = term.Size
 	p.release = func() { term.Close() }
+	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: monoStack, Size: size}) }
+	p.search = &termSearch{
+		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,
+		status: func() (int, int) { s := term.SearchStatus(); return s.Selected, s.Total },
+	}
 }
 
 // Run opens the window on a running keel serve and blocks until the app quits.
@@ -81,6 +93,7 @@ func Run() error {
 	}
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
+	w.dataDir, w.termSize = paths.DataDir(), pr.TermSize
 	translucent := pr.Opacity < opacityMax
 	if translucent {
 		w.alpha = pr.alpha()

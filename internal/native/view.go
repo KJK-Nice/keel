@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -36,9 +37,26 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	w.hostKeyDialog(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" {
-		if p := t.panes[w.wantFocus]; p != nil {
+		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			p.handle.Focus(c)
 			w.wantFocus = ""
+		}
+	}
+	if w.findPane != nil {
+		w.syncFind()
+		if w.findFocus {
+			w.findHandle.Focus(c)
+			w.findFocus = false
+		}
+	}
+	if w.renaming != nil { // the field has the keyboard until a click elsewhere keeps the name
+		switch {
+		case w.renameH.FocusWithin(c):
+			w.renameSeen = true
+		case w.renameSeen:
+			w.act(func() { w.endRename(true) })
+		default:
+			w.renameH.Focus(c)
 		}
 	}
 	if len(w.later) > 0 {
@@ -49,6 +67,7 @@ func (w *workspace) view(c *ui.Context) {
 		}
 		c.Invalidate()
 	}
+	w.persist()
 }
 
 // shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken
@@ -63,6 +82,25 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(func() { w.sidebar = !w.sidebar }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEnter, func() { w.act(w.zoomFocused) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyT, func() { w.act(w.reopenClosed) })
+	// ⌘< and ⌘> are ⌘⇧, and ⌘⇧. on a US keyboard: both spellings are taken (docs/shortcuts.md).
+	for _, k := range []ui.Key{ui.KeyBracketLeft, ui.KeyComma} {
+		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(-1) }) })
+	}
+	for _, k := range []ui.Key{ui.KeyBracketRight, ui.KeyPeriod} {
+		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(1) }) })
+	}
+	c.OnWindowShortcut(ui.Cmd, ui.KeyF, func() { w.act(func() { w.openFind(w.focusedPane()) }) })
+	if w.findPane != nil {
+		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
+		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
+	}
+	// Terminal text size: ⌘+ is ⌘= with or without ⇧.
+	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { w.act(func() { w.setTermSize(w.termSize - 1) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.Key0, func() { w.act(func() { w.setTermSize(termSizeDefault) }) })
 }
 
 func (w *workspace) titlebar(c *ui.Context) {
@@ -89,13 +127,15 @@ func (w *workspace) titlebar(c *ui.Context) {
 func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 	selected := i == w.active
 	r := ui.Row(c).Height(sizeTab).MaxWidth(tabMaxWidth).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
-		Label("tab " + t.name()).Cursor(ui.CursorPointer).Key(t)
+		Label("tab " + t.name()).Cursor(ui.CursorPointer).Key(t).Bind(&t.h).Drag(t)
 	switch {
 	case selected:
 		r.Background(raised)
 	case r.Hovered():
 		r.Background(hoverGround)
 	}
+	r.PopoverMenu(w.tabMenu(t))
+	renaming := w.renaming == t
 	r.Children(func() {
 		status := ""
 		if p := t.panes[t.focused]; p != nil {
@@ -106,14 +146,43 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		if selected {
 			col = ink
 		}
-		bodyStrong(c, t.name(), col)
+		if renaming {
+			in := ui.TextInputBase(c, &w.renameText).Label("Rename tab").TextColor(ink).FontSize(uiFontSize).
+				FontWeight(weightMedium).Width(tabMaxWidth / 2).Bind(&w.renameH)
+			if !w.renameSeen { // the old name is selected, so typing replaces it
+				in.SetTextSelection(0, utf8.RuneCountInString(w.renameText))
+			}
+			in.OnTextKey(func(k ui.TextKey) bool {
+				switch {
+				case k.Key == ui.KeyEnter && k.Mods == 0:
+					w.renameText = k.Text()
+					w.act(func() { w.endRename(true) })
+				case k.Key == ui.KeyEscape && k.Mods == 0:
+					w.act(func() { w.endRename(false) })
+				default:
+					return false
+				}
+				return true
+			})
+		} else {
+			bodyStrong(c, t.name(), col)
+		}
 		if n := len(t.panes); n > 1 {
 			ui.Spacer(c)
 			caption(c, fmt.Sprint(n), inkMuted)
 		}
 	})
-	if r.Clicked() {
+	if r.Clicked() && !renaming {
 		w.act(func() { w.selectTab(i) })
+	}
+	// A tab dropped on another lands before it or after it, by which half the pointer let go in.
+	if moved, ok := ui.Drop[*tab](r); ok && moved != t {
+		x, _, _ := r.PointerPosition()
+		slot := i
+		if x > t.h.Bounds(c).W/2 {
+			slot++
+		}
+		w.act(func() { w.moveTab(moved, slot) })
 	}
 }
 
@@ -197,8 +266,17 @@ func (w *workspace) stage(c *ui.Context) {
 	case t == nil:
 		w.centered(c, "No sessions. Pick a host in the sidebar to open one.")
 	default:
-		multi := len(t.panes) > 1
+		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {
+			t.zoomed = ""
+		}
+		// Focus view shows the zoomed pane alone, full-bleed like a one-pane tab; the others keep their sessions.
+		multi := len(t.panes) > 1 && t.zoomed == ""
 		tiles := func() { w.node(c, t, t.root, multi, layout.Row, true, 1) }
+		if t.zoomed != "" {
+			tiles = func() {
+				w.tile(c, t, t.panes[t.zoomed], false, func(e ui.Element) ui.Element { return e.Grow(1).Shrink(1).Fill() })
+			}
+		}
 		switch {
 		case multi && w.alpha < 1:
 			// Translucent: the chrome ground is painted only in the inset and the gaps, never under a
@@ -311,7 +389,8 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			barGround = w.ground(chrome)
 		}
 		st := p.conn.Snapshot()
-		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround)
+		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround).Label("pane bar " + p.id)
+		bar.PopoverMenu(w.paneMenu(t, p))
 		if bar.Clicked() {
 			w.act(func() { p.handle.Focus(c); t.focused = p.id })
 		}
@@ -338,12 +417,24 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				if iconBtn(c, "split-v", "Split down", sizeControlSm, false) {
 					w.act(func() { w.split(t, p.id, layout.Col) })
 				}
+				zoomed := t.zoomed == p.id
+				zoomTip, zoomGlyph := "Focus view", "zoom"
+				if zoomed {
+					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
+				}
+				if iconBtn(c, zoomGlyph, zoomTip, sizeControlSm, zoomed) {
+					w.act(func() { w.toggleZoom(t, p.id) })
+				}
+				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
 				if iconBtn(c, "cancel-01", "Close pane", sizeControlSm, false) {
 					w.act(func() { w.closePane(t, p.id) })
 				}
 			})
 		})
 		w.paneBanners(c, t, p, st)
+		if w.findPane == p {
+			w.findBar(c, p)
+		}
 		pane := ui.Box(c).Grow(1).FillWidth().Background(w.ground(stage))
 		if multi && !focused {
 			pane.Opacity(dimAlpha)

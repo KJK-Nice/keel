@@ -78,6 +78,13 @@ type pane struct {
 
 	handle ui.Handle // the body's identity, for keyboard focus
 
+	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
+	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
+	fontSize float32
+	zoom     func(steps int, reset bool)
+	search   *termSearch
+	setFont  func(size float32)
+
 	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 }
 
@@ -95,9 +102,16 @@ type tab struct {
 	root    *layout.Node
 	panes   map[string]*pane
 	focused string
+	zoomed  string // the pane that fills the tab (focus view), or ""
+	title   string // the name the user gave the tab, or ""
+
+	h ui.Handle // the tab in the strip, for where a dragged tab lands
 }
 
 func (t *tab) name() string {
+	if t.title != "" {
+		return t.title
+	}
 	if p := t.panes[t.focused]; p != nil {
 		return p.host.Name
 	}
@@ -128,6 +142,23 @@ type workspace struct {
 	later     []func()                    // actions queued by the view, run when the frame is built
 
 	alpha float32 // the window's opacity, 0–1; grounds are painted at it (see ground)
+
+	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
+	termSize int    // the terminal font size of every pane, termSizeMin–termSizeMax
+
+	recent     []closedEntry // recently closed tabs and panes, newest first (⌘⇧T)
+	renaming   *tab          // the tab whose name is being edited
+	renameText string
+	renameSeen bool // the rename field has had the keyboard
+	renameH    ui.Handle
+
+	findPane   *pane // the pane whose find bar is open
+	findText   string
+	findDone   string // the text the terminal's search was last given
+	findFocus  bool
+	findHandle ui.Handle
+
+	saved saveState
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -140,7 +171,7 @@ func (w *workspace) ground(c ui.Color) ui.Color {
 
 func newWorkspace(be backend) *workspace {
 	return &workspace{
-		be: be, alpha: 1, sidebar: true, collapsed: map[string]bool{},
+		be: be, alpha: 1, sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 	}
@@ -223,6 +254,7 @@ func (w *workspace) start() {
 			}
 			live = append(live, attached{h, conn, s.ID})
 		}
+		doc := loadSaved(w.dataDir)
 		w.post(func() {
 			if w.closed {
 				for _, a := range live {
@@ -231,21 +263,30 @@ func (w *workspace) start() {
 				return
 			}
 			w.hosts = hosts
-			for _, a := range live {
-				p := w.newPane(a.host, a.conn)
-				p.sid = a.sid
-				w.addTab(p)
+			panes := make([]*pane, len(live))
+			for i, a := range live {
+				panes[i] = w.newPane(a.host, a.conn)
+				panes[i].sid = a.sid
 			}
+			w.restore(doc, panes)
 			if failed != nil {
 				w.fail("attach", failed)
 			}
+			w.saved.ready = true
 		})
 	})
 }
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize)}
+	p.zoom = func(steps int, reset bool) {
+		if reset {
+			w.setTermSize(termSizeDefault)
+		} else {
+			w.setTermSize(w.termSize + steps)
+		}
+	}
 	conn.OnChange(func() { w.post(func() {}) }) // redraw the dot and the bar
 	w.mkBody(p)
 	return p
@@ -314,6 +355,7 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 			t.root = t.root.Split(target, np.id, d)
 			t.panes[np.id] = np
 			t.focused = np.id
+			t.zoomed = "" // a split leaves focus view (workspace.js splitPane)
 			if t == w.tab() {
 				w.wantFocus = np.id
 			}
@@ -333,32 +375,19 @@ func (w *workspace) closePane(t *tab, id string) {
 	if p == nil {
 		return
 	}
-	sid := p.sessionID()
+	kind := "pane"
+	if len(t.panes) == 1 {
+		kind = "tab" // the last pane is recorded as the tab (term.js closePane)
+	}
+	w.recordClosed(p, kind)
+	w.dropPane(p)
 	delete(t.panes, id)
 	t.root = t.root.Remove(id)
-	if sid == "" {
-		if p.release != nil {
-			p.release()
-		}
-		w.killWhenNamed(p.conn)
-	} else {
-		w.release(p)
-		w.kill(sid)
+	if t.zoomed == id {
+		t.zoomed = ""
 	}
 	if t.root == nil {
-		for i, k := range w.tabs {
-			if k == t {
-				w.tabs = append(w.tabs[:i], w.tabs[i+1:]...)
-				if w.active > i || w.active >= len(w.tabs) {
-					w.active--
-				}
-				break
-			}
-		}
-		w.active = max(w.active, 0)
-		if len(w.tabs) > 0 {
-			w.selectTab(w.active)
-		}
+		w.removeTab(t)
 		return
 	}
 	if t.focused == id {
@@ -461,7 +490,9 @@ func (w *workspace) release(p *pane) {
 
 // closeWindow detaches: every connection closes and no session is killed.
 func (w *workspace) closeWindow() {
+	w.saveNow()
 	w.closed = true
+	w.saved.stop()
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			w.release(p)

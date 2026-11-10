@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 // prefs are the window preferences, named and ranged as the webview's (cmd/keel/web/js/term.js). The
@@ -13,6 +14,8 @@ import (
 type prefs struct {
 	Opacity int `json:"opacity"` // 30–100; 100 is opaque
 	Blur    int `json:"blur"`    // 0–64, macOS only, used below 100
+
+	TermSize int `json:"termSize"` // terminal text size, 10–22, set by ⌘+ ⌘- ⌘0
 }
 
 const (
@@ -23,14 +26,17 @@ const (
 // loadPrefs reads <dataDir>/keel-native.json. A missing or unreadable file, or a value out of range,
 // gives the default, field by field.
 func loadPrefs(dataDir string) prefs {
-	p := prefs{Opacity: opacityDefault, Blur: blurDefault}
+	p := prefs{Opacity: opacityDefault, Blur: blurDefault, TermSize: termSizeDefault}
 	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
 	if err != nil {
 		return p
 	}
-	var f struct{ Opacity, Blur *int }
+	var f struct{ Opacity, Blur, TermSize *int }
 	if json.Unmarshal(b, &f) != nil {
 		return p
+	}
+	if f.TermSize != nil && *f.TermSize >= termSizeMin && *f.TermSize <= termSizeMax {
+		p.TermSize = *f.TermSize
 	}
 	if f.Opacity != nil && *f.Opacity >= opacityMin && *f.Opacity <= opacityMax {
 		p.Opacity = *f.Opacity
@@ -39,6 +45,60 @@ func loadPrefs(dataDir string) prefs {
 		p.Blur = *f.Blur
 	}
 	return p
+}
+
+var prefsMu sync.Mutex
+
+// savePrefs sets these fields in <dataDir>/keel-native.json and leaves every other field as it is: the
+// ones this version does not know too. A file that is not JSON is left alone and reported.
+func savePrefs(dataDir string, set map[string]any) error {
+	prefsMu.Lock()
+	defer prefsMu.Unlock()
+	fields := map[string]json.RawMessage{}
+	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	switch {
+	case err == nil:
+		if err := json.Unmarshal(b, &fields); err != nil {
+			return fmt.Errorf("keel-native.json is not JSON: %w", err)
+		}
+	case !os.IsNotExist(err):
+		return err
+	}
+	for k, v := range set {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		fields[k] = raw
+	}
+	out, err := json.MarshalIndent(fields, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(dataDir, "keel-native.json", out)
+}
+
+// writeFileAtomic writes dir/name through a temp file in dir and a rename, with mode 0600.
+func writeFileAtomic(dir, name string, data []byte) error {
+	f, err := os.CreateTemp(dir, name+".*.tmp") // 0600
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, 0o600)
+	}
+	if err == nil {
+		err = os.Rename(tmp, filepath.Join(dir, name))
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
 }
 
 // withEnv applies KEEL_NATIVE_OPACITY and KEEL_NATIVE_BLUR (for development and tests) over p.

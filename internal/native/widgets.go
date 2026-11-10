@@ -67,3 +67,13 @@ func statusColor(status string) ui.Color {
 	}
 	return signal // connecting, or not heard yet
 }
+
+// glyphBtn is iconBtn with a character for its icon (the find bar's ↑ ↓ ×, as the webview draws them).
+func glyphBtn(c *ui.Context, glyph, tip string) bool {
+	b := ui.Row(c).Size(sizeControlSm, sizeControlSm).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Cursor(ui.CursorPointer)
+	if b.Hovered() {
+		b.Background(hoverGround)
+	}
+	b.Children(func() { body(c, glyph, inkMuted) })
+	return b.Clicked()
+}
