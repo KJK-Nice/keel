@@ -417,7 +417,7 @@ func TestE2EGapDragResizes(t *testing.T) {
 	}
 	// Both terminals report their size once they have been laid out.
 	var a0, b0 int
-	e.pump(func() bool { a0, b0 = cols(); return a0 > 0 && b0 > 0 && a0 != startCols || b0 != startCols }, "sessions resized to their tiles")
+	e.pump(func() bool { a0, b0 = cols(); return a0 > 0 && b0 > 0 && a0 != startCols && b0 != startCols }, "sessions resized to their tiles")
 	e.settle(300 * time.Millisecond)
 	a0, b0 = cols()
 	g, ok := e.tt.Find("split handle")
@@ -439,7 +439,10 @@ func TestE2EShortcutsDoNotReachTheShell(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	sid := e.openLocal()
 	e.clickBody("1")
-	before := e.scrollback(sid)
+	// Hiding the sidebar resizes the terminal, and sh answers a resize by redrawing its prompt; that
+	// is the only output a shortcut may cause. A key that reached the shell would echo or run.
+	redraw := strings.NewReplacer("\r\x1b[Ksh-3.2$ ", "")
+	before := redraw.Replace(e.scrollback(sid))
 	e.key(ui.Cmd, ui.KeyB)
 	if e.w.sidebar || e.tt.HasText("Filter hosts") {
 		t.Error("Cmd+B did not hide the sidebar")
@@ -451,7 +454,7 @@ func TestE2EShortcutsDoNotReachTheShell(t *testing.T) {
 	if !e.w.sidebar || !e.tt.HasText("Filter hosts") {
 		t.Error("the sidebar did not come back")
 	}
-	if after := e.scrollback(sid); after != before {
+	if after := redraw.Replace(e.scrollback(sid)); after != before {
 		t.Errorf("shortcuts reached the shell: scrollback changed from %q to %q", before, after)
 	}
 	e.shot("TestE2EShortcutsDoNotReachTheShell")
