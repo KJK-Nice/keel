@@ -34,6 +34,7 @@ func (w *workspace) view(c *ui.Context) {
 		})
 		w.statusbar(c)
 	})
+	w.hostKeyDialog(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" {
 		if p := t.panes[w.wantFocus]; p != nil {
 			p.handle.Focus(c)
@@ -309,12 +310,12 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		if !multi && !focused {
 			barGround = w.ground(chrome)
 		}
+		st := p.conn.Snapshot()
 		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround)
 		if bar.Clicked() {
 			w.act(func() { p.handle.Focus(c); t.focused = p.id })
 		}
 		bar.Children(func() {
-			st := p.conn.Snapshot()
 			sub := st.Subtitle
 			dot(c, statusColor(st.Status))
 			// The tools never shrink; user gives way first, then the host name (Shrink is the weight).
@@ -327,6 +328,9 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			}
 			mono(c, sub, inkMuted).Shrink(8).MinWidth(0)
 			ui.Spacer(c)
+			if len(st.Attached) > 1 {
+				roleChip(c, st.Role)
+			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
 				if iconBtn(c, "split-h", "Split right", sizeControlSm, false) {
 					w.act(func() { w.split(t, p.id, layout.Row) })
@@ -339,6 +343,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				}
 			})
 		})
+		w.paneBanners(c, t, p, st)
 		pane := ui.Box(c).Grow(1).FillWidth().Background(w.ground(stage))
 		if multi && !focused {
 			pane.Opacity(dimAlpha)

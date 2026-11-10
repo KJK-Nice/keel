@@ -47,6 +47,8 @@ func TestTokensMatchJSON(t *testing.T) {
 		"hover": hexHover, "line": hexLine, "line-strong": hexLineStrong, "ink": hexInk,
 		"ink-muted": hexInkMuted, "ink-faint": hexInkFaint, "brass": hexBrass,
 		"brass-ink": hexBrassInk, "brass-soft": hexBrassSoft, "tide": hexTide, "signal": hexSignal, "flare": hexFlare, "term-selection": hexTermSelection,
+		"brass-strong": hexBrassStrong, "on-brass": hexOnBrass, "signal-soft": hexSignalSoft, "flare-soft": hexFlareSoft,
+		"on-flare": hexOnFlare, "haze": hexHaze, "haze-soft": hexHazeSoft, "scrim": hexScrim,
 		"focus": hexFocus, "term-fg": hexTermFg, "term-bg": hexTermBg, "term-cursor": hexTermCursor,
 	}
 	for i, h := range hexAnsi {

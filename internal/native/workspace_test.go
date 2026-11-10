@@ -54,6 +54,10 @@ type fakeBackend struct {
 	killed   []string
 	conns    []*fakeConn
 	n        int
+
+	reconnected []string
+	trusted     []keelclient.HostKey
+	replaced    []bool
 }
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }
@@ -85,6 +89,17 @@ func (f *fakeBackend) Attach(id string, _, _ int) (session, error) {
 }
 func (f *fakeBackend) Kill(_ context.Context, id string) error {
 	f.killed = append(f.killed, id)
+	return nil
+}
+func (f *fakeBackend) Reconnect(_ context.Context, id string) error {
+	f.calls = append(f.calls, "reconnect "+id)
+	f.reconnected = append(f.reconnected, id)
+	return nil
+}
+func (f *fakeBackend) TrustHostKey(_ context.Context, k keelclient.HostKey, replace bool) error {
+	f.calls = append(f.calls, "trust")
+	f.trusted = append(f.trusted, k)
+	f.replaced = append(f.replaced, replace)
 	return nil
 }
 
@@ -232,13 +247,13 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 	}
 	r := newRig(t, fb)
 	r.tt.Frame()
-	if !slices.Equal(fb.attached, []string{"s-a", "s-b"}) || len(fb.spawned) != 0 {
+	if !slices.Equal(fb.attached, []string{"s-a", "s-b", "s-c"}) || len(fb.spawned) != 0 {
 		t.Fatalf("attached %v spawned %v", fb.attached, fb.spawned)
 	}
-	if len(r.w.tabs) != 2 || r.w.tabs[1].name() != "old host" {
+	if len(r.w.tabs) != 3 || r.w.tabs[1].name() != "old host" {
 		t.Fatalf("tabs %d", len(r.w.tabs))
 	}
-	if r.w.paneCount() != 2 {
+	if r.w.paneCount() != 3 {
 		t.Errorf("panes %d", r.w.paneCount())
 	}
 }

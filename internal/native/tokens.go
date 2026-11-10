@@ -26,6 +26,14 @@ const (
 	hexSignal        = "#fc984c"
 	hexFlare         = "#f66d67"
 	hexTermSelection = "#e8b96047"
+	hexBrassStrong   = "#f4cb75"
+	hexOnBrass       = "#291906"
+	hexSignalSoft    = "#fc984c24"
+	hexFlareSoft     = "#f66d6726"
+	hexOnFlare       = "#200a08"
+	hexHaze          = "#85b6e9"
+	hexHazeSoft      = "#85b6e926"
+	hexScrim         = "#020407b8"
 	// focus = brass-ink, term-fg = ink, term-bg = stage, term-cursor = brass.
 	hexFocus      = hexBrassInk
 	hexTermFg     = hexInk
@@ -79,6 +87,9 @@ const (
 	tabMaxWidth      = 200  // not a token: the widest a tab grows before its name is cut
 	minTileWidth     = 240  // not a token: narrowest a split tile may be dragged to
 	minTileHeight    = 120  // not a token: shortest a stacked tile may be dragged to
+	roleChipHeight   = 20   // k-role, components.css
+	roleChipSize     = 11   // k-role font size
+	dialogWidth      = 420  // .modal width in keel.css
 )
 
 func tok(hex string) ui.Color { return ui.Hex(hex) }
@@ -102,6 +113,14 @@ var (
 	flare         = tok(hexFlare)
 	focus         = tok(hexFocus)
 	termSelection = tok(hexTermSelection)
+	brassStrong   = tok(hexBrassStrong)
+	onBrass       = tok(hexOnBrass)
+	signalSoft    = tok(hexSignalSoft)
+	flareSoft     = tok(hexFlareSoft)
+	onFlare       = tok(hexOnFlare)
+	haze          = tok(hexHaze)
+	hazeSoft      = tok(hexHazeSoft)
+	scrim         = tok(hexScrim)
 )
 
 // hostTint is the colour of a host's label. keel serve stores it as var(--ansi-N), a reference to

@@ -40,6 +40,8 @@ type backend interface {
 	Spawn(hostID string, cols, rows int) (session, error)
 	Attach(sessionID string, cols, rows int) (session, error)
 	Kill(ctx context.Context, id string) error
+	Reconnect(ctx context.Context, id string) error
+	TrustHostKey(ctx context.Context, k keelclient.HostKey, replace bool) error
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -74,6 +76,8 @@ type pane struct {
 	release func()
 
 	handle ui.Handle // the body's identity, for keyboard focus
+
+	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 }
 
 func (p *pane) sessionID() string {
@@ -201,9 +205,6 @@ func (w *workspace) start() {
 		var live []attached
 		var failed error
 		for _, s := range sessions {
-			if s.Status == "exited" || s.Status == "error" { // gone; banners for them are phase N3
-				continue
-			}
 			cols, rows := s.Cols, s.Rows
 			if cols <= 0 || rows <= 0 {
 				cols, rows = startCols, startRows
@@ -365,6 +366,39 @@ func (w *workspace) closePane(t *tab, id string) {
 			w.wantFocus = t.focused
 		}
 	}
+}
+
+// reconnect asks keel serve to start p's session again; the socket reports the new status.
+func (w *workspace) reconnect(p *pane) {
+	sid := p.sessionID()
+	if sid == "" {
+		return
+	}
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		if err := w.be.Reconnect(c, sid); err != nil {
+			w.post(func() { w.fail("reconnect", err) })
+		}
+	})
+}
+
+// trustHostKey is the host key dialog's trust button and nothing else: it sends back exactly the offer the
+// server made for p's session, then reconnects.
+func (w *workspace) trustHostKey(p *pane, k keelclient.HostKey) {
+	p.declined = k // the dialog closes now; a new offer opens it again
+	sid := p.sessionID()
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		err := w.be.TrustHostKey(c, k, k.Kind == "host-key-mismatch")
+		if err == nil && sid != "" {
+			err = w.be.Reconnect(c, sid)
+		}
+		if err != nil {
+			w.post(func() { w.fail("trust host key", err) })
+		}
+	})
 }
 
 func (w *workspace) kill(sid string) {
