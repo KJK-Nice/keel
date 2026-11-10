@@ -111,8 +111,8 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 ## Unlock and the host dialog
 
 - A locked daemon: `scratchDir(t)`, then `startServeAt(t, dir, "serve", true)` creates the vault with
-  `KEEL_VAULT_PASSPHRASE` (the constant `e2ePass`), `POST /api/first-run/done` closes the first run (a vault whose
-  first run is open reports `firstRun` while locked, and the window keeps its message), `stop()`, then
+  `KEEL_VAULT_PASSPHRASE` (the constant `e2ePass`), `POST /api/first-run/done` closes the first run (Unlock shows either way, but after it
+  an open first run keeps the window's message, so the workspace never appears), `stop()`, then
   `startServeAt(t, dir, "serve-locked", false)` on the same data stays locked. `TestE2EUnlock` types the
   passphrase with `e.tt.Type` and ↵ only; no test prints it, and the serve logs never hold it
   (`grep -rn native-e2e-scratch .scratch-native/e2e --include='*.log'` finds none).

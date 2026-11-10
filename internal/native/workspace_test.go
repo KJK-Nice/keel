@@ -293,13 +293,13 @@ func (r *rig) click(t *testing.T, name string) {
 }
 
 func TestLockedVaultMakesNoOtherCall(t *testing.T) {
-	for _, v := range []keelclient.Vault{{Locked: true}, {Locked: true, NeedsSetup: true}, {NeedsSetup: true}, {FirstRun: true}} {
+	for _, v := range []keelclient.Vault{{Locked: true}, {Locked: true, NeedsSetup: true}, {NeedsSetup: true}, {FirstRun: true}, {Locked: true, FirstRun: true}} {
 		fb := &fakeBackend{vault: v, hosts: testHosts}
 		r := newRig(t, fb)
 		r.tt.Frame()
-		// A vault that only needs unlocking shows the Unlock screen; setup and first run keep the message
-		// (First run is a later phase).
-		if want := v.NeedsSetup || v.FirstRun; want != r.tt.HasText(lockedMessage) || want == r.tt.HasText("Unlock your vault") {
+		// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says (gate.js update);
+		// setup, and an unlocked first run, keep the message (First run is a later phase).
+		if want := v.NeedsSetup || (v.FirstRun && !v.Locked); want != r.tt.HasText(lockedMessage) || want == r.tt.HasText("Unlock your vault") {
 			t.Errorf("%+v: message %v, unlock screen %v", v, r.tt.HasText(lockedMessage), r.tt.HasText("Unlock your vault"))
 		}
 		if !slices.Equal(fb.calls, []string{"vault"}) {

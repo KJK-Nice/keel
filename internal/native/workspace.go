@@ -250,7 +250,7 @@ func (w *workspace) start() {
 			w.post(func() { w.blocked = "Cannot reach keel serve: " + err.Error() })
 			return
 		}
-		if v.Locked && !v.NeedsSetup && !v.FirstRun {
+		if v.Locked && !v.NeedsSetup {
 			w.post(func() { w.blocked = ""; w.showUnlock(v) })
 			return
 		}

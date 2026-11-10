@@ -68,7 +68,7 @@ func (w *workspace) pollOnce() {
 			return
 		}
 		switch {
-		case v.Locked && !v.NeedsSetup && !v.FirstRun:
+		case v.Locked && !v.NeedsSetup:
 			if w.gate == nil {
 				w.showUnlock(v)
 			} else {

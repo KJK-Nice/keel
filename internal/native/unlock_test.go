@@ -176,3 +176,20 @@ func TestNoShortcutActsOnTheUnlockScreen(t *testing.T) {
 
 // goosForTest is the OS the banner words are checked for: the running one, as the screen uses.
 var goosForTest = runtime.GOOS
+
+func TestLockedFirstRunShowsUnlockThenKeepsTheMessage(t *testing.T) {
+	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}
+	fb.unlockWant = testPass
+	r := newRig(t, fb)
+	r.tt.Frame()
+	if !r.hasText("Unlock your vault") {
+		t.Fatal("a locked vault with an open first run does not show Unlock")
+	}
+	fb.vault.FirstRun = true // Unlock opens it; the first run stays open
+	r.typeIn(testPass)
+	r.press(0, ui.KeyEnter)
+	r.tt.Frame()
+	if r.w.gate != nil || !r.hasText(lockedMessage) {
+		t.Error("after unlocking, an open first run keeps the message")
+	}
+}

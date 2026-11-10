@@ -1477,11 +1477,11 @@ func (e *win) fillField(label, s string) {
 
 func TestE2EUnlock(t *testing.T) {
 	// A daemon with the scratch passphrase creates the vault; a second one on the same data does not get it.
-	// The first run is finished first: a vault whose first run is open reports firstRun while it is locked, and
-	// that screen is a later phase (the window then keeps its message).
 	dir := scratchDir(t)
 	dataDir := filepath.Join(dir, "data")
 	first, stopFirst := startServeAt(t, dir, "serve", true)
+	// Unlock no longer needs this (a locked vault shows it whatever firstRun says), but the workspace after it
+	// does: an open first run keeps the window's message until the First run phase. So it is finished here.
 	tok, err := authtoken.Read(dataDir)
 	if err != nil {
 		t.Fatal("read token: ", err)
