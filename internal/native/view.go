@@ -314,8 +314,9 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			w.act(func() { p.handle.Focus(c); t.focused = p.id })
 		}
 		bar.Children(func() {
-			status, _, sub := p.conn.State()
-			dot(c, statusColor(status))
+			st := p.conn.Snapshot()
+			sub := st.Subtitle
+			dot(c, statusColor(st.Status))
 			// The tools never shrink; user gives way first, then the host name (Shrink is the weight).
 			bodyStrong(c, p.host.Name, hostCol).Shrink(2).MinWidth(0)
 			if sub == "" {

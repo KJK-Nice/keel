@@ -4,9 +4,11 @@
 package keelclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -62,10 +64,23 @@ type Session struct {
 	Rows     int    `json:"rows"`
 }
 
-func (c *Client) do(ctx context.Context, method, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, method, "http://"+c.addr+path, nil)
+// do sends one request; body, when not nil, is sent as JSON. An error names the method, path and
+// status only, never a body (a body may carry a one-time token).
+func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	var rd io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, "http://"+c.addr+path, rd)
 	if err != nil {
 		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set(authtoken.Header, c.token) // a native client sends no origin header
 	resp, err := c.http.Do(req)
@@ -90,25 +105,39 @@ func (c *Client) Vault(ctx context.Context) (v Vault, err error) {
 		NeedsSetup bool `json:"needsSetup"`
 		FirstRun   bool `json:"firstRun"`
 	}
-	err = c.do(ctx, http.MethodGet, "/api/vault", &raw)
+	err = c.do(ctx, http.MethodGet, "/api/vault", nil, &raw)
 	return Vault(raw), err
 }
 
 // Hosts is GET /api/hosts (secrets are already redacted by the server).
 func (c *Client) Hosts(ctx context.Context) (h []Host, err error) {
-	err = c.do(ctx, http.MethodGet, "/api/hosts", &h)
+	err = c.do(ctx, http.MethodGet, "/api/hosts", nil, &h)
 	return h, err
 }
 
 // Sessions is GET /api/sessions.
 func (c *Client) Sessions(ctx context.Context) (s []Session, err error) {
-	err = c.do(ctx, http.MethodGet, "/api/sessions", &s)
+	err = c.do(ctx, http.MethodGet, "/api/sessions", nil, &s)
 	return s, err
 }
 
 // Kill is DELETE /api/sessions/{id}: it ends that PTY.
 func (c *Client) Kill(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodDelete, "/api/sessions/"+url.PathEscape(id), nil)
+	return c.do(ctx, http.MethodDelete, "/api/sessions/"+url.PathEscape(id), nil, nil)
+}
+
+// Reconnect is POST /api/sessions/{id}/reconnect: the server starts the session's connection again.
+func (c *Client) Reconnect(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/api/sessions/"+url.PathEscape(id)+"/reconnect", nil, nil)
+}
+
+// TrustHostKey is POST /api/known-hosts: it trusts the key a connect was just refused for, sending back
+// exactly what the server offered (k). replace is true only for a changed key. Call it only from the
+// user's click in the host key dialog.
+func (c *Client) TrustHostKey(ctx context.Context, k HostKey, replace bool) error {
+	return c.do(ctx, http.MethodPost, "/api/known-hosts", map[string]any{
+		"token": k.Token, "hostname": k.Hostname, "fingerprint": k.Fingerprint, "replace": replace,
+	}, nil)
 }
 
 // Spawn starts a session on a host and attaches to it.

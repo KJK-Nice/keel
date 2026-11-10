@@ -22,15 +22,26 @@ type fakeConn struct {
 	closed   bool
 	status   string
 	onChange func()
+
+	st   *keelclient.State // when set, Snapshot returns it (its Status wins over status)
+	took int               // TakeControl calls
 }
 
-func (c *fakeConn) Read([]byte) (int, error)        { return 0, io.EOF }
-func (c *fakeConn) Write(p []byte) (int, error)     { return len(p), nil }
-func (c *fakeConn) Close() error                    { c.closed = true; return nil }
-func (c *fakeConn) Resize(int, int) error           { return nil }
-func (c *fakeConn) SessionID() string               { return c.id }
-func (c *fakeConn) State() (string, string, string) { return c.status, "", "" }
-func (c *fakeConn) OnChange(fn func())              { c.onChange = fn }
+func (c *fakeConn) state() keelclient.State {
+	if c.st != nil {
+		return *c.st
+	}
+	return keelclient.State{Status: c.status}
+}
+
+func (c *fakeConn) Read([]byte) (int, error)    { return 0, io.EOF }
+func (c *fakeConn) Write(p []byte) (int, error) { return len(p), nil }
+func (c *fakeConn) Close() error                { c.closed = true; return nil }
+func (c *fakeConn) Resize(int, int) error       { return nil }
+func (c *fakeConn) SessionID() string           { return c.id }
+func (c *fakeConn) Snapshot() keelclient.State  { return c.state() }
+func (c *fakeConn) TakeControl() error          { c.took++; return nil }
+func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
 
 // fakeBackend records what the workspace asks of keel serve.
 type fakeBackend struct {

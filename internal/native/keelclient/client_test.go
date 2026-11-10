@@ -222,9 +222,8 @@ func TestReadySetsIDAndStatusFiresOnChange(t *testing.T) {
 	if c.SessionID() != "s1" {
 		t.Fatalf("id %q", c.SessionID())
 	}
-	status, title, _ := c.State()
-	if status != "ready" || title != "api" {
-		t.Fatalf("state %q %q", status, title)
+	if s := c.Snapshot(); s.Status != "ready" || s.Title != "api" {
+		t.Fatalf("state %q %q", s.Status, s.Title)
 	}
 	select {
 	case <-changes:

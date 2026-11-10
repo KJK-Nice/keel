@@ -27,7 +27,8 @@ type session interface {
 	io.ReadWriteCloser
 	Resize(cols, rows int) error
 	SessionID() string
-	State() (status, title, subtitle string)
+	Snapshot() keelclient.State
+	TakeControl() error
 	OnChange(fn func())
 }
 
@@ -83,10 +84,7 @@ func (p *pane) sessionID() string {
 }
 
 // status is the session's last reported state; empty until the server says.
-func (p *pane) status() string {
-	s, _, _ := p.conn.State()
-	return s
-}
+func (p *pane) status() string { return p.conn.Snapshot().Status }
 
 type tab struct {
 	root    *layout.Node
