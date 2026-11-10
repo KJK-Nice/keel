@@ -37,8 +37,8 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 	if !r.tt.Focused("Vault passphrase") {
 		t.Error("the passphrase field does not have the keyboard")
 	}
-	if r.tt.HasText("Filter hosts") || r.tt.HasText(lockedMessage) {
-		t.Error("the workspace or the old message shows under the Unlock screen")
+	if r.tt.HasText("Filter hosts") || r.tt.HasText("Welcome to Keel") {
+		t.Error("the workspace or First run shows under the Unlock screen")
 	}
 	if !slices.Equal(fb.calls, []string{"vault"}) {
 		t.Errorf("calls %v", fb.calls)
@@ -153,11 +153,11 @@ func TestShowPassphraseTogglesTheMask(t *testing.T) {
 	}
 }
 
-func TestSetupAndFirstRunKeepTheMessage(t *testing.T) {
+func TestSetupAndFirstRunShowFirstRunNotUnlock(t *testing.T) {
 	for _, v := range []keelclient.Vault{{Locked: true, NeedsSetup: true}, {FirstRun: true}} {
 		r := newRig(t, &fakeBackend{vault: v})
 		r.tt.Frame()
-		if !r.tt.HasText(lockedMessage) || r.has("Vault passphrase") {
+		if !r.tt.HasText("Welcome to Keel") || r.has("Vault passphrase") {
 			t.Errorf("%+v", v)
 		}
 	}
@@ -177,7 +177,7 @@ func TestNoShortcutActsOnTheUnlockScreen(t *testing.T) {
 // goosForTest is the OS the banner words are checked for: the running one, as the screen uses.
 var goosForTest = runtime.GOOS
 
-func TestLockedFirstRunShowsUnlockThenKeepsTheMessage(t *testing.T) {
+func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}
 	fb.unlockWant = testPass
 	r := newRig(t, fb)
@@ -189,7 +189,7 @@ func TestLockedFirstRunShowsUnlockThenKeepsTheMessage(t *testing.T) {
 	r.typeIn(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || !r.hasText(lockedMessage) {
-		t.Error("after unlocking, an open first run keeps the message")
+	if r.w.gate != nil || !r.hasText("Welcome to Keel") {
+		t.Error("after unlocking, an open first run shows its step 1")
 	}
 }

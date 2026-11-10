@@ -22,6 +22,14 @@ func (w *workspace) view(c *ui.Context) {
 		w.runLater(c)
 		return
 	}
+	if w.first != nil { // First run replaces the window as Unlock does; the palette's import closes with Esc
+		if w.first.flow == flowImport {
+			c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.afterHosts(w.first) }) })
+		}
+		ui.Column(c).Fill().Children(func() { w.firstRunView(c) })
+		w.runLater(c)
+		return
+	}
 	w.shortcuts(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
@@ -535,6 +543,13 @@ func (w *workspace) statusbar(c *ui.Context) {
 		})
 		if w.err != "" {
 			caption(c, w.err, flare)
+		}
+		if w.notice != "" { // what an import added or refused, until the next tab change
+			col := tide
+			if w.noticeBad {
+				col = flare
+			}
+			caption(c, w.notice, col)
 		}
 		ui.Spacer(c)
 		if p := w.focusedPane(); p != nil {

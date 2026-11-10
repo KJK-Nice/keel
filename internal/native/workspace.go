@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	lockedMessage = "The vault is locked. Unlock it in Keel, then reopen this window."
-	callTimeout   = 15 * time.Second
-	startCols     = 80 // the size a session starts at; the terminal view resizes it
-	startRows     = 24
+	callTimeout = 15 * time.Second
+	startCols   = 80 // the size a session starts at; the terminal view resizes it
+	startRows   = 24
 )
 
 // session is what a pane needs of a keel serve connection (*keelclient.Conn, or a fake in tests).
@@ -55,6 +54,15 @@ type backend interface {
 	SetAgentReadable(ctx context.Context, id string, readable bool) error
 	Identities(ctx context.Context) ([]keelclient.Identity, error)
 	Groups(ctx context.Context) ([]keelclient.Group, error)
+
+	// First run and the pages.
+	SetupVault(ctx context.Context, passphrase string) error
+	SSHConfigPreview(ctx context.Context) (keelclient.SSHPreview, error)
+	SSHConfigImport(ctx context.Context, req keelclient.ImportRequest) (keelclient.ImportResult, error)
+	FirstRunDone(ctx context.Context) error
+	SaveIdentity(ctx context.Context, in keelclient.IdentityInput) (keelclient.Identity, error)
+	DeleteIdentity(ctx context.Context, id string) error
+	Logs(ctx context.Context, limit int) ([]keelclient.LogEntry, error)
 }
 
 // clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
@@ -155,6 +163,9 @@ type workspace struct {
 	err       string      // last user-facing error, shown in the status bar
 	blocked   string      // a message that replaces the workspace (locked vault, no keel serve)
 	gate      *unlockGate // the Unlock screen, over the whole window
+	first     *firstRun   // the First run screens (or the palette's host import), over the whole window
+	notice    string      // what the last import added or refused, in the status bar until the next tab change
+	noticeBad bool
 	closed    bool
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
@@ -254,8 +265,8 @@ func (w *workspace) start() {
 			w.post(func() { w.blocked = ""; w.showUnlock(v) })
 			return
 		}
-		if v.Locked || v.NeedsSetup || v.FirstRun { // First run is a later phase
-			w.post(func() { w.blocked = lockedMessage })
+		if v.NeedsSetup || v.FirstRun { // gate.js update: step 1 of First run
+			w.post(func() { w.showFirstRun(v) })
 			return
 		}
 		hosts, err := w.be.Hosts(c)
@@ -350,6 +361,7 @@ func (w *workspace) selectTab(i int) {
 		return
 	}
 	w.active = i
+	w.notice = ""
 	w.wantFocus = w.tabs[i].focused
 	if p := w.tabs[i].page; p != nil {
 		p.focus = true // the New tab page's input has the keyboard

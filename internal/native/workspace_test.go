@@ -84,6 +84,25 @@ type fakeBackend struct {
 	groups      []keelclient.Group
 	saveErr     error
 	nextHostSeq int
+
+	// First run and the pages.
+	setups       []string // SetupVault, the passphrases as sent (made-up test values)
+	setupErr     error
+	preview      keelclient.SSHPreview
+	previewErr   error
+	imports      []keelclient.ImportRequest
+	importErr    error
+	importRes    keelclient.ImportResult
+	firstRunDone int
+	identSaved   []keelclient.IdentityInput
+	identDeleted []string
+	identSaveErr error
+	logs         []keelclient.LogEntry
+	logsCalls    int
+	logLimit     int
+	nextIdentSeq int
+
+	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
 }
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }
@@ -239,7 +258,81 @@ func (f *fakeBackend) SetAgentReadable(_ context.Context, id string, v bool) err
 }
 
 func (f *fakeBackend) Identities(context.Context) ([]keelclient.Identity, error) {
-	return f.identities, nil
+	return append([]keelclient.Identity(nil), f.identities...), nil
+}
+
+func (f *fakeBackend) SetupVault(_ context.Context, pass string) error {
+	f.rec("setup vault")
+	f.setups = append(f.setups, pass)
+	if f.setupErr != nil {
+		return f.setupErr
+	}
+	f.vault.NeedsSetup, f.vault.Locked, f.vault.FirstRun = false, false, !f.noFirstRunAfterSetup
+	return nil
+}
+
+func (f *fakeBackend) SSHConfigPreview(context.Context) (keelclient.SSHPreview, error) {
+	f.rec("ssh preview")
+	return f.preview, f.previewErr
+}
+
+func (f *fakeBackend) SSHConfigImport(_ context.Context, req keelclient.ImportRequest) (keelclient.ImportResult, error) {
+	f.rec("ssh import")
+	f.imports = append(f.imports, req)
+	return f.importRes, f.importErr
+}
+
+func (f *fakeBackend) FirstRunDone(context.Context) error {
+	f.rec("first run done")
+	f.firstRunDone++
+	f.vault.FirstRun = false
+	return nil
+}
+
+func (f *fakeBackend) SaveIdentity(_ context.Context, in keelclient.IdentityInput) (keelclient.Identity, error) {
+	f.rec("save identity")
+	f.identSaved = append(f.identSaved, in)
+	if f.identSaveErr != nil {
+		return keelclient.Identity{}, f.identSaveErr
+	}
+	out := keelclient.Identity{ID: in.ID, Name: in.Name, Kind: in.Kind, Username: in.Username,
+		HasPassword: in.Password != "", HasPrivateKey: in.PrivateKey != "", HasPassphrase: in.Passphrase != ""}
+	if in.ID == "" {
+		f.nextIdentSeq++
+		out.ID = fmt.Sprintf("i-new%d", f.nextIdentSeq)
+		f.identities = append(f.identities, out)
+		return out, nil
+	}
+	for i := range f.identities {
+		if f.identities[i].ID == in.ID {
+			old := f.identities[i]
+			out.HasPassword = out.HasPassword || old.HasPassword
+			out.HasPrivateKey = out.HasPrivateKey || old.HasPrivateKey
+			out.HasPassphrase = out.HasPassphrase || old.HasPassphrase
+			out.CreatedAt = old.CreatedAt
+			f.identities[i] = out
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackend) DeleteIdentity(_ context.Context, id string) error {
+	f.rec("delete identity")
+	f.identDeleted = append(f.identDeleted, id)
+	for i, x := range f.identities {
+		if x.ID == id {
+			f.identities = append(f.identities[:i:i], f.identities[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackend) Logs(_ context.Context, limit int) ([]keelclient.LogEntry, error) {
+	f.rec("logs")
+	f.logsCalls++
+	f.logLimit = limit
+	return append([]keelclient.LogEntry(nil), f.logs...), nil
 }
 func (f *fakeBackend) Groups(context.Context) ([]keelclient.Group, error) { return f.groups, nil }
 
@@ -292,18 +385,22 @@ func (r *rig) click(t *testing.T, name string) {
 	r.tt.Frame()
 }
 
-func TestLockedVaultMakesNoOtherCall(t *testing.T) {
-	for _, v := range []keelclient.Vault{{Locked: true}, {Locked: true, NeedsSetup: true}, {NeedsSetup: true}, {FirstRun: true}, {Locked: true, FirstRun: true}} {
-		fb := &fakeBackend{vault: v, hosts: testHosts}
+func TestLockedOrUnsetVaultMakesNoOtherCall(t *testing.T) {
+	// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says; setup, and an unlocked
+	// first run, show First run's step 1 (gate.js update). None of them reads the hosts or the sessions.
+	for _, c := range []struct {
+		v      keelclient.Vault
+		unlock bool
+	}{{keelclient.Vault{Locked: true}, true}, {keelclient.Vault{Locked: true, NeedsSetup: true}, false}, {keelclient.Vault{NeedsSetup: true}, false},
+		{keelclient.Vault{FirstRun: true}, false}, {keelclient.Vault{Locked: true, FirstRun: true}, true}} {
+		fb := &fakeBackend{vault: c.v, hosts: testHosts}
 		r := newRig(t, fb)
 		r.tt.Frame()
-		// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says (gate.js update);
-		// setup, and an unlocked first run, keep the message (First run is a later phase).
-		if want := v.NeedsSetup || (v.FirstRun && !v.Locked); want != r.tt.HasText(lockedMessage) || want == r.tt.HasText("Unlock your vault") {
-			t.Errorf("%+v: message %v, unlock screen %v", v, r.tt.HasText(lockedMessage), r.tt.HasText("Unlock your vault"))
+		if c.unlock != r.tt.HasText("Unlock your vault") || c.unlock == r.tt.HasText("Welcome to Keel") {
+			t.Errorf("%+v: unlock screen %v, first run %v", c.v, r.tt.HasText("Unlock your vault"), r.tt.HasText("Welcome to Keel"))
 		}
 		if !slices.Equal(fb.calls, []string{"vault"}) {
-			t.Errorf("%+v: calls %v", v, fb.calls)
+			t.Errorf("%+v: calls %v", c.v, fb.calls)
 		}
 	}
 }

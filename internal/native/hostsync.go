@@ -74,7 +74,7 @@ func (w *workspace) pollOnce() {
 			} else {
 				w.gate.vault = v
 			}
-		case v.Locked || v.NeedsSetup || v.FirstRun:
+		case v.Locked || v.NeedsSetup || v.FirstRun: // First run shows its own screens; nothing else to do
 		case w.gate != nil: // unlocked elsewhere
 			w.unlocked(w.gate)
 			w.rev = v.Rev

@@ -217,6 +217,7 @@ func (w *workspace) paletteItems() []palItem {
 	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
+	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
 	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
 	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
 	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)

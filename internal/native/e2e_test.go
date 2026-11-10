@@ -548,11 +548,13 @@ func TestE2ECloseKillsAndWindowCloseDetaches(t *testing.T) {
 	e2.shot("TestE2ECloseKillsAndWindowCloseDetaches")
 }
 
+// TestE2ELockedVault: a data dir with no vault and no passphrase needs setup: the window shows First run's step 1
+// and reads no sessions.
 func TestE2ELockedVault(t *testing.T) {
 	addr, dir := startServe(t, false)
 	var cb *countingBackend
 	e := newWin(t, addr, dir, func(b backend) backend { cb = &countingBackend{backend: b}; return cb })
-	e.pump(func() bool { return e.tt.HasText(lockedMessage) }, "the locked message")
+	e.pump(func() bool { return e.tt.HasText("Welcome to Keel") }, "First run step 1")
 	e.settle(300 * time.Millisecond)
 	if cb.sessions != 0 {
 		t.Errorf("Sessions was called %d times on a locked vault", cb.sessions)
@@ -1496,8 +1498,8 @@ func TestE2EUnlock(t *testing.T) {
 	var cb *countingBackend
 	e := newWin(t, addr, dataDir, func(b backend) backend { cb = &countingBackend{backend: b}; return cb })
 	e.pump(func() bool { return e.tt.HasText("Unlock your vault") }, "the Unlock screen")
-	if e.tt.HasText(lockedMessage) || e.tt.HasText("Filter hosts") {
-		t.Fatal("the old message or the workspace shows with the Unlock screen")
+	if e.tt.HasText("Welcome to Keel") || e.tt.HasText("Filter hosts") {
+		t.Fatal("First run or the workspace shows with the Unlock screen")
 	}
 	if !e.tt.HasText("Keel was started with KEEL_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
 		t.Error("the banner of a vault opened without the keychain, or the focused field, is missing")
