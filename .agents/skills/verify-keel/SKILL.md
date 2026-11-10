@@ -1,6 +1,6 @@
 ---
 name: verify-keel
-description: Launch, check, drive, prove, and bug bash Keel's UI (the Vault, terminal tabs, command palette) with e2e, against an isolated `keel serve` in WebKit (primary) or Chromium. Use before claiming a Keel UI or httpapi change works, when asked to verify or screenshot a Keel screen, or to bug bash Keel.
+description: Launch, check, drive, prove, and bug bash Keel's UI (the Vault, terminal tabs, command palette) with e2e, against an isolated `keel serve` in WebKit (primary) or Chromium. Use before claiming a Keel UI or httpapi change works, when asked to verify or screenshot a Keel screen, or to bug bash Keel. Also covers the native MyGo client `keel-native`, through `make native-e2e`.
 ---
 
 # Verify Keel
@@ -16,8 +16,8 @@ uses `e2e.bugbash.config.ts`.
 What is driven: the desktop app is a Wails webview pointed at `keel serve`'s
 loopback HTTP server, and the same page loads in a browser. e2e drives that
 page in headless Playwright WebKit or Chromium against a `keel serve` it starts itself. The
-native window (the system WKWebView, which differs from Playwright's WebKit build; the macOS menu, ⌘-shortcuts Wails owns, the dock) is
-not covered; say so when a change lives there.
+Wails window's own chrome (the system WKWebView, which differs from Playwright's WebKit build; the macOS menu, ⌘-shortcuts Wails owns, the dock) is
+still not covered; say so when a change lives there. The MyGo client `keel-native` is verified as [features/native.md](features/native.md) describes.
 
 ## Launch
 

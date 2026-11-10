@@ -14,6 +14,10 @@ make native             # builds bin/keel-native (pure Go, no cgo)
 
 `KEEL_DATA` and `KEEL_ADDR` select the data directory and address, as for `keel serve`. From a checkout, run it in the repository root so it finds the JetBrains Mono fonts in `cmd/keel/web/fonts`; elsewhere it falls back to the system monospace. The first run downloads libghostty-vt into the user cache (SHA-256 checked by MyGo).
 
+## Verifying
+
+`make native-e2e` builds `bin/keel` and drives the real window under MyGo's `ui.Tester` against a scratch `keel serve` it starts per test (scratch data in `.scratch-native/e2e/`, one PNG per scenario). It needs macOS and does not touch your Keel.
+
 ## What works
 
 - Host tree grouped by group, with a filter on name, address and username. Click a host to open it in a new tab.
