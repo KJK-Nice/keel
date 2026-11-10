@@ -64,6 +64,20 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Assert on server state where the effect is on the server. End with
   `shot(name)`.
 
+## The palette and the New tab page
+
+- ⌘K: `e.key(ui.Cmd, ui.KeyK)`, then `pump` on `e.w.pal != nil && e.tt.Focused("Command palette")`. Type with
+  `e.tt.Type`; ↵ is `e.key(0, ui.KeyEnter)`, ⌥↵ is `e.key(ui.Alt, ui.KeyEnter)`, esc is `ui.KeyEscape`. Rows are
+  labelled `palette row <title>`; `e.w.pal.visible()` is the rows in order. Window keys wait while it is open.
+- Prove "Open now starts nothing" on the server: `sorted(e.sessionIDs())` before and after, then `settle`. Prove
+  "typing reaches no session" by comparing every session's `scrollback` before and after.
+- The page (an empty window, ⌘T, `+`): label `start page`, cards `start card <name>`, closed rows `reopen <name>`,
+  ⌥1-⌥6 are `e.key(ui.Alt, ui.Key1)`. ⌘T twice within 300 ms is one tab (a key repeat): use `e.click("New tab")`
+  for the second. `e.newSession()` starts the Local Shell from a New tab.
+- A pasted command: `e.tt.Type("ssh -p … user@127.0.0.1 uptime")` shows the offer; check `Sessions()` is 0 and
+  `sshProcesses(t)` did not change. Connect once opens `dialog Quick connect` (fields `Target`, `Password`): type the
+  fixture's password with `e.tt.Type(f.password)` only; never print it. Then the host key dialog as below.
+
 ## SSH, host keys and two windows
 
 - `bin/keel-sshtest -out <file>` (built by `make native-e2e`) runs a throwaway SSH server on loopback.
