@@ -7,6 +7,7 @@ require (
 	github.com/Oudwins/tailwind-merge-go v0.2.2
 	github.com/a-h/templ v0.3.1020
 	github.com/creack/pty v1.1.24
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.8.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/pion/webrtc/v4 v4.2.18
@@ -29,7 +30,6 @@ require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

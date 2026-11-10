@@ -107,6 +107,19 @@ func Run() error {
 	return mygo.App.Run()
 }
 
+// blurOnce returns a function that blurs win in a goroutine (it waits for the main thread) and logs a
+// failure once to stderr. A failure never stops the app: the window is just not blurred.
+func blurOnce(win *mygo.Window, radius int) func() {
+	var once sync.Once
+	return func() {
+		go func() {
+			if err := setWindowBlur(win, radius); err != nil {
+				once.Do(func() { fmt.Fprintln(os.Stderr, "keel-native: window blur:", err) })
+			}
+		}()
+	}
+}
+
 // capture is for looking at the screen: it opens a local host split to the right, waits, writes
 // a PNG of the page to path and quits.
 func capture(win *mygo.Window, w *workspace, path string) {
