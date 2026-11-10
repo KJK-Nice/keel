@@ -146,20 +146,6 @@ func (c *Client) ForgetHostKey(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/hosts/"+url.PathEscape(id)+"/host-key", nil, nil)
 }
 
-// Identity is a Keychain identity as the picker needs it: no secret is read.
-type Identity struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Kind     string `json:"kind"` // "key" or "password"
-	Username string `json:"username"`
-}
-
-// Identities is GET /api/identities.
-func (c *Client) Identities(ctx context.Context) (out []Identity, err error) {
-	err = c.do(ctx, http.MethodGet, "/api/identities", nil, &out)
-	return out, err
-}
-
 // Group is a folder of the host tree.
 type Group struct {
 	ID       string `json:"id"`

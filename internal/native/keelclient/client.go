@@ -50,6 +50,7 @@ type Vault struct {
 	Path       string `json:"path"`
 	Rev        string `json:"rev"`
 	Sessions   int    `json:"sessions"`
+	SSHConfig  string `json:"sshConfig"` // the ssh config's display path for First run ("~/.ssh/config"), or ""
 }
 
 // Host is a saved host as GET /api/hosts lists it: every field the Edit host dialog shows, and no secret (the
@@ -126,6 +127,9 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 type StatusError struct {
 	Method, Path, Status, Msg string
 	Code                      int
+	// ErrorKind and Key are what a refused host import adds ({"errorKind": "wrongPassphrase", "key": path}): the
+	// kind of the refusal and the path of the key it is about. Neither is a secret.
+	ErrorKind, Key string
 }
 
 func (e *StatusError) Error() string { return fmt.Sprintf("%s %s: %s", e.Method, e.Path, e.Status) }
@@ -133,10 +137,12 @@ func (e *StatusError) Error() string { return fmt.Sprintf("%s %s: %s", e.Method,
 func statusError(method, path string, resp *http.Response) error {
 	e := &StatusError{Method: method, Path: path, Status: resp.Status, Code: resp.StatusCode}
 	var body struct {
-		Error string `json:"error"`
+		Error     string `json:"error"`
+		ErrorKind string `json:"errorKind"`
+		Key       string `json:"key"`
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && len(body.Error) <= 300 {
-		e.Msg = body.Error
+		e.Msg, e.ErrorKind, e.Key = body.Error, body.ErrorKind, body.Key
 	}
 	return e
 }
