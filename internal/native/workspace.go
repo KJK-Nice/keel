@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -323,19 +324,16 @@ func (w *workspace) closePane(t *tab, id string) {
 		return
 	}
 	sid := p.sessionID()
-	w.release(p)
 	delete(t.panes, id)
 	t.root = t.root.Remove(id)
 	if sid == "" {
-		w.err = "Closed a pane before keel serve named its session; the session may still be running"
+		if p.release != nil {
+			p.release()
+		}
+		w.killWhenNamed(p.conn)
 	} else {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			if err := w.be.Kill(c, sid); err != nil {
-				w.post(func() { w.fail("close pane", err) })
-			}
-		})
+		w.release(p)
+		w.kill(sid)
 	}
 	if t.root == nil {
 		for i, k := range w.tabs {
@@ -359,6 +357,50 @@ func (w *workspace) closePane(t *tab, id string) {
 			w.wantFocus = t.focused
 		}
 	}
+}
+
+func (w *workspace) kill(sid string) {
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		if err := w.be.Kill(c, sid); err != nil {
+			w.post(func() { w.fail("close pane", err) })
+		}
+	})
+}
+
+// killWhenNamed ends a session that was closed before the server's ready frame named it: it kills the
+// session once the id arrives and then closes the connection. A connection that never learns its id
+// is closed after callTimeout.
+func (w *workspace) killWhenNamed(conn session) {
+	var once sync.Once
+	finish := func() {
+		once.Do(func() {
+			id := conn.SessionID()
+			if id == "" {
+				conn.Close()
+				return
+			}
+			w.work(func() {
+				c, cancel := ctx()
+				defer cancel()
+				if err := w.be.Kill(c, id); err != nil {
+					w.post(func() { w.fail("close pane", err) })
+				}
+				conn.Close()
+			})
+		})
+	}
+	conn.OnChange(func() {
+		if conn.SessionID() != "" {
+			finish()
+		}
+	})
+	if conn.SessionID() != "" {
+		finish()
+		return
+	}
+	time.AfterFunc(callTimeout, finish)
 }
 
 func (w *workspace) closeFocused() {

@@ -14,9 +14,10 @@ import (
 )
 
 type fakeConn struct {
-	id     string
-	closed bool
-	status string
+	id       string
+	closed   bool
+	status   string
+	onChange func()
 }
 
 func (c *fakeConn) Read([]byte) (int, error)        { return 0, io.EOF }
@@ -25,7 +26,7 @@ func (c *fakeConn) Close() error                    { c.closed = true; return ni
 func (c *fakeConn) Resize(int, int) error           { return nil }
 func (c *fakeConn) SessionID() string               { return c.id }
 func (c *fakeConn) State() (string, string, string) { return c.status, "", "" }
-func (c *fakeConn) OnChange(func())                 {}
+func (c *fakeConn) OnChange(fn func())              { c.onChange = fn }
 
 // fakeBackend records what the workspace asks of keel serve.
 type fakeBackend struct {
@@ -316,6 +317,23 @@ func TestClosingPanesKillsTheirSessions(t *testing.T) {
 	}
 	if !r.tt.HasText("No sessions") {
 		t.Error("no empty-state message")
+	}
+}
+
+func TestClosingAPaneBeforeItIsNamedKillsItWhenTheIdArrives(t *testing.T) {
+	r := newRig(t, okBackend())
+	r.tt.Frame()
+	r.click(t, "host api-1")
+	c := r.fb.conns[0]
+	c.id = "" // the ready frame has not arrived
+	r.click(t, "Close pane")
+	if len(r.fb.killed) != 0 || c.closed || r.w.err != "" {
+		t.Fatalf("killed %v closed %v err %q before the id", r.fb.killed, c.closed, r.w.err)
+	}
+	c.id = "s-late"
+	c.onChange()
+	if !slices.Equal(r.fb.killed, []string{"s-late"}) || !c.closed {
+		t.Errorf("killed %v closed %v after the id", r.fb.killed, c.closed)
 	}
 }
 
