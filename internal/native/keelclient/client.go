@@ -40,17 +40,39 @@ func NewAt(addr, token string) *Client {
 	return &Client{addr: addr, token: token, http: &http.Client{Timeout: 15 * time.Second}}
 }
 
-type Vault struct{ Locked, NeedsSetup, FirstRun bool }
+// Vault is GET /api/vault. Rev changes with every vault or tunnel change (the webview's stream carries it too).
+type Vault struct {
+	Locked     bool   `json:"locked"`
+	NeedsSetup bool   `json:"needsSetup"`
+	FirstRun   bool   `json:"firstRun"`
+	KeyringOff bool   `json:"keyringOff"`
+	Mode       string `json:"mode"` // "keychain" or a passphrase vault
+	Path       string `json:"path"`
+	Rev        string `json:"rev"`
+	Sessions   int    `json:"sessions"`
+}
 
+// Host is a saved host as GET /api/hosts lists it: every field the Edit host dialog shows, and no secret (the
+// server redacts them, so a saved password is never in it).
 type Host struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Group    string `json:"group"`
-	Address  string `json:"address"`
-	Username string `json:"username"`
-	AuthType string `json:"authType"`
-	Color    string `json:"color"`
-	Port     int    `json:"port"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Group           string   `json:"group"`
+	GroupID         string   `json:"groupId"`
+	Address         string   `json:"address"`
+	Username        string   `json:"username"`
+	AuthType        string   `json:"authType"`
+	IdentityID      string   `json:"identityId"`
+	Color           string   `json:"color"`
+	Port            int      `json:"port"`
+	Tags            []string `json:"tags"`
+	JumpHost        string   `json:"jumpHost"`
+	StartupCommand  string   `json:"startupCommand"`
+	KeepAliveSec    int      `json:"keepAliveSec"` // -1 is off, 0 the default
+	NoAutoReconnect bool     `json:"noAutoReconnect"`
+	AgentReadable   *bool    `json:"agentReadable"`
+	Production      *bool    `json:"production"`
+	AgentNotes      *bool    `json:"agentNotes"`
 }
 
 type Session struct {
@@ -90,7 +112,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%s %s: %s", method, path, resp.Status)
+		return statusError(method, path, resp)
 	}
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
@@ -98,15 +120,31 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+// StatusError is a refused request. Error names the method, path and status only; Msg is the server's own
+// one-line reason ({"error": "..."}), for the user: validation text such as "name is required", never an echo
+// of the request.
+type StatusError struct {
+	Method, Path, Status, Msg string
+	Code                      int
+}
+
+func (e *StatusError) Error() string { return fmt.Sprintf("%s %s: %s", e.Method, e.Path, e.Status) }
+
+func statusError(method, path string, resp *http.Response) error {
+	e := &StatusError{Method: method, Path: path, Status: resp.Status, Code: resp.StatusCode}
+	var body struct {
+		Error string `json:"error"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && len(body.Error) <= 300 {
+		e.Msg = body.Error
+	}
+	return e
+}
+
 // Vault is GET /api/vault.
 func (c *Client) Vault(ctx context.Context) (v Vault, err error) {
-	var raw struct {
-		Locked     bool `json:"locked"`
-		NeedsSetup bool `json:"needsSetup"`
-		FirstRun   bool `json:"firstRun"`
-	}
-	err = c.do(ctx, http.MethodGet, "/api/vault", nil, &raw)
-	return Vault(raw), err
+	err = c.do(ctx, http.MethodGet, "/api/vault", nil, &v)
+	return v, err
 }
 
 // Hosts is GET /api/hosts (secrets are already redacted by the server).
