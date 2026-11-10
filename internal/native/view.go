@@ -268,6 +268,31 @@ func (w *workspace) node(c *ui.Context, t *tab, n *layout.Node, multi bool, pare
 // tile is one pane: a pane bar on surface above the body on stage. In a split tab it is a rounded tile
 // and the ring and the dim follow keyboard focus (the body's handle), so a click inside a terminal moves them.
 func (w *workspace) tile(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui.Element) ui.Element) {
+	if multi && w.alpha < 1 {
+		// Translucent: nothing is painted under a tile, so the area outside its rounded corners would be
+		// clear. A wrapper the size of the tile paints those four corner pieces in chrome, once.
+		fit(ui.Box(c)).Draw(func(pt *ui.Painter, r ui.Rect) { cornerPieces(pt, r, radiusMd, w.ground(chrome)) }).Children(func() {
+			w.tileBody(c, t, p, multi, func(e ui.Element) ui.Element { return e.Fill() })
+		})
+		return
+	}
+	w.tileBody(c, t, p, multi, fit)
+}
+
+// cornerPieces fills the four pieces of r that lie outside a rounded corner of radius rad.
+func cornerPieces(pt *ui.Painter, r ui.Rect, rad float32, col ui.Color) {
+	const k = 0.5523 // a quarter circle as one cubic Bézier
+	x0, y0, x1, y1 := r.X, r.Y, r.X+r.W, r.Y+r.H
+	var path ui.Path
+	for _, cn := range [4][4]float32{{x0, y0, 1, 1}, {x1, y0, -1, 1}, {x1, y1, -1, -1}, {x0, y1, 1, -1}} {
+		x, y, sx, sy := cn[0], cn[1], cn[2], cn[3]
+		path.MoveTo(x, y).LineTo(x+sx*rad, y).
+			CubeTo(x+sx*rad*(1-k), y, x, y+sy*rad*(1-k), x, y+sy*rad).Close()
+	}
+	pt.FillPath(&path, col)
+}
+
+func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui.Element) ui.Element) {
 	focused := t.focused == p.id
 	tl := fit(ui.Column(c)).Label("pane " + p.id).Key(p.id)
 	if multi {

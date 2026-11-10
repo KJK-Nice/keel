@@ -538,6 +538,16 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 		p2, _ := r.tt.Find("pane 2")
 		wantPixel(t, "tile body", img, p2.X+p2.W/2, p2.Y+p2.H/2, stage, a)
 		wantPixel(t, "tile bar", img, p2.X+p2.W/2, p2.Y+sizePanebar/2, surface, a)
+		// The area outside each rounded corner is chrome once; the corner's centre of curvature is the tile.
+		// (The focused tile's ring covers its own corners, so the outside is read on the unfocused tile.)
+		p1, _ := r.tt.Find("pane 1")
+		l, rt, top, bot := p1.X+1, p1.X+p1.W-2, p1.Y+1, p1.Y+p1.H-2
+		wantPixel(t, "corner outside top-left", img, l, top, chrome, a)
+		wantPixel(t, "corner outside top-right", img, rt, top, chrome, a)
+		wantPixel(t, "corner outside bottom-left", img, l, bot, chrome, a)
+		wantPixel(t, "corner outside bottom-right", img, rt, bot, chrome, a)
+		wantPixel(t, "corner centre top-left", img, p2.X+radiusMd, p2.Y+radiusMd, surface, a)
+		wantPixel(t, "corner centre bottom-right", img, p2.X+p2.W-radiusMd, p2.Y+p2.H-radiusMd, stage, a)
 	}
 }
 
