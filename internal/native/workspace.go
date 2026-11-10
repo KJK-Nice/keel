@@ -30,6 +30,9 @@ type session interface {
 	TakeControl() error
 	RequestControl() error
 	OnChange(fn func())
+	// ApprovedInject types bytes the user approved (keelclient/inject.go). Only the Approve before type
+	// dialog's Type action calls it.
+	ApprovedInject(ctx context.Context, command string) error
 }
 
 // backend is keel serve as the workspace uses it.

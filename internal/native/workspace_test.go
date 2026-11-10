@@ -27,6 +27,9 @@ type fakeConn struct {
 	st    *keelclient.State // when set, Snapshot returns it (its Status wins over status)
 	took  int               // TakeControl calls
 	asked int               // RequestControl calls
+
+	injected  []string // what ApprovedInject was asked to type, in order
+	injectErr error    // what it answers
 }
 
 func (c *fakeConn) state() keelclient.State {
@@ -45,6 +48,10 @@ func (c *fakeConn) Snapshot() keelclient.State  { return c.state() }
 func (c *fakeConn) RequestControl() error       { c.asked++; return nil }
 func (c *fakeConn) TakeControl() error          { c.took++; return nil }
 func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
+func (c *fakeConn) ApprovedInject(_ context.Context, command string) error {
+	c.injected = append(c.injected, command)
+	return c.injectErr
+}
 
 // fakeBackend records what the workspace asks of keel serve.
 type fakeBackend struct {

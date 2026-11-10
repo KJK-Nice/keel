@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -24,6 +25,9 @@ type Conn struct {
 	id       string
 	state    State
 	onChange func()
+
+	ticket chan string   // the approval request waiting for keel serve's nonce (inject.go), or nil
+	wait   time.Duration // how long it waits; 0 is the default (tests shorten it)
 }
 
 // Peer is a client attached to a session. Role is owner, driver or follower.
@@ -73,7 +77,9 @@ func (c *Conn) Read(p []byte) (int, error) {
 			c.buf = data
 			continue
 		}
-		c.control(data)
+		if !c.injectFrame(data) {
+			c.control(data)
+		}
 	}
 	n := copy(p, c.buf)
 	c.buf = c.buf[n:]
