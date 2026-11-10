@@ -64,6 +64,20 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Assert on server state where the effect is on the server. End with
   `shot(name)`.
 
+## SSH, host keys and two windows
+
+- `bin/keel-sshtest -out <file>` (built by `make native-e2e`) runs a throwaway SSH server on loopback.
+  `startSSH(t, addr, dataDir)` runs it, stops it by its handle, and creates a password host for it with
+  `POST /api/hosts` (`noAutoReconnect: true`, so a dropped server stays failed). The client never creates
+  hosts. Never print the file or the request body: they hold the throwaway password.
+- A first connection stops at "Unknown host key". The test clicks "Trust and connect" in the dialog, as a
+  person does (`connectSSH`); it never calls `/api/known-hosts` itself. A `trustToken` is a one-time
+  capability: never log it, never put it in a failure message.
+- Two windows on one daemon: call `newWin` twice with the same `addr` and `dir`, and drive both with
+  `pumpAll(t, []*win{a, b}, cond, what)` (each window's posted work runs on the test goroutine).
+- keel serve lets only the session's owner take control, and the window that opened a session owns it,
+  so a second window is a follower that cannot take control (`TestE2EFollowerAndTakeControl` skips there).
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
