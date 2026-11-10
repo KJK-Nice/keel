@@ -1,4 +1,4 @@
-.PHONY: app native build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app native native-e2e build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -84,6 +84,12 @@ signal:
 # The native client (MyGo, pure Go). It attaches to a running keel serve.
 native:
 	CGO_ENABLED=0 go build -o bin/keel-native ./cmd/keel-native
+
+# The native client end to end: the real view and terminal under MyGo's
+# ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
+native-e2e:
+	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
+	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 test: ui test-js
 	$(GO) test $(GO_TAGS) ./...
