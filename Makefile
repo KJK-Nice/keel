@@ -1,4 +1,4 @@
-.PHONY: app native native-e2e build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app native native-app native-e2ebuild test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -84,6 +84,19 @@ signal:
 # The native client (MyGo, pure Go). It attaches to a running keel serve.
 native:
 	CGO_ENABLED=0 go build -o bin/keel-native ./cmd/keel-native
+
+# Keel Native.app: keel-native with libghostty-vt beside it, so the app
+# never downloads it. The library comes from MyGo's loader (pinned SHA-256).
+native-app: native
+	rm -rf "bin/Keel Native.app"
+	mkdir -p "bin/Keel Native.app/Contents/MacOS" "bin/Keel Native.app/Contents/Resources"
+	cp bin/keel-native "bin/Keel Native.app/Contents/MacOS/keel-native"
+	cp "$$(./bin/keel-native --library-path)" "bin/Keel Native.app/Contents/MacOS/"
+	cp internal/native/macos/Info.plist "bin/Keel Native.app/Contents/Info.plist"
+	cp internal/desktop/macos/Keel.icns "bin/Keel Native.app/Contents/Resources/Keel.icns"
+	if [ -f LICENSE ]; then cp LICENSE "bin/Keel Native.app/Contents/Resources/LICENSE"; fi
+	codesign --force --sign - "bin/Keel Native.app/Contents/MacOS/libghostty-vt.dylib"
+	codesign --force --sign - --identifier app.keel.native "bin/Keel Native.app"
 
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
