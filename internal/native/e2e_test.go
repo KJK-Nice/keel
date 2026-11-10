@@ -3,6 +3,7 @@
 package native
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -262,6 +263,9 @@ func (e *win) sidOf(tabIdx int) string {
 		return ""
 	}
 	t := e.w.tabs[tabIdx]
+	if t.panes[t.focused] == nil { // a New tab has no session
+		return ""
+	}
 	return t.panes[t.focused].sessionID()
 }
 
@@ -279,6 +283,17 @@ func (e *win) openLocal() string {
 	sid := e.sidOf(0)
 	e.waitScrollback(sid, "$ ")
 	return sid
+}
+
+// newSession starts the Local Shell from the first card of a New tab: the one that is showing, or one the +
+// button opens.
+func (e *win) newSession() {
+	e.t.Helper()
+	if t := e.w.tab(); t == nil || !t.isNew() {
+		e.click("New tab")
+	}
+	e.pump(func() bool { return e.tt.HasText("Where to?") && e.hasLabel("start card Local Shell") }, "the New tab page")
+	e.click("start card Local Shell")
 }
 
 func (e *win) shot(name string) {
@@ -486,7 +501,7 @@ func TestE2ECloseKillsAndWindowCloseDetaches(t *testing.T) {
 	e.clickBody("1")
 	e.typeLine("echo before-detach")
 	e.waitScrollback(first, "before-detach")
-	e.click("New tab")
+	e.newSession()
 	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" && len(e.sessions()) == 2 }, "a second tab")
 	e.key(ui.Cmd, ui.KeyW)
 	e.pump(func() bool { return len(e.sessions()) == 1 && len(e.w.tabs) == 1 }, "the second session killed and its tab gone")
@@ -524,7 +539,7 @@ func TestE2ETabs(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.pump(func() bool { return e.tt.HasText("Local Shell") }, "the host tree")
 	for i := 1; i <= 3; i++ {
-		e.click("New tab")
+		e.newSession()
 		e.pump(func() bool { return len(e.w.tabs) == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d with a session", i))
 	}
 	sids := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2)}
@@ -575,6 +590,10 @@ type sshFixture struct {
 	done        chan struct{}
 	fingerprint string
 	stopped     bool
+
+	host, user string
+	port       int
+	password   string // typed into a field by the test that needs it; never printed or logged
 }
 
 // startSSH runs bin/keel-sshtest, creates a password host for its target on the daemon through
@@ -614,6 +633,7 @@ func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 		}
 	}
 	f.fingerprint = info.Target.Fingerprint
+	f.host, f.port, f.user, f.password = info.Target.Host, info.Target.Port, info.Target.User, info.Target.Password
 	tok, err := authtoken.Read(dataDir)
 	if err != nil {
 		t.Fatal("read token: ", err)
@@ -775,7 +795,7 @@ func TestE2EFailedSessionShowsBannerAndReconnects(t *testing.T) {
 	e.pump(func() bool { return e.hasLabel("banner failed") && e.hasLabel("Close") }, "the failure banner again")
 	e.shot("TestE2EFailedSessionShowsBannerAndReconnects")
 	e.click("Close")
-	e.pump(func() bool { return len(e.w.tabs) == 0 }, "the pane to go")
+	e.pump(func() bool { return len(e.w.tabs) == 1 && e.w.tabs[0].isNew() }, "the pane to go and the New tab to take its place")
 	e.pump(func() bool {
 		for _, s := range e.sessions() {
 			if s.ID == sid {
@@ -869,7 +889,7 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 		t.Fatalf("the gap did not move: ratio %v", r)
 	}
 	// Tab 2: one pane, renamed logs.
-	e.click("New tab")
+	e.newSession()
 	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" }, "tab 2")
 	p2 := e.tabRect(1)
 	e.tt.RightClickAt(p2.X+p2.W/2, p2.Y+p2.H/2)
@@ -991,7 +1011,7 @@ func TestE2ETabMenuAndKeys(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.openLocal()
 	for i := 2; i <= 4; i++ {
-		e.click("New tab")
+		e.newSession()
 		e.pump(func() bool { return len(e.w.tabs) == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d", i))
 	}
 	sids := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2), e.sidOf(3)}
@@ -1124,4 +1144,249 @@ func TestE2EFindAndTextSize(t *testing.T) {
 	if fi, _ := os.Stat(prefs); fi.Mode().Perm() != 0o600 {
 		t.Errorf("prefs mode %v", fi.Mode().Perm())
 	}
+}
+
+// sshProcesses counts the processes whose command line has "ssh -p" in it: the ssh binary run for a pasted
+// command would be one.
+func sshProcesses(t *testing.T) int {
+	t.Helper()
+	out, err := exec.Command("pgrep", "-f", "ssh -p").Output() // exit 1 and no output: none
+	if err != nil && len(out) != 0 {
+		t.Fatal(err)
+	}
+	return len(bytes.Fields(out))
+}
+
+func (e *win) onStartPage() bool {
+	return e.tt.HasText("Where to?") && e.hasLabel("start card Local Shell")
+}
+
+func TestE2ENewTabPage(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.pump(e.onStartPage, "the New tab page of a window with no session")
+	if len(e.w.tabs) != 1 || !e.w.tabs[0].isNew() || len(e.sessions()) != 0 {
+		t.Fatalf("tabs %d, sessions %d", len(e.w.tabs), len(e.sessions()))
+	}
+	e.shot("TestE2ENewTabPage-empty")
+
+	// The Local Shell card starts a session in this tab.
+	e.click("start card Local Shell")
+	e.pump(func() bool {
+		return len(e.w.tabs) == 1 && !e.w.tabs[0].isNew() && e.sidOf(0) != "" && len(e.sessions()) == 1
+	}, "a session tab")
+	e.waitScrollback(e.sidOf(0), "$ ")
+
+	// ⌘T: a New tab, with Local Shell first among the recent hosts (and kept in keel-native.json as an id).
+	e.key(ui.Cmd, ui.KeyT)
+	e.pump(func() bool { return len(e.w.tabs) == 2 && e.w.tabs[1].isNew() && e.onStartPage() }, "a New tab")
+	local, _ := e.w.localHost()
+	if cards := e.w.cards(e.w.tab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.recentIDs) == 0 || e.w.recentIDs[0] != local.ID {
+		t.Fatalf("cards %v recents %v", cards, e.w.recentIDs)
+	}
+	e.pump(func() bool { return slices.Equal(loadRecentHosts(dir), []string{local.ID}) }, "the recent hosts in keel-native.json")
+
+	// ⌥1 opens the first card in this tab: a second session.
+	e.key(ui.Alt, ui.Key1)
+	e.pump(func() bool {
+		return len(e.sessions()) == 2 && len(e.w.tabs) == 2 && !e.w.tabs[1].isNew() && e.sidOf(1) != ""
+	}, "two sessions in two tabs")
+	e.waitScrollback(e.sidOf(1), "$ ")
+
+	// Closing both tabs leaves a New tab and no session.
+	e.key(ui.Cmd, ui.KeyW)
+	e.pump(func() bool { return len(e.sessions()) == 1 && len(e.w.tabs) == 1 }, "the second session closed")
+	e.key(ui.Cmd, ui.KeyW)
+	e.pump(func() bool {
+		return len(e.sessions()) == 0 && len(e.w.tabs) == 1 && e.w.tabs[0].isNew() && e.onStartPage()
+	}, "no session and the New tab page")
+
+	// Recently closed lists what was closed; a row starts a new session on that host.
+	e.pump(func() bool { return e.tt.HasText("Recently closed") && e.hasLabel("reopen Local Shell") }, "Recently closed")
+	e.shot("TestE2ENewTabPage-closed")
+	e.click("reopen Local Shell")
+	e.pump(func() bool {
+		return len(e.sessions()) == 1 && len(e.w.tabs) == 1 && !e.w.tabs[0].isNew() && e.sidOf(0) != ""
+	}, "a new session from Recently closed")
+	e.waitScrollback(e.sidOf(0), "$ ")
+	e.click("New tab") // the + button: ⌘T pressed again so soon would be held back as a key repeat
+	e.pump(func() bool { return e.onStartPage() && e.tt.HasText("Recent") }, "the New tab page again")
+	e.shot("TestE2ENewTabPage")
+}
+
+func TestE2EPalette(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openPanes(2) // tab 1, split
+	e.newSession() // tab 2
+	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" && len(e.sessions()) == 3 }, "two tabs, three sessions")
+	e.w.tabs[1].title = "logs"
+	e.step()
+	allPrompts := func() bool {
+		ids := e.sessionIDs()
+		for _, id := range ids {
+			if !strings.Contains(e.scrollback(id), "$ ") {
+				return false
+			}
+		}
+		return len(ids) > 0
+	}
+	e.pump(allPrompts, "every session to show its prompt")
+
+	// ⌘K: Open now, Hosts, Actions, in that order.
+	e.key(ui.Cmd, ui.Key1) // tab 1 shows
+	if e.w.active != 0 {
+		t.Fatalf("active %d", e.w.active)
+	}
+	e.key(ui.Cmd, ui.KeyK)
+	e.pump(func() bool { return e.hasLabel("dialog Command palette") && e.tt.Focused("Command palette") }, "the palette with the keyboard in its input")
+	var groups []string
+	for _, it := range e.w.pal.visible() {
+		if len(groups) == 0 || groups[len(groups)-1] != it.group {
+			groups = append(groups, it.group)
+		}
+	}
+	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions"}) {
+		t.Fatalf("groups %q", groups)
+	}
+	for _, s := range []string{"Open now", "Hosts", "Actions", "logs", "New session on Local Shell", "Split down"} {
+		if !e.tt.HasText(s) {
+			t.Errorf("the palette does not show %q", s)
+		}
+	}
+	e.shot("TestE2EPalette-open")
+
+	// An Open now row focuses its tab and starts nothing. A window key does not act while the palette is open.
+	before := sorted(e.sessionIDs())
+	e.key(ui.Cmd, ui.Key2)
+	if e.w.pal == nil || e.w.active != 0 {
+		t.Fatalf("a window key acted while the palette was open: pal %v, active %d", e.w.pal != nil, e.w.active)
+	}
+	e.tt.Type("logs")
+	e.step()
+	e.key(0, ui.KeyEnter)
+	e.pump(func() bool { return e.w.pal == nil && e.w.active == 1 }, "the logs tab to show")
+	e.settle(300 * time.Millisecond)
+	if !slices.Equal(sorted(e.sessionIDs()), before) {
+		t.Fatalf("Open now started a session: %v (was %v)", e.sessionIDs(), before)
+	}
+
+	// A host with ⌥↵: a new pane in the focused tab.
+	e.key(ui.Cmd, ui.KeyK)
+	e.pump(func() bool { return e.w.pal != nil }, "the palette")
+	e.tt.Type("session on Local Shell")
+	e.step()
+	e.key(ui.Alt, ui.KeyEnter)
+	e.pump(func() bool { return len(e.sessions()) == 4 && len(e.w.tabs) == 2 && len(e.w.tabs[1].panes) == 2 }, "a new pane in the focused tab")
+
+	// An action: Split down.
+	e.key(ui.Cmd, ui.KeyK)
+	e.pump(func() bool { return e.w.pal != nil }, "the palette")
+	e.tt.Type("Split down")
+	e.step()
+	e.key(0, ui.KeyEnter)
+	e.pump(func() bool { return len(e.sessions()) == 5 && len(e.w.tabs[1].panes) == 3 }, "Split down: one more pane")
+	e.pump(func() bool {
+		for _, tb := range e.w.tabs {
+			for _, p := range tb.panes {
+				if p.sessionID() == "" {
+					return false
+				}
+			}
+		}
+		return true
+	}, "every pane to be named")
+	e.pump(allPrompts, "every session to show its prompt")
+
+	// Typing in the palette and Esc: no session sees a byte.
+	scroll := map[string]string{}
+	for _, id := range e.sessionIDs() {
+		scroll[id] = e.scrollback(id)
+	}
+	e.key(ui.Cmd, ui.KeyK)
+	e.pump(func() bool { return e.w.pal != nil && e.tt.Focused("Command palette") }, "the palette")
+	e.tt.Type("qzxvkw")
+	e.step()
+	e.key(0, ui.KeyDown)
+	e.key(0, ui.KeyEscape)
+	e.pump(func() bool { return e.w.pal == nil }, "the palette to close")
+	e.settle(500 * time.Millisecond)
+	for id, was := range scroll {
+		if got := e.scrollback(id); got != was {
+			t.Errorf("session %s changed while the palette was used", id)
+		}
+	}
+	if strings.Contains(e.scrollback(e.paneSID(e.w.tab().focused)), "qzxvkw") {
+		t.Error("the palette's text reached a terminal")
+	}
+	e.shot("TestE2EPalette")
+}
+
+func TestE2EPastedSSHCommand(t *testing.T) {
+	addr, dir := startServe(t, true)
+	f := startSSH(t, addr, dir)
+	e := newWin(t, addr, dir, nil)
+	e.pump(e.onStartPage, "the New tab page")
+	procs := sshProcesses(t)
+
+	e.tt.Type(fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no %s@%s uptime", f.port, f.user, f.host))
+	e.pump(func() bool { return e.tt.HasText("Read as") }, "the offer")
+	target := fmt.Sprintf("%s@%s:%d", f.user, f.host, f.port)
+	for _, s := range []string{
+		target, "Nothing has run.", "Left out (2), not applied", "-o StrictHostKeyChecking=no", "changes host key trust",
+		"uptime", "remote command; Keel opens a shell and does not run it", "Connect once",
+	} {
+		if !e.tt.HasText(s) {
+			t.Errorf("the offer lacks %q", s)
+		}
+	}
+	e.shot("TestE2EPastedSSHCommand-offer")
+	e.settle(500 * time.Millisecond)
+	if n := len(e.sessions()); n != 0 {
+		t.Fatalf("a pasted command started %d sessions", n)
+	}
+	if n := sshProcesses(t); n != procs {
+		t.Fatalf("ssh processes: %d before, %d after the paste", procs, n)
+	}
+	if procs != 0 {
+		t.Logf("%d unrelated processes match 'ssh -p' on this machine", procs)
+	}
+
+	// Connect once: the dialog asks for the password, the host key dialog follows, and the session is ready.
+	e.click("Connect once")
+	e.pump(func() bool { return e.w.quick != nil && e.hasLabel("dialog Quick connect") && e.tt.Focused("Password") }, "the Quick connect dialog with the Password field focused")
+	if e.w.quick.target != target || e.w.quick.password != "" {
+		t.Fatalf("target %q, password already typed: %v", e.w.quick.target, e.w.quick.password != "")
+	}
+	e.tt.Type(f.password)
+	e.step()
+	e.key(0, ui.KeyEnter)
+	e.pump(func() bool { return e.hasLabel("dialog Unknown host key") }, "the unknown host key dialog")
+	if !e.tt.HasText(f.fingerprint) {
+		t.Fatal("the dialog does not show the fingerprint the server offered")
+	}
+	e.click("Trust and connect")
+	e.pump(func() bool { return e.snap().Status == "ready" }, "the session to be ready")
+	if n := len(e.sessions()); n != 1 {
+		t.Fatalf("%d sessions", n)
+	}
+	if n := sshProcesses(t); n != procs {
+		t.Fatalf("ssh processes: %d before, %d after Connect once", procs, n)
+	}
+	c, cancel := ctx()
+	defer cancel()
+	hosts, err := e.cl.Hosts(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved []keelclient.Host
+	for _, h := range hosts {
+		if h.Group == "Quick connect" {
+			saved = append(saved, h)
+		}
+	}
+	if len(saved) != 1 || saved[0].Name != f.user+"@"+f.host || saved[0].Port != f.port || saved[0].Username != f.user || saved[0].AuthType != "password" {
+		t.Fatalf("saved quick hosts %+v", saved)
+	}
+	e.shot("TestE2EPastedSSHCommand")
 }

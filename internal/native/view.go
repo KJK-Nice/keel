@@ -88,7 +88,7 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	}
 	c.OnWindowShortcut(ui.Cmd, ui.Key9, func() { w.act(func() { w.selectTab(len(w.tabs) - 1) }) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTab) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
 	if t := w.tab(); t != nil && t.isNew() { // ⌥1 to ⌥6 open the nth card of the New tab page
 		for i, k := range altDigits {

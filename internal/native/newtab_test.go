@@ -136,8 +136,7 @@ func TestNewTabFromShortcutPlusLastClosedAndRestore(t *testing.T) {
 	if len(r.w.tabs) != 2 {
 		t.Fatalf("⌘T: tabs %d", len(r.w.tabs))
 	}
-	r.w.newTabLockUntil = time.Time{}
-	r.click(t, "New tab") // the + button
+	r.click(t, "New tab") // the + button, which the ⌘T lock does not hold back
 	if len(r.w.tabs) != 3 || !r.w.tabs[2].isNew() {
 		t.Fatalf("+: tabs %d", len(r.w.tabs))
 	}
@@ -151,6 +150,15 @@ func TestNewTabFromShortcutPlusLastClosedAndRestore(t *testing.T) {
 	r.press(ui.Cmd, ui.KeyW) // the lone New tab stays
 	if len(r.w.tabs) != 1 {
 		t.Fatalf("⌘W closed the lone New tab")
+	}
+}
+
+func TestHoldingCmdTMakesOneTab(t *testing.T) {
+	r := startRig(t)
+	r.press(ui.Cmd, ui.KeyT)
+	r.press(ui.Cmd, ui.KeyT) // a key repeat inside the lock
+	if len(r.w.tabs) != 2 {
+		t.Fatalf("tabs %d, want 2", len(r.w.tabs))
 	}
 }
 
