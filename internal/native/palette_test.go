@@ -153,7 +153,7 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 			seen = append(seen, it.group)
 		}
 	}
-	if !slices.Equal(seen, []string{"Open now", "Hosts", "Actions"}) {
+	if !slices.Equal(seen, []string{"Open now", "Hosts", "Actions", "Notebooks"}) {
 		t.Fatalf("groups %q", seen)
 	}
 	var open, hosts []string

@@ -241,6 +241,7 @@ func (w *workspace) paletteItems() []palItem {
 	}
 	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
 	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
+	add("Panes", "Split notebook", "", "", w.splitNotebook)
 	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)
 	add("Panes", "Find in terminal", "⌘F", "", func() { w.openFind(w.focusedPane()) })
 	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
@@ -322,6 +323,15 @@ func (w *workspace) paletteItems() []palItem {
 	for _, sn := range w.snippets {
 		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: snippetBadge(sn.Command),
 			run: func(bool) { w.typeSnippet(sn.ID) }})
+	}
+	// Notebooks open without a session; nothing here types (term.js paletteItems: notebook-new, notebook:<id>).
+	items = append(items, palItem{group: "Notebooks", title: "New notebook", run: func(bool) { w.newNotebook() }})
+	for _, nb := range w.notebooks {
+		id, hint := nb.ID, "Open without a session"
+		if nb.Pinned {
+			hint = "Pinned"
+		}
+		items = append(items, palItem{group: "Notebooks", title: "Open notebook " + notebookName(nb), hint: hint, run: func(bool) { w.openNotebook(id) }})
 	}
 	return items
 }

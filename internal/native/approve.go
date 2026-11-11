@@ -58,6 +58,12 @@ type approveDialog struct {
 	agent *approveAgent // set when the bytes are an agent proposal's
 	group *approveGroup // set for the group approve dialog (§6 rule 10)
 
+	// A notebook fence (notebooktype.go): the bytes are the fence's line and a newline, with no Ctrl-U (term.js
+	// confirmTermInput sends line + "\n"), and the inject carries notebook:true. note is the line under the bytes when the
+	// agent edited the notebook and the user has not reviewed it (§6 rule 12).
+	notebook bool
+	note     string
+
 	cancelH, typeH ui.Handle
 }
 
@@ -79,7 +85,8 @@ type typeJob struct {
 	conn    session
 	command string
 	ref     *keelclient.AgentRef
-	row     *groupRow // nil for the one-pane dialogs
+	opts    []keelclient.InjectOption // FromNotebook for a notebook fence
+	row     *groupRow                 // nil for the one-pane dialogs
 }
 
 // The words of a row that cannot be typed (term.js typeGroupProposal).
@@ -182,6 +189,9 @@ func (w *workspace) typeTarget() (*pane, string) {
 		}
 	}
 	p := t.panes[t.focused]
+	if p != nil && p.nb != nil { // a notebook is not a terminal: the tab's first terminal takes it (term.js termTarget)
+		p = t.firstTerm()
+	}
 	if p == nil || p.remote || t.remote { // a joined pane takes no snippet: Approve before type is for a local session
 		return nil, msgNoSession
 	}
@@ -253,6 +263,13 @@ func (w *workspace) approveType(shift bool) {
 			return
 		}
 		job := typeJob{conn: d.p.conn, command: clearLine + d.shown()}
+		if d.notebook { // the app's bytes for a fence: the line and a newline (confirmTermInput), no Ctrl-U
+			if hasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
+				d.err = placeholderRefused
+				return
+			}
+			job.command, job.opts = d.shown(), []keelclient.InjectOption{keelclient.FromNotebook}
+		}
 		if ag := d.agent; ag != nil {
 			job.command = d.shown() // the proposal's bytes already start with Ctrl-U and end with the newline
 			job.ref = &keelclient.AgentRef{ConversationID: ag.conv, ProposalID: ag.proposal, Shift: ag.shift}
@@ -267,7 +284,7 @@ func (w *workspace) approveType(shift bool) {
 		errs := make([]error, len(jobs))
 		for i, j := range jobs {
 			c, cancel := ctx()
-			errs[i] = j.conn.ApprovedInject(c, j.command, j.ref)
+			errs[i] = j.conn.ApprovedInject(c, j.command, j.ref, j.opts...)
 			cancel()
 		}
 		w.post(func() {

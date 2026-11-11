@@ -181,6 +181,8 @@ type fakeBackend struct {
 	logLimit     int
 	nextIdentSeq int
 
+	nb *fakeNotebooks // notebooks_fake_test.go
+
 	// Snippets.
 	snippets     []keelclient.Snippet
 	snipSaved    []keelclient.SnippetInput

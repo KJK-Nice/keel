@@ -1,0 +1,198 @@
+package native
+
+import (
+	"github.com/egoist/mygo/ui"
+
+	"keel/internal/native/keelclient"
+)
+
+// The Notebooks page, the sidebar's Notebooks section and the row menu, drawn as NotebooksPage, NotebookList,
+// SidebarSnippets (its Notebooks half) and notebookCardMenu (internal/ui) with the Logs page's layout (logsview.go). The
+// document itself is the notebook pane (notebookpane.go).
+
+const notebooksSubtitle = "Markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm."
+
+// notebooksPage is the page's state: its filter.
+type notebooksPage struct {
+	filter  string
+	filterH ui.Handle
+}
+
+// notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Delete.
+// "Ask the agent about this notebook" waits for the agent plan. Nothing in the menu types.
+func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {
+	return func(m *ui.Menu) {
+		id := nb.ID
+		if m.Item("Open").Chosen() {
+			w.act(func() { w.openNotebook(id) })
+		}
+		if m.Item("Rename").Chosen() {
+			w.act(func() { w.openRenameNotebook(id) })
+		}
+		pin := "Pin"
+		if nb.Pinned {
+			pin = "Unpin"
+		}
+		if m.Item(pin).Chosen() {
+			w.act(func() { w.toggleNotebookPin(id) })
+		}
+		priv := "Make private"
+		if nb.Private {
+			priv = "Let the agent read it"
+		}
+		if m.Item(priv).Chosen() {
+			w.act(func() { w.toggleNotebookPrivate(id) })
+		}
+		if m.Item("History").Chosen() {
+			w.act(func() { w.openNotebookHistory(id) })
+		}
+		m.Separator()
+		if m.Item("Delete").Chosen() {
+			w.act(func() { w.askDeleteNotebook(id) })
+		}
+	}
+}
+
+// ---- the page ----
+
+func (w *workspace) notebooksView(c *ui.Context, p *notebooksPage) {
+	ui.Column(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Children(func() {
+		pageHead(c, "Notebooks", notebooksSubtitle, func() {
+			ui.Row(c).Gap(space2).Shrink(0).Children(func() {
+				if textBtnIcon(c, "restore-bin", "Recently deleted", btnGhost) {
+					w.act(w.openNotebookTrash)
+				}
+				if textBtnIcon(c, "add-01", "New notebook", btnPrimary) {
+					w.act(w.newNotebook)
+				}
+			})
+		})
+		ui.Row(c).FillWidth().Padding(0, space8, space3).Gap(space2).Wrap().Shrink(0).Children(func() {
+			ui.Row(c).Width(sizeSidebar).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+				icon(c, "search-01", inkFaint)
+				ui.TextInputBase(c, &p.filter).Label("Filter notebooks").Placeholder("Filter notebooks").PlaceholderColor(inkFaint).TextColor(ink).
+					FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
+			})
+		})
+		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("notebook list").Children(func() {
+			if len(w.notebooks) == 0 {
+				sideEmpty(c, "No notebooks yet", "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.")
+				return
+			}
+			for _, nb := range w.shownNotebooks(p.filter) {
+				w.notebookRow(c, nb)
+			}
+		})
+	})
+}
+
+// notebookRow is a row of NotebookList: the tile, the name and the first line, the badges and the menu. A click opens it.
+func (w *workspace) notebookRow(c *ui.Context, nb keelclient.Notebook) {
+	r := hairline(ui.Row(c).FillWidth().MinHeight(sizeControlLg).Padding(space2, space6, space2, space8).Gap(space3).AlignItems(ui.Center).
+		Cursor(ui.CursorPointer).Key(nb.ID).Label("notebook "+notebookName(nb)), 0, 0, 1, 0)
+	if r.Hovered() {
+		r.Background(hoverGround)
+	}
+	r.PopoverMenu(w.notebookMenu(nb))
+	r.Children(func() {
+		ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(inkMuted.Alpha(tileTintAlpha)).Children(func() {
+			iconSized(c, "notebook-pen", inkMuted, iconSize-space0_5)
+		})
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
+			bodyStrong(c, notebookName(nb), ink).MinWidth(0)
+			text(c, notebookPreview(nb), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
+		})
+		w.notebookBadges(c, nb)
+		iconMenuBtn(c, "more-horizontal", "Actions for "+notebookName(nb), sizeControlSm, w.notebookMenu(nb))
+	})
+	if r.Clicked() {
+		id := nb.ID
+		w.act(func() { w.openNotebook(id) })
+	}
+}
+
+// notebookBadges are the row's badges: Private, Edited by agent, From agent, Pinned.
+func (w *workspace) notebookBadges(c *ui.Context, nb keelclient.Notebook) {
+	ui.Row(c).Gap(space1_5).AlignItems(ui.Center).Shrink(0).Children(func() {
+		if nb.Private {
+			ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Border(1, lineStrong).
+				Tooltip("Private: the agent cannot read or change it").Label("badge Private").Children(func() {
+				iconSized(c, "square-lock-02", inkMuted, iconSizeSm)
+				text(c, "Private", inkMuted, kbdSize, weightSemibold)
+			})
+		}
+		if nb.AgentUnreviewed {
+			tag(c, "Edited by agent", signalSoft, signal, false)
+		}
+		if nb.Source == byAgent {
+			outlineBadge(c, "From agent")
+		}
+		if nb.Pinned {
+			tag(c, "Pinned", hoverGround, inkMuted, false)
+		}
+	})
+}
+
+// ---- the sidebar's Notebooks section ----
+
+// sidebarNotebooks is the Notebooks half of the Snippets segment: a row per notebook (the tile, the name, the pin and the
+// menu), the empty and no-match words, New notebook and All notebooks. The segment's one filter reads the rows.
+func (w *workspace) sidebarNotebooks(c *ui.Context) {
+	ui.Column(c).FillWidth().Gap(space0_5).Children(func() {
+		ui.Row(c).FillWidth().Padding(space2, space2, 0).Children(func() { menuLabel(c, "Notebooks") })
+		shown := w.shownNotebooks(w.snipQuery)
+		for _, nb := range shown {
+			w.sideNotebookRow(c, nb)
+		}
+		switch {
+		case len(w.notebooks) == 0:
+			caption(c, "No notebooks yet.", inkMuted)
+		case len(shown) == 0:
+			caption(c, "No notebooks match.", inkMuted)
+		}
+		ui.Row(c).FillWidth().Gap(space1).Wrap().Children(func() {
+			if textBtn(c, "New notebook", btnGhost) {
+				w.act(w.newNotebook)
+			}
+			if textBtn(c, "All notebooks", btnGhost) {
+				w.act(func() { w.openPage("notebooks") })
+			}
+		})
+	})
+}
+
+func (w *workspace) sideNotebookRow(c *ui.Context, nb keelclient.Notebook) {
+	name := notebookName(nb)
+	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(nb.ID).
+		Label("sidebar notebook " + name).Cursor(ui.CursorPointer).Focusable()
+	hover := r.Hovered()
+	if hover {
+		r.Background(hoverGround)
+	}
+	r.PopoverMenu(w.notebookMenu(nb))
+	pinClicked := false
+	r.Children(func() {
+		ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(inkMuted.Alpha(tileTintAlpha)).Children(func() {
+			iconSized(c, "notebook-pen", inkMuted, iconSizeSm)
+		})
+		body(c, name, ink).Grow(1).Shrink(1).MinWidth(0)
+		if hover || r.FocusWithin() || nb.Pinned {
+			pin := "Pin"
+			if nb.Pinned {
+				pin = "Unpin"
+			}
+			pinClicked = iconBtn(c, "pin", pin+" "+name, sizeControlSm, nb.Pinned)
+		}
+		if hover || r.FocusWithin() {
+			iconMenuBtn(c, "more-horizontal", "Notebook actions for "+name, sizeControlSm, w.notebookMenu(nb))
+		}
+	})
+	switch {
+	case pinClicked:
+		id := nb.ID
+		w.act(func() { w.toggleNotebookPin(id) })
+	case r.Clicked():
+		id := nb.ID
+		w.act(func() { w.openNotebook(id) })
+	}
+}

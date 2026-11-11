@@ -21,6 +21,9 @@ import (
 type typeSource struct {
 	line      string // the command a direct type sends, as it is saved: "" when the dialog is certain
 	snippetID string // a snippet's id: keel serve compares its stored command with the line
+	// A notebook fence instead: the notebook's id, whose stored text keel serve searches for the line as the one line of a
+	// shell fence (notebooktype.go). It must have been saved before the request.
+	notebookID string
 	// An agent proposal instead: the conversation, the proposal and ⇧ as the card was pressed. keel serve checks the
 	// proposal, the pane and the ⇧ rule itself. Only typeNow builds the reference, so no other file may.
 	conv, proposal string
@@ -57,6 +60,9 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 	}
 	ref := keelclient.DirectRef{Kind: "snippet", SnippetID: s.snippetID, AltScreen: alt, PromptLine: promptLine}
 	var agent *keelclient.AgentRef
+	if s.notebookID != "" {
+		ref.Kind, ref.SnippetID, ref.NotebookID = "notebook", "", s.notebookID
+	}
 	if s.proposal != "" {
 		ref.Kind, ref.SnippetID = "agent", ""
 		agent = &keelclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}

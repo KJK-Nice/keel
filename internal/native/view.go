@@ -68,6 +68,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.hostDialogView(c)
 	w.identityDialogView(c)
 	w.snippetDialogView(c)
+	w.notebookDialogView(c)
 	w.folderDialogView(c)
 	w.forwardDialogView(c)
 	w.forwardKeyView(c)
@@ -220,6 +221,9 @@ func (w *workspace) barStatus() string {
 	p := t.panes[t.focused]
 	if p == nil {
 		return "No session"
+	}
+	if p.nb != nil {
+		return "Notebook"
 	}
 	if st := p.conn.Snapshot(); st.Role == "driver" {
 		return paneSubtitle(p, st) + " · driving"
@@ -621,6 +625,10 @@ func cornerPieces(pt *ui.Painter, r ui.Rect, rad float32, col ui.Color) {
 }
 
 func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit func(ui.Element) ui.Element) {
+	if p.nb != nil { // a notebook has its own bar and body (notebookpane.go)
+		w.tileNotebook(c, t, p, multi, fit)
+		return
+	}
 	focused := t.focused == p.id
 	tl := fit(ui.Column(c)).Label("pane " + p.id).Key(p.id)
 	if multi {
@@ -752,7 +760,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 			})
 		}
 		ui.Spacer(c)
-		if p := w.focusedPane(); p != nil {
+		if p := w.focusedPane(); p != nil && p.nb == nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
 		}

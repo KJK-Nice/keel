@@ -171,6 +171,7 @@ func (w *workspace) sidebarSnippets(c *ui.Context) {
 		if textBtn(c, "Manage snippets", btnGhost) {
 			w.act(func() { w.openPage("snippets") })
 		}
+		w.sidebarNotebooks(c) // the Notebooks half of the segment, under the same filter
 	})
 }
 

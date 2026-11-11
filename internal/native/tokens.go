@@ -100,6 +100,7 @@ const (
 	sizeSidebar   = 252
 	sizeRail      = 208 // size-rail: the Settings section rail
 	sizeAgent     = 380 // size-agent: the agent panel
+	sizeReading   = 544 // size-reading: 68ch, the notebook's column
 
 	sizeAgentPageList    = 280 // size-agentpage-list: the Agent page's conversation list
 	sizeAgentPageContext = 300 // size-agentpage-context: its context column

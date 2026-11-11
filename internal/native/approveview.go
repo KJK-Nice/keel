@@ -74,6 +74,11 @@ func (w *workspace) approveView(c *ui.Context) {
 				ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 			}
 		})
+		if d.note != "" { // .k-review.pty-inject-agent, after the preview as the app has it
+			ui.Row(c).FillWidth().Padding(space2, space3).Radius(radiusMd).Background(hoverGround).Label("approve note").Children(func() {
+				ui.Text(c, d.note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
+			})
+		}
 		switch {
 		case d.err != "":
 			ui.Row(c).FillWidth().Label("approve error").Children(func() { caption(c, d.err, flare) })

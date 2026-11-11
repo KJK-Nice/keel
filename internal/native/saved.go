@@ -50,11 +50,13 @@ type savedTab struct {
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
 type savedNode struct {
-	Session string     `json:"sessionId,omitempty"`
-	Dir     string     `json:"dir,omitempty"`
-	Ratio   float32    `json:"ratio,omitempty"`
-	A       *savedNode `json:"a,omitempty"`
-	B       *savedNode `json:"b,omitempty"`
+	Session string `json:"sessionId,omitempty"`
+	// Notebook is a notebook pane: its id, and nothing of its text (the text is read from keel serve when it comes back).
+	Notebook string     `json:"notebookId,omitempty"`
+	Dir      string     `json:"dir,omitempty"`
+	Ratio    float32    `json:"ratio,omitempty"`
+	A        *savedNode `json:"a,omitempty"`
+	B        *savedNode `json:"b,omitempty"`
 }
 
 // saveState is what the workspace keeps to write the file.
@@ -119,6 +121,9 @@ func (t *tab) snapNode(n *layout.Node) *savedNode {
 		return nil
 	}
 	if n.A == nil {
+		if p := t.panes[n.Pane]; p != nil && p.nb != nil && p.nb.id != "" && !p.nb.gone {
+			return &savedNode{Notebook: p.nb.id}
+		}
 		if p := t.panes[n.Pane]; p != nil && p.sessionID() != "" {
 			return &savedNode{Session: p.sessionID()}
 		}
@@ -282,7 +287,7 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 
 func (w *workspace) buildTab(st savedTab, bySID map[string]*pane, used map[string]bool) *tab {
 	byID := map[string]*pane{}
-	root := buildNode(st.Layout, bySID, used, byID, 0)
+	root := w.buildNode(st.Layout, bySID, used, byID, 0)
 	if root == nil {
 		return nil
 	}
@@ -297,9 +302,19 @@ func (w *workspace) buildTab(st savedTab, bySID map[string]*pane, used map[strin
 	return t
 }
 
-func buildNode(n *savedNode, bySID map[string]*pane, used map[string]bool, byID map[string]*pane, depth int) *layout.Node {
+func (w *workspace) buildNode(n *savedNode, bySID map[string]*pane, used map[string]bool, byID map[string]*pane, depth int) *layout.Node {
 	if n == nil || depth > savedDepth {
 		return nil
+	}
+	if n.A == nil && n.B == nil && n.Notebook != "" { // a notebook pane comes back from keel serve's copy; one that is gone is dropped
+		rec, ok := w.notebook(n.Notebook)
+		if !ok || used["notebook:"+n.Notebook] {
+			return nil
+		}
+		used["notebook:"+n.Notebook] = true
+		np := w.newNotebookPane(&rec)
+		byID[np.id] = np
+		return layout.Leaf(np.id)
 	}
 	if n.A == nil && n.B == nil {
 		p := bySID[n.Session]
@@ -310,8 +325,8 @@ func buildNode(n *savedNode, bySID map[string]*pane, used map[string]bool, byID 
 		byID[p.id] = p
 		return layout.Leaf(p.id)
 	}
-	a := buildNode(n.A, bySID, used, byID, depth+1)
-	b := buildNode(n.B, bySID, used, byID, depth+1)
+	a := w.buildNode(n.A, bySID, used, byID, depth+1)
+	b := w.buildNode(n.B, bySID, used, byID, depth+1)
 	switch {
 	case a == nil:
 		return b

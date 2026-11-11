@@ -104,6 +104,7 @@ func (w *workspace) pollOnce() {
 			w.rev = v.Rev
 			w.reloadHosts()
 			w.reloadSnippets()
+			w.reloadNotebooks()
 			w.reloadTunnels()
 			w.refreshPages()
 		}

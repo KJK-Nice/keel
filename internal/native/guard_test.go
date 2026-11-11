@@ -147,13 +147,13 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 	for _, c := range allCallSites(t, "typeNow") {
 		files = append(files, c.file+":"+c.in)
 	}
-	want := map[string]bool{"snippets.go:typeSnippet": true, "agent.go:typeAgentProposal": true}
+	want := map[string]bool{"snippets.go:typeSnippet": true, "agent.go:typeAgentProposal": true, "notebooktype.go:typeNotebookFence": true}
 	if len(files) != len(want) {
-		t.Fatalf("typeNow is called from %v; want exactly %d calls, from typeSnippet and typeAgentProposal", files, len(want))
+		t.Fatalf("typeNow is called from %v; want exactly %d calls, from typeSnippet, typeAgentProposal and typeNotebookFence", files, len(want))
 	}
 	for _, f := range files {
 		if !want[f] {
-			t.Errorf("typeNow is called from %s: only a snippet's and an agent card's entry point may", f)
+			t.Errorf("typeNow is called from %s: only a snippet's, an agent card's and a notebook fence's entry point may", f)
 		}
 	}
 }
@@ -646,6 +646,76 @@ func TestTheClientNeverSubstitutesAValue(t *testing.T) {
 				}
 				return true
 			})
+		}
+	}
+}
+
+// ---- notebooks (plan 023) ----
+
+var notebookFiles = []string{"notebooks.go", "notebookslogic.go", "notebooksview.go", "notebookpane.go", "notebookdialogs.go", "notebooktype.go"}
+
+// A notebook fence is typed through the two paths a snippet has and adds no writer and no call site: the notebook files call
+// none of the four writers, build no agent or direct reference, and name neither the Approve action nor Ctrl-U.
+func TestNotebookCodeHasNoWriterAndNoCallSiteOfItsOwn(t *testing.T) {
+	src := sourceFiles(t)
+	for _, name := range notebookFiles {
+		s := src[name]
+		if s == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+		for _, w := range []string{"ApprovedInject", "DirectType", "SuggestInsert", "RestoreWords", "DirectCheck", "Write", "approveType"} {
+			if name == "notebooks.go" && w == "Write" { // WriteClipboard is not this; nbConn defines Write, it does not call it
+				continue
+			}
+			for _, c := range calls(t, name, s, w) {
+				t.Errorf("%s calls %s: a notebook reaches a terminal only through typeNow and the Approve dialog", c, w)
+			}
+		}
+		for _, bad := range []string{"AgentRef{", "DirectRef{", "clearLine", `\x15`, `\u0015`} {
+			if strings.Contains(s, bad) {
+				t.Errorf("%s holds %s: only typenow.go and approve.go build a reference or add Ctrl-U", name, bad)
+			}
+		}
+	}
+	// The only notebook call into the typing paths is typeNotebookFence -> typeNow, and askNotebookType -> openApprove.
+	var got []string
+	for _, name := range notebookFiles {
+		for _, w := range []string{"typeNow", "openApprove", "askType", "openApproveAgent"} {
+			for _, c := range callSites(t, name, src[name], w) {
+				got = append(got, c.in+"->"+w)
+			}
+		}
+	}
+	slices.Sort(got)
+	if want := []string{"askNotebookType->openApprove", "typeNotebookFence->typeNow"}; !slices.Equal(got, want) {
+		t.Errorf("notebook code reaches the typing paths from %v, want %v", got, want)
+	}
+}
+
+// The notebook field of an inject frame is written in keelclient/inject.go and nowhere else.
+func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
+	key := regexp.MustCompile(`\["notebook"\]|"notebook"\s*:\s*true|"notebookId"`)
+	for name, src := range sourceFiles(t) {
+		if name == "keelclient/inject.go" || strings.HasSuffix(name, "notebooks.go") && strings.HasPrefix(name, "keelclient/") {
+			continue
+		}
+		if m := key.FindString(src); m != "" {
+			t.Errorf("%s holds %s: only keelclient/inject.go writes the notebook part of a frame", name, m)
+		}
+	}
+	s := sourceFiles(t)["keelclient/inject.go"]
+	for _, want := range []string{`"notebook"`, `"notebookId"`, "FromNotebook"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
+		}
+	}
+	// typeNow is the one place a notebook's direct reference is made; approve.go passes the option and nothing else.
+	if !strings.Contains(sourceFiles(t)["typenow.go"], "NotebookID") || !strings.Contains(sourceFiles(t)["approve.go"], "FromNotebook") {
+		t.Fatal("typenow.go or approve.go no longer builds its notebook reference; update the guard")
+	}
+	for name, src := range sourceFiles(t) {
+		if strings.Contains(src, "FromNotebook") && name != "approve.go" && !strings.HasPrefix(name, "keelclient/") {
+			t.Errorf("%s names FromNotebook: only the Approve dialog's Type action marks bytes as a notebook's", name)
 		}
 	}
 }

@@ -19,6 +19,10 @@ func (w *workspace) dropPane(p *pane) {
 	if w.share != nil && w.share.p == p {
 		w.share = nil
 	}
+	if p.nb != nil { // a notebook owns no session: what was typed is saved, and nothing is killed
+		w.nbClosed(p)
+		return
+	}
 	if p.remote { // a joined pane owns no session: leaving closes the peer and kills nothing
 		w.release(p)
 		return

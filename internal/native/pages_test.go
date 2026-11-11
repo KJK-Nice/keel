@@ -206,7 +206,7 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 	}
 	// A page this client does not have, or twice, is dropped.
 	r3.w.closeWindow()
-	writeSaved(t, dir, `{"v":1,"active":0,"tabs":[],"pages":["keychain","notebooks","keychain","logs"],"activePage":"notebooks"}`)
+	writeSaved(t, dir, `{"v":1,"active":0,"tabs":[],"pages":["keychain","nonesuch","keychain","logs"],"activePage":"nonesuch"}`)
 	r4 := newRigIn(t, okBackend(), dir)
 	if got := tabNames(r4); !slices.Equal(got, []string{"Keychain", "Logs"}) {
 		t.Fatalf("tabs %v", got)

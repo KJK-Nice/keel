@@ -25,8 +25,11 @@ var pageDefs = map[string]pageDef{
 	"keychain": {title: "Keychain", tabIcon: "key-01", paletteTag: "key-01"},
 	"forwards": {title: "Port forwarding", tabIcon: "forwards"},
 	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
-	"logs":     {title: "Logs", tabIcon: "logs-tab"},
-	"settings": {title: "Settings", tabIcon: "settings-01"},
+	// The Notebooks page (§18) comes before Logs in the palette (term.js PAGES.notebooks); its sidebar section is the
+	// Snippets segment's second half.
+	"notebooks": {title: "Notebooks", tabIcon: "notebook-pen", paletteTag: "notebook-pen"},
+	"logs":      {title: "Logs", tabIcon: "logs-tab"},
+	"settings":  {title: "Settings", tabIcon: "settings-01"},
 	// The Agent page is opened from the palette's Agent conversations and the panel's Open all in a tab, so it is not in
 	// pageNames (term.js PAGES.agent).
 	pageAgent: {title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic"},
@@ -45,7 +48,7 @@ var pageDefs = map[string]pageDef{
 const pageAgent = "agent"
 
 // pageNames is every page this client has, in the order the sidebar and the palette list them.
-var pageNames = []string{"keychain", "forwards", "snippets", "logs", "settings"}
+var pageNames = []string{"keychain", "forwards", "snippets", "notebooks", "logs", "settings"}
 
 // footPages are the sidebar footer's page buttons (the webview's footer is Keychain · Logs).
 var footPages = []string{"keychain", "logs"}
@@ -56,6 +59,7 @@ type tabPage struct {
 	keychain *keychainPage
 	logs     *logsPage
 	snippets *snippetsPage
+	notebook *notebooksPage
 	forwards *forwardsPage
 	settings *settingsPage
 	agent    *agentPage
@@ -73,6 +77,8 @@ func newTabPage(name string) *tabPage {
 		p.logs = &logsPage{kind: "all"}
 	case "snippets":
 		p.snippets = &snippetsPage{}
+	case "notebooks":
+		p.notebook = &notebooksPage{}
 	case "forwards":
 		p.forwards = &forwardsPage{show: tunnelAll}
 	case "settings":
@@ -137,6 +143,8 @@ func (w *workspace) loadPage(t *tab) {
 		w.loadLogs()
 	case t.pg.snippets != nil:
 		w.reloadSnippets()
+	case t.pg.notebook != nil:
+		w.reloadNotebooks()
 	case t.pg.forwards != nil:
 		w.reloadTunnels()
 	case t.pg.settings != nil:
@@ -173,6 +181,9 @@ func (w *workspace) newItem() {
 		case t.pg.snippets != nil:
 			w.newSnippet()
 			return
+		case t.pg.notebook != nil: // ⌘N on the Notebooks page is its New notebook (term.js newItem)
+			w.newNotebook()
+			return
 		case t.pg.forwards != nil:
 			w.newForward()
 			return
@@ -196,6 +207,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.logsView(c, t.pg.logs)
 	case t.pg.snippets != nil:
 		w.snippetsView(c, t.pg.snippets)
+	case t.pg.notebook != nil:
+		w.notebooksView(c, t.pg.notebook)
 	case t.pg.forwards != nil:
 		w.forwardsView(c, t.pg.forwards)
 	case t.pg.settings != nil:

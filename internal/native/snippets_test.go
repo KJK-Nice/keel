@@ -316,7 +316,7 @@ func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *test
 			groups = append(groups, it.group)
 		}
 	}
-	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets"}) {
+	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets", "Notebooks"}) {
 		t.Fatalf("groups %v", groups)
 	}
 	var rows []string

@@ -108,6 +108,24 @@ type backend interface {
 	SaveSnippet(ctx context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error)
 	DeleteSnippet(ctx context.Context, id string) error
 
+	// Notebooks (notebooks.go): keel serve keeps them; the window holds the list and the open documents in memory only.
+	// A fence is typed only through the snippet paths (notebooktype.go); none of these writes to a session.
+	Notebooks(ctx context.Context) ([]keelclient.Notebook, error)
+	CreateNotebook(ctx context.Context, in keelclient.NotebookSave) (keelclient.Notebook, error)
+	SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error)
+	PatchNotebook(ctx context.Context, id string, name *string, pinned *bool) (keelclient.Notebook, error)
+	DeleteNotebook(ctx context.Context, id string, permanent bool) error
+	SetNotebookPrivate(ctx context.Context, id string, private bool) (keelclient.Notebook, error)
+	MarkNotebookReviewed(ctx context.Context, id string) (keelclient.Notebook, error)
+	NotebookHistory(ctx context.Context, id string) ([]keelclient.NotebookVersion, error)
+	NotebookVersion(ctx context.Context, id, vid string) (keelclient.NotebookVersion, error)
+	RestoreNotebookVersion(ctx context.Context, id, vid string, rev int) (keelclient.Notebook, error)
+	PurgeNotebookVersion(ctx context.Context, id, vid string) error
+	DeletedNotebooks(ctx context.Context) ([]keelclient.NotebookVersion, error)
+	DeletedNotebook(ctx context.Context, vid string) (keelclient.NotebookVersion, error)
+	RestoreDeletedNotebook(ctx context.Context, vid string) (keelclient.Notebook, error)
+	PurgeDeletedNotebook(ctx context.Context, vid string) error
+
 	// Port forwarding.
 	Tunnels(ctx context.Context) ([]keelclient.Tunnel, error)
 	SaveTunnel(ctx context.Context, in keelclient.TunnelInput) (keelclient.Tunnel, error)
@@ -226,6 +244,8 @@ type pane struct {
 	setCopy      func(on bool)
 
 	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
+
+	nb *notebookPane // set for a notebook pane (notebooks.go): it has no session, and conn is a stub that refuses everything
 }
 
 func (p *pane) sessionID() string {
@@ -275,6 +295,11 @@ func (t *tab) name() string {
 	if t.isNew() {
 		return "New Tab"
 	}
+	if t.onlyNotebooks() { // a tab of notebooks is named after the one in front (term.js createNotebookTab)
+		if p := t.panes[t.focused]; p != nil {
+			return strings.TrimSpace(p.nb.title)
+		}
+	}
 	if p := t.panes[t.focused]; p != nil {
 		if t.remote { // a joined tab says so, whoever drives (term.js tabName)
 			return p.title() + " · joined"
@@ -299,8 +324,10 @@ type workspace struct {
 
 	hosts          []keelclient.Host
 	snippets       []keelclient.Snippet
-	sideSeg        string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
-	snipQuery      string // the sidebar's Snippets filter
+	notebooks      []keelclient.Notebook // GET /api/notebooks (notebooks.go)
+	nbDlg          *nbDialog             // Rename notebook, History, Recently deleted (notebookdialogs.go)
+	sideSeg        string                // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
+	snipQuery      string                // the sidebar's Snippets filter
 	snipH          ui.Handle
 	snipDlg        *snippetDialog      // New snippet / Edit snippet
 	folders        []keelclient.Group  // the vault's folders, as GET /api/groups lists them (folders.go)
@@ -434,7 +461,11 @@ func (w *workspace) focusedPane() *pane {
 
 func (w *workspace) paneCount() (n int) {
 	for _, t := range w.tabs {
-		n += len(t.panes)
+		for _, p := range t.panes {
+			if p.nb == nil { // a notebook is not a session
+				n++
+			}
+		}
 	}
 	return n
 }
@@ -476,6 +507,7 @@ func (w *workspace) start() {
 		snippets, snipErr := w.be.Snippets(c)
 		folders, _ := w.be.Groups(c)  // a failed list leaves the flat tree: the next change reads it again
 		tunnels, _ := w.be.Tunnels(c) // a failed read leaves none: the 2 s read and the next change fill them in
+		notebooks, _ := w.be.Notebooks(c)
 		type attached struct {
 			host keelclient.Host
 			conn session
@@ -517,6 +549,7 @@ func (w *workspace) start() {
 			w.folders = folders
 			w.snippets = snippets
 			w.tunnels = tunnels
+			w.notebooks = notebooks
 			if snipErr != nil {
 				w.fail("snippets", snipErr)
 			}
@@ -565,7 +598,7 @@ func (w *workspace) selectTab(i int) {
 		return
 	}
 	w.active = i
-	if len(w.tabs[i].panes) > 0 {
+	if len(w.tabs[i].panes) > 0 && !w.tabs[i].onlyNotebooks() {
 		w.lastSession = w.tabs[i]
 	}
 	w.wantFocus = w.tabs[i].focused
@@ -590,9 +623,25 @@ func (w *workspace) newLocalTab() {
 
 // split starts another session to the same host as target and inserts it after target.
 func (w *workspace) split(t *tab, target string, d layout.Dir) {
-	if p := t.panes[target]; p != nil {
-		w.splitOn(t, target, p.host, d)
+	p := t.panes[target]
+	if p == nil {
+		return
 	}
+	if p.nb != nil { // a notebook splits into a session on the host of the tab's terminal, else the local shell (term.js splitPane)
+		if term := t.firstTerm(); term != nil {
+			w.splitOn(t, target, term.host, d)
+			return
+		}
+		for _, h := range w.hosts {
+			if h.AuthType == "local" {
+				w.splitOn(t, target, h, d)
+				return
+			}
+		}
+		w.say("Split needs a local host session")
+		return
+	}
+	w.splitOn(t, target, p.host, d)
 }
 
 // splitOn starts a session on h and inserts it after target.
@@ -766,6 +815,7 @@ func (w *workspace) release(p *pane) {
 // closeWindow detaches: every connection closes and no session is killed.
 func (w *workspace) closeWindow() {
 	w.saveNow()
+	w.flushNotebooksNow() // what was typed in a notebook is saved before the window goes
 	w.closed = true
 	if w.agent.busy != nil { // an ask in flight stops with the window
 		w.agent.busy()
