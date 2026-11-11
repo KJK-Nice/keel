@@ -316,6 +316,28 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   Agent: the run card and the notes block must be on screen. A walk's cards stay in the thread: type the newest with
   `typeStepCardLast`. Look at `…-page`, `…-walk`, `…-card` and `TestE2EHostNotes-dialog`.
 
+## Folders, the Group page and group runs (`e2e_groups_test.go`, `folders_test.go`, `grouppage_test.go`, `grouprun_test.go`, plan 021)
+
+- A group of test hosts is a folder of **Local Shells** made through the API, no SSH fixture: `POST /api/hosts {name, authType:
+  "local", agentReadable: true}` (`apiLocalHost`), `apiGroup`, `apiMove`, then `e.reread("folder <name>")`. A runbook is
+  `SaveRunbook` with `echo` steps (`apiRunbook`). `runSetup` does all of it, starts the run from the Group page and polls fast
+  (`startPoll(200ms)`: the run page proposes every 1.5 s in the app). Open each host by clicking `host <name>` (`openRunPanes`),
+  then come back with `backToRun`. A real `/bin/sh` runs what is typed, so the bytes (Ctrl-U, the echo, a newline) end in the
+  scrollback; no shell sends OSC 133 marks, so a host is finished with **Mark done <host>**. Scratch data only, the fake provider.
+- The dialog is `e.w.approve.group` (`dialogRows`). The assertions that matter, in this order: nothing is ticked with two or more
+  hosts and `approveType(false/true)` types nothing with nothing ticked; the unticked host's scrollback never holds the command;
+  `GET /api/logs` has one `agent.type` per host × step and no command text; with a variable, the run page shows `{{port}}` and
+  no value, the dialog shows the filled bytes, the scrollback has them and no log row does.
+- A **follower** is made by a second client: `e.cl.Attach(sid, 80, 24)` then `conn.TakeControl()`; a **closed** pane by
+  `e.w.closePane`. Do both while the dialog is open: their rows say why and are not counted. Take the unit tests'
+  `runRig` for a fake pane with `injectErr` when a refusal for one host is needed.
+- The Ansible export is keel serve's: set a group variable, then put the same value in the vault as a host's password
+  (`POST /api/hosts` authType password) and the export leaves the variable out with a comment; assert the value is nowhere.
+  A secret-looking variable (`AKIAIOSFODNN7EXAMPLE`, AWS's documented example) is refused by keel serve with "Keep secrets in the vault".
+- Drag: `e.drag(from, to)` presses, moves past the slop, moves over the target and releases. A host or a folder drops on a
+  folder or on the tree. A toast sits over the drawer's Copy button: close it (`Close notification`) before the next press.
+  Look at `…-dialog`, `TestE2EGroupPageRolesNotesVars`, `TestE2EFolders` and `TestE2EAnsibleExport`.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
