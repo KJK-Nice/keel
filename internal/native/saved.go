@@ -45,7 +45,10 @@ type savedTab struct {
 	Title   string     `json:"title,omitempty"`
 	Focused string     `json:"focusedSessionId,omitempty"`
 	Zoomed  string     `json:"zoomedSessionId,omitempty"`
-	Layout  *savedNode `json:"layout"`
+	// FocusedNotebook and ZoomedNotebook are the same for a notebook pane: its id, and nothing of its text.
+	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
+	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
+	Layout          *savedNode `json:"layout"`
 }
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
@@ -106,10 +109,18 @@ func (w *workspace) snapshot() savedDoc {
 		}
 		st := savedTab{Title: t.title, Layout: root}
 		if p := t.panes[t.focused]; p != nil {
-			st.Focused = p.sessionID()
+			if p.nb != nil { // a notebook pane has no session: its id says which
+				st.FocusedNotebook = p.nb.savedID()
+			} else {
+				st.Focused = p.sessionID()
+			}
 		}
 		if p := t.panes[t.zoomed]; p != nil {
-			st.Zoomed = p.sessionID()
+			if p.nb != nil {
+				st.ZoomedNotebook = p.nb.savedID()
+			} else {
+				st.Zoomed = p.sessionID()
+			}
 		}
 		d.Tabs = append(d.Tabs, st)
 	}
@@ -296,10 +307,37 @@ func (w *workspace) buildTab(st savedTab, bySID map[string]*pane, used map[strin
 	if p := bySID[st.Focused]; p != nil && byID[p.id] == p {
 		t.focused = p.id
 	}
+	if p := notebookPaneByID(byID, st.FocusedNotebook); p != nil {
+		t.focused = p.id
+	}
 	if p := bySID[st.Zoomed]; p != nil && byID[p.id] == p && len(byID) > 1 {
 		t.zoomed, t.focused = p.id, p.id
 	}
+	if p := notebookPaneByID(byID, st.ZoomedNotebook); p != nil && len(byID) > 1 {
+		t.zoomed, t.focused = p.id, p.id
+	}
 	return t
+}
+
+// savedID is the id a notebook pane is saved under: none for one that is not saved yet or is gone (snapNode drops it).
+func (n *notebookPane) savedID() string {
+	if n.gone {
+		return ""
+	}
+	return n.id
+}
+
+// notebookPaneByID is the pane of the notebook with that id among a tab's panes, or nil (also for "").
+func notebookPaneByID(panes map[string]*pane, id string) *pane {
+	if id == "" {
+		return nil
+	}
+	for _, p := range panes {
+		if p.nb != nil && p.nb.id == id {
+			return p
+		}
+	}
+	return nil
 }
 
 func (w *workspace) buildNode(n *savedNode, bySID map[string]*pane, used map[string]bool, byID map[string]*pane, depth int) *layout.Node {

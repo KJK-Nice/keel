@@ -477,6 +477,50 @@ func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 	}
 }
 
+// The pane that had the keyboard in a tab comes back focused, a notebook pane too (the file keeps its id and nothing of its text).
+func TestTheFocusedAndZoomedNotebookPaneAreRestoredWithTheWorkspace(t *testing.T) {
+	for _, zoomed := range []bool{false, true} {
+		dir := t.TempDir()
+		fb := okBackend()
+		fb.addNotebook("Deploy", "SECRET-LOOKING-NOTEBOOK-TEXT\n")
+		fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+		r := newRigIn(t, fb, dir)
+		r.w.openNotebook("nb1")
+		r.tt.Frame()
+		tb := r.w.tab()
+		var nbPane *pane
+		for _, p := range tb.panes {
+			if p.nb != nil {
+				nbPane = p
+			}
+		}
+		if nbPane == nil || len(tb.panes) != 2 {
+			t.Fatalf("panes %d", len(tb.panes))
+		}
+		tb.focused = nbPane.id
+		if zoomed {
+			tb.zoomed = nbPane.id
+		}
+		r.w.closeWindow()
+		b, _ := os.ReadFile(filepath.Join(dir, savedFile))
+		if !strings.Contains(string(b), `"focusedNotebookId":"nb1"`) || strings.Contains(string(b), "SECRET-LOOKING") || strings.Contains(string(b), `"focusedSessionId"`) {
+			t.Fatalf("zoomed %v: workspace file %s", zoomed, b)
+		}
+		fb2 := okBackend()
+		fb2.nbf().list, fb2.nbf().seq = fb.nb.list, 1
+		fb2.sessions = fb.sessions
+		r2 := newRigIn(t, fb2, dir)
+		t2 := r2.w.tab()
+		got := t2.panes[t2.focused]
+		if got == nil || got.nb == nil || got.nb.id != "nb1" {
+			t.Fatalf("zoomed %v: the focused pane is %+v, want the notebook", zoomed, got)
+		}
+		if (t2.zoomed != "") != zoomed {
+			t.Errorf("zoomed %v but restored zoomed=%q", zoomed, t2.zoomed)
+		}
+	}
+}
+
 func TestANotebookPaneComesBackWithTheWorkspaceAndTheFileHoldsNoText(t *testing.T) {
 	dir := t.TempDir()
 	fb := okBackend()
