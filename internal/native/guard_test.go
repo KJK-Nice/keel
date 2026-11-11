@@ -254,8 +254,76 @@ func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
 func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback", "agent-insert", "agent-suggest", "agent-detect", "type-check"} {
-			if strings.Contains(src, bad) && !(bad == "type-check" && name == "keelclient/inject.go") {
-				t.Errorf("%s names %s: the client reads no pane text for the agent and has no in-pane suggestions", name, bad)
+			if strings.Contains(src, bad) && name != "keelclient/inject.go" {
+				t.Errorf("%s names %s: the client reads no pane text for the agent, and only keelclient/inject.go builds or reads a suggestion frame or a type-check", name, bad)
+			}
+		}
+		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s names %s: the client reads no pane text for the agent", name, bad)
+			}
+		}
+	}
+}
+
+// The third way (plan 019): a suggestion's ⇥ / ⇧⇥. The frames are built only in keelclient/inject.go; SuggestInsert has one
+// caller, (*workspace).insertSuggestion; the restore of the user's words (the only other thing in a suggestion that
+// writes bytes) one, (*workspace).restoreWords; and the two questions that go with it (detect, ask) are asked only by
+// the pane's suggestion code. Nothing hands SuggestInsert bytes: its argument names the suggestion, the option and ⇧.
+func TestSuggestInsertHasOneCallerInsertSuggestion(t *testing.T) {
+	got := allCallSites(t, "SuggestInsert")
+	if len(got) != 1 || got[0].file != "suggestpane.go" || got[0].in != "insertSuggestion" {
+		t.Fatalf("SuggestInsert is called from %v; it must be called once, from insertSuggestion in suggestpane.go", got)
+	}
+}
+
+func TestRestoreWordsHasOneCallerRestoreWords(t *testing.T) {
+	got := allCallSites(t, "RestoreWords")
+	if len(got) != 1 || got[0].file != "suggestpane.go" || got[0].in != "restoreWords" {
+		t.Fatalf("RestoreWords is called from %v; it must be called once, from restoreWords in suggestpane.go", got)
+	}
+}
+
+func TestSuggestQuestionsAreAskedOnlyByThePaneSuggestCode(t *testing.T) {
+	for _, name := range []string{"SuggestDetect", "SuggestAsk"} {
+		got := allCallSites(t, name)
+		if len(got) != 1 || got[0].file != "suggestpane.go" {
+			t.Errorf("%s is called from %v; it must be called once, from suggestpane.go", name, got)
+		}
+	}
+}
+
+// insertSuggestion is reached only from the key handling of a pane with an open card (suggestKey), and the reference to
+// the suggestion is built only there.
+func TestInsertSuggestionIsReachedOnlyFromTheCardsKeyHandling(t *testing.T) {
+	var from []string
+	for _, c := range allCallSites(t, "insertSuggestion") {
+		from = append(from, c.file+":"+c.in)
+	}
+	if len(from) != 1 || from[0] != "suggestpane.go:suggestInsert" {
+		t.Fatalf("insertSuggestion is called from %v; it must be called once, from suggestInsert in suggestpane.go (the machine's insert dep)", from)
+	}
+	for name, src := range sourceFiles(t) {
+		if name != "suggestpane.go" && !strings.HasPrefix(name, "keelclient/") && !strings.HasPrefix(name, "joinpeer/") && strings.Contains(src, "SuggestionRef{") {
+			t.Errorf("%s builds a keelclient.SuggestionRef: only suggestpane.go does", name)
+		}
+		if name != "keelclient/inject.go" && (strings.Contains(src, `"suggestionId"`) || strings.Contains(src, `"suggestion"`)) {
+			t.Errorf("%s builds the suggestion part of a frame: only keelclient/inject.go does", name)
+		}
+	}
+}
+
+// An insert never ends with Enter: the code that hands it over holds no newline or carriage return of its own, and the
+// restore drops every control character from the user's words.
+func TestNoSuggestionCodeAddsAnEnter(t *testing.T) {
+	for _, name := range []string{"suggestpane.go", "suggest.go"} {
+		src := sourceFiles(t)[name]
+		if src == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+		for _, bad := range []string{`"\r`, `"\n`, `\r"`, `\n"`, `\x0d`, `\x0a`, "'\\r'", "'\\n'"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s holds %s: a suggestion's bytes carry no Enter", name, bad)
 			}
 		}
 	}

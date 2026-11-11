@@ -64,7 +64,9 @@ func liveBodyT(p *pane, transparent bool) {
 	th := terminalTheme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
 	term, err := terminal.New(terminal.Options{
 		Conn: p.conn, Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
-		Font: terminal.Font{Family: p.fontFamily, Size: p.fontSize}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
+		// A noticed line or a card takes ⇥, ⇧⇥, esc, the option keys and ⌘Z first; every other key goes on at once (suggestKey).
+		OnKey: func(mods ui.Modifiers, key ui.Key) bool { return p.keyHook != nil && p.keyHook(mods, key) },
+		Font:  terminal.Font{Family: p.fontFamily, Size: p.fontSize}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
 			if p.zoom != nil {
@@ -83,6 +85,10 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 	p.view = func(c *ui.Context) ui.Element { return terminal.View(c, term).Fill() }
 	p.size = term.Size
+	p.sg.cursor = func() (int, string, bool) {
+		_, rows := term.Size()
+		return cursorRow(string(term.Snapshot()), rows)
+	}
 	p.screen = func() (bool, string) {
 		_, rows := term.Size()
 		return screenOf(string(term.Snapshot()), rows)

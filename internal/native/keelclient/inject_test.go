@@ -24,6 +24,8 @@ type injectServer struct {
 	onInject func(ws *websocket.Conn, m map[string]any)
 	// onCheck, when set, answers a type-check frame.
 	onCheck func(ws *websocket.Conn, m map[string]any)
+	// onOther, when set, sees every text frame (the suggestion frames answer from it).
+	onOther func(ws *websocket.Conn, m map[string]any)
 }
 
 func (s *injectServer) all() []map[string]any {
@@ -73,6 +75,9 @@ func dialInject(t *testing.T, status, role string, answer func(ws *websocket.Con
 			}
 			if m["type"] == "type-check" && s.onCheck != nil {
 				s.onCheck(ws, m)
+			}
+			if s.onOther != nil {
+				s.onOther(ws, m)
 			}
 		}
 	}))

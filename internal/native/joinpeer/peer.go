@@ -381,3 +381,12 @@ func (p *Peer) ApprovedInject(context.Context, string, *keelclient.AgentRef) err
 func (p *Peer) DirectType(context.Context, string, keelclient.DirectRef, *keelclient.AgentRef) (keelclient.DirectResult, error) {
 	return keelclient.DirectResult{}, ErrNoApprovedInject
 }
+
+// A joined pane has no in-pane suggestions (§5.7): these send nothing, and the window never asks.
+func (p *Peer) SuggestDetect(int, string) error          { return ErrNoApprovedInject }
+func (p *Peer) SuggestAsk(int, string) error             { return ErrNoApprovedInject }
+func (p *Peer) SuggestEvents() []keelclient.SuggestEvent { return nil }
+func (p *Peer) SuggestInsert(context.Context, keelclient.SuggestionRef) error {
+	return ErrNoApprovedInject
+}
+func (p *Peer) RestoreWords(string) error { return ErrNoApprovedInject }

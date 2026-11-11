@@ -38,6 +38,13 @@ type Conn struct {
 	directWaiters map[string]chan directAnswer
 
 	events []Event // what the share hub announced, until Events hands it over
+
+	// In-pane suggestions (inject.go): what keel serve answered, until SuggestEvents hands it over; the bytes of the
+	// suggestions it sent (only this file's insert may send them); and the insert waiting for keel serve's answer.
+	sugEvents    []SuggestEvent
+	sugKept      []keptSuggestion
+	insertWaiter chan agentAnswer
+	insertFor    string
 }
 
 // Peer is a client attached to a session. Role is owner, driver or follower.

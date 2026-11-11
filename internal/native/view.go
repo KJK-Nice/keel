@@ -37,6 +37,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.fallBackToHosts()
 	w.shareFrame(c)
+	w.suggestFrame(c)
 	w.shortcuts(c)
 	w.updateCaps(c)
 	if t := w.tab(); t != nil {
@@ -686,7 +687,11 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		if multi && !focused {
 			pane.Opacity(dimAlpha)
 		}
-		pane.Children(func() { p.view(c).Bind(&p.handle) })
+		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
+		pane.Children(func() {
+			p.view(c).Bind(&p.handle)
+			w.suggestOverlay(c, p)
+		})
 	})
 }
 

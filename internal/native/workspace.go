@@ -40,6 +40,14 @@ type session interface {
 	// DirectType asks keel serve to type a plainly read-only one-line command without the dialog and without Enter
 	// (keelclient/inject.go). Only typeNow (typenow.go) calls it.
 	DirectType(ctx context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error)
+	// In-pane suggestions (keelclient/inject.go, suggestpane.go). SuggestDetect and SuggestAsk are questions and write
+	// nothing; SuggestEvents hands over keel serve's answers. SuggestInsert (only insertSuggestion calls it) and
+	// RestoreWords (only restoreWords) are the two that put bytes on the prompt line.
+	SuggestDetect(seq int, line string) error
+	SuggestAsk(seq int, line string) error
+	SuggestEvents() []keelclient.SuggestEvent
+	SuggestInsert(ctx context.Context, ref keelclient.SuggestionRef) error
+	RestoreWords(words string) error
 }
 
 // backend is keel serve as the workspace uses it.
@@ -151,6 +159,9 @@ type pane struct {
 	// cursor is on. nil for a placeholder body: then the screen is unknown, which is read as the alternate screen.
 	screen func() (altScreen bool, promptLine string)
 	typing bool // a direct type is on its way: another press gets the app's message
+
+	sg      paneSuggest                              // in-pane suggestions (suggestpane.go)
+	keyHook func(mods ui.Modifiers, key ui.Key) bool // the terminal's OnKey: set by newPane
 
 	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
 	joinKey     string // which join it is (the origin and the room, never the key)
@@ -269,6 +280,7 @@ type workspace struct {
 	gate           *unlockGate // the Unlock screen, over the whole window
 	first          *firstRun   // the First run screens (or the palette's host import), over the whole window
 	closed         bool
+	sugNow         time.Time // the frame's time, the suggestion machines' clock
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool          // a poll is in flight
@@ -482,6 +494,7 @@ func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 			w.setTermSize(w.termSize + steps)
 		}
 	}
+	p.keyHook = func(mods ui.Modifiers, key ui.Key) bool { return w.suggestKey(p, mods, key) }
 	conn.OnChange(func() { w.post(func() {}) }) // redraw the dot and the bar
 	w.mkBody(p)
 	return p

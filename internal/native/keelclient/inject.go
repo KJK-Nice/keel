@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -32,6 +33,12 @@ import (
 // written; the window opens Approve before type) or a refusal. This file is the only one that builds the frames of
 // either way: inject-challenge, inject (with or without direct and agent) and type-check. guard_test.go keeps all of it
 // true. The page's version is cmd/keel/web/js/pty.js typeDirect and checkDirect.
+
+// A third way, for the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5; suggestinsert below):
+// SuggestInsert sends the bytes keel serve itself gave for that option (Ctrl-U and the command, no newline) and
+// nothing else; the caller names the suggestion, the option and ⇧, never the bytes. It is called only by
+// (*workspace).insertSuggestion. keel serve decides, again, at the moment of the write. Restoring the user's own
+// words after an insert (⌘Z) is RestoreWords, called only by (*workspace).restoreWords.
 
 // The refusals carry the words of the webview's toasts (cmd/keel/web/js/pty.js sendApprovedInject, typeDirect).
 var (
@@ -162,6 +169,9 @@ func (c *Conn) injectFrame(data []byte) bool {
 	}
 	if json.Unmarshal(data, &m) != nil {
 		return false
+	}
+	if c.suggestFrame(m.Type, data) {
+		return true
 	}
 	if m.Type == "type-direct" || m.Type == "type-check" { // matched by the ref the request carried (pty.js settleDirect)
 		c.mu.Lock()
@@ -399,4 +409,307 @@ func (c *Conn) DirectCheck(ctx context.Context, command string, ref DirectRef, a
 	}
 	a, ok, err := c.waitDirect(ctx, answer)
 	return ok && a.direct, err
+}
+
+// ---- in-pane suggestions (cmd/keel/web/js/ui/suggest.js, lib/suggest.js; internal/httpapi/agentsuggest.go) ----
+
+// SuggestOption is one command keel serve offered. It holds no bytes: the bytes an insert sends stay in this package.
+type SuggestOption struct {
+	Command, Why, Risk, Source       string
+	NeedsShift, Judged, Placeholders bool
+}
+
+// Suggestion is the card keel serve sent for the words on a prompt line.
+type Suggestion struct {
+	ID      string
+	Options []SuggestOption
+}
+
+// Kinds of SuggestEvent.
+const (
+	SuggestDetected = "detect"  // keel serve's answer to SuggestDetect: Seq, Plain, Source
+	SuggestAnswered = "suggest" // its answer to SuggestAsk: Seq, OK, Suggestion or Message and Reason
+	SuggestRated    = "risk"    // Jev rated the shown suggestion stricter: ID and Options (Risk, NeedsShift, Judged)
+)
+
+// SuggestEvent is one answer keel serve pushed for a suggestion; the window reads it on its next frame.
+type SuggestEvent struct {
+	Kind            string
+	Seq             int
+	Plain           bool
+	Source          string
+	OK              bool
+	Suggestion      *Suggestion
+	Message, Reason string
+	ID              string
+	Options         []SuggestOption
+}
+
+// SuggestionRef names the option an insert is for. The bytes are not part of it.
+type SuggestionRef struct {
+	ID     string
+	Option int
+	Shift  bool // exactly as the key was pressed: this package never sets it
+}
+
+// keptSuggestion is what keel serve gave as the bytes of each option of a suggestion.
+type keptSuggestion struct {
+	id    string
+	bytes []string
+}
+
+const keptSuggestions = 8 // keel serve expires them itself; a few are enough for the one card on screen
+
+// ErrSuggestionGone is keel serve's own word for an insert that is too late (httpapi.go).
+var ErrSuggestionGone = errors.New("the insert expired; press ⇥ again")
+
+// ErrMultiLine is the webview's refusal of a command that spans lines (term.js insertSuggestion).
+var ErrMultiLine = errors.New("This command spans lines; copy it instead.")
+
+// insertWait is how long keel serve has to answer an insert (term.js insertSuggestion: 4 s).
+const insertWait = 4 * time.Second
+
+// suggestReady is the check before any suggestion frame: a ready session this client drives.
+func (c *Conn) suggestReady() error {
+	st := c.Snapshot()
+	switch {
+	case st.Status != "ready":
+		return ErrNotReady
+	case st.Role != "driver":
+		return ErrNotDriver
+	}
+	return nil
+}
+
+func (c *Conn) sendSuggest(kind string, seq int, line string) error {
+	if err := c.suggestReady(); err != nil {
+		return err
+	}
+	b, _ := json.Marshal(map[string]any{"type": kind, "seq": seq, "line": line})
+	return c.write(websocket.TextMessage, b)
+}
+
+// SuggestDetect asks keel serve whether the words on the prompt line are plain language (agent-detect). It writes
+// nothing to the session; keel serve's answer comes back as a SuggestDetected event with the same seq.
+func (c *Conn) SuggestDetect(seq int, line string) error {
+	return c.sendSuggest("agent-detect", seq, line)
+}
+
+// SuggestAsk asks keel serve for a command for the words (agent-suggest). It writes nothing to the session; the
+// answer is a SuggestAnswered event, then perhaps a SuggestRated one.
+func (c *Conn) SuggestAsk(seq int, line string) error {
+	return c.sendSuggest("agent-suggest", seq, line)
+}
+
+// suggestFrame handles keel serve's four suggestion frames and reports whether data was one.
+func (c *Conn) suggestFrame(typ string, data []byte) bool {
+	var m struct {
+		Seq          int    `json:"seq"`
+		Plain        bool   `json:"plain"`
+		Source       string `json:"source"`
+		OK           bool   `json:"ok"`
+		Message      string `json:"message"`
+		Reason       string `json:"reason"`
+		SuggestionID string `json:"suggestionId"`
+		Suggestion   *struct {
+			ID      string `json:"id"`
+			Options []struct {
+				Command      string `json:"command"`
+				Bytes        string `json:"bytes"`
+				Why          string `json:"why"`
+				Risk         string `json:"risk"`
+				NeedsShift   bool   `json:"needsShift"`
+				Placeholders bool   `json:"placeholders"`
+				Source       string `json:"source"`
+				Judged       bool   `json:"judged"`
+			} `json:"options"`
+		} `json:"suggestion"`
+		Options []struct {
+			Risk       string `json:"risk"`
+			NeedsShift bool   `json:"needsShift"`
+			Judged     bool   `json:"judged"`
+		} `json:"options"`
+	}
+	switch typ {
+	case "agent-detect", "agent-suggest", "agent-suggest-risk", "agent-insert":
+	default:
+		return false
+	}
+	if json.Unmarshal(data, &m) != nil {
+		return true
+	}
+	switch typ {
+	case "agent-detect":
+		c.pushSuggest(SuggestEvent{Kind: SuggestDetected, Seq: m.Seq, Plain: m.Plain, Source: m.Source})
+	case "agent-suggest":
+		e := SuggestEvent{Kind: SuggestAnswered, Seq: m.Seq, OK: m.OK, Message: m.Message, Reason: m.Reason}
+		if s := m.Suggestion; s != nil {
+			sug := &Suggestion{ID: s.ID}
+			kept := keptSuggestion{id: s.ID}
+			for _, o := range s.Options {
+				sug.Options = append(sug.Options, SuggestOption{Command: o.Command, Why: o.Why, Risk: o.Risk, Source: o.Source,
+					NeedsShift: o.NeedsShift, Judged: o.Judged, Placeholders: o.Placeholders})
+				kept.bytes = append(kept.bytes, o.Bytes)
+			}
+			e.Suggestion = sug
+			c.mu.Lock()
+			c.sugKept = append(c.sugKept, kept)
+			if len(c.sugKept) > keptSuggestions {
+				c.sugKept = c.sugKept[len(c.sugKept)-keptSuggestions:]
+			}
+			c.mu.Unlock()
+		}
+		c.pushSuggest(e)
+	case "agent-suggest-risk":
+		e := SuggestEvent{Kind: SuggestRated, ID: m.SuggestionID}
+		for _, o := range m.Options {
+			e.Options = append(e.Options, SuggestOption{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged})
+		}
+		c.pushSuggest(e)
+	case "agent-insert":
+		c.mu.Lock()
+		w, want := c.insertWaiter, c.insertFor
+		c.mu.Unlock()
+		if w != nil && m.SuggestionID == want { // an answer about another suggestion is not ours
+			select {
+			case w <- agentAnswer{m.OK, m.Message}:
+			default:
+			}
+		}
+	}
+	return true
+}
+
+func (c *Conn) pushSuggest(e SuggestEvent) {
+	c.mu.Lock()
+	if len(c.sugEvents) < 64 {
+		c.sugEvents = append(c.sugEvents, e)
+	}
+	fn := c.onChange
+	c.mu.Unlock()
+	if fn != nil {
+		fn()
+	}
+}
+
+// SuggestEvents hands over what keel serve answered since the last call, oldest first.
+func (c *Conn) SuggestEvents() []SuggestEvent {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := c.sugEvents
+	c.sugEvents = nil
+	return out
+}
+
+// suggestBytes is what keel serve gave as the bytes of option i of suggestion id.
+func (c *Conn) suggestBytes(id string, i int) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, k := range c.sugKept {
+		if k.id == id && i >= 0 && i < len(k.bytes) {
+			return k.bytes[i], true
+		}
+	}
+	return "", false
+}
+
+// SuggestInsert is the user's ⇥ / ⇧⇥ on a suggestion card: it asks keel serve for a one-time nonce for the bytes keel
+// serve gave for that option, sends them with the suggestion reference (id, option and ⇧ as pressed), and returns keel
+// serve's refusal (its own words) or nil when it says it wrote them. keel serve checks the suggestion, the bytes, the ⇧
+// rule and that this client drives, logs agent.insert, then writes; the bytes end without a newline, so nothing runs.
+// It is called only by (*workspace).insertSuggestion. One at a time, never queued, never retried. Nothing goes out
+// unless this client drives a ready session, the suggestion is one keel serve sent, and its bytes are one line.
+func (c *Conn) SuggestInsert(ctx context.Context, ref SuggestionRef) error {
+	if err := c.suggestReady(); err != nil {
+		return err
+	}
+	bytes, ok := c.suggestBytes(ref.ID, ref.Option)
+	switch {
+	case !ok:
+		return ErrSuggestionGone
+	case strings.IndexFunc(bytes, func(r rune) bool { return r == 13 || r == 10 }) >= 0:
+		return ErrMultiLine
+	}
+	c.mu.Lock()
+	if c.ticket != nil || c.insertWaiter != nil {
+		c.mu.Unlock()
+		return ErrInjectBusy
+	}
+	waiter := make(chan string, 1)
+	c.ticket = waiter
+	answer := make(chan agentAnswer, 1) // registered before the frame goes out, so the answer cannot be missed
+	c.insertWaiter, c.insertFor = answer, ref.ID
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.ticket, c.insertWaiter, c.insertFor = nil, nil, ""
+		c.mu.Unlock()
+	}()
+
+	b, _ := json.Marshal(map[string]any{"type": "inject-challenge", "command": bytes})
+	if err := c.write(websocket.TextMessage, b); err != nil {
+		return err
+	}
+	wait := ticketWait
+	if c.wait > 0 {
+		wait = c.wait
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	var nonce string
+	select {
+	case nonce = <-waiter:
+	case <-timer.C:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if nonce == "" {
+		return ErrNoTicket
+	}
+	b, _ = json.Marshal(map[string]any{"type": "inject", "command": bytes, "nonce": nonce,
+		"suggestion": map[string]any{"suggestionId": ref.ID, "option": ref.Option, "shift": ref.Shift}})
+	if err := c.write(websocket.TextMessage, b); err != nil {
+		return err
+	}
+	if c.wait > 0 {
+		wait = c.wait
+	} else {
+		wait = insertWait
+	}
+	timer.Reset(wait)
+	select {
+	case a := <-answer:
+		if !a.ok {
+			if a.message == "" {
+				a.message = "Not inserted."
+			}
+			return errors.New(a.message)
+		}
+		return nil
+	case <-timer.C:
+		return ErrNoAgentAnswer
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// restoreBytes is what ⌘Z sends to put the user's own words back: Ctrl-U to clear the inserted command, then the words
+// with every control character dropped, so a restore can never press Enter (lib/suggest.js restoreBytes).
+func restoreBytes(words string) string {
+	return "\x15" + strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, words)
+}
+
+// RestoreWords is ⌘Z after an insert: the user's own words back, as their keystrokes, to this session only (term.js
+// restoreWords: sendSessionBytes, which keel serve takes as ordinary typing from the driver). Nothing goes out unless
+// this client drives a ready session. It is called only by (*workspace).restoreWords.
+func (c *Conn) RestoreWords(words string) error {
+	if err := c.suggestReady(); err != nil {
+		return err
+	}
+	return c.write(websocket.BinaryMessage, []byte(restoreBytes(words)))
 }

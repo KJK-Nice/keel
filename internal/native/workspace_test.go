@@ -40,6 +40,20 @@ type fakeConn struct {
 	directRes keelclient.DirectResult // what it answers; the zero value is a refusal with no words, so a test sets it
 	directErr error
 	directGo  chan struct{} // when set, a DirectType waits for it to be closed
+
+	// In-pane suggestions, recorded: the questions (seq and line), the answers keel serve "pushed", the inserts asked for
+	// and what they answer, and the words restored.
+	detects, asks []fakeAsk
+	sugEvents     []keelclient.SuggestEvent
+	sugInserts    []keelclient.SuggestionRef
+	sugInsertErr  error
+	restored      []string
+}
+
+// fakeAsk is one SuggestDetect or SuggestAsk call.
+type fakeAsk struct {
+	seq  int
+	line string
 }
 
 // fakeDirect is one DirectType call.
@@ -85,6 +99,28 @@ func (c *fakeConn) DirectType(_ context.Context, command string, ref keelclient.
 		<-c.directGo
 	}
 	return c.directRes, c.directErr
+}
+
+func (c *fakeConn) SuggestDetect(seq int, line string) error {
+	c.detects = append(c.detects, fakeAsk{seq, line})
+	return nil
+}
+func (c *fakeConn) SuggestAsk(seq int, line string) error {
+	c.asks = append(c.asks, fakeAsk{seq, line})
+	return nil
+}
+func (c *fakeConn) SuggestEvents() []keelclient.SuggestEvent {
+	out := c.sugEvents
+	c.sugEvents = nil
+	return out
+}
+func (c *fakeConn) SuggestInsert(_ context.Context, ref keelclient.SuggestionRef) error {
+	c.sugInserts = append(c.sugInserts, ref)
+	return c.sugInsertErr
+}
+func (c *fakeConn) RestoreWords(words string) error {
+	c.restored = append(c.restored, words)
+	return nil
 }
 
 // fakeBackend records what the workspace asks of keel serve.
