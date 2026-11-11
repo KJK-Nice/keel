@@ -211,6 +211,35 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   joining`, `banner failed`, `tab <title> · joined`. Joining is ⌘J, `e.fillField("Join link", link)`, `e.click("Join")`.
 - Person only: two real machines, NAT, a public signal server, the browser join page against a native owner.
 
+## The agent panel (`e2e_agent_test.go`, `agentpanel_test.go`)
+
+- **The fake provider is mandatory.** `startServeAt` gives every daemon `KEEL_AGENT_PROVIDER=fake`: keel serve then answers
+  from an in-process fake and sends nothing anywhere. A scenario stores only `fakeAgentKey` (made up), by the API
+  (`e.putAgentKey()`) or through the Connect card (`TestE2EAgentNoKey`). Never start a daemon without the variable once
+  a key could be stored; never a real key, never a real model. A person tries one real question before the cutover.
+- The fake's words (`internal/agent/provider/providertest/scripted.go`): "Test provider: nothing left this machine. I
+  was given N pane excerpt(s) and K redacted value(s)." with `pane excerpt` / `excerpts` and `value` / `values`; it
+  proposes `echo keel-agent-ok` (read-only), `rm -rf /tmp/keel-agent-e2e` for a question with "delete" (destructive),
+  `touch /tmp/keel-agent-e2e-touched` for "touch" (changes state), none for "no command".
+- **Nothing typed before approval** is asserted on the scrollback: `e.settle(time.Second)` (pumping, the allowed
+  wait) after the card shows, again with the dialog open, and after Cancel; the marker is `"\nkeel-agent-ok"` (the output
+  line: the echoed command has `echo ` before it). After the approved Type, `e.waitScrollback`.
+- **Log rows** are asserted with `e.logKinds()` (`GET /api/logs`): `agent.read` and `agent.suggest` once the card shows,
+  `agent.type` 0 until the approved Type and then 1; an ask with nothing in scope, or with "Agent can read" off, adds no
+  `agent.read`. A key is looked for in `keel.log`, `keel-native.json`, the daemon's `serve.log` and the window's text.
+- `/tmp` paths: `scratchPath` fails the test if `/tmp/keel-agent-e2e` or `-touched` already exists (a test never touches
+  what it did not make), creates the first empty, and removes both in cleanup (`os.Remove`, never recursive). The
+  destructive scenario runs `rm -rf /tmp/keel-agent-e2e` on that empty folder and checks it is gone.
+- Labels: `agent panel`, `Message the agent`, `Choose what the agent can read`, `dialog Panes the agent reads`, rows
+  `pick <host> · <tab>` (with the session id when two read the same), presets `Focused pane` / `Every pane in tab` /
+  `None`, `Proposal`, `Edit command` (button, then the field), `Save command`, `Copy command`, `Type into pane…` (⇧:
+  `e.tt.ClickWith(ui.Shift, …)`), `proposal status`, `agent answer`, `Gemini API key input`, `Connect`. The dialog is
+  `dialog Type into the terminal?`, `e.waitApprove()`, buttons `Cancel` / `Type`. A host dialog switch shares its label with
+  its row text: press it by position (`setLocalProduction`). Two panes of one host share `Reads N of M panes`: count, never position.
+- Unit tests (`agentlogic_test.go` is `test/agent.test.mjs` for the panel; `agentpanel_test.go` is the panel on the fake
+  backend) check what an ask sends (exactly three keys: no pane text), Stop, Edit through the server, Copy, the ⇧ rule, the
+  refusals, the key field, and that a joined tab has no button. `guard_test.go` keeps one writer and one caller.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
