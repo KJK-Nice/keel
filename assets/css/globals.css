@@ -20,6 +20,10 @@
 /* Nor do the JS unit tests: the markdown renderer's cases quote those
    placeholders too. */
 @source not "../../cmd/keel/web/js/test";
+/* The native client draws with MyGo, not CSS: its Go sources and tests quote
+   `[secret:N]`, `sepia` and `row-5` as plain strings, which would become
+   classes in the webview's stylesheet. */
+@source not "../../internal/native";
 
 @custom-variant dark (&:is(.dark *));
 
