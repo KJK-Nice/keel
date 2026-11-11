@@ -115,6 +115,27 @@ func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelcl
 			})
 			help(c, "One command per line. Each line ends with Enter when typed.")
 		})
+		// "Preview of what gets typed": k-bytes, each line with its Enter as a k-ctl chip, then the count (pages.templ).
+		lines, summary := snippetPreview(e.command)
+		ui.Column(c).FillWidth().Gap(space1).Children(func() {
+			label(c, "Preview of what gets typed", inkMuted)
+			ui.Column(c).FillWidth().Padding(space3).Radius(radiusSm).Background(stage).Border(1, line).Label("Snippet preview").Children(func() {
+				for _, l := range lines {
+					ui.RichText(c).FontSize(captionSize).TextColor(ink).Font(monoStack).Children(func() {
+						ui.Text(c, l)
+						ui.Text(c, " ↵ ").TextColor(brassInk).Background(brassSoft).FontWeight(weightMedium)
+					})
+				}
+			})
+			help(c, summary)
+		})
+		ui.Row(c).FillWidth().Gap(space3).Children(func() {
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
+				label(c, "Let the agent suggest this snippet", inkMuted)
+				help(c, "⇥ can offer it when your words match. One-line commands without {{var}} fields only. When on, its text is sent, redacted, to TypeSafe Jev.")
+			})
+			ui.Switch(c, &e.agent).Label("Let the agent suggest this snippet switch").Shrink(0)
+		})
 		if e.err != "" {
 			ui.Row(c).FillWidth().Label("snippet form error").Children(func() { caption(c, e.err, flare) })
 		}

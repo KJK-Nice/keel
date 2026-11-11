@@ -1120,6 +1120,9 @@ func (f *fakeBackend) SaveSnippet(_ context.Context, in keelclient.SnippetInput)
 	for i := range f.snippets {
 		if f.snippets[i].ID == in.ID {
 			out.AgentUsable, out.CreatedAt = f.snippets[i].AgentUsable, f.snippets[i].CreatedAt // the server keeps them
+			if in.AgentUsable != nil { // unless the save names the flag (httpapi snippetPayload)
+				out.AgentUsable = *in.AgentUsable
+			}
 			f.snippets[i] = out
 		}
 	}

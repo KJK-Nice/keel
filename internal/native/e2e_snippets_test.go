@@ -239,6 +239,17 @@ func TestE2ESnippetsPageComesBack(t *testing.T) {
 		t.Fatal("the old name is still on the server")
 	}
 	e.shot("TestE2ESnippetsPageComesBack")
+	// "Let the agent suggest this snippet" is off for a new snippet; the switch and Save turn it on, on the server.
+	if s, _ := e.snippetNamed("e2e kept"); s.AgentUsable {
+		t.Fatal("a new snippet may be suggested by the agent")
+	}
+	ed := &e.w.pageTab("snippets").pg.snippets.ed
+	// The save is done when the window's list holds it too: until then the editor re-reads the old text.
+	e.pump(func() bool { s, _ := e.w.snippet(ed.id); return !ed.saving && !ed.dirty() && s.Name == "e2e kept" && ed.name == "e2e kept" }, "the first save to finish")
+	e.click("Let the agent suggest this snippet switch")
+	e.pump(func() bool { return ed.agent && ed.dirty() }, "the switch on")
+	e.click("Save")
+	e.pump(func() bool { s, ok := e.snippetNamed("e2e kept"); return ok && s.AgentUsable }, "the flag on the server")
 	e.settle(600 * time.Millisecond)
 	e.w.closeWindow()
 

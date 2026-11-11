@@ -2,6 +2,7 @@ package keelclient
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -27,6 +28,15 @@ func TestSnippetCallsUseTheRightMethodPathAndBody(t *testing.T) {
 	got, body = r.last()
 	if got != "PUT /api/snippets/s 1" || strings.Contains(body, "agentUsable") || strings.Contains(body, `"id"`) {
 		t.Fatal(got, body)
+	}
+	// A save that names the flag (the page's editor) sends it, true or false.
+	for _, on := range []bool{true, false} {
+		if _, err := r.c.SaveSnippet(ctx, SnippetInput{ID: "s1", Name: "disk", Command: "df\n", AgentUsable: &on}); err != nil {
+			t.Fatal(err)
+		}
+		if _, body = r.last(); !strings.Contains(body, fmt.Sprintf(`"agentUsable":%v`, on)) {
+			t.Fatal(body)
+		}
 	}
 	r.c.DeleteSnippet(ctx, "s1")
 	if got, _ := r.last(); got != "DELETE /api/snippets/s1" {

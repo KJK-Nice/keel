@@ -10,8 +10,7 @@ import (
 // Snippets: saved commands (store.Snippet). Nothing here types anything: a snippet reaches a session only through the
 // Approve before type dialog (internal/native/approve.go).
 
-// Snippet is a saved snippet as GET /api/snippets lists it. AgentUsable is the agent phase's switch: it is read and
-// never changed by this client.
+// Snippet is a saved snippet as GET /api/snippets lists it. AgentUsable is "Let the agent suggest this snippet".
 type Snippet struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -26,12 +25,13 @@ func (c *Client) Snippets(ctx context.Context) (out []Snippet, err error) {
 	return out, err
 }
 
-// SnippetInput is what a save sends. It has no AgentUsable: the key is left out and keel serve keeps the saved flag
-// (httpapi snippetPayload), so a save here can never change it.
+// SnippetInput is what a save sends. AgentUsable is a pointer: nil leaves the key out and keel serve keeps the saved
+// flag (httpapi snippetPayload), so only the Snippets page's editor, which shows the switch, ever sets it.
 type SnippetInput struct {
-	ID      string `json:"-"` // "" creates, else updates
-	Name    string `json:"name"`
-	Command string `json:"command"`
+	ID          string `json:"-"` // "" creates, else updates
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	AgentUsable *bool  `json:"agentUsable,omitempty"`
 }
 
 // SaveSnippet creates a snippet (in.ID is empty: POST /api/snippets) or updates one (PUT /api/snippets/{id}) and

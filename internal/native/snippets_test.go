@@ -35,6 +35,56 @@ func snippetRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
+// The preview is lib/vaultview.js snippetPreview, with the cases of its test.
+func TestSnippetPreviewIsTheBytesTypedWithTheirEnters(t *testing.T) {
+	for _, c := range []struct {
+		in      string
+		lines   []string
+		summary string
+	}{
+		{"", nil, "0 lines · 0 bytes. Typing always goes through Approve before type."},
+		{"ls", []string{"ls"}, "1 line · 3 bytes. Typing always goes through Approve before type."},
+		{"cd /\nls\n", []string{"cd /", "ls"}, "2 lines · 8 bytes. Typing always goes through Approve before type."},
+	} {
+		lines, summary := snippetPreview(c.in)
+		if !slices.Equal(lines, c.lines) || summary != c.summary {
+			t.Errorf("snippetPreview(%q) = %q, %q", c.in, lines, summary)
+		}
+	}
+}
+
+// The switch is saved with the snippet from the page's editor and by nothing else: the dialogs leave the flag to keel serve.
+func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) {
+	fb := snippetBackend()
+	r := snippetRig(t, fb)
+	r.w.openPage("snippets")
+	r.tt.Frame()
+	r.click(t, "snippet two steps")
+	e := &r.w.tab().pg.snippets.ed
+	if e.agent {
+		t.Fatal("the switch is on for a snippet that may not be suggested")
+	}
+	r.click(t, "Let the agent suggest this snippet switch")
+	if !e.agent || !e.dirty() {
+		t.Fatalf("the click did not turn it on: agent %v dirty %v", e.agent, e.dirty())
+	}
+	r.click(t, "Save")
+	if len(fb.snipSaved) != 1 || fb.snipSaved[0].AgentUsable == nil || !*fb.snipSaved[0].AgentUsable {
+		t.Fatalf("saved %+v", fb.snipSaved)
+	}
+	if got, _ := r.w.snippet("sn-2"); !got.AgentUsable || e.dirty() {
+		t.Errorf("the saved snippet %+v, dirty %v", got, e.dirty())
+	}
+	// The row menu's Edit dialog sends no flag.
+	sn, _ := r.w.snippet("sn-2")
+	r.w.editSnippet(sn)
+	r.tt.Frame()
+	r.click(t, "Save snippet")
+	if len(fb.snipSaved) != 2 || fb.snipSaved[1].AgentUsable != nil {
+		t.Fatalf("the dialog's save %+v", fb.snipSaved)
+	}
+}
+
 func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
@@ -47,10 +97,16 @@ func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 		t.Fatalf("editor %+v", e)
 	}
 	// What the webview does not have is not here.
-	for _, s := range []string{"Offer on hosts tagged", "Read-only", "Changes state", "Preview of what gets typed", "Let the agent suggest this snippet"} {
+	for _, s := range []string{"Offer on hosts tagged", "Read-only", "Changes state"} {
 		if r.tt.HasText(s) {
 			t.Errorf("the page shows %q, which the app does not have", s)
 		}
+	}
+	// What it has is (pages.templ): the preview of the bytes with the count, and the agent switch, on for this snippet.
+	r.texts(t, "Preview of what gets typed", "1 line · 6 bytes. Typing always goes through Approve before type.", "Let the agent suggest this snippet",
+		"⇥ can offer it when your words match. One-line commands without {{var}} fields only. When on, its text is sent, redacted, to TypeSafe Jev.")
+	if !e.agent || e.dirty() {
+		t.Fatalf("the switch is %v for a snippet that may be suggested (dirty %v)", e.agent, e.dirty())
 	}
 	r.click(t, "snippet two steps")
 	if e.id != "sn-2" || e.command != "cd /var/log\nls -la" {
@@ -62,8 +118,10 @@ func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 	if len(fb.snipSaved) != 1 {
 		t.Fatalf("saved %v", fb.snipSaved)
 	}
-	// The name is trimmed and the command ends with a newline, as /ui/forms/snippet-editor does; no agent flag is sent.
-	if got := fb.snipSaved[0]; got != (keelclient.SnippetInput{ID: "sn-2", Name: "logs", Command: "tail -n 50 syslog\n"}) {
+	// The name is trimmed and the command ends with a newline, as /ui/forms/snippet-editor does; the form always posts
+	// the agent switch (here off, as the snippet was).
+	got := fb.snipSaved[0]
+	if got.ID != "sn-2" || got.Name != "logs" || got.Command != "tail -n 50 syslog\n" || got.AgentUsable == nil || *got.AgentUsable {
 		t.Fatalf("body %+v", got)
 	}
 	if e.dirty() {
