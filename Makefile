@@ -1,4 +1,4 @@
-.PHONY: app native native-app native-e2ebuild test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app native native-app native-e2e build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -52,6 +52,7 @@ app: ui
 	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app $(if $(WEBVIEW),--webview)
 
 build: ui
+	rm -f bin/keel
 	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
@@ -97,6 +98,7 @@ signal:
 
 # The native client (MyGo, pure Go). It attaches to a running keel serve.
 native:
+	rm -f bin/keel-native
 	CGO_ENABLED=0 go build -o bin/keel-native ./cmd/keel-native
 
 # Keel Native.app: keel-native with libghostty-vt beside it, so the app
@@ -115,6 +117,7 @@ native-app: native
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
 native-e2e:
+	rm -f bin/keel
 	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 	go build -o bin/keel-signal ./cmd/keel-signal
