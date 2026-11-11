@@ -128,8 +128,8 @@ func (w *workspace) notebookBody(c *ui.Context, t *tab, p *pane) {
 	})
 }
 
-// notebookReview is the banner on a notebook the agent edited that the user has not reviewed (syncNotebookReview). "View
-// changes" and "Undo" belong to the agent plan; Mark reviewed clears the mark.
+// notebookReview is the banner on a notebook the agent edited that the user has not reviewed (syncNotebookReview): View
+// changes, Undo and Mark reviewed. Only Mark reviewed clears the mark.
 func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 	head := "Edited by the agent"
 	if rec.Source == byAgent && rec.LastBy == byAgent {
@@ -145,8 +145,15 @@ func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 			text(c, head, ink, captionSize, weightSemibold).MinWidth(0)
 			ui.Text(c, agentEditReview).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 		})
+		id := rec.ID
+		// View changes opens History on the version before the agent's edit; Undo restores it (term.js undoAgentEdit).
+		if textBtn(c, "View changes", btnGhost) {
+			w.act(func() { w.openNotebookHistoryAt(id, "before-agent-edit") })
+		}
+		if textBtnAs(c, "Undo agent edit", "Undo", btnGhost) {
+			w.act(func() { w.undoAgentEdit(id) })
+		}
 		if textBtn(c, "Mark reviewed", btnPrimary) {
-			id := rec.ID
 			w.act(func() { w.markNotebookReviewed(id) })
 		}
 	})

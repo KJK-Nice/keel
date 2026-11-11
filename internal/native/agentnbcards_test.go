@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"keel/internal/native/keelclient"
 )
@@ -399,5 +400,86 @@ func TestSavedConversationsShowTheirNotebookCardsAndALegacyDraftHasNoSave(t *tes
 	r.openPageSettled()
 	if _, ok := r.tt.Find("Created notebook"); !ok {
 		t.Fatalf("the Agent page lacks the notebook card: %q", r.tt.Texts())
+	}
+}
+
+// ---- the review banner's actions (plan 024, step 5) ----
+
+// editedRig is a window with notebook nb1 open and an agent edit on it that the user has not reviewed.
+func editedRig(t *testing.T) (*rig, *pane, string) {
+	t.Helper()
+	r := nbAgentRig(t)
+	p := r.openNB(t, "nb1")
+	old := p.nb.md
+	rec := r.fb.agentEdits("nb1", old+"\nRestart the service.")
+	r.w.reloadNotebooks()
+	r.frames(3)
+	if p.nb.md != rec.Markdown() || !r.tt.HasText("Edited by the agent") {
+		t.Fatalf("no banner: %q", r.tt.Texts())
+	}
+	return r, p, old
+}
+
+func TestViewChangesOpensHistoryOnTheVersionBeforeTheAgentsEdit(t *testing.T) {
+	r, _, _ := editedRig(t)
+	r.fb.nb.history["nb1"] = append([]keelclient.NotebookVersion{{ID: "newer", NotebookID: "nb1", Event: "session", By: "user", At: lt(time.March, 4, 9, 0)}}, r.fb.nb.history["nb1"]...)
+	r.click(t, "View changes")
+	r.frames(2)
+	d := r.w.nbDlg
+	if d == nil || d.kind != "history" || d.selected != "bv1" {
+		t.Fatalf("History did not select the version before the agent's edit: %+v", d)
+	}
+	if !r.tt.HasText("History · Deploy") || !r.tt.HasText("Before the agent's edit") {
+		t.Fatalf("%q", r.tt.Texts())
+	}
+	if slices.ContainsFunc(r.fb.nb.reqs, func(s string) bool { return strings.HasPrefix(s, "reviewed") }) {
+		t.Fatal("looking at the changes marked the notebook reviewed")
+	}
+}
+
+func TestUndoOnTheBannerRestoresTheVersionKeptBeforeTheAgentsEditAndMarksNothingReviewed(t *testing.T) {
+	r, p, old := editedRig(t)
+	r.click(t, "Undo agent edit")
+	r.frames(3)
+	if n := r.fb.nb.reqsWith("restore nb1 bv1 rev=2"); n != 1 {
+		t.Fatalf("requests %v", r.fb.nb.reqs)
+	}
+	if p.nb.md != old || !r.tt.HasText("Undone. The agent's version is in History.") {
+		t.Fatalf("the pane shows %q", p.nb.md)
+	}
+	if slices.ContainsFunc(r.fb.nb.reqs, func(s string) bool { return strings.HasPrefix(s, "reviewed") }) {
+		t.Fatal("Undo marked the notebook reviewed")
+	}
+}
+
+func TestUndoAsksFirstWhenTheUserChangedTheNotebookAfterTheAgentAndSaysSoWhenThereIsNothingToUndo(t *testing.T) {
+	r, _, _ := editedRig(t)
+	r.fb.nb.list[0].LastBy = "" // the user saved after the agent's edit
+	r.w.reloadNotebooks()
+	r.frames(2)
+	r.click(t, "Undo agent edit")
+	if !r.tt.HasText("You changed this notebook after the agent's edit. Undo puts back the version from before the agent's edit; your later changes stay in History.") || r.fb.nb.reqsWith("restore") != 0 {
+		t.Fatalf("it did not ask: %q", r.tt.Texts())
+	}
+	r.click(t, "Cancel")
+	if r.fb.nb.reqsWith("restore") != 0 {
+		t.Fatal("Cancel restored")
+	}
+	r.click(t, "Undo agent edit")
+	dlg, ok := r.tt.Find("alertdialog Undo the agent's edit")
+	if !ok {
+		t.Fatalf("no confirm: %q", r.tt.Texts())
+	}
+	r.tt.ClickAt(dlg.X+dlg.W-space4-20, dlg.Y+dlg.H-space4-sizeControlSm/2) // the confirm's Undo: the banner's button has the same word under the scrim
+	r.frames(2)
+	if r.fb.nb.reqsWith("restore nb1 bv1") != 1 {
+		t.Fatalf("requests %v", r.fb.nb.reqs)
+	}
+
+	r2, _, _ := editedRig(t)
+	r2.fb.nb.history["nb1"] = nil
+	r2.click(t, "Undo agent edit")
+	if !r2.tt.HasText("Keel has no version from before the agent's edit. Open History to choose one.") {
+		t.Fatalf("%q", r2.tt.Texts())
 	}
 }

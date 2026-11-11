@@ -1,6 +1,7 @@
 package native
 
 import (
+	"slices"
 	"strconv"
 	"time"
 
@@ -32,6 +33,7 @@ const (
 type nbDialog struct {
 	kind string
 	id   string // the notebook, for rename and history
+	pick string // the event of the version History selects first; "" is the newest
 
 	name  string // rename: the field
 	focus bool   // the field has been given the keyboard
@@ -61,13 +63,17 @@ func (w *workspace) openRenameNotebook(id string) {
 // ---- History and Recently deleted ----
 
 // openNotebookHistory saves what was typed, then lists the notebook's versions and selects the newest.
-func (w *workspace) openNotebookHistory(id string) {
+func (w *workspace) openNotebookHistory(id string) { w.openNotebookHistoryAt(id, "") }
+
+// openNotebookHistoryAt is History that selects the newest version of an event ("before-agent-edit" for the banner's View
+// changes, term.js openHistory with agentEdit); "" selects the newest version.
+func (w *workspace) openNotebookHistoryAt(id, event string) {
 	rec, ok := w.notebook(id)
 	if !ok {
 		return
 	}
 	w.nbFlushID(id, func() {
-		d := &nbDialog{kind: "history", id: id, title: "History · " + notebookName(rec), desc: historyDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
+		d := &nbDialog{kind: "history", id: id, pick: event, title: "History · " + notebookName(rec), desc: historyDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
 		w.nbDlg = d
 		w.work(func() {
 			c, cancel := ctx()
@@ -102,7 +108,13 @@ func (w *workspace) nbLoaded(d *nbDialog, vs []keelclient.NotebookVersion, err e
 		d.empty = none
 		return
 	}
-	w.nbSelect(d, vs[0].ID)
+	if d.pick == "" {
+		w.nbSelect(d, vs[0].ID)
+		return
+	}
+	if i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == d.pick }); i >= 0 {
+		w.nbSelect(d, vs[i].ID)
+	}
 }
 
 // nbSelect selects a version and reads its text.

@@ -315,12 +315,9 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	}
 	r.click(t, "Cancel")
 	r.frames(2)
-	// The banner is there, with Mark reviewed only.
-	if miss := r.lacks("Edited by the agent", agentEditReview, "Mark reviewed", "badge Edited by agent"); len(miss) > 0 {
+	// The banner is there, with View changes, Undo and Mark reviewed (plan 024).
+	if miss := r.lacks("Edited by the agent", agentEditReview, "Mark reviewed", "badge Edited by agent", "View changes", "Undo"); len(miss) > 0 {
 		t.Fatalf("banner lacks %q", miss)
-	}
-	if r.tt.HasText("View changes") || r.tt.HasText("Undo") {
-		t.Error("View changes / Undo belong to the agent plan")
 	}
 	r.click(t, "Mark reviewed")
 	r.frames(2)
