@@ -38,6 +38,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.fallBackToHosts()
 	w.shareFrame(c)
 	w.shortcuts(c)
+	w.updateCaps(c)
 	if t := w.tab(); t != nil {
 		for id, p := range t.panes { // the ring and the dim follow keyboard focus
 			if p.handle.FocusWithin(c) {
@@ -181,13 +182,13 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if !w.joinedActive() && iconBtn(c, "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar) { // no toggle in a joined tab
+		if !w.joinedActive() && w.capBtn(c, "B", "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no toggle in a joined tab
 			w.act(func() { w.sidebar = !w.sidebar })
 		}
 		for i, t := range w.tabs {
 			w.tabPill(c, i, t)
 		}
-		if iconBtn(c, "add-01", "New tab", sizeControlSm, false) {
+		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
 			w.act(w.newTab)
 		}
 		ui.Spacer(c)
@@ -285,6 +286,9 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		} else {
 			bodyStrong(c, t.name(), col)
 		}
+		if k := tabKey(i, len(w.tabs)); k != "" {
+			w.keyCapLead(c, k)
+		}
 		if n := len(t.panes); n > 1 {
 			ui.Spacer(c)
 			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround). // k-badge--mono tab-count
@@ -335,7 +339,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					}
 				})
 				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {
-					if iconBtn(c, "add-01", "New host", sizeControlSm, false) { // btn-new-host: k-btn--sm k-btn--icon
+					if w.capBtn(c, "N", "add-01", "New host", sizeControlSm, false, false) { // btn-new-host: k-btn--sm k-btn--icon
 						w.act(w.newHost)
 					}
 					iconMenuBtn(c, "more-horizontal", "More host actions", sizeControlSm, w.hostActionsMenu)
@@ -407,7 +411,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if iconBtn(c, "settings-01", "Settings", sizeControlSm, false) {
+		if w.capBtn(c, ",", "settings-01", "Settings", sizeControlSm, false, false) {
 			w.act(func() { w.openPage("settings") })
 		}
 	})
@@ -641,10 +645,11 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				roleChip(c, st.Role)
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
-				if iconBtn(c, "split-h", "Split right", sizeControlSm, false) {
+				focused := t.focused == p.id // only the focused pane's tools have caps (keel.css:1032)
+				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
 					w.act(func() { w.split(t, p.id, layout.Row) })
 				}
-				if iconBtn(c, "split-v", "Split down", sizeControlSm, false) {
+				if w.paneCapBtn(c, focused, "⇧E", "split-v", "Split down", false, false) {
 					w.act(func() { w.split(t, p.id, layout.Col) })
 				}
 				zoomed := t.zoomed == p.id
@@ -652,7 +657,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				if zoomed {
 					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
 				}
-				if iconBtnOff(c, zoomGlyph, zoomTip, sizeControlSm, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
+				if w.paneCapBtn(c, focused, "⇧↵", zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
 					w.act(func() { w.toggleZoom(t, p.id) })
 				}
 				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))

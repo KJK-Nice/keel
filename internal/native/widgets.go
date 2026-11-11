@@ -52,6 +52,11 @@ func iconBtn(c *ui.Context, name, tip string, size float32, pressed bool) bool {
 
 // iconBtnOff is iconBtn that can be disabled: .pane-bar .icon-btn:disabled is 32% opaque and takes no pointer.
 func iconBtnOff(c *ui.Context, name, tip string, size float32, pressed, off bool) bool {
+	return iconBtnCap(c, name, tip, size, pressed, off, nil)
+}
+
+// iconBtnCap is iconBtnOff with a key cap: cap, when set, is drawn over the corner of an enabled button (keycaps.go).
+func iconBtnCap(c *ui.Context, name, tip string, size float32, pressed, off bool, cap func()) bool {
 	b := ui.Row(c).Size(size, size).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Cursor(ui.CursorPointer)
 	if off {
 		b.Opacity(disabledAlpha).Disabled(true)
@@ -66,7 +71,12 @@ func iconBtnOff(c *ui.Context, name, tip string, size float32, pressed, off bool
 	case b.Hovered():
 		b.Background(hoverGround)
 	}
-	b.Children(func() { icon(c, name, col) })
+	b.Children(func() {
+		icon(c, name, col)
+		if cap != nil {
+			cap()
+		}
+	})
 	return b.Clicked()
 }
 

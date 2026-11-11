@@ -214,6 +214,11 @@ type workspace struct {
 	post   func(fn func())
 	mkBody func(p *pane)
 
+	capsSince time.Time // when the hold began; zero while ⌘ is up (keycaps.go)
+	capsOff   bool      // a key or a click used this hold: no caps until it is let go
+	capAlpha  float32   // 0 hides the caps, 1 shows them
+	capsBase  []ui.Key  // keys already down when the hold began: stale, not a use of it
+
 	hosts          []keelclient.Host
 	snippets       []keelclient.Snippet
 	sideSeg        string // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
