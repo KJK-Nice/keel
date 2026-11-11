@@ -188,6 +188,31 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 	}
 }
 
+// lib/share.js roleChipHTML: a role chip has a glyph before its words, steering for who drives and the owner, an eye for a
+// follower. The glyph is 0.923rem, before the words, inside the pill.
+func TestARoleChipHasItsGlyph(t *testing.T) {
+	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
+	for _, tc := range []struct {
+		label, glyph string
+		st           keelclient.State
+	}{
+		{"role Driving", "steering", keelclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}},
+		{"role Following", "eye", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}},
+		{"role Owner", "steering", keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}},
+	} {
+		r := failedRig(t, tc.st, "h-api")
+		chip, ok := r.tt.Find(tc.label)
+		g, ok2 := r.tt.Find("role glyph " + tc.glyph)
+		if !ok || !ok2 {
+			t.Fatalf("%s: chip %v, glyph %q %v", tc.label, ok, tc.glyph, ok2)
+		}
+		// 12 px (0.923rem), 6 px in from the chip's left edge (7 with the owner's 1 px ring), centred in it, before the words.
+		if d := g.X - (chip.X + space1_5); d < -0.6 || d > 1.6 || g.W < iconSizeSm-0.1 || g.W > iconSizeSm+0.1 || g.Y < chip.Y || g.Y+g.H > chip.Y+chip.H {
+			t.Errorf("%s: glyph %v in chip %v", tc.label, g, chip)
+		}
+	}
+}
+
 func TestRoleChipAndFollowerBannerOnlyWhenShared(t *testing.T) {
 	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
 	for _, tc := range []struct {

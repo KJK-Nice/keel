@@ -759,6 +759,9 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	if a.hasLabel("banner following") || b.hasLabel("Take control") {
 		t.Error("the driver shows the follower banner, or a non-owner offers Take control")
 	}
+	if !b.hasLabel("role glyph eye") || !a.hasLabel("role glyph steering") { // the chips' glyphs (lib/share.js ROLE_GLYPH)
+		t.Error("a role chip has no glyph: eye for the follower, steering for the driver")
+	}
 	b.shot("TestE2EFollowerAndTakeControl-following")
 
 	// The follower's keystrokes are dropped by keel serve.

@@ -153,39 +153,49 @@ func chip(c *ui.Context, text string, driving bool) {
 	if driving {
 		bg, fg = brassSoft, brassInk
 	}
-	r := ui.Row(c).Height(roleChipHeight).Padding(0, space2).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(bg).Label("role " + text)
+	r := roleChipBox(c, "role "+text, bg)
 	if !driving {
 		r.Border(1, lineStrong)
 	}
-	r.Children(func() { ui.Text(c, text).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1) })
+	r.Children(func() { roleChipFace(c, "steering", text, fg) })
+}
+
+// roleChipBox is the k-role pill: 0 8 0 6 padding, a gap of 4 between the glyph and the words (keel.css .k-role).
+func roleChipBox(c *ui.Context, name string, bg ui.Color) ui.Element {
+	return ui.Row(c).Height(roleChipHeight).Padding(0, space2, 0, space1_5).Gap(space1).Radius(radiusFull).Justify(ui.Center).
+		AlignItems(ui.Center).Shrink(0).Background(bg).Label(name)
+}
+
+// roleChipFace is the glyph and the words of a role chip: steering for who drives and owns, eye for a follower
+// (lib/share.js ROLE_GLYPH), at 0.923rem.
+func roleChipFace(c *ui.Context, glyph, words string, fg ui.Color) {
+	iconSized(c, glyph, fg, iconSizeSm).Label("role glyph " + glyph)
+	ui.Text(c, words).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1)
 }
 
 // chipFollow is the k-role--follower chip.
 func chipFollow(c *ui.Context, text string) {
-	ui.Row(c).Height(roleChipHeight).Padding(0, space2).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(hazeSoft).Label("role " + text).Children(func() {
-		ui.Text(c, text).TextColor(haze).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1)
-	})
+	roleChipBox(c, "role "+text, hazeSoft).Children(func() { roleChipFace(c, "eye", text, haze) })
 }
 
 // roleChip is the k-role chip of a shared session's pane bar; it never shrinks.
 func roleChip(c *ui.Context, role string) {
-	text, bg, fg := "", ui.Transparent, inkMuted
+	text, glyph, bg, fg := "", "steering", ui.Transparent, inkMuted
 	switch role {
 	case "driver":
 		text, bg, fg = "Driving", brassSoft, brassInk
 	case "owner":
 		text = "Owner"
 	case "follower":
-		text, bg, fg = "Following", hazeSoft, haze
+		text, glyph, bg, fg = "Following", "eye", hazeSoft, haze
 	default:
 		return
 	}
-	r := ui.Row(c).Height(roleChipHeight).Padding(0, space2).Radius(radiusFull).Justify(ui.Center).Shrink(0).
-		Background(bg).Label("role " + text)
+	r := roleChipBox(c, "role "+text, bg)
 	if role == "owner" {
 		r.Border(1, lineStrong)
 	}
-	r.Children(func() { ui.Text(c, text).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1) })
+	r.Children(func() { roleChipFace(c, glyph, text, fg) })
 }
 
 // sendControl sends one control frame (take or request control) off the UI thread; the server's answer
