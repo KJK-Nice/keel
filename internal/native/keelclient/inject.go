@@ -19,6 +19,11 @@ import (
 // keel serve writes exactly the bytes it is given and adds nothing, and only for a one-time nonce it issued for those
 // same bytes to this client, which must be the driver (internal/inject, runtime.Session.InjectTicket).
 //
+// A group run's step (docs/ui-redesign.md §6 rule 10) is typed through the same call too: the group approve dialog's Type action
+// calls it once per ticked host, each on that host's own connection with {groupRunId, proposalId, shift} in the agent part
+// of the frame, so each host is its own proposal with its own server nonce. For a step that names variables the bytes are the
+// ones keel serve's fill returned for that proposal (rule 11); this client never puts a value into them.
+//
 // An agent proposal is typed through the same call. The webview adds {conversationId, proposalId, shift} to the inject
 // frame only (pty.js sendApprovedInject opts.agent; the inject-challenge carries the bytes alone), and keel serve then
 // checks the proposal (the exact bytes it holds, the pane, the role, the ⇧ rule) and logs agent.type before it writes;

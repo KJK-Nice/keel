@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -384,6 +385,244 @@ func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 			if strings.Contains(src, bad) {
 				t.Errorf("%s holds %s: a step's proposal is made by keel serve, for the current step only", name, bad)
 			}
+		}
+	}
+}
+
+// ---- Groups (plan 021; docs/ui-redesign.md §6 rules 10 and 11) ----
+//
+// One approval may type into several hosts' terminals, so the guards below are the ones a reviewer reads first. There is still
+// exactly one writer for a dialog's approval, ApprovedInject, called from the one place it was (approveType in approve.go);
+// the group approval is that same call made once per ticked row, inside a loop in that function and nowhere else. The group's
+// reference to its run is built only in the dialog's file and in keelclient/inject.go, no file of the Group page, the group
+// run page or the folders holds a writer or a way to open a dialog that types, and no file puts a value into a command: the
+// bytes of a row are set from keel serve's answers alone.
+
+// groupFiles are the files of the Group page, the group run page, the folders and the group approve dialog's view.
+var groupFiles = []string{"grouplogic.go", "grouppage.go", "grouppageview.go", "grouprun.go", "grouprunview.go", "grouprunlogic.go",
+	"groupapproveview.go", "folders.go", "foldersact.go", "foldersview.go"}
+
+// enclosing lists, for each call of a method named name in src, the kinds of statement it sits in inside its function.
+func callContexts(t *testing.T, file, src, name string) (out []string) {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), file, src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		var stack []ast.Node
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if n == nil {
+				stack = stack[:len(stack)-1]
+				return true
+			}
+			stack = append(stack, n)
+			if c, ok := n.(*ast.CallExpr); ok {
+				if sel, ok := c.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
+					ctx := fn.Name.Name
+					for _, s := range stack {
+						switch s.(type) {
+						case *ast.RangeStmt:
+							ctx += "/range"
+						case *ast.ForStmt:
+							ctx += "/for"
+						}
+					}
+					out = append(out, ctx)
+				}
+			}
+			return true
+		})
+	}
+	return out
+}
+
+func TestTheGroupApprovalIsOneApprovedInjectPerTickedRowInsideTheDialogsAction(t *testing.T) {
+	ctxs := callContexts(t, "approve.go", sourceFiles(t)["approve.go"], "ApprovedInject")
+	if len(ctxs) != 1 || ctxs[0] != "approveType/range" {
+		t.Fatalf("ApprovedInject is called as %v in approve.go; it must be called once, in a loop over the jobs, in approveType", ctxs)
+	}
+	if got := allCallSites(t, "ApprovedInject"); len(got) != 1 {
+		t.Fatalf("ApprovedInject is called from %v", got)
+	}
+	// Every job is built from one row of the dialog (groupJobs) or is the one-pane dialog's own: nothing else makes one.
+	src := sourceFiles(t)["approve.go"]
+	if n := strings.Count(src, "typeJob{"); n != 3 { // the type, the one-pane job, the group job
+		t.Errorf("approve.go builds %d typeJob values, want 3 (its declaration, the one-pane job, a group row's job)", n)
+	}
+	if !strings.Contains(src, "command: r.bytes,") {
+		t.Error("a group job no longer types the row's bytes as they are; update the guard")
+	}
+	if got := allCallSites(t, "groupJobs"); len(got) != 1 || got[0].file != "approve.go" || got[0].in != "approveType" {
+		t.Errorf("groupJobs is called from %v; it must be called once, from approveType", got)
+	}
+	// The jobs come from rows the user ticked: effective() reads the tick, and nothing ticks a row but the user's click on its
+	// check box (a toggle in groupapproveview.go) and the one-host case (approveRows). Everything else only clears it.
+	toggle := 0
+	for name, src := range sourceFiles(t) {
+		if strings.Contains(name, "/") {
+			continue
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), name, src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range f.Decls {
+			fn, ok := d.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.AssignStmt:
+					for i, l := range x.Lhs {
+						sel, ok := l.(*ast.SelectorExpr)
+						if !ok || sel.Sel.Name != "checked" || len(x.Lhs) != len(x.Rhs) {
+							continue
+						}
+						switch r := x.Rhs[i].(type) {
+						case *ast.Ident:
+							if r.Name != "false" {
+								t.Errorf("%s: %s ticks a row (%s): only the user's click does", name, fn.Name.Name, r.Name)
+							}
+						case *ast.UnaryExpr:
+							if name != "groupapproveview.go" {
+								t.Errorf("%s: %s toggles a row's tick: only the row's check box does", name, fn.Name.Name)
+							}
+							toggle++
+						default:
+							t.Errorf("%s: %s sets a row's tick to something other than false", name, fn.Name.Name)
+						}
+					}
+				case *ast.CompositeLit:
+					for _, e := range x.Elts {
+						if kv, ok := e.(*ast.KeyValueExpr); ok {
+							if id, ok := kv.Key.(*ast.Ident); ok && id.Name == "checked" && fn.Name.Name != "approveRows" {
+								t.Errorf("%s: %s builds a row already ticked: only approveRows does, and only for one host", name, fn.Name.Name)
+							}
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	if toggle != 1 {
+		t.Errorf("%d places toggle a row's tick, want the one check box in groupapproveview.go", toggle)
+	}
+	if !strings.Contains(sourceFiles(t)["grouprunlogic.go"], "checked: one") {
+		t.Error("approveRows no longer ticks only the one-host case; update the guard")
+	}
+}
+
+func TestGroupRunIDIsBuiltOnlyInInjectGoAndTheDialog(t *testing.T) {
+	for name, src := range sourceFiles(t) {
+		if strings.Contains(src, "GroupRunID") && name != "keelclient/inject.go" && name != "approve.go" {
+			t.Errorf("%s names GroupRunID: only keelclient/inject.go and the Approve dialog (approve.go) do", name)
+		}
+		if strings.Contains(src, "groupRunId") && name != "keelclient/inject.go" {
+			t.Errorf("%s holds the key groupRunId: only keelclient/inject.go builds the agent part of a frame", name)
+		}
+	}
+	if !strings.Contains(sourceFiles(t)["keelclient/inject.go"], `"groupRunId"`) || !strings.Contains(sourceFiles(t)["approve.go"], "GroupRunID: g.runID") {
+		t.Fatal("inject.go or approve.go no longer names the run; update the guard")
+	}
+}
+
+// pressType names approveType for the two dialogs; only their views name it, once each.
+func TestOnlyTheTwoDialogsTypeButtonsPressType(t *testing.T) {
+	for name, src := range sourceFiles(t) {
+		if strings.Contains(src, "pressType") && name != "approveview.go" && name != "groupapproveview.go" {
+			t.Errorf("%s names pressType: only the Approve dialogs' Type buttons do", name)
+		}
+	}
+	if n := strings.Count(sourceFiles(t)["groupapproveview.go"], "w.pressType("); n != 1 {
+		t.Fatalf("groupapproveview.go presses Type %d times, want once (the Type button)", n)
+	}
+	if n := strings.Count(sourceFiles(t)["approveview.go"], "w.pressType(false)"); n != 1 {
+		t.Fatalf("approveview.go presses Type %d times, want once (the Type button)", n)
+	}
+}
+
+func TestGroupCodeHasNoWriterAndNoWayToTypeExceptOpeningTheDialog(t *testing.T) {
+	banned := []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "pressType", "typeNow", "typeAgentProposal",
+		"AgentRef{", "DirectRef{", "SuggestionRef{", "clearLine", "DirectLine"}
+	for _, name := range groupFiles {
+		src := sourceFiles(t)[name]
+		if src == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+		for _, bad := range banned {
+			if name == "groupapproveview.go" && bad == "pressType" {
+				continue
+			}
+			if strings.Contains(src, bad) {
+				t.Errorf("%s names %s: group code never types; the dialog's Type action does, once per ticked row", name, bad)
+			}
+		}
+		if strings.Contains(src, "openApprove") && name != "grouprun.go" {
+			t.Errorf("%s opens an Approve dialog: only the run page's Type into N panes does", name)
+		}
+	}
+	// Opening the group dialog is "Type into N panes" and nothing else.
+	if got := allCallSites(t, "openApproveGroup"); len(got) != 1 || got[0].file != "grouprun.go" || got[0].in != "typeGroupRun" {
+		t.Errorf("openApproveGroup is called from %v; it must be called once, from typeGroupRun", got)
+	}
+	// The fill and the propose are keel serve's questions, asked from the run page alone, never from the dialog.
+	for name, want := range map[string]string{"FillGroupStep": "typeGroupRun", "ProposeGroupStep": "groupRunTick"} {
+		if got := allCallSites(t, name); len(got) != 1 || got[0].file != "grouprun.go" || got[0].in != want {
+			t.Errorf("%s is called from %v; it must be called once, from %s in grouprun.go", name, got, want)
+		}
+	}
+}
+
+// §6 rule 11: the client never puts a value into a command. A row's bytes are set from keel serve's answers only (the proposal's
+// own bytes, or the fill's), and no group file or the dialog replaces, expands or formats text around a {{name}}.
+func TestTheClientNeverSubstitutesAValue(t *testing.T) {
+	for _, name := range append(slices.Clone(groupFiles), "approve.go") {
+		src := sourceFiles(t)[name]
+		for _, bad := range []string{"strings.Replace", "strings.NewReplacer", "ReplaceAll", "ReplaceAllString", ".Expand", "ReplaceAllStringFunc", "text/template"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s uses %s: the client puts no value into a command; keel serve fills it in at Type", name, bad)
+			}
+		}
+	}
+	for name, src := range sourceFiles(t) {
+		if strings.Contains(name, "/") { // the window's own files; the client package has no rows
+			continue
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), name, src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range f.Decls {
+			fn, ok := d.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.AssignStmt:
+					for _, l := range x.Lhs {
+						if sel, ok := l.(*ast.SelectorExpr); ok && sel.Sel.Name == "bytes" && fn.Name.Name != "fillRows" {
+							t.Errorf("%s: %s assigns a row's bytes: only fillRows does (from keel serve's fill)", name, fn.Name.Name)
+						}
+					}
+				case *ast.CompositeLit:
+					for _, e := range x.Elts {
+						if kv, ok := e.(*ast.KeyValueExpr); ok {
+							if id, ok := kv.Key.(*ast.Ident); ok && id.Name == "bytes" && fn.Name.Name != "approveRows" && name != "grouplogic_test.go" {
+								t.Errorf("%s: %s builds a row with bytes: only approveRows does (from the proposal keel serve made)", name, fn.Name.Name)
+							}
+						}
+					}
+				}
+				return true
+			})
 		}
 	}
 }

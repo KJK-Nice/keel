@@ -116,11 +116,13 @@ func (w *workspace) startPoll(every time.Duration) {
 	stop := w.pollStop
 	go func() {
 		t := time.NewTicker(every)
-		f := time.NewTicker(time.Duration(float64(every) * float64(forwardsEvery) / float64(pollEvery))) // the forwards read at forwardsEvery while pollEvery is the vault's
-		rb := time.NewTicker(time.Duration(float64(every) * float64(runEvery) / float64(pollEvery)))     // the run in use is read at runEvery while a typed step waits (runbooks.go)
+		f := time.NewTicker(time.Duration(float64(every) * float64(forwardsEvery) / float64(pollEvery)))  // the forwards read at forwardsEvery while pollEvery is the vault's
+		rb := time.NewTicker(time.Duration(float64(every) * float64(runEvery) / float64(pollEvery)))      // the run in use is read at runEvery while a typed step waits (runbooks.go)
+		gr := time.NewTicker(time.Duration(float64(every) * float64(groupRunEvery) / float64(pollEvery))) // a group run asks keel serve to propose and to read results at groupRunEvery (grouprun.go)
 		defer t.Stop()
 		defer f.Stop()
 		defer rb.Stop()
+		defer gr.Stop()
 		for {
 			select {
 			case <-stop:
@@ -131,6 +133,8 @@ func (w *workspace) startPoll(every time.Duration) {
 				w.post(w.tunnelTick)
 			case <-rb.C:
 				w.post(w.runTick)
+			case <-gr.C:
+				w.post(w.groupRunTick)
 			}
 		}
 	}()

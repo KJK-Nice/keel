@@ -9,6 +9,13 @@ import "github.com/egoist/mygo/ui"
 
 // dialogBtn is textBtn that takes the keyboard (↵ presses it) and can be switched off.
 func dialogBtn(c *ui.Context, name string, kind btnKind, h *ui.Handle, off bool) bool {
+	clicked, _ := dialogBtnMods(c, name, name, kind, h, off)
+	return clicked
+}
+
+// dialogBtnMods is dialogBtn that also says which modifiers were held with the press (⇧ for a group's Type). shown is the
+// text on the button; name is what a test or assistive technology finds it by.
+func dialogBtnMods(c *ui.Context, name, shown string, kind btnKind, h *ui.Handle, off bool) (bool, ui.Modifiers) {
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 		Label(name).Cursor(ui.CursorPointer).Focusable().Bind(h)
 	bg, fg := raised, ink
@@ -28,13 +35,24 @@ func dialogBtn(c *ui.Context, name string, kind btnKind, h *ui.Handle, off bool)
 	if off {
 		b.Opacity(0.45).Disabled(true)
 	}
-	b.Children(func() { label(c, name, fg) })
-	return b.Clicked()
+	b.Children(func() { label(c, shown, fg) })
+	if b.Clicked() {
+		return true, b.ClickModifiers()
+	}
+	return false, 0
 }
+
+// pressType is the Type button's action in both dialogs, the one place that names approveType (guard_test.go): the one-pane
+// dialog's Type calls it with false, the group dialog's with ⇧ as it was held when the button was pressed.
+func (w *workspace) pressType(shift bool) { w.act(func() { w.approveType(shift) }) }
 
 func (w *workspace) approveView(c *ui.Context) {
 	d := w.approve
 	if d == nil {
+		return
+	}
+	if d.group != nil {
+		w.groupApproveView(c, d)
 		return
 	}
 	open := true
@@ -67,7 +85,7 @@ func (w *workspace) approveView(c *ui.Context) {
 				open = false
 			}
 			if dialogBtn(c, "Type", btnPrimary, &d.typeH, why != "" || d.busy) {
-				w.act(w.approveType)
+				w.pressType(false)
 			}
 		})
 	})

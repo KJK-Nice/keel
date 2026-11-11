@@ -161,7 +161,7 @@ func TestAFollowerOrASessionNotReadyCannotType(t *testing.T) {
 		}
 		_ = r.tt.Click("Type")
 		r.tt.Frame()
-		r.w.approveType() // even called directly, it refuses
+		r.w.approveType(false) // even called directly, it refuses
 		if len(r.typed()) != 0 {
 			t.Errorf("%s typed %v", c.name, r.typed())
 		}
@@ -230,7 +230,7 @@ func TestAPaneClosedUnderTheDialogCannotBeTypedInto(t *testing.T) {
 	t0 := r.w.tab()
 	r.w.closePane(t0, t0.focused)
 	r.tt.Frame()
-	r.w.approveType()
+	r.w.approveType(false)
 	if len(r.typed()) != 0 {
 		t.Fatalf("typed %v into a closed pane", r.typed())
 	}

@@ -46,7 +46,9 @@ func labeled(c *ui.Context, name string, h *ui.Handle, control func()) {
 	})
 }
 
-func help(c *ui.Context, s string) { ui.Text(c, s).TextColor(inkMuted).FontSize(captionSize) }
+func help(c *ui.Context, s string) ui.Element {
+	return ui.Text(c, s).TextColor(inkMuted).FontSize(captionSize)
+}
 
 // menuLabel is a k-menu-label: a group heading.
 func menuLabel(c *ui.Context, s string) { text(c, s, inkFaint, captionSize, weightSemibold) }
