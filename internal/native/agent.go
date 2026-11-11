@@ -137,6 +137,10 @@ type agentPanel struct {
 
 	scroll ui.ScrollState
 	stick  bool // scroll to the end in the next frame
+
+	width    float32 // the panel's width as kept; 0 is size-agent (clampAgentWidth)
+	sashDrag bool    // the sash is being dragged: the width is kept when it lets go
+	sashH    ui.Handle
 }
 
 func newAgentPanel() *agentPanel {
@@ -172,6 +176,45 @@ func agentKeys() string {
 		return "⌘I"
 	}
 	return "Ctrl+⇧I"
+}
+
+// The panel's width (ui/agentpanel.js "width"): at least --size-agent and at most half the window, kept as agentWidth in
+// keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).
+const agentWidthFileKey = "agentWidth"
+
+// clampAgentWidth is applyWidth: a width of 0 is the default, else between size-agent and half the window (never below
+// size-agent, whatever the window).
+func clampAgentWidth(width, windowW float32) float32 {
+	if width <= 0 {
+		return sizeAgent
+	}
+	hi := max(sizeAgent, float32(int(windowW*0.5)))
+	return min(hi, max(sizeAgent, float32(int(width+0.5))))
+}
+
+// loadAgentWidth reads the width the panel was left at: 0 (the default) when absent.
+func loadAgentWidth(dataDir string) float32 {
+	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	if err != nil {
+		return 0
+	}
+	var f struct {
+		AgentWidth float32 `json:"agentWidth"`
+	}
+	if json.Unmarshal(b, &f) != nil || f.AgentWidth < 0 {
+		return 0
+	}
+	return f.AgentWidth
+}
+
+// setAgentWidth keeps a new width (0 puts the default back) in keel-native.json.
+func (w *workspace) setAgentWidth(width float32) {
+	w.agent.width = width
+	if w.dataDir != "" {
+		if err := savePrefs(w.dataDir, map[string]any{agentWidthFileKey: width}); err != nil {
+			w.fail("save the agent panel width", err)
+		}
+	}
 }
 
 // loadAgentOpen reads whether the panel was left open: keel-native.json's agentPanel, closed when absent.

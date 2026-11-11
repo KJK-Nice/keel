@@ -445,6 +445,45 @@ func TestE2EAgentFollowerHasNoType(t *testing.T) {
 	}
 }
 
+// The panel's sash: a drag widens the panel and the terminal pane gives way (keel serve sees the narrower terminal), the width
+// is kept in keel-native.json and a window opened later on the same data starts at it.
+func TestE2EAgentPanelSashWidthIsKept(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.putAgentKey()
+	sid := e.openLocal()
+	e.openAgent()
+	panel := func() float32 { p, _ := e.tt.Find("agent panel"); return p.W }
+	cols := func() int {
+		for _, s := range e.sessions() {
+			if s.ID == sid {
+				return s.Cols
+			}
+		}
+		return 0
+	}
+	e.settle(300 * time.Millisecond)
+	before := cols()
+	sash, ok := e.tt.Find("Resize agent panel")
+	if !ok {
+		t.Fatal("no sash")
+	}
+	x, y := sash.X+sash.W/2, sash.Y+sash.H/2
+	e.tt.Press(x, y)
+	e.tt.Move(x-60, y)
+	e.tt.Move(x-120, y)
+	e.step()
+	e.tt.Release(x-120, y)
+	e.pump(func() bool { return panel() > sizeAgent+100 && loadAgentWidth(dir) > sizeAgent+100 }, "the panel to be wider and its width kept")
+	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on keel serve")
+	e.shot("TestE2EAgentPanelSash")
+	kept := loadAgentWidth(dir)
+	e.w.closeWindow()
+
+	e2 := newWin(t, addr, dir, nil)
+	e2.pump(func() bool { p, ok := e2.tt.Find("agent panel"); return ok && p.W > kept-1 && p.W < kept+1 }, "a new window to open the panel at the kept width")
+}
+
 func TestE2EAgentNoKey(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)

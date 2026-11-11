@@ -59,7 +59,9 @@ func (w *workspace) agentView(c *ui.Context) {
 		w.copyOut = ""
 		w.say("Copied")
 	}
-	hairline(ui.Column(c).Width(sizeAgent).Shrink(0).FillHeight().Background(w.ground(surface)).Label("agent panel"), 0, 0, 0, 1).Children(func() {
+	winW, _ := c.Size()
+	hairline(ui.Column(c).Width(clampAgentWidth(a.width, winW)).Shrink(0).FillHeight().Background(w.ground(surface)).Label("agent panel"), 0, 0, 0, 1).Children(func() {
+		w.agentSash(c, winW)
 		w.agentHead(c)
 		w.agentSub(c)
 		if a.stick {
@@ -823,6 +825,49 @@ func (w *workspace) agentComposer(c *ui.Context) {
 	if a.focusInput && !w.modalOpen() {
 		a.inputH.Focus(c)
 		a.focusInput = false
+	}
+}
+
+// agentSash is .k-agent-sash: a strip on the panel's left edge (8 px wide, a brass line while hovered, focused or dragged).
+// Dragging it left widens the panel; ← and → step it by size-agent-step (⇧ four times that), Home and End go to the narrowest
+// and widest, a double click puts the default back. The width is kept when the pointer lets go and after each key.
+func (w *workspace) agentSash(c *ui.Context, winW float32) {
+	a := w.agent
+	s := ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(space2).Cursor(ui.CursorResizeColumn).Focusable().Bind(&a.sashH).Label("Resize agent panel")
+	cur := clampAgentWidth(a.width, winW)
+	if dx, _, down := s.Dragged(); down {
+		a.sashDrag = true
+		if dx != 0 {
+			a.width = clampAgentWidth(cur-dx, winW)
+		}
+	} else if a.sashDrag { // let go: keep the width
+		a.sashDrag = false
+		w.act(func() { w.setAgentWidth(a.width) })
+	}
+	if s.DoubleClicked() {
+		w.act(func() { w.setAgentWidth(0) })
+	}
+	s.ObserveInput(func(ev ui.InputEvent) {
+		if ev.Kind != ui.InputKeyDown {
+			return
+		}
+		step := float32(sizeAgentStep)
+		if ev.Mods&ui.Shift != 0 {
+			step *= 4
+		}
+		switch ev.Key { // the panel is on the right: ← widens it
+		case ui.KeyLeft:
+			w.act(func() { w.setAgentWidth(clampAgentWidth(cur+step, winW)) })
+		case ui.KeyRight:
+			w.act(func() { w.setAgentWidth(clampAgentWidth(cur-step, winW)) })
+		case ui.KeyHome:
+			w.act(func() { w.setAgentWidth(0) })
+		case ui.KeyEnd:
+			w.act(func() { w.setAgentWidth(winW) }) // clamped to half the window
+		}
+	})
+	if a.sashDrag || s.Hovered() || a.sashH.FocusWithin(c) {
+		s.Children(func() { ui.Box(c).Absolute().Top(0).Bottom(0).Left(space1).Width(1).Background(brassInk) })
 	}
 }
 

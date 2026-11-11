@@ -100,6 +100,7 @@ const (
 	sizeSidebar   = 252
 	sizeRail      = 208 // size-rail: the Settings section rail
 	sizeAgent     = 380 // size-agent: the agent panel
+	sizeAgentStep = 24  // size-agent-step: the sash's key step
 	sizeReading   = 544 // size-reading: 68ch, the notebook's column
 
 	sizeAgentPageList    = 280 // size-agentpage-list: the Agent page's conversation list

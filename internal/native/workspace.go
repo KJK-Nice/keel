@@ -488,6 +488,9 @@ func (w *workspace) start() {
 	if w.dataDir != "" && loadAgentOpen(w.dataDir) { // the panel stays as it was left
 		w.agent.open = true
 	}
+	if w.dataDir != "" {
+		w.agent.width = loadAgentWidth(w.dataDir)
+	}
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()

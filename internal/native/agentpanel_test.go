@@ -35,6 +35,100 @@ func agentRig(t *testing.T) *rig {
 	return r
 }
 
+// ui/agentpanel.js width: the sash on the panel's left edge widens it by dragging left, keeps the width in keel-native.json,
+// steps with the arrow keys, goes back to the default on a double click, and the panel is never narrower than size-agent
+// nor wider than half the window.
+func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {
+	for _, c := range []struct{ width, win, want float32 }{
+		{0, 1280, sizeAgent}, {200, 1280, sizeAgent}, {440.4, 1280, 440}, {900, 1280, 640}, {900, 600, sizeAgent}, {500, 1000, 500},
+	} {
+		if got := clampAgentWidth(c.width, c.win); got != c.want {
+			t.Errorf("clampAgentWidth(%v, %v) = %v, want %v", c.width, c.win, got, c.want)
+		}
+	}
+	r := agentRig(t)
+	width := func() float32 { p, _ := r.tt.Find("agent panel"); return p.W }
+	near := func(got, want float32) bool { return got > want-1 && got < want+1 }
+	if got := width(); !near(got, sizeAgent) {
+		t.Fatalf("the panel is %v wide, want %v", got, float32(sizeAgent))
+	}
+	sash, ok := r.tt.Find("Resize agent panel")
+	if !ok {
+		t.Fatal("no sash")
+	}
+	x, y := sash.X+sash.W/2, sash.Y+sash.H/2
+	r.tt.Press(x, y)
+	r.tt.Move(x-30, y)
+	r.tt.Move(x-60, y)
+	r.tt.Frame()
+	r.tt.Release(x-60, y)
+	r.tt.Frame()
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent+60) {
+		t.Fatalf("after a drag 60 px left the panel is %v wide, want %v", got, float32(sizeAgent+60))
+	}
+	if got := loadAgentWidth(r.w.dataDir); !near(got, sizeAgent+60) {
+		t.Errorf("keel-native.json holds %v", got)
+	}
+	// Dragged far left it stops at half the window; dragged far right, at size-agent.
+	sash, _ = r.tt.Find("Resize agent panel")
+	x, y = sash.X+sash.W/2, sash.Y+sash.H/2
+	r.tt.Press(x, y)
+	r.tt.Move(x-700, y)
+	r.tt.Move(x-900, y)
+	r.tt.Frame()
+	r.tt.Release(x-900, y)
+	r.tt.Frame()
+	r.tt.Frame()
+	if got := width(); !near(got, 640) {
+		t.Errorf("dragged far left the panel is %v wide, want half the window (640)", got)
+	}
+	// ← widens by size-agent-step when the sash has the keyboard, ⇧← by four, Home goes back to the narrowest.
+	r.w.setAgentWidth(sizeAgent)
+	r.tt.Frame()
+	r.tt.Click("Resize agent panel")
+	r.tt.Frame()
+	r.tt.Key(0, ui.KeyLeft)
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent+sizeAgentStep) {
+		t.Errorf("← gives %v, want %v", got, float32(sizeAgent+sizeAgentStep))
+	}
+	r.tt.Key(ui.Shift, ui.KeyLeft)
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent+5*sizeAgentStep) {
+		t.Errorf("⇧← gives %v, want %v", got, float32(sizeAgent+5*sizeAgentStep))
+	}
+	r.tt.Key(0, ui.KeyRight)
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent+4*sizeAgentStep) {
+		t.Errorf("→ gives %v", got)
+	}
+	r.tt.Key(0, ui.KeyHome)
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent) || loadAgentWidth(r.w.dataDir) != 0 {
+		t.Errorf("Home gives %v, kept %v", got, loadAgentWidth(r.w.dataDir))
+	}
+	// A double click puts the default back.
+	r.w.setAgentWidth(500)
+	r.tt.Frame()
+	sash, _ = r.tt.Find("Resize agent panel")
+	r.tt.ClickAt(sash.X+sash.W/2, sash.Y+sash.H/2)
+	r.tt.ClickAt(sash.X+sash.W/2, sash.Y+sash.H/2)
+	r.tt.Frame()
+	if got := width(); !near(got, sizeAgent) {
+		t.Errorf("a double click gives %v", got)
+	}
+	// The width comes back with the window (start reads it), and nothing else in the file changed.
+	r.w.setAgentWidth(520)
+	w2 := newWorkspace(r.fb)
+	w2.dataDir = r.w.dataDir
+	w2.work, w2.post, w2.mkBody = func(fn func()) { fn() }, func(fn func()) { fn() }, placeholder(&r.released)
+	w2.start()
+	if !near(w2.agent.width, 520) || !w2.agent.open {
+		t.Errorf("a new window has width %v, open %v", w2.agent.width, w2.agent.open)
+	}
+}
+
 func agentMods() ui.Modifiers {
 	if runtime.GOOS == "darwin" {
 		return ui.Cmd
