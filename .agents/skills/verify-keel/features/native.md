@@ -379,6 +379,25 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Unit tests: a card's every kind and status is one table (`TestEveryKindAndStatusIsDrawn…`); `nbAgentRig` has three notebooks and a private one on the fake;
   `fb.agentEdits/agentCreates/agentUndo/agentRemove` do what keel serve does for the agent, and `fb.nbc.answer` is what a card route answers.
 
+## The parity closeout (plan 025)
+
+- Palette: the last row is `Ask the agent` (it is not in the catalog: `p.visible()` adds it, `filterPalette` does not), ⌘↵ runs it from any row and
+  fills `e.w.agent.input` without sending; with no stored key the panel shows its Connect card, so wait on `agent panel`, not on `Message the agent`.
+  `Search hosts` sets `focusHosts`; check `e.tt.Focused("Filter hosts")` a frame later.
+- First run step 3: `Google Gemini` / `Not now` (labels are the cards' names), the field `Gemini API key input`, the switch
+  `Suggest commands when I type plain language switch`. Type `fakeAgentKey` only; assert it is never drawn and `GET /api/agent/settings` shows
+  `configured` only after Open Keel. Set up later saves nothing.
+- Tab close button: label `Close <tab name>`, 16 px, live only while the pointer is over the pill (`tt.Move` onto it first); the W cap is
+  `key cap W`. Empty strip after the tabs: label `tab strip end` (a drop target). A pane bar dragged onto a pane: `Press`, two `Move`s, `Release`
+  (the region drawn meanwhile is `pane drop region`); the centre swaps, an edge moves it (`layout.Beside`).
+- Connection log: a failed or connecting pane has `connection log <pane id>` over its body and `Copy logs` in the banner; `tt.Clipboard()` holds
+  the lines. keelclient's `State.Log` is `recordLog` (unit-tested without a daemon). A role chip's glyph is `role glyph steering` or `role glyph eye`.
+- Agent panel sash: label `Resize agent panel` (drag left to widen, ←/→ with the keyboard on it, a double click resets); the width is
+  `agentWidth` in `keel-native.json`; `clampAgentWidth` is the rule (380 px up to half the window).
+- Download (Ansible drawer): the window has no save dialog in tests; set `e.w.saveDialog = func(name string) (string, error)` before pressing it and read
+  the file it names. `Copy SSH command` is in the host menu (`e.menuPick("host <name>", "Copy SSH command")`, then `tt.Clipboard()`).
+- Not machine-checkable here: the macOS save panel, the real window's look, Linux (only `GOOS=linux CGO_ENABLED=0 go build` and `go vet`).
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
