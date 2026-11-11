@@ -251,15 +251,19 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		if p := t.panes[t.focused]; p != nil {
 			status = p.status()
 		}
+		var lead ui.Element
 		switch {
 		case t.isNew():
-			icon(c, "computer-terminal-01", inkMuted)
+			lead = icon(c, "computer-terminal-01", inkMuted)
 		case t.isPage():
-			icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
+			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
 		case t.remote: // the joined-share link (lib/tabstrip.js)
-			icon(c, "link", inkMuted)
+			lead = icon(c, "link", inkMuted)
 		default:
-			dot(c, statusColor(status))
+			lead = dot(c, statusColor(status))
+		}
+		if tabKey(i, len(w.tabs)) != "" { // the cap stands in for it: nothing of it shows beside the cap
+			lead.Opacity(1 - w.capAlpha)
 		}
 		col := inkMuted
 		if selected {

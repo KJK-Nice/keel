@@ -134,6 +134,37 @@ func TestKeyCapsMoveNothing(t *testing.T) {
 	}
 }
 
+// The cap stands in for what is under it: nothing of a page tab's icon shows beside it.
+func TestKeyCapReplacesThePageTabsIcon(t *testing.T) {
+	r := newRig(t, okBackend())
+	r.tt.SetDark(false)
+	r.tt.Frame()
+	r.w.openPage("settings")
+	r.tt.Frame()
+	tab, ok := r.tt.Find("tab Settings")
+	if !ok {
+		t.Fatal("no Settings tab")
+	}
+	holdCaps(r)
+	cap, ok := r.tt.Find("key cap 2") // the New tab page is tab 1
+	if !ok {
+		t.Fatalf("no cap on the Settings tab: %v", capLabels(r))
+	}
+	img := r.tt.Image()
+	s := float32(img.Bounds().Dx()) / 1280
+	x0, x1 := int((cap.X+cap.W+1)*s), int((tab.X+space2+iconSize)*s)
+	for x := x0; x <= x1; x++ {
+		for y := int((tab.Y + 6) * s); y < int((tab.Y+tab.H-6)*s); y++ {
+			gr, gg, gb, _ := img.At(x, y).RGBA()
+			for _, d := range [3]int{int(gr>>8) - int(raised.R), int(gg>>8) - int(raised.G), int(gb>>8) - int(raised.B)} {
+				if d > 40 || d < -40 {
+					t.Fatalf("pixel (%d,%d) beside the cap is %v: the icon shows", x, y, img.At(x, y))
+				}
+			}
+		}
+	}
+}
+
 func TestKeyCapsInBothThemes(t *testing.T) {
 	for _, dark := range []bool{true, false} {
 		r := splitRig(t)
