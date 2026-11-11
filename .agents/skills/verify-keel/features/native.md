@@ -398,6 +398,19 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   the file it names. `Copy SSH command` is in the host menu (`e.menuPick("host <name>", "Copy SSH command")`, then `tt.Clipboard()`).
 - Not machine-checkable here: the macOS save panel, the real window's look, Linux (only `GOOS=linux CGO_ENABLED=0 go build` and `go vet`).
 
+## Sync input, strip and dock drags, the New tab search (plan 026)
+
+- Sync input (`syncinput.go`, `syncinput_test.go`, `e2e_sync_test.go`): the terminal view's connection is `newSyncConn(p)`; a unit test types for the user with
+  `newSyncConn(p).Write(...)` (the terminal's own write) and reads `fakeConn.written()` / `.writes` (`fakeConn.writeErr` makes one fail). Peers are
+  published by a frame (`publishSync`), so `r.tt.Frame()` after a split or a toggle. The sync tool is labelled `Sync input` / `Stop syncing input` (one per
+  pane bar: `e.click` takes the first), the status bar words are `Sync on` / `Sync off`. `TestE2ESyncInput` types in one of two real shells and reads both
+  scrollbacks; the shot `TestE2ESyncInput.png` shows both tools pressed. Never route a typing path through `syncConn`: `TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt`.
+- Drags to the strip and onto a pane (`panedock_test.go`): `Press` on `pane bar <id>`, two `Move`s, `Release` on `tab strip end` or on a `tab <name>` pill makes
+  a tab; `Press` on a `tab <name>` pill, `Release` near the right edge of `pane <id>` docks it. A tab and a pane share one drop type (`dragged`): an element takes one
+  type of dragged value, so a second `ui.Drop[T]` on the same element silently replaces the first.
+- New tab search: `pickCards(groups, ...)` reads tags and folder names (`hostSearchHay`); recently closed is `closedTabs` in `keel-native.json`
+  (`loadClosedTabs`), so a test that closes a tab with a data dir now writes that file.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
