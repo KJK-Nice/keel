@@ -171,29 +171,12 @@ const promptLineMax = 512
 // the Type to the dialog. The line is the one the cursor is on, or when the snapshot does not place it, the last line
 // with text; keel serve checks its own view of the output as well and only ever adds a dialog.
 func screenOf(snap string, rows int) (altScreen bool, promptLine string) {
-	home := strings.Index(snap, "\x1b[H")
-	if home < 0 {
+	alt, lines, top, row := readSnapshot(snap, rows)
+	if alt {
 		return true, ""
 	}
-	for _, m := range snapModes.FindAllStringSubmatch(snap[:home], -1) {
-		for _, n := range strings.Split(m[1], ";") {
-			if n == "47" || n == "1047" || n == "1049" {
-				return true, ""
-			}
-		}
-	}
-	body := snap[home+len("\x1b[H"):]
-	row := 0
-	if m := snapCursor.FindStringSubmatchIndex(body); m != nil {
-		row, _ = strconv.Atoi(body[m[2]:m[3]])
-		body = body[:m[0]]
-	}
-	var lines []string
-	for _, l := range strings.Split(body, crlf) {
-		lines = append(lines, strings.TrimRight(snapEscape.ReplaceAllString(l, ""), " "))
-	}
 	line := ""
-	if top := max(0, len(lines)-rows); row > 0 && top+row-1 < len(lines) {
+	if row > 0 && top+row-1 < len(lines) {
 		line = lines[top+row-1]
 	}
 	if line == "" { // blank or unplaced: the last line with text is where a prompt would be
@@ -205,4 +188,30 @@ func screenOf(snap string, rows int) (altScreen bool, promptLine string) {
 		line = string(r[:promptLineMax])
 	}
 	return false, line
+}
+
+// readSnapshot is the reading under screenOf: whether the alternate screen shows, the text of every row (escapes and
+// trailing spaces off), the index in lines of the screen's first row, and the cursor's row and column on the screen
+// (1-based; 0 when the snapshot does not place it).
+func readSnapshot(snap string, rows int) (alt bool, lines []string, top, row int) {
+	home := strings.Index(snap, "\x1b[H")
+	if home < 0 {
+		return true, nil, 0, 0
+	}
+	for _, m := range snapModes.FindAllStringSubmatch(snap[:home], -1) {
+		for _, n := range strings.Split(m[1], ";") {
+			if n == "47" || n == "1047" || n == "1049" {
+				return true, nil, 0, 0
+			}
+		}
+	}
+	body := snap[home+len("\x1b[H"):]
+	if m := snapCursor.FindStringSubmatchIndex(body); m != nil {
+		row, _ = strconv.Atoi(body[m[2]:m[3]])
+		body = body[:m[0]]
+	}
+	for _, l := range strings.Split(body, crlf) {
+		lines = append(lines, strings.TrimRight(snapEscape.ReplaceAllString(l, ""), " "))
+	}
+	return false, lines, max(0, len(lines)-rows), row
 }

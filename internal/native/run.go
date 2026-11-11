@@ -64,7 +64,7 @@ func liveBodyT(p *pane, transparent bool) {
 	th := terminalTheme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
 	term, err := terminal.New(terminal.Options{
 		Conn: p.conn, Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
-		Font: terminal.Font{Family: p.fontFamily, Size: p.fontSize},
+		Font: terminal.Font{Family: p.fontFamily, Size: p.fontSize}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
 			if p.zoom != nil {
