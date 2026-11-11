@@ -499,7 +499,7 @@ func (w *workspace) group(c *ui.Context, g hostGroup) {
 			caption(c, fmt.Sprint(len(g.hosts)), inkMuted)
 		})
 		if h.Clicked() {
-			w.act(func() { w.collapsed[g.name] = open })
+			w.act(func() { w.setCollapsed(g.name, open) })
 		}
 		if !open {
 			return

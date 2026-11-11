@@ -1,6 +1,8 @@
 package native
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -223,6 +225,43 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 	if _, ok := r.tt.Find("host pg-1"); !ok {
 		t.Error("Infra did not open again")
 	}
+}
+
+// The closed folders are kept across a restart as groupCollapsed in keel-native.json (the app: localStorage
+// keel-group-collapsed); the file's other fields stay as they are.
+func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
+	r := folderRig(t)
+	r.w.dataDir = t.TempDir()
+	if err := savePrefs(r.w.dataDir, map[string]any{"termSize": 14}); err != nil {
+		t.Fatal(err)
+	}
+	r.click(t, "folder Infra")
+	r.click(t, "folder Apps")
+	if got := loadCollapsed(r.w.dataDir); len(got) != 2 || !got["infra"] || !got["apps"] {
+		t.Fatalf("kept %v", got)
+	}
+	r.click(t, "folder Apps") // opened again: no longer kept
+	if got := loadCollapsed(r.w.dataDir); len(got) != 1 || !got["infra"] {
+		t.Fatalf("kept after opening Apps: %v", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(r.w.dataDir, "keel-native.json")); !strings.Contains(string(b), `"termSize": 14`) {
+		t.Errorf("another field was lost: %s", b)
+	}
+	// A new window on the same data folder shows Infra closed and the rest open.
+	fb := r.fb
+	w2 := newRig(t, fb)
+	w2.w.dataDir = r.w.dataDir
+	w2.w.collapsed = loadCollapsed(w2.w.dataDir) // what start reads
+	w2.tt.Frame()
+	if _, ok := w2.tt.Find("host pg-1"); ok {
+		t.Error("Infra is open again after a restart")
+	}
+	if _, ok := w2.tt.Find("host laptop"); !ok {
+		t.Error("a loose host is gone")
+	}
+	// No data folder (a test, or KEEL_DATA unset): nothing is written and nothing breaks.
+	r2 := folderRig(t)
+	r2.click(t, "folder Infra")
 }
 
 func TestSidebarFilterReadsFoldersAboveTheHost(t *testing.T) {

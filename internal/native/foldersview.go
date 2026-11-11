@@ -110,7 +110,7 @@ func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
 		})
 		if h.Clicked() && !renaming {
 			id := n.g.ID
-			w.act(func() { w.collapsed[id] = open })
+			w.act(func() { w.setCollapsed(id, open) })
 		}
 		if !open {
 			return

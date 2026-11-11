@@ -491,6 +491,7 @@ func (w *workspace) start() {
 	}
 	if w.dataDir != "" {
 		w.agent.width = loadAgentWidth(w.dataDir)
+		w.collapsed = loadCollapsed(w.dataDir)
 	}
 	w.work(func() {
 		c, cancel := ctx()
