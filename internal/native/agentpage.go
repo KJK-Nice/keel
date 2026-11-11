@@ -83,7 +83,13 @@ func (a *agentPanel) pageRetention() string {
 }
 
 // openRetentionSettings is Retention settings: Settings · Agent.
-func (w *workspace) openRetentionSettings() { w.openPage("settings") }
+func (w *workspace) openRetentionSettings() {
+	w.openPage("settings")
+	if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
+		t.pg.settings.section, t.pg.settings.search = "agent", ""
+		w.loadAgentSettings()
+	}
+}
 
 // pageNewConversation is New conversation on the page: ⌘N while it is the tab, and its + button.
 func (w *workspace) pageNewConversation(p *agentPage) {

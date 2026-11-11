@@ -124,6 +124,9 @@ func (w *workspace) loadPage(t *tab) {
 		w.reloadTunnels()
 	case t.pg.settings != nil:
 		w.loadSettings()
+		if t.pg.settings.section == "agent" {
+			w.loadAgentSettings()
+		}
 	case t.pg.agent != nil:
 		w.loadAgent()
 		w.loadConversations()

@@ -23,7 +23,11 @@ const (
 )
 
 // textBtn is a small k-btn; it reports a click.
-func textBtn(c *ui.Context, name string, kind btnKind) bool {
+func textBtn(c *ui.Context, name string, kind btnKind) bool { return textBtnAs(c, name, name, kind) }
+
+// textBtnAs is textBtn with a name of its own: several of a kind on one page (a Disconnect on each provider card) need names
+// that tell them apart.
+func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 		Label(name).Cursor(ui.CursorPointer)
 	bg, fg, hov := raised, ink, b.Hovered()
@@ -52,7 +56,7 @@ func textBtn(c *ui.Context, name string, kind btnKind) bool {
 	if kind == btnDefault {
 		b.Border(1, lineStrong)
 	}
-	b.Children(func() { label(c, name, fg) })
+	b.Children(func() { label(c, shown, fg) })
 	return b.Clicked()
 }
 

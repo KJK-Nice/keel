@@ -44,6 +44,7 @@ func (r prefRow) text() string { return strings.ToLower(r.title + " " + r.desc +
 
 func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 	w.syncSliders(p)
+	w.syncAgentLines(p)
 	secs := w.settingsSections(p)
 	q := strings.ToLower(strings.TrimSpace(p.search))
 	shown := secs
@@ -137,6 +138,9 @@ func (w *workspace) railItem(c *ui.Context, p *settingsPage, id, name, count str
 			p.section, p.search = id, ""
 			if id == "sharing" || id == "vault" || id == "runtime" || id == "about" {
 				w.loadSettings()
+			}
+			if id == "agent" {
+				w.loadAgentSettings()
 			}
 		})
 	}
@@ -244,7 +248,7 @@ func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 
 func (w *workspace) settingsSections(p *settingsPage) []settingsSection {
 	return []settingsSection{
-		w.appearanceSection(p), w.terminalSection(p), w.keyboardSection(), w.sharingSection(p), w.vaultSection(p), w.runtimeSection(p), w.aboutSection(p),
+		w.appearanceSection(p), w.terminalSection(p), w.keyboardSection(), w.agentSection(p), w.sharingSection(p), w.vaultSection(p), w.runtimeSection(p), w.aboutSection(p),
 	}
 }
 

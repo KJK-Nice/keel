@@ -51,11 +51,11 @@ func (r *rig) prefsFile(t *testing.T) map[string]json.RawMessage {
 	return m
 }
 
-func TestSettingsNavIsTheAppsWithoutAgent(t *testing.T) {
+func TestSettingsNavIsTheApps(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Sharing", "Vault & security", "Runtime", "About Keel", "9d62912")
-	if r.has("settings nav Agent") {
-		t.Error("an Agent section without the agent phase")
+	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Agent", "Sharing", "Vault & security", "Runtime", "About Keel", "9d62912")
+	if !r.has("settings nav Agent") {
+		t.Error("no Agent section")
 	}
 	if _, ok := r.tt.Find("tab Settings"); !ok {
 		t.Error("the tab is not named Settings")

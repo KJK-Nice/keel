@@ -115,6 +115,12 @@ func (f *fakeBackend) Conversations(context.Context) (keelclient.ConversationLis
 	if f.convs.listErr != nil {
 		return keelclient.ConversationList{}, f.convs.listErr
 	}
+	if f.agent.settings.Settings.Provider != "" { // keel serve keeps nothing, and lists nothing, when history is off
+		l.HistoryDays = f.agent.settings.Settings.HistoryDays
+		if l.HistoryDays == 0 {
+			l.Sessions = nil
+		}
+	}
 	l.Sessions = append([]keelclient.ConversationSummary{}, l.Sessions...)
 	return l, nil
 }

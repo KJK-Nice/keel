@@ -19,8 +19,8 @@ import (
 //
 // In the app and not here, each for a reason:
 //   - Appearance · Font smoothing: the webview's -webkit-font-smoothing; MyGo draws its own text.
-//   - Agent: the agent phase (N7). The webview's section is filled from /api/agent/settings; it has no empty state without
-//     a provider, so the nav item is left out.
+//   - Agent · Notes for the agent (Your notes, Delete all notes): the notes are the notes feature, a later phase. The rest of
+//     Agent is here (agentsettings.go), saved as it is made.
 //   - Sharing · Display name is stored in keel-native.json ("name"), not in the webview's localStorage; it is read by the
 //     share phase (N6).
 //
@@ -32,7 +32,7 @@ import (
 
 // settingsPage is the state of the Settings tab.
 type settingsPage struct {
-	section string // appearance | terminal | keyboard | sharing | vault | runtime | about
+	section string // appearance | terminal | keyboard | agent | sharing | vault | runtime | about
 	search  string
 	searchH ui.Handle
 
@@ -50,10 +50,18 @@ type settingsPage struct {
 	nameWas, signalWas   bool // the input had the keyboard in the last frame: leaving it commits
 	nameSeen, signalSeen bool // the field has been given its text
 	signalSaving         bool
+
+	// Settings · Agent (agentsettings.go): a provider card's state, and the scrollback slider. The slider is bound to a float;
+	// a move is sent one request at a time and the value keel serve holds is shown again.
+	cards        map[string]*keyCard
+	linesV       float64
+	linesApplied int
+	linesBusy    bool
+	linesInit    bool
 }
 
 var settingsNav = [][2]string{
-	{"appearance", "Appearance"}, {"terminal", "Terminal"}, {"keyboard", "Keyboard"},
+	{"appearance", "Appearance"}, {"terminal", "Terminal"}, {"keyboard", "Keyboard"}, {"agent", "Agent"},
 	{"sharing", "Sharing"}, {"vault", "Vault & security"}, {"runtime", "Runtime"},
 }
 

@@ -85,6 +85,7 @@ type agentPanel struct {
 	settings      *keelclient.AgentSettings
 	keyConfigured *bool // nil until the settings are read
 	provider      *keelclient.AgentProvider
+	provs         []keelclient.AgentProvider // the providers Settings · Agent draws cards for (agentsettings.go)
 	loading       bool
 	loadTried     bool // the first read for a panel that was open at start
 
