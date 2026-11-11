@@ -100,6 +100,10 @@ const (
 	sizeSidebar   = 252
 	sizeRail      = 208 // size-rail: the Settings section rail
 	sizeAgent     = 380 // size-agent: the agent panel
+
+	sizeAgentPageList    = 280 // size-agentpage-list: the Agent page's conversation list
+	sizeAgentPageContext = 300 // size-agentpage-context: its context column
+	sizeAgentPageThread  = 820 // size-agentpage-thread: the thread's widest
 	// Not tokens: the macOS traffic lights' close button is 14 DIPs tall (AppKit); TrafficLightPosition
 	// is the corner of that button, so y = (size-titlebar - 14) / 2 centres the lights in the title bar row.
 	trafficLightSize = 14

@@ -85,7 +85,7 @@ func TestTokensMatchJSON(t *testing.T) {
 	nums := map[string]float64{
 		"size-titlebar": sizeTitlebar, "size-tab": sizeTab, "size-panebar": sizePanebar,
 		"size-control": sizeControl, "size-control-sm": sizeControlSm, "size-row": sizeRow,
-		"size-sidebar": sizeSidebar, "size-rail": sizeRail, "size-agent": sizeAgent, "space-0.5": space0_5, "space-1": space1, "space-1.5": space1_5, "space-2": space2,
+		"size-sidebar": sizeSidebar, "size-rail": sizeRail, "size-agent": sizeAgent, "size-agentpage-list": sizeAgentPageList, "size-agentpage-context": sizeAgentPageContext, "size-agentpage-thread": sizeAgentPageThread, "space-0.5": space0_5, "space-1": space1, "space-1.5": space1_5, "space-2": space2,
 		"space-3": space3, "space-4": space4, "space-6": space6, "space-8": space8, "radius-xs": radiusXs, "radius-sm": radiusSm,
 		"radius-md": radiusMd, "radius-lg": radiusLg, "radius-full": radiusFull, "size-control-lg": sizeControlLg,
 	}
