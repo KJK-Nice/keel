@@ -65,9 +65,9 @@ func (c *Client) UndoNotebookChange(ctx context.Context, conversationID, id stri
 	return c.notebookAction(ctx, http.MethodPost, notebookProposalPath(conversationID, id)+"/undo")
 }
 
-// ConfirmNotebookDelete is POST …/notebooks/{nid}/delete: the one way a delete the agent proposed happens. Call it only
+// PostNotebookDeleteConfirm is POST …/notebooks/{nid}/delete: the one way a delete the agent proposed happens. Call it only
 // after the user confirmed.
-func (c *Client) ConfirmNotebookDelete(ctx context.Context, conversationID, id string) (NotebookAction, error) {
+func (c *Client) PostNotebookDeleteConfirm(ctx context.Context, conversationID, id string) (NotebookAction, error) {
 	return c.notebookAction(ctx, http.MethodPost, notebookProposalPath(conversationID, id)+"/delete")
 }
 

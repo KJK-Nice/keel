@@ -149,8 +149,8 @@ func (c *Client) DeleteNotebook(ctx context.Context, id string, permanent bool) 
 	return c.do(ctx, http.MethodDelete, p, nil, nil)
 }
 
-// SetNotebookPrivate is PUT /api/notebooks/{id}/private: whether the agent can read the notebook. The user's switch only.
-func (c *Client) SetNotebookPrivate(ctx context.Context, id string, private bool) (out Notebook, err error) {
+// PutNotebookPrivacy is PUT /api/notebooks/{id}/private: whether the agent can read the notebook. The user's switch only.
+func (c *Client) PutNotebookPrivacy(ctx context.Context, id string, private bool) (out Notebook, err error) {
 	err = c.do(ctx, http.MethodPut, notebookPath(id)+"/private", struct {
 		Private bool `json:"private"`
 	}{private}, &out)

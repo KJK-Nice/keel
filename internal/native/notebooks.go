@@ -522,7 +522,7 @@ func (w *workspace) toggleNotebookPrivate(id string) {
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
-		saved, err := w.be.SetNotebookPrivate(c, id, next)
+		saved, err := w.be.PutNotebookPrivacy(c, id, next)
 		w.post(func() {
 			if w.closed {
 				return

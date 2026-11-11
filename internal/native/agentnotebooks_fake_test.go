@@ -43,7 +43,7 @@ func (f *fakeBackend) UndoNotebookChange(_ context.Context, conv, id string) (ke
 	return f.nbCardRoute("undo", conv, id)
 }
 
-func (f *fakeBackend) ConfirmNotebookDelete(_ context.Context, conv, id string) (keelclient.NotebookAction, error) {
+func (f *fakeBackend) PostNotebookDeleteConfirm(_ context.Context, conv, id string) (keelclient.NotebookAction, error) {
 	return f.nbCardRoute("delete", conv, id)
 }
 

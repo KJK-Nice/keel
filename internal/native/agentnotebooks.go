@@ -190,7 +190,7 @@ func (w *workspace) nbPropAction(id, action string) {
 			case actUndo:
 				res, err = w.be.UndoNotebookChange(c, conv, id)
 			case actDelete:
-				res, err = w.be.ConfirmNotebookDelete(c, conv, id)
+				res, err = w.be.PostNotebookDeleteConfirm(c, conv, id)
 			case actKeep:
 				res, err = w.be.DismissNotebookProposal(c, conv, id)
 			case actRestore:

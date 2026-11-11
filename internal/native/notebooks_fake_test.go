@@ -144,7 +144,7 @@ func (f *fakeBackend) DeleteNotebook(_ context.Context, id string, permanent boo
 	return nil
 }
 
-func (f *fakeBackend) SetNotebookPrivate(_ context.Context, id string, private bool) (keelclient.Notebook, error) {
+func (f *fakeBackend) PutNotebookPrivacy(_ context.Context, id string, private bool) (keelclient.Notebook, error) {
 	n := f.nbf()
 	n.reqs = append(n.reqs, fmt.Sprintf("private %s %v", id, private))
 	i := f.nbIndex(id)

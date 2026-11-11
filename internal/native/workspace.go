@@ -115,7 +115,7 @@ type backend interface {
 	SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error)
 	PatchNotebook(ctx context.Context, id string, name *string, pinned *bool) (keelclient.Notebook, error)
 	DeleteNotebook(ctx context.Context, id string, permanent bool) error
-	SetNotebookPrivate(ctx context.Context, id string, private bool) (keelclient.Notebook, error)
+	PutNotebookPrivacy(ctx context.Context, id string, private bool) (keelclient.Notebook, error)
 	MarkNotebookReviewed(ctx context.Context, id string) (keelclient.Notebook, error)
 	NotebookHistory(ctx context.Context, id string) ([]keelclient.NotebookVersion, error)
 	NotebookVersion(ctx context.Context, id, vid string) (keelclient.NotebookVersion, error)
@@ -181,7 +181,7 @@ type backend interface {
 	// What the agent did to notebooks (agentnotebooks.go): each is a request keel serve acts on and answers; this client
 	// changes no notebook itself.
 	UndoNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
-	ConfirmNotebookDelete(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
+	PostNotebookDeleteConfirm(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
 	DismissNotebookProposal(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
 	RestoreNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
 

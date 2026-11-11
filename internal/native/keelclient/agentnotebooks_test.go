@@ -20,7 +20,7 @@ func TestNotebookCardCallsUseTheRightMethodPathAndBody(t *testing.T) {
 		want string
 	}{
 		{"undo", func() (NotebookAction, error) { return r.c.UndoNotebookChange(ctx, "c1", "nbc_1") }, "POST /api/agent/conversations/c1/notebooks/nbc_1/undo"},
-		{"delete", func() (NotebookAction, error) { return r.c.ConfirmNotebookDelete(ctx, "c1", "nbc_1") }, "POST /api/agent/conversations/c1/notebooks/nbc_1/delete"},
+		{"delete", func() (NotebookAction, error) { return r.c.PostNotebookDeleteConfirm(ctx, "c1", "nbc_1") }, "POST /api/agent/conversations/c1/notebooks/nbc_1/delete"},
 		{"keep", func() (NotebookAction, error) { return r.c.DismissNotebookProposal(ctx, "c1", "nbc_1") }, "DELETE /api/agent/conversations/c1/notebooks/nbc_1"},
 		{"restore", func() (NotebookAction, error) { return r.c.RestoreNotebookChange(ctx, "c1", "nbc_1") }, "POST /api/agent/conversations/c1/notebooks/nbc_1/restore"},
 	} {

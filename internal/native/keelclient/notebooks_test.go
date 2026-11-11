@@ -66,7 +66,7 @@ func TestNotebookCallsUseTheRightMethodPathAndBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.status, r.reply = 200, `{"id":"n1"}`
-	if _, err := r.c.SetNotebookPrivate(ctx, "n1", true); err != nil {
+	if _, err := r.c.PutNotebookPrivacy(ctx, "n1", true); err != nil {
 		t.Fatal(err)
 	}
 	if got, body := r.last(); got != "PUT /api/notebooks/n1/private" || body != `{"private":true}` {

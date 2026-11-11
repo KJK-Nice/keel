@@ -845,7 +845,7 @@ func TestAgentNotebookCodeHasNoWriterNoPaneReadAndSendsNoText(t *testing.T) {
 // A card's action is a request: each of the four routes has one caller, nbPropAction, which only askNbPropAction and the
 // card buttons reach; a delete the agent proposed posts only from the confirm dialog's action (invariants 5 and 6).
 func TestACardActionIsOneRequestAndADeleteWaitsForTheConfirm(t *testing.T) {
-	for _, route := range []string{"UndoNotebookChange", "ConfirmNotebookDelete", "DismissNotebookProposal", "RestoreNotebookChange"} {
+	for _, route := range []string{"UndoNotebookChange", "PostNotebookDeleteConfirm", "DismissNotebookProposal", "RestoreNotebookChange"} {
 		if got := allCallSites(t, route); len(got) != 1 || got[0].file != "agentnotebooks.go" || got[0].in != "nbPropAction" {
 			t.Errorf("%s is called from %v; once, from nbPropAction in agentnotebooks.go", route, got)
 		}
