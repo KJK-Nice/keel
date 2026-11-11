@@ -283,6 +283,9 @@ func (w *workspace) paletteItems() []palItem {
 	add("Panes", "Split notebook", "", "", w.splitNotebook)
 	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)
 	add("Panes", "Find in terminal", "⌘F", "", func() { w.openFind(w.focusedPane()) })
+	if w.tab().canSync() { // not in a joined tab, nor in a tab with no terminal
+		add("Panes", "Toggle sync input", "", "", func() { w.toggleSync(w.tab()) })
+	}
 	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
 	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
 	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })

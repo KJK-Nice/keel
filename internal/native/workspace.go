@@ -254,6 +254,8 @@ type pane struct {
 	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 
 	nb *notebookPane // set for a notebook pane (notebooks.go): it has no session, and conn is a stub that refuses everything
+
+	peers syncPeers // the panes its keys also go to while the tab has sync on (syncinput.go)
 }
 
 func (p *pane) sessionID() string {
@@ -275,6 +277,7 @@ type tab struct {
 	focused string
 	zoomed  string // the pane that fills the tab (focus view), or ""
 	title   string // the name the user gave the tab, or ""
+	sync    bool   // Sync input: keys typed in one terminal also go to the others (syncinput.go)
 
 	h ui.Handle // the tab in the strip, for where a dragged tab lands
 

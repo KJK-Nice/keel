@@ -186,18 +186,88 @@ func TestOnlyTheTypeButtonAsksToType(t *testing.T) {
 }
 
 func TestConnWriteIsOnlyTheTerminalViewsConnection(t *testing.T) {
-	// Keystrokes reach a session only through the terminal view, which is given the connection
-	// (terminal.Options.Conn in run.go) and writes the user's keys to it. No other file calls Write on a
-	// session; prefs.go writes its own settings file.
+	// Keystrokes reach a session only through the terminal view, which is given the pane's connection wrapped by
+	// newSyncConn (terminal.Options.Conn in run.go) and writes the user's keys to it. No other file calls Write on a
+	// session but syncinput.go, which writes those same keys to the pane's own connection and, with sync on, to its
+	// peers (TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt); prefs.go writes its own settings file.
 	for name, src := range sourceFiles(t) {
 		for _, c := range calls(t, name, src, "Write") {
-			if name != "prefs.go" {
+			if name != "prefs.go" && name != "syncinput.go" {
 				t.Errorf("%s calls Write: bytes would reach a session or a file outside the terminal view", c)
 			}
 		}
 	}
-	if !strings.Contains(sourceFiles(t)["run.go"], "Conn: p.conn") {
+	if !strings.Contains(sourceFiles(t)["run.go"], "Conn: newSyncConn(p)") {
 		t.Fatal("the terminal view is no longer given the pane's connection in run.go; update the guard")
+	}
+}
+
+// ---- sync input (plan 026) ----
+//
+// The fifth writer is the user's own keys, fanned out to the other terminals of a tab with sync on. It lives in syncinput.go
+// alone, behind the terminal view's own write, and nothing that types for the user can reach it.
+func TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt(t *testing.T) {
+	src := sourceFiles(t)
+	// 1. Outside keelclient and joinpeer (and the stubs' own method declarations, which are not calls), only syncinput.go calls
+	// Write on a connection; prefs.go's call writes a file.
+	for name, s := range src {
+		if strings.HasPrefix(name, "keelclient/") || strings.HasPrefix(name, "joinpeer/") || name == "prefs.go" {
+			continue
+		}
+		for _, c := range calls(t, name, s, "Write") {
+			if name != "syncinput.go" {
+				t.Errorf("%s calls Write: only syncinput.go writes to a session", c)
+			}
+		}
+	}
+	if len(calls(t, "syncinput.go", src["syncinput.go"], "Write")) < 2 {
+		t.Fatal("syncinput.go no longer writes the pane's own connection and its peers; update the guard")
+	}
+	// 2. The wrapper is made in one place: liveBodyT in run.go, as the terminal view's connection.
+	for name, s := range src {
+		if name != "syncinput.go" && strings.Contains(s, "syncConn{") {
+			t.Errorf("%s builds a syncConn: only newSyncConn does", name)
+		}
+		if name != "run.go" && name != "syncinput.go" && strings.Contains(s, "newSyncConn") {
+			t.Errorf("%s names newSyncConn: only run.go hands the wrapper to the terminal view", name)
+		}
+	}
+	if n := strings.Count(src["run.go"], "newSyncConn("); n != 1 {
+		t.Errorf("run.go names newSyncConn %d times, want once (Options.Conn)", n)
+	}
+	// 3. Nothing names the fan-out but syncinput.go, and only the wrapper's Write calls it there.
+	for name, s := range src {
+		if name != "syncinput.go" && strings.Contains(s, "fanOut") {
+			t.Errorf("%s names fanOut: only syncinput.go does", name)
+		}
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), "syncinput.go", src["syncinput.go"], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var from []string
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if c, ok := n.(*ast.CallExpr); ok {
+				if id, ok := c.Fun.(*ast.Ident); ok && id.Name == "fanOut" {
+					from = append(from, fn.Name.Name)
+				}
+			}
+			return true
+		})
+	}
+	if !slices.Equal(from, []string{"Write"}) {
+		t.Errorf("fanOut is called from %v in syncinput.go, want only (*syncConn).Write", from)
+	}
+	// 4. syncinput.go names none of the ways Keel types for the user.
+	for _, bad := range []string{"ApprovedInject", "DirectType", "SuggestInsert", "RestoreWords", "AgentRef", "typeNow", "approveType", "openApprove"} {
+		if strings.Contains(src["syncinput.go"], bad) {
+			t.Errorf("syncinput.go names %s: sync input fans out the user's own keys and nothing Keel types", bad)
+		}
 	}
 }
 

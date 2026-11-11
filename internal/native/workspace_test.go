@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -23,10 +24,13 @@ type fakeConn struct {
 	status   string
 	onChange func()
 
-	wrote int               // bytes written to the session
-	st    *keelclient.State // when set, Snapshot returns it (its Status wins over status)
-	took  int               // TakeControl calls
-	asked int               // RequestControl calls
+	wrote    int      // bytes written to the session
+	writes   [][]byte // each Write, in order
+	writeErr error    // what Write answers (the bytes are recorded either way)
+	wmu      sync.Mutex
+	st       *keelclient.State // when set, Snapshot returns it (its Status wins over status)
+	took     int               // TakeControl calls
+	asked    int               // RequestControl calls
 
 	granted []uint64           // GrantControl, the peer ids in order
 	events  []keelclient.Event // what Events hands over once
@@ -71,15 +75,28 @@ func (c *fakeConn) state() keelclient.State {
 	return keelclient.State{Status: c.status}
 }
 
-func (c *fakeConn) Read([]byte) (int, error)    { return 0, io.EOF }
-func (c *fakeConn) Write(p []byte) (int, error) { c.wrote += len(p); return len(p), nil }
-func (c *fakeConn) Close() error                { c.closed = true; return nil }
-func (c *fakeConn) Resize(int, int) error       { return nil }
-func (c *fakeConn) SessionID() string           { return c.id }
-func (c *fakeConn) Snapshot() keelclient.State  { return c.state() }
-func (c *fakeConn) RequestControl() error       { c.asked++; return nil }
-func (c *fakeConn) TakeControl() error          { c.took++; return nil }
-func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
+func (c *fakeConn) Read([]byte) (int, error) { return 0, io.EOF }
+func (c *fakeConn) Write(p []byte) (int, error) {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	c.wrote += len(p)
+	c.writes = append(c.writes, slices.Clone(p))
+	return len(p), c.writeErr
+}
+
+// written is the bytes of every Write so far, joined.
+func (c *fakeConn) written() string {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return string(slices.Concat(c.writes...))
+}
+func (c *fakeConn) Close() error               { c.closed = true; return nil }
+func (c *fakeConn) Resize(int, int) error      { return nil }
+func (c *fakeConn) SessionID() string          { return c.id }
+func (c *fakeConn) Snapshot() keelclient.State { return c.state() }
+func (c *fakeConn) RequestControl() error      { c.asked++; return nil }
+func (c *fakeConn) TakeControl() error         { c.took++; return nil }
+func (c *fakeConn) OnChange(fn func())         { c.onChange = fn }
 func (c *fakeConn) GrantControl(id uint64) error {
 	c.granted = append(c.granted, id)
 	return nil

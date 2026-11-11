@@ -36,6 +36,7 @@ func (w *workspace) view(c *ui.Context) {
 		return
 	}
 	w.fallBackToHosts()
+	w.publishSync()
 	if w.clip != "" { // a menu's Copy has no context to write with: the next frame does (term.js data-copy)
 		c.WriteClipboard(w.clip)
 		w.say("Copied " + w.clipWhat)
@@ -125,6 +126,7 @@ func (w *workspace) runLater(c *ui.Context) {
 		for _, fn := range run {
 			fn()
 		}
+		w.publishSync()
 		c.Invalidate()
 	}
 }
@@ -728,6 +730,15 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
 				focused := t.focused == p.id // only the focused pane's tools have caps (keel.css:1032)
+				if !t.remote {               // hidden in a joined tab (term.js:1716)
+					tip := "Sync input"
+					if t.sync {
+						tip = "Stop syncing input"
+					}
+					if iconBtn(c, "sync", tip, sizeControlSm, t.sync) {
+						w.act(func() { w.toggleSync(t) })
+					}
+				}
 				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
 					w.act(func() { w.split(t, p.id, layout.Row) })
 				}
@@ -823,6 +834,13 @@ func (w *workspace) statusbar(c *ui.Context) {
 		if p := w.focusedPane(); p != nil && p.nb == nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
+			if t := w.tab(); t != nil && !t.remote { // #sb-sync is hidden in a joined tab (term.js:1827)
+				word := "Sync off"
+				if t.sync {
+					word = "Sync on"
+				}
+				caption(c, word, inkMuted)
+			}
 		}
 	})
 }

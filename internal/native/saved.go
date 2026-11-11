@@ -49,6 +49,7 @@ type savedTab struct {
 	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
 	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
 	Layout          *savedNode `json:"layout"`
+	Sync            bool       `json:"sync,omitempty"` // Sync input is on (savedworkspace.js)
 }
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
@@ -107,7 +108,7 @@ func (w *workspace) snapshot() savedDoc {
 		if i == w.active {
 			d.Active = len(d.Tabs)
 		}
-		st := savedTab{Title: t.title, Layout: root}
+		st := savedTab{Title: t.title, Layout: root, Sync: t.sync}
 		if p := t.panes[t.focused]; p != nil {
 			if p.nb != nil { // a notebook pane has no session: its id says which
 				st.FocusedNotebook = p.nb.savedID()
@@ -302,7 +303,7 @@ func (w *workspace) buildTab(st savedTab, bySID map[string]*pane, used map[strin
 	if root == nil {
 		return nil
 	}
-	t := &tab{root: root, panes: byID, title: st.Title}
+	t := &tab{root: root, panes: byID, title: st.Title, sync: st.Sync}
 	t.focused = root.Leaves()[0]
 	if p := bySID[st.Focused]; p != nil && byID[p.id] == p {
 		t.focused = p.id
