@@ -11,7 +11,8 @@ import (
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
 // offers. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs and here by agentlogic_test.go),
-// without the parts of the app this client does not have (saved conversations, the Agent page, notebooks, runbooks).
+// without the parts of the app this client does not have (notebooks, runbooks); the saved-conversation rules are
+// agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
 // open the Approve before type dialog; keel serve checks the same rules again before it writes (agent service

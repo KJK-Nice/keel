@@ -250,6 +250,30 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   backend) check what an ask sends (exactly three keys: no pane text), Stop, Edit through the server, Copy, the ⇧ rule, the
   refusals, the key field, and that a joined tab has no button. `guard_test.go` keeps one writer and one caller.
 
+## Saved conversations, the Agent page, Settings · Agent (`e2e_agentconv_test.go`, `agentconv_test.go`, plan 018)
+
+- Same rules as the panel above: fake provider, made-up key only, no model reached, no call to keel mcp's routes (the Claude
+  Code scenario wraps the window's backend, `recBackend`, and asserts the patch sent is `claudeCode` and nothing else).
+- Labels: the title button `Recent conversations` (its popover is `dialog Recent conversations`; `Search conversations`), a row
+  `conversation <title>` with `Rename <title>` and `Delete <title>`, `Open all in a tab`, `Delete all` (the confirm's button
+  shares its words: click it after the popover closed, which `askDeleteAll` does), `Proposal expired`, `Copy`, `Propose again`
+  (an expired card has no `Type into pane…`, no `Edit command`, no `Copy command`). The page: `agent page`, `Message the agent on
+  the page`, `host filter <host>` / `host filter All`, `Rename this conversation`, `Delete this conversation`, `Continue in panel`,
+  `Retention settings`. Settings: `settings nav Agent`, `agent card <provider>`, `badge Connected <provider>`, `Change key <p>`,
+  `Disconnect <p>`, `<key label> input` (masked), `Connect <p>`, `<name> switch`, `<name> slider`, `<name> picker`,
+  `Default panes per conversation <choice>`, `Delete all history…`.
+- **An expired proposal** needs keel serve not to hold it. Two ways, both in `TestE2EAgentExpiredProposal`: stop the daemon
+  (`startServeAt` returns `stop`; `e.convList()` first so the save is flushed) and start it again on the same data dir
+  (`startServeAt(t, dir, "serve2", true)`, the same `dir`): the card is Expired, and Propose again gives a Copy-only card
+  because the pane died with the daemon; or start 17 conversations on one daemon (keel serve keeps 16 in memory), which
+  drops the first while its pane is open, so Propose again gives a card that can be typed through the dialog.
+- Wait for the UI, never sleep: after Delete all wait for the toast "Agent history deleted", or a click on the title button
+  races the post that closes the list. The first frame after opening the page has no width and no list: use
+  `r.openPageSettled()` (unit) or `e.pump` on a label before a click. A long Settings page: `tt.SetSize(1280, 3200)` before
+  clicking a control, 1280×720 for the shots (`TestE2EAgentSettings-dark`, `-light`) that sit beside `reference/settings-agent-*`.
+- Unit tests: the pure rules are `agent.test.mjs`' saved-conversation cases (`agentconvlogic_test.go`) and
+  `agentsettings.test.mjs` (`agentsettingshelpers_test.go`); the fake keeps the list and settings in `fakeConvs`.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.

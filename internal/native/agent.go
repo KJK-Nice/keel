@@ -30,8 +30,9 @@ import (
 //   - The provider key goes from a masked field to PUT /api/agent/keys/{provider} once; the field is emptied when the key
 //     is sent and nothing keeps it.
 //
-// Not here, and in the app: saved conversations and the Agent page, notebooks and runbooks, notes, in-pane suggestions,
-// groups, Settings · Agent, Claude Code, typing without the dialog (docs/native.md).
+// Saved conversations (agentconv.go), the Agent page (agentpage.go) and Settings · Agent (agentsettings.go) show and keep
+// the window's one conversation. Not here, and in the app: notebooks and runbooks, notes, in-pane suggestions, groups,
+// Claude Code's mcp (docs/native.md).
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 
