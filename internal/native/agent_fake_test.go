@@ -17,6 +17,7 @@ type fakeAgent struct {
 	keyErr    error
 	asks      []keelclient.AskRequest
 	askReply  func(req keelclient.AskRequest) (keelclient.AskResponse, error) // when nil: an empty answer
+	askWait   chan struct{}                                                   // when set: the ask closes it and waits for its context
 	edits     []string                                                        // "conv/proposal: command"
 	editReply func(command string) (keelclient.Proposal, error)
 }
@@ -69,9 +70,14 @@ func (f *fakeBackend) SetAgentKey(_ context.Context, in keelclient.AgentKeyInput
 	return nil
 }
 
-func (f *fakeBackend) Ask(_ context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error) {
+func (f *fakeBackend) Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error) {
 	f.rec("ask")
 	f.agent.asks = append(f.agent.asks, req)
+	if f.agent.askWait != nil { // an ask that waits for its context, as keel serve's waits for a model
+		close(f.agent.askWait)
+		<-ctx.Done()
+		return keelclient.AskResponse{}, ctx.Err()
+	}
 	if f.agent.askReply != nil {
 		return f.agent.askReply(req)
 	}

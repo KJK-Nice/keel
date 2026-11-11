@@ -285,7 +285,9 @@ type workspace struct {
 	hostDlg         *hostDialog     // New host / Edit host
 	identDlg        *identityDialog // New identity / Edit identity (the Keychain page)
 	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
-	approve         *approveDialog  // Approve before type: the one way Keel types a snippet (approve.go)
+	approve         *approveDialog  // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
+	agent           *agentPanel     // the agent panel and its conversation (agent.go)
+	copyOut         string          // text the next frame writes to the clipboard (a card menu's Copy)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 
 	joinDlg       *joinDialog                                         // Join a session (join.go)
@@ -315,7 +317,7 @@ func (w *workspace) termGround() ui.Color {
 
 func newWorkspace(be backend) *workspace {
 	return &workspace{
-		be: be, alpha: 1, themeNative: followsNatively(), sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
+		be: be, agent: newAgentPanel(), alpha: 1, themeNative: followsNatively(), sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
 		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark, UISize: uiSizeDefault, TermFont: fontJetBrains}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
@@ -353,6 +355,9 @@ func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
 // start asks keel serve what exists. The vault answers first: a locked vault stops here.
 func (w *workspace) start() {
+	if w.dataDir != "" && loadAgentOpen(w.dataDir) { // the panel stays as it was left
+		w.agent.open = true
+	}
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()

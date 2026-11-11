@@ -99,6 +99,7 @@ const (
 	sizeRow       = 44
 	sizeSidebar   = 252
 	sizeRail      = 208 // size-rail: the Settings section rail
+	sizeAgent     = 380 // size-agent: the agent panel
 	// Not tokens: the macOS traffic lights' close button is 14 DIPs tall (AppKit); TrafficLightPosition
 	// is the corner of that button, so y = (size-titlebar - 14) / 2 centres the lights in the title bar row.
 	trafficLightSize = 14

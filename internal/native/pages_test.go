@@ -579,7 +579,10 @@ func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	if !has("tunnel started") || has("session opened") {
 		t.Error("the Forwards chip keeps the wrong rows")
 	}
-	r.click(t, "Agent")
+	// The title bar's Agent button shares this chip's name: the chip is the one after Vault.
+	v, _ := r.tt.Find("Vault")
+	r.tt.ClickAt(v.X+v.W+space1_5+20, v.Y+v.H/2)
+	r.tt.Frame()
 	if !has("agent read 12 lines") || !has("suggestion") || has("host deleted") || has("connect failed") {
 		t.Error("the Agent chip keeps the wrong rows")
 	}

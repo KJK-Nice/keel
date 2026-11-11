@@ -140,6 +140,9 @@ func TestAgentReferenceIsAddedToTheFrameOnlyInInjectGo(t *testing.T) {
 			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
 		}
 	}
+	if !strings.Contains(sourceFiles(t)["approve.go"], "AgentRef{") {
+		t.Fatal("approve.go no longer builds the agent reference; update the guard")
+	}
 }
 
 // The panel asks and shows; it never reads a pane for the agent. keel serve reads and redacts, so no file of the

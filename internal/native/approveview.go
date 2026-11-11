@@ -50,7 +50,11 @@ func (w *workspace) approveView(c *ui.Context) {
 			caption(c, d.session(), inkMuted).MinWidth(0)
 		})
 		ui.Scroll(c).FillWidth().MaxHeight(approvePreviewMax).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("approve preview").Children(func() {
-			ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
+			if d.agent != nil { // the bytes as the proposal card draws them: ^U, the command, ↵
+				bytesView(c, shown)
+			} else {
+				ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
+			}
 		})
 		switch {
 		case d.err != "":
@@ -72,6 +76,6 @@ func (w *workspace) approveView(c *ui.Context) {
 		d.focus = false
 	}
 	if !open {
-		w.act(w.closeApprove)
+		w.act(w.cancelApprove)
 	}
 }

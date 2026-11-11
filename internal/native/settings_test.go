@@ -274,8 +274,13 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	if !r.has("Join session") || !r.has("keys ⌘J") {
 		t.Error("Join session ⌘J is not listed")
 	}
-	if r.has("Toggle agent panel") || r.has("Agent") {
-		t.Error("a key that waits for the agent phase is listed")
+	if !r.has("Toggle agent panel") || !r.has("keys ⌘I") {
+		t.Error("Toggle agent panel ⌘I is not listed")
+	}
+	for _, later := range []string{"Ask the agent (from the palette)", "Put back your words after an inserted suggestion"} {
+		if r.has(later) {
+			t.Errorf("%q waits for a later phase and is listed", later)
+		}
 	}
 }
 

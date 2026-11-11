@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"unicode/utf8"
@@ -51,6 +52,9 @@ func (w *workspace) view(c *ui.Context) {
 				w.sidebarView(c)
 			}
 			w.stage(c)
+			if w.agentShown() { // a joined tab has no agent panel (§5.7)
+				w.agentView(c)
+			}
 		})
 		w.statusbar(c)
 	})
@@ -132,6 +136,12 @@ func (w *workspace) shortcuts(c *ui.Context) {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
 		}
 	}
+	// ⌘I toggles the agent panel; elsewhere Ctrl+⇧I, because Ctrl+I is Tab in a terminal (lib/shortcutmap.js).
+	agentMods := ui.Cmd
+	if runtime.GOOS != "darwin" {
+		agentMods |= ui.Shift
+	}
+	c.OnWindowShortcut(agentMods, ui.KeyI, func() { w.act(w.toggleAgent) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() {
 		if !w.joinedActive() {
 			w.act(func() { w.sidebar = !w.sidebar })
@@ -185,6 +195,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
 		w.shareControls(c) // the watchers badge and the Share button of a session tab
+		w.agentButton(c)
 	})
 }
 
@@ -719,4 +730,31 @@ func (w *workspace) statusbar(c *ui.Context) {
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
 		}
 	})
+}
+
+// agentButton is the title bar's Agent button with its key cap (internal/ui/agent.templ agentToggle). A joined tab has no
+// panel and no button (§5.7).
+func (w *workspace) agentButton(c *ui.Context) {
+	if w.joinedActive() {
+		return
+	}
+	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
+		Label("Agent").Cursor(ui.CursorPointer)
+	fg := inkMuted
+	if w.agent.open || b.Hovered() {
+		b.Background(hoverGround)
+		fg = ink
+	}
+	b.Children(func() {
+		icon(c, "ai-magic", fg)
+		label(c, "Agent", fg)
+		ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
+			for _, k := range splitKeyCaps(agentKeys()) {
+				kbd(c, k)
+			}
+		})
+	})
+	if b.Clicked() {
+		w.act(w.toggleAgent)
+	}
 }
