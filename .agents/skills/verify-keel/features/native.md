@@ -358,6 +358,27 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Not covered: a real provider, a real window's look, the OS clipboard (the tester's holds Copy), rendering a very long notebook
   (about 6 s for 256 KiB: such a notebook opens in Edit).
 
+## Notebooks and the agent (`e2e_agentnotebooks_test.go`, `agentnotebooks_test.go`, `agentnbcards_test.go`, plan 024)
+
+- The fake provider's notebook questions (`providertest/scripted.go`, `tests/agent-notebooks.e2e.ts`): `edit the notebook <title in lower case>`
+  turns `keel-edit-me` into `keel-edited-by-agent` (it reads the notebook first, so the ask makes a Read line and an Edited card),
+  `drop the notebook <title>` proposes a delete, `read the notebook <title>` reads it, `write this up` creates `keel-notebook-e2e draft`.
+  `e.putAgentKey()`, `e.openLocal()`, `e.openAgent()` first; `e.settledAsk(q)` waits for the answer.
+- Labels: the composer's `Attach notebook`, the picker `dialog Notebooks to send with your question` with rows `pick notebook <name>`, a chip
+  `attached <name>` with `Stop sending <name>`, the pane bar's `Ask the agent about this notebook`, a card is labelled by its head (`Created notebook`,
+  `Edited notebook`, `Notebook not changed`, `Delete notebook?`) and its buttons `Open <title>`, `Undo <title>`, `Restore <title>`, `Keep <title>`,
+  `Delete… <title>` (the confirm's own button is `Delete`, its dialog `alertdialog Delete notebook`), the banner's `View changes`, `Undo agent edit`
+  (shown "Undo") and `Mark reviewed`, the Runbooks page's `From a notebook…` and rows `draft from notebook <name>`.
+- Assert on the server: `e.serverNotebook(id)`, `e.serverHas(id)`, `e.trashNames()` (Recently deleted), `GET /api/agent/runbooks` for "nothing saved until
+  Save". A card Undo or Delete is checked by the notebook's text or presence on the server and then on screen, never by the card alone.
+- A save that fails (so typing stays only in the window) needs a wrapped backend, as `nbSaveFail` does (`newWin(..., wrap)`); the real server has no way to
+  refuse a user's save. The tester's clock stands still, so wait with `e.pumpClock` for the autosave. Toasts sit over the composer: `e.closeToasts()`.
+- The private proof: `TestE2EAgentNeverSeesAPrivateNotebook` looks at the trace, the cards, the window's text, the log and the fake's own words (the daemon
+  keeps the fake's received requests in memory and does not expose them). A long window (`newWinH(..., 2400)`) is needed when a banner and a card push a
+  fence's button down.
+- Unit tests: a card's every kind and status is one table (`TestEveryKindAndStatusIsDrawn…`); `nbAgentRig` has three notebooks and a private one on the fake;
+  `fb.agentEdits/agentCreates/agentUndo/agentRemove` do what keel serve does for the agent, and `fb.nbc.answer` is what a card route answers.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
