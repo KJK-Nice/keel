@@ -138,10 +138,12 @@ func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 	if when := agentWhen(rec); when != "" {
 		head += " · " + when
 	}
-	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusMd).Background(hoverGround).AlignItems(ui.Center).Margin(0, 0, space4).
+	// Wraps as the app's does (.notebook-review .k-rb-review: flex-wrap, the words' basis is six controls wide), so a narrow
+	// pane puts the three buttons under the words instead of squeezing them to a letter a line.
+	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Wrap().Radius(radiusMd).Background(hoverGround).AlignItems(ui.Center).Margin(0, 0, space4).
 		Label("Agent edit to review").Children(func() {
 		iconSized(c, "ai-magic", haze, iconSize)
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(sizeControlLg * 6).Children(func() {
 			text(c, head, ink, captionSize, weightSemibold).MinWidth(0)
 			ui.Text(c, agentEditReview).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 		})

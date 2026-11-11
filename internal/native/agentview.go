@@ -378,7 +378,7 @@ func (w *workspace) agentWho(c *ui.Context, who string, ai bool) {
 func traceRow(c *ui.Context, glyph string, col ui.Color, s string) {
 	ui.Row(c).FillWidth().Gap(space2).Children(func() {
 		icon(c, glyph, col)
-		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0)
+		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0) // a long line wraps, as the app's does
 	})
 }
 

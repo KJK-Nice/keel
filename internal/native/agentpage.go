@@ -17,7 +17,8 @@ import (
 // thing. Like the panel it never writes to a pane: a card's Type goes to typeAgentProposal, as in the panel.
 //
 // Not built, as the app does not build them (§5.4.2 "Not built"): a run mode, pinning, sharing a conversation, exporting
-// one, and search inside a conversation. The notebook chips of the composer wait for the notebooks (docs/native.md).
+// one, and search inside a conversation. The composer has the notebook chips and the Attach notebook picker of the panel
+// (agentnotebooksview.go), and the thread the notebook cards.
 
 const (
 	pageWideMin = 960 // size-agentpage-list + size-agentpage-context + size-agent: below it the context goes under the list

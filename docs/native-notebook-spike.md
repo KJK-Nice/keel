@@ -1,5 +1,7 @@
 # Native notebook editor spike (plan 022)
 
+> The spike code named below (`internal/native/nbdoc/`, `nbspike_test.go`) was removed in plan 023. The notebook code is `internal/native/notebooks.go`, `notebookslogic.go`, `notebookpane.go`, `notebookdialogs.go` and `notebooktype.go`; what the agent does to notebooks is `agentnotebooks*.go` (plan 024).
+
 Question: can a Keel notebook go Markdown, editor, Markdown in MyGo's `ui/richtext` (v0.8.3) with the fence languages kept and nothing else changed, and can a fence bar be drawn and clicked over the editor? Code: `internal/native/nbdoc/` (package, tests, `testdata/`), `internal/native/nbspike_test.go` (the bar under `ui.Tester`). Nothing here types into a terminal.
 
 Differences from the plan's guesses: `Text.Paragraphs()` yields each paragraph's first rune offset, not its index, and `Text.ParagraphRange` takes a rune. `Document.Text()` locks, so it cannot be called inside `Document.Edit`. `nbdoc` reads fence info strings with `ui/markdown/parser` (`Block.Info()`), not a hand scan. `Text.Markdown()` writes no final newline (Keel trims a notebook anyway, `notebookMarkdown` in term.js), so the corpus test compares without the input's final newline.
