@@ -46,21 +46,30 @@ type agentProp struct {
 	p       keelclient.Proposal
 	status  *agentStatus
 	editing bool
-	edit    string // the edit field; never typed anywhere, only sent to keel serve by Save command
-	editH   ui.Handle
+	edit    string    // the edit field; never typed anywhere, only sent to keel serve by Save command
+	editH   ui.Handle // the field in the panel
+	editHP  ui.Handle // the same field on the Agent page
 	saving  bool
 
 	focusEdit bool
 }
 
-// agentTurn is one question and its answer.
+// agentTurn is one question and its answer: asked in this window, or read from a saved conversation (saved). A Propose
+// again turn (again) has no question: it is only the new card.
 type agentTurn struct {
 	question string
-	scoped   int // panes in scope when it was asked
+	at       time.Time // when it was asked; set on a saved turn
+	scoped   int       // panes in scope when it was asked
 	pending  bool
 	stopped  bool
 	err      error
-	res      *keelclient.AskResponse
+
+	done         bool // the answer is in (an ask that finished, or a saved turn)
+	saved, again bool
+	trace        []keelclient.TraceStep
+	answer, cut  string
+	testProvider bool
+	props        []string // the proposals under it, by id (agentPanel.props holds them)
 }
 
 type agentPanel struct {
@@ -81,6 +90,20 @@ type agentPanel struct {
 
 	turns []*agentTurn
 	props map[string]*agentProp
+
+	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
+	// written anywhere by this client, and none of it is in keel-native.json.
+	list        convListState
+	createdAt   time.Time // when the conversation started (the page's header)
+	resumedAt   time.Time // set on a resumed conversation: the divider says how long ago it was last used
+	resumedSeq  int       // a resume answered after another one began is dropped
+	sessOpen    bool      // Recent conversations
+	sess        sessUI
+	renameID    string // the row (or, on the page, the heading) being renamed; "" for none
+	renameText  string
+	renameH     ui.Handle
+	renameFocus bool
+	listLoading bool
 
 	input      string
 	inputH     ui.Handle
@@ -240,7 +263,7 @@ func (w *workspace) setAgentOpen(open bool) {
 		w.loadAgent()
 		return
 	}
-	a.picker = false
+	a.picker, a.sessOpen = false, false
 	if t := w.tab(); t != nil && t.panes[t.focused] != nil { // the keyboard goes back to the pane
 		w.wantFocus = t.focused
 	}
@@ -301,11 +324,15 @@ func (w *workspace) agentAsk(question string) bool {
 		a.focusInput, a.focusKey = false, true
 		return false // the Connect card is what the thread shows
 	}
-	a.picker = false
+	a.picker, a.sessOpen = false, false
 	w.agentSync()
+	// A resumed conversation carries on under its own id: that is all a continued ask changes (agentpanel.js ask).
 	req := keelclient.AskRequest{ConversationID: a.conv, Question: q, Panes: append([]string{}, a.scope...)}
-	turn := &agentTurn{question: q, scoped: len(req.Panes), pending: true}
+	turn := &agentTurn{question: q, at: time.Now(), scoped: len(req.Panes), pending: true}
 	a.turns = append(a.turns, turn)
+	if a.createdAt.IsZero() {
+		a.createdAt = turn.at
+	}
 	a.stick = true
 	c, cancel := context.WithTimeout(context.Background(), askTimeout)
 	a.busy = cancel
@@ -332,12 +359,17 @@ func (w *workspace) agentAsk(question string) bool {
 					w.loadAgent()
 				}
 			default:
-				turn.res = &res
+				turn.done, turn.trace, turn.answer, turn.cut, turn.testProvider = true, res.Trace, res.Answer, res.Cut, res.TestProvider
+				a.list.saveError = res.SaveError
 				if res.Title != "" {
 					a.title = res.Title
 				}
 				for _, p := range res.Proposals {
 					a.props[p.ID] = &agentProp{p: p, status: typedStatus(p)}
+					turn.props = append(turn.props, p.ID)
+				}
+				if w.agentPageShown() { // the answer saved the conversation: a list on screen has it
+					w.loadConversations()
 				}
 			}
 		})
@@ -350,7 +382,7 @@ func typedStatus(p keelclient.Proposal) *agentStatus {
 	if p.TypedAt == nil || p.Expired {
 		return nil
 	}
-	return &agentStatus{ok: true, text: "Typed into " + orElse(p.Host, "the pane") + " at " + p.TypedAt.Local().Format("15:04") + "."}
+	return &agentStatus{ok: true, text: "Typed into " + orElse(p.Host, "the pane") + " at " + stampLabel(*p.TypedAt, time.Now()) + "."}
 }
 
 // agentStop is Stop: it cancels the ask in flight, as the app's AbortController does.
@@ -367,9 +399,11 @@ func (w *workspace) newAgentConversation() {
 		a.busy()
 		a.busy = nil
 	}
+	a.resumedSeq++ // a resume still being read belongs to the conversation that was left
 	a.conv, a.title = newConversationID(), ""
 	a.turns, a.props = nil, map[string]*agentProp{}
-	a.scopeAuto, a.picker = true, false
+	a.createdAt, a.resumedAt, a.renameID = time.Time{}, time.Time{}, ""
+	a.scopeAuto, a.picker, a.sessOpen = true, false, false
 	a.focusInput = true
 }
 
@@ -426,7 +460,7 @@ func (w *workspace) saveAgentKey() {
 func (w *workspace) editAgentProposal(id string) {
 	a := w.agent
 	rec := a.props[id]
-	if rec == nil || rec.saving {
+	if rec == nil || rec.saving || rec.p.Expired { // an expired proposal is never edited: keel serve no longer holds it
 		return
 	}
 	command, conv := rec.edit, a.conv
@@ -454,7 +488,7 @@ func (w *workspace) editAgentProposal(id string) {
 func (w *workspace) typeAgentProposal(id string, shift bool) {
 	a := w.agent
 	rec := a.props[id]
-	if rec == nil {
+	if rec == nil || rec.p.Expired { // an expired card has no Type; this is the second lock (typeGate refuses it too)
 		return
 	}
 	pane := w.agentPaneBySession(rec.p.SessionID)

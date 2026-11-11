@@ -31,7 +31,7 @@ type AgentSettings struct {
 			Hostnames bool `json:"hostnames"`
 		} `json:"redact"`
 		HistoryDays int  `json:"historyDays"`
-		ClaudeCode  bool `json:"claudeCode"` // lets keel mcp use /api/mcp/ (§6 rule 14); off unless saved on
+		ClaudeCode  bool `json:"claudeCode"` // lets keel mcp (Claude Code) in (§6 rule 14); off unless saved on
 	} `json:"settings"`
 	Keys map[string]struct {
 		Configured bool `json:"configured"`
@@ -124,6 +124,7 @@ type Proposal struct {
 	NeedsShift   bool       `json:"needsShift"`
 	Placeholders bool       `json:"placeholders"` // holds [secret:N]: keel serve will not type it
 	Edited       bool       `json:"edited"`
+	ProposedAt   *time.Time `json:"proposedAt"`
 	TypedAt      *time.Time `json:"typedAt"`
 	Expired      bool       `json:"expired"`
 }

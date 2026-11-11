@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -65,7 +66,7 @@ func (w *workspace) agentView(c *ui.Context) {
 			a.scroll.Y, a.stick = math.MaxFloat32, false
 		}
 		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).MinHeight(0).TrackScroll(&a.scroll).Label("agent thread").Children(func() {
-			ui.Column(c).FillWidth().Padding(space4, space3).Gap(space4).Children(func() { w.agentThread(c) })
+			ui.Column(c).FillWidth().Padding(space4, space3).Gap(space4).Children(func() { w.agentThread(c, false) })
 		})
 		ui.Row(c).FillWidth().Shrink(0).Padding(space2, space3).Gap(space2).AlignItems(ui.Start).Children(func() {
 			icon(c, "shield-01", inkFaint)
@@ -79,7 +80,29 @@ func (w *workspace) agentHead(c *ui.Context) {
 	a := w.agent
 	hairline(ui.Row(c).FillWidth().Height(sizeControlLg+space2).Shrink(0).Padding(0, space1_5, 0, space3).Gap(space2), 0, 0, 1, 0).Children(func() {
 		icon(c, "ai-magic", brassInk)
-		bodyStrong(c, orElse(a.title, titleNewConv), ink).Grow(1).Shrink(1).MinWidth(0)
+		// The title is the button that opens Recent conversations (agent.templ #agent-sessions-btn).
+		t := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1).Radius(radiusSm).Shrink(1).MinWidth(0).
+			Label("Recent conversations").Cursor(ui.CursorPointer).Focusable().Selected(a.sessOpen)
+		if t.Hovered() || a.sessOpen {
+			t.Background(hoverGround)
+		}
+		t.Children(func() {
+			bodyStrong(c, orElse(a.title, titleNewConv), ink).Shrink(1).MinWidth(0).MaxLines(1)
+			iconSized(c, "chevron-down", inkMuted, iconSizeSm)
+		})
+		if t.Clicked() {
+			w.act(func() {
+				if a.sessOpen {
+					w.closeSessions()
+				} else {
+					w.openSessions()
+				}
+			})
+		}
+		if a.sessOpen {
+			w.agentSessions(c, t)
+		}
+		ui.Spacer(c)
 		if iconBtn(c, "add-01", "New conversation", sizeControlSm, false) {
 			w.act(w.newAgentConversation)
 		}
@@ -113,11 +136,7 @@ func (w *workspace) agentSub(c *ui.Context) {
 			w.agentPicker(c, chip)
 		}
 		ui.Spacer(c)
-		saved := savedInVault
-		if a.settings != nil && a.settings.Settings.HistoryDays <= 0 {
-			saved = "Not saved · kept while open"
-		}
-		text(c, saved, inkFaint, captionSize, weightRegular)
+		text(c, a.savedNote(), inkFaint, captionSize, weightRegular)
 	})
 }
 
@@ -212,39 +231,77 @@ func (w *workspace) agentPicker(c *ui.Context, anchor ui.Element) {
 
 // ---- the thread ----
 
-func (w *workspace) agentThread(c *ui.Context) {
+func (w *workspace) agentThread(c *ui.Context, onPage bool) {
 	a := w.agent
 	if len(a.turns) == 0 {
-		w.agentEmpty(c)
+		w.agentEmpty(c, onPage)
 		return
 	}
+	resumed := a.resumedAfter()
 	for i, t := range a.turns {
 		ui.Column(c).FillWidth().Gap(space4).Key(i).Children(func() {
-			w.agentTurn(c, t)
-			if t.res != nil {
-				for _, p := range t.res.Proposals {
-					w.agentCard(c, p.ID)
-				}
+			if !t.again {
+				w.agentTurn(c, t)
+			}
+			for _, id := range t.props {
+				w.agentCard(c, id, onPage)
+			}
+			if i == resumed {
+				w.agentResumed(c)
 			}
 		})
 	}
 }
 
-func (w *workspace) agentEmpty(c *ui.Context) {
+// agentResumed is the "Resumed · …" divider and the note under the saved turns of a resumed conversation.
+func (w *workspace) agentResumed(c *ui.Context) {
+	a := w.agent
+	hairlineRow := func() { ui.Box(c).Grow(1).Height(1).Background(line) }
+	ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Label("agent resumed").Children(func() {
+		hairlineRow()
+		text(c, "Resumed · "+agoLabel(a.resumedAt, time.Now()), inkFaint, captionSize, weightMedium)
+		hairlineRow()
+	})
+	ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Start).Label("agent resumed note").Children(func() {
+		icon(c, "shield-01", inkFaint)
+		ui.Text(c, "Earlier reads stay in this conversation as text. New reads use only the panes in scope now, on hosts that still allow the agent.").
+			TextColor(inkMuted).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
+	})
+}
+
+func (w *workspace) agentEmpty(c *ui.Context, onPage bool) {
 	a := w.agent
 	if a.keyConfigured != nil && !*a.keyConfigured {
-		w.agentConnect(c)
+		if !onPage {
+			w.agentConnect(c)
+			return
+		}
+		name := "a model"
+		if a.provider != nil {
+			name = orElse(a.provider.Name, name)
+		}
+		ui.Column(c).FillWidth().Padding(space6, space2).Gap(space2).AlignItems(ui.Center).Children(func() {
+			icon(c, "ai-magic", inkFaint)
+			text(c, "Connect "+name+" first", ink, titleSize, weightSemibold)
+			ui.Text(c, "Add a key in the agent panel or in Settings · Agent. Nothing is sent until then.").TextColor(inkMuted).FontSize(captionSize).TextAlign(ui.Center)
+			if textBtn(c, "Open the agent panel", btnDefault) {
+				w.act(func() { w.setAgentOpen(true) })
+			}
+		})
 		return
 	}
 	n := 200
 	if a.settings != nil && a.settings.Settings.ScrollbackLines > 0 {
 		n = a.settings.Settings.ScrollbackLines
 	}
+	msg := "When you send, the agent reads the last " + strconv.Itoa(n) + " lines of each pane in scope, redacts secrets, and answers. Every read is written to the log."
+	if onPage {
+		msg = "Pick a conversation on the left, or ask a new question. The agent reads the last " + strconv.Itoa(n) + " lines of each pane in scope, redacts secrets, and answers. Every read is written to the log."
+	}
 	ui.Column(c).FillWidth().Padding(space6, space2).Gap(space2).AlignItems(ui.Center).Children(func() {
 		icon(c, "ai-magic", inkFaint)
 		text(c, agentEmptyTitle, ink, titleSize, weightSemibold)
-		ui.Text(c, "When you send, the agent reads the last "+strconv.Itoa(n)+" lines of each pane in scope, redacts secrets, and answers. Every read is written to the log.").
-			TextColor(inkMuted).FontSize(captionSize).TextAlign(ui.Center)
+		ui.Text(c, msg).TextColor(inkMuted).FontSize(captionSize).TextAlign(ui.Center)
 	})
 }
 
@@ -318,7 +375,11 @@ func traceRow(c *ui.Context, glyph string, col ui.Color, s string) {
 
 func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 	ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
-		w.agentWho(c, "You", false)
+		who := "You"
+		if t.saved && !t.at.IsZero() { // a saved turn says when it was asked (savedTurnHTML)
+			who += " · " + stampLabel(t.at, time.Now())
+		}
+		w.agentWho(c, who, false)
 		ui.Text(c, t.question).TextColor(ink).FontSize(uiFontSize)
 	})
 	ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
@@ -337,8 +398,8 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 				traceRow(c, "agent-busy", brassInk, msg)
 			case t.stopped:
 				traceRow(c, "agent-skip", inkFaint, "Stopped")
-			case t.res != nil:
-				for _, s := range t.res.Trace {
+			case t.done:
+				for _, s := range t.trace {
 					if s.Status == "read" {
 						traceRow(c, "tick", tide, traceText(s))
 					} else if s.Status == "notes" || s.Status == "runbook" {
@@ -347,10 +408,10 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 						traceRow(c, "agent-skip", inkFaint, traceText(s))
 					}
 				}
-				if len(t.res.Trace) == 0 {
+				if len(t.trace) == 0 && !t.saved { // a saved turn with no trace shows none (savedTurnHTML)
 					traceRow(c, "agent-skip", inkFaint, "Read no pane")
 				}
-				if t.res.TestProvider {
+				if t.testProvider {
 					traceRow(c, "agent-info", inkFaint, "Test provider · nothing left this machine")
 				}
 			}
@@ -358,9 +419,11 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 		if t.err != nil {
 			w.agentError(c, t.err)
 		}
-		if t.res != nil {
-			w.agentAnswer(c, t.res.Answer)
-			if n := cutNotice(t.res.Cut); n != "" {
+		if t.done {
+			if t.answer != "" || !t.saved {
+				w.agentAnswer(c, t.answer)
+			}
+			if n := cutNotice(t.cut); n != "" {
 				ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusSm).Background(signalSoft).AlignItems(ui.Start).Label("agent cut").Children(func() {
 					icon(c, "alert", signal)
 					ui.Text(c, n).TextColor(ink).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
@@ -424,13 +487,23 @@ func (w *workspace) agentAnswer(c *ui.Context, answer string) {
 
 // ---- a proposal card ----
 
-func (w *workspace) agentCard(c *ui.Context, id string) {
+// agentCard draws a proposal. onPage is the Agent page's thread, which is away from the panes: Type names the pane it types
+// into (agentpage.js typeLabel).
+func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	a := w.agent
 	rec := a.props[id]
 	if rec == nil {
 		return
 	}
 	p := rec.p
+	if p.Expired {
+		w.agentExpiredCard(c, id)
+		return
+	}
+	editH := &rec.editH
+	if onPage {
+		editH = &rec.editHP
+	}
 	pane := w.agentPaneBySession(p.SessionID)
 	offer := typeOffer(p, pane)
 	kind, kindCol := riskBadge(p.Risk)
@@ -461,7 +534,7 @@ func (w *workspace) agentCard(c *ui.Context, id string) {
 		ui.Column(c).FillWidth().Padding(space2, space3, 0).Gap(space2).Children(func() {
 			if rec.editing {
 				ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
-					ui.TextAreaBase(c, &rec.edit).Label("Edit command").TextColor(ink).FontSize(captionSize).Font(monoStack).Lines(2, 8).FillWidth().Bind(&rec.editH)
+					ui.TextAreaBase(c, &rec.edit).Label("Edit command").TextColor(ink).FontSize(captionSize).Font(monoStack).Lines(2, 8).FillWidth().Bind(editH)
 				})
 			} else {
 				ui.Scroll(c).FillWidth().MaxHeight(sizeRow*5).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("agent bytes").Children(func() {
@@ -512,14 +585,70 @@ func (w *workspace) agentCard(c *ui.Context, id string) {
 				w.act(func() { c.WriteClipboard(rec.p.Command); w.say("Copied") }) // the command only, never the bytes
 			}
 			if offer == offerType || offer == offerShift {
-				w.typeButton(c, id, offer)
+				w.typeButton(c, id, offer, onPage)
 			}
 		})
 	})
-	if rec.editing && rec.focusEdit {
-		rec.editH.Focus(c)
+	if rec.editing && rec.focusEdit && onPage == w.agentPageShown() { // the field on screen takes the keyboard
+		editH.Focus(c)
 		rec.focusEdit = false
 	}
+}
+
+// agentExpiredCard is a proposal saved from an earlier run (agentthread.js paintExpired). keel serve no longer holds it,
+// so it cannot be typed and cannot be edited: the card has Copy and Propose again and nothing else. Propose again asks
+// keel serve for a new proposal, which is a live card like any other.
+func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
+	rec := w.agent.props[id]
+	p := rec.p
+	kind, kindCol := riskBadge(p.Risk)
+	bg, fg := signalSoft, signal
+	switch kindCol {
+	case "tide":
+		bg, fg = tideSoft, tide
+	case "flare":
+		bg, fg = flareSoft, flare
+	}
+	now := time.Now()
+	meta := "not typed"
+	if p.TypedAt != nil {
+		meta = "typed " + stampLabel(*p.TypedAt, now)
+	}
+	if p.ProposedAt != nil {
+		meta = "Proposed " + stampLabel(*p.ProposedAt, now) + " · " + meta
+	}
+	ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(raised).Border(1, line).Clip().Opacity(0.92).Label("Proposal expired").Children(func() {
+		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
+			icon(c, "agent-cmd", inkMuted)
+			label(c, "Run on", ink)
+			mono(c, orElse(p.Host, "no pane"), inkMuted).Shrink(1).MinWidth(0)
+			if p.Production {
+				pill(c, "Production", signalSoft, signal)
+			}
+			ui.Spacer(c)
+			pill(c, kind, bg, fg).Label("proposal kind")
+			pill(c, "Expired", hoverGround, inkMuted).Label("proposal expired badge")
+		})
+		ui.Column(c).FillWidth().Padding(space2, space3, 0).Gap(space2).Children(func() {
+			ui.Scroll(c).FillWidth().MaxHeight(sizeRow*5).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("agent bytes").Children(func() {
+				bytesView(c, p.Bytes)
+			})
+			if p.Why != "" {
+				ui.Text(c, p.Why).TextColor(inkMuted).FontSize(captionSize)
+			}
+			cardNote(c, "agent-history", inkFaint, "Panes may have changed since this was proposed.")
+		})
+		hairline(ui.Row(c).FillWidth().Margin(space3, 0, 0).Padding(space2, space3).Gap(space1_5).Background(w.ground(surface)), 1, 0, 0, 0).Children(func() {
+			text(c, meta, inkFaint, captionSize, weightRegular)
+			ui.Spacer(c)
+			if textBtn(c, "Copy", btnGhost) {
+				w.act(func() { w.copyOut = p.Command }) // the command only, never the bytes; the next frame writes it
+			}
+			if textBtn(c, "Propose again", btnDefault) {
+				w.act(func() { w.proposeAgain(id) })
+			}
+		})
+	})
 }
 
 func paneLabel(p *agentPane, fallback string) string {
@@ -544,14 +673,25 @@ func cardNote(c *ui.Context, glyph string, col ui.Color, s string) ui.Element {
 }
 
 func (w *workspace) startEdit(rec *agentProp) {
+	if rec.p.Expired {
+		return
+	}
 	rec.editing, rec.edit, rec.focusEdit = true, rec.p.Command, true
 }
 
 // typeButton is Type into pane, with its key: ↵, or ⇧↵ when the proposal needs ⇧. It ends in "…" when a dialog will
 // follow and not when the proposal looks typeable with one click (agentpanel.js typeLabel). A press asks the workspace,
 // which types it directly or opens Approve before type; the card never types. ⇧ held on the click is the ⇧ of the ⇧ rule.
-func (w *workspace) typeButton(c *ui.Context, id, offer string) {
-	word := typeWord("Type into pane", proposalDirect(w.agent.props[id].p))
+func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
+	rec := w.agent.props[id]
+	name := "Type into pane"
+	if onPage { // the page is away from the panes, so the button names the one it types into
+		name = "Type into " + orElse(rec.p.Host, "pane")
+		if pn := w.agentPaneBySession(rec.p.SessionID); pn != nil {
+			name = "Type into " + paneTarget(pn.label, pn.sub)
+		}
+	}
+	word := typeWord(name, proposalDirect(rec.p))
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 		Label(word).Cursor(ui.CursorPointer).Focusable()
 	bg := brass

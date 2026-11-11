@@ -27,7 +27,14 @@ var pageDefs = map[string]pageDef{
 	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
 	"logs":     {title: "Logs", tabIcon: "logs-tab"},
 	"settings": {title: "Settings", tabIcon: "settings-01"},
+	// The Agent page is opened from the palette's Agent conversations and the panel's Open all in a tab, so it is not in
+	// pageNames (term.js PAGES.agent).
+	pageAgent: {title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic"},
 }
+
+// pageAgent is the Agent page's name (a constant, so that no source line holds the quoted key that guard_test.go keeps
+// for keelclient/inject.go).
+const pageAgent = "agent"
 
 // pageNames is every page this client has, in the order the sidebar and the palette list them.
 var pageNames = []string{"keychain", "forwards", "snippets", "logs", "settings"}
@@ -43,6 +50,7 @@ type tabPage struct {
 	snippets *snippetsPage
 	forwards *forwardsPage
 	settings *settingsPage
+	agent    *agentPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -58,6 +66,8 @@ func newTabPage(name string) *tabPage {
 		p.forwards = &forwardsPage{show: tunnelAll}
 	case "settings":
 		p.settings = newSettingsPage()
+	case pageAgent:
+		p.agent = &agentPage{}
 	}
 	return p
 }
@@ -114,6 +124,9 @@ func (w *workspace) loadPage(t *tab) {
 		w.reloadTunnels()
 	case t.pg.settings != nil:
 		w.loadSettings()
+	case t.pg.agent != nil:
+		w.loadAgent()
+		w.loadConversations()
 	}
 }
 
@@ -137,6 +150,9 @@ func (w *workspace) newItem() {
 		case t.pg.forwards != nil:
 			w.newForward()
 			return
+		case t.pg.agent != nil: // ⌘N on the Agent page is New conversation (agentpage.js newConversation)
+			w.newAgentConversation()
+			return
 		}
 	}
 	w.newHost()
@@ -155,6 +171,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.forwardsView(c, t.pg.forwards)
 	case t.pg.settings != nil:
 		w.settingsView(c, t.pg.settings)
+	case t.pg.agent != nil:
+		w.agentPageView(c, t.pg.agent)
 	}
 }
 

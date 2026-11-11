@@ -9,7 +9,7 @@ import (
 
 // Saved agent conversations and the agent's settings (internal/httpapi/agent.go, agentask.go; the service is
 // internal/agent/service/sessions.go). keel serve saves a conversation in the vault, redacted as sent; this client only
-// reads one into memory to show it and never writes it anywhere. Nothing here reads a pane, types, or calls /api/mcp/.
+// reads one into memory to show it and never writes it anywhere. Nothing here reads a pane, types, or calls keel mcp's routes.
 
 // ConversationSummary is one row of GET /api/agent/conversations.
 type ConversationSummary struct {
