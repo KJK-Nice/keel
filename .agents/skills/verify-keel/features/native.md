@@ -338,6 +338,26 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   folder or on the tree. A toast sits over the drawer's Copy button: close it (`Close notification`) before the next press.
   Look at `…-dialog`, `TestE2EGroupPageRolesNotesVars`, `TestE2EFolders` and `TestE2EAnsibleExport`.
 
+## Notebooks (`e2e_notebooks_test.go`, `notebooks_test.go`, `notebookpane_test.go`, `notebookhistory_test.go`, plan 023)
+
+- A notebook is read **rendered** and edited as **Markdown source** (docs/native.md, decided 2026-11-11). Reach one: the sidebar's
+  Snippets segment (`e.click("Snippets")`, rows `sidebar notebook <name>`, buttons `New notebook`, `All notebooks`), the page
+  (`e.w.openPage("notebooks")`, rows `notebook <name>`, right-click for the menu), the palette (`Open notebook <name>`). Make
+  one on the daemon with `e.apiNotebook(name, md)` (POST, then waits for the window); read it back with `e.serverNotebook(id)`.
+- The pane: `Rename notebook` (title), `Edit` / `Done` (the text area is `Markdown document`), `Mark reviewed`, `History`, the
+  fences' `Copy code <n>` and `Type into <pane> <n>` where `<n>` is the block's index (`fences(md)[i].Index`; the visible text is
+  without the number). Type is offered only for a shell fence with a terminal in the tab. Unit tests run `work` and `post` at
+  once (`nbRig`), so a save is done by the next frame; `tt.Advance(autosaveIdle + …)` moves the autosave clock.
+- Typing is asserted on the scrollback, never on the toast alone: a one-line `sh` fence shows on the prompt line with no
+  output (`df -h`, then `Filesystem` only after the test's own Enter) and a direct log row (`Source` "direct", message
+  "notebook <id> typed without Enter into …"); a two-line fence opens the dialog, whose `shown()` is the exact bytes (no Ctrl-U),
+  Cancel changes no scrollback, Type sends them with `notebook: true`; a `[secret:1]` fence sends nothing and shows the app's sentence.
+- History needs a kept version: have the fake agent edit the notebook (`POST /api/agent/ask` with a conversation id of 8+ chars and
+  the question `edit the notebook <name lower case>`; needs `e.putAgentKey()`), which keeps "Before the agent's edit" and sets
+  Edited by agent; then `History` → `Restore this version`. Two user saves inside 15 minutes keep nothing (`sessionGap`).
+- Not covered: a real provider, a real window's look, the OS clipboard (the tester's holds Copy), rendering a very long notebook
+  (about 6 s for 256 KiB: such a notebook opens in Edit).
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.

@@ -271,6 +271,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
 		case t.remote: // the joined-share link (lib/tabstrip.js)
 			lead = icon(c, "link", inkMuted)
+		case t.onlyNotebooks(): // no session to have a state
+			lead = icon(c, "notebook-pen", inkMuted)
 		default:
 			lead = dot(c, statusColor(status))
 		}
