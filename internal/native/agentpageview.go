@@ -235,33 +235,34 @@ func (w *workspace) pageRenameField(c *ui.Context, p *agentPage) {
 
 func (w *workspace) pageComposer(c *ui.Context, p *agentPage) {
 	a := w.agent
-	ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Shrink(0).Margin(0, space6, space4).Padding(space2, space3, space3).Gap(space2).
-		Radius(radiusMd).Background(raised).Border(1, line).Children(func() {
-		ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
-			ui.TextAreaBase(c, &p.input).Label("Message the agent on the page").Placeholder(w.pagePlaceholder()).PlaceholderColor(inkFaint).TextColor(ink).
-				FontSize(uiFontSize).Lines(2, 8).FillWidth().Bind(&p.inputH).OnTextKey(func(k ui.TextKey) bool {
-				if k.Key != ui.KeyEnter || k.Mods != 0 { // ⇧↵ is a newline
-					return false
-				}
-				q := k.Text()
-				k.SetText("")
-				w.act(func() { w.pageAsk(p, q) })
-				return true
-			})
-		})
-		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
-			text(c, "Reads only panes in scope now · ↵ send", inkFaint, captionSize, weightRegular).Shrink(1).MinWidth(0)
-			ui.Spacer(c)
-			if a.busy != nil && textBtn(c, "Stop", btnGhost) {
-				w.act(w.agentStop)
-			}
-			if iconBtnOff(c, "arrow-up-02", "Send", sizeControlSm, false, a.busy != nil) {
-				w.act(func() {
-					q := p.input
-					p.input = ""
-					w.pageAsk(p, q)
+	ui.Column(c).FillWidth().Shrink(0).Padding(0, space6, space4).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Padding(space2, space3, space3).Gap(space2).Radius(radiusMd).Background(raised).Border(1, line).Children(func() {
+			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+				ui.TextAreaBase(c, &p.input).Label("Message the agent on the page").Placeholder(w.pagePlaceholder()).PlaceholderColor(inkFaint).TextColor(ink).
+					FontSize(uiFontSize).Lines(2, 8).FillWidth().Bind(&p.inputH).OnTextKey(func(k ui.TextKey) bool {
+					if k.Key != ui.KeyEnter || k.Mods != 0 { // ⇧↵ is a newline
+						return false
+					}
+					q := k.Text()
+					k.SetText("")
+					w.act(func() { w.pageAsk(p, q) })
+					return true
 				})
-			}
+			})
+			ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
+				text(c, "Reads only panes in scope now · ↵ send", inkFaint, captionSize, weightRegular).Shrink(1).MinWidth(0)
+				ui.Spacer(c)
+				if a.busy != nil && textBtn(c, "Stop", btnGhost) {
+					w.act(w.agentStop)
+				}
+				if iconBtnOff(c, "arrow-up-02", "Send", sizeControlSm, false, a.busy != nil) {
+					w.act(func() {
+						q := p.input
+						p.input = ""
+						w.pageAsk(p, q)
+					})
+				}
+			})
 		})
 	})
 }
