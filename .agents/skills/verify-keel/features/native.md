@@ -274,6 +274,27 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Unit tests: the pure rules are `agent.test.mjs`' saved-conversation cases (`agentconvlogic_test.go`) and
   `agentsettings.test.mjs` (`agentsettingshelpers_test.go`); the fake keeps the list and settings in `fakeConvs`.
 
+## In-pane suggestions (`e2e_suggest_test.go`, `suggestpane_test.go`, `suggestgate_test.go`, plan 019)
+
+- The daemon runs `KEEL_AGENT_PROVIDER=fake` (every e2e daemon does), and `suggestSetup` stores two made-up keys (`fakeAgentKey`,
+  `fakeJevKey`) and the settings through the API; no provider is reached and no `/api/mcp/` route is called. The fake answers
+  "show the files here" with `echo keel-suggest-ok` and two alternatives, "clean up old files" with the destructive
+  `rm -rf /tmp/keel-suggest-e2e` (a command the test never runs: no Enter, Ctrl-U after), `# …` lines in hash-only mode.
+- The window's clock is the tester's and stands still: use `pumpClock` / `settleClock` (they `Advance` 25 ms a turn), or the 350 ms
+  typing pause never ends. Type with `typeKeys` (key presses, which is what the pane's `OnKey` sees), not `tt.Type` (text alone).
+- "Inserted but not run" is asserted on the scrollback and the log: after the second ⇥ the prompt line (`e.tail`, the window's own
+  terminal) ends with the command, `settleClock(1s)` passes, `ranOutput` finds **no line that is exactly the command's output**, and
+  `agent.suggest` and one `agent.insert` (bytes = Ctrl-U + command) are in `GET /api/logs`; only then the test presses Enter and the
+  output appears. Never press Enter on the destructive card.
+- "Typing is not delayed" is asserted by typing 200 characters of `echo …` at once with suggestions on: the echo in the raw
+  scrollback, stripped of escapes, line ends and spaces (`bare`), equals what was typed, in order, and the Enter's output is the words
+  and nothing else. The unit twin: `TestTypingIsNeverHeldBackOrChanged` (no key is taken while nothing is noticed; the pane's key hook
+  only reports, `Write` never runs).
+- Alignment is `suggestgate_test.go`: a cell measured from the font (`gridFor`) must equal the plugin's own caret rect after a resize, a text
+  size change and at scales 1 and 2. Re-run it, and look at `TestE2ESuggestInsertNotRun-notice.png` and `-card.png` (the mark sits on the
+  words, the card under the line), after a change of font, text size or MyGo version.
+- Not covered: a real provider's latency, and the look over a real terminal on a real window.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
