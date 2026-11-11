@@ -15,6 +15,13 @@ import (
 // docked tab's sync flag kept if either had it. Nothing here opens, closes or types into a session: a pane keeps its
 // connection wherever it goes.
 
+// dragged is what is dragged to the tab strip and to a pane: a tab (by its pill) or a pane (by its bar). The engine lets an
+// element take one type of value, and an interface is one type.
+type dragged interface{ dragged() }
+
+func (*tab) dragged()  {}
+func (*pane) dragged() {}
+
 // canDock is a tab that may be dropped on a pane of dest: two different session tabs of this machine's keel serve (not the New
 // tab page, a page or a joined tab).
 func canDock(src, dest *tab) bool {
@@ -126,27 +133,38 @@ func (w *workspace) movePane(t *tab, from, to string, edge string) {
 // paneDropZone is the target side of the drag: while a pane of this tab is dragged over tile p, the region it would take is
 // drawn (.pane-drop-region), and on the drop the pane moves. tl is the tile's element and r its box.
 func (w *workspace) paneDropZone(c *ui.Context, t *tab, p *pane, tl ui.Element) {
-	if moved, ok := ui.Drop[*pane](tl); ok && moved != p && t.panes[moved.id] == moved {
-		x, y, _ := tl.PointerPosition()
-		if b := tl.Bounds(); b.W > 0 && b.H > 0 {
-			edge := dropEdge(x/b.W, y/b.H)
-			w.act(func() { w.movePane(t, moved.id, p.id, edge) })
+	// An element takes one type of dragged value, so a pane and a tab are taken as a dragged and told apart here. A pane of this
+	// tab moves; a tab of another dropped here docks beside this pane (the centre docks to the right).
+	drop, dropped := ui.Drop[dragged](tl)
+	switch m := drop.(type) {
+	case *pane:
+		if dropped && m != p && t.panes[m.id] == m {
+			if b := tl.Bounds(); b.W > 0 && b.H > 0 {
+				x, y, _ := tl.PointerPosition()
+				edge := dropEdge(x/b.W, y/b.H)
+				w.act(func() { w.movePane(t, m.id, p.id, edge) })
+			}
+			return
 		}
-		return
-	}
-	// A tab of another tab dropped here docks beside this pane (the centre docks to the right).
-	if src, ok := ui.Drop[*tab](tl); ok && canDock(src, t) {
-		if b := tl.Bounds(); b.W > 0 && b.H > 0 {
-			x, y, _ := tl.PointerPosition()
-			edge := dropEdge(x/b.W, y/b.H)
-			w.act(func() { w.dockTab(src, p.id, edge) })
+	case *tab:
+		if dropped && canDock(m, t) {
+			if b := tl.Bounds(); b.W > 0 && b.H > 0 {
+				x, y, _ := tl.PointerPosition()
+				edge := dropEdge(x/b.W, y/b.H)
+				w.act(func() { w.dockTab(m, p.id, edge) })
+			}
+			return
 		}
-		return
 	}
-	from, over := ui.DragOver[*pane](tl)
-	over = over && from != p && t.panes[from.id] == from
-	srcTab, dock := ui.DragOver[*tab](tl)
-	dock = dock && canDock(srcTab, t)
+	var over, dock bool
+	if v, ok := ui.DragOver[dragged](tl); ok {
+		switch m := v.(type) {
+		case *pane:
+			over = m != p && t.panes[m.id] == m
+		case *tab:
+			dock = canDock(m, t)
+		}
+	}
 	if !over && !dock {
 		return
 	}

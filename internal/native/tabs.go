@@ -190,6 +190,20 @@ func (w *workspace) recordClosed(p *pane, kind string) {
 	if len(w.recent) > closedMax {
 		w.recent = w.recent[:closedMax]
 	}
+	w.keepClosed()
+}
+
+// keepClosed saves the recently closed list in keel-native.json (the app keeps it in localStorage, so the New tab page and
+// ⌘⇧T know it after the window was closed): host ids, titles and times, off the UI thread.
+func (w *workspace) keepClosed() {
+	if dir := w.dataDir; dir != "" {
+		keep := closedJSON(w.recent)
+		w.work(func() {
+			if err := savePrefs(dir, map[string]any{"closedTabs": keep}); err != nil {
+				w.post(func() { w.fail("save recently closed", err) })
+			}
+		})
+	}
 }
 
 // reopenClosed opens the newest closed entry whose host still exists as a new session (⌘⇧T).
@@ -205,6 +219,7 @@ func (w *workspace) reopenClosedAt(t *tab, i int) {
 	}
 	e := list[i]
 	w.recent = slices.DeleteFunc(slices.Clone(w.recent), func(o closedEntry) bool { return o == e })
+	w.keepClosed()
 	for _, h := range w.hosts {
 		if h.ID == e.hostID {
 			if t != nil && t.isNew() {

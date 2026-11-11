@@ -554,8 +554,10 @@ func (w *workspace) start() {
 		}
 		doc := loadSaved(w.dataDir)
 		var recent []string
+		var closedBefore []closedEntry
 		if w.dataDir != "" {
 			recent = loadRecentHosts(w.dataDir)
+			closedBefore = loadClosedTabs(w.dataDir)
 		}
 		w.post(func() {
 			if w.closed {
@@ -574,6 +576,7 @@ func (w *workspace) start() {
 			}
 			w.rev = v.Rev
 			w.recentIDs = recent
+			w.recent = closedBefore // the recently closed list comes back with the window (localStorage in the app)
 			panes := make([]*pane, len(live))
 			for i, a := range live {
 				panes[i] = w.newPane(a.host, a.conn)

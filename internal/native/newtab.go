@@ -75,18 +75,19 @@ func (w *workspace) localHost() (keelclient.Host, bool) {
 	return keelclient.Host{}, false
 }
 
-// hostMatches is term.js hostMatches over the fields the native Host has (no tags or folder path yet).
-func hostMatches(h keelclient.Host, q string) bool {
+// hostMatches is term.js hostMatches: the query is one needle, looked for in the host's name, group, the names of every
+// folder above it, address, user and tags (lib/groups.js hostSearchHay).
+func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 	needle := strings.ToLower(strings.TrimSpace(q))
 	if needle == "" {
 		return true
 	}
-	return strings.Contains(strings.ToLower(h.Name+" "+h.Group+" "+h.Address+" "+h.Username), needle)
+	return strings.Contains(hostSearchHay(groups, h), needle)
 }
 
 // pickCards is lib/newtab.js recentCards: up to six hosts. With no query they are the recent hosts and the
 // local shell first; with a query, every host that matches, recent ones first.
-func pickCards(hosts []keelclient.Host, recent []string, query string, local *keelclient.Host) []keelclient.Host {
+func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []string, query string, local *keelclient.Host) []keelclient.Host {
 	byID := map[string]keelclient.Host{}
 	for _, h := range hosts {
 		byID[h.ID] = h
@@ -111,12 +112,12 @@ func pickCards(hosts []keelclient.Host, recent []string, query string, local *ke
 		return out[:min(len(out), recentCards)]
 	}
 	for _, id := range recent {
-		if h, ok := byID[id]; ok && hostMatches(h, q) {
+		if h, ok := byID[id]; ok && hostMatches(groups, h, q) {
 			add(h, true)
 		}
 	}
 	for _, h := range hosts {
-		if hostMatches(h, q) {
+		if hostMatches(groups, h, q) {
 			add(h, true)
 		}
 	}
@@ -129,7 +130,7 @@ func (w *workspace) cards(p *startPage) []keelclient.Host {
 	if h, ok := w.localHost(); ok {
 		local = &h
 	}
-	return pickCards(w.hosts, w.recentIDs, p.query, local)
+	return pickCards(w.folders, w.hosts, w.recentIDs, p.query, local)
 }
 
 // ageLabel is lib/newtab.js ageLabel: "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".

@@ -36,15 +36,15 @@ func TestRecentCardsAreTheRecentHostsPlusTheLocalShell(t *testing.T) {
 	hosts := hostsNamed("a", "b", "c", "d", "e", "f", "g", "h")
 	local := keelclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
 	all := append(slices.Clone(hosts), local)
-	got := pickCards(all, []string{"c", "a", "gone", "b", "d", "e", "f", "g"}, "", &local)
+	got := pickCards(nil, all, []string{"c", "a", "gone", "b", "d", "e", "f", "g"}, "", &local)
 	if want := []string{"loc", "c", "a", "b", "d", "e"}; !slices.Equal(idsOf(got), want) {
 		t.Errorf("%v, want %v", idsOf(got), want)
 	}
 	// "with no recent hosts the local shell is the only card"
-	if got := pickCards(all, nil, "", &local); !slices.Equal(idsOf(got), []string{"loc"}) {
+	if got := pickCards(nil, all, nil, "", &local); !slices.Equal(idsOf(got), []string{"loc"}) {
 		t.Errorf("no recents: %v", idsOf(got))
 	}
-	if got := pickCards(nil, nil, "", nil); len(got) != 0 {
+	if got := pickCards(nil, nil, nil, "", nil); len(got) != 0 {
 		t.Errorf("nothing: %v", idsOf(got))
 	}
 }
@@ -53,15 +53,32 @@ func TestRecentCardsAreTheRecentHostsPlusTheLocalShell(t *testing.T) {
 func TestRecentCardsForAQuery(t *testing.T) {
 	hosts := hostsNamed("a", "b", "c", "d", "e", "f", "g", "h")
 	local := keelclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
-	got := pickCards(append(slices.Clone(hosts), local), []string{"c"}, "host-", &local)
+	got := pickCards(nil, append(slices.Clone(hosts), local), []string{"c"}, "host-", &local)
 	if got[0].ID != "c" || len(got) != recentCards {
 		t.Errorf("%v", idsOf(got))
 	}
-	if got := pickCards(hosts, nil, "host-b", nil); !slices.Equal(idsOf(got), []string{"b"}) {
+	if got := pickCards(nil, hosts, nil, "host-b", nil); !slices.Equal(idsOf(got), []string{"b"}) {
 		t.Errorf("%v", idsOf(got))
 	}
-	if got := pickCards(hosts, nil, "nothing", nil); len(got) != 0 {
+	if got := pickCards(nil, hosts, nil, "nothing", nil); len(got) != 0 {
 		t.Errorf("%v", idsOf(got))
+	}
+}
+
+// term.js hostMatches reads lib/groups.js hostSearchHay: the tags and the names of every folder above a host are searched too.
+func TestTheNewTabSearchReadsTagsAndTheFolderPath(t *testing.T) {
+	groups := []keelclient.Group{{ID: "g1", Name: "Infra"}, {ID: "g2", Name: "Replicas", ParentID: "g1"}}
+	hosts := hostsNamed("a", "b", "c")
+	hosts[0].Tags = []string{"prod", "db"}
+	hosts[1].GroupID = "g2"
+	for q, want := range map[string][]string{"prod": {"a"}, "DB": {"a"}, "infra": {"b"}, "replicas": {"b"}, "infra replicas": nil, "host-c": {"c"}} {
+		if got := idsOf(pickCards(groups, hosts, nil, q, nil)); !slices.Equal(got, want) && !(len(got) == 0 && len(want) == 0) {
+			t.Errorf("%q: %v, want %v", q, got, want)
+		}
+	}
+	// Without the folders the path is not searched.
+	if got := pickCards(nil, hosts, nil, "infra", nil); len(got) != 0 {
+		t.Errorf("a folder name matched with no folders: %v", idsOf(got))
 	}
 }
 
@@ -445,6 +462,49 @@ func TestRecentHostsSurviveAPrefsRoundTripAndHoldOnlyIDs(t *testing.T) {
 	}
 	if len(r.w.recentIDs) != recentMax || len(loadRecentHosts(dir)) != recentMax {
 		t.Errorf("recent list has %d", len(r.w.recentIDs))
+	}
+}
+
+// The app keeps recently closed in localStorage, so it survives closing the window (term.js CLOSED_KEY); here it is kept in
+// keel-native.json, read as lib/newtab.js normalizeClosed reads it.
+func TestRecentlyClosedSurvivesClosingTheWindow(t *testing.T) {
+	dir := t.TempDir()
+	r := newRigIn(t, okBackend(), dir)
+	r.click(t, "host api-1")
+	r.w.closeTab(r.w.tab())
+	r.w.closeWindow()
+	b, _ := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+	if !strings.Contains(string(b), `"closedTabs"`) || strings.Contains(string(b), "10.0.0") {
+		t.Fatalf("keel-native.json holds %s", b)
+	}
+	r2 := newRigIn(t, okBackend(), dir)
+	if got := r2.w.closedList(); len(got) != 1 || got[0].hostID != "h-api" || got[0].kind != "tab" {
+		t.Fatalf("after a restart the list is %+v", got)
+	}
+	r2.w.reopenClosed() // opens it and takes it off the list, in the file too
+	if got := loadClosedTabs(dir); len(got) != 0 {
+		t.Errorf("a reopened entry stays in the file: %+v", got)
+	}
+}
+
+func TestLoadClosedTabsReadsOnlyWhatNormalizeClosedKeeps(t *testing.T) {
+	dir := t.TempDir()
+	long := strings.Repeat("é", 150)
+	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"closedTabs":[{"hostId":"a","title":"`+long+`","kind":"pane","at":5000},{"hostId":"","title":"x"},{"title":"y"},{"hostId":"b","kind":"weird","at":"no"},7,null]}`), 0o600)
+	got := loadClosedTabs(dir)
+	if len(got) != 2 || got[0].hostID != "a" || got[0].kind != "pane" || len([]rune(got[0].title)) != 120 || got[0].at.UnixMilli() != 5000 || got[1].hostID != "b" || got[1].kind != "tab" {
+		t.Errorf("read %+v", got)
+	}
+	var many []string
+	for i := 0; i < 15; i++ {
+		many = append(many, fmt.Sprintf(`{"hostId":"h%d"}`, i))
+	}
+	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"closedTabs":[`+strings.Join(many, ",")+`]}`), 0o600)
+	if got := loadClosedTabs(dir); len(got) != closedMax {
+		t.Errorf("%d entries, want %d", len(got), closedMax)
+	}
+	if got := loadClosedTabs(t.TempDir()); got != nil {
+		t.Errorf("no file: %+v", got)
 	}
 }
 

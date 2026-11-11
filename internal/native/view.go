@@ -213,11 +213,13 @@ func (w *workspace) titlebar(c *ui.Context) {
 		}
 		// The empty strip past the last tab: a tab dropped here goes last (ui/drag.js: a drop on the strip).
 		gap := ui.Box(c).Grow(1).FillHeight().Label("tab strip end")
-		if moved, ok := ui.Drop[*tab](gap); ok {
-			w.act(func() { w.moveTab(moved, len(w.tabs)) })
-		}
-		if mp, ok := ui.Drop[*pane](gap); ok {
-			w.act(func() { w.dropPaneOnStrip(mp, len(w.tabs)) })
+		if moved, ok := ui.Drop[dragged](gap); ok {
+			switch m := moved.(type) {
+			case *tab:
+				w.act(func() { w.moveTab(m, len(w.tabs)) })
+			case *pane:
+				w.act(func() { w.dropPaneOnStrip(m, len(w.tabs)) })
+			}
 		}
 		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
@@ -338,22 +340,22 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		w.act(func() { w.selectTab(i) })
 	}
 	// A tab dropped on another lands before it or after it, by which half the pointer let go in.
-	if moved, ok := ui.Drop[*tab](r); ok && moved != t {
+	// A pane dragged by its bar and dropped here becomes a tab of its own, before this tab or after it (ui/drag.js). An element
+	// takes one type of dragged value, so a tab and a pane are taken as a dragged and told apart here.
+	if moved, ok := ui.Drop[dragged](r); ok {
 		x, _, _ := r.PointerPosition()
 		slot := i
 		if x > t.h.Bounds(c).W/2 {
 			slot++
 		}
-		w.act(func() { w.moveTab(moved, slot) })
-	}
-	// A pane dragged by its bar and dropped here becomes a tab of its own, before this tab or after it (ui/drag.js).
-	if mp, ok := ui.Drop[*pane](r); ok {
-		x, _, _ := r.PointerPosition()
-		slot := i
-		if x > t.h.Bounds(c).W/2 {
-			slot++
+		switch m := moved.(type) {
+		case *tab:
+			if m != t {
+				w.act(func() { w.moveTab(m, slot) })
+			}
+		case *pane:
+			w.act(func() { w.dropPaneOnStrip(m, slot) })
 		}
-		w.act(func() { w.dropPaneOnStrip(mp, slot) })
 	}
 }
 

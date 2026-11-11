@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // prefs are the window preferences, named and ranged as the webview's (cmd/keel/web/js/term.js). The
@@ -77,6 +78,50 @@ func loadRecentHosts(dataDir string) (ids []string) {
 		}
 	}
 	return ids
+}
+
+// loadClosedTabs reads the recently closed list from keel-native.json as lib/newtab.js normalizeClosed does: only entries
+// naming a host, the title cut at 120 characters, "pane" or else "tab", newest first, at most closedMax. The file holds no
+// secret: a host id, a title and a time in milliseconds.
+func loadClosedTabs(dataDir string) (out []closedEntry) {
+	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	if err != nil {
+		return nil
+	}
+	var f struct{ ClosedTabs []any }
+	if json.Unmarshal(b, &f) != nil {
+		return nil
+	}
+	for _, v := range f.ClosedTabs {
+		e, _ := v.(map[string]any)
+		id, _ := e["hostId"].(string)
+		if id == "" {
+			continue
+		}
+		title, _ := e["title"].(string)
+		if r := []rune(title); len(r) > 120 {
+			title = string(r[:120])
+		}
+		kind := "tab"
+		if e["kind"] == "pane" {
+			kind = "pane"
+		}
+		ms, _ := e["at"].(float64)
+		out = append(out, closedEntry{hostID: id, title: title, kind: kind, at: time.UnixMilli(int64(ms))})
+		if len(out) >= closedMax {
+			break
+		}
+	}
+	return out
+}
+
+// closedJSON is the list as loadClosedTabs reads it.
+func closedJSON(list []closedEntry) []map[string]any {
+	out := make([]map[string]any, 0, len(list))
+	for _, e := range list {
+		out = append(out, map[string]any{"hostId": e.hostID, "title": e.title, "kind": e.kind, "at": e.at.UnixMilli()})
+	}
+	return out
 }
 
 var prefsMu sync.Mutex
