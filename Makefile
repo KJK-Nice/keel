@@ -47,8 +47,9 @@ ui: $(if $(filter $(TAILWIND_BIN),$(TAILWIND)),$(TAILWIND_BIN))
 	$(TEMPL) generate
 	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
 
+# make app opens the native window; make app WEBVIEW=1 the Wails one (keel app --webview).
 app: ui
-	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app
+	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app $(if $(WEBVIEW),--webview)
 
 build: ui
 	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
@@ -57,11 +58,24 @@ build: ui
 ifeq ($(UNAME_S),Darwin)
 	$(MAKE) macos-app
 endif
+# Linux: libghostty-vt.so beside bin/keel (MyGo's loader finds it there; it would otherwise fetch it into the user cache).
+ifeq ($(UNAME_S),Linux)
+	$(MAKE) native
+	cp "$$(./bin/keel-native --library-path)" bin/
+endif
 
-macos-app:
+# Keel.app opens the native window; libghostty-vt sits beside the binary so the app never downloads it. The library
+# comes from MyGo's loader (pinned SHA-256) via bin/keel-native --library-path; KEEL_LIBGHOSTTY=<file> names another
+# (scripts/release.sh passes the universal one). The bundle id stays app.keel.desktop: the Keychain items and the
+# user defaults of Keel are tied to it.
+KEEL_LIBGHOSTTY ?=
+
+macos-app: native
 	rm -rf bin/Keel.app
 	mkdir -p bin/Keel.app/Contents/MacOS bin/Keel.app/Contents/Resources
 	cp bin/keel bin/Keel.app/Contents/MacOS/keel
+	cp "$(if $(KEEL_LIBGHOSTTY),$(KEEL_LIBGHOSTTY),$$(./bin/keel-native --library-path))" bin/Keel.app/Contents/MacOS/libghostty-vt.dylib
+	codesign --force --sign - bin/Keel.app/Contents/MacOS/libghostty-vt.dylib
 	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
 ifneq ($(KEEL_VERSION),dev)
 	plutil -replace CFBundleShortVersionString -string $(patsubst v%,%,$(KEEL_VERSION)) bin/Keel.app/Contents/Info.plist
