@@ -226,10 +226,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 				})
 			}
 			if p.Summary != "" && p.Kind != "delete" {
-				ui.Text(c, p.Summary).TextColor(inkMuted).FontSize(captionSize).Label("notebook summary")
+				ui.Text(c, p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
 			if p.Summary != "" && p.Kind == "delete" {
-				ui.Text(c, "Why: "+p.Summary).TextColor(inkMuted).FontSize(captionSize).Label("notebook summary")
+				ui.Text(c, "Why: "+p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
 			if warn {
 				warnBlock(c, paneWarning(p))
