@@ -91,6 +91,9 @@ type AskRequest struct {
 	ConversationID string   `json:"conversationId"`
 	Question       string   `json:"question"`
 	Panes          []string `json:"panes"`
+	// RunbookID starts that runbook in this conversation (the user picked it): keel serve proposes its current step
+	// itself. Starting one is an ask, never a type.
+	RunbookID string `json:"runbookId,omitempty"`
 }
 
 // TraceStep is one line of the trace: what the agent did with a pane. Status is "read" or "skipped" (Reason
@@ -127,6 +130,8 @@ type Proposal struct {
 	ProposedAt   *time.Time `json:"proposedAt"`
 	TypedAt      *time.Time `json:"typedAt"`
 	Expired      bool       `json:"expired"`
+	// Runbook is set on a proposal keel serve made from a runbook step (the current one only): typed like any other.
+	Runbook *ProposalStep `json:"runbook"`
 }
 
 // AskResponse is the answer to one ask, in one piece (keel serve does not stream it).
@@ -139,6 +144,11 @@ type AskResponse struct {
 	Answer         string      `json:"answer"`
 	Proposals      []Proposal  `json:"proposals"`
 	Cut            string      `json:"cut"` // set when the provider ended the reply early: "length", "safety"…
+	// Notes and Runbooks are what the agent proposes to remember: nothing is kept until the user saves one. Runbook is
+	// the runbook in use after this ask, if any.
+	Notes    []NoteProposal    `json:"notes"`
+	Runbook  *ChatRunbook      `json:"runbook"`
+	Runbooks []RunbookProposal `json:"runbooks"`
 }
 
 // Ask is POST /api/agent/ask. It waits for the model, as long as ctx allows: cancel ctx to stop (the panel's Stop).

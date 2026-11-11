@@ -31,26 +31,31 @@ type ConversationList struct {
 	Unreadable  bool                  `json:"unreadable"` // keel.chats cannot be read: Delete all starts over
 }
 
-// SavedTurn is one turn of a transcript: the question and what the agent answered. Notes, runbook and notebook cards
-// are not part of this client yet (docs/native.md).
+// SavedTurn is one turn of a transcript: the question and what the agent answered, the cards for the notes and runbooks it
+// proposed and what the user did with them. Notebook cards are not part of this client yet (docs/native.md).
 type SavedTurn struct {
-	At        time.Time   `json:"at"`
-	Question  string      `json:"question"`
-	Answer    string      `json:"answer"`
-	Cut       string      `json:"cut"`
-	Trace     []TraceStep `json:"trace"`
-	Proposals []Proposal  `json:"proposals"` // a proposal keel serve no longer holds is Expired
-	Again     bool        `json:"again"`     // a Propose again turn: no question
+	At        time.Time         `json:"at"`
+	Question  string            `json:"question"`
+	Answer    string            `json:"answer"`
+	Cut       string            `json:"cut"`
+	Trace     []TraceStep       `json:"trace"`
+	Proposals []Proposal        `json:"proposals"` // a proposal keel serve no longer holds is Expired
+	Notes     []NoteProposal    `json:"notes"`
+	Runbooks  []RunbookProposal `json:"runbooks"`
+	Again     bool              `json:"again"` // a Propose again turn: no question
 }
 
-// Transcript is GET /api/agent/conversations/{id}.
+// Transcript is GET /api/agent/conversations/{id}. Runbook is the runbook last used in it and how far it got;
+// NoRunbook is the user's "Don't use".
 type Transcript struct {
-	ID        string      `json:"id"`
-	Title     string      `json:"title"`
-	CreatedAt time.Time   `json:"createdAt"`
-	UpdatedAt time.Time   `json:"updatedAt"`
-	Saved     bool        `json:"saved"`
-	Turns     []SavedTurn `json:"turns"`
+	ID        string       `json:"id"`
+	Title     string       `json:"title"`
+	CreatedAt time.Time    `json:"createdAt"`
+	UpdatedAt time.Time    `json:"updatedAt"`
+	Saved     bool         `json:"saved"`
+	Turns     []SavedTurn  `json:"turns"`
+	Runbook   *ChatRunbook `json:"runbook"`
+	NoRunbook bool         `json:"noRunbook"`
 }
 
 // Conversations is GET /api/agent/conversations.
