@@ -189,7 +189,7 @@ func (t *tab) dot() string {
 	return "idle"
 }
 
-// hostSubtitle is lib/groups.js hostSubtitle. The native Host has no identity id, so "· identity" is never added.
+// hostSubtitle is lib/groups.js hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
 	if h.AuthType == "local" {
 		return "this machine"
@@ -198,7 +198,11 @@ func hostSubtitle(h keelclient.Host) string {
 	if h.Port != 0 && h.Port != 22 {
 		port = fmt.Sprintf(":%d", h.Port)
 	}
-	return h.Username + "@" + h.Address + port
+	ident := ""
+	if h.IdentityID != "" {
+		ident = " · identity"
+	}
+	return h.Username + "@" + h.Address + port + ident
 }
 
 // paletteItems is the palette's list as the workspace is now: Open now, Hosts and Actions.

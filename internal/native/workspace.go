@@ -73,6 +73,12 @@ type backend interface {
 	Identities(ctx context.Context) ([]keelclient.Identity, error)
 	Groups(ctx context.Context) ([]keelclient.Group, error)
 
+	// Folders (folders.go): keel serve keeps them; the window reads them again after every write.
+	SaveGroup(ctx context.Context, g keelclient.Group) (keelclient.Group, error)
+	DeleteGroup(ctx context.Context, id string) error
+	MoveHosts(ctx context.Context, ids []string, groupID string) error
+	GroupMembers(ctx context.Context, id string) (keelclient.GroupInfo, error)
+
 	// First run and the pages.
 	SetupVault(ctx context.Context, passphrase string) error
 	SSHConfigPreview(ctx context.Context) (keelclient.SSHPreview, error)
@@ -276,6 +282,9 @@ type workspace struct {
 	snipQuery      string // the sidebar's Snippets filter
 	snipH          ui.Handle
 	snipDlg        *snippetDialog      // New snippet / Edit snippet
+	folders        []keelclient.Group  // the vault's folders, as GET /api/groups lists them (folders.go)
+	folderDlg      *folderDialog       // New group / Edit group
+	folderRen      *folderRename       // the folder whose name is being edited in the tree
 	tunnels        []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
 	tunReading     bool                // the 2 s read of them is in flight
 	fwdQuery       string              // the sidebar's Forwards filter
@@ -444,6 +453,7 @@ func (w *workspace) start() {
 			return
 		}
 		snippets, snipErr := w.be.Snippets(c)
+		folders, _ := w.be.Groups(c)  // a failed list leaves the flat tree: the next change reads it again
 		tunnels, _ := w.be.Tunnels(c) // a failed read leaves none: the 2 s read and the next change fill them in
 		type attached struct {
 			host keelclient.Host
@@ -483,6 +493,7 @@ func (w *workspace) start() {
 				return
 			}
 			w.hosts = hosts
+			w.folders = folders
 			w.snippets = snippets
 			w.tunnels = tunnels
 			if snipErr != nil {

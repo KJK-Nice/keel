@@ -68,6 +68,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.hostDialogView(c)
 	w.identityDialogView(c)
 	w.snippetDialogView(c)
+	w.folderDialogView(c)
 	w.forwardDialogView(c)
 	w.forwardKeyView(c)
 	w.approveView(c)
@@ -97,6 +98,7 @@ func (w *workspace) view(c *ui.Context) {
 			w.renameH.Focus(c)
 		}
 	}
+	w.folderRenameFocus(c)
 	w.runLater(c)
 	w.persist()
 }
@@ -377,6 +379,10 @@ func (w *workspace) sidebarView(c *ui.Context) {
 			body("sidebar forwards", func() { w.sidebarForwards(c) })
 		default:
 			body("sidebar hosts", func() {
+				if w.hasFolders() { // keel serve has folders: the nested tree (foldersview.go)
+					w.folderTreeView(c)
+					return
+				}
 				ui.Column(c).FillWidth().Gap(space2).Children(func() {
 					for _, g := range w.groups() {
 						w.group(c, g)
@@ -388,14 +394,17 @@ func (w *workspace) sidebarView(c *ui.Context) {
 	})
 }
 
-// hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect and Local terminal.
-// New group is in the app's menu and not here (folders).
+// hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect, Join session, New
+// group and Local terminal.
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
 	if m.Item("Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
 		w.act(func() { w.openQuick("", nil) })
 	}
 	if m.Item("Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
 		w.act(w.openJoin)
+	}
+	if m.Item("New group").Chosen() {
+		w.act(func() { w.newFolder("") })
 	}
 	if m.Item("Local terminal").Chosen() {
 		w.act(w.newLocalTab)
@@ -456,6 +465,9 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 	}
 	r := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).
 		Label("host " + host.Name).Cursor(ui.CursorPointer).Key(host.ID).Focusable()
+	if w.hasFolders() { // a host drags onto a folder (foldersview.go)
+		r.Drag(&treeDrag{hosts: []string{host.ID}})
+	}
 	hover := r.Hovered()
 	if current || hover {
 		r.Background(hoverGround)

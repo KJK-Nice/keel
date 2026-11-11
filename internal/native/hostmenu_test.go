@@ -22,7 +22,7 @@ func (r *rig) rowMenu(t *testing.T, host string) []string {
 func TestHostMenuItemsAndOrder(t *testing.T) {
 	r := hostRig(t)
 	// hostRowMenu in rowmenus.templ, for the items whose feature exists here.
-	want := []string{"Connect", "Open in split", "Edit", "Duplicate", "Agent can read", "Delete"}
+	want := []string{"Connect", "Open in split", "Edit", "Duplicate", "Move to folder…", "Agent can read", "Delete"}
 	got := slices.DeleteFunc(r.rowMenu(t, "api-1"), func(s string) bool { return s == "-" })
 	if !slices.Equal(got, want) {
 		t.Fatalf("menu %v, want %v", got, want)
@@ -30,7 +30,7 @@ func TestHostMenuItemsAndOrder(t *testing.T) {
 	r.tt.CloseMenu()
 	// The local shell can be neither duplicated nor removed.
 	got = slices.DeleteFunc(r.rowMenu(t, "Local Shell"), func(s string) bool { return s == "-" })
-	if want := []string{"Connect", "Open in split", "Edit", "Agent can read"}; !slices.Equal(got, want) {
+	if want := []string{"Connect", "Open in split", "Edit", "Move to folder…", "Agent can read"}; !slices.Equal(got, want) {
 		t.Fatalf("local menu %v, want %v", got, want)
 	}
 }

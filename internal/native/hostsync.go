@@ -35,6 +35,7 @@ func (w *workspace) reloadHosts() {
 		c, cancel := ctx()
 		defer cancel()
 		hosts, err := w.be.Hosts(c)
+		folders, ferr := w.be.Groups(c)
 		w.post(func() {
 			switch {
 			case w.closed:
@@ -42,6 +43,9 @@ func (w *workspace) reloadHosts() {
 				w.fail("hosts", err)
 			default:
 				w.setHosts(hosts)
+				if ferr == nil {
+					w.folders = folders
+				}
 			}
 		})
 	})

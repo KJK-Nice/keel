@@ -146,15 +146,49 @@ func (c *Client) ForgetHostKey(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/hosts/"+url.PathEscape(id)+"/host-key", nil, nil)
 }
 
-// Group is a folder of the host tree.
+// GroupVar is one group variable (docs/ui-redesign.md §17 part 2): config, not a secret. keel serve refuses a value that
+// looks like a secret or holds a vault value.
+type GroupVar struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// Group is a folder of the host tree. Roles (host id to role) and Vars are kept by keel serve; a folder's save never
+// sends them.
 type Group struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	ParentID string `json:"parentId"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	ParentID string            `json:"parentId"`
+	Roles    map[string]string `json:"roles,omitempty"`
+	Vars     []GroupVar        `json:"vars,omitempty"`
 }
 
 // Groups is GET /api/groups.
 func (c *Client) Groups(ctx context.Context) (out []Group, err error) {
 	err = c.do(ctx, http.MethodGet, "/api/groups", nil, &out)
 	return out, err
+}
+
+// SaveGroup creates a folder (g.ID is empty: POST /api/groups) or updates one (PUT /api/groups/{id}). Only the name
+// and the parent are sent: roles and variables change only through SetGroupRole and SetGroupVar (store.UpsertGroup keeps
+// them). It returns the saved folder.
+func (c *Client) SaveGroup(ctx context.Context, g Group) (out Group, err error) {
+	body := map[string]string{"name": g.Name, "parentId": g.ParentID}
+	if g.ID == "" {
+		err = c.do(ctx, http.MethodPost, "/api/groups", body, &out)
+	} else {
+		err = c.do(ctx, http.MethodPut, "/api/groups/"+url.PathEscape(g.ID), body, &out)
+	}
+	return out, err
+}
+
+// DeleteGroup is DELETE /api/groups/{id}: its hosts and subfolders move up one level and its notes for the agent go
+// with it. Call it only after the user confirmed.
+func (c *Client) DeleteGroup(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/api/groups/"+url.PathEscape(id), nil, nil)
+}
+
+// MoveHosts is POST /api/hosts/move: the hosts go into the folder groupID ("" takes them out of any folder).
+func (c *Client) MoveHosts(ctx context.Context, ids []string, groupID string) error {
+	return c.do(ctx, http.MethodPost, "/api/hosts/move", map[string]any{"ids": ids, "groupId": groupID}, nil)
 }
