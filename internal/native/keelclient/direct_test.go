@@ -194,7 +194,7 @@ func TestDirectTypeFollowerNotReadyAndBadCommandSendNothing(t *testing.T) {
 		{"ready", "driver", "df\xe2\x80\x8b -h", snippetRef, nil, true},
 		{"ready", "driver", "", snippetRef, nil, true},
 		{"ready", "driver", "a\nb", snippetRef, nil, true},
-		{"ready", "driver", "df -h", DirectRef{Kind: "notebook"}, anyErr, false},
+		{"ready", "driver", "df -h", DirectRef{Kind: "group"}, anyErr, false}, // a kind not built here ("notebook" is now built)
 	} {
 		conn, s := dialInject(t, c.status, c.role, nonceAnswer)
 		res, err := conn.DirectType(context.Background(), c.command, c.ref, nil)

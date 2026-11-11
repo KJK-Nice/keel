@@ -19,6 +19,7 @@ type rec struct {
 	mu      sync.Mutex
 	got     []string // "METHOD path"
 	bodies  []string
+	queries []string // the raw query of each request
 	status  int
 	reply   string
 	replies map[string]string // by "METHOD path"
@@ -31,7 +32,7 @@ func newRec(t *testing.T) *rec {
 		b, _ := io.ReadAll(q.Body)
 		r.mu.Lock()
 		key := q.Method + " " + q.URL.Path
-		r.got, r.bodies = append(r.got, key), append(r.bodies, string(b))
+		r.got, r.bodies, r.queries = append(r.got, key), append(r.bodies, string(b)), append(r.queries, q.URL.RawQuery)
 		status, reply := r.status, r.reply
 		if v, ok := r.replies[key]; ok {
 			reply = v

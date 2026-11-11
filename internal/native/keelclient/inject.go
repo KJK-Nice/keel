@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,13 @@ type AgentRef struct {
 	Shift          bool
 }
 
+// InjectOption marks where the bytes of an ApprovedInject come from.
+type InjectOption int
+
+// FromNotebook marks the bytes as a notebook fence's: the inject frame carries notebook:true, as pty.js
+// sendApprovedInject does, and keel serve refuses a redaction placeholder in them.
+const FromNotebook InjectOption = iota + 1
+
 // agentWait is how long keel serve has to answer a proposal's Type (term.js typeAgentProposal: 4 s).
 const agentWait = 4 * time.Second
 
@@ -81,7 +89,7 @@ const ticketWait = 2500 * time.Millisecond
 // session, never retries, and never sends without a nonce. A non-nil agent marks the bytes as an agent proposal: the
 // call then returns keel serve's refusal (the message of its agent-type answer) as an error, and nil only when keel
 // serve says it typed.
-func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentRef) error {
+func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentRef, opts ...InjectOption) error {
 	st := c.Snapshot()
 	switch {
 	case st.Status != "ready":
@@ -134,6 +142,9 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentR
 	frame := map[string]any{"type": "inject", "command": command, "nonce": nonce}
 	if agent != nil {
 		frame["agent"] = agentPart(agent)
+	}
+	if slices.Contains(opts, FromNotebook) { // keel serve refuses a placeholder in it (pty.js sendApprovedInject opts.notebook)
+		frame["notebook"] = true
 	}
 	b, _ = json.Marshal(frame)
 	if err := c.write(websocket.TextMessage, b); err != nil || agent == nil {
@@ -233,8 +244,9 @@ func agentPart(a *AgentRef) map[string]any {
 // the command comes from, and what the pane's terminal shows, which keel serve ORs with its own view (it can only add a
 // dialog). The ref that matches an answer is made here.
 type DirectRef struct {
-	Kind       string // "snippet" or "agent" (a notebook's block and a group run are not built here)
+	Kind       string // "snippet", "agent" or "notebook" (a group run is not built here)
 	SnippetID  string // the snippet, for Kind "snippet": keel serve compares its stored command with the bytes
+	NotebookID string // the notebook, for Kind "notebook": keel serve finds the command as the one line of a shell fence of its stored text
 	AltScreen  bool   // the terminal shows a full-screen program's screen; a caller that cannot tell says true
 	PromptLine string // the line the cursor is on, which keel serve reads for an input prompt
 }
@@ -261,7 +273,7 @@ const directWait = 8 * time.Second
 // directReady is pty.js directReady for a connection: nothing goes out for a kind this client does not build, or for a
 // session this client cannot type into (a follower, or one that is not ready).
 func (c *Conn) directReady(ref DirectRef) error {
-	if ref.Kind != "snippet" && ref.Kind != "agent" {
+	if ref.Kind != "snippet" && ref.Kind != "agent" && ref.Kind != "notebook" {
 		return errors.New("keelclient: no such kind of direct type")
 	}
 	st := c.Snapshot()
@@ -279,6 +291,9 @@ func directFrame(kind, command, nonce string, ref DirectRef, id string, agent *A
 	d := map[string]any{"kind": ref.Kind, "altScreen": ref.AltScreen, "promptLine": ref.PromptLine, "ref": id}
 	if ref.SnippetID != "" {
 		d["snippetId"] = ref.SnippetID
+	}
+	if ref.NotebookID != "" {
+		d["notebookId"] = ref.NotebookID
 	}
 	f := map[string]any{"type": kind, "command": command, "direct": d}
 	if nonce != "" {

@@ -36,7 +36,7 @@ type session interface {
 	// ApprovedInject types bytes the user approved (keelclient/inject.go): a snippet's, or with a non-nil agent
 	// an agent proposal's, which keel serve checks again and answers. Only the Approve before type dialog's Type
 	// action calls it.
-	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef) error
+	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef, opts ...keelclient.InjectOption) error
 	// DirectType asks keel serve to type a plainly read-only one-line command without the dialog and without Enter
 	// (keelclient/inject.go). Only typeNow (typenow.go) calls it.
 	DirectType(ctx context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error)

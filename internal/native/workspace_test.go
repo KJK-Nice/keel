@@ -31,9 +31,10 @@ type fakeConn struct {
 	granted []uint64           // GrantControl, the peer ids in order
 	events  []keelclient.Event // what Events hands over once
 
-	injected  []string               // what ApprovedInject was asked to type, in order
-	injectErr error                  // what it answers
-	agentRefs []*keelclient.AgentRef // the agent reference of each, nil for a snippet
+	injected   []string                    // what ApprovedInject was asked to type, in order
+	injectOpts [][]keelclient.InjectOption // the options of each, in the same order
+	injectErr  error                       // what it answers
+	agentRefs  []*keelclient.AgentRef      // the agent reference of each, nil for a snippet
 
 	// DirectType, recorded: the bare command, the direct part and the agent reference of each call, in order.
 	directs   []fakeDirect
@@ -88,8 +89,9 @@ func (c *fakeConn) Events() []keelclient.Event {
 	c.events = nil
 	return out
 }
-func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *keelclient.AgentRef) error {
+func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *keelclient.AgentRef, opts ...keelclient.InjectOption) error {
 	c.injected = append(c.injected, command)
+	c.injectOpts = append(c.injectOpts, opts)
 	c.agentRefs = append(c.agentRefs, agent)
 	return c.injectErr
 }
