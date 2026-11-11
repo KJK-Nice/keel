@@ -415,6 +415,7 @@ type workspace struct {
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
 	agent           *agentPanel     // the agent panel and its conversation (agent.go)
 	copyOut         string          // text the next frame writes to the clipboard (a card menu's Copy)
+	clip, clipWhat  string          // text the next frame writes to the clipboard, and what it is called in the toast (sshcommand.go)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 
 	joinDlg       *joinDialog                                         // Join a session (join.go)

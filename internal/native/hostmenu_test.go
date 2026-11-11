@@ -22,7 +22,7 @@ func (r *rig) rowMenu(t *testing.T, host string) []string {
 func TestHostMenuItemsAndOrder(t *testing.T) {
 	r := hostRig(t)
 	// hostRowMenu in rowmenus.templ, for the items whose feature exists here.
-	want := []string{"Connect", "Open in split", "Edit", "Duplicate", "Move to folder…", "Agent can read", "Delete"}
+	want := []string{"Connect", "Open in split", "Edit", "Duplicate", "Copy SSH command", "Move to folder…", "Agent can read", "Delete"}
 	got := slices.DeleteFunc(r.rowMenu(t, "api-1"), func(s string) bool { return s == "-" })
 	if !slices.Equal(got, want) {
 		t.Fatalf("menu %v, want %v", got, want)
@@ -32,6 +32,68 @@ func TestHostMenuItemsAndOrder(t *testing.T) {
 	got = slices.DeleteFunc(r.rowMenu(t, "Local Shell"), func(s string) bool { return s == "-" })
 	if want := []string{"Connect", "Open in split", "Edit", "Move to folder…", "Agent can read"}; !slices.Equal(got, want) {
 		t.Fatalf("local menu %v, want %v", got, want)
+	}
+}
+
+// "Copy SSH command" copies ssh, the port, the jump host and user@address, built from the address fields alone: the menu
+// writes it to the clipboard and to no session, and says "Copied SSH command".
+func TestCopySSHCommandPutsTheCommandOnTheClipboardOnly(t *testing.T) {
+	r := hostRig(t)
+	var addr string
+	for _, h := range r.w.hosts {
+		if h.Name == "api-1" {
+			addr = h.Username + "@" + h.Address
+		}
+	}
+	r.rowMenu(t, "api-1")
+	if err := r.tt.ChooseMenuItem("Copy SSH command"); err != nil {
+		t.Fatal(err)
+	}
+	r.tt.Frame()
+	r.tt.Frame()
+	if got := r.tt.Clipboard(); got != "ssh "+addr || !r.tt.HasText("Copied SSH command") {
+		t.Fatalf("clipboard %q (want %q), toast %v", got, "ssh "+addr, r.tt.HasText("Copied SSH command"))
+	}
+	if len(r.fb.spawned) != 0 {
+		t.Errorf("copying opened a session: %v", r.fb.spawned)
+	}
+}
+
+// The cases of internal/ui/menus_test.go TestSSHCommand.
+func TestSSHCommandHasTheWebviewsCases(t *testing.T) {
+	hosts := []keelclient.Host{
+		{ID: "j", Name: "bastion", Address: "bastion.example", Port: 2200, Username: "ed", AuthType: "password"},
+		{ID: "jd", Address: "bastion", Username: "-oProxyCommand=id", AuthType: "password"},
+		{ID: "ja", Address: "-oProxyCommand=id", Username: "ed", AuthType: "password"},
+		{ID: "js", Address: "bastion x", Username: "ed", AuthType: "password"},
+	}
+	for _, c := range []struct {
+		name string
+		h    keelclient.Host
+		want string
+	}{
+		{"plain", keelclient.Host{Address: "10.0.0.5", Port: 22, Username: "ubuntu", AuthType: "password"}, "ssh ubuntu@10.0.0.5"},
+		{"port", keelclient.Host{Address: "db.lan", Port: 2222, Username: "pg", AuthType: "key"}, "ssh -p 2222 pg@db.lan"},
+		{"no user", keelclient.Host{Address: "db.lan", AuthType: "password"}, "ssh db.lan"},
+		{"jump", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "j"}, "ssh -J ed@bastion.example:2200 app@10.1.0.9"},
+		{"ipv6", keelclient.Host{Address: "fe80::1", Username: "root", AuthType: "password"}, "ssh root@[fe80::1]"},
+		{"quoted", keelclient.Host{Address: "web", Username: "o'neil", AuthType: "password"}, `ssh 'o'\''neil@web'`},
+		{"dash user", keelclient.Host{Address: "web", Username: "-oProxyCommand=touch /tmp/x", AuthType: "password"}, ""},
+		{"dash user no space", keelclient.Host{Address: "web", Username: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"dash address", keelclient.Host{Address: "-oProxyCommand=id", Username: "ops", AuthType: "password"}, ""},
+		{"dash address no user", keelclient.Host{Address: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"space user", keelclient.Host{Address: "web", Username: "o neil", AuthType: "password"}, ""},
+		{"newline address", keelclient.Host{Address: "web\nid", Username: "ops", AuthType: "password"}, ""},
+		{"control user", keelclient.Host{Address: "web", Username: "ops\x1b", AuthType: "password"}, ""},
+		{"format char address", keelclient.Host{Address: "web​", Username: "ops", AuthType: "password"}, ""},
+		{"dash jump user", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "jd"}, ""},
+		{"dash jump address", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "ja"}, ""},
+		{"space jump address", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "js"}, ""},
+		{"local", keelclient.Host{Name: "Local Shell", AuthType: "local"}, ""},
+	} {
+		if got := sshCommand(c.h, hosts); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

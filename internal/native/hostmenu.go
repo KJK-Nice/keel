@@ -29,6 +29,9 @@ func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
 		if !local && m.Item("Duplicate").Chosen() {
 			w.act(func() { w.duplicateHost(h) })
 		}
+		if cmd := sshCommand(h, w.hosts); cmd != "" && m.Item("Copy SSH command").Chosen() {
+			w.act(func() { w.copyToClipboard(cmd, "SSH command") })
+		}
 		if m.Item("Move to folder…").Chosen() {
 			w.act(func() { w.moveHostToFolder(h) })
 		}

@@ -36,6 +36,11 @@ func (w *workspace) view(c *ui.Context) {
 		return
 	}
 	w.fallBackToHosts()
+	if w.clip != "" { // a menu's Copy has no context to write with: the next frame does (term.js data-copy)
+		c.WriteClipboard(w.clip)
+		w.say("Copied " + w.clipWhat)
+		w.clip, w.clipWhat = "", ""
+	}
 	w.shareFrame(c)
 	w.suggestFrame(c)
 	w.shortcuts(c)
