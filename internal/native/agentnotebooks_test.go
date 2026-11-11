@@ -335,3 +335,31 @@ func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testin
 		t.Error("no words for an empty draft")
 	}
 }
+
+// The app escapes a notebook's name in a chip and in the picker (test "chips and the picker escape notebook names"). The
+// native client draws text, never markup, so the hostile name is the characters it is, and a card's title and summary too.
+func TestAHostileNotebookNameIsDrawnAsTheCharactersItIs(t *testing.T) {
+	const hostile = `<img src=x onerror="alert(1)">`
+	r := agentRig(t)
+	r.tt.SetSize(1400, 1000)
+	r.fb.addNotebook(hostile, "x")
+	r.w.reloadNotebooks()
+	r.frames(2)
+	r.w.attachNotebook("nb1")
+	r.frames(2)
+	if _, ok := r.tt.Find("attached " + hostile); !ok || !r.tt.HasText(hostile) {
+		t.Fatalf("the chip: %q", r.tt.Texts())
+	}
+	r.openNbPicker(t)
+	if _, ok := r.tt.Find("pick notebook " + hostile); !ok {
+		t.Fatalf("the picker: %q", r.tt.Texts())
+	}
+	r.closePopover()
+	card := nbCard("edit", "edited")
+	card.Title, card.Summary = "<b>title</b>", "<script>x</script>"
+	r.answersNbs(card)
+	r.ask(t, "q")
+	if !r.tt.HasText("<b>title</b>") || !r.tt.HasText("<script>x</script>") {
+		t.Fatalf("the card: %q", r.tt.Texts())
+	}
+}
