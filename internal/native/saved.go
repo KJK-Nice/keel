@@ -42,9 +42,9 @@ type savedDoc struct {
 }
 
 type savedTab struct {
-	Title   string     `json:"title,omitempty"`
-	Focused string     `json:"focusedSessionId,omitempty"`
-	Zoomed  string     `json:"zoomedSessionId,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Focused string `json:"focusedSessionId,omitempty"`
+	Zoomed  string `json:"zoomedSessionId,omitempty"`
 	// FocusedNotebook and ZoomedNotebook are the same for a notebook pane: its id, and nothing of its text.
 	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
 	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
