@@ -85,8 +85,8 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 			t.Errorf("%q is not listed", want)
 		}
 	}
-	if titles["Ask the agent (from the palette)"] {
-		t.Error("Ask the agent is listed before its phase")
+	if !titles["Ask the agent (from the palette)"] { // the palette's ⌘↵ row is built (plan 025)
+		t.Error("Ask the agent (from the palette) is not listed")
 	}
 	if !titles["Put back your words after an inserted suggestion"] {
 		t.Error("the put-back key of in-pane suggestions is not listed")

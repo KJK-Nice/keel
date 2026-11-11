@@ -18,8 +18,8 @@ func kbd(c *ui.Context, s string) ui.Element {
 // keyCaps draws a shortcut as one cap per key: "⌘⇧O" is ⌘, ⇧ and O (k-keys).
 func keyCaps(c *ui.Context, keys string) {
 	ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
-		for _, r := range keys {
-			kbd(c, string(r))
+		for _, k := range splitKeyCaps(keys) { // "Ctrl+↵" is Ctrl and ↵
+			kbd(c, k)
 		}
 	})
 }
@@ -63,13 +63,14 @@ func (w *workspace) paletteView(c *ui.Context) {
 		})
 		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("palette list").Padding(space1, space1, space2).Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
-				if len(rows) == 0 {
+				// With only the ask row left the filter found nothing. The app's list holds just that row and no message;
+				// the line stays here so that "nothing matched" still reads (a recorded difference).
+				if len(rows) == 0 || (len(rows) == 1 && rows[0].bare) {
 					ui.Row(c).FillWidth().Padding(space4, space3).Justify(ui.Center).Children(func() { body(c, "No matching commands", inkMuted) })
-					return
 				}
 				group := ""
 				for i, it := range rows {
-					if it.group != group {
+					if it.group != group && !it.bare {
 						group = it.group
 						ui.Row(c).FillWidth().Padding(space1_5, space2, space1).Children(func() { text(c, group, inkFaint, captionSize, weightSemibold) })
 					}
@@ -89,6 +90,8 @@ func (w *workspace) paletteView(c *ui.Context) {
 			foot("move", "↑", "↓")
 			foot("open", "↵")
 			foot("open in split", "⌥↵")
+			ui.Spacer(c)
+			foot("ask agent", splitKeyCaps(askKeys())...) // k-palette-foot-end
 		})
 	})
 	if !p.focus {
@@ -122,7 +125,11 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 		}
 		icon(c, ic, col)
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).MaxLines(1).Shrink(0).MaxWidthPercent(70).Children(func() {
-			for _, s := range highlight(it.title, p.query) {
+			spans := highlight(it.title, p.query)
+			if it.bare { // the ask row is not highlighted (lib/palette.js paletteHTML)
+				spans = []span{{text: it.title}}
+			}
+			for _, s := range spans {
 				t := ui.Text(c, s.text)
 				if s.mark {
 					t.TextColor(brassInk).FontWeight(weightSemibold)
@@ -150,8 +157,8 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 	}
 }
 
-// paletteKey is the input's keys: ↑ ↓ move, ↵ runs, ⌥↵ runs in a split, esc closes. ⌘↵ asks the agent in the
-// webview; that row is a later phase, so the key does nothing here. Anything else is typing.
+// paletteKey is the input's keys: ↑ ↓ move, ↵ runs, ⌥↵ runs in a split, ⌘↵ asks the agent (the last row), esc closes.
+// Anything else is typing.
 func (w *workspace) paletteKey(p *palette, k ui.TextKey) bool {
 	p.query = k.Text() // what is typed so far, ahead of the bound value
 	switch {
@@ -161,6 +168,8 @@ func (w *workspace) paletteKey(p *palette, k ui.TextKey) bool {
 		w.act(func() { w.choose(false) })
 	case k.Key == ui.KeyEnter && k.Mods == ui.Alt:
 		w.act(func() { w.choose(true) })
+	case k.Key == ui.KeyEnter && k.Mods == ui.Cmd: // ⌘↵ asks the agent with the query, whatever row is selected
+		w.act(func() { p.cursor = len(p.visible()) - 1; w.choose(false) })
 	case k.Key == ui.KeyEnter:
 		// Another modifier: no plain ↵ may come of it.
 	case (k.Key == ui.KeyDown || k.Key == ui.KeyUp) && k.Mods == 0:

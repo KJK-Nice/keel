@@ -130,7 +130,7 @@ var shortcuts = []shortcut{
 	{"Terminal", "Smaller text", "⌘-", ""},
 	{"Terminal", "Reset text size", "⌘0", ""},
 	{"Agent", "Toggle agent panel", "⌘I", ""},
-	{"Agent", "Ask the agent (from the palette)", "⌘↵", "agent"},
+	{"Agent", "Ask the agent (from the palette)", "⌘↵", ""},
 	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", ""},
 }
 

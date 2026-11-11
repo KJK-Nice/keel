@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode"
@@ -13,7 +14,7 @@ import (
 // The command palette (docs/ui-redesign.md §5.2). The model here follows cmd/keel/web/js/lib/palette.js
 // (groups, matching, ordering, cursor, highlight) and the item list of term.js paletteCatalog: titles,
 // hints and key caps are the webview's. Choosing an item never types into a session: a snippet opens Approve before type
-// (approve.go). The "Ask the agent" row (⌘↵) waits for a later phase (docs/native.md); Toggle agent panel is here.
+// (approve.go). The last row, "Ask the agent" (⌘↵), opens the agent panel with the query typed and sends nothing.
 
 // groupOrder is lib/palette.js GROUP_ORDER.
 var groupOrder = []string{"Open now", "Hosts", "Actions", "Snippets"}
@@ -24,7 +25,43 @@ type palItem struct {
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
 	badge                    string // a brass label before the keys ("Approve first" on snippets)
+	bare                     bool   // no group heading above it (lib/palette.js askRow)
 	run                      func(split bool)
+}
+
+// searchHosts is term.js revealVault: the sidebar shows its Hosts section and its filter has the keyboard.
+func (w *workspace) searchHosts() {
+	w.sidebar, w.sideSeg, w.focusHosts, w.wantFocus = true, "hosts", true, ""
+}
+
+// askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS (lib/shortcutmap.js ask-agent).
+func askKeys() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘↵"
+	}
+	return "Ctrl+↵"
+}
+
+// askRow is lib/palette.js askRow: the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
+func (w *workspace) askRow(query string) palItem {
+	q := strings.TrimSpace(query)
+	title := "Ask the agent"
+	if q != "" {
+		title = "Ask the agent about “" + q + "”"
+	}
+	return palItem{group: "Agent", title: title, icon: "ai-magic", keys: askKeys(), bare: true, run: func(bool) { w.askFromPalette(q) }}
+}
+
+// askFromPalette is term.js askAgentFromPalette: the panel opens with the query in the composer. Nothing is sent; the user
+// presses ↵ (§5.2). A joined tab has no panel.
+func (w *workspace) askFromPalette(query string) {
+	if w.joinedActive() {
+		w.say(msgAgentJoined)
+		return
+	}
+	w.setAgentOpen(true)
+	w.agent.input = query
+	w.agent.focusInput = true
 }
 
 // palette is the open palette: the items as they were when it opened, what is typed and the selection.
@@ -35,6 +72,7 @@ type palette struct {
 	cursor int
 	reveal bool // scroll the selected row into view in the next frame
 	focus  bool // the input has had the keyboard
+	ask    func(query string) palItem
 }
 
 func palWords(q string) []string { return strings.Fields(strings.ToLower(q)) }
@@ -228,6 +266,7 @@ func (w *workspace) paletteItems() []palItem {
 		id := g.ID
 		add("Vault", "Group "+g.Name+" · roles and runbooks", "", "", func() { w.openGroupPage(id, false) })
 	}
+	add("Vault", "Search hosts", "", "", w.searchHosts)
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Vault", "Join session", "⌘J", "link", w.openJoin)
@@ -354,7 +393,7 @@ func (w *workspace) openPalette() {
 	if w.pal != nil {
 		return
 	}
-	w.pal = &palette{items: w.paletteItems()}
+	w.pal = &palette{items: w.paletteItems(), ask: w.askRow}
 }
 
 // closePalette closes it and gives the keyboard back to the focused pane.
@@ -379,6 +418,9 @@ func (w *workspace) togglePalette() {
 // visible is the rows for the typed query; the cursor is kept inside them.
 func (p *palette) visible() []palItem {
 	rows := filterPalette(p.items, p.query)
+	if p.ask != nil { // the last row, whatever the query matches
+		rows = append(rows, p.ask(p.query))
+	}
 	if p.query != p.seen {
 		p.seen, p.cursor = p.query, 0
 	}

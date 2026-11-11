@@ -354,6 +354,8 @@ type workspace struct {
 	themeSeen      bool                // the first frame has set the theme
 	themeNative    bool                // the window takes the theme as its own appearance: no opaque rule (theme.go)
 	paneH          ui.Handle
+	hostsH         ui.Handle // the Hosts filter's field
+	focusHosts     bool      // Search hosts: give the Hosts filter the keyboard in the next frame
 	fwdH           ui.Handle
 	fwdDlg         *forwardDialog // New forward / Edit forward
 	fwdKey         *fwdKeyOffer   // "Unknown host key" for a forward that could not start

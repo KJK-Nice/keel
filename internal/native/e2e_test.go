@@ -1304,9 +1304,13 @@ func TestE2EPalette(t *testing.T) {
 			groups = append(groups, it.group)
 		}
 	}
-	// A new vault is seeded with four snippets, so the Snippets group follows Actions.
-	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets", "Notebooks"}) {
+	// A new vault is seeded with four snippets, so the Snippets group follows Actions. The last row, Ask the agent, is
+	// the app's (plan 025) and has no group heading.
+	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets", "Notebooks", "Agent"}) {
 		t.Fatalf("groups %q", groups)
+	}
+	if !e.tt.HasText("Ask the agent") || !e.tt.HasText("ask agent") {
+		t.Error("the palette lacks the Ask the agent row or its footer key cap")
 	}
 	for _, s := range []string{"Open now", "Hosts", "Actions", "logs", "New session on Local Shell", "Split down"} {
 		if !e.tt.HasText(s) {
@@ -1377,6 +1381,24 @@ func TestE2EPalette(t *testing.T) {
 	}
 	if strings.Contains(e.scrollback(e.paneSID(e.w.tab().focused)), "qzxvkw") {
 		t.Error("the palette's text reached a terminal")
+	}
+
+	// ⌘↵ asks the agent: the panel opens with the words in its composer; nothing is sent and no session sees them.
+	e.key(ui.Cmd, ui.KeyK)
+	e.pump(func() bool { return e.w.pal != nil && e.tt.Focused("Command palette") }, "the palette")
+	e.tt.Type("qzxvkw")
+	e.step()
+	e.key(ui.Cmd, ui.KeyEnter)
+	// No key is stored in this daemon, so the panel shows its Connect card and the words wait in the composer's state.
+	e.pump(func() bool { return e.w.pal == nil && e.w.agent.open && e.hasLabel("agent panel") }, "the agent panel")
+	if e.w.agent.input != "qzxvkw" {
+		t.Errorf("the composer holds %q", e.w.agent.input)
+	}
+	e.settle(300 * time.Millisecond)
+	for _, id := range e.sessionIDs() { // the panel narrows the panes and sh redraws its prompt: look for the words, not equality
+		if strings.Contains(e.scrollback(id), "qzxvkw") {
+			t.Errorf("session %s saw the words when the palette asked the agent", id)
+		}
 	}
 	e.shot("TestE2EPalette")
 }

@@ -76,6 +76,10 @@ func (w *workspace) view(c *ui.Context) {
 	w.confirmView(c)
 	w.paletteView(c)
 	w.reviewFocus(c)
+	if w.focusHosts && !w.modalOpen() {
+		w.hostsH.Focus(c)
+		w.focusHosts = false
+	}
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			if p.nb != nil && p.nb.editing { // the text being edited takes the keyboard
@@ -353,7 +357,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.fwdH)
 					default:
 						ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
-							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1)
+							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.hostsH)
 					}
 				})
 				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {

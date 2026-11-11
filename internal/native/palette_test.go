@@ -183,8 +183,49 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 			t.Errorf("the palette does not show %q", s)
 		}
 	}
-	if r.tt.HasText("Ask the agent") { // the Snippets group is absent too, with no snippets: seen has no such group
-		t.Error("the agent row is shown before its phase")
+	// The Ask the agent row is built (plan 025): the last row, with no group heading of its own, whatever the query matches.
+	rows := r.w.pal.visible()
+	if last := rows[len(rows)-1]; last.title != "Ask the agent" || !last.bare || last.keys != askKeys() {
+		t.Errorf("last row %+v", last)
+	}
+	if got := titles(filterPalette(r.w.pal.items, "")); slices.Contains(got, "Ask the agent") {
+		t.Error("the ask row is part of the catalog: it is added after the filter")
+	}
+}
+
+// term.js askAgentFromPalette: ⌘↵ from any row opens the panel with the query typed and sends nothing; Search hosts gives
+// the sidebar filter the keyboard.
+func TestPaletteAskTheAgentRowAndSearchHosts(t *testing.T) {
+	r := palRig(t)
+	r.openPal(t)
+	r.typePal("zzz no such command")
+	rows := r.w.pal.visible()
+	if len(rows) != 1 || rows[0].title != "Ask the agent about “zzz no such command”" {
+		t.Fatalf("rows %v", titles(rows))
+	}
+	if !r.tt.HasText("ask agent") || !r.tt.HasText("Ask the agent about “zzz no such command”") {
+		t.Error("the footer or the row is missing")
+	}
+	asks := len(r.fb.agent.asks)
+	r.press(ui.Cmd, ui.KeyEnter)
+	if r.w.pal != nil || !r.w.agent.open || r.w.agent.input != "zzz no such command" {
+		t.Fatalf("palette open %v, panel open %v, composer %q", r.w.pal != nil, r.w.agent.open, r.w.agent.input)
+	}
+	if len(r.fb.agent.asks) != asks {
+		t.Error("the palette sent a question: it only fills the composer")
+	}
+	r.tt.Frame()
+	if !r.tt.Focused("Message the agent") {
+		t.Error("the composer has not the keyboard")
+	}
+
+	r.w.sidebar, r.w.sideSeg = false, "snippets"
+	r.openPal(t)
+	r.typePal("Search hosts")
+	r.press(0, ui.KeyEnter)
+	r.tt.Frame()
+	if !r.w.sidebar || r.w.sideSeg != "hosts" || !r.tt.Focused("Filter hosts") {
+		t.Errorf("sidebar %v, section %q, filter focused %v", r.w.sidebar, r.w.sideSeg, r.tt.Focused("Filter hosts"))
 	}
 }
 
@@ -311,9 +352,13 @@ func TestPaletteNeverTypesIntoASession(t *testing.T) {
 	}
 	r.press(ui.Cmd, ui.KeyW) // a window key does not act while the palette is open
 	r.press(ui.Cmd|ui.Shift, ui.KeyD)
-	r.press(ui.Cmd, ui.KeyEnter) // the agent row is a later phase: no plain ↵ comes of it
 	if r.w.pal == nil || len(r.w.tabs) != 2 || len(r.w.tabs[0].panes) != 2 {
 		t.Fatalf("a key outside the palette acted: pal %v, tabs %d", r.w.pal != nil, len(r.w.tabs))
+	}
+	// ⌘↵ asks the agent (the last row): it fills the composer, and no plain ↵ comes of it, so nothing runs or types.
+	r.press(ui.Cmd, ui.KeyEnter)
+	if len(r.w.tabs) != 2 || len(r.w.tabs[0].panes) != 2 || r.w.agent.input != "echo hello; rm -rf" { // the Backspace above took the last character
+		t.Fatalf("⌘↵: tabs %d, composer %q", len(r.w.tabs), r.w.agent.input)
 	}
 	r.press(0, ui.KeyEscape)
 	for i, c := range r.fb.conns {
@@ -326,8 +371,8 @@ func TestPaletteNeverTypesIntoASession(t *testing.T) {
 func TestPaletteCursorRowStaysInView(t *testing.T) {
 	r := palRig(t)
 	r.openPal(t)
-	r.press(0, ui.KeyUp) // wraps to the last row, far below the first screenful
-	rows := r.rows()
+	r.press(0, ui.KeyUp) // wraps to the last row (the ask row), far below the first screenful
+	rows := r.w.pal.visible()
 	last := rows[len(rows)-1]
 	list, ok1 := r.tt.Find("palette list")
 	row, ok2 := r.tt.Find("palette row " + last.title)
