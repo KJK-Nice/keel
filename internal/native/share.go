@@ -94,7 +94,6 @@ type person struct {
 	sub      string
 	viaLink  bool
 	at       time.Time
-	canGrant bool
 }
 
 // initials is the first letter of the first two words, upper-cased; "?" for none.

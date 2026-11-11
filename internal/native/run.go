@@ -45,10 +45,7 @@ func registerFonts() {
 	}
 }
 
-// liveBody gives p a libghostty terminal on its connection.
-func liveBody(p *pane) { liveBodyT(p, false) }
-
-// liveBodyT is liveBody; transparent leaves the terminal's background undrawn so the pane's translucent
+// liveBodyT gives p a libghostty terminal on its connection; transparent leaves the terminal's background undrawn so the pane's translucent
 // ground shows through.
 func liveBodyT(p *pane, transparent bool) {
 	copySel := terminal.CopyOnSelectNone

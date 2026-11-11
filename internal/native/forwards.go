@@ -320,7 +320,6 @@ type forwardDialog struct {
 	id                                                string // "" for New forward
 	name, hostID, kind                                string
 	bindAddr, bindPort, destHost, destPort            string
-	missingHost                                       string // the saved host id when it no longer exists
 	err                                               string
 	saving, focus                                     bool
 	nameH, bindAddrH, bindPortH, destHostH, destPortH ui.Handle

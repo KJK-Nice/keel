@@ -369,6 +369,8 @@ func (p *Peer) GrantControl(id uint64) error {
 }
 
 // ErrNoApprovedInject: a joined pane takes no snippet (Approve before type is for a local session; a later plan).
+//
+//lint:ignore ST1005 shown to the user in the app's words
 var ErrNoApprovedInject = errors.New("Session is not connected")
 
 // ApprovedInject types nothing into a joined pane. The window never asks; this is the refusal if it did.

@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -154,7 +155,7 @@ func TestACreatedNotebookIsInTheListMarkedFromAgentAndItsUndoMovesItToRecentlyDe
 	}
 	// Restore brings it back: one more request, and the answer's notebook is in the list.
 	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
-		nb, err := r.fb.RestoreDeletedNotebook(nil, "tnb"+strings.TrimPrefix(rec.ID, "nb"))
+		nb, err := r.fb.RestoreDeletedNotebook(context.Background(), "tnb"+strings.TrimPrefix(rec.ID, "nb"))
 		_ = err
 		p := card
 		p.Record, p.Status = nil, "created"
@@ -282,7 +283,7 @@ func TestConfirmingADeleteRequestsItOnceThenRestoreBringsTheNotebookBack(t *test
 			c.Status, c.VersionID = "deleted", vid
 			return keelclient.NotebookAction{Proposal: c}, nil
 		case "restore":
-			nb, _ := r.fb.RestoreDeletedNotebook(nil, "tnb1")
+			nb, _ := r.fb.RestoreDeletedNotebook(context.Background(), "tnb1")
 			c := card
 			c.Status, c.VersionID = "restored", ""
 			return keelclient.NotebookAction{Proposal: c, Notebook: &nb}, nil

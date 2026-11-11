@@ -47,7 +47,7 @@ type nbDialog struct {
 	busy        bool
 	now         time.Time
 
-	nameH, cancelH, closeH, restoreH, purgeH ui.Handle
+	nameH, closeH, restoreH, purgeH ui.Handle
 }
 
 // ---- rename ----

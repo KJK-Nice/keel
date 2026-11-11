@@ -214,7 +214,6 @@ var (
 	onBrass, signalSoft, flareSoft, onFlare, haze, hazeSoft, scrim, tideSoft               ui.Color
 	shadowModal, shadowPop, termFg, termBg, termCursor                                     ui.Color
 	ansi                                                                                   [16]ui.Color
-	darkTheme                                                                              bool
 )
 
 func init() { useTheme(true) }
@@ -230,7 +229,6 @@ func paletteOf(dark bool) *hexPalette {
 // useTheme makes the colour variables those of the dark or the light theme.
 func useTheme(dark bool) {
 	p := paletteOf(dark)
-	darkTheme = dark
 	chrome, stage, surface, raised, hoverGround = tok(p.chrome), tok(p.stage), tok(p.surface), tok(p.raised), tok(p.hover)
 	line, lineStrong, ink, inkMuted, inkFaint = tok(p.line), tok(p.lineStrong), tok(p.ink), tok(p.inkMuted), tok(p.inkFaint)
 	brass, brassInk, brassSoft, brassStrong, onBrass = tok(p.brass), tok(p.brassInk), tok(p.brassSoft), tok(p.brassStrong), tok(p.onBrass)

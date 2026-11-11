@@ -134,7 +134,6 @@ func identityIs(file string) func(*testing.T, *Result) {
 
 func okRow(js, in string, chk func(*testing.T, *Result)) row { return row{js, in, isOK, chk} }
 func nilRow(js, in string) row                               { return row{js, in, isNil, nil} }
-func refusedRow(js, in string) row                           { return row{js, in, isRefused, nil} }
 func failedRow(js, in string) row                            { return row{js, in, isFailed, nil} }
 
 // rows is every parseConnect case of the JS test file, in its order.

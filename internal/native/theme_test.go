@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/egoist/mygo/ui"
 )
 
 // themeRig is a rig on a scratch data dir with one pane open.
@@ -16,12 +14,6 @@ func themeRig(t *testing.T) *rig {
 	r := newRigIn(t, okBackend(), t.TempDir())
 	r.click(t, "host api-1")
 	return r
-}
-
-// sample reads a pixel of the tester image at DIP coordinates (the window is 1280 wide).
-func (r *rig) sample(x, y float32) ui.Color {
-	p := r.pixel(x, y)
-	return ui.Color{R: p[0], G: p[1], B: p[2], A: 255}
 }
 
 func (r *rig) wantPix(t *testing.T, what string, x, y float32, hex string) {

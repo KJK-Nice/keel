@@ -63,7 +63,6 @@ type notebookPane struct {
 	focusEdit bool // give the text area the keyboard on the next frame
 	titleH    ui.Handle
 	editH     ui.Handle
-	docH      ui.Handle
 	opts      *markdown.Options
 	clicked   map[int]time.Time // fence index -> when Copy was pressed (the label shows "Copied" for 2 s)
 }
@@ -103,6 +102,7 @@ func (n *notebookPane) payload() keelclient.NotebookSave {
 // loop over a tab's panes can call it and no write can reach it.
 type nbConn struct{}
 
+//lint:ignore ST1005 shown to the user in the app's words
 var errNotebookPane = errors.New("A notebook is not a terminal")
 
 func (nbConn) Read([]byte) (int, error)                 { return 0, io.EOF }

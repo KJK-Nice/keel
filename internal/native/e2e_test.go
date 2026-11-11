@@ -194,7 +194,7 @@ func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, hei
 	}
 	e.w = newWorkspace(be)
 	e.w.dataDir, e.w.termSize = dataDir, loadPrefs(dataDir).TermSize
-	e.w.mkBody = liveBody
+	e.w.mkBody = func(p *pane) { liveBodyT(p, false) }
 	e.w.work = func(fn func()) { go fn() }
 	e.w.post = func(fn func()) { e.posts <- fn }
 	e.w.joiner = e.joiner

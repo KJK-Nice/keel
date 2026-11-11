@@ -106,19 +106,17 @@ type groupRunMenu struct {
 
 // ansibleDrawer is the Export to Ansible drawer (board AnsibleExport).
 type ansibleDrawer struct {
-	open     bool
-	format   string // ini | yaml
-	runbook  string // "" for the inventory only
-	mode     string // rolling | parallel
-	user     bool
-	jump     bool
-	files    []keelclient.ExportFile
-	file     int
-	gen      int
-	err      string
-	closeH   ui.Handle
-	focus    bool
-	bookMenu bool
+	open    bool
+	format  string // ini | yaml
+	runbook string // "" for the inventory only
+	mode    string // rolling | parallel
+	user    bool
+	jump    bool
+	files   []keelclient.ExportFile
+	file    int
+	gen     int
+	err     string
+	focus   bool
 }
 
 func newGroupPage() *groupPage {

@@ -85,6 +85,7 @@ func TestSSHCommandHasTheWebviewsCases(t *testing.T) {
 		{"space user", keelclient.Host{Address: "web", Username: "o neil", AuthType: "password"}, ""},
 		{"newline address", keelclient.Host{Address: "web\nid", Username: "ops", AuthType: "password"}, ""},
 		{"control user", keelclient.Host{Address: "web", Username: "ops\x1b", AuthType: "password"}, ""},
+		//lint:ignore ST1018 the zero-width space in the address is the test input
 		{"format char address", keelclient.Host{Address: "web​", Username: "ops", AuthType: "password"}, ""},
 		{"dash jump user", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "jd"}, ""},
 		{"dash jump address", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "ja"}, ""},

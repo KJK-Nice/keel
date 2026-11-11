@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"keel/internal/native/keelclient"
@@ -62,9 +61,6 @@ func (f *fakeBackend) DraftRunbookOfNotebook(_ context.Context, id string) (keel
 	f.mem.rbReqs = append(f.mem.rbReqs, "draft notebook "+id)
 	return n.draft, n.draftErr
 }
-
-// routes lists the card routes asked of the fake, for a test to compare.
-func (f *fakeBackend) cardRoutes() string { return strings.Join(f.nbCards().reqs, ",") }
 
 // ---- what keel serve does for the agent, as a fake does it ----
 

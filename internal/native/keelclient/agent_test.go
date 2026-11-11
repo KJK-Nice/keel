@@ -132,7 +132,7 @@ func TestTheKeyIsInNoErrorAndNoFormattedValue(t *testing.T) {
 	if !errors.As(err, &se) || strings.Contains(se.Msg, fakeKey) {
 		t.Fatalf("status error %+v", se)
 	}
-	for _, shown := range []string{fmt.Sprintf("%v", in), fmt.Sprintf("%+v", in), fmt.Sprintf("%#v", in), fmt.Sprintf("%s", in), fmt.Sprintf("%v", &in), fmt.Sprintf("%+v", []AgentKeyInput{in})} {
+	for _, shown := range []string{fmt.Sprintf("%v", in), fmt.Sprintf("%+v", in), fmt.Sprintf("%#v", in), in.String(), fmt.Sprintf("%v", &in), fmt.Sprintf("%+v", []AgentKeyInput{in})} {
 		if strings.Contains(shown, fakeKey) {
 			t.Fatalf("a formatted AgentKeyInput shows the key: %q", shown)
 		}

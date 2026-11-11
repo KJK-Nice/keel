@@ -43,6 +43,7 @@ func TestNoteCountLineAndOneLineCleaningLikeKeelServe(t *testing.T) {
 			t.Errorf("%q, want %q", got, c.want)
 		}
 	}
+	//lint:ignore ST1018 the zero-width space in the note is the test input
 	got, ok, long := cleanNote("  one\ntwo three​x  ")
 	if got != "one two three x" || !ok || long {
 		t.Errorf("cleanNote: %q %v %v", got, ok, long)

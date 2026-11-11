@@ -1,3 +1,5 @@
+//lint:file-ignore ST1005 the errors of this file are shown to the user in the app's own words
+
 package keelclient
 
 import (

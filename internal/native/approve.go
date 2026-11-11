@@ -79,7 +79,6 @@ type approveGroup struct {
 	shiftHint bool                              // a plain press was refused: the line says to hold ⇧
 	done      func(typed int, failed []string)  // after a Type: the run is read again
 	cancelled func()                            // the dialog closed with nothing typed
-	listH     []ui.Handle                       // the ticks, for the keyboard
 }
 
 // typeJob is one row's Type: the pane's connection, the exact bytes, and the proposal they are for.

@@ -517,19 +517,19 @@ func TestProposeStepNeedsAPaneInScopeAndUseADifferentRunbookSaysWhyOneIsNotOffer
 }
 
 func TestOnlyTheCurrentStepIsEverAnsweredOrChangedFromTheCard(t *testing.T) {
-	r := agentRig(t)
-	r.walkAnswers()
-	r.ask(t, "walk me through it")
+	// Each button on a fresh run: it acts on the current step (st1) and on no later one.
 	for _, b := range []string{"Skip", "Mark done"} {
+		r := agentRig(t)
+		r.walkAnswers()
+		r.ask(t, "walk me through it")
 		r.click(t, b)
 		if got := r.fb.mem.actions[len(r.fb.mem.actions)-1]; !strings.HasSuffix(got, "/st1:skip") && !strings.HasSuffix(got, "/st1:done") {
 			t.Fatalf("%s acted on another step: %v", b, r.fb.mem.actions)
 		}
-		break
-	}
-	for _, a := range r.fb.mem.actions {
-		if strings.Contains(a, "st2") || strings.Contains(a, "st3") {
-			t.Fatalf("a later step was changed: %v", r.fb.mem.actions)
+		for _, a := range r.fb.mem.actions {
+			if strings.Contains(a, "st2") || strings.Contains(a, "st3") {
+				t.Fatalf("%s changed a later step: %v", b, r.fb.mem.actions)
+			}
 		}
 	}
 }
