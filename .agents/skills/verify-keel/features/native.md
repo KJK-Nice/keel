@@ -169,7 +169,17 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Labels: the page's rows are `snippet <name>`, the sidebar's `sidebar snippet <name>`, the dialog's fields
   `Snippet dialog name` / `Snippet dialog command`, the page's editor `Snippet name` / `Snippet commands`. A
   follower's dialog says "You are following — take or request control to type"; `Type` does nothing.
-- `guard_test.go` keeps one writer and one caller (`-run 'TestOnly|TestApprovedInject|TestConnWrite'`).
+- **One-click type** (`e2e_direct_test.go`, plan 017): a one-line read-only snippet (the seeded `disk`, `df -h`) from the palette
+  (`e.typeFromPalette("disk")`) types with no dialog and no Enter. "Typed but not run" is asserted on the scrollback: wait for
+  the command text (`df -h` appears on the prompt line), `e.settle(time.Second)`, then require `Filesystem` (the first line `df`
+  prints) is absent and `e.noDialog(...)`; the shot `…-typed` is taken here, before Enter. Then `e.pressEnterInPane()` (it waits
+  for the review focus to come back) and `e.waitScrollback(sid, "Filesystem")`. The log row is `Kind` `snippet` / `agent.type` with
+  `Source` `direct` (`e.directLogged`). A snippet outside the grammar or on two lines opens the dialog (`badge Approve first`); `less`
+  on a file the test made (`LESS= less <file>`) puts the pane on the alternate screen (`e.w.focusedPane().screen()`), and the snippet
+  then opens the dialog and `df -h` never reaches the pane. The fake agent cannot propose a grammar command: Edit the card into
+  `df -h` (keel serve rates the edit again) and the button reads `Type into pane` with no "…". A follower gets the dialog's refusal.
+  The pane's prompt line is not cleared (no Ctrl-U): `# ` typed first, then the snippet, reads `# df -h`.
+- `guard_test.go` keeps two writers, one file and one caller each (`-run 'TestOnly|TestApprovedInject|TestDirect|TestTypeNow|TestNoControl|TestAgentAnd|TestConnWrite'`).
 
 ## Forwards, Panes, Settings and toasts (`e2e_n5d_test.go`)
 
