@@ -277,10 +277,11 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	if !r.has("Toggle agent panel") || !r.has("keys ⌘I") {
 		t.Error("Toggle agent panel ⌘I is not listed")
 	}
-	for _, later := range []string{"Ask the agent (from the palette)", "Put back your words after an inserted suggestion"} {
-		if r.has(later) {
-			t.Errorf("%q waits for a later phase and is listed", later)
-		}
+	if r.has("Ask the agent (from the palette)") {
+		t.Error("Ask the agent waits for a later phase and is listed")
+	}
+	if !r.has("Put back your words after an inserted suggestion") || !r.has("keys ⌘Z") {
+		t.Error("the put-back key of in-pane suggestions is not listed")
 	}
 }
 

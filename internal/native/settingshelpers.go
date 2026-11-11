@@ -131,7 +131,7 @@ var shortcuts = []shortcut{
 	{"Terminal", "Reset text size", "⌘0", ""},
 	{"Agent", "Toggle agent panel", "⌘I", ""},
 	{"Agent", "Ask the agent (from the palette)", "⌘↵", "agent"},
-	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", "agent"},
+	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", ""},
 }
 
 // shortcutGroup is a group of the Keyboard page.

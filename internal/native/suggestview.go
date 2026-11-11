@@ -148,8 +148,13 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 				}
 			})
 		}
-		foot := func(items func()) {
-			hairline(ui.Row(c).FillWidth().Padding(space1_5, space3).Gap(space3).AlignItems(ui.Center).Background(surface).Margin(space2, 0, 0, 0), 1, 0, 0, 0).Children(items)
+		foot := func(items func(), rule string) { // the rule wraps to its own line, as the foot's flex-wrap puts it
+			hairline(ui.Column(c).FillWidth().Padding(space1_5, space3).Gap(space1_5).Background(surface).Margin(space2, 0, 0, 0), 1, 0, 0, 0).Children(func() {
+				ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Children(items)
+				if rule != "" {
+					caption(c, rule, inkFaint)
+				}
+			})
 		}
 		keep := func() {
 			ui.Row(c).Gap(space1).AlignItems(ui.Center).Children(func() { kbd(c, k.Esc); caption(c, "keep my words", inkFaint) })
@@ -162,7 +167,7 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 				msg = v.Message
 			}
 			ui.Box(c).FillWidth().Padding(space1_5, space3, 0, space3).Children(func() { wrapText(c, msg, inkMuted) })
-			foot(keep)
+			foot(keep, "")
 		default:
 			head(sourceLabel(opt.Source), true)
 			ui.Box(c).FillWidth().Padding(space1_5, space3, 0, space3).Children(func() {
@@ -198,6 +203,13 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 					}
 				})
 			}
+			rule := ""
+			if opt.NeedsShift {
+				rule = "Production host: " + k.Tab + " alone does not insert a state change"
+				if danger {
+					rule = "Plain " + k.Tab + " never inserts a destructive command"
+				}
+			}
 			foot(func() {
 				if opt.NeedsShift {
 					ui.Row(c).Gap(space1).AlignItems(ui.Center).Children(func() { kbd(c, k.Shift); kbd(c, k.Tab); caption(c, "insert anyway", inkFaint) })
@@ -208,15 +220,7 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 					ui.Row(c).Gap(space1).AlignItems(ui.Center).Children(func() { kbd(c, k.Up); kbd(c, k.Down); caption(c, "other options", inkFaint) })
 				}
 				keep()
-				if opt.NeedsShift {
-					ui.Spacer(c)
-					why := "Production host: " + k.Tab + " alone does not insert a state change"
-					if danger {
-						why = "Plain " + k.Tab + " never inserts a destructive command"
-					}
-					caption(c, why, inkFaint).Label("suggestion rule")
-				}
-			})
+			}, rule)
 		}
 	})
 	if h := p.sg.card.Bounds(c).H; h > 0 {

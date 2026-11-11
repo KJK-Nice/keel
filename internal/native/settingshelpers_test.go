@@ -85,10 +85,11 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 			t.Errorf("%q is not listed", want)
 		}
 	}
-	for _, not := range []string{"Ask the agent (from the palette)", "Put back your words after an inserted suggestion"} {
-		if titles[not] {
-			t.Errorf("%q is listed before its phase", not)
-		}
+	if titles["Ask the agent (from the palette)"] {
+		t.Error("Ask the agent is listed before its phase")
+	}
+	if !titles["Put back your words after an inserted suggestion"] {
+		t.Error("the put-back key of in-pane suggestions is not listed")
 	}
 	if g := shortcutGroups(); g[0].name != "General" || g[len(g)-1].name != "Agent" || g[len(g)-2].name != "Terminal" {
 		t.Errorf("group order %v", g)
