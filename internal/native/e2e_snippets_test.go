@@ -245,7 +245,10 @@ func TestE2ESnippetsPageComesBack(t *testing.T) {
 	}
 	ed := &e.w.pageTab("snippets").pg.snippets.ed
 	// The save is done when the window's list holds it too: until then the editor re-reads the old text.
-	e.pump(func() bool { s, _ := e.w.snippet(ed.id); return !ed.saving && !ed.dirty() && s.Name == "e2e kept" && ed.name == "e2e kept" }, "the first save to finish")
+	e.pump(func() bool {
+		s, _ := e.w.snippet(ed.id)
+		return !ed.saving && !ed.dirty() && s.Name == "e2e kept" && ed.name == "e2e kept"
+	}, "the first save to finish")
 	e.click("Let the agent suggest this snippet switch")
 	e.pump(func() bool { return ed.agent && ed.dirty() }, "the switch on")
 	e.click("Save")
