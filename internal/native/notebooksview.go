@@ -18,8 +18,8 @@ type notebooksPage struct {
 	filterH ui.Handle
 }
 
-// notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Delete.
-// "Ask the agent about this notebook" waits for the agent plan. Nothing in the menu types.
+// notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Ask the
+// agent about this notebook (not for a private one), Delete. Nothing in the menu types.
 func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		id := nb.ID
@@ -45,6 +45,13 @@ func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {
 		}
 		if m.Item("History").Chosen() {
 			w.act(func() { w.openNotebookHistory(id) })
+		}
+		if !nb.Private {
+			// §6 rule 12: a private notebook does not exist for the agent, so it is never offered to it.
+			m.Separator()
+			if m.Item("Ask the agent about this notebook").Chosen() {
+				w.act(func() { w.askAboutNotebook(id) })
+			}
 		}
 		m.Separator()
 		if m.Item("Delete").Chosen() {

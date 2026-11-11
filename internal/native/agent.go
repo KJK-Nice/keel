@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,8 +32,8 @@ import (
 //     is sent and nothing keeps it.
 //
 // Saved conversations (agentconv.go), the Agent page (agentpage.go) and Settings · Agent (agentsettings.go) show and keep
-// the window's one conversation. Notes and runbooks are notes.go and runbooks.go. Not here, and in the app: notebooks,
-// groups, Claude Code's mcp (docs/native.md).
+// the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Not here, and
+// in the app: Claude Code's mcp (docs/native.md).
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 
@@ -73,6 +74,7 @@ type agentTurn struct {
 	props        []string // the proposals under it, by id (agentPanel.props holds them)
 	notes        []string // the notes it proposed (agentPanel.notes), shown after the proposals
 	books        []string // the runbooks it proposed (agentPanel.books)
+	nbs          []string // what the agent did to notebooks, and the deletes it proposed (agentPanel.nbProps), shown last
 	runID        string   // the runbook in use that started here: its card sits under "Agent" (agentthread.js placeRun)
 }
 
@@ -101,6 +103,12 @@ type agentPanel struct {
 	notes map[string]*agentNote
 	books map[string]*agentBook
 	runs  runUse
+
+	// Notebooks (agentnotebooks.go): the ids the user attached to the next questions (at most two, none private), the cards
+	// of what the agent did to notebooks, and which composer has the picker open ("panel" or "page").
+	attached []string
+	nbProps  map[string]*agentNbProp
+	nbPicker string
 
 	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.
@@ -132,7 +140,7 @@ type agentPanel struct {
 }
 
 func newAgentPanel() *agentPanel {
-	return &agentPanel{conv: newConversationID(), scopeAuto: true, props: map[string]*agentProp{}, notes: map[string]*agentNote{}, books: map[string]*agentBook{}}
+	return &agentPanel{conv: newConversationID(), scopeAuto: true, props: map[string]*agentProp{}, notes: map[string]*agentNote{}, books: map[string]*agentBook{}, nbProps: map[string]*agentNbProp{}}
 }
 
 const (
@@ -236,6 +244,7 @@ func (w *workspace) agentPaneBySession(id string) *agentPane {
 // user picks, then only drops what closed or can no longer be read (agentpanel.js refresh).
 func (w *workspace) agentSync() {
 	a := w.agent
+	a.attached = reconcileAttached(a.attached, w.notebooks) // a notebook deleted or made private is no longer attached
 	all := w.agentPanes()
 	if a.scopeAuto && a.settings != nil {
 		a.scope = defaultScope(a.settings.Settings.DefaultScope, all)
@@ -339,11 +348,11 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 		a.focusInput, a.focusKey = false, true
 		return false // the Connect card is what the thread shows
 	}
-	a.picker, a.sessOpen = false, false
+	a.picker, a.sessOpen, a.nbPicker = false, false, ""
 	w.agentSync()
 	// A resumed conversation carries on under its own id: that is all a continued ask changes (agentpanel.js ask).
-	req := keelclient.AskRequest{ConversationID: a.conv, Question: q, Panes: append([]string{}, a.scope...), RunbookID: runbookID}
-	turn := &agentTurn{question: q, at: time.Now(), scoped: len(req.Panes), pending: true}
+	panes := append([]string{}, a.scope...)
+	turn := &agentTurn{question: q, at: time.Now(), scoped: len(panes), pending: true}
 	a.turns = append(a.turns, turn)
 	if a.createdAt.IsZero() {
 		a.createdAt = turn.at
@@ -352,6 +361,24 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	c, cancel := context.WithTimeout(context.Background(), askTimeout)
 	a.busy = cancel
 	conv := a.conv
+	// Typing in a notebook saves first, so the agent reads it; the ask then names the notebooks still not saved (§18).
+	w.nbFlushAll(func() {
+		w.sendAsk(c, cancel, turn, keelclient.AskRequest{ConversationID: conv, Question: q, Panes: panes, RunbookID: runbookID})
+	})
+	return true
+}
+
+// sendAsk sends the ask once the notebooks are saved. It names the attached notebooks by id (never their text) and the ones
+// with typing not saved yet.
+func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *agentTurn, req keelclient.AskRequest) {
+	a := w.agent
+	conv, runbookID := req.ConversationID, req.RunbookID
+	if w.closed || a.conv != conv { // a new conversation started while the notebooks saved
+		cancel()
+		return
+	}
+	a.attached = reconcileAttached(a.attached, w.notebooks)
+	req.Notebooks, req.Editing = slices.Clone(a.attached), w.editingNotebooks()
 	w.work(func() {
 		res, err := w.be.Ask(c, req)
 		cancel()
@@ -391,6 +418,13 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 					a.registerBook(b)
 					turn.books = append(turn.books, b.ID)
 				}
+				for _, nb := range res.Notebooks {
+					a.registerNbProp(nb)
+					turn.nbs = append(turn.nbs, nb.ID)
+					if nb.Record != nil { // a notebook the agent created or edited: the window shows it now
+						w.notebookChanged(*nb.Record)
+					}
+				}
 				if runbookID != "" {
 					a.runs.none = false
 				}
@@ -403,7 +437,6 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 			}
 		})
 	})
-	return true
 }
 
 // typedStatus is the card's line for a proposal keel serve already knows was typed.

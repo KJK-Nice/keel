@@ -237,6 +237,10 @@ func (w *workspace) pageComposer(c *ui.Context, p *agentPage) {
 	a := w.agent
 	ui.Column(c).FillWidth().Shrink(0).Padding(0, space6, space4).Children(func() {
 		ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Padding(space2, space3, space3).Gap(space2).Radius(radiusMd).Background(raised).Border(1, line).Children(func() {
+			if len(a.attached) > 0 { // the page's chips are the attached notebooks (agentpage.js paintChips)
+				ui.Row(c).FillWidth().Wrap().Gap(space1_5).Children(func() { w.nbChips(c) })
+			}
+			w.nbHint(c)
 			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
 				ui.TextAreaBase(c, &p.input).Label("Message the agent on the page").Placeholder(w.pagePlaceholder()).PlaceholderColor(inkFaint).TextColor(ink).
 					FontSize(uiFontSize).Lines(2, 8).FillWidth().Bind(&p.inputH).OnTextKey(func(k ui.TextKey) bool {
@@ -250,6 +254,7 @@ func (w *workspace) pageComposer(c *ui.Context, p *agentPage) {
 				})
 			})
 			ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
+				w.attachButton(c, "page")
 				text(c, "Reads only panes in scope now · ↵ send", inkFaint, captionSize, weightRegular).Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				if a.busy != nil && textBtn(c, "Stop", btnGhost) {

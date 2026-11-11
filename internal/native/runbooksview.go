@@ -13,7 +13,7 @@ import (
 // internal/ui/runbookspage.templ, cmd/keel/web/js/ui/runbooks.js and ui/agentthread.js (placeRun, paintRun, paintBookProp)
 // do. Colours and sizes are tokens.go's.
 //
-// In the app and not here: "From a notebook…" (the notebooks are a later phase), and the "," that ends a host chip (↵ ends it).
+// In the app and not here: the "," that ends a host chip (↵ ends it).
 // A step's role, "One host only" and captures (group runs, §17) are edited in runbookStepTarget.
 
 // badgeColors are a k-badge's ground and ink for a kind ("" is the plain one).
@@ -73,10 +73,16 @@ func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 			}
 		})
 		ui.Row(c).FillWidth().Gap(space1_5).Children(func() {
+			if textBtnIcon(c, "notebook-pen", "From a notebook…", btnGhost) {
+				w.act(w.openNotebookMenu)
+			}
 			if textBtnIcon(c, "agent-history", "From a conversation…", btnGhost) {
 				w.act(w.openConversationMenu)
 			}
 		})
+		if p.menuNB {
+			w.notebookSourceMenu(c)
+		}
 		if p.menu {
 			w.conversationMenu(c, p)
 		}
@@ -85,6 +91,28 @@ func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 			ph := "Filter " + countWord(len(p.list), "runbook", "runbooks")
 			ui.TextInputBase(c, &p.filter).Label("Filter runbooks").Placeholder(ph).PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
 		})
+	})
+}
+
+// notebookSourceMenu is the list under "From a notebook…": every notebook, private ones too (the draft says when its notebook
+// is private). A click makes a draft, which is not kept until Save.
+func (w *workspace) notebookSourceMenu(c *ui.Context) {
+	ui.Column(c).FillWidth().Padding(space1).Gap(space0_5).Radius(radiusSm).Background(raised).Border(1, line).Label("runbook sources").Children(func() {
+		help(c, "Make a draft from a notebook: its headings become steps, its shell blocks their commands.")
+		if len(w.notebooks) == 0 {
+			help(c, "No notebooks. Write one on the Notebooks page.")
+		}
+		for _, nb := range sortedNotebooks(w.notebooks) {
+			id, name := nb.ID, notebookName(nb)
+			r := ui.Column(c).FillWidth().Key(id).Padding(space1_5, space2).Radius(radiusSm).Cursor(ui.CursorPointer).Label("draft from notebook " + name)
+			if r.Hovered() {
+				r.Background(hoverGround)
+			}
+			r.Children(func() { body(c, name, ink) })
+			if r.Clicked() {
+				w.act(func() { w.draftRunbookOfNotebook(id) })
+			}
+		}
 	})
 }
 

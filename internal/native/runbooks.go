@@ -45,6 +45,7 @@ func (a *agentPanel) registerBook(b keelclient.RunbookProposal) { a.books[b.ID] 
 // resetMemory forgets the notes, runbooks and the run of the conversation that was left.
 func (a *agentPanel) resetMemory() {
 	a.notes, a.books, a.runs = map[string]*agentNote{}, map[string]*agentBook{}, runUse{}
+	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, "" // agentpanel.js resetRun
 }
 
 // saveBookProposal is the card's Save (or Save anyway): the one thing that keeps a runbook the agent proposed, with Agent
@@ -441,6 +442,7 @@ type runbooksPage struct {
 	ed       *rbEditor
 	saving   bool
 
+	menuNB    bool // From a notebook…: the list is the window's notebooks
 	menu      bool // From a conversation…
 	menuItems []keelclient.ConversationSummary
 	menuEmpty string
@@ -750,6 +752,7 @@ func (w *workspace) openConversationMenu() {
 		p.menu = false
 		return
 	}
+	p.menuNB = false // one source menu at a time (runbooks.js openMenu)
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
 	w.work(func() {
 		c, cancel := ctx()
@@ -772,6 +775,16 @@ func (w *workspace) openConversationMenu() {
 	})
 }
 
+// openNotebookMenu is From a notebook…: the notebooks to make a draft from (runbooks.js openMenu("notebook")).
+func (w *workspace) openNotebookMenu() {
+	p := w.runbooksPage()
+	if p == nil {
+		return
+	}
+	p.menu = false
+	p.menuNB = !p.menuNB
+}
+
 // draftRunbook makes an unsaved draft from a saved conversation: keel serve turns its proposals into steps. Nothing is kept
 // until the user presses Save, and the draft starts with Agent may pick off.
 func (w *workspace) draftRunbook(conversationID string) {
@@ -779,31 +792,55 @@ func (w *workspace) draftRunbook(conversationID string) {
 	if p == nil {
 		return
 	}
-	p.menu = false
+	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
 		w.work(func() {
 			c, cancel := ctx()
 			defer cancel()
 			d, err := w.be.DraftRunbook(c, conversationID)
-			w.post(func() {
-				if w.closed {
-					return
-				}
-				var se *keelclient.StatusError
-				switch {
-				case errors.As(err, &se) && se.Code == 422:
-					w.warn("Nothing to make steps from: no headings or shell blocks, or no proposals.")
-					return
-				case err != nil:
-					w.warn(hostError(err))
-					return
-				}
-				p.selected, p.ed = "", editorFromDraft(d)
-				p.ed.agentMayPick = false
-				p.ed.focusName = true
+			w.post(func() { w.showDraft(p, d, err) })
+		})
+	})
+}
+
+// draftRunbookOfNotebook makes the same draft from a notebook: its headings become steps and its shell blocks their
+// commands. One request with the notebook's id; keel serve reads the text it stores. Typing in the notebook is saved first,
+// so the draft is of what the user sees. Nothing is kept until the user presses Save in the editor.
+func (w *workspace) draftRunbookOfNotebook(notebookID string) {
+	p := w.runbooksPage()
+	if p == nil {
+		return
+	}
+	p.menu, p.menuNB = false, false
+	w.leaveEditor(p, func() {
+		w.nbFlushID(notebookID, func() {
+			w.work(func() {
+				c, cancel := ctx()
+				defer cancel()
+				d, err := w.be.DraftRunbookOfNotebook(c, notebookID)
+				w.post(func() { w.showDraft(p, d, err) })
 			})
 		})
 	})
+}
+
+// showDraft opens a draft in the editor, or says why there is none (a 422 is "nothing to make steps from").
+func (w *workspace) showDraft(p *runbooksPage, d keelclient.RunbookDraft, err error) {
+	if w.closed {
+		return
+	}
+	var se *keelclient.StatusError
+	switch {
+	case errors.As(err, &se) && se.Code == 422:
+		w.warn("Nothing to make steps from: no headings or shell blocks, or no proposals.")
+		return
+	case err != nil:
+		w.warn(hostError(err))
+		return
+	}
+	p.selected, p.ed = "", editorFromDraft(d)
+	p.ed.agentMayPick = false
+	p.ed.focusName = true
 }
 
 // useEditedRunbook is Use in agent: it starts the saved runbook in the agent panel.

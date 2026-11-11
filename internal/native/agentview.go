@@ -252,6 +252,9 @@ func (w *workspace) agentThread(c *ui.Context, onPage bool) {
 			for _, id := range t.books {
 				w.agentBookCard(c, id)
 			}
+			for _, id := range t.nbs {
+				w.agentNbCard(c, id)
+			}
 			if i == resumed {
 				w.agentResumed(c)
 			}
@@ -411,6 +414,8 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 				for _, s := range t.trace {
 					if s.Status == "read" {
 						traceRow(c, "tick", tide, traceText(s))
+					} else if s.Status == "notebook" || s.Status == "notebook-index" {
+						traceRow(c, "notebook", inkFaint, traceText(s)) // agentthread.js stepHTML: the notebook glyph
 					} else if s.Status == "notes" || s.Status == "runbook" {
 						traceRow(c, "agent-info", inkFaint, traceText(s))
 					} else {
@@ -756,9 +761,10 @@ func (w *workspace) agentCardMenu(m *ui.Menu, id, offer string) {
 func (w *workspace) agentComposer(c *ui.Context) {
 	a := w.agent
 	hairline(ui.Column(c).FillWidth().Shrink(0).Padding(space2, space3, space3).Gap(space2), 1, 0, 0, 0).Children(func() {
-		if len(a.scope) > 0 {
+		if len(a.scope) > 0 || len(a.attached) > 0 {
 			ui.Row(c).FillWidth().Wrap().Gap(space1_5).Children(func() {
 				all := w.agentPanes()
+				defer w.nbChips(c) // the attached notebooks go after the panes
 				for _, id := range a.scope {
 					var p *agentPane
 					for i := range all {
@@ -779,6 +785,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 				}
 			})
 		}
+		w.nbHint(c)
 		ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
 			ui.TextAreaBase(c, &a.input).Label("Message the agent").Placeholder(agentInputHint).PlaceholderColor(inkFaint).TextColor(ink).
 				FontSize(uiFontSize).Lines(2, 8).FillWidth().Bind(&a.inputH).OnTextKey(func(k ui.TextKey) bool {
@@ -796,6 +803,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 			})
 		})
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
+			w.attachButton(c, "panel")
 			text(c, agentComposerHint, inkFaint, captionSize, weightRegular).Shrink(1).MinWidth(0)
 			ui.Spacer(c)
 			if a.busy != nil && textBtn(c, "Stop", btnGhost) {

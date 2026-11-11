@@ -176,6 +176,14 @@ type backend interface {
 	SaveProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.SavedRunbook, error)
 	UndoProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
 	DismissProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
+	DraftRunbookOfNotebook(ctx context.Context, notebookID string) (keelclient.RunbookDraft, error)
+
+	// What the agent did to notebooks (agentnotebooks.go): each is a request keel serve acts on and answers; this client
+	// changes no notebook itself.
+	UndoNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
+	ConfirmNotebookDelete(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
+	DismissNotebookProposal(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
+	RestoreNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
 
 	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
 	Share(ctx context.Context, sessionID string) (string, error)

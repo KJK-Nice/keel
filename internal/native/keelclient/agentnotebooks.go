@@ -81,10 +81,10 @@ func (c *Client) RestoreNotebookChange(ctx context.Context, conversationID, id s
 	return c.notebookAction(ctx, http.MethodPost, notebookProposalPath(conversationID, id)+"/restore")
 }
 
-// DraftRunbookFromNotebook is POST /api/agent/runbooks/draft with {notebookId}: keel serve makes an unsaved runbook from
+// DraftRunbookOfNotebook is POST /api/agent/runbooks/draft with {notebookId}: keel serve makes an unsaved runbook from
 // the notebook (its headings become steps, shell fences their commands) and keeps nothing; a 422 means there was nothing
 // to make steps from. The notebook's text never leaves keel serve.
-func (c *Client) DraftRunbookFromNotebook(ctx context.Context, notebookID string) (out RunbookDraft, err error) {
+func (c *Client) DraftRunbookOfNotebook(ctx context.Context, notebookID string) (out RunbookDraft, err error) {
 	err = c.do(ctx, http.MethodPost, "/api/agent/runbooks/draft", struct {
 		Notebook string `json:"notebookId"`
 	}{notebookID}, &out)

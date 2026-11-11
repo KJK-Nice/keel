@@ -110,7 +110,7 @@ func TestEveryRowMenuItemDoesItsOneThing(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if got := r.tt.Menu(); !slices.Equal(got, []string{"Open", "Rename", "Pin", "Make private", "History", "-", "Delete"}) {
+	if got := r.tt.Menu(); !slices.Equal(got, []string{"Open", "Rename", "Pin", "Make private", "History", "-", "Ask the agent about this notebook", "-", "Delete"}) {
 		t.Fatalf("menu %q", got)
 	}
 	// Pin.

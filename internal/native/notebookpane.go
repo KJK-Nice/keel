@@ -50,6 +50,11 @@ func (w *workspace) tileNotebook(c *ui.Context, t *tab, p *pane, multi bool, fit
 			mono(c, "Notebook", inkMuted).Shrink(8).MinWidth(0)
 			ui.Spacer(c)
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
+				// The first tool (term.js makeNotebookShell). A private notebook does not exist for the agent (§6 rule 12), so
+				// it is not offered; the app offers it and refuses.
+				if rec, saved := w.notebook(n.id); !(saved && rec.Private) && iconBtn(c, "ai-magic", "Ask the agent about this notebook", sizeControlSm, false) {
+					w.act(func() { w.askAboutNotebookPane(p) })
+				}
 				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
 					w.act(func() { w.split(t, p.id, layout.Row) })
 				}

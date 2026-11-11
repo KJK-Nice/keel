@@ -719,3 +719,109 @@ func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
 		}
 	}
 }
+
+// ---- notebooks and the agent (plan 024) ----
+
+var agentNotebookFiles = []string{"agentnotebooks.go", "agentnotebookslogic.go", "agentnotebooksview.go"}
+
+// The agent's notebook code (the attach picker, the chips, the cards, the banner's Undo) adds no writer and no call site:
+// it calls none of the four writers or the typing paths, builds no reference to a proposal, reads no pane and no
+// scrollback, and never reaches keel mcp's routes. It also holds no notebook text to send: an ask names ids.
+func TestAgentNotebookCodeHasNoWriterNoPaneReadAndSendsNoText(t *testing.T) {
+	src := sourceFiles(t)
+	for _, name := range agentNotebookFiles {
+		s := src[name]
+		if s == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+		for _, w := range []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "openApprove", "openApproveAgent",
+			"typeNow", "typeAgentProposal", "typeNotebookFence", "Write", "Inject", "Snapshot"} {
+			for _, c := range calls(t, name, s, w) {
+				t.Errorf("%s calls %s: what the agent does to a notebook never types and never reads a pane", c, w)
+			}
+		}
+		for _, bad := range []string{"AgentRef{", "DirectRef{", "/api/mcp", "scrollback", "Scrollback", `\x15`} {
+			if strings.Contains(s, bad) {
+				t.Errorf("%s holds %s", name, bad)
+			}
+		}
+		// The text of a notebook is never read here: an ask carries ids (invariant 2).
+		for _, w := range []string{"Markdown", "WithMarkdown"} {
+			for _, c := range calls(t, name, s, w) {
+				t.Errorf("%s calls %s: the client sends notebook ids with a question, never notebook text", c, w)
+			}
+		}
+		for _, bad := range []string{".Cells", ".Body"} {
+			if name != "agentnotebooksview.go" && strings.Contains(s, bad) {
+				t.Errorf("%s reads %s: the client sends notebook ids with a question, never notebook text", name, bad)
+			}
+		}
+	}
+	// The ask names ids, taken from the attached list and nowhere else.
+	ask := src["agent.go"]
+	if !strings.Contains(ask, "req.Notebooks, req.Editing = slices.Clone(a.attached), w.editingNotebooks()") {
+		t.Error("agent.go no longer builds the notebooks of an ask from the attached ids; update the guard")
+	}
+	if n := strings.Count(ask, "req.Notebooks"); n != 1 {
+		t.Errorf("agent.go names AskRequest.Notebooks %d times; once, from the attached ids", n)
+	}
+	for name, s := range src {
+		if name != "agent.go" && !strings.HasPrefix(name, "keelclient/") && (strings.Contains(s, "AskRequest{") || strings.Contains(s, "req.Notebooks")) {
+			t.Errorf("%s builds an ask: only agent.go does", name)
+		}
+	}
+}
+
+// A card's action is a request: each of the four routes has one caller, nbPropAction, which only askNbPropAction and the
+// card buttons reach; a delete the agent proposed posts only from the confirm dialog's action (invariants 5 and 6).
+func TestACardActionIsOneRequestAndADeleteWaitsForTheConfirm(t *testing.T) {
+	for _, route := range []string{"UndoNotebookChange", "ConfirmNotebookDelete", "DismissNotebookProposal", "RestoreNotebookChange"} {
+		if got := allCallSites(t, route); len(got) != 1 || got[0].file != "agentnotebooks.go" || got[0].in != "nbPropAction" {
+			t.Errorf("%s is called from %v; once, from nbPropAction in agentnotebooks.go", route, got)
+		}
+	}
+	// nbPropAction is called by askNbPropAction (the confirm's action for Delete, at once for the rest) and by nothing else.
+	var in []string
+	for _, c := range allCallSites(t, "nbPropAction") {
+		in = append(in, c.file+":"+c.in)
+	}
+	slices.Sort(in)
+	if want := []string{"agentnotebooks.go:askNbPropAction", "agentnotebooks.go:askNbPropAction"}; !slices.Equal(in, want) {
+		t.Errorf("nbPropAction is called from %v, want %v", in, want)
+	}
+	// askNbPropAction is reached only by the card's own buttons and menu (cardAction).
+	for _, c := range allCallSites(t, "askNbPropAction") {
+		if c.file != "agentnotebooksview.go" || c.in != "cardAction" {
+			t.Errorf("askNbPropAction is called from %v: only a card's button or menu item may", c)
+		}
+	}
+	s := sourceFiles(t)["agentnotebooks.go"]
+	if !strings.Contains(s, "if action == actDelete {\n\t\tw.askConfirm(") {
+		t.Error("askNbPropAction no longer asks before a delete; update the guard")
+	}
+	// No other file posts a card route by path.
+	for name, src := range sourceFiles(t) {
+		if name != "keelclient/agentnotebooks.go" && strings.Contains(src, "/notebooks/") && strings.Contains(src, "conversations/") {
+			t.Errorf("%s names a card route: only keelclient/agentnotebooks.go does", name)
+		}
+	}
+}
+
+// Nothing marks a notebook reviewed but the user's Mark reviewed button (invariant 8), and the runbook draft from a notebook
+// is one request whose result is saved only by the Runbooks editor's existing Save (invariant 9).
+func TestOnlyMarkReviewedMarksReviewedAndADraftIsNeverSavedByTheClient(t *testing.T) {
+	if got := allCallSites(t, "MarkNotebookReviewed"); len(got) != 1 || got[0].in != "markNotebookReviewed" {
+		t.Errorf("MarkNotebookReviewed is called from %v", got)
+	}
+	for _, c := range allCallSites(t, "markNotebookReviewed") {
+		if c.file != "notebookpane.go" || c.in != "notebookReview" {
+			t.Errorf("markNotebookReviewed is called from %v: only the banner's Mark reviewed button may", c)
+		}
+	}
+	if got := allCallSites(t, "DraftRunbookOfNotebook"); len(got) != 1 || got[0].file != "runbooks.go" || got[0].in != "draftRunbookOfNotebook" {
+		t.Errorf("DraftRunbookOfNotebook is called from %v; once, from draftRunbookOfNotebook", got)
+	}
+	if got := allCallSites(t, "SaveRunbook"); len(got) != 1 || got[0].file != "runbooks.go" || got[0].in != "saveRunbook" {
+		t.Errorf("SaveRunbook is called from %v; once, from saveRunbook (the editor's Save)", got)
+	}
+}

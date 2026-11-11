@@ -98,12 +98,12 @@ func TestASavedTurnHoldsItsNotebookCards(t *testing.T) {
 func TestDraftRunbookFromANotebookSendsTheIdOnly(t *testing.T) {
 	r := newRec(t)
 	r.reply = `{"name":"Ops","steps":[{"title":"Look","command":"df -h"}],"source":"notebook","sourceRef":"Ops","draftId":"dr_1","fromPrivate":true}`
-	d, err := r.c.DraftRunbookFromNotebook(context.Background(), "nb1")
+	d, err := r.c.DraftRunbookOfNotebook(context.Background(), "nb1")
 	if got, body := r.last(); got != "POST /api/agent/runbooks/draft" || body != `{"notebookId":"nb1"}` || err != nil || d.Source != "notebook" || !d.FromPrivate || d.DraftID != "dr_1" {
 		t.Fatal(got, body, d, err)
 	}
 	r.status, r.reply = 422, `{"error":"nothing to make steps from"}`
-	_, err = r.c.DraftRunbookFromNotebook(context.Background(), "nb1")
+	_, err = r.c.DraftRunbookOfNotebook(context.Background(), "nb1")
 	var se *StatusError
 	if !errors.As(err, &se) || se.Code != 422 || se.Msg != "nothing to make steps from" {
 		t.Fatal(err)

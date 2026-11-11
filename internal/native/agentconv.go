@@ -211,6 +211,10 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 			a.registerBook(b)
 			turn.books = append(turn.books, b.ID)
 		}
+		for _, nb := range st.Notebooks {
+			a.registerNbProp(nb)
+			turn.nbs = append(turn.nbs, nb.ID)
+		}
 		a.turns = append(a.turns, turn)
 	}
 	w.showSavedRun(t)
