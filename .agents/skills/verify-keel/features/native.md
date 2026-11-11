@@ -240,6 +240,12 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   backend) check what an ask sends (exactly three keys: no pane text), Stop, Edit through the server, Copy, the ⇧ rule, the
   refusals, the key field, and that a joined tab has no button. `guard_test.go` keeps one writer and one caller.
 
+## References and key caps (plan 016)
+
+- Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
+- Refresh the references on a machine where `npm ci` has run: `make build`, then `npx e2e run tests/readme.e2e.ts --target webkit --output .e2e/proof/readme` (seeded made-up hosts, `scripts/e2e-serve.sh`: `KEEL_KEYRING=off`, scratch data, fake agent). Look at every PNG for real data before committing it. In a worktree without `node_modules` this cannot run: stop and say so, do not install.
+- Key caps (`keycaps.go`): the clock is the tester's, so hold with `tt.HoldModifiers(ui.Cmd)`, `Frame()`, then `tt.Advance(capDelay + capFade)`; caps are elements labelled `key cap <keys>` (`tt.Texts()`, `tt.Find`). A key pressed with `tt.KeyDown` or a click with `tt.ClickAtWith(ui.Cmd, x, y)` hides them; `tt.SetFocused(false)` too. In the e2e a menu shortcut (⌘⇧D) leaves its key "down", so the hold ignores keys down when it began. Shots: `TestE2EKeyCaps-dark` and `-light`.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
