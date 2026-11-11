@@ -23,6 +23,7 @@ import (
 type Client struct {
 	addr, token string
 	http        *http.Client
+	slow        *http.Client // no timeout of its own: Ask (agent.go)
 }
 
 // New reads the address (paths.Addr) and the token (authtoken.Read). It does
@@ -37,7 +38,7 @@ func New() (*Client, error) {
 
 // NewAt is New with explicit values, for tests.
 func NewAt(addr, token string) *Client {
-	return &Client{addr: addr, token: token, http: &http.Client{Timeout: 15 * time.Second}}
+	return &Client{addr: addr, token: token, http: &http.Client{Timeout: 15 * time.Second}, slow: &http.Client{}}
 }
 
 // Vault is GET /api/vault. Rev changes with every vault or tunnel change (the webview's stream carries it too).
@@ -90,6 +91,12 @@ type Session struct {
 // do sends one request; body, when not nil, is sent as JSON. An error names the method, path and
 // status only, never a body (a body may carry a one-time token).
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	return c.doWith(ctx, c.http, method, path, body, out)
+}
+
+// doWith is do over hc: an ask waits for a model, longer than the 15 s of the other calls, and is bounded by its
+// context instead.
+func (c *Client) doWith(ctx context.Context, hc *http.Client, method, path string, body, out any) error {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -106,7 +113,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set(authtoken.Header, c.token) // a native client sends no origin header
-	resp, err := c.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		// url.Error carries the URL, which has no secret in it.
 		return fmt.Errorf("%s %s: %w", method, path, err)

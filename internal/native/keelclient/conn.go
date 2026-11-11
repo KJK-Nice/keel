@@ -26,8 +26,11 @@ type Conn struct {
 	state    State
 	onChange func()
 
-	ticket chan string   // the approval request waiting for keel serve's nonce (inject.go), or nil
-	wait   time.Duration // how long it waits; 0 is the default (tests shorten it)
+	ticket chan string // the approval request waiting for keel serve's nonce (inject.go), or nil
+	// The agent proposal's Type waiting for keel serve's agent-type answer, and the proposal it is for (inject.go).
+	agentWaiter chan agentAnswer
+	agentFor    string
+	wait        time.Duration // how long it waits; 0 is the default (tests shorten it)
 
 	events []Event // what the share hub announced, until Events hands it over
 }

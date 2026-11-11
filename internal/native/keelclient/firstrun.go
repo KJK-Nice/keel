@@ -142,23 +142,6 @@ func (c *Client) SSHConfigImport(ctx context.Context, req ImportRequest) (out Im
 	return out, err
 }
 
-// AgentProvider is what GET /api/agent/providers says about a provider: text for the First run agent step.
-// Connecting one is the agent phase.
-type AgentProvider struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	KeyLabel   string `json:"keyLabel"`
-	KeyHelpURL string `json:"keyHelpUrl"`
-	Warning    string `json:"warning"`
-	TermsURL   string `json:"termsUrl"`
-}
-
-// AgentProviders is GET /api/agent/providers (display only).
-func (c *Client) AgentProviders(ctx context.Context) (out []AgentProvider, err error) {
-	err = c.do(ctx, http.MethodGet, "/api/agent/providers", nil, &out)
-	return out, err
-}
-
 // LogEntry is one row of GET /api/logs. Agent entries carry counts, never content.
 type LogEntry struct {
 	Time       time.Time      `json:"time"`

@@ -31,8 +31,9 @@ type fakeConn struct {
 	granted []uint64           // GrantControl, the peer ids in order
 	events  []keelclient.Event // what Events hands over once
 
-	injected  []string // what ApprovedInject was asked to type, in order
-	injectErr error    // what it answers
+	injected  []string               // what ApprovedInject was asked to type, in order
+	injectErr error                  // what it answers
+	agentRefs []*keelclient.AgentRef // the agent reference of each, nil for a snippet
 }
 
 func (c *fakeConn) state() keelclient.State {
@@ -60,8 +61,9 @@ func (c *fakeConn) Events() []keelclient.Event {
 	c.events = nil
 	return out
 }
-func (c *fakeConn) ApprovedInject(_ context.Context, command string) error {
+func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *keelclient.AgentRef) error {
 	c.injected = append(c.injected, command)
+	c.agentRefs = append(c.agentRefs, agent)
 	return c.injectErr
 }
 
@@ -147,6 +149,8 @@ type fakeBackend struct {
 	stopErr      error
 
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
+
+	agent fakeAgent
 
 	// Share.
 	shareURL     string   // what Share answers

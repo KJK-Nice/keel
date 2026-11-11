@@ -33,9 +33,10 @@ type session interface {
 	GrantControl(peerID uint64) error // the driver or the owner makes that attached client the driver
 	Events() []keelclient.Event       // what the share hub and the runtime announced since the last call
 	OnChange(fn func())
-	// ApprovedInject types bytes the user approved (keelclient/inject.go). Only the Approve before type
-	// dialog's Type action calls it.
-	ApprovedInject(ctx context.Context, command string) error
+	// ApprovedInject types bytes the user approved (keelclient/inject.go): a snippet's, or with a non-nil agent
+	// an agent proposal's, which keel serve checks again and answers. Only the Approve before type dialog's Type
+	// action calls it.
+	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef) error
 }
 
 // backend is keel serve as the workspace uses it.
@@ -86,6 +87,13 @@ type backend interface {
 	Runtime(ctx context.Context) (keelclient.Runtime, error)
 	SetSignal(ctx context.Context, url string) (keelclient.Runtime, error)
 	StopRuntime(ctx context.Context) error
+
+	// The agent panel (agent.go): keel serve reads the panes named in an ask and answers; nothing here types.
+	AgentSettings(ctx context.Context) (keelclient.AgentSettings, error)
+	AgentProviders(ctx context.Context) ([]keelclient.AgentProvider, error)
+	SetAgentKey(ctx context.Context, in keelclient.AgentKeyInput) error
+	Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error)
+	EditProposal(ctx context.Context, conversationID, proposalID, command string) (keelclient.Proposal, error)
 
 	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
 	Share(ctx context.Context, sessionID string) (string, error)

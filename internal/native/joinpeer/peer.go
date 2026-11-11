@@ -372,4 +372,6 @@ func (p *Peer) GrantControl(id uint64) error {
 var ErrNoApprovedInject = errors.New("Session is not connected")
 
 // ApprovedInject types nothing into a joined pane. The window never asks; this is the refusal if it did.
-func (p *Peer) ApprovedInject(context.Context, string) error { return ErrNoApprovedInject }
+func (p *Peer) ApprovedInject(context.Context, string, *keelclient.AgentRef) error {
+	return ErrNoApprovedInject
+}

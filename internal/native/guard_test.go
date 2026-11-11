@@ -118,3 +118,38 @@ func TestConnWriteIsOnlyTheTerminalViewsConnection(t *testing.T) {
 		t.Fatal("the terminal view is no longer given the pane's connection in run.go; update the guard")
 	}
 }
+
+// An agent proposal is typed through the same writer: the reference to it goes into the inject frame inside
+// keelclient/inject.go and nowhere else, and the dialog that asks for the Type is the only place that builds one.
+func TestAgentReferenceIsAddedToTheFrameOnlyInInjectGo(t *testing.T) {
+	keys := regexp.MustCompile(`"(agent|conversationId)"\s*:|"(proposalId|shift)"|\\"(agent|proposalId|conversationId|shift)\\"`)
+	for name, src := range sourceFiles(t) {
+		if name == "keelclient/inject.go" {
+			continue
+		}
+		if m := keys.FindString(src); m != "" {
+			t.Errorf("%s holds the key %s: only keelclient/inject.go builds the agent part of an inject frame", name, m)
+		}
+		if name != "approve.go" && strings.Contains(src, "AgentRef{") {
+			t.Errorf("%s builds a keelclient.AgentRef: only the Approve dialog's Type action does", name)
+		}
+	}
+	src := sourceFiles(t)["keelclient/inject.go"]
+	for _, want := range []string{`"agent"`, `"proposalId"`, `"conversationId"`, `"shift"`} {
+		if !strings.Contains(src, want) {
+			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
+		}
+	}
+}
+
+// The panel asks and shows; it never reads a pane for the agent. keel serve reads and redacts, so no file of the
+// window or the client may call the scrollback or the mcp read routes.
+func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
+	for name, src := range sourceFiles(t) {
+		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback", "agent-insert", "agent-suggest", "agent-detect", "type-check"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s names %s: the client reads no pane text for the agent and has no in-pane suggestions", name, bad)
+			}
+		}
+	}
+}

@@ -16,6 +16,13 @@ import (
 //
 // keel serve writes exactly the bytes it is given and adds nothing, and only for a one-time nonce it issued for those
 // same bytes to this client, which must be the driver (internal/inject, runtime.Session.InjectTicket).
+//
+// An agent proposal is typed through the same call. The webview adds {conversationId, proposalId, shift} to the inject
+// frame only (pty.js sendApprovedInject opts.agent; the inject-challenge carries the bytes alone), and keel serve then
+// checks the proposal (the exact bytes it holds, the pane, the role, the ⇧ rule) and logs agent.type before it writes;
+// it answers with an agent-type frame, which ApprovedInject waits for. A refusal there is final: nothing was typed and
+// nothing is retried. The bytes are the proposal's own (Proposal.Bytes: Ctrl-U, the command, a newline), built by keel
+// serve; this client adds nothing to them.
 
 // The refusals carry the words of the webview's toasts (cmd/keel/web/js/pty.js sendApprovedInject).
 var (
@@ -25,13 +32,28 @@ var (
 	ErrInjectBusy = errors.New("Another type is waiting for keel serve")              // one at a time: never queued
 )
 
+// AgentRef names the proposal a Type is for. It goes into the inject frame and nowhere else; keel serve decides.
+type AgentRef struct {
+	ConversationID string
+	ProposalID     string
+	Shift          bool
+}
+
+// agentWait is how long keel serve has to answer a proposal's Type (term.js typeAgentProposal: 4 s).
+const agentWait = 4 * time.Second
+
+// ErrNoAgentAnswer is the webview's message when keel serve does not answer a proposal's Type.
+var ErrNoAgentAnswer = errors.New("keel serve did not answer.")
+
 // ticketWait is how long keel serve has to answer an approval request (pty.js requestInjectTicket: 2.5 s).
 const ticketWait = 2500 * time.Millisecond
 
 // ApprovedInject asks keel serve for a one-time nonce for exactly these bytes and, if it gets one, sends them. It
 // is called only by the Approve before type dialog's Type action. It sends nothing unless this client drives a ready
-// session, never retries, and never sends without a nonce.
-func (c *Conn) ApprovedInject(ctx context.Context, command string) error {
+// session, never retries, and never sends without a nonce. A non-nil agent marks the bytes as an agent proposal: the
+// call then returns keel serve's refusal (the message of its agent-type answer) as an error, and nil only when keel
+// serve says it typed.
+func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentRef) error {
 	st := c.Snapshot()
 	switch {
 	case st.Status != "ready":
@@ -46,10 +68,18 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string) error {
 	}
 	waiter := make(chan string, 1)
 	c.ticket = waiter
+	var answer chan agentAnswer // registered before the frame goes out, so the answer cannot be missed
+	if agent != nil {
+		answer = make(chan agentAnswer, 1)
+		c.agentWaiter, c.agentFor = answer, agent.ProposalID
+	}
 	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
 		c.ticket = nil
+		if agent != nil {
+			c.agentWaiter, c.agentFor = nil, ""
+		}
 		c.mu.Unlock()
 	}()
 
@@ -73,18 +103,63 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string) error {
 	if nonce == "" {
 		return ErrNoTicket
 	}
-	b, _ = json.Marshal(map[string]any{"type": "inject", "command": command, "nonce": nonce})
-	return c.write(websocket.TextMessage, b)
+	frame := map[string]any{"type": "inject", "command": command, "nonce": nonce}
+	if agent != nil {
+		frame["agent"] = map[string]any{"conversationId": agent.ConversationID, "proposalId": agent.ProposalID, "shift": agent.Shift}
+	}
+	b, _ = json.Marshal(frame)
+	if err := c.write(websocket.TextMessage, b); err != nil || agent == nil {
+		return err
+	}
+	timer.Reset(agentWait)
+	select {
+	case a := <-answer:
+		if !a.ok {
+			if a.message == "" {
+				a.message = "Not typed."
+			}
+			return errors.New(a.message)
+		}
+		return nil
+	case <-timer.C:
+		return ErrNoAgentAnswer
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// agentAnswer is keel serve's agent-type frame: ok when it wrote the bytes, else why not (its own words).
+type agentAnswer struct {
+	ok      bool
+	message string
 }
 
 // injectFrame hands keel serve's answer to an approval request to the call that waits for it. It reports whether the
 // frame was one; the nonce is never kept, logged or shown.
 func (c *Conn) injectFrame(data []byte) bool {
 	var m struct {
-		Type  string `json:"type"`
-		Nonce string `json:"nonce"`
+		Type       string `json:"type"`
+		Nonce      string `json:"nonce"`
+		OK         bool   `json:"ok"`
+		Message    string `json:"message"`
+		ProposalID string `json:"proposalId"`
 	}
-	if json.Unmarshal(data, &m) != nil || m.Type != "inject-challenge" {
+	if json.Unmarshal(data, &m) != nil {
+		return false
+	}
+	if m.Type == "agent-type" {
+		c.mu.Lock()
+		w, want := c.agentWaiter, c.agentFor
+		c.mu.Unlock()
+		if w != nil && m.ProposalID == want { // an answer about another proposal is not ours
+			select {
+			case w <- agentAnswer{m.OK, m.Message}:
+			default:
+			}
+		}
+		return true
+	}
+	if m.Type != "inject-challenge" {
 		return false
 	}
 	c.mu.Lock()

@@ -20,6 +20,8 @@ type injectServer struct {
 	mu     sync.Mutex
 	frames []map[string]any // every text frame received, in order
 	answer func(ws *websocket.Conn, m map[string]any)
+	// onInject, when set, answers an inject frame (keel serve's agent-type for a proposal).
+	onInject func(ws *websocket.Conn, m map[string]any)
 }
 
 func (s *injectServer) all() []map[string]any {
@@ -64,6 +66,9 @@ func dialInject(t *testing.T, status, role string, answer func(ws *websocket.Con
 			if m["type"] == "inject-challenge" && s.answer != nil {
 				s.answer(ws, m)
 			}
+			if m["type"] == "inject" && s.onInject != nil {
+				s.onInject(ws, m)
+			}
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -87,7 +92,7 @@ func nonceAnswer(ws *websocket.Conn, _ map[string]any) {
 func TestApprovedInjectSendsTheChallengeThenTheSameBytesWithTheNonce(t *testing.T) {
 	c, s := dialInject(t, "ready", "driver", nonceAnswer)
 	cmd := "\x15echo hi\n"
-	if err := c.ApprovedInject(context.Background(), cmd); err != nil {
+	if err := c.ApprovedInject(context.Background(), cmd, nil); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(2 * time.Second)
@@ -115,7 +120,7 @@ func TestApprovedInjectSendsTheChallengeThenTheSameBytesWithTheNonce(t *testing.
 func TestApprovedInjectWithNoNonceSendsNoInjectAndDoesNotRetry(t *testing.T) {
 	c, s := dialInject(t, "ready", "driver", nil) // keel serve says nothing
 	c.wait = 80 * time.Millisecond
-	err := c.ApprovedInject(context.Background(), "ls\n")
+	err := c.ApprovedInject(context.Background(), "ls\n", nil)
 	if !errors.Is(err, ErrNoTicket) || err.Error() != "Session is not connected" {
 		t.Fatalf("got %v", err)
 	}
@@ -138,7 +143,7 @@ func TestApprovedInjectRefusedChallengeTypesNothing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c, s := dialInject(t, "ready", "driver", answer)
 			c.wait = 80 * time.Millisecond
-			if err := c.ApprovedInject(context.Background(), "ls\n"); !errors.Is(err, ErrNoTicket) {
+			if err := c.ApprovedInject(context.Background(), "ls\n", nil); !errors.Is(err, ErrNoTicket) {
 				t.Fatalf("got %v", err)
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -155,7 +160,7 @@ func TestApprovedInjectFollowerAndNotReadySendNoFrameAtAll(t *testing.T) {
 		want         error
 	}{{"ready", "follower", ErrNotDriver}, {"ready", "owner", ErrNotDriver}, {"connecting", "driver", ErrNotReady}, {"error", "driver", ErrNotReady}} {
 		conn, s := dialInject(t, c.status, c.role, nonceAnswer)
-		if err := conn.ApprovedInject(context.Background(), "ls\n"); !errors.Is(err, c.want) {
+		if err := conn.ApprovedInject(context.Background(), "ls\n", nil); !errors.Is(err, c.want) {
 			t.Fatalf("%s/%s: got %v, want %v", c.status, c.role, err, c.want)
 		}
 		time.Sleep(60 * time.Millisecond)
@@ -175,12 +180,12 @@ func TestApprovedInjectOneAtATimeNeverQueues(t *testing.T) {
 		nonceAnswer(ws, m)
 	})
 	first := make(chan error, 1)
-	go func() { first <- c.ApprovedInject(context.Background(), "one\n") }()
+	go func() { first <- c.ApprovedInject(context.Background(), "one\n", nil) }()
 	deadline := time.Now().Add(2 * time.Second)
 	for len(s.types()) < 1 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if err := c.ApprovedInject(context.Background(), "two\n"); !errors.Is(err, ErrInjectBusy) {
+	if err := c.ApprovedInject(context.Background(), "two\n", nil); !errors.Is(err, ErrInjectBusy) {
 		t.Fatalf("second call: %v", err)
 	}
 	close(release)
@@ -194,7 +199,7 @@ func TestApprovedInjectOneAtATimeNeverQueues(t *testing.T) {
 		}
 	}
 	// And the next one after the first is done works again.
-	if err := c.ApprovedInject(context.Background(), "three\n"); err != nil {
+	if err := c.ApprovedInject(context.Background(), "three\n", nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -203,7 +208,7 @@ func TestApprovedInjectStopsWhenItsContextEnds(t *testing.T) {
 	c, s := dialInject(t, "ready", "driver", nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := c.ApprovedInject(ctx, "ls\n"); !errors.Is(err, context.Canceled) {
+	if err := c.ApprovedInject(ctx, "ls\n", nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)

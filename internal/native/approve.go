@@ -155,7 +155,7 @@ func (w *workspace) approveType() {
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
-		err := conn.ApprovedInject(c, command)
+		err := conn.ApprovedInject(c, command, nil)
 		w.post(func() {
 			d.busy = false
 			switch {
