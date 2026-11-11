@@ -254,6 +254,35 @@ func TestTabMenuClosesExactlyTheSessionsNamed(t *testing.T) {
 	}
 }
 
+// lib/tabstrip.js k-tab-close: the close button is there for the pointer over a tab (room kept when it is hidden), closes
+// that tab and kills its sessions, and a click on a tab's body selects it and closes nothing.
+func TestTheTabsCloseButtonClosesThatTabAndOnlyWhenShown(t *testing.T) {
+	r := named(t, 3)
+	b, ok := r.tt.Find("tab b")
+	if !ok {
+		t.Fatal("no tab b")
+	}
+	cb, ok := r.tt.Find("Close b")
+	if !ok || cb.W < space4-0.1 || cb.W > space4+0.1 || cb.H < space4-0.1 || cb.H > space4+0.1 {
+		t.Fatalf("the close button is %v (found %v), want %vx%v: its room is kept while hidden", cb, ok, space4, space4)
+	}
+	// Not shown: the pointer is away, so a click on its spot is the pill's own (it selects tab b) and closes nothing.
+	r.tt.Move(b.X-40, b.Y+b.H/2)
+	r.tt.Frame()
+	r.tt.ClickAt(cb.X+cb.W/2, cb.Y+cb.H/2)
+	r.tt.Frame()
+	if len(r.w.tabs) != 3 || len(r.fb.killed) != 0 {
+		t.Fatalf("a hidden close button closed a tab: %d tabs, killed %v", len(r.w.tabs), r.fb.killed)
+	}
+	// Over the pill the button closes tab b, and only that one.
+	r.tt.Move(b.X+b.W/2, b.Y+b.H/2)
+	r.tt.Frame()
+	r.click(t, "Close b")
+	if got := tabTitles(r); !slices.Equal(got, []string{"a", "c"}) || !slices.Equal(r.fb.killed, []string{"s2"}) {
+		t.Fatalf("tabs %q, killed %v", got, r.fb.killed)
+	}
+}
+
 func TestTabMenuDisabledItems(t *testing.T) {
 	// ui/tabmenu.js: Close others needs another tab, Close to the right a tab to the right.
 	for _, tc := range []struct {

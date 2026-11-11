@@ -316,6 +316,9 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround). // k-badge--mono tab-count
 																			Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
 		}
+		if !renaming {
+			w.tabClose(c, t, selected, r.Hovered())
+		}
 	})
 	if r.Clicked() && !renaming {
 		w.act(func() { w.selectTab(i) })
@@ -328,6 +331,37 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			slot++
 		}
 		w.act(func() { w.moveTab(moved, slot) })
+	}
+}
+
+// tabClose is the tab's close button (lib/tabstrip.js k-tab-close): 16 px, shown while the pill is hovered or, with ⌘ held,
+// on the selected tab, where the W cap stands in for its glyph. Its room is kept when it is hidden, so the pill does not
+// change width. It closes the tab as the tab menu's Close does.
+func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) {
+	// .tab .close is 16 px, not rem.
+	b := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).
+		Label("Close " + t.name()).Cursor(ui.CursorPointer)
+	capped := selected && w.capAlpha > 0
+	show := pillHovered || capped
+	if !show {
+		b.Opacity(0).Disabled(true) // pointer-events: none
+	}
+	hov := show && b.Hovered()
+	if hov {
+		b.Background(hoverGround)
+	}
+	b.Children(func() {
+		switch {
+		case capped:
+			w.capFace(c, "W")
+		case hov:
+			icon(c, "cancel-01", ink)
+		default:
+			icon(c, "cancel-01", inkFaint)
+		}
+	})
+	if show && b.Clicked() {
+		w.act(func() { w.closeTab(t) })
 	}
 }
 

@@ -104,8 +104,9 @@ func TestTabCountIsAMonoBadge(t *testing.T) {
 	r.click(t, "host api-1")
 	r.click(t, "Split right")
 	tab, _ := r.tt.Find("tab api-1")
-	// k-badge--mono tab-count: the hover ground behind the number, at the right of the pill.
-	if got := r.pixel(tab.X+tab.W-space2-2, tab.Y+tab.H/2-rem(tabCountPx)/2+1); !is(got, hoverGround) {
+	// k-badge--mono tab-count: the hover ground behind the number, at the right of the pill, before the close button
+	// (16 px and a gap, plan 025).
+	if got := r.pixel(tab.X+tab.W-space2-space4-space1_5-2, tab.Y+tab.H/2-rem(tabCountPx)/2+1); !is(got, hoverGround) {
 		t.Errorf("tab count ground %v, want hover %v", got, hoverGround)
 	}
 }
