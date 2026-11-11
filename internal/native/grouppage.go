@@ -2,6 +2,8 @@ package native
 
 import (
 	"errors"
+	"os"
+	"path"
 	"slices"
 	"strings"
 
@@ -20,6 +22,31 @@ import (
 // Variables are config, not secrets (keel serve refuses a secret-looking value or one that holds a vault value): they are
 // shown, filled into commands by keel serve alone and exported. The export is whatever keel serve built, and a variable it
 // withheld is not in it.
+
+// downloadFile is the export drawer's Download: the system's save dialog (MyGo's Dialog.Save, set by Run as w.saveDialog)
+// names a path, and the shown file's text is written there, off the UI thread. A cancelled dialog writes nothing and says
+// nothing. The text is what keel serve built (no secret is in it), and nothing here runs it.
+func (w *workspace) downloadFile(name, content string) {
+	base := path.Base(name)
+	if w.saveDialog == nil {
+		w.warn("Could not save " + base + ": this window has no save dialog.")
+		return
+	}
+	w.work(func() {
+		dest, err := w.saveDialog(base)
+		if err == nil && dest != "" {
+			err = os.WriteFile(dest, []byte(content), 0o644)
+		}
+		w.post(func() {
+			switch {
+			case err != nil:
+				w.warn("Could not save " + base + ": " + err.Error())
+			case dest != "":
+				w.say("Saved " + base + ".")
+			}
+		})
+	})
+}
 
 // The page's words (internal/ui/groupspage.templ, ui/groups.js).
 const (

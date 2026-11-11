@@ -1,6 +1,8 @@
 package native
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -312,6 +314,52 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	r.click(t, "Close export")
 	if p.ex.open || r.hasText(groupExportHelp) {
 		t.Error("the drawer stays")
+	}
+}
+
+// groups.js Download: the shown file's text goes where the system's save dialog says (the dialog is the test's), under the
+// file's own name; a cancelled dialog writes nothing; a failure is said.
+func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing.T) {
+	r := groupRig(t)
+	r.fb.grp.files = []keelclient.ExportFile{
+		{Name: "inventory.ini", Kind: "inventory", Lines: 1, Content: "[infra]\npg-1\n"},
+		{Name: "playbooks/restart.yml", Kind: "playbook", Lines: 1, Content: "- hosts: infra\n"},
+	}
+	dir := t.TempDir()
+	var asked []string
+	choice := filepath.Join(dir, "saved-inventory")
+	r.w.saveDialog = func(name string) (string, error) { asked = append(asked, name); return choice, nil }
+	r.openGroup(t, "Infra")
+	r.click(t, "Export to Ansible")
+	r.click(t, "Download")
+	if !slices.Equal(asked, []string{"inventory.ini"}) {
+		t.Fatalf("the dialog was asked for %q", asked)
+	}
+	if b, err := os.ReadFile(choice); err != nil || string(b) != "[infra]\npg-1\n" {
+		t.Fatalf("the saved file is %q (%v)", b, err)
+	}
+	if !r.hasText("Saved inventory.ini.") {
+		t.Error("no toast")
+	}
+	// A playbook's name is its base name; cancelling writes nothing and says nothing.
+	r.click(t, "Close notification")
+	r.click(t, "file playbooks/restart.yml")
+	choice = ""
+	r.click(t, "Download")
+	if !slices.Equal(asked, []string{"inventory.ini", "restart.yml"}) {
+		t.Fatalf("the dialog was asked for %q", asked)
+	}
+	if r.hasText("Saved restart.yml.") {
+		t.Error("a cancelled dialog said it saved")
+	}
+	if es, _ := os.ReadDir(dir); len(es) != 1 {
+		t.Errorf("a cancelled dialog wrote a file: %d entries", len(es))
+	}
+	// A path that cannot be written is said.
+	choice = filepath.Join(dir, "no", "such", "folder", "x")
+	r.click(t, "Download")
+	if !r.tt.HasText("Could not save restart.yml: ") {
+		t.Errorf("the failure was not said: %v", r.tt.Texts())
 	}
 }
 

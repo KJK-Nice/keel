@@ -147,6 +147,9 @@ func Run() error {
 			Content:              ui.View(w.view),
 		})
 		w.post = win.Update
+		w.saveDialog = func(name string) (string, error) {
+			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name, CreateDirectories: true})
+		}
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
 			blur := func(radius int) { blurOnce(win, radius)() }
 			w.blurHook = blur

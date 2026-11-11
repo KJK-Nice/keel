@@ -337,22 +337,23 @@ type workspace struct {
 	sideSeg        string                // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
 	snipQuery      string                // the sidebar's Snippets filter
 	snipH          ui.Handle
-	snipDlg        *snippetDialog      // New snippet / Edit snippet
-	folders        []keelclient.Group  // the vault's folders, as GET /api/groups lists them (folders.go)
-	folderDlg      *folderDialog       // New group / Edit group
-	folderRen      *folderRename       // the folder whose name is being edited in the tree
-	tunnels        []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
-	tunReading     bool                // the 2 s read of them is in flight
-	fwdQuery       string              // the sidebar's Forwards filter
-	paneQuery      string              // the sidebar's Panes filter
-	win            prefs               // Window opacity and blur as saved (settings.go)
-	term           termPrefs           // Copy on select, Right-click in the terminal, the display name
-	translucentWin bool                // the window was created Transparent: only then can opacity change live
-	blurHook       func(radius int)    // sets the window's blur; nil in tests
-	appearanceHook func(choice string) // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
-	dark, osDark   bool                // the theme in use, and whether the OS appearance is dark (theme.go)
-	themeSeen      bool                // the first frame has set the theme
-	themeNative    bool                // the window takes the theme as its own appearance: no opaque rule (theme.go)
+	snipDlg        *snippetDialog                    // New snippet / Edit snippet
+	folders        []keelclient.Group                // the vault's folders, as GET /api/groups lists them (folders.go)
+	folderDlg      *folderDialog                     // New group / Edit group
+	folderRen      *folderRename                     // the folder whose name is being edited in the tree
+	tunnels        []keelclient.Tunnel               // the forwards, as GET /api/tunnels lists them (forwards.go)
+	tunReading     bool                              // the 2 s read of them is in flight
+	fwdQuery       string                            // the sidebar's Forwards filter
+	paneQuery      string                            // the sidebar's Panes filter
+	win            prefs                             // Window opacity and blur as saved (settings.go)
+	term           termPrefs                         // Copy on select, Right-click in the terminal, the display name
+	translucentWin bool                              // the window was created Transparent: only then can opacity change live
+	blurHook       func(radius int)                  // sets the window's blur; nil in tests
+	saveDialog     func(name string) (string, error) // the system's save dialog for a file name: the path, "" when cancelled; nil in tests that set none
+	appearanceHook func(choice string)               // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
+	dark, osDark   bool                              // the theme in use, and whether the OS appearance is dark (theme.go)
+	themeSeen      bool                              // the first frame has set the theme
+	themeNative    bool                              // the window takes the theme as its own appearance: no opaque rule (theme.go)
 	paneH          ui.Handle
 	hostsH         ui.Handle // the Hosts filter's field
 	focusHosts     bool      // Search hosts: give the Hosts filter the keyboard in the next frame

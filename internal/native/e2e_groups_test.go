@@ -731,6 +731,12 @@ func TestE2EAnsibleExport(t *testing.T) {
 		t.Errorf("the clipboard holds %q, not the inventory", got)
 	}
 	e.click("Close notification")
+	// Download saves the shown file where the save dialog (the test's) says, exactly as keel serve built it.
+	saved := filepath.Join(t.TempDir(), "downloaded.ini")
+	e.w.saveDialog = func(name string) (string, error) { return saved, nil }
+	e.click("Download")
+	e.pump(func() bool { b, err := os.ReadFile(saved); return err == nil && string(b) == inv.Content }, "the downloaded file to hold the inventory")
+	e.click("Close notification")
 	// YAML and a playbook from the runbook are asked of keel serve and shown as it built them.
 	e.click("YAML")
 	e.pump(func() bool { return len(p.ex.files) == 1 && p.ex.files[0].Name == "inventory.yml" }, "the YAML inventory")
