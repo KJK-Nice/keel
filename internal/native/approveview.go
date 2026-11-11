@@ -62,7 +62,11 @@ func (w *workspace) approveView(c *ui.Context) {
 		backdrop.Background(scrim)
 		panel.Width(dialogWidth).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + approveTitle)
 		text(c, approveTitle, ink, titleSize, weightSemibold)
-		ui.Text(c, approveHint).TextColor(inkMuted).FontSize(uiFontSize)
+		hint := approveHint
+		if d.notebook {
+			hint = approveHintNotebook
+		}
+		ui.Text(c, hint).TextColor(inkMuted).FontSize(uiFontSize)
 		ui.Row(c).FillWidth().Gap(space1).Children(func() {
 			caption(c, "Session:", inkMuted)
 			caption(c, d.session(), inkMuted).MinWidth(0)

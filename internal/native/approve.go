@@ -39,12 +39,14 @@ const approvePreviewMax = 130 // not a token: .pty-inject-preview max-height, 10
 
 // The webview's words for the dialog (ptyInjectDialog) and for a refusal (pty.js).
 const (
-	approveTitle    = "Type into the terminal?"
-	approveHint     = "This sends keystrokes to the focused session. The current line is cleared first. Nothing is typed until you approve."
-	msgNoSession    = "Open a session first"
-	msgNotConnected = "Session is not connected"
-	msgFollowing    = "You are following — take or request control to type"
-	msgGone         = "It was deleted elsewhere; close this dialog." // hostError for a 404
+	approveTitle = "Type into the terminal?"
+	approveHint  = "This sends keystrokes to the focused session. The current line is cleared first. Nothing is typed until you approve."
+	// A notebook fence's bytes carry no Ctrl-U (term.js confirmTermInput), so the dialog does not say the line is cleared.
+	approveHintNotebook = "This sends keystrokes to the focused session. Nothing is typed until you approve."
+	msgNoSession        = "Open a session first"
+	msgNotConnected     = "Session is not connected"
+	msgFollowing        = "You are following — take or request control to type"
+	msgGone             = "It was deleted elsewhere; close this dialog." // hostError for a 404
 )
 
 // approveDialog is the open Approve before type dialog: the pane it types into and where the command comes from.

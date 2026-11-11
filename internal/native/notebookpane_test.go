@@ -607,3 +607,21 @@ func TestAHugeDocumentIsUsableInTheTextArea(t *testing.T) {
 		t.Fatalf("typing a character took %v: more than 100 ms", worst)
 	}
 }
+
+// The dialog says the line is cleared first only where Ctrl-U is sent: a snippet's, not a notebook fence's.
+func TestTheNotebookDialogDoesNotSayTheLineIsClearedAndASnippetsStillDoes(t *testing.T) {
+	r := nbRig(t, "```sh\necho one\necho two\n```\n")
+	np := r.openNB(t, "nb1")
+	r.tt.Click(fenceName("Type into api-1", fences(np.nb.md)[0].Index))
+	r.frames(3)
+	if r.w.approve == nil || !r.tt.HasText(approveHintNotebook) || r.onScreen("cleared first") {
+		t.Fatalf("notebook dialog: %q", r.tt.Texts())
+	}
+	r.click(t, "Cancel")
+	r.frames(2)
+	r.w.askType(func() (string, bool) { return "echo hi", true })
+	r.frames(3)
+	if !r.tt.HasText(approveHint) || !r.onScreen("cleared first") {
+		t.Fatalf("snippet dialog: %q", r.tt.Texts())
+	}
+}
