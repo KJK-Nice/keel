@@ -329,9 +329,14 @@ func (w *workspace) notebookCodeBlock(c *ui.Context, t *tab, p *pane, fs []fence
 				code := f.Code
 				w.act(func() { c.WriteClipboard(code); w.say("Copied") })
 			}
-			if term := t.firstTerm(); f.Shell && term != nil {
-				name := "Type into " + term.title()
-				ui.Row(c).Shrink(0).Tooltip("Shows the command for " + term.title() + " first. Nothing is typed until you confirm.").Children(func() {
+			if f.Shell {
+				// The app's bar always has it: "Type into <pane>", or "Type into pane" with no terminal beside the notebook
+				// (notebook-editor.mjs), and pressing it then says "Split a terminal beside this notebook first".
+				name, tip := "Type into pane", "Split a terminal beside this notebook first."
+				if term := t.firstTerm(); term != nil {
+					name, tip = "Type into "+term.title(), "Shows the command for "+term.title()+" first. Nothing is typed until you confirm."
+				}
+				ui.Row(c).Shrink(0).Tooltip(tip).Children(func() {
 					if textBtnAs(c, fenceName(name, idx), name, btnGhost) {
 						w.act(func() { w.typeNotebookFence(p, f) })
 					}

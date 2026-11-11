@@ -102,29 +102,29 @@ func TestACopyPutsExactlyTheFencesCodeOnTheClipboard(t *testing.T) {
 	}
 }
 
-func TestWithNoTerminalBesideItAFenceHasNoTypeButton(t *testing.T) {
+// The app's fence bar always has the Type button on a shell fence (notebook-editor.mjs: "Type into pane" with no terminal);
+// pressing it with no terminal beside the notebook says so and sends nothing (plan 025 changed this from "no button").
+func TestWithNoTerminalBesideItAShellFenceHasATypeButtonThatSaysSplitATerminalFirst(t *testing.T) {
 	r := nbRig(t, twoFences)
 	r.w.openPage("notebooks")
 	r.frames(2)
 	r.click(t, "notebook Deploy")
 	r.frames(3)
-	if !r.nbPane(t).nb.editing == false && false {
-		t.Fatal()
-	}
 	if !r.tt.HasText("No terminal in this tab") {
 		t.Fatalf("no 'No terminal in this tab': %q", r.tt.Texts())
 	}
-	if got := r.typeBtns(); len(got) != 0 {
-		t.Errorf("Type buttons %q with no terminal", got)
+	fs := fences(r.nbPane(t).nb.md)
+	got := r.typeBtns() // each button is listed by its name and by what it shows
+	if !slices.Contains(got, fenceName("Type into pane", fs[0].Index)) || !slices.Contains(got, fenceName("Type into pane", fs[1].Index)) || len(got) != 4 {
+		t.Errorf("Type buttons %q with no terminal: one for each shell fence, none for the other", got)
 	}
 	if len(r.copyBtns()) != 3 {
 		t.Errorf("Copy buttons %q: Copy stays", r.copyBtns())
 	}
-	// The function itself says what the app says.
-	np := r.nbPane(t)
-	r.w.typeNotebookFence(np, fences(np.nb.md)[0])
+	// Pressing it says what the app says and sends nothing.
+	r.click(t, fenceName("Type into pane", fs[0].Index))
 	r.frames(1)
-	if !r.tt.HasText("Split a terminal beside this notebook first") || len(r.directs()) != 0 || r.w.approve != nil {
+	if !r.tt.HasText("Split a terminal beside this notebook first") || len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approve != nil {
 		t.Errorf("no toast, or something was sent")
 	}
 }
