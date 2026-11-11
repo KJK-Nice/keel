@@ -273,6 +273,32 @@ func (w *workspace) askStopRuntime() {
 	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
+// staleRuntimeNotice is the webview's banner (ui/stalebanner.js), word for word.
+const staleRuntimeNotice = "The Keel runtime that's running is from a different build than this app, so you're seeing its version of Keel. " +
+	"Stop the runtime and reopen Keel to update. Open sessions will end."
+
+// runtimeIsStale is runtimecheck.js: a window opened without a build id never warns; a runtime that reports none is older.
+func runtimeIsStale(appBuild, runtimeBuild string) bool {
+	return appBuild != "" && appBuild != runtimeBuild
+}
+
+// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the app. The
+// webview showed a banner with Stop runtime; here it is a toast whose button asks the same Stop runtime question.
+func (w *workspace) checkRuntimeBuild() {
+	if w.appBuild == "" {
+		return
+	}
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		rt, err := w.be.Runtime(c)
+		if err != nil || !runtimeIsStale(w.appBuild, rt.Build) {
+			return
+		}
+		w.post(func() { w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime) })
+	})
+}
+
 // stopRuntime is the confirm's action: POST /api/runtime/stop. keel serve ends every session and exits.
 func (w *workspace) stopRuntime() {
 	w.work(func() {

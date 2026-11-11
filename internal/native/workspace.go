@@ -388,6 +388,7 @@ type workspace struct {
 
 	alpha float32 // the window's opacity, 0–1; grounds are painted at it (see ground)
 
+	appBuild string // the build id of the app that opened the window (Options.AppBuild); "" never warns of an older runtime
 	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
 	termSize int    // the terminal font size of every pane, termSizeMin–termSizeMax
 
@@ -497,6 +498,7 @@ func (w *workspace) start() {
 		w.agent.width = loadAgentWidth(w.dataDir)
 		w.collapsed = loadCollapsed(w.dataDir)
 	}
+	w.checkRuntimeBuild()
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()

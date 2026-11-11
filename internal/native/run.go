@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/authtoken"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 	"keel/internal/paths"
@@ -109,20 +110,34 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 }
 
-// Run opens the window on a running keel serve and blocks until the app quits.
+// Options say which keel serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
+// what keel app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
+type Options struct {
+	Addr, DataDir, AppBuild string
+}
+
+// Run opens the window on a running keel serve (the address and data directory of internal/paths) and blocks
+// until the app quits. It does not start keel serve.
 func Run() error {
-	cl, err := keelclient.New()
+	return RunWith(Options{Addr: paths.Addr(), DataDir: paths.DataDir()})
+}
+
+// RunWith is Run for the given address and data directory.
+func RunWith(o Options) error {
+	tok, err := authtoken.Read(o.DataDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
 	}
-	pr, err := loadPrefs(paths.DataDir()).withEnv()
+	cl := keelclient.NewAt(o.Addr, tok)
+	pr, err := loadPrefs(o.DataDir).withEnv()
 	if err != nil {
 		return err
 	}
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
-	w.dataDir, w.termSize = paths.DataDir(), pr.TermSize
-	w.win, w.term = pr, loadTermPrefs(paths.DataDir())
+	w.appBuild = o.AppBuild
+	w.dataDir, w.termSize = o.DataDir, pr.TermSize
+	w.win, w.term = pr, loadTermPrefs(o.DataDir)
 	// Transparent cannot change on an open window: Window opacity applies live only when it starts below 100
 	// (settings.go).
 	translucent := pr.Opacity < opacityMax

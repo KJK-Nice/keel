@@ -6,10 +6,8 @@ import (
 	"io/fs"
 	"log"
 	"net/url"
-	"os"
 	"path/filepath"
 
-	"keel/internal/authtoken"
 	"keel/internal/buildid"
 	"keel/internal/desktop"
 )
@@ -20,17 +18,8 @@ func RunDesktop(web fs.FS, addr, dataDir, name string) error {
 	if err := desktop.EnsureMacApp(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return err
-	}
-	token, err := authtoken.LoadOrCreate(dataDir)
+	token, err := PrepareServe(addr, dataDir)
 	if err != nil {
-		return err
-	}
-	if err := EnsureServe(addr, dataDir); err != nil {
-		return err
-	}
-	if err := VerifyServe(addr, token); err != nil {
 		return err
 	}
 	base := "http://" + addr
