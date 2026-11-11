@@ -32,17 +32,18 @@ type ConversationList struct {
 }
 
 // SavedTurn is one turn of a transcript: the question and what the agent answered, the cards for the notes and runbooks it
-// proposed and what the user did with them. Notebook cards are not part of this client yet (docs/native.md).
+// proposed and what the user did with them, and the notebook cards (Created, Edited, Delete?).
 type SavedTurn struct {
-	At        time.Time         `json:"at"`
-	Question  string            `json:"question"`
-	Answer    string            `json:"answer"`
-	Cut       string            `json:"cut"`
-	Trace     []TraceStep       `json:"trace"`
-	Proposals []Proposal        `json:"proposals"` // a proposal keel serve no longer holds is Expired
-	Notes     []NoteProposal    `json:"notes"`
-	Runbooks  []RunbookProposal `json:"runbooks"`
-	Again     bool              `json:"again"` // a Propose again turn: no question
+	At        time.Time          `json:"at"`
+	Question  string             `json:"question"`
+	Answer    string             `json:"answer"`
+	Cut       string             `json:"cut"`
+	Trace     []TraceStep        `json:"trace"`
+	Proposals []Proposal         `json:"proposals"` // a proposal keel serve no longer holds is Expired
+	Notes     []NoteProposal     `json:"notes"`
+	Runbooks  []RunbookProposal  `json:"runbooks"`
+	Notebooks []NotebookProposal `json:"notebooks"`
+	Again     bool               `json:"again"` // a Propose again turn: no question
 }
 
 // Transcript is GET /api/agent/conversations/{id}. Runbook is the runbook last used in it and how far it got;

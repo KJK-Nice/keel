@@ -94,10 +94,16 @@ type AskRequest struct {
 	// RunbookID starts that runbook in this conversation (the user picked it): keel serve proposes its current step
 	// itself. Starting one is an ask, never a type.
 	RunbookID string `json:"runbookId,omitempty"`
+	// Notebooks are the ids (never the text) of the notebooks the user attached; keel serve reads and redacts them and
+	// refuses a private one. Editing are the ids of notebooks open in this window with typing not saved yet, so the
+	// agent's edit to them is refused (internal/agent/service/service.go AskRequest).
+	Notebooks []string `json:"notebooks,omitempty"`
+	Editing   []string `json:"editing,omitempty"`
 }
 
 // TraceStep is one line of the trace: what the agent did with a pane. Status is "read" or "skipped" (Reason
-// not-readable, not-open or another), or "notes" or "runbook" for what keel serve sent along.
+// not-readable, not-open or another), or "notes", "runbook", "notebook" or "notebook-index" for what keel serve sent
+// along (Reason notebook-missing, notebook-private and notebook-limit on a skipped notebook).
 type TraceStep struct {
 	SessionID  string         `json:"sessionId"`
 	HostID     string         `json:"hostId"`
@@ -110,6 +116,14 @@ type TraceStep struct {
 	NoteKind   string         `json:"noteKind"`
 	Notes      int            `json:"notes"`
 	Runbook    string         `json:"runbook"`
+	// Notebook steps: the name (redacted) and id of a notebook sent or read, its size after redaction, whether keel serve
+	// cut it, whether the agent asked for it, and how many titles a "notebook-index" step sent.
+	Notebook   string `json:"notebook"`
+	NotebookID string `json:"notebookId"`
+	Bytes      int    `json:"bytes"`
+	Truncated  bool   `json:"truncated"`
+	Asked      bool   `json:"asked"`
+	Count      int    `json:"count"`
 }
 
 // Proposal is a command the agent suggests, as the card shows it. Bytes is exactly what Type sends (Ctrl-U, the
@@ -149,6 +163,8 @@ type AskResponse struct {
 	Notes    []NoteProposal    `json:"notes"`
 	Runbook  *ChatRunbook      `json:"runbook"`
 	Runbooks []RunbookProposal `json:"runbooks"`
+	// Notebooks are what the agent did to notebooks in this answer and the deletes it proposes (agentnotebooks.go).
+	Notebooks []NotebookProposal `json:"notebooks"`
 }
 
 // Ask is POST /api/agent/ask. It waits for the model, as long as ctx allows: cancel ctx to stop (the panel's Stop).
