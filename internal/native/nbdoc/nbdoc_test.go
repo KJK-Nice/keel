@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 // roundTrip is Markdown(Open(md)).
@@ -139,5 +141,124 @@ func TestFencesListsEachBlock(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("fence %d: got %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// Step 2: IDs through edits, on a document with no window. Rune offsets in edited: "Intro." is 0-6, "line one" 7-15,
+// "line two" 16-24, "End." starts at 25.
+const edited = "Intro.\n\n```sh\nline one\nline two\n```\n\nEnd."
+
+// edit applies fn, then checks the Markdown after the edit, after Undo (which must be the start) and after Redo.
+func edit(t *testing.T, md string, fn func(e *richtext.Edit), wantMD string) (*richtext.Document, map[string]string) {
+	t.Helper()
+	text, langs := Open(md)
+	d := richtext.NewDocument(text)
+	d.Edit(fn)
+	if got := Markdown(d.Text(), langs); got != wantMD {
+		t.Errorf("after the edit: %q, want %q", got, wantMD)
+	}
+	d.Undo()
+	if got := Markdown(d.Text(), langs); got != md {
+		t.Errorf("after undo: %q, want %q", got, md)
+	}
+	d.Redo()
+	if got := Markdown(d.Text(), langs); got != wantMD {
+		t.Errorf("after redo: %q, want %q", got, wantMD)
+	}
+	return d, langs
+}
+
+func replaceAt(from, to int, s string) func(e *richtext.Edit) {
+	return func(e *richtext.Edit) { e.ReplaceString(from, to, s, richtext.Attributes{}) }
+}
+
+func TestTypingInsideAFenceKeepsItsLanguage(t *testing.T) {
+	d, langs := edit(t, edited, replaceAt(10, 10, "X"), "Intro.\n\n```sh\nlinXe one\nline two\n```\n\nEnd.")
+	if f := Fences(d.Text(), langs); len(f) != 1 || f[0].ID != "f1" || f[0].Lang != "sh" {
+		t.Errorf("fences %+v", f)
+	}
+}
+
+func TestSplittingAFencesFirstLine(t *testing.T) {
+	// At the end and in the middle the first half keeps the ID; at the start the second half does, and the empty
+	// first half has none. Fences finds the language from any paragraph of the block, so all three keep "sh".
+	for _, c := range []struct {
+		name   string
+		at     int
+		wantID string
+		wantMD string
+	}{
+		{"end", 15, "f1", "Intro.\n\n```sh\nline one\n\nline two\n```\n\nEnd."},
+		{"middle", 11, "f1", "Intro.\n\n```sh\nline\n one\nline two\n```\n\nEnd."},
+		{"start", 7, "", "Intro.\n\n```sh\n\nline one\nline two\n```\n\nEnd."},
+	} {
+		d, langs := edit(t, edited, replaceAt(c.at, c.at, "\n"), c.wantMD)
+		f := Fences(d.Text(), langs)
+		if len(f) != 1 || f[0].ID != c.wantID || f[0].Lang != "sh" {
+			t.Errorf("%s: fences %+v, want ID %q and lang sh", c.name, f, c.wantID)
+		}
+	}
+}
+
+func TestDeletingAFencesFirstLineLosesItsLanguage(t *testing.T) {
+	d, langs := edit(t, edited, replaceAt(7, 16, ""), "Intro.\n\n```\nline two\n```\n\nEnd.")
+	if f := Fences(d.Text(), langs); len(f) != 1 || f[0].ID != "" || f[0].Lang != "" {
+		t.Errorf("fences %+v", f)
+	}
+}
+
+func TestEveryParagraphOfAFenceHavingAnIDKeepsTheLanguageWhenTheFirstLineGoes(t *testing.T) {
+	// The smallest fix for the case above: name every code paragraph, not only the first, and let each stand for the
+	// fence's info string. Done here with richtext's own calls, as a proof; Open does not do it.
+	text, langs := Open(edited)
+	n := 0
+	for start, p := range text.Paragraphs() {
+		if p.Style.CodeBlock && p.Style.ID == "" {
+			n++
+			id := "x" + string(rune('0'+n))
+			langs[id] = langs["f1"]
+			text = text.FormatParagraphs(start, start, func(s *richtext.ParagraphStyle) { s.ID = id })
+		}
+	}
+	d := richtext.NewDocument(text)
+	d.Edit(replaceAt(7, 16, ""))
+	if got, want := Markdown(d.Text(), langs), "Intro.\n\n```sh\nline two\n```\n\nEnd."; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCutAndPasteLosesTheLanguage(t *testing.T) {
+	// The clipboard leaves IDs out (ParagraphStyle.ID). Stripped here as it strips them: the pasted block is a
+	// code block with no language, and its lines stay.
+	text, langs := Open(edited)
+	d := richtext.NewDocument(text)
+	cut := text.Slice(7, 25)
+	d.Edit(replaceAt(7, 25, ""))
+	if got := Markdown(d.Text(), langs); got != "Intro.\n\nEnd." {
+		t.Fatalf("after the cut: %q", got)
+	}
+	clip := cut.FormatParagraphs(0, cut.Len(), func(p *richtext.ParagraphStyle) { p.ID = "" })
+	n := d.Text().Len() // not inside Edit: Document.Text locks
+	d.Edit(func(e *richtext.Edit) { e.Replace(n, n, richtext.NewText("\n")) })
+	end := d.Text().Len()
+	d.Edit(func(e *richtext.Edit) { e.Replace(end, end, clip) })
+	got := Markdown(d.Text(), langs)
+	t.Logf("pasted: %q", got)
+	// the last "\n\n" is the empty paragraph the clip's final newline leaves
+	if got != "Intro.\n\nEnd.\n\n```\nline one\nline two\n```\n\n" {
+		t.Errorf("pasted: %q", got)
+	}
+	d.Undo()
+	d.Undo()
+	if got := Markdown(d.Text(), langs); got != "Intro.\n\nEnd." {
+		t.Errorf("after undoing the paste: %q", got)
+	}
+}
+
+func TestJoiningTwoFencesKeepsTheFirstLanguage(t *testing.T) {
+	md := "```sh\na\n```\n\nmid\n\n```go\nb\n```"
+	d, langs := edit(t, md, replaceAt(2, 6, ""), "```sh\na\nb\n```")
+	if f := Fences(d.Text(), langs); len(f) != 1 || f[0].Lang != "sh" || f[0].Code != "a\nb" {
+		t.Errorf("fences %+v", f)
 	}
 }
