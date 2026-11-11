@@ -1,6 +1,6 @@
 # Keel
 
-Local SSH workspace: Go owns SSH and PTYs, the window is a Wails v3 webview on a loopback HTTP server, the UI is templ + shadcn-templ + Datastar, terminals are xterm.js. See CONTRIBUTING.md for build and checks, and README.md plus `docs/*.md` for features, configuration and shortcuts.
+Local SSH workspace: Go owns SSH and PTYs in `keel serve`; the window is native (MyGo, `internal/native`, libghostty terminals) and talks to it on loopback. The previous window, a Wails v3 webview (templ + shadcn-templ + Datastar, xterm.js), is behind `keel app --webview` until it is removed. See CONTRIBUTING.md for build and checks, `docs/native.md` for the native window, and README.md plus `docs/*.md` for features, configuration and shortcuts.
 
 ## Checks
 
@@ -8,7 +8,9 @@ Run before every PR: `make test`, `make lint`, `make check-generated` (committed
 
 ## UI work
 
-The UI is being redesigned. For any UI change:
+The window is native: UI work happens in `internal/native` (read `docs/native.md` first; verify with `make native-e2e`, never type into a PTY except through the guarded paths in `internal/native/guard_test.go`). The rules below are the webview's (templ, `k-*`, Datastar, term.js) and apply only to it, until it is removed; the tokens in `docs/design/tokens.json` and the agent invariants (§6) bind both.
+
+The webview UI is being redesigned. For any webview UI change:
 
 - Read `docs/ui-redesign.md` first. It holds the screens, the agent invariants (§6) and the phased build plan (§10). Work one phase per branch and PR.
 - Tokens come only from `docs/design/tokens.json` (`tokens.css` is the same as CSS variables). Never add a color, size or radius literal; add or reuse a token.

@@ -1,20 +1,44 @@
 # keel-native
 
-`keel-native` is a second Keel client: a native window drawn with [MyGo](https://github.com/egoist/mygo) and libghostty terminals, not a webview. It is the first step of leaving the webview. The goal is the same features and the same look as the app; the webview app (`keel app`) keeps shipping unchanged until the last phase.
+`keel-native` is a second Keel client: a native window drawn with [MyGo](https://github.com/egoist/mygo) and libghostty terminals, not a webview. Since cutover stage 1 it is the window `keel app` opens, in the same process as `keel` (`internal/app/run_native.go` calls `native.RunWith`; MyGo is purego, so it links into the cgo binary without trouble). The previous window, the Wails webview, is still built and opens with `keel app --webview` (or `KEEL_UI=webview`; `KEEL_UI=native` is the default and any other value is an error). Stage 2 removes the webview, Wails, templ, Tailwind, `cmd/keel/web` and the web e2e tests.
 
-It is a client only. It needs a running `keel serve`, which still owns SSH and the PTYs, and it never reads the keychain or the vault: it sees what `keel serve` returns on loopback, with the token from the data directory.
+It is a client only. `keel serve` still owns SSH and the PTYs, and the window never reads the keychain or the vault: it sees what `keel serve` returns on loopback, with the token from the data directory (`X-Keel-Token`, never a cookie or an `Origin`).
 
 ## Run it
 
 ```sh
-keel serve &            # or let Keel.app start it
-make native             # builds bin/keel-native (pure Go, no cgo)
-./bin/keel-native
+make build              # bin/keel and bin/Keel.app (libghostty-vt beside the binary)
+./bin/keel app          # or just ./bin/keel, or open bin/Keel.app; make app from a checkout
+./bin/keel app --webview   # the previous window; make app WEBVIEW=1
 ```
 
-`make native-app` builds `bin/Keel Native.app`: `keel-native` with libghostty-vt beside it in `Contents/MacOS`, so the app never downloads the library. The library comes from MyGo's loader (SHA-256 checked); the bundle is ad-hoc signed, not notarized, and is a developer bundle until the cutover (N9).
+`keel app` does what the webview did before its window, in the same order: it makes the data directory (0700), loads or creates the token, starts `keel serve` if it is not running (`EnsureServe`) and checks that it answers to that token (`VerifyServe`). It then opens the window on that address and data directory (`KEEL_ADDR`, `KEEL_DATA`, from `internal/paths`). It does not re-exec into `~/Library/Caches/keel/Keel.app` (`desktop.EnsureMacApp`): that exists because WKWebView needs a signed bundle with JIT entitlements, and the native window needs none. A bare `./bin/keel` therefore has no bundle icon or name in the Dock and menu bar; `bin/Keel.app` has. `--name` sets the share name for the run (it sets `KEEL_NAME`, which the window already reads for Settings · Sharing and for its sessions).
 
-`KEEL_DATA` and `KEEL_ADDR` select the data directory and address, as for `keel serve`. From a checkout, run it in the repository root so it finds the JetBrains Mono fonts in `cmd/keel/web/fonts`; elsewhere it falls back to the system monospace. The first run downloads libghostty-vt into the user cache (SHA-256 checked by MyGo).
+If the `keel serve` that answers is from another build than the app, the window shows a toast with the app's words ("The Keel runtime that's running is from a different build than this app…") and a **Stop runtime** button that asks first. The build id is `internal/buildid.Of`: the VCS revision plus a hash of the embedded web assets. `keel serve` and `keel app` are the same binary, so both compute it the same way; after the web assets are gone the hash part is the constant "noweb" and the revision still tells builds apart, so the check does not depend on them. The webview's banner stays until a user dismisses it; the toast lasts the usual five seconds.
+
+`bin/Keel.app` is the bundle id `app.keel.desktop` it has always had. Changing it would orphan the Keychain items and user defaults that are tied to that id; the native Info.plist has the same keys, so there was nothing to merge. `make native-app` stays: it builds the attach-only `bin/Keel Native.app` (`app.keel.native`) from `cmd/keel-native`, which keeps working on its own (it needs a running `keel serve`, and `KEEL_DATA`/`KEEL_ADDR` select it).
+
+### The app shell
+
+The Wails shell, and what the native window has of it (`internal/native/shell.go`; the menu items run the window's own actions and add no writer):
+
+| Wails shell behaviour | Native |
+|---|---|
+| App menu (About, Hide, Quit ⌘Q), Window menu | built (MyGo `RoleAppMenu`, `RoleWindowMenu`) |
+| File menu: New Tab ⌘T, Close Tab ⌘W, Reopen Tab ⌘⇧T, New Host ⌘N, Quick Connect ⌘⇧O, Join Session ⌘J, Split Right ⌘⇧D, Split Down ⌘⇧E, Split Notebook, Close Window ⌘⇧W, Stop Keel runtime | built; Find Host (no chord, a page-JS action) is the sidebar filter and the palette instead |
+| View menu: Find in Terminal ⌘F, Toggle Vault Sidebar ⌘B, Toggle Agent Panel ⌘I (Ctrl+⇧I off macOS), Focus View ⌘⇧↵, Zoom In ⌘= / Zoom Out ⌘- / Actual Size ⌘0 | built; the chords were already the window's own (`shortcuts`), and a chord that is a menu item's goes to the menu, which runs the same function |
+| Edit menu | not built on purpose: its ⌘C/⌘V roles would take the keys from the terminal's own copy and paste |
+| Menu bar item (tray) with serve status, Show/Hide, New Tab, Quick Connect…, Allow Claude Code, Quit Keel | built (macOS only, as before; MyGo `NewTray`, the same template icon) |
+| Keep in menu bar: closing the window hides it and the Dock icon, the menu bar item or opening Keel again brings it back, Quit quits | built (macOS only; `Window.OnClose` + `App.Dock.Hide/Show` + `App.OnActivate`) |
+| Window size and position remembered | the webview never did (`desktop.Run` drops its profile argument); MyGo can (`WindowOptions.StateKey`, `App.SetWindowStateStore`), not built |
+| Single instance | the webview never had one; MyGo has `RequestSingleInstanceLock`, not built |
+| Appearance follows the OS and the theme choice | already built (`mygo.Theme.SetSource`) |
+| Full screen, traffic lights, translucent window and blur | already built |
+| Close the window to detach; sessions stay in `keel serve` | already built (`closeWindow` detaches) |
+
+Nothing in the shell is missing an API in MyGo v0.8.3. None of it can be reached by the headless tester: the menu bar, tray, Dock and close behaviour are on the person-only list below. The tests cover the tables (`shell_test.go`): labels, chords per OS, and that each action does what its chord does.
+
+`KEEL_DATA` and `KEEL_ADDR` select the data directory and address, as for `keel serve`. The fonts (JetBrains Mono, IBM Plex Mono) are embedded (`internal/native/fonts`). A binary that has no libghostty-vt beside it (a bare `./bin/keel`, `go run`) downloads it into the user cache on first run (SHA-256 checked by MyGo); `bin/Keel.app` and the release archives carry it, so they never download.
 
 ## Verifying
 
@@ -195,4 +219,4 @@ Each with its reason and a size. Anything not listed here is built or is not in 
 
 ### Only a person can check
 
-The real window's look in both themes (translucency, the macOS blur, traffic lights, full screen); the `.app` opened from Finder (`make native-app`; it is ad-hoc signed, not notarized); Keychain mode (the harness runs `KEEL_KEYRING=off`); sharing across two machines and NAT, a public signal server and the browser join page against a native owner; one real provider question (every machine test runs `KEEL_AGENT_PROVIDER=fake`); ⇧+click and ⌘-click chords the Tester cannot send; the system clipboard; input methods; the macOS save dialog behind Download (the tests give the window their own); and Linux. A Linux run still needs: a Linux desktop to open the window on (`GOOS=linux CGO_ENABLED=0 go build ./cmd/keel-native` and its vet pass, nothing more has been run), libghostty-vt for linux amd64 or arm64 (MyGo's loader downloads it by SHA-256 as on macOS), the fonts (embedded), no blur (the window is translucent, not blurred), Ctrl in place of ⌘ for every key cap, the theme following the OS only where the window can take it (macOS), and packaging, which the cutover owns.
+The cutover's shell (stage 1): the menu bar and every chord of the File and View menus in the real window (a menu key goes to the menu, not the view); the menu bar item and its menu (status, Show/Hide, New Tab, Quick Connect…, the Claude Code switch, Quit Keel); that closing the window hides it and the Dock icon and that the Dock or Finder brings it back; that Quit really quits with the menu bar item up; the stale-runtime toast against an older `keel serve`; `Keel.app` from the release zip on an Intel Mac (its universal libghostty-vt was never run on x86_64 here); the Linux build and window (nothing built for Linux here has been run); and the real window's look in both themes (translucency, the macOS blur, traffic lights, full screen); the `.app` opened from Finder (`make native-app`; it is ad-hoc signed, not notarized); Keychain mode (the harness runs `KEEL_KEYRING=off`); sharing across two machines and NAT, a public signal server and the browser join page against a native owner; one real provider question (every machine test runs `KEEL_AGENT_PROVIDER=fake`); ⇧+click and ⌘-click chords the Tester cannot send; the system clipboard; input methods; the macOS save dialog behind Download (the tests give the window their own); and Linux. A Linux run still needs: a Linux desktop to open the window on (`GOOS=linux CGO_ENABLED=0 go build ./cmd/keel-native` and its vet pass, nothing more has been run), libghostty-vt for linux amd64 or arm64 (MyGo's loader downloads it by SHA-256 as on macOS), the fonts (embedded), no blur (the window is translucent, not blurred), Ctrl in place of ⌘ for every key cap, the theme following the OS only where the window can take it (macOS), and packaging, which the cutover owns.

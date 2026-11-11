@@ -20,7 +20,7 @@
 
 ## Features
 
-- **Native desktop window**: macOS WebKit, Windows WebView2, Linux WebKitGTK. Tabs, splits, a command palette (⌘K) and [keyboard shortcuts](docs/shortcuts.md) for everything.
+- **Native desktop window** ([MyGo](https://github.com/egoist/mygo) and libghostty terminals, no webview; `keel app --webview` opens the previous Wails window for now). Tabs, splits, a command palette (⌘K) and [keyboard shortcuts](docs/shortcuts.md) for everything.
 - **Sessions that survive the window.** PTYs live in `keel serve`; close the window to detach, reopen Keel and your tabs come back.
 - **Encrypted vault.** Passwords, private keys and passphrases are encrypted with [age](https://age-encryption.org) and wrapped by the OS keychain. Import hosts from `~/.ssh/config` in one step; your `~/.ssh` is never changed. [More →](docs/vault.md)
 - **Share a session over the internet** with WebRTC. Joiners see one terminal, never your hosts or keys, and follow read-only until you hand over control. [More →](docs/sharing.md)
@@ -83,7 +83,7 @@ Close the window whenever you like: sessions keep running in `keel serve` until 
 
 ## How it works
 
-Go owns SSH and PTYs in a local daemon, `keel serve`. The window is a [Wails v3](https://v3.wails.io) webview on a loopback-only, token-protected HTTP server; the UI is [templ](https://templ.guide) + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev), and terminals are [xterm.js](https://xtermjs.org). Shared sessions travel over WebRTC, so the local API never leaves your machine.
+Go owns SSH and PTYs in a local daemon, `keel serve`. The window is native ([MyGo](https://github.com/egoist/mygo), pure Go, with [libghostty](https://ghostty.org) terminals) and talks to `keel serve` on a loopback-only, token-protected HTTP server (`docs/native.md`). Until the webview is removed, `keel app --webview` (or `KEEL_UI=webview`) opens the previous window: a [Wails v3](https://v3.wails.io) webview whose UI is [templ](https://templ.guide) + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev) with [xterm.js](https://xtermjs.org) terminals. Shared sessions travel over WebRTC, so the local API never leaves your machine.
 
 ## License
 

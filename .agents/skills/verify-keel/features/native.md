@@ -1,7 +1,11 @@
 # Native client (keel-native)
 
-The MyGo window in `internal/native`, a second client of `keel serve`
+The MyGo window in `internal/native`, the window `keel app` opens (cutover
+stage 1; `--webview` opens the old one) and a client of `keel serve`
 (`docs/native.md`). It is verified with Go tests, not with e2e or a browser.
+The app shell (menu bar, menu bar item, keep in menu bar, Dock) is not
+reachable by the tester; `shell_test.go` covers its tables and docs/native.md
+lists what a person checks.
 
 ## What is driven
 

@@ -13,7 +13,9 @@ webkit` for proofs and screenshots, and run both targets before claiming a
 change works, one `--target` per invocation (both would share one data dir); shared helpers are in `tests/keel.ts`; the bug bash
 uses `e2e.bugbash.config.ts`.
 
-What is driven: the desktop app is a Wails webview pointed at `keel serve`'s
+Which UI a check drives: `keel app` now opens the native MyGo window, so a change to the window itself is checked with [features/native.md](features/native.md) (`make native-e2e`), not with this skill's e2e. The rest of this skill is the webview (`keel app --webview`) and the `keel serve` HTTP/UI page, which stay until the webview is removed.
+
+What is driven: the webview app is a Wails webview pointed at `keel serve`'s
 loopback HTTP server, and the same page loads in a browser. e2e drives that
 page in headless Playwright WebKit or Chromium against a `keel serve` it starts itself. The
 Wails window's own chrome (the system WKWebView, which differs from Playwright's WebKit build; the macOS menu, ⌘-shortcuts Wails owns, the dock) is

@@ -12,7 +12,9 @@ make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 
 ### Platform requirements
 
-Ubuntu 24.04+ needs GTK4 + WebKitGTK 6 (Wails v3):
+`keel app` opens the native window (MyGo, pure Go, libghostty-vt terminals); `keel app --webview` or `KEEL_UI=webview` opens the Wails webview until it is removed. `make app` runs the native window, `make app WEBVIEW=1` the webview. `make build` puts libghostty-vt beside the binary (`bin/Keel.app/Contents/MacOS` on macOS, `bin/` on Linux; MyGo's loader downloads it once, SHA-256 checked). `make native-e2e` drives the native window; see `docs/native.md`.
+
+The webview still needs, on Ubuntu 24.04+, GTK4 + WebKitGTK 6 (Wails v3):
 
 ```bash
 sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
@@ -65,4 +67,4 @@ README and docs screenshots come from `tests/readme.e2e.ts` (the file says how t
 
 ## Why this shape
 
-Go owns SSH and PTYs. The window is Wails v3 (native webview) pointed at localhost because Wails cannot proxy WebSockets. The chrome is templ + [shadcn-templ](https://shadcn-templ.com); the vault lists reach the page over one [Datastar](https://data-star.dev) stream (`GET /ui/stream`) that patches them whenever the vault changes (`docs/ui-redesign.md` §12). Terminals use xterm.js over WebSocket. Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.
+Go owns SSH and PTYs. The window is native (`internal/native`, MyGo): a client of `keel serve` on loopback. The webview (`keel app --webview`, Wails v3) stays until it is removed and is pointed at localhost because Wails cannot proxy WebSockets. The chrome is templ + [shadcn-templ](https://shadcn-templ.com); the vault lists reach the page over one [Datastar](https://data-star.dev) stream (`GET /ui/stream`) that patches them whenever the vault changes (`docs/ui-redesign.md` §12). Terminals use xterm.js over WebSocket. Remote follow uses WebRTC so the host HTTP API never leaves loopback. Local Shell starts in `$HOME`.
