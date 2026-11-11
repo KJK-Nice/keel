@@ -150,7 +150,7 @@ func TestAgentReferenceIsAddedToTheFrameOnlyInInjectGo(t *testing.T) {
 func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback", "agent-insert", "agent-suggest", "agent-detect", "type-check"} {
-			if strings.Contains(src, bad) {
+			if strings.Contains(src, bad) && !(bad == "type-check" && name == "keelclient/inject.go") { // the direct type's own question
 				t.Errorf("%s names %s: the client reads no pane text for the agent and has no in-pane suggestions", name, bad)
 			}
 		}

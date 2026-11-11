@@ -32,6 +32,11 @@ type Conn struct {
 	agentFor    string
 	wait        time.Duration // how long it waits; 0 is the default (tests shorten it)
 
+	// A type without the dialog (DirectType, inject.go): one at a time, and the answers by the ref each frame carried.
+	directBusy    bool
+	directSeq     int
+	directWaiters map[string]chan directAnswer
+
 	events []Event // what the share hub announced, until Events hands it over
 }
 

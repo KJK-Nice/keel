@@ -22,6 +22,8 @@ type injectServer struct {
 	answer func(ws *websocket.Conn, m map[string]any)
 	// onInject, when set, answers an inject frame (keel serve's agent-type for a proposal).
 	onInject func(ws *websocket.Conn, m map[string]any)
+	// onCheck, when set, answers a type-check frame.
+	onCheck func(ws *websocket.Conn, m map[string]any)
 }
 
 func (s *injectServer) all() []map[string]any {
@@ -68,6 +70,9 @@ func dialInject(t *testing.T, status, role string, answer func(ws *websocket.Con
 			}
 			if m["type"] == "inject" && s.onInject != nil {
 				s.onInject(ws, m)
+			}
+			if m["type"] == "type-check" && s.onCheck != nil {
+				s.onCheck(ws, m)
 			}
 		}
 	}))
