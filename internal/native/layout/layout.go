@@ -141,6 +141,51 @@ func Beside(root *Node, pane, target string, edge Edge) (*Node, bool) {
 	return put(rest), true
 }
 
+// Dock puts the whole tree in beside target's pane of root, on edge, at ratio 0.5 (lib/workspace.js dockTab: insertBeside with
+// the source tab's layout; "center" or no edge docks to the right). It returns the new root, or root unchanged and false when
+// target is not a leaf of root, in is nil or the two share a pane.
+func Dock(root, in *Node, target string, edge Edge) (*Node, bool) {
+	if root == nil || in == nil {
+		return root, false
+	}
+	have := map[string]bool{}
+	for _, l := range root.Leaves() {
+		have[l] = true
+	}
+	if !have[target] {
+		return root, false
+	}
+	for _, l := range in.Leaves() {
+		if have[l] {
+			return root, false
+		}
+	}
+	d := Row
+	switch edge {
+	case Left, Right, "center", "":
+	case Top, Bottom:
+		d = Col
+	default:
+		return root, false
+	}
+	var put func(n *Node) *Node
+	put = func(n *Node) *Node {
+		if n.leaf() {
+			if n.Pane != target {
+				return n
+			}
+			a, b := n, in
+			if edge == Left || edge == Top {
+				a, b = in, n
+			}
+			return &Node{Dir: d, Ratio: 0.5, A: a, B: b}
+		}
+		n.A, n.B = put(n.A), put(n.B)
+		return n
+	}
+	return put(root), true
+}
+
 // ClampRatio keeps both sides of a split at least min wide when avail is the
 // room for both. With less room than two minimums it is 0.5.
 func ClampRatio(r, avail, min float32) float32 {

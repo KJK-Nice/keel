@@ -1,6 +1,8 @@
 package native
 
 import (
+	"slices"
+
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/layout"
@@ -8,8 +10,73 @@ import (
 
 // Rearranging the panes of a tab by dragging a pane bar (ui/drag.js, lib/workspace.js movePane): a pane dragged by its bar
 // and dropped on an edge of another pane of the same tab moves next to it, on the centre swaps the two. The tab leaves focus
-// view and the moved pane has the focus. Nothing here opens, closes or types into a session. Not built from the app: a pane
-// dropped on the tab strip becoming a tab of its own, and a whole tab docked beside a pane (extractPane and dockTab).
+// view and the moved pane has the focus. A pane dropped on the tab strip becomes a tab of its own there (extractPane, term.js
+// extractPaneToTab), and a whole tab dropped on a pane of another tab docks beside it (dockTab, term.js dockTabIntoPane), the
+// docked tab's sync flag kept if either had it. Nothing here opens, closes or types into a session: a pane keeps its
+// connection wherever it goes.
+
+// canDock is a tab that may be dropped on a pane of dest: two different session tabs of this machine's keel serve (not the New
+// tab page, a page or a joined tab).
+func canDock(src, dest *tab) bool {
+	return src != nil && dest != nil && src != dest && src.root != nil && dest.root != nil && !src.remote && !dest.remote && src.page == nil && dest.page == nil && src.pg == nil && dest.pg == nil
+}
+
+// dockTab moves every pane of src beside pane target of another tab, on edge ("center" docks to the right). The tab leaves the
+// strip without closing a session, focus view is off in both, the focus the source had stays, and the destination has sync on
+// if either had it. The destination is shown.
+func (w *workspace) dockTab(src *tab, target, edge string) {
+	var dest *tab
+	for _, t := range w.tabs {
+		if t.panes[target] != nil {
+			dest = t
+		}
+	}
+	if !canDock(src, dest) || !slices.Contains(w.tabs, src) {
+		return
+	}
+	root, ok := layout.Dock(dest.root, src.root, target, layout.Edge(edge))
+	if !ok {
+		return
+	}
+	dest.root = root
+	for id, p := range src.panes {
+		dest.panes[id] = p
+	}
+	dest.zoomed, src.zoomed = "", ""
+	if src.panes[src.focused] != nil {
+		dest.focused = src.focused
+	} else {
+		dest.focused = target
+	}
+	dest.sync = dest.sync || src.sync
+	src.panes = map[string]*pane{} // the tab goes; the panes are the destination's now, and closing the tab kills nothing
+	w.removeTab(src)
+	if i := slices.Index(w.tabs, dest); i >= 0 {
+		w.selectTab(i)
+	}
+	w.wantFocus = dest.focused
+	w.publishSync()
+}
+
+// extractPane makes pane id of t a tab of its own at slot of the strip (counted as the strip is now), and shows it. A tab of
+// one pane, a joined tab and a pane that is not in t stay as they are.
+func (w *workspace) extractPane(t *tab, id string, slot int) {
+	p := t.panes[id]
+	if p == nil || len(t.panes) < 2 || t.remote || t.root == nil || !slices.Contains(w.tabs, t) {
+		return
+	}
+	t.root = t.root.Remove(id)
+	delete(t.panes, id)
+	t.zoomed = ""
+	if t.focused == id {
+		t.focused = t.root.Leaves()[0]
+	}
+	nt := &tab{root: layout.Leaf(id), panes: map[string]*pane{id: p}, focused: id}
+	slot = min(max(slot, 0), len(w.tabs))
+	w.tabs = slices.Insert(w.tabs, slot, nt)
+	w.selectTab(slot)
+	w.publishSync()
+}
 
 // paneDropInset is .pane-drop-region's inset: 6 px from the pane's edge.
 const paneDropInset = space1_5
@@ -67,8 +134,20 @@ func (w *workspace) paneDropZone(c *ui.Context, t *tab, p *pane, tl ui.Element) 
 		}
 		return
 	}
+	// A tab of another tab dropped here docks beside this pane (the centre docks to the right).
+	if src, ok := ui.Drop[*tab](tl); ok && canDock(src, t) {
+		if b := tl.Bounds(); b.W > 0 && b.H > 0 {
+			x, y, _ := tl.PointerPosition()
+			edge := dropEdge(x/b.W, y/b.H)
+			w.act(func() { w.dockTab(src, p.id, edge) })
+		}
+		return
+	}
 	from, over := ui.DragOver[*pane](tl)
-	if !over || from == p || t.panes[from.id] != from {
+	over = over && from != p && t.panes[from.id] == from
+	srcTab, dock := ui.DragOver[*tab](tl)
+	dock = dock && canDock(srcTab, t)
+	if !over && !dock {
 		return
 	}
 	x, y, _ := tl.PointerPosition()
@@ -78,7 +157,11 @@ func (w *workspace) paneDropZone(c *ui.Context, t *tab, p *pane, tl ui.Element) 
 	}
 	i, half := float32(paneDropInset), b.W/2
 	box := ui.Box(c).Absolute().Radius(radiusSm).Background(brassInk.Alpha(paneDropAlpha)).Border(2, brassInk).Label("pane drop region")
-	switch dropEdge(x/b.W, y/b.H) {
+	edge := dropEdge(x/b.W, y/b.H)
+	if dock && edge == "center" {
+		edge = "right"
+	}
+	switch edge {
 	case "left":
 		box.Top(i).Bottom(i).Left(i).Right(half)
 	case "right":

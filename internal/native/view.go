@@ -216,6 +216,9 @@ func (w *workspace) titlebar(c *ui.Context) {
 		if moved, ok := ui.Drop[*tab](gap); ok {
 			w.act(func() { w.moveTab(moved, len(w.tabs)) })
 		}
+		if mp, ok := ui.Drop[*pane](gap); ok {
+			w.act(func() { w.dropPaneOnStrip(mp, len(w.tabs)) })
+		}
 		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
@@ -342,6 +345,22 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			slot++
 		}
 		w.act(func() { w.moveTab(moved, slot) })
+	}
+	// A pane dragged by its bar and dropped here becomes a tab of its own, before this tab or after it (ui/drag.js).
+	if mp, ok := ui.Drop[*pane](r); ok {
+		x, _, _ := r.PointerPosition()
+		slot := i
+		if x > t.h.Bounds(c).W/2 {
+			slot++
+		}
+		w.act(func() { w.dropPaneOnStrip(mp, slot) })
+	}
+}
+
+// dropPaneOnStrip is a pane's bar let go on the tab strip: the pane becomes a tab at slot.
+func (w *workspace) dropPaneOnStrip(p *pane, slot int) {
+	if t := w.tabOf(p); t != nil {
+		w.extractPane(t, p.id, slot)
 	}
 }
 
@@ -780,9 +799,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			w.suggestOverlay(c, p)
 			w.connectLogView(c, p, st)
 		})
-		if multi {
-			w.paneDropZone(c, t, p, tl)
-		}
+		w.paneDropZone(c, t, p, tl) // a pane of this tab moves here; another tab docks here, whatever this tab's size
 	})
 }
 

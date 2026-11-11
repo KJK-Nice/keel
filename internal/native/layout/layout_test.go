@@ -116,6 +116,47 @@ func TestBesideMovesAPaneToAnEdgeOfAnother(t *testing.T) {
 	}
 }
 
+func TestDockPutsAWholeTreeBesideAPane(t *testing.T) {
+	dest := func() *Node { return Leaf("a").Split("a", "b", Row) }
+	src := func() *Node { return Leaf("x").Split("x", "y", Col) }
+	for _, tc := range []struct {
+		edge Edge
+		want []string
+		dir  Dir
+	}{
+		{Right, []string{"a", "x", "y", "b"}, Row},
+		{"center", []string{"a", "x", "y", "b"}, Row},
+		{"", []string{"a", "x", "y", "b"}, Row},
+		{Left, []string{"x", "y", "a", "b"}, Row},
+		{Top, []string{"x", "y", "a", "b"}, Col},
+		{Bottom, []string{"a", "x", "y", "b"}, Col},
+	} {
+		got, ok := Dock(dest(), src(), "a", tc.edge)
+		if !ok || !reflect.DeepEqual(got.Leaves(), tc.want) {
+			t.Errorf("%q: ok %v leaves %v, want %v", tc.edge, ok, got.Leaves(), tc.want)
+			continue
+		}
+		if got.A.Dir != tc.dir || got.A.Ratio != 0.5 {
+			t.Errorf("%q: the new split is %+v, want direction %v at half", tc.edge, got.A, tc.dir)
+		}
+	}
+	// The tree goes in whole: its own split stays.
+	got, _ := Dock(dest(), src(), "b", Right)
+	if got.B.B.A == nil || got.B.B.A.Pane != "x" || got.B.B.B.Pane != "y" || got.B.B.Dir != Col {
+		t.Errorf("the docked tree was taken apart: %+v", got.B.B)
+	}
+	// Nothing to do: an unknown target, no tree, a shared pane, an unknown edge.
+	for _, tc := range []struct {
+		in     *Node
+		target string
+		edge   Edge
+	}{{src(), "zz", Right}, {nil, "a", Right}, {Leaf("b"), "a", Right}, {src(), "a", "middle"}} {
+		if got, ok := Dock(dest(), tc.in, tc.target, tc.edge); ok || !reflect.DeepEqual(got.Leaves(), []string{"a", "b"}) {
+			t.Errorf("%+v docked: %v %v", tc, ok, got.Leaves())
+		}
+	}
+}
+
 func TestClampRatio(t *testing.T) {
 	if got := ClampRatio(0.01, 1000, 240); got != 0.24 {
 		t.Errorf("low = %v", got)
