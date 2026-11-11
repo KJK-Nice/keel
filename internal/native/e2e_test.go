@@ -98,7 +98,9 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...s
 	}
 	dataDir := filepath.Join(dir, "data")
 	addr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
-	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir, "KEEL_KEYRING=off", "SHELL=/bin/sh")
+	// KEEL_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from keel serve's in-process fake and
+	// nothing is sent to a model provider, whatever key a scenario stores (only ever a made-up one).
+	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir, "KEEL_KEYRING=off", "SHELL=/bin/sh", "KEEL_AGENT_PROVIDER=fake")
 	if passphrase {
 		env = append(env, "KEEL_VAULT_PASSPHRASE="+e2ePass)
 	}

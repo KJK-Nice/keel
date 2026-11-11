@@ -120,6 +120,28 @@ func TestTheShortcutTheButtonAndThePaletteToggleThePanelAndItIsRemembered(t *tes
 	_ = w2
 }
 
+func TestAWindowOpensWithThePanelAsItWasLeft(t *testing.T) {
+	dir := t.TempDir()
+	for _, open := range []bool{true, false} {
+		if err := savePrefs(dir, map[string]any{"agentPanel": open, "termSize": 14}); err != nil {
+			t.Fatal(err)
+		}
+		fb := okBackend()
+		w := newWorkspace(fb)
+		w.dataDir = dir
+		w.work, w.post = func(fn func()) { fn() }, func(fn func()) { fn() }
+		w.mkBody = placeholder(new(int))
+		w.start()
+		if w.agent.open != open {
+			t.Errorf("saved %v: the window opened with the panel %v", open, w.agent.open)
+		}
+	}
+	// A file that is not there, or says nothing, is closed.
+	if loadAgentOpen(t.TempDir()) {
+		t.Error("no file: the panel is open")
+	}
+}
+
 func TestAJoinedTabHasNoPanelNoButtonAndTheShortcutSaysWhy(t *testing.T) {
 	jr := newJoinRig(t)
 	jr.w.dataDir = t.TempDir()

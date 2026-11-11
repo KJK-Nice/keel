@@ -675,6 +675,9 @@ func (w *workspace) release(p *pane) {
 func (w *workspace) closeWindow() {
 	w.saveNow()
 	w.closed = true
+	if w.agent.busy != nil { // an ask in flight stops with the window
+		w.agent.busy()
+	}
 	if w.pollStop != nil {
 		close(w.pollStop)
 		w.pollStop = nil

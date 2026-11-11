@@ -748,11 +748,7 @@ func (w *workspace) agentButton(c *ui.Context) {
 	b.Children(func() {
 		icon(c, "ai-magic", fg)
 		label(c, "Agent", fg)
-		ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
-			for _, k := range splitKeyCaps(agentKeys()) {
-				kbd(c, k)
-			}
-		})
+		kbd(c, agentKeys()) // one cap, as the app's #btn-agent-kbd
 	})
 	if b.Clicked() {
 		w.act(w.toggleAgent)
