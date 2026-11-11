@@ -195,19 +195,21 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   builds it), the owner's `keel serve` with `KEEL_SIGNAL` pointing at it, and the joiner's own `keel serve` and data dir.
   Window A is the owner, B joins. A `pbcopy` that does nothing leads the owner's `PATH` (keel serve copies a new link to
   the system pasteboard; a test must not).
-- **No public server, ever.** Every joiner peer is made by `win.joiner` with an empty ICE list and loopback candidates
-  (`noOffMachine` asserts both). keel serve's share hub (`internal/share/hub.go` `acceptPeer`) puts a public STUN
-  server in its own peer and gathers from it as soon as the owner allows a joiner, so **no test presses Allow**: the
-  scenarios end at Deny, Stop sharing, a link that no longer works, and a request for control from a second window on
-  the same daemon. Admitting, reading the host's terminal, typing after a hand-over and a wrong key run in
-  `joinpeer`'s tests against the real signal server and a pion peer (loopback). Do not add an Allow to the e2e until the hub
-  takes its ICE servers from a test hook.
+- **Off-machine traffic.** Every joiner peer is made by `win.joiner` with an empty ICE list and loopback candidates
+  (`noOffMachine` asserts both); the signal server is the test's own. The single request that leaves the machine is
+  the STUN binding keel serve's own share hub makes after Allow (`internal/share/hub.go` `acceptPeer`; the maintainer
+  allowed it, plan 014 amendment 1). Never a public signal server, never a STUN server in a joiner peer.
+- Allow scenarios: `r.admitAndWait(t)` presses Allow and waits (30 s, `pump30`) until B is a follower and A has two
+  attached. B's terminal text is `win.tees[i].text()` (a copy of what the joined terminal read); `bodyInk` counts
+  its drawn pixels. Tests: `TestE2EShareAndJoin`, `...JoinerCannotTypeUntilHandedOver`, `...DenyAllowAndStop`,
+  `...WrongKey`, `...StopWhileARequestWaits`. The notice's toast and the banner both have an "Ask for control":
+  `tt.Advance(toastTimeout+…)` first.
 - The link: `tt.Clipboard()` holds it; keep it in a variable, never print or write it. The popover shows the whole link (as the app does), so a shot holds the scratch room's.
 - Labels: the title bar's `Share` and `N watching`, `dialog Share session`, `Join link field`, `share foot` (the foot's
   buttons share their names with the pane's banner: click by position), `Share requests` and `alertdialog <name>` for
   the prompts, `Allow`, `Deny`, `Hand over`, `Keep driving`; B's `dialog Join a session` (⌘J, field `Join link`), `banner
   joining`, `banner failed`, `tab <title> · joined`. Joining is ⌘J, `e.fillField("Join link", link)`, `e.click("Join")`.
-- Person only: two real machines, NAT, STUN, a public signal server, the browser join page against a native owner.
+- Person only: two real machines, NAT, a public signal server, the browser join page against a native owner.
 
 ## Not covered
 

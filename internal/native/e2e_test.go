@@ -169,6 +169,7 @@ type win struct {
 	token string
 	posts chan func()
 	peers []*joinpeer.Peer // the joins this window made: every one has no ICE server (e2eJoiner)
+	tees  []*teeConn       // what each of them was read for: the joined terminal's text
 }
 
 // newWin opens a window on the daemon: the real view, the real terminal, the real client.
