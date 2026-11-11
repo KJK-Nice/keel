@@ -68,8 +68,14 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 			t.Errorf("New host: no %q", s)
 		}
 	}
-	if r.hasText("Delete host") || r.hasText("Notes for the agent") {
-		t.Error("New host shows Delete host, or the notes block that waits for a later phase")
+	// The notes block is there, and waits for the host to be saved (dialogs.templ notesBlock, data-notes-unsaved).
+	for _, s := range []string{"Notes for the agent", "Save the host first, then add notes for the agent."} {
+		if !r.hasText(s) {
+			t.Errorf("New host: no %q", s)
+		}
+	}
+	if r.hasText("Delete host") || r.has("Add a note") {
+		t.Error("New host shows Delete host, or a field to add a note to a host that is not saved")
 	}
 	d := r.dlg(t)
 	if d.f.port != "22" || d.f.color != "var(--ansi-10)" || d.f.auth != "password" || !d.f.keepAlive || d.f.keepSec != "30" ||

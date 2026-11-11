@@ -116,6 +116,28 @@ type backend interface {
 	SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error)
 	DeleteAgentKey(ctx context.Context, provider string) error
 
+	// Notes for the agent and runbooks (notes.go, runbooks.go): keel serve keeps and redacts them; the client holds them in
+	// memory only. A proposal is kept only by SaveProposedNote and SaveProposedRunbook, which the cards' Save buttons call.
+	Notes(ctx context.Context) (keelclient.NoteList, error)
+	SaveNote(ctx context.Context, in keelclient.NoteInput) (keelclient.SavedNote, error)
+	DeleteNote(ctx context.Context, id string) error
+	DeleteAllNotes(ctx context.Context) (int, error)
+	SaveProposedNote(ctx context.Context, conversationID, noteID, text string) (keelclient.SavedNote, error)
+	UndoProposedNote(ctx context.Context, conversationID, noteID string) (keelclient.NoteProposal, error)
+	DismissProposedNote(ctx context.Context, conversationID, noteID string) (keelclient.NoteProposal, error)
+	Runbooks(ctx context.Context) (keelclient.RunbookList, error)
+	SaveRunbook(ctx context.Context, id string, in keelclient.RunbookInput) (keelclient.SavedRunbook, error)
+	DeleteRunbook(ctx context.Context, id string) error
+	SetRunbookPick(ctx context.Context, id string, on bool) (keelclient.Runbook, error)
+	DraftRunbook(ctx context.Context, conversationID string) (keelclient.RunbookDraft, error)
+	RunbookState(ctx context.Context, conversationID string) (keelclient.RunState, error)
+	StepAction(ctx context.Context, conversationID, stepID, action string) (keelclient.RunState, error)
+	StopRunbook(ctx context.Context, conversationID string) (keelclient.RunState, error)
+	MoveRunbook(ctx context.Context, conversationID string) (keelclient.RunState, error)
+	SaveProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.SavedRunbook, error)
+	UndoProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
+	DismissProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
+
 	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
 	Share(ctx context.Context, sessionID string) (string, error)
 	AdmitShare(ctx context.Context, sessionID, peerID string, allow bool) error

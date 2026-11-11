@@ -78,6 +78,7 @@ type hostDialog struct {
 	groups []keelclient.Group
 	idents []keelclient.Identity
 	key    *keelclient.KnownKey // the saved host key (Edit host)
+	nb     *notesEditor         // Notes for the agent: this host's (notes.go); empty until the host is saved
 
 	test    hostTest
 	confirm *hostConfirm
@@ -182,11 +183,12 @@ func (w *workspace) editPaneHost(p *pane) {
 // openHostDialog opens the dialog. id is set for a saved host; h with no id only prefills New host.
 func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, id string) {
 	w.closeHostDialog()
-	d := &hostDialog{id: id, f: newHostForm(h), notes: notes, focus: true}
+	d := &hostDialog{id: id, f: newHostForm(h), notes: notes, focus: true, nb: &notesEditor{hostID: id}}
 	if id != "" {
 		d.saved = h
 	}
 	w.hostDlg = d
+	w.loadNotes(d.nb)
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()

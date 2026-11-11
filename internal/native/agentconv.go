@@ -194,6 +194,7 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 	}
 	a.conv, a.title = t.ID, t.Title
 	a.turns, a.props = nil, map[string]*agentProp{}
+	a.resetMemory()
 	a.createdAt, a.resumedAt = t.CreatedAt, t.UpdatedAt
 	a.renameID = ""
 	for _, st := range t.Turns {
@@ -202,8 +203,17 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 			a.props[p.ID] = &agentProp{p: p, status: typedStatus(p)}
 			turn.props = append(turn.props, p.ID)
 		}
+		for _, n := range st.Notes {
+			a.registerNote(n)
+			turn.notes = append(turn.notes, n.ID)
+		}
+		for _, b := range st.Runbooks {
+			a.registerBook(b)
+			turn.books = append(turn.books, b.ID)
+		}
 		a.turns = append(a.turns, turn)
 	}
+	w.showSavedRun(t)
 	if len(a.turns) == 0 { // an empty transcript is still a conversation (an empty Propose again turn draws nothing)
 		a.turns = append(a.turns, &agentTurn{done: true, saved: true, again: true})
 	}

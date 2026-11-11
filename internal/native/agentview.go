@@ -246,6 +246,12 @@ func (w *workspace) agentThread(c *ui.Context, onPage bool) {
 			for _, id := range t.props {
 				w.agentCard(c, id, onPage)
 			}
+			for _, id := range t.notes {
+				w.agentNoteCard(c, id, onPage)
+			}
+			for _, id := range t.books {
+				w.agentBookCard(c, id)
+			}
 			if i == resumed {
 				w.agentResumed(c)
 			}
@@ -384,6 +390,9 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 	})
 	ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
 		w.agentWho(c, "Agent", true)
+		if t.runID != "" {
+			w.runCard(c, t.runID)
+		}
 		ui.Column(c).FillWidth().Gap(space0_5).Padding(space1, 0).Children(func() {
 			switch {
 			case t.pending:
@@ -523,7 +532,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	card.Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
 			icon(c, "agent-cmd", inkMuted)
-			label(c, "Run on", ink)
+			label(c, runOnLabel(p), ink)
 			mono(c, orElse(p.Host, paneLabel(pane, "no pane")), inkMuted).Shrink(1).MinWidth(0)
 			if p.Production {
 				pill(c, "Production", signalSoft, signal)
@@ -620,7 +629,7 @@ func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
 	ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(raised).Border(1, line).Clip().Opacity(0.92).Label("Proposal expired").Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
 			icon(c, "agent-cmd", inkMuted)
-			label(c, "Run on", ink)
+			label(c, runOnLabel(p), ink)
 			mono(c, orElse(p.Host, "no pane"), inkMuted).Shrink(1).MinWidth(0)
 			if p.Production {
 				pill(c, "Production", signalSoft, signal)

@@ -208,6 +208,7 @@ type fakeBackend struct {
 
 	agent fakeAgent
 	convs fakeConvs
+	mem   fakeMemory
 
 	// Share.
 	shareURL     string   // what Share answers

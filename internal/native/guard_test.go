@@ -328,3 +328,62 @@ func TestNoSuggestionCodeAddsAnEnter(t *testing.T) {
 		}
 	}
 }
+
+// Notes and runbooks (plan 020). The agent never writes either: a proposal is kept by one request, sent by one function,
+// reached only from the card's Save button; a runbook step is an ordinary proposal and is typed only by the Type path that
+// every proposal takes. None of the files of these two features holds a writer, a way to open the Approve dialog, or a
+// second route to the typing path.
+var memoryFiles = []string{"notes.go", "notesview.go", "noteslogic.go", "runbooks.go", "runbooksview.go", "runbookslogic.go"}
+
+func TestNoteAndRunbookCodeHasNoWriterAndNoWayToType(t *testing.T) {
+	banned := []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "openApprove", "typeNow", "typeAgentProposal", "AgentRef{", "DirectRef{"}
+	for _, name := range memoryFiles {
+		src := sourceFiles(t)[name]
+		if src == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+		for _, bad := range banned {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s names %s: notes and runbooks never type; a runbook step is typed by typeAgentProposal like any proposal", name, bad)
+			}
+		}
+	}
+}
+
+// The requests that keep a proposal each have one caller, and nothing calls those callers but a button's handler in the
+// view: no timer, no load, no ask, no retry.
+func TestAProposalIsKeptOnlyByItsCardsSaveButton(t *testing.T) {
+	for _, c := range []struct{ request, in, view string }{
+		{"SaveProposedNote", "saveNoteProposal", "notesview.go"},
+		{"SaveProposedRunbook", "saveBookProposal", "runbooksview.go"},
+	} {
+		if got := allCallSites(t, c.request); len(got) != 1 || got[0].in != c.in {
+			t.Errorf("%s is called from %v; it must be called once, from %s", c.request, got, c.in)
+		}
+		for _, site := range allCallSites(t, c.in) {
+			if site.file != c.view {
+				t.Errorf("%s is called from %v: only the card's Save button in %s may", c.in, site, c.view)
+			}
+		}
+		if n := len(allCallSites(t, c.in)); n != 1 {
+			t.Errorf("%s is called %d times in the view; the card has one Save button", c.in, n)
+		}
+	}
+	// A card's Save is pressed by the user: it is inside a button's click, never run on its own.
+	src := sourceFiles(t)["notesview.go"]
+	if !strings.Contains(src, `textBtnOff(c, name, kind, rec.busy)`) {
+		t.Error("the note card's Save is no longer a button; update the guard")
+	}
+}
+
+// Runbook steps are proposals made by keel serve: this client holds no step's bytes and builds no proposal.
+func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
+	for _, name := range memoryFiles {
+		src := sourceFiles(t)[name]
+		for _, bad := range []string{"keelclient.Proposal{", "Bytes:", "\\x15"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s holds %s: a step's proposal is made by keel serve, for the current step only", name, bad)
+			}
+		}
+	}
+}

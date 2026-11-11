@@ -54,6 +54,7 @@ type settingsPage struct {
 	// Settings · Agent (agentsettings.go): a provider card's state, and the scrollback slider. The slider is bound to a float;
 	// a move is sent one request at a time and the value keel serve holds is shown again.
 	cards        map[string]*keyCard
+	notes        notesEditor // Notes for the agent: the user's own (notes.go)
 	linesV       float64
 	linesApplied int
 	linesBusy    bool
@@ -66,7 +67,7 @@ var settingsNav = [][2]string{
 }
 
 func newSettingsPage() *settingsPage {
-	return &settingsPage{section: "appearance"}
+	return &settingsPage{section: "appearance", notes: notesEditor{user: true}}
 }
 
 // ---- reading ----

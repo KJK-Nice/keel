@@ -71,6 +71,9 @@ type agentTurn struct {
 	answer, cut  string
 	testProvider bool
 	props        []string // the proposals under it, by id (agentPanel.props holds them)
+	notes        []string // the notes it proposed (agentPanel.notes), shown after the proposals
+	books        []string // the runbooks it proposed (agentPanel.books)
+	runID        string   // the runbook in use that started here: its card sits under "Agent" (agentthread.js placeRun)
 }
 
 type agentPanel struct {
@@ -92,6 +95,12 @@ type agentPanel struct {
 
 	turns []*agentTurn
 	props map[string]*agentProp
+
+	// Notes and runbooks the agent proposed, and the runbook in use (notes.go, runbooks.go). Everything here is read from keel
+	// serve into memory; a proposal is kept only by its card's Save.
+	notes map[string]*agentNote
+	books map[string]*agentBook
+	runs  runUse
 
 	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.
@@ -123,7 +132,7 @@ type agentPanel struct {
 }
 
 func newAgentPanel() *agentPanel {
-	return &agentPanel{conv: newConversationID(), scopeAuto: true, props: map[string]*agentProp{}}
+	return &agentPanel{conv: newConversationID(), scopeAuto: true, props: map[string]*agentProp{}, notes: map[string]*agentNote{}, books: map[string]*agentBook{}}
 }
 
 const (
@@ -316,7 +325,11 @@ func (w *workspace) loadAgent() {
 // ---- asking ----
 
 // agentAsk sends a question about the panes in scope. It returns false when nothing was sent.
-func (w *workspace) agentAsk(question string) bool {
+func (w *workspace) agentAsk(question string) bool { return w.agentAskRunbook(question, "") }
+
+// agentAskRunbook is agentAsk that starts the runbook runbookID in this conversation (the user picked it): keel serve then
+// proposes its current step itself. Starting a runbook is an ask, never a type.
+func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	a := w.agent
 	q := strings.TrimSpace(question)
 	if q == "" || a.busy != nil {
@@ -329,7 +342,7 @@ func (w *workspace) agentAsk(question string) bool {
 	a.picker, a.sessOpen = false, false
 	w.agentSync()
 	// A resumed conversation carries on under its own id: that is all a continued ask changes (agentpanel.js ask).
-	req := keelclient.AskRequest{ConversationID: a.conv, Question: q, Panes: append([]string{}, a.scope...)}
+	req := keelclient.AskRequest{ConversationID: a.conv, Question: q, Panes: append([]string{}, a.scope...), RunbookID: runbookID}
 	turn := &agentTurn{question: q, at: time.Now(), scoped: len(req.Panes), pending: true}
 	a.turns = append(a.turns, turn)
 	if a.createdAt.IsZero() {
@@ -370,6 +383,20 @@ func (w *workspace) agentAsk(question string) bool {
 					a.props[p.ID] = &agentProp{p: p, status: typedStatus(p)}
 					turn.props = append(turn.props, p.ID)
 				}
+				for _, n := range res.Notes {
+					a.registerNote(n)
+					turn.notes = append(turn.notes, n.ID)
+				}
+				for _, b := range res.Runbooks {
+					a.registerBook(b)
+					turn.books = append(turn.books, b.ID)
+				}
+				if runbookID != "" {
+					a.runs.none = false
+				}
+				if res.Runbook != nil {
+					w.setRun(res.Runbook, turn)
+				}
 				if w.agentPageShown() { // the answer saved the conversation: a list on screen has it
 					w.loadConversations()
 				}
@@ -404,6 +431,7 @@ func (w *workspace) newAgentConversation() {
 	a.resumedSeq++ // a resume still being read belongs to the conversation that was left
 	a.conv, a.title = newConversationID(), ""
 	a.turns, a.props = nil, map[string]*agentProp{}
+	a.resetMemory()
 	a.createdAt, a.resumedAt, a.renameID = time.Time{}, time.Time{}, ""
 	a.scopeAuto, a.picker, a.sessOpen = true, false, false
 	a.focusInput = true
@@ -533,13 +561,20 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 					rec.status = &agentStatus{ok: err == nil, text: "Typed into " + host + "."}
 					if err != nil {
 						rec.status.text = err.Error()
+					} else {
+						w.runStepTyped(rec)
 					}
 				},
 				cancelled: func() { rec.status = nil },
 			})
 		},
 		// Typed with no dialog: the card says so, and that Enter is the user's (the page's res.direct message).
-		done: func(typed bool, message string) { rec.status = &agentStatus{ok: typed, text: message} },
+		done: func(typed bool, message string) {
+			rec.status = &agentStatus{ok: typed, text: message}
+			if typed {
+				w.runStepTyped(rec)
+			}
+		},
 	})
 }
 

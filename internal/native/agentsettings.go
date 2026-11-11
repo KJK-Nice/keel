@@ -48,6 +48,9 @@ func (p *settingsPage) card(id string) *keyCard {
 // loadAgentSettings reads the settings and the providers (GET /api/agent/settings, /api/agent/providers).
 func (w *workspace) loadAgentSettings() {
 	a := w.agent
+	if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
+		w.loadNotes(&t.pg.settings.notes) // Notes for the agent: the user's own
+	}
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()

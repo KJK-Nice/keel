@@ -113,8 +113,10 @@ func (w *workspace) startPoll(every time.Duration) {
 	go func() {
 		t := time.NewTicker(every)
 		f := time.NewTicker(time.Duration(float64(every) * float64(forwardsEvery) / float64(pollEvery))) // the forwards read at forwardsEvery while pollEvery is the vault's
+		rb := time.NewTicker(time.Duration(float64(every) * float64(runEvery) / float64(pollEvery)))     // the run in use is read at runEvery while a typed step waits (runbooks.go)
 		defer t.Stop()
 		defer f.Stop()
+		defer rb.Stop()
 		for {
 			select {
 			case <-stop:
@@ -123,6 +125,8 @@ func (w *workspace) startPoll(every time.Duration) {
 				w.post(w.pollTick)
 			case <-f.C:
 				w.post(w.tunnelTick)
+			case <-rb.C:
+				w.post(w.runTick)
 			}
 		}
 	}()

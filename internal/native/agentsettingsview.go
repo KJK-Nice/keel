@@ -11,8 +11,8 @@ import (
 // Settings · Agent drawn (internal/ui/pages.templ agentSettingsPanel, cmd/keel/web/js/lib/agentsettings.js and the
 // k-agent-card* rules of keel.css) as prefRows: the groups, controls, labels and help texts are the app's, in its order.
 //
-// In the app and not here: "Notes for the agent" (Your notes, Delete all notes). The notes are the notes feature, which is a
-// later phase (docs/native.md); nothing here shows a half of it.
+// "Notes for the agent" (Your notes, Delete all notes) is notes.go's: the list saves each change at once, and Delete all notes
+// asks first.
 
 func (w *workspace) agentSection(p *settingsPage) settingsSection {
 	s := w.agentVal()
@@ -76,6 +76,19 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 			ctl:  w.switchCtl("Allow Claude Code (keel mcp)", v.ClaudeCode, func(on bool) { save(keelclient.AgentSettingsPatch{ClaudeCode: &on}) })},
 	}}
 
+	notes := prefGroup{title: "Notes for the agent", rows: []prefRow{
+		{title: "Your notes", desc: "How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.", stack: true,
+			extra: "Notes about you", ctl: func(c *ui.Context) {
+				w.notesBlock(c, &p.notes, notesBlockOpts{title: "Notes about you", placeholder: "Add a note, e.g. Prefer journalctl over tail -f",
+					help: "The agent may propose a note; nothing is saved until you press Save. Stored encrypted in the vault."})
+			}},
+		{title: "Delete all notes", desc: "Forget every host note and every note about you. Conversations stay.", ctl: func(c *ui.Context) {
+			if textBtnAs(c, "Delete all notes…", "Delete all notes", btnDanger) { // it asks first
+				w.act(w.askDeleteAllNotes)
+			}
+		}},
+	}}
+
 	redact := func(ips, hosts bool) keelclient.AgentSettingsPatch {
 		return keelclient.AgentSettingsPatch{Redact: &keelclient.AgentRedact{Secrets: true, IPs: ips, Hostnames: hosts}}
 	}
@@ -113,7 +126,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 
 	return settingsSection{id: "agent", title: "Agent",
 		lead:   "The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.",
-		groups: []prefGroup{provider, suggest, panel, claude, safety, history}}
+		groups: []prefGroup{provider, suggest, panel, claude, notes, safety, history}}
 }
 
 func onOff(on bool) string {

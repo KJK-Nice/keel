@@ -78,6 +78,9 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 		"Agent panel", "Default panes per conversation", "Which panes the agent may read when you start a conversation.",
 		"Scrollback lines per pane", "50–1000. How much of each pane the agent reads. Default 200.",
 		"Claude Code", "Allow Claude Code (keel mcp)", "Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.",
+		"Notes for the agent", "Your notes", "How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.",
+		"Notes about you", "The agent may propose a note; nothing is saved until you press Save. Stored encrypted in the vault.",
+		"Delete all notes", "Forget every host note and every note about you. Conversations stay.",
 		"Safety", "The agent never types into a pane", "Secrets are always redacted", "Risky commands need ⇧⇥", "Redact IP addresses", "Redact hostnames",
 		"History", "Keep conversations", "Delete all history", "Forget every conversation now. The Agent log keeps what was read.")
 	// The always-on rows wear the badge; nothing says "coming soon".
@@ -87,9 +90,10 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 	if strings.Contains(strings.ToLower(strings.Join(r.tt.Texts(), "\n")), "coming soon") {
 		t.Error("a setting is marked coming soon")
 	}
-	// The app's Notes for the agent are a later phase: nothing of them is drawn.
-	if r.has("setting Your notes") || r.has("setting Delete all notes") {
-		t.Error("notes controls are drawn")
+	// Notes for the agent sit after Claude Code and before Safety, as in the app (notes_test.go has the rest).
+	all := strings.Join(r.tt.Texts(), "\n")
+	if !(strings.Index(all, "Claude Code") < strings.Index(all, "Notes for the agent") && strings.Index(all, "Notes for the agent") < strings.Index(all, "Safety")) {
+		t.Error("Notes for the agent is not between Claude Code and Safety")
 	}
 }
 

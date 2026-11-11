@@ -218,6 +218,7 @@ func (w *workspace) paletteItems() []palItem {
 	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
 	add("Agent", "Toggle agent panel", "⌘I", "ai-magic", w.toggleAgent)
 	add("Agent", "Agent conversations", "", "ai-magic", w.openAgentPage)
+	add("Agent", "Runbooks", "", "ai-magic", w.openRunbooksPage)
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Vault", "Join session", "⌘J", "link", w.openJoin)

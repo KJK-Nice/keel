@@ -30,6 +30,9 @@ var pageDefs = map[string]pageDef{
 	// The Agent page is opened from the palette's Agent conversations and the panel's Open all in a tab, so it is not in
 	// pageNames (term.js PAGES.agent).
 	pageAgent: {title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic"},
+	// The Runbooks page (§16) is opened from the palette's Runbooks and the "Open Runbooks" of a saved runbook proposal, so it
+	// is not in pageNames (term.js PAGES.runbooks).
+	"runbooks": {title: "Runbooks", tabIcon: "book", paletteTag: "book"},
 }
 
 // pageAgent is the Agent page's name (a constant, so that no source line holds the quoted key that guard_test.go keeps
@@ -51,6 +54,7 @@ type tabPage struct {
 	forwards *forwardsPage
 	settings *settingsPage
 	agent    *agentPage
+	runbooks *runbooksPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -68,6 +72,8 @@ func newTabPage(name string) *tabPage {
 		p.settings = newSettingsPage()
 	case pageAgent:
 		p.agent = &agentPage{}
+	case "runbooks":
+		p.runbooks = &runbooksPage{}
 	}
 	return p
 }
@@ -130,6 +136,8 @@ func (w *workspace) loadPage(t *tab) {
 	case t.pg.agent != nil:
 		w.loadAgent()
 		w.loadConversations()
+	case t.pg.runbooks != nil:
+		w.loadRunbooks()
 	}
 }
 
@@ -156,6 +164,9 @@ func (w *workspace) newItem() {
 		case t.pg.agent != nil: // ⌘N on the Agent page is New conversation (agentpage.js newConversation)
 			w.newAgentConversation()
 			return
+		case t.pg.runbooks != nil: // ⌘N on the Runbooks page is its New (term.js newItem)
+			w.newRunbook()
+			return
 		}
 	}
 	w.newHost()
@@ -176,6 +187,8 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.settingsView(c, t.pg.settings)
 	case t.pg.agent != nil:
 		w.agentPageView(c, t.pg.agent)
+	case t.pg.runbooks != nil:
+		w.runbooksView(c, t.pg.runbooks)
 	}
 }
 

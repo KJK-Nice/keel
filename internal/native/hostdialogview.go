@@ -269,6 +269,10 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 	switchRow(c, "Agent can read this host's panes", "You still choose panes per conversation.", &f.agentReadable)
 	switchRow(c, "Treat as production", "Suggestions that change state need ⇧⇥ and show a red edge. On by default in a group named production.", &f.production)
 	switchRow(c, "Let the agent propose notes", "It asks first. Nothing is saved until you press Save.", &f.agentNotes)
+	if d.nb != nil {
+		w.notesBlock(c, d.nb, notesBlockOpts{title: "Notes for the agent", placeholder: "Add a note, e.g. Backups run at 02:00 from pgbackrest", host: true, readable: f.agentReadable,
+			help: "Sent to the agent only when this host is in scope and Agent can read is on. Redacted like pane text. Stored encrypted in the vault."})
+	}
 }
 
 // hostKeyBlock is the host key line: the saved key for the host's address:port, and Forget host key.
