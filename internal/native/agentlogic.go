@@ -11,7 +11,7 @@ import (
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
 // offers. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs and here by agentlogic_test.go),
-// without the parts of the app this client does not have (notebooks, runbooks); the saved-conversation rules are
+// (the notebook and runbook words are agentnotebookslogic.go and runbookslogic.go); the saved-conversation rules are
 // agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
@@ -245,7 +245,11 @@ func traceText(s keelclient.TraceStep) string {
 			return fmt.Sprintf("Used group notes · %s (%d)", orElse(s.Host, "a group"), s.Notes)
 		}
 		return fmt.Sprintf("Used host notes · %s (%d)", orElse(s.Host, "a host"), s.Notes)
-	case "runbook":
+	}
+	if isNotebookStep(s) { // §18: the titles sent, a notebook sent or read, or why not
+		return notebookStepText(s)
+	}
+	if s.Status == "runbook" {
 		return "Used runbook · " + orElse(s.Runbook, "a runbook")
 	}
 	host := orElse(s.Host, "a pane")
