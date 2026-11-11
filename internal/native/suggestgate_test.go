@@ -149,6 +149,26 @@ type seenKey struct {
 	key  ui.Key
 }
 
+// settledTake takes what the terminal wrote. The terminal writes a key from its own goroutine, so a take straight after a
+// frame can run before the write (and the late bytes then land in the next case). With want set it waits for want; with
+// want empty it gives a late write a few frames to show itself.
+func settledTake(tt *ui.Tester, conn *gateConn, want string) string {
+	for i := 0; i < 100; i++ {
+		conn.mu.Lock()
+		got := string(conn.got)
+		conn.mu.Unlock()
+		if want != "" && got == want {
+			break
+		}
+		if want == "" && i >= 5 {
+			break
+		}
+		tt.Frame()
+		time.Sleep(2 * time.Millisecond)
+	}
+	return conn.take()
+}
+
 // Gate 2: OnKey sees a key before the terminal, takes it (and then nothing reaches the shell) or leaves it (and the shell
 // gets it as usual), by what the window says at that moment.
 func TestGateTakesKeysOnlyWhileTheWindowSaysSo(t *testing.T) {
@@ -179,7 +199,8 @@ func TestGateTakesKeysOnlyWhileTheWindowSaysSo(t *testing.T) {
 		k.press()
 		tt.Frame()
 		tt.Frame()
-		if got := conn.take(); got != "" {
+		got := settledTake(tt, conn, "")
+		if got != "" {
 			t.Errorf("%s taken: the shell still got %q", k.name, got)
 		}
 		if len(seen) != 1 || seen[0] != (seenKey{k.mods, k.key}) {
@@ -190,7 +211,7 @@ func TestGateTakesKeysOnlyWhileTheWindowSaysSo(t *testing.T) {
 		k.press()
 		tt.Frame()
 		tt.Frame() // the text of a key is delivered a frame after the key
-		if got := conn.take(); got != k.sent {
+		if got := settledTake(tt, conn, k.sent); got != k.sent {
 			t.Errorf("%s left alone: the shell got %q, want %q", k.name, got, k.sent)
 		}
 		if len(seen) != 1 {
