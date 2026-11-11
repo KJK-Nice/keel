@@ -35,6 +35,10 @@ type savedDoc struct {
 	// content is kept: a page reads the server when it opens.
 	Pages      []string `json:"pages,omitempty"`
 	ActivePage string   `json:"activePage,omitempty"`
+	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids, as the
+	// webview keeps them in localStorage): the pages open on them again while keel serve holds them.
+	GroupID string `json:"groupId,omitempty"`
+	RunID   string `json:"runId,omitempty"`
 }
 
 type savedTab struct {
@@ -79,6 +83,12 @@ func (w *workspace) snapshot() savedDoc {
 			d.Pages = append(d.Pages, t.pg.name)
 			if i == w.active {
 				d.ActivePage = t.pg.name
+			}
+			switch {
+			case t.pg.group != nil:
+				d.GroupID = t.pg.group.id
+			case t.pg.grouprun != nil:
+				d.RunID = t.pg.grouprun.id
 			}
 			continue
 		}
@@ -242,6 +252,16 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 	if doc != nil {
 		for _, name := range doc.Pages {
 			if t := w.addPageTab(name); t != nil {
+				switch { // the folder or the run the page showed
+				case t.pg.group != nil:
+					t.pg.group.id = doc.GroupID
+					t.pg.group.notes = notesEditor{group: true, groupID: doc.GroupID}
+					if g, ok := groupByID(w.folders, doc.GroupID); ok {
+						t.pg.group.title = g.Name
+					}
+				case t.pg.grouprun != nil:
+					t.pg.grouprun.id = doc.RunID
+				}
 				pages = append(pages, t)
 				if name == doc.ActivePage {
 					active = len(w.tabs) - 1

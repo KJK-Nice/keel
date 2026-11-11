@@ -2,6 +2,7 @@ package keelclient
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,55 @@ func TestFolderRequestsSendNameAndParentOnly(t *testing.T) {
 	}
 	if got, body := r.last(); got != "POST /api/hosts/move" || body != `{"groupId":"","ids":["a","b"]}` {
 		t.Fatalf("move hosts: %s %s", got, body)
+	}
+}
+
+func TestRolesVariablesNotesAndTheExportAreTheAppsRequests(t *testing.T) {
+	r := newRec(t)
+	ctx := context.Background()
+	r.reply = `{"id":"g1","name":"Prod","vars":[{"name":"ver","value":"1.2"}]}`
+	g, err := r.c.SetGroupRole(ctx, "g1", "h1", "worker")
+	if err != nil || g.ID != "g1" {
+		t.Fatalf("SetGroupRole: %v", err)
+	}
+	if got, body := r.last(); got != "PUT /api/groups/g1/roles" || body != `{"hostId":"h1","role":"worker"}` {
+		t.Fatalf("role: %s %s", got, body)
+	}
+	if g, err = r.c.SetGroupVar(ctx, "g1", "ver", "1.2"); err != nil || len(g.Vars) != 1 {
+		t.Fatalf("SetGroupVar: %v %+v", err, g)
+	}
+	if got, body := r.last(); got != "PUT /api/groups/g1/vars" || body != `{"name":"ver","value":"1.2"}` {
+		t.Fatalf("var: %s %s", got, body)
+	}
+	// A refusal names the method, path and status, and keel serve's own reason: never the value.
+	r.status, r.reply = 400, `{"error":"Keep secrets in the vault"}`
+	_, err = r.c.SetGroupVar(ctx, "g1", "tok", "fake-secret-looking-value")
+	var se *StatusError
+	if !errors.As(err, &se) || se.Msg != "Keep secrets in the vault" || strings.Contains(err.Error(), "fake-secret-looking-value") {
+		t.Fatalf("refusal: %v", err)
+	}
+	// A note about a folder carries groupId and no hostId.
+	r.status, r.reply = 200, `{"note":{"id":"n1","groupId":"g1","text":"t"}}`
+	if _, err := r.c.SaveNote(ctx, NoteInput{GroupID: "g1", Text: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, body := r.last(); got != "POST /api/agent/notes" || body != `{"groupId":"g1","hostId":"","text":"t"}` {
+		t.Fatalf("group note: %s %s", got, body)
+	}
+	// The export: the query is the app's, in its order.
+	r.reply = `{"files":[{"name":"inventory.ini","kind":"inventory","content":"[g]\n","lines":1}]}`
+	files, err := r.c.GroupAnsible(ctx, "g1", AnsibleQuery{Format: "yaml", RunbookID: "rb 1", Mode: "parallel", Jump: true})
+	if err != nil || len(files) != 1 || files[0].Name != "inventory.ini" {
+		t.Fatalf("GroupAnsible: %v %+v", err, files)
+	}
+	r.mu.Lock()
+	got := r.got[len(r.got)-1]
+	r.mu.Unlock()
+	if got != "GET /api/groups/g1/ansible" {
+		t.Fatalf("export: %s", got)
+	}
+	if q := (AnsibleQuery{Format: "yaml", RunbookID: "rb 1", Mode: "parallel", Jump: true}).Values(); q != "format=yaml&runbookId=rb+1&mode=parallel&user=0&jump=1" {
+		t.Fatalf("query %q", q)
 	}
 }
 

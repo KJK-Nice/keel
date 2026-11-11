@@ -51,9 +51,13 @@ var (
 	ErrNoDirectAnswer = errors.New("keel serve did not answer. Check the pane before you press Type again.") // it may have been typed: never open a dialog that could type it again
 )
 
-// AgentRef names the proposal a Type is for. It goes into the inject frame and nowhere else; keel serve decides.
+// AgentRef names the proposal a Type is for. It goes into the inject frame and nowhere else; keel serve decides. A group
+// run's proposal (docs/ui-redesign.md §17, §6 rule 10) names its run, GroupRunID, instead of a conversation: the group
+// approve dialog types each ticked host with this same call, once per host, on that host's own connection, each with its
+// own proposal and its own one-time nonce.
 type AgentRef struct {
 	ConversationID string
+	GroupRunID     string
 	ProposalID     string
 	Shift          bool
 }
@@ -214,6 +218,9 @@ func (c *Conn) injectFrame(data []byte) bool {
 
 // agentPart is the agent part of an inject frame, as the webview builds it.
 func agentPart(a *AgentRef) map[string]any {
+	if a.GroupRunID != "" { // a group run's proposal: the run, never a conversation (term.js typeGroupProposal)
+		return map[string]any{"groupRunId": a.GroupRunID, "proposalId": a.ProposalID, "shift": a.Shift}
+	}
 	return map[string]any{"conversationId": a.ConversationID, "proposalId": a.ProposalID, "shift": a.Shift}
 }
 

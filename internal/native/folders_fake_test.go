@@ -11,10 +11,9 @@ import (
 // The folders half of fakeBackend: what the window asks of keel serve about folders, recorded, and answered as the test says.
 
 type fakeFolders struct {
-	reqs    []string // "post name parent", "put id name parent", "delete id", "move ids -> dest"
-	err     error    // what a write answers
-	seq     int
-	members map[string][]keelclient.GroupMember
+	reqs []string // "post name parent", "put id name parent", "delete id", "move ids -> dest"
+	err  error    // what a write answers
+	seq  int
 }
 
 func (f *fakeBackend) SaveGroup(_ context.Context, g keelclient.Group) (keelclient.Group, error) {
@@ -94,8 +93,16 @@ func (f *fakeBackend) MoveHosts(_ context.Context, ids []string, groupID string)
 	return nil
 }
 
+// GroupMembers lists the hosts in the folder and below it, by name, with the roles the folder keeps.
 func (f *fakeBackend) GroupMembers(_ context.Context, id string) (keelclient.GroupInfo, error) {
 	f.rec("members " + id)
-	g, _ := groupByID(f.groups, id)
-	return keelclient.GroupInfo{Group: g, Members: f.fold.members[id]}, nil
+	g, ok := groupByID(f.groups, id)
+	if !ok {
+		return keelclient.GroupInfo{}, &keelclient.StatusError{Code: 404, Msg: "not found"}
+	}
+	var members []keelclient.GroupMember
+	for _, h := range byHostName(hostsInSubtree(f.groups, f.hosts, id, "")) {
+		members = append(members, keelclient.GroupMember{HostID: h.ID, Name: h.Name, Role: g.Roles[h.ID], Folder: f.groupName(h.GroupID)})
+	}
+	return keelclient.GroupInfo{Group: g, Members: members}, nil
 }

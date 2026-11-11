@@ -91,6 +91,16 @@ func hostNotesOf(notes []keelclient.Note, hostID string) (out []keelclient.Note)
 	return out
 }
 
+// groupNotesOf picks a folder's notes (§17).
+func groupNotesOf(notes []keelclient.Note, groupID string) (out []keelclient.Note) {
+	for _, n := range notes {
+		if groupID != "" && n.GroupID == groupID {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // userNotesOf picks the user's own notes: no host and no group.
 func userNotesOf(notes []keelclient.Note) (out []keelclient.Note) {
 	for _, n := range notes {

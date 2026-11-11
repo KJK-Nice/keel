@@ -13,8 +13,8 @@ import (
 // typed, shows what keel serve kept (and how many values it replaced) and keeps nothing: no note is written to disk
 // here. A proposed note is kept only by SaveProposedNote, which the card's Save button calls; nothing calls it on its own.
 
-// Note is a saved note. A note has a HostID (a host note), a GroupID (a group note, §17: not built here) or neither
-// (the user's own).
+// Note is a saved note. A note has a HostID (a host note), a GroupID (a group note, §17: about every host in the folder) or
+// neither (the user's own).
 type Note struct {
 	ID      string `json:"id"`
 	HostID  string `json:"hostId"`
@@ -64,11 +64,13 @@ type SavedNote struct {
 	Proposal *NoteProposal `json:"proposal"`
 }
 
-// NoteInput is what the user typed: Text, for the host HostID or, with no HostID, for the user. ID is set to edit.
+// NoteInput is what the user typed: Text, for the host HostID, for every host in the folder GroupID (§17: never both) or,
+// with neither, for the user. ID is set to edit.
 type NoteInput struct {
-	ID     string
-	HostID string
-	Text   string
+	ID      string
+	HostID  string
+	GroupID string
+	Text    string
 }
 
 // Notes is GET /api/agent/notes.
@@ -84,7 +86,7 @@ func (c *Client) SaveNote(ctx context.Context, in NoteInput) (out SavedNote, err
 		err = c.do(ctx, http.MethodPut, "/api/agent/notes/"+url.PathEscape(in.ID), map[string]string{"text": in.Text}, &out)
 		return out, err
 	}
-	err = c.do(ctx, http.MethodPost, "/api/agent/notes", map[string]string{"hostId": in.HostID, "groupId": "", "text": in.Text}, &out)
+	err = c.do(ctx, http.MethodPost, "/api/agent/notes", map[string]string{"hostId": in.HostID, "groupId": in.GroupID, "text": in.Text}, &out)
 	return out, err
 }
 

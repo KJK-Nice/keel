@@ -247,7 +247,7 @@ func TestSidebarFilterReadsFoldersAboveTheHost(t *testing.T) {
 
 func TestFolderMenuItemsAndOrder(t *testing.T) { // groupRowMenu in rowmenus.templ, for the items whose feature exists here
 	r := folderRig(t)
-	want := []string{"New host", "New subgroup", "Edit", "Rename", "Move into…", "Delete"}
+	want := []string{"Roles and runbooks", "Run a runbook…", "New host", "New subgroup", "Edit", "Rename", "Move into…", "Delete"}
 	if got := r.menuOf(t, "folder Infra"); !slices.Equal(got, want) {
 		t.Fatalf("menu %v, want %v", got, want)
 	}

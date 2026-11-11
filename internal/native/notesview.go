@@ -107,6 +107,8 @@ func emptyNotesText(e *notesEditor, host bool) string {
 		return "Saved notes cannot be read. Delete all notes in Settings · Agent starts a fresh file."
 	case e.user:
 		return "No notes. Add how you like to work, e.g. Prefer journalctl over tail -f."
+	case e.group:
+		return "No notes. Add what is true of every host in this group."
 	}
 	return "No notes. Add what the agent should know about this host."
 }

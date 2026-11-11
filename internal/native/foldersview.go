@@ -43,6 +43,13 @@ func (w *workspace) folderTreeView(c *ui.Context) {
 // folderMenu is groupRowMenu.
 func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
+		if m.Item("Roles and runbooks").Chosen() {
+			w.act(func() { w.openGroupPage(g.ID, false) })
+		}
+		if m.Item("Run a runbook…").Chosen() {
+			w.act(func() { w.openGroupPage(g.ID, true) })
+		}
+		m.Separator()
 		if m.Item("New host").Chosen() {
 			w.act(func() { w.newHostIn(g.ID) })
 		}

@@ -223,6 +223,11 @@ func (w *workspace) paletteItems() []palItem {
 	add("Agent", "Toggle agent panel", "⌘I", "ai-magic", w.toggleAgent)
 	add("Agent", "Agent conversations", "", "ai-magic", w.openAgentPage)
 	add("Agent", "Runbooks", "", "ai-magic", w.openRunbooksPage)
+	// A folder's roles, notes and runs (§17).
+	for _, g := range w.folders {
+		id := g.ID
+		add("Vault", "Group "+g.Name+" · roles and runbooks", "", "", func() { w.openGroupPage(id, false) })
+	}
 	add("Vault", "New host", "⌘N", "add-01", w.newHost)
 	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
 	add("Vault", "Join session", "⌘J", "link", w.openJoin)

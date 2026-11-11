@@ -68,12 +68,16 @@ func (f *fakeBackend) SaveNote(_ context.Context, in keelclient.NoteInput) (keel
 		}
 		return keelclient.SavedNote{}, &keelclient.StatusError{Code: 404, Status: "404 Not Found"}
 	}
-	f.mem.noteReqs = append(f.mem.noteReqs, "add "+in.HostID+":"+in.Text)
+	if in.GroupID != "" { // a folder's note (§17): about every host in it, never also a host's
+		f.mem.noteReqs = append(f.mem.noteReqs, "add group:"+in.GroupID+":"+in.Text)
+	} else {
+		f.mem.noteReqs = append(f.mem.noteReqs, "add "+in.HostID+":"+in.Text)
+	}
 	if f.mem.noteErr != nil {
 		return keelclient.SavedNote{}, f.mem.noteErr
 	}
 	f.mem.noteSeq++
-	note := keelclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), HostID: in.HostID, Text: text, Source: "user"}
+	note := keelclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), HostID: in.HostID, GroupID: in.GroupID, Text: text, Source: "user"}
 	f.mem.notes = append(f.mem.notes, note)
 	return keelclient.SavedNote{Note: note, Redacted: n}, nil
 }

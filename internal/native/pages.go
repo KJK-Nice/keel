@@ -33,6 +33,11 @@ var pageDefs = map[string]pageDef{
 	// The Runbooks page (§16) is opened from the palette's Runbooks and the "Open Runbooks" of a saved runbook proposal, so it
 	// is not in pageNames (term.js PAGES.runbooks).
 	"runbooks": {title: "Runbooks", tabIcon: "book", paletteTag: "book"},
+	// The Group page and the group run page (§17) are opened from a folder's menu, the palette and "Run a runbook on this
+	// group", so they are not in pageNames (term.js PAGES.group, PAGES.grouprun). One instance each, named after the folder
+	// or the run (tab.name).
+	"group":    {title: "Group", tabIcon: "group", paletteTag: "group"},
+	"grouprun": {title: "Group run", tabIcon: "group-run", paletteTag: "group-run"},
 }
 
 // pageAgent is the Agent page's name (a constant, so that no source line holds the quoted key that guard_test.go keeps
@@ -55,6 +60,8 @@ type tabPage struct {
 	settings *settingsPage
 	agent    *agentPage
 	runbooks *runbooksPage
+	group    *groupPage
+	grouprun *groupRunPage
 }
 
 func newTabPage(name string) *tabPage {
@@ -74,6 +81,10 @@ func newTabPage(name string) *tabPage {
 		p.agent = &agentPage{}
 	case "runbooks":
 		p.runbooks = &runbooksPage{}
+	case "group":
+		p.group = newGroupPage()
+	case "grouprun":
+		p.grouprun = &groupRunPage{}
 	}
 	return p
 }
@@ -138,6 +149,10 @@ func (w *workspace) loadPage(t *tab) {
 		w.loadConversations()
 	case t.pg.runbooks != nil:
 		w.loadRunbooks()
+	case t.pg.group != nil:
+		w.loadGroupPage()
+	case t.pg.grouprun != nil:
+		w.loadGroupRunPage()
 	}
 }
 
@@ -189,6 +204,10 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.agentPageView(c, t.pg.agent)
 	case t.pg.runbooks != nil:
 		w.runbooksView(c, t.pg.runbooks)
+	case t.pg.group != nil:
+		w.groupPageView(c, t.pg.group)
+	case t.pg.grouprun != nil:
+		w.groupRunView(c, t.pg.grouprun)
 	}
 }
 

@@ -79,6 +79,21 @@ type backend interface {
 	MoveHosts(ctx context.Context, ids []string, groupID string) error
 	GroupMembers(ctx context.Context, id string) (keelclient.GroupInfo, error)
 
+	// The Group page (grouppage.go): roles, variables and the Ansible export. keel serve keeps and builds all of it.
+	SetGroupRole(ctx context.Context, id, hostID, role string) (keelclient.Group, error)
+	SetGroupVar(ctx context.Context, id, name, value string) (keelclient.Group, error)
+	GroupAnsible(ctx context.Context, id string, q keelclient.AnsibleQuery) ([]keelclient.ExportFile, error)
+
+	// Group runs (grouprun.go): keel serve holds the run and makes every proposal; none of these writes to a session. A
+	// proposal is typed only by the group approve dialog's Type action, through the one ApprovedInject call.
+	StartGroupRun(ctx context.Context, runbookID, groupID, mode string) (keelclient.GroupRun, error)
+	GroupRun(ctx context.Context, id string) (keelclient.GroupRun, error)
+	StopGroupRun(ctx context.Context, id string) (keelclient.GroupRun, error)
+	SetGroupRunMode(ctx context.Context, id, mode string) (keelclient.GroupRun, error)
+	ProposeGroupStep(ctx context.Context, id string, panes []string) (keelclient.GroupRun, error)
+	FillGroupStep(ctx context.Context, id string, proposalIDs []string) ([]keelclient.GroupFill, error)
+	MarkGroupStep(ctx context.Context, id, stepID, hostID, action string) (keelclient.GroupRun, error)
+
 	// First run and the pages.
 	SetupVault(ctx context.Context, passphrase string) error
 	SSHConfigPreview(ctx context.Context) (keelclient.SSHPreview, error)
@@ -246,6 +261,12 @@ func (t *tab) isNew() bool { return t.page != nil }
 
 func (t *tab) name() string {
 	if t.pg != nil { // a page is named by what it is: no rename
+		switch { // the Group page by its folder, the group run page by its runbook (term.js setPageTitle)
+		case t.pg.group != nil && t.pg.group.title != "":
+			return t.pg.group.title
+		case t.pg.grouprun != nil && t.pg.grouprun.title != "":
+			return t.pg.grouprun.title
+		}
 		return pageDefs[t.pg.name].title
 	}
 	if t.title != "" {

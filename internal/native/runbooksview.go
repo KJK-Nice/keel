@@ -13,8 +13,8 @@ import (
 // internal/ui/runbookspage.templ, cmd/keel/web/js/ui/runbooks.js and ui/agentthread.js (placeRun, paintRun, paintBookProp)
 // do. Colours and sizes are tokens.go's.
 //
-// In the app and not here: "From a notebook…" (the notebooks are a later phase), a step's role, "One host only" and captures
-// (group runs, §17; they are carried through a save as they were loaded), and the "," that ends a host chip (↵ ends it).
+// In the app and not here: "From a notebook…" (the notebooks are a later phase), and the "," that ends a host chip (↵ ends it).
+// A step's role, "One host only" and captures (group runs, §17) are edited in runbookStepTarget.
 
 // badgeColors are a k-badge's ground and ink for a kind ("" is the plain one).
 func badgeColors(kind string) (bg, fg ui.Color) {
@@ -316,8 +316,47 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 					TextColor(ink).FontSize(captionSize).Font(monoStack).Lines(2, 8).FillWidth().Bind(&s.cmdH)
 			})
 			inputBox(c, "Step "+n+" expected result", &s.expect, "Expected result (optional)", &s.expH, false, false, 300, nil)
+			w.runbookStepTarget(c, s, n)
 		})
 	})
+}
+
+// runbookStepTarget is where a step runs in a group run (§17): a role, One host only and the values it captures
+// (ui/runbooks.js step-target and capturesHTML). A single-host run ignores all of it.
+func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
+	ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Wrap().Children(func() {
+		ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
+			inputBox(c, "Step "+n+" role", &s.role, "Role in a group run (empty: every host)", &s.roleH, false, false, 32, nil)
+		})
+		ui.Row(c).Gap(space2).AlignItems(ui.Center).Shrink(0).Children(func() {
+			if checkBox(c, "Step "+n+" on one host only", boolCheck(s.oneHost), false) {
+				w.act(func() { s.oneHost = !s.oneHost })
+			}
+			body(c, "One host only", ink)
+		})
+	})
+	for len(s.capH) < len(s.captures) {
+		s.capH = append(s.capH, [2]ui.Handle{})
+	}
+	for k := range s.captures {
+		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Key(k).Label("capture " + strconv.Itoa(k+1)).Children(func() {
+			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
+				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" name", &s.captures[k].Name, "join_token", &s.capH[k][0], true, false, 32, nil)
+			})
+			ui.Row(c).Grow(2).Basis(0).MinWidth(0).Children(func() {
+				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" pattern", &s.captures[k].Pattern, `--token\s+(\S+)`, &s.capH[k][1], true, false, maxPattern, nil)
+			})
+			if iconBtn(c, "cancel-01", "Remove capture "+orElse(s.captures[k].Name, strconv.Itoa(k+1)), sizeControlSm, false) {
+				w.act(func() { s.captures = append(s.captures[:k:k], s.captures[k+1:]...); s.capH = nil })
+			}
+		})
+	}
+	if len(s.captures) > 0 {
+		help(c, "In a group run Keel takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.")
+	}
+	if len(s.captures) < maxCaptures && textBtn(c, "Capture a value", btnGhost) {
+		w.act(func() { s.captures = append(s.captures, keelclient.StepCapture{}) })
+	}
 }
 
 // runbookBox is the box beside the steps: Agent may pick, the hosts, the meta lines and the rule for steps.

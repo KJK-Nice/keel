@@ -268,10 +268,7 @@ func toRunbookInput(ed rbEdit) keelclient.RunbookInput {
 		st := keelclient.RunbookStepInput{
 			ID: s.id, Title: cleanLine(s.title), Description: cleanLine(s.description),
 			Command: strings.TrimSpace(strings.ReplaceAll(s.command, "\r\n", "\n")), Expect: cleanLine(s.expect),
-			Role: strings.ToLower(strings.TrimSpace(s.role)), OneHost: s.oneHost, Captures: s.captures,
-		}
-		if st.Captures == nil {
-			st.Captures = []keelclient.StepCapture{}
+			Role: strings.ToLower(strings.TrimSpace(s.role)), OneHost: s.oneHost, Captures: cleanCaptures(s.captures),
 		}
 		if st.Title != "" || st.Command != "" {
 			steps = append(steps, st)
@@ -306,7 +303,7 @@ func checkRunbookInput(in keelclient.RunbookInput) string {
 			return fmt.Sprintf("Step %d: a role is one word of letters, digits, -, _ or .", i+1)
 		}
 	}
-	return ""
+	return checkCaptures(in.Steps)
 }
 
 // validRole is /^[a-z0-9][a-z0-9_.-]{0,31}$/.

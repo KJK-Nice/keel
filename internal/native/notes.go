@@ -21,8 +21,10 @@ import (
 
 // notesEditor is one notes list: a host's in Edit host, or the user's own in Settings · Agent.
 type notesEditor struct {
-	user   bool   // the user's own notes (Settings · Agent), else the notes of hostID
-	hostID string // "" for a host that is not saved yet
+	user    bool   // the user's own notes (Settings · Agent), else the notes of hostID or, with group set, of groupID
+	hostID  string // "" for a host that is not saved yet
+	group   bool   // the notes of a folder (§17): about every host in it
+	groupID string
 
 	notes      []keelclient.Note
 	loaded     bool
@@ -43,13 +45,16 @@ type notesEditor struct {
 
 // mine picks this list's notes from all of them.
 func (e *notesEditor) mine(all []keelclient.Note) []keelclient.Note {
-	if e.user {
+	switch {
+	case e.user:
 		return userNotesOf(all)
+	case e.group:
+		return groupNotesOf(all, e.groupID)
 	}
 	return hostNotesOf(all, e.hostID)
 }
 
-func (e *notesEditor) saved() bool { return e.user || e.hostID != "" }
+func (e *notesEditor) saved() bool { return e.user || e.hostID != "" || (e.group && e.groupID != "") }
 
 // loadNotes reads the notes (GET /api/agent/notes) and keeps this list's. It forgets what was being typed, as the app's load
 // does.
@@ -113,7 +118,10 @@ func (w *workspace) addNote(e *notesEditor) {
 	e.busy, e.err = true, ""
 	gen := e.gen
 	in := keelclient.NoteInput{Text: text}
-	if !e.user {
+	switch {
+	case e.group:
+		in.GroupID = e.groupID // a note has a host or a group, never both
+	case !e.user:
 		in.HostID = e.hostID
 	}
 	w.work(func() {

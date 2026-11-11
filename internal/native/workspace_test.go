@@ -210,6 +210,7 @@ type fakeBackend struct {
 	convs fakeConvs
 	mem   fakeMemory
 	fold  fakeFolders
+	grp   fakeGroups
 
 	// Share.
 	shareURL     string   // what Share answers

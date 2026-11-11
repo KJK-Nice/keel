@@ -447,12 +447,14 @@ type runbooksPage struct {
 	menuLoad  bool
 }
 
-// rbStepState is a step in the editor: the fields the user edits, and what is only carried (the rating, and the group-run
-// fields of §17 that this client does not edit).
+// rbStepState is a step in the editor: the fields the user edits (the group-run fields of §17 too: a role, One host only and
+// captures), and what is only carried (the rating).
 type rbStepState struct {
 	rbEditStep
 	risk                      string
 	titleH, descH, cmdH, expH ui.Handle
+	roleH                     ui.Handle
+	capH                      [][2]ui.Handle // the name and pattern fields of each capture
 }
 
 // rbEditor is the editor beside the list.
