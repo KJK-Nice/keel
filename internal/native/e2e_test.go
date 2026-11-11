@@ -883,6 +883,23 @@ func TestE2EFailedSessionAtStart(t *testing.T) {
 	e2.shot("TestE2EFailedSessionAtStart")
 }
 
+// The host menu's Copy SSH command puts ssh, the port and user@address of the saved host on the clipboard, and no secret.
+func TestE2ECopySSHCommand(t *testing.T) {
+	addr, dir := startServe(t, true)
+	f := startSSH(t, addr, dir)
+	e := newWin(t, addr, dir, nil)
+	e.pump(func() bool { return e.hasLabel("host e2e-ssh") }, "the host")
+	e.menuPick("host e2e-ssh", "Copy SSH command")
+	want := fmt.Sprintf("ssh -p %d %s@%s", f.port, f.user, f.host)
+	e.pump(func() bool { return e.tt.Clipboard() == want }, "the command on the clipboard")
+	if strings.Contains(e.texts(), f.password) || strings.Contains(e.tt.Clipboard(), f.password) {
+		t.Fatal("the password is on screen or on the clipboard")
+	}
+	if len(e.sessions()) != 0 {
+		t.Errorf("copying opened a session: %v", e.sessionIDs())
+	}
+}
+
 // ---- N3b: tabs, panes and the workspace ----
 
 // sessionIDs is the ids keel serve lists.
