@@ -73,6 +73,8 @@ func (w *workspace) firstRunFocus(c *ui.Context, f *firstRun) {
 		h = &f.passH
 	case want == "pass2":
 		h = &f.pass2H
+	case want == "agentkey":
+		h = &f.agentKeyH
 	case strings.HasPrefix(want, "key:"):
 		h = f.handleFor(strings.TrimPrefix(want, "key:"))
 	default:
@@ -609,6 +611,7 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 			})
 		}
 	})
+	w.agentChoice(c, f)
 	if f.notice != "" {
 		col := tide
 		if f.noticeBad {
@@ -625,7 +628,69 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 			w.act(func() { w.finishFirstRun(f) })
 		}
 		if bigPrimary(c, "Open Keel", !f.busy) {
-			w.act(func() { w.finishFirstRun(f) })
+			w.act(func() { w.openKeel(f) })
 		}
+	})
+}
+
+// agentChoice is the k-box of step 3: the provider (Google Gemini or Not now), the key field and the provider's words
+// when Gemini is chosen, the switch, and the line under them (gate.templ agentStep).
+func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
+	d := keelclient.AgentProvider{Name: "Google Gemini", KeyLabel: "Gemini API key"}
+	if f.agentProv != nil {
+		d = *f.agentProv
+	}
+	keyLabel := orElse(d.KeyLabel, "Gemini API key")
+	ui.Column(c).FillWidth().Padding(space4).Gap(space3).Radius(radiusMd).Background(surface).Border(1, line).Label("agent choice").Children(func() {
+		ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
+			label(c, "Provider", inkMuted)
+			ui.Column(c).FillWidth().Gap(space2).Label("Provider").Children(func() {
+				if choiceCard(c, "Google Gemini", f.agentGemini, false, "Google Gemini", "", "Answers questions and writes suggestions. Needs an API key.") && !f.agentGemini {
+					w.act(func() { f.pickAgentProvider(true) })
+				}
+				if choiceCard(c, "Not now", !f.agentGemini, false, "Not now", "", "Connect a provider later in Settings, Agent.") && f.agentGemini {
+					w.act(func() { f.pickAgentProvider(false) })
+				}
+			})
+		})
+		if f.agentGemini {
+			if d.Warning != "" {
+				ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusSm).Background(signalSoft).AlignItems(ui.Start).Label("agent warning").Children(func() {
+					icon(c, "alert", signal)
+					ui.Text(c, d.Warning).TextColor(ink).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
+				})
+			}
+			labeled(c, keyLabel, &f.agentKeyH, func() {
+				// Masked: the key is never drawn, and the field is emptied the moment it is sent (openKeel).
+				inputBox(c, keyLabel+" input", &f.agentKey, "", &f.agentKeyH, true, true, 0, func(k ui.TextKey) bool {
+					f.agentErr = ""
+					if k.Key == ui.KeyEnter && k.Mods == 0 {
+						f.agentKey = k.Text()
+						w.act(func() { w.openKeel(f) })
+						return true
+					}
+					return false
+				})
+			})
+			if f.agentErr != "" {
+				ui.Row(c).FillWidth().Label("agent key error").Children(func() { ui.Text(c, f.agentErr).TextColor(flare).FontSize(captionSize) })
+			}
+			ui.Row(c).Gap(space1_5).Children(func() {
+				if strings.HasPrefix(d.KeyHelpURL, "https://") {
+					ui.Link(c, "Get a key", d.KeyHelpURL).TextColor(brassInk).FontSize(captionSize)
+				}
+				if strings.HasPrefix(d.TermsURL, "https://") {
+					help(c, "·")
+					ui.Link(c, "Gemini API terms", d.TermsURL).TextColor(brassInk).FontSize(captionSize)
+				}
+			})
+		}
+		ui.Row(c).FillWidth().Gap(space3).Children(func() {
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { body(c, "Suggest commands when I type plain language", ink).MaxLines(0) })
+			on := !f.agentOff
+			ui.Switch(c, &on).Label("Suggest commands when I type plain language switch").Shrink(0)
+			f.agentOff = !on
+		})
+		help(c, "Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.")
 	})
 }

@@ -489,3 +489,80 @@ func TestVaultErrorsUseTheServersWords(t *testing.T) {
 		}
 	}
 }
+
+// ---- step 3: the provider, the key and the switch (gate.js showAgentStep, openKeel) ----
+
+const fakeFirstRunKey = "made-up-key-for-the-first-run-test"
+
+func atAgentStep(t *testing.T, fb *fakeBackend) *rig {
+	t.Helper()
+	r := atHosts(t, fb)
+	r.click(t, "Skip, add hosts later")
+	r.tt.Frame()
+	return r
+}
+
+func TestFirstRunStep3StartsOnNotNowWithTheSwitchOnAndSendsOnlyTheSwitch(t *testing.T) {
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
+	r := atAgentStep(t, fb)
+	r.texts(t, "Provider", "Google Gemini", "Answers questions and writes suggestions. Needs an API key.", "Not now",
+		"Connect a provider later in Settings, Agent.", "Suggest commands when I type plain language",
+		"Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.")
+	if r.has("Gemini API key input") {
+		t.Fatal("the key field shows with Not now chosen")
+	}
+	r.click(t, "Open Keel")
+	if len(fb.agent.keys) != 0 || len(fb.convs.saves) != 1 || fb.convs.saves[0].Suggestions == nil || *fb.convs.saves[0].Suggestions != "on" || fb.firstRunDone != 1 {
+		t.Fatalf("keys %d, saves %+v, done %d", len(fb.agent.keys), fb.convs.saves, fb.firstRunDone)
+	}
+}
+
+func TestFirstRunStep3GeminiNeedsAKeyThenSendsItOnceAndEmptiesTheField(t *testing.T) {
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
+	r := atAgentStep(t, fb)
+	r.click(t, "Google Gemini")
+	r.tt.Frame()
+	r.texts(t, "Gemini API key", "On the free tier of the Gemini API, Google may use the content you submit.", "Get a key", "Gemini API terms")
+	if !r.tt.Focused("Gemini API key input") {
+		t.Error("choosing Gemini did not give the key field the keyboard")
+	}
+	r.click(t, "Open Keel")
+	r.texts(t, "Paste your key, or choose Not now.")
+	if r.w.first == nil || fb.firstRunDone != 0 || len(fb.agent.keys) != 0 {
+		t.Fatal("Open Keel went on without a key")
+	}
+	r.tt.Type(fakeFirstRunKey)
+	r.tt.Frame()
+	if r.tt.HasText(fakeFirstRunKey) {
+		t.Error("the key is drawn")
+	}
+	r.click(t, "Suggest commands when I type plain language switch")
+	r.click(t, "Open Keel")
+	if len(fb.agent.keys) != 1 || fb.agent.keys[0].Provider != "gemini" || fb.agent.keys[0].Key != fakeFirstRunKey {
+		t.Fatalf("the key was sent %d times", len(fb.agent.keys))
+	}
+	if len(fb.convs.saves) != 1 || *fb.convs.saves[0].Suggestions != "off" || fb.firstRunDone != 1 || r.w.first != nil {
+		t.Fatalf("saves %+v, done %d", fb.convs.saves, fb.firstRunDone)
+	}
+}
+
+func TestFirstRunStep3ARefusedKeyStaysOnTheStepAndIsTypedAgain(t *testing.T) {
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
+	fb.agent.keyErr = &keelclient.StatusError{Code: 423, Msg: "vault is locked"}
+	r := atAgentStep(t, fb)
+	r.click(t, "Google Gemini")
+	r.tt.Frame()
+	r.tt.Type(fakeFirstRunKey)
+	r.tt.Frame()
+	r.click(t, "Open Keel")
+	r.tt.Frame()
+	r.texts(t, "The vault is locked. Unlock it, then try again.")
+	if r.w.first == nil || r.w.first.agentKey != "" || fb.firstRunDone != 0 || len(fb.convs.saves) != 0 {
+		t.Fatal("a refused key ended the first run, kept the key in the field or saved the switch")
+	}
+	// Set up later saves nothing.
+	r.click(t, "Set up later")
+	if fb.firstRunDone != 1 || len(fb.convs.saves) != 0 || len(fb.agent.keys) != 1 {
+		t.Errorf("Set up later: done %d, saves %d, keys %d", fb.firstRunDone, len(fb.convs.saves), len(fb.agent.keys))
+	}
+}

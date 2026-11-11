@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -55,6 +56,16 @@ type firstRun struct {
 	noticeBad bool
 	gen       int // the preview read in flight; a stale answer is dropped
 
+	// Step 3 (gate.js agentChoice): the provider chosen ("none" or "gemini"), the key typed (masked; emptied as it is sent),
+	// the switch "Suggest commands when I type plain language", and the provider's own words (GET /api/agent/providers).
+	agentGemini  bool
+	agentKey     string
+	agentKeyH    ui.Handle
+	agentErr     string
+	agentOff     bool // the switch is off (it starts on)
+	agentProv    *keelclient.AgentProvider
+	agentProvGen int // the descriptor read in flight
+
 	wantTries int
 	footFn    func() // the step's buttons, drawn under the scrolling step
 	want      string // the field that takes the keyboard in the next frame: "pass", "pass2" or "key:<path>"
@@ -72,7 +83,7 @@ func (f *firstRun) GoString() string { return f.String() }
 
 // clearSecrets forgets every passphrase this screen holds.
 func (f *firstRun) clearSecrets() {
-	f.pass, f.pass2 = "", ""
+	f.pass, f.pass2, f.agentKey = "", "", ""
 	if f.sel != nil {
 		f.sel.clearSecrets()
 	}
@@ -406,7 +417,7 @@ func (w *workspace) importRefused(f *firstRun, p keelclient.SSHPreview, err erro
 // the import on its own.
 func (w *workspace) afterHosts(f *firstRun) {
 	if f.flow == flowFirstRun {
-		f.step = stepAgent
+		w.showAgentStep(f)
 		return
 	}
 	w.closeFirstRun()
@@ -420,6 +431,89 @@ func (w *workspace) afterHosts(f *firstRun) {
 }
 
 // ---- step 3 ----
+
+// showAgentStep is gate.js showAgentStep: Not now is chosen, the key is empty, the switch is on, and the provider's own
+// words are read once (the descriptor of Google Gemini; a failed read leaves the card's defaults, as the webview does).
+func (w *workspace) showAgentStep(f *firstRun) {
+	f.step = stepAgent
+	f.agentGemini, f.agentKey, f.agentErr, f.agentOff = false, "", "", false
+	if f.agentProv != nil {
+		return
+	}
+	f.agentProvGen++
+	gen := f.agentProvGen
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		list, err := w.be.AgentProviders(c)
+		w.post(func() {
+			if w.first != f || f.agentProvGen != gen || err != nil {
+				return
+			}
+			for i := range list {
+				if list[i].ID == "gemini" {
+					f.agentProv = &list[i]
+				}
+			}
+		})
+	})
+}
+
+// pickAgentProvider is gate.js pickAgent: choosing Gemini shows the key field and gives it the keyboard.
+func (f *firstRun) pickAgentProvider(gemini bool) {
+	f.agentGemini, f.agentErr = gemini, ""
+	if gemini {
+		f.want = "agentkey"
+	}
+}
+
+// openKeel is Open Keel (gate.js openKeel): a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
+// against the provider, so nothing is sent anywhere), the switch is saved either way, and then the first run ends. A
+// failed save keeps the step open with the reason. The key is emptied the moment it is sent and is in no log or error.
+func (w *workspace) openKeel(f *firstRun) {
+	if w.first != f || f.busy {
+		return
+	}
+	key := strings.TrimSpace(f.agentKey)
+	if f.agentGemini && key == "" {
+		f.agentErr, f.want = "Paste your key, or choose Not now.", "agentkey"
+		return
+	}
+	in := keelclient.AgentKeyInput{Provider: "gemini", Key: key}
+	if f.agentGemini {
+		f.agentKey = ""
+	}
+	key = ""
+	on := "on"
+	if f.agentOff {
+		on = "off"
+	}
+	gemini := f.agentGemini
+	f.busy, f.agentErr = true, ""
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		var err error
+		if gemini {
+			err = w.be.SetAgentKey(c, in)
+			in = keelclient.AgentKeyInput{}
+		}
+		if err == nil {
+			_, err = w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{Suggestions: &on})
+		}
+		w.post(func() {
+			if w.first != f {
+				return
+			}
+			f.busy = false
+			if err != nil {
+				f.agentErr = keyError(err)
+				return
+			}
+			w.finishFirstRun(f)
+		})
+	})
+}
 
 // finishFirstRun is Open Keel and Set up later: it ends the first run and opens the window.
 func (w *workspace) finishFirstRun(f *firstRun) {

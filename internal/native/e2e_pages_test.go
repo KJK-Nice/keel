@@ -246,11 +246,31 @@ func TestE2EFirstRun(t *testing.T) {
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2EFirstRun-agent")
 
+	// Choose Google Gemini and type a made-up key: nothing is saved until Open Keel, and the key is never drawn.
+	e.click("Google Gemini")
+	e.pump(func() bool { return e.hasLabel("Gemini API key input") }, "the key field")
+	e.tt.Type(fakeAgentKey)
+	e.step()
+	if e.tt.HasText(fakeAgentKey) {
+		t.Fatal("the key is drawn in the clear")
+	}
+	if code, body := e.raw("GET", "/api/agent/settings", nil); code != 200 || strings.Contains(body, `"configured":true`) {
+		t.Fatalf("a key was saved before Open Keel: %d", code)
+	}
+	e.shot("TestE2EFirstRun-agent-gemini")
+
 	// Open Keel ends the first run and opens the workspace.
 	if v := e.vault(); !v.FirstRun {
 		t.Fatal("the first run ended before Open Keel")
 	}
 	e.click("Open Keel")
+	e.pump(func() bool { return e.w.first == nil }, "Open Keel to end the first run")
+	if code, body := e.raw("GET", "/api/agent/settings", nil); code != 200 || !strings.Contains(body, `"configured":true`) || !strings.Contains(body, `"suggestions":"on"`) {
+		t.Fatalf("the key and the switch were not saved: %d", code)
+	}
+	if e.w.first != nil || strings.Contains(e.texts(), fakeAgentKey) {
+		t.Fatal("the key is on screen")
+	}
 	e.pump(func() bool { return e.w.first == nil && e.hasLabel("host e2e-web") && e.tt.HasText("Filter hosts") }, "the workspace with the imported hosts")
 	if v := e.vault(); v.FirstRun || v.Locked || v.NeedsSetup {
 		t.Fatalf("after Open Keel: %+v", v)
