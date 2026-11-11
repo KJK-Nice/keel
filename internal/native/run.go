@@ -171,6 +171,7 @@ func RunWith(o Options) error {
 			win.OnShow(func() { w.post(w.applyBlur) })
 		}
 		win.OnClosed(w.closeWindow)
+		(&shell{w: w, win: win}).start()
 		w.start()
 		w.startPoll(pollEvery)
 		if path := os.Getenv("KEEL_NATIVE_CAPTURE"); path != "" {
