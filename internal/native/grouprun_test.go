@@ -199,7 +199,14 @@ func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 	if !r.hasText("1 of these host is production. Typing there needs ⇧.") && !r.hasText("1 of these host is production.") {
 		t.Errorf("no production note: %v", r.tt.Texts())
 	}
+	r.w.tabs[1].title = "ops" // wk-2's tab, named by the user: the row says which tab the pane is in
+	r.tt.Frame()
 	r.pressTypeAll(t, 2)
+	for _, s := range []string{"tab ops", "Production", "⇧"} {
+		if !r.hasText(s) {
+			t.Errorf("the rows lack %q (the pane's tab, the Production and ⇧ badges): %v", s, r.tt.Texts())
+		}
+	}
 	r.click(t, "Type into wk-1")
 	if r.hasText(groupShiftNeeded) {
 		t.Error("an unticked production host asks for ⇧")

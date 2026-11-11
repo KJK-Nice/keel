@@ -50,7 +50,8 @@ type groupRunPage struct {
 	loaded  bool
 	polling bool // a propose is out
 	typing  bool // a fill or a Type is under way: no propose meanwhile
-	busy    bool // a mark, a mode change or a stop is out
+	busy    int  // marks, mode changes and stops that are out
+	calls   int  // how many have been made: only the newest answer is shown
 	gen     int
 }
 
@@ -131,18 +132,18 @@ func (w *workspace) groupPaneIDs() (out []string) {
 // a fill or a Type is out, and never while the approve dialog is open (grouprun.js tick).
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
-	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.polling || p.typing || p.busy || w.approve != nil {
+	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.polling || p.typing || p.busy > 0 || w.approve != nil {
 		return
 	}
 	p.polling = true
-	id, panes := p.run.ID, w.groupPaneIDs()
+	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
 		run, err := w.be.ProposeGroupStep(c, id, panes)
 		w.post(func() {
 			p.polling = false
-			if w.closed || w.groupRunPageState() != p || p.id != id {
+			if w.closed || w.groupRunPageState() != p || p.id != id || p.calls != seq { // a press since: its answer is newer
 				return
 			}
 			w.groupRunAnswered(p, run, err)
@@ -162,18 +163,22 @@ func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, e
 // groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; keel serve's refusal (409)
 // is shown in its words.
 func (w *workspace) groupRunCall(p *groupRunPage, call func(c ctxT, id string) (keelclient.GroupRun, error)) {
-	if p.run == nil || p.busy {
+	if p.run == nil {
 		return
 	}
-	p.busy = true
+	// Like the app's page, a second press while one call is out is a call of its own (keel serve takes them one at a time and
+	// refuses what no longer applies); only the newest answer is shown, which holds the earlier ones' effects.
+	p.calls++
+	seq := p.calls
+	p.busy++
 	id := p.run.ID
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
 		run, err := call(c, id)
 		w.post(func() {
-			p.busy = false
-			if w.closed || w.groupRunPageState() != p || p.id != id {
+			p.busy--
+			if w.closed || w.groupRunPageState() != p || p.id != id || seq != p.calls {
 				return
 			}
 			w.groupRunAnswered(p, run, err)

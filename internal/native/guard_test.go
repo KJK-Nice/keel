@@ -580,6 +580,29 @@ func TestGroupCodeHasNoWriterAndNoWayToTypeExceptOpeningTheDialog(t *testing.T) 
 	}
 }
 
+// groupvars.test.mjs "run page: fill before approve, type the approved bytes": the fill is asked for after Type into N panes, its
+// answer goes onto the rows, and only then does the dialog open; Copy writes the saved command with the names in, never a value.
+func TestTheRunPageFillsBeforeTheDialogOpensAndCopyNeverWritesAValue(t *testing.T) {
+	src := sourceFiles(t)["grouprun.go"]
+	i := strings.Index(src, "func (w *workspace) typeGroupRun()")
+	if i < 0 {
+		t.Fatal("typeGroupRun is gone; update the guard")
+	}
+	body := src[i:]
+	fill, rows, open := strings.Index(body, "FillGroupStep("), strings.Index(body, "fillRows(rows, fills)"), strings.LastIndex(body, "\t\t\topen()")
+	if !(fill > 0 && rows > fill && open > rows) {
+		t.Errorf("typeGroupRun: FillGroupStep at %d, fillRows at %d, open at %d: want fill, then rows, then the dialog", fill, rows, open)
+	}
+	if !strings.Contains(sourceFiles(t)["grouprunview.go"], "c.WriteClipboard(st.Command)") {
+		t.Error("Copy on the run page no longer writes the step's saved command; update the guard")
+	}
+	for _, name := range []string{"grouprunview.go", "grouprun.go"} {
+		if strings.Contains(sourceFiles(t)[name], "WriteClipboard(r.bytes") || strings.Contains(sourceFiles(t)[name], "WriteClipboard(fill") {
+			t.Errorf("%s puts filled bytes on the clipboard", name)
+		}
+	}
+}
+
 // §6 rule 11: the client never puts a value into a command. A row's bytes are set from keel serve's answers only (the proposal's
 // own bytes, or the fill's), and no group file or the dialog replaces, expands or formats text around a {{name}}.
 func TestTheClientNeverSubstitutesAValue(t *testing.T) {
