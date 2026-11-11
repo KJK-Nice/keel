@@ -843,6 +843,14 @@ func TestE2EFailedSessionShowsBannerAndReconnects(t *testing.T) {
 		t.Error("the banner does not say Session ended for a session whose server went away (status exited)")
 	}
 	e.shot("TestE2EFailedSessionShowsBannerAndReconnects-failed")
+	// The connection log lists how the connection began (seeded by the window) and Copy logs copies it as it reads.
+	if !e.tt.HasText("Starting a new connection to: ") || !e.hasLabel("Copy logs") {
+		t.Error("no connection log or no Copy logs on the failed pane")
+	}
+	e.click("Copy logs")
+	if got := e.tt.Clipboard(); !strings.HasPrefix(got, "Starting a new connection to: ") || !strings.Contains(got, "\n") {
+		t.Errorf("the copied log is %q", got)
+	}
 	before := e.snap().Message
 	e.click("Reconnect")
 	// Reconnect to a server that is gone: the session leaves error for connecting, or fails again with a new message.

@@ -2,6 +2,7 @@ package native
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -42,6 +43,57 @@ func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 	r.click(t, "Close")
 	if !slices.Equal(r.fb.killed, []string{"s-x"}) || len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() {
 		t.Fatalf("killed %v tabs %d: closing the last tab leaves a New tab", r.fb.killed, len(r.w.tabs))
+	}
+}
+
+// term.js seedConnectLog, the log rows of renderFail and copyPaneFailLog: the failure banner has Copy logs between nothing and
+// Close, the pane lists the connection log under it, and Copy logs puts exactly those lines on the clipboard.
+func TestAFailedPaneListsItsConnectionLogAndCopyLogsCopiesIt(t *testing.T) {
+	st := keelclient.State{Status: "error", Message: "dial tcp: connection refused", Log: []keelclient.LogLine{
+		{Kind: "work", Text: "Connecting…"}, {Kind: "fail", Text: "dial tcp: connection refused"}}}
+	r := failedRig(t, st, "h-api")
+	lines := []string{
+		`Starting a new connection to: "10.0.0.1" port "22"`, `Starting address resolution of "10.0.0.1"`, "Address resolution finished",
+		`Connecting to "10.0.0.1" port "22"`, "Connecting…", "dial tcp: connection refused",
+	}
+	for _, l := range lines {
+		if !r.tt.HasText(l) {
+			t.Errorf("the connection log lacks %q", l)
+		}
+	}
+	if !r.has("connection log 1") || !r.has("Copy logs") {
+		t.Fatal("no log or no Copy logs")
+	}
+	r.click(t, "Copy logs")
+	if got := r.tt.Clipboard(); got != strings.Join(lines, "\n") {
+		t.Fatalf("clipboard %q", got)
+	}
+	if !r.tt.HasText("Copied connection log") {
+		t.Error("no toast")
+	}
+	// A local shell is seeded with its own line; a connecting SSH pane has the log and Copy logs, and no Reconnect.
+	r2 := failedRig(t, keelclient.State{Status: "exited"}, "h-local")
+	if !r2.tt.HasText("Starting a local shell") {
+		t.Error("the local shell's seed line is missing")
+	}
+	r3 := failedRig(t, keelclient.State{Status: "connecting"}, "h-api")
+	if !r3.has("Copy logs") || r3.has("Reconnect") || !r3.tt.HasText(`Connecting to "10.0.0.1" port "22"`) {
+		t.Error("the connecting pane lacks its log or Copy logs, or offers Reconnect")
+	}
+	// A ready session, a local shell that is connecting and a joined tab show no log.
+	for _, st := range []keelclient.State{{Status: "ready"}} {
+		if failedRig(t, st, "h-api").has("connection log 1") {
+			t.Errorf("%+v: a log shows", st)
+		}
+	}
+}
+
+func TestLogTextIsTheLinesOrTheEmptyWords(t *testing.T) {
+	if got := logText(nil); got != "No connection log yet." {
+		t.Error(got)
+	}
+	if got := logText([]keelclient.LogLine{{Text: "a"}, {Text: ""}, {Text: "b"}}); got != "a\nb" {
+		t.Errorf("%q", got)
 	}
 }
 

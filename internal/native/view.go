@@ -755,6 +755,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		pane.Children(func() {
 			p.view(c).Bind(&p.handle)
 			w.suggestOverlay(c, p)
+			w.connectLogView(c, p, st)
 		})
 	})
 }

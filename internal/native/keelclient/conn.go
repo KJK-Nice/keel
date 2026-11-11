@@ -68,11 +68,12 @@ type State struct {
 	Role                             string // owner | driver | follower; "" before ready
 	Attached                         []Peer
 	DriverID                         uint64
-	OwnerID                          uint64  // the client that may take control back
-	YouID                            uint64  // this client's id (Peer.ID of the Attached entry that is us)
-	Blocked                          uint64  // keystrokes dropped because this client was not driving (the "Typing is off" notice)
-	HostKey                          HostKey // zero when there is no host-key problem
-	WasReady                         bool    // the session was ready at some point (a later failure is a lost connection)
+	OwnerID                          uint64    // the client that may take control back
+	YouID                            uint64    // this client's id (Peer.ID of the Attached entry that is us)
+	Blocked                          uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
+	HostKey                          HostKey   // zero when there is no host-key problem
+	WasReady                         bool      // the session was ready at some point (a later failure is a lost connection)
+	Log                              []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
 }
 
 func dialWS(u, token string) (*Conn, error) {
@@ -160,6 +161,11 @@ func (c *Conn) control(data []byte) {
 	if m.Type == "ready" && m.ID != "" {
 		c.id = m.ID
 	}
+	status := m.Status
+	if status == "" && m.Type == "error" {
+		status = "error"
+	}
+	s.recordLog(before.Status, status, m.Message)
 	set(&s.Status, m.Status)
 	set(&s.Title, m.Title)
 	set(&s.Subtitle, m.Subtitle)
@@ -192,7 +198,7 @@ func (c *Conn) control(data []byte) {
 func sameState(a, b State) bool {
 	return a.Blocked == b.Blocked && a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
 		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
-		slices.Equal(a.Attached, b.Attached)
+		slices.Equal(a.Attached, b.Attached) && slices.Equal(a.Log, b.Log)
 }
 
 func (c *Conn) write(typ int, b []byte) error {

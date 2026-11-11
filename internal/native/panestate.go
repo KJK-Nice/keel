@@ -2,6 +2,7 @@ package native
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -86,6 +87,65 @@ func failEndpoint(h keelclient.Host, st keelclient.State) string {
 	return "SSH " + h.Address + ":" + strconv.Itoa(port)
 }
 
+// connectLog is term.js seedConnectLog followed by what keel serve reported (State.Log): the lines a failed or connecting
+// pane lists and Copy logs copies.
+func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
+	var seed []keelclient.LogLine
+	if h.AuthType == "" || h.AuthType == "local" {
+		seed = []keelclient.LogLine{{Kind: "user", Text: "Starting a local shell"}}
+	} else {
+		port := h.Port
+		if port == 0 {
+			port = 22
+		}
+		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(port)+`"`
+		seed = []keelclient.LogLine{
+			{Kind: "user", Text: "Starting a new connection to: " + addr + " port " + p},
+			{Kind: "work", Text: "Starting address resolution of " + addr},
+			{Kind: "work", Text: "Address resolution finished"},
+			{Kind: "work", Text: "Connecting to " + addr + " port " + p},
+		}
+	}
+	return append(seed, st.Log...)
+}
+
+// logText is term.js copyPaneFailLog's text: the lines, one to a line.
+func logText(lines []keelclient.LogLine) string {
+	var out []string
+	for _, l := range lines {
+		if l.Text != "" {
+			out = append(out, l.Text)
+		}
+	}
+	if len(out) == 0 {
+		return "No connection log yet."
+	}
+	return strings.Join(out, "\n")
+}
+
+// connectLogView is .pane-fail-log: over the pane's body while the session is down or connecting, a row per line with its
+// glyph (person for what the user asked, gear for a step, a frown for a failure; a failure is in the flare colour).
+func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) {
+	if p.remote || !(st.Status == "error" || st.Status == "exited" || (st.Status == "connecting" && p.host.AuthType != "local")) {
+		return
+	}
+	ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(w.ground(stage)).Padding(space3).Gap(space2).Label("connection log " + p.id).Children(func() {
+		for _, l := range connectLog(p.host, st) {
+			glyph, fg, words := "log-gear", inkFaint, inkMuted
+			switch l.Kind {
+			case "user":
+				glyph = "log-user"
+			case "fail":
+				glyph, fg, words = "log-frown", flare, flare
+			}
+			ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Start).Children(func() {
+				ui.Column(c).Shrink(0).Padding(1, 0, 0).Children(func() { icon(c, glyph, fg) })
+				mono(c, l.Text, words).Grow(1).Shrink(1).MinWidth(0).MaxLines(0)
+			})
+		}
+	})
+}
+
 // bannerRow is a k-pane-banner: a soft ground with its text colour, a headline with the endpoint (and a
 // message under it) on the left, the buttons on the right. The soft ground sits on stage, as in the webview.
 func (w *workspace) bannerRow(c *ui.Context, name string, soft, fg ui.Color, head, endpoint, msg string, buttons func()) {
@@ -113,21 +173,30 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		w.joinBanner(c, t, p, st)
 		return
 	}
+	// The buttons the failure and the connecting banners share, in the app's order (term.js pane-fail-banner): Copy logs,
+	// Close and Edit host; Reconnect follows on a failure only.
+	common := func() {
+		if textBtn(c, "Copy logs", btnGhost) {
+			text := logText(connectLog(p.host, st))
+			w.act(func() { c.WriteClipboard(text); w.say("Copied connection log") })
+		}
+		if textBtn(c, "Close", btnGhost) {
+			w.act(func() { w.closePane(t, p.id) })
+		}
+		if p.host.ID != "" && textBtn(c, "Edit host", btnGhost) {
+			w.act(func() { w.editPaneHost(p) })
+		}
+	}
 	switch {
 	case st.Status == "error" || st.Status == "exited":
 		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), st.Message, func() {
-			if textBtn(c, "Close", btnGhost) {
-				w.act(func() { w.closePane(t, p.id) })
-			}
-			if p.host.ID != "" && textBtn(c, "Edit host", btnGhost) {
-				w.act(func() { w.editPaneHost(p) })
-			}
+			common()
 			if textBtn(c, "Reconnect", btnPrimary) {
 				w.act(func() { w.reconnect(p) })
 			}
 		})
 	case st.Status == "connecting" && p.host.AuthType != "local":
-		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", func() {})
+		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", common)
 	case st.Role == "follower" || st.Role == "owner": // anyone who is not driving
 		who := "Nobody is driving"
 		for _, a := range st.Attached {
