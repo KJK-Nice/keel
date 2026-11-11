@@ -428,6 +428,100 @@ func TestDraggingATabReordersAndNumberKeysFollow(t *testing.T) {
 	}
 }
 
+// ui/drag.js: a tab dropped on the strip past the last tab goes last; the tab shown stays shown.
+func TestDroppingATabOnTheEmptyStripPutsItLast(t *testing.T) {
+	r := named(t, 4)
+	a, _ := r.tt.Find("tab a")
+	end, ok := r.tt.Find("tab strip end")
+	if !ok {
+		t.Fatal("no empty strip after the tabs")
+	}
+	shown := r.w.tab().title
+	r.tt.Press(a.X+a.W/2, a.Y+a.H/2)
+	r.tt.Move(a.X+a.W/2+20, a.Y+a.H/2)
+	r.tt.Move(end.X+end.W/2, end.Y+end.H/2)
+	r.tt.Release(end.X+end.W/2, end.Y+end.H/2)
+	r.tt.Frame()
+	r.tt.Frame()
+	if got := tabTitles(r); !slices.Equal(got, []string{"b", "c", "d", "a"}) {
+		t.Fatalf("order %q", got)
+	}
+	if r.w.tab().title != shown {
+		t.Errorf("the tab shown changed from %q to %q", shown, r.w.tab().title)
+	}
+	r.tt.Key(ui.Cmd, ui.Key4)
+	r.tt.Frame()
+	if r.w.tab().title != "a" {
+		t.Errorf("⌘4 shows %q, want a", r.w.tab().title)
+	}
+}
+
+// drag.js dropEdgeForRect: the nearest edge, or the centre when the point is well inside.
+func TestDropEdgeIsTheNearestEdgeOrTheCentre(t *testing.T) {
+	for _, c := range []struct {
+		x, y float32
+		want string
+	}{{0.05, 0.5, "left"}, {0.95, 0.5, "right"}, {0.5, 0.05, "top"}, {0.5, 0.97, "bottom"}, {0.5, 0.5, "center"}, {0.3, 0.5, "center"}, {0.27, 0.5, "left"}, {0.1, 0.2, "left"}} {
+		if got := dropEdge(c.x, c.y); got != c.want {
+			t.Errorf("dropEdge(%v, %v) = %q, want %q", c.x, c.y, got, c.want)
+		}
+	}
+}
+
+// A pane dragged by its bar onto another pane of its tab: an edge moves it beside that one, the centre swaps the two; the
+// tab leaves focus view and the moved pane has the focus. No session is opened, closed or written to.
+func TestDraggingAPaneBarRearrangesThePanesOfTheTab(t *testing.T) {
+	drag := func(r *rig, fromPane, toPane string, relX, relY float32) {
+		t.Helper()
+		bar, ok := r.tt.Find("pane bar " + fromPane)
+		to, ok2 := r.tt.Find("pane " + toPane)
+		if !ok || !ok2 {
+			t.Fatalf("pane bar %s %v, pane %s %v", fromPane, ok, toPane, ok2)
+		}
+		bx, by := bar.X+bar.W/2, bar.Y+bar.H/2
+		tx, ty := to.X+to.W*relX, to.Y+to.H*relY
+		r.tt.Press(bx, by)
+		r.tt.Move(bx+(tx-bx)/4, by+(ty-by)/4)
+		r.tt.Move(tx, ty)
+		r.tt.Frame()
+		if relX == 0.5 && relY == 0.5 { // the region it would take is drawn while the pointer is over the pane
+			if !r.has("pane drop region") {
+				t.Error("no drop region while dragging over a pane")
+			}
+		}
+		r.tt.Release(tx, ty)
+		r.tt.Frame()
+		r.tt.Frame()
+	}
+	leaves := func(r *rig) []string { return r.w.tab().root.Leaves() }
+	r := splitRig(t)
+	if !slices.Equal(leaves(r), []string{"1", "2"}) {
+		t.Fatalf("leaves %v", leaves(r))
+	}
+	spawned, killed := len(r.fb.spawned), len(r.fb.killed)
+	drag(r, "1", "2", 0.5, 0.5) // the centre swaps
+	if got := leaves(r); !slices.Equal(got, []string{"2", "1"}) || r.w.tab().focused != "1" {
+		t.Fatalf("after the swap: leaves %v, focused %q", got, r.w.tab().focused)
+	}
+	drag(r, "1", "2", 0.5, 0.04) // the top edge of pane 2 puts pane 1 above it
+	if got := leaves(r); !slices.Equal(got, []string{"1", "2"}) || r.w.tab().root.Dir != layout.Col {
+		t.Fatalf("after the top drop: leaves %v, dir %v", got, r.w.tab().root.Dir)
+	}
+	if len(r.fb.spawned) != spawned || len(r.fb.killed) != killed || len(r.w.tab().panes) != 2 {
+		t.Errorf("a drag opened or closed a session: spawned %d killed %d", len(r.fb.spawned)-spawned, len(r.fb.killed)-killed)
+	}
+	for i, cn := range r.fb.conns {
+		if cn.wrote != 0 {
+			t.Errorf("session %d was written %d bytes", i, cn.wrote)
+		}
+	}
+	// A drop on the pane itself, or while in focus view's single pane, changes nothing.
+	drag(r, "2", "1", 0.5, 0.96) // pane 2 below pane 1: where it already is
+	if got := leaves(r); !slices.Equal(got, []string{"1", "2"}) {
+		t.Errorf("leaves %v", got)
+	}
+}
+
 func TestMoveTabSlots(t *testing.T) {
 	for _, tc := range []struct {
 		from, slot int

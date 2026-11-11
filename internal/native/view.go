@@ -204,7 +204,11 @@ func (w *workspace) titlebar(c *ui.Context) {
 		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
 			w.act(w.newTab)
 		}
-		ui.Spacer(c)
+		// The empty strip past the last tab: a tab dropped here goes last (ui/drag.js: a drop on the strip).
+		gap := ui.Box(c).Grow(1).FillHeight().Label("tab strip end")
+		if moved, ok := ui.Drop[*tab](gap); ok {
+			w.act(func() { w.moveTab(moved, len(w.tabs)) })
+		}
 		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
@@ -691,6 +695,9 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		}
 		st := p.conn.Snapshot()
 		bar := ui.Row(c).FillWidth().Height(sizePanebar).Shrink(0).Padding(0, space1, 0, space3).Gap(space2).Background(barGround).Label("pane bar " + p.id)
+		if multi { // a pane of a split tab is dragged by its bar onto another pane's edge (panedrag.go)
+			bar.Drag(p)
+		}
 		bar.PopoverMenu(w.paneMenu(t, p))
 		if bar.Clicked() {
 			w.act(func() { p.handle.Focus(c); t.focused = p.id; w.revealPanes(t) })
@@ -757,6 +764,9 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			w.suggestOverlay(c, p)
 			w.connectLogView(c, p, st)
 		})
+		if multi {
+			w.paneDropZone(c, t, p, tl)
+		}
 	})
 }
 

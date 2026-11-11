@@ -73,6 +73,74 @@ func (n *Node) Remove(pane string) *Node {
 	return n
 }
 
+// Swap exchanges the places of two panes of the tree (lib/layout.js swapLeaves): each keeps its split and ratio.
+func (n *Node) Swap(a, b string) {
+	if n == nil || a == b {
+		return
+	}
+	if n.leaf() {
+		switch n.Pane {
+		case a:
+			n.Pane = b
+		case b:
+			n.Pane = a
+		}
+		return
+	}
+	n.A.Swap(a, b)
+	n.B.Swap(a, b)
+}
+
+// Edge is the side of a pane another one is dropped on.
+type Edge string
+
+const (
+	Left, Right, Top, Bottom Edge = "left", "right", "top", "bottom"
+)
+
+// Beside takes pane out of the tree and puts it on an edge of target at ratio 0.5, as lib/workspace.js movePane does
+// (removeLeaf, then insertBeside): left and right split side by side, top and bottom stack, left and top put it first. It
+// returns the new root, or the tree unchanged and false when pane is the only leaf, pane is target, or either is unknown.
+func Beside(root *Node, pane, target string, edge Edge) (*Node, bool) {
+	has := func(id string) bool {
+		for _, l := range root.Leaves() {
+			if l == id {
+				return true
+			}
+		}
+		return false
+	}
+	if root == nil || pane == target || !has(pane) || !has(target) || len(root.Leaves()) < 2 {
+		return root, false
+	}
+	d := Row
+	switch edge {
+	case Left, Right:
+	case Top, Bottom:
+		d = Col
+	default:
+		return root, false
+	}
+	rest := root.Remove(pane)
+	in := Leaf(pane)
+	var put func(n *Node) *Node
+	put = func(n *Node) *Node {
+		if n.leaf() {
+			if n.Pane != target {
+				return n
+			}
+			a, b := n, in
+			if edge == Left || edge == Top {
+				a, b = in, n
+			}
+			return &Node{Dir: d, Ratio: 0.5, A: a, B: b}
+		}
+		n.A, n.B = put(n.A), put(n.B)
+		return n
+	}
+	return put(rest), true
+}
+
 // ClampRatio keeps both sides of a split at least min wide when avail is the
 // room for both. With less room than two minimums it is 0.5.
 func ClampRatio(r, avail, min float32) float32 {

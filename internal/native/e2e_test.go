@@ -1283,6 +1283,49 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.shot("TestE2ENewTabPage")
 }
 
+// A pane dragged by its bar onto the centre of another swaps the two; no session is opened or closed, and the new order is
+// what the saved workspace restores.
+func TestE2EDraggingAPaneBarSwapsThePanes(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openPanes(2)
+	e.pump(func() bool {
+		for _, id := range e.sessionIDs() {
+			if !strings.Contains(e.scrollback(id), "$ ") {
+				return false
+			}
+		}
+		return true
+	}, "both prompts")
+	sids := sorted(e.sessionIDs())
+	before, _ := structure(e.w.tab())
+	bar, _ := e.tt.Find("pane bar 1")
+	to, _ := e.tt.Find("pane 2")
+	bx, by := bar.X+bar.W/2, bar.Y+bar.H/2
+	tx, ty := to.X+to.W/2, to.Y+to.H/2
+	e.tt.Press(bx, by)
+	e.tt.Move(bx+40, by+40)
+	e.tt.Move(tx, ty)
+	e.step()
+	e.shot("TestE2EDraggingAPaneBarSwapsThePanes-over")
+	e.tt.Release(tx, ty)
+	e.step()
+	after, _ := structure(e.w.tab())
+	if after == before || !slices.Equal(sorted(e.sessionIDs()), sids) {
+		t.Fatalf("structure %q → %q, sessions %v → %v", before, after, sids, sorted(e.sessionIDs()))
+	}
+	e.settle(600 * time.Millisecond)
+	e.w.closeWindow()
+	e2 := newWin(t, addr, dir, nil)
+	e2.pump(func() bool {
+		if len(e2.w.tabs) != 1 || e2.w.tab() == nil || e2.w.tab().root == nil {
+			return false
+		}
+		got, _ := structure(e2.w.tab())
+		return got == after
+	}, "the swapped order to come back")
+}
+
 func TestE2EPalette(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
