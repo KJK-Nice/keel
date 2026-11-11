@@ -71,7 +71,7 @@ func everyInterface(c *ui.Context) {
 func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 	ui.Column(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Children(func() {
 		pageHead(c, "Port forwarding", "Each forward opens its own SSH connection. It keeps running when you close the window.", func() {
-			if textBtnIcon(c, "add-01", "New forward", btnDefault) {
+			if textBtnIcon(c, "add-01", "New forward", btnPrimary) { // k-btn--primary in the reference
 				w.act(w.newForward)
 			}
 		})

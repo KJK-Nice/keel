@@ -10,7 +10,8 @@ import (
 
 // kbd is one key cap (k-kbd).
 func kbd(c *ui.Context, s string) ui.Element {
-	return hairline(ui.Row(c).MinWidth(kbdBox).Height(kbdBox).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(surface), 1, 1, 2, 1).
+	// k-kbd is 18 px with its border inside (border-box); the border here is outside the box, so its 2 + 1 px come off.
+	return hairline(ui.Row(c).MinWidth(kbdBox-2).Height(kbdBox-3).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(surface), 1, 1, 2, 1).
 		Children(func() { text(c, s, inkMuted, kbdSize, weightMedium).Font(monoStack) })
 }
 

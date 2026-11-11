@@ -13,10 +13,10 @@ import (
 // .pref-row of keel.css. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
 
 const (
-	settingsMaxWidth = 90 * 7 // .k-settings-form: max-width 90ch
-	sliderPx         = 117    // w-36: 9rem, which is 9 UI-size px (Tailwind spacing is rem)
+	settingsMaxWidth = 667 // .k-settings-form: max-width 90ch, which measures 616 px at the default UI size (a ch is 0.57 em)
+	sliderPx         = 117 // w-36: 9rem, which is 9 UI-size px (Tailwind spacing is rem)
 	prefInputWidth   = sizeRail
-	leadWidth        = 60 * 7 // .k-settings-lead: 60ch
+	leadWidth        = 496 // .k-settings-lead: the reference wraps its lines at 458 px (between 452 and 465)
 )
 
 // prefRow is a .pref-row: a title and a line under it on the left, the control on the right.
@@ -71,7 +71,7 @@ func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
 		w.settingsRail(c, p)
 		ui.Scroll(c).Grow(1).FillHeight().Shrink(1).MinWidth(0).Background(w.ground(surface)).Label("settings").Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(rem(settingsMaxWidth)).Padding(space8).Gap(space6).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(rem(settingsMaxWidth) + 2*space8).Padding(space8).Gap(space6).Children(func() {
 				switch {
 				case q != "" && len(shown) == 0:
 					help(c, "No settings match.")
@@ -216,11 +216,16 @@ func statValue(c *ui.Context, s string) {
 }
 
 // sliderCtl is .pref-slider: the slider and its value.
-func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int) func(*ui.Context) {
+func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int, over ...func()) func(*ui.Context) {
 	return func(c *ui.Context) {
 		ui.Row(c).Gap(space3).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.StepSlider(c, v, lo, hi, 1).Label(name + " slider").Width(rem(sliderPx))
-			ui.Row(c).MinWidth(space6).Justify(ui.Center).Children(func() { body(c, fmt.Sprint(shown), ink).Label(name + " value") })
+			ui.Row(c).MinWidth(space6).Justify(ui.Center).Children(func() { // over: a key cap that stands in for the value while ⌘ is held
+				body(c, fmt.Sprint(shown), ink).Label(name + " value")
+				for _, f := range over {
+					f()
+				}
+			})
 		})
 	}
 }
@@ -282,11 +287,10 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.termSize)(c)
-			kbd(c, "⌘+").Label("shortcut hint")
+			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.termSize, func() { w.keyCap(c, "+ − 0") })(c) // the app's hint shows only while ⌘ is held
 		}},
 		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
-			ui.Row(c).FillWidth().Height(3*24).Padding(0, space3).AlignItems(ui.Center).Radius(radiusSm).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
+			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
 				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.termSize)).Font(termStack(w.win.TermFont))
 			})
 		}},

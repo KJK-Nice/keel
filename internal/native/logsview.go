@@ -10,9 +10,9 @@ import (
 // .k-table--log of keel.css.
 
 const (
-	logTimeCol = 80  // the Time column
-	logKindCol = 120 // the Kind column
-	logTargCol = 160 // the Target column
+	logTimeCol = 68  // the Time column: the reference puts Kind 80 px after Time, Target 108 after Kind and Event 116 after Target; the row's gap is 12
+	logKindCol = 96  // the Kind column
+	logTargCol = 104 // the Target column
 )
 
 // pageHead is k-page-head: the title and its line, and the page's actions on the right.
