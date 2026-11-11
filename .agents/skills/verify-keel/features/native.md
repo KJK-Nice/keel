@@ -295,6 +295,27 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   words, the card under the line), after a change of font, text size or MyGo version.
 - Not covered: a real provider's latency, and the look over a real terminal on a real window.
 
+## Notes and runbooks (`e2e_memory_test.go`, `notes_test.go`, `runbooks_test.go`, plan 020)
+
+- The daemon runs `KEEL_AGENT_PROVIDER=fake`. The fake proposes a note when the question says "remember" ("please remember this": a
+  host note for pane 1, `keel-note-e2e: backups run at 02:00 from pgbackrest`; "remember my preference": a note about you;
+  "remember from the pane": a host note flagged as taken from pane output), proposes a two-step runbook for "save this as a
+  runbook", and says how many notes it was given ("I was also given 1 host note and 0 of your notes."). Start a runbook from the
+  page's **Use in agent**: the ask carries `runbookId`, and **keel serve** (not the fake) proposes the current step; the fake only
+  says which step is current. The Local Shell has no shell marks, so a typed step waits for **Mark done**.
+- A proposal is kept only by its card's Save: assert `GET /api/agent/notes` and `GET /api/agent/runbooks` are empty after a frame,
+  after `settle(1s)` and after Dismiss, then have one note after Save ("Save anyway" on any card after a pane was read) and none after
+  Undo. A closed card has an Undo of its own, so ask the second question in **New conversation** before clicking Undo.
+- Redaction is keel serve's: store a made-up password identity (`e2eNoteSecret`), add a note holding it in Edit host, and assert the
+  list shows `[secret:` and "Note added. 1 secret-looking value was replaced before saving.", and the value is in neither
+  `GET /api/agent/notes`, `GET /api/logs` nor the window (`noSecretDrawn`). Never print the value.
+- keel serve refuses a runbook step that holds `[secret:1]` (400, from the API and from the editor), so a walk cannot reach a step
+  with a placeholder; that card (no Type button, the app's sentence, never typed) is `TestAStepWithAPlaceholderHasNoTypeButtonAndIsNeverTyped`.
+- Clicking: the dialog's switch and the Delete all notes dialog's action share their words with a row's text under the scrim, so
+  press them with `ClickAt` (as `setLocalProduction` does). Use `newWinH(…, 2600)` for the Runbooks page, the walk and Settings ·
+  Agent: the run card and the notes block must be on screen. A walk's cards stay in the thread: type the newest with
+  `typeStepCardLast`. Look at `…-page`, `…-walk`, `…-card` and `TestE2EHostNotes-dialog`.
+
 ## References and key caps (plan 016)
 
 - Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.

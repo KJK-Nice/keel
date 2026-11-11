@@ -31,8 +31,8 @@ import (
 //     is sent and nothing keeps it.
 //
 // Saved conversations (agentconv.go), the Agent page (agentpage.go) and Settings · Agent (agentsettings.go) show and keep
-// the window's one conversation. Not here, and in the app: notebooks and runbooks, notes, in-pane suggestions, groups,
-// Claude Code's mcp (docs/native.md).
+// the window's one conversation. Notes and runbooks are notes.go and runbooks.go. Not here, and in the app: notebooks,
+// groups, Claude Code's mcp (docs/native.md).
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 

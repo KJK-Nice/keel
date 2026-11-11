@@ -292,8 +292,8 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 	ui.Row(c).FillWidth().Key(s).Gap(space3).AlignItems(ui.Start).Label("runbook step " + n).Children(func() {
 		text(c, n, inkMuted, uiFontSize, weightSemibold).Shrink(0).Width(space6)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1_5).Children(func() {
-			ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
+				ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
 					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, 200, nil)
 				})
 				if s.command != "" || s.risk != "" {
@@ -322,7 +322,7 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 
 // runbookBox is the box beside the steps: Agent may pick, the hosts, the meta lines and the rule for steps.
 func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook) {
-	ui.Column(c).Width(sizeList).Shrink(0).Padding(space3).Gap(space3).Radius(radiusMd).Border(1, line).Label("Runbook settings").Children(func() {
+	ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Padding(space3).Gap(space3).Radius(radiusMd).Border(1, line).Label("Runbook settings").Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).Children(func() {
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
 				label(c, "Agent may pick this runbook", ink)
