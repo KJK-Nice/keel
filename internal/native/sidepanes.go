@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -17,8 +18,8 @@ import (
 // pane of a split tab shows this section without moving the keyboard out of the terminal. The filter reads the rows,
 // never the map.
 //
-// Not in the app and not here: notebook panes (the notebooks phase). The row menu is the pane menu without Focus
-// view (the bar has that) and without Share (the share phase).
+// A notebook pane is a row and a map cell like a terminal's, named by its title (term.js paneRowInfo for a notebook). The row
+// menu is the pane menu without Focus view (the bar has that) and without Share (a notebook has no session).
 
 const (
 	paneMapHeight = sizeRow + sizeControlLg // .k-panemap: calc(var(--size-row) + var(--size-control-lg))
@@ -72,6 +73,7 @@ type paneRow struct {
 	host          keelclient.Host
 	driving       bool // shared with you driving
 	agent         bool // the agent can read it
+	notebook      bool // a notebook pane: no host, no session
 }
 
 // statusWord is term.js dotFor's label for a session's state.
@@ -92,6 +94,10 @@ func (w *workspace) paneRows(t *tab) (out []paneRow) {
 	for _, id := range t.root.Leaves() {
 		p := t.panes[id]
 		if p == nil {
+			continue
+		}
+		if p.nb != nil { // a notebook: its title, and "Notebook" where a session has its state
+			out = append(out, paneRow{id: id, name: orElse(strings.TrimSpace(p.nb.title), "Notebook"), sub: "Notebook", notebook: true})
 			continue
 		}
 		st := p.conn.Snapshot()
@@ -222,7 +228,10 @@ func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) 
 	row.PopoverMenu(w.paneMenuFor(t, t.panes[r.id], true))
 	row.Children(func() {
 		glyph := "server"
-		if r.host.AuthType == "local" || r.host.ID == "" {
+		switch {
+		case r.notebook:
+			glyph = "notebook-pen"
+		case r.host.AuthType == "local" || r.host.ID == "":
 			glyph = "computer-terminal-01"
 		}
 		ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hostTint(r.host.Color).Alpha(tileTintAlpha)).Children(func() {
