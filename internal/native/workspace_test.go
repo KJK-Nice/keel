@@ -171,6 +171,7 @@ type fakeBackend struct {
 	noFirstRunAfterSetup bool // SetupVault leaves firstRun false
 
 	agent fakeAgent
+	convs fakeConvs
 
 	// Share.
 	shareURL     string   // what Share answers

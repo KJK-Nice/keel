@@ -18,11 +18,20 @@ import (
 // saved; keel serve never returns one.
 type AgentSettings struct {
 	Settings struct {
-		Provider        string `json:"provider"`
-		Model           string `json:"model"`
-		DefaultScope    string `json:"defaultScope"`
-		ScrollbackLines int    `json:"scrollbackLines"`
-		HistoryDays     int    `json:"historyDays"`
+		Provider           string `json:"provider"`
+		Model              string `json:"model"`
+		Detection          string `json:"detection"`          // auto | hash-only
+		Suggestions        string `json:"suggestions"`        // on | off
+		HistorySuggestions string `json:"historySuggestions"` // on | off
+		DefaultScope       string `json:"defaultScope"`
+		ScrollbackLines    int    `json:"scrollbackLines"`
+		Redact             struct {
+			Secrets   bool `json:"secrets"`
+			IPs       bool `json:"ips"`
+			Hostnames bool `json:"hostnames"`
+		} `json:"redact"`
+		HistoryDays int  `json:"historyDays"`
+		ClaudeCode  bool `json:"claudeCode"` // lets keel mcp use /api/mcp/ (§6 rule 14); off unless saved on
 	} `json:"settings"`
 	Keys map[string]struct {
 		Configured bool `json:"configured"`
@@ -50,6 +59,9 @@ type AgentProvider struct {
 	Warning    string `json:"warning"`
 	TermsURL   string `json:"termsUrl"`
 	Configured bool   `json:"configured"`
+
+	DefaultModel string   `json:"defaultModel"`
+	Models       []string `json:"models"`
 }
 
 // AgentProviders is GET /api/agent/providers.

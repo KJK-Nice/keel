@@ -92,3 +92,126 @@ func (f *fakeBackend) EditProposal(_ context.Context, conv, id, command string) 
 	}
 	return keelclient.Proposal{ID: id, Command: command, Bytes: "\x15" + command + "\n", Edited: true}, nil
 }
+
+// ---- saved conversations and Settings · Agent ----
+
+// fakeConvs is the vault's saved conversations as the fake keeps them, most recent first, and what was asked of them.
+type fakeConvs struct {
+	list       keelclient.ConversationList
+	transcr    map[string]keelclient.Transcript
+	renamed    []string // "id: title"
+	deleted    []string
+	deletedAll int
+	again      []string // "conv/proposal"
+	againReply func(conv, id string) (keelclient.Proposal, error)
+	listErr    error
+	saves      []keelclient.AgentSettingsPatch
+	keysGone   []string
+}
+
+func (f *fakeBackend) Conversations(context.Context) (keelclient.ConversationList, error) {
+	f.rec("conversations")
+	l := f.convs.list
+	if f.convs.listErr != nil {
+		return keelclient.ConversationList{}, f.convs.listErr
+	}
+	l.Sessions = append([]keelclient.ConversationSummary{}, l.Sessions...)
+	return l, nil
+}
+
+func (f *fakeBackend) Conversation(_ context.Context, id string) (keelclient.Transcript, error) {
+	f.rec("conversation " + id)
+	if t, ok := f.convs.transcr[id]; ok {
+		return t, nil
+	}
+	return keelclient.Transcript{}, &keelclient.StatusError{Code: 404, Status: "404 Not Found"}
+}
+
+func (f *fakeBackend) RenameConversation(_ context.Context, id, title string) (string, error) {
+	f.rec("rename conversation")
+	f.convs.renamed = append(f.convs.renamed, id+": "+title)
+	for i := range f.convs.list.Sessions {
+		if f.convs.list.Sessions[i].ID == id {
+			f.convs.list.Sessions[i].Title = title
+		}
+	}
+	return title, nil
+}
+
+func (f *fakeBackend) DeleteConversation(_ context.Context, id string) error {
+	f.rec("delete conversation")
+	f.convs.deleted = append(f.convs.deleted, id)
+	var keep []keelclient.ConversationSummary
+	for _, s := range f.convs.list.Sessions {
+		if s.ID != id {
+			keep = append(keep, s)
+		}
+	}
+	f.convs.list.Sessions = keep
+	return nil
+}
+
+func (f *fakeBackend) DeleteAllConversations(context.Context) error {
+	f.rec("delete all conversations")
+	f.convs.deletedAll++
+	f.convs.list.Sessions = nil
+	return nil
+}
+
+func (f *fakeBackend) ProposeAgain(_ context.Context, conv, id string) (keelclient.Proposal, error) {
+	f.rec("propose again")
+	f.convs.again = append(f.convs.again, conv+"/"+id)
+	if f.convs.againReply != nil {
+		return f.convs.againReply(conv, id)
+	}
+	return keelclient.Proposal{ID: "again-" + id, SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "echo keel-agent-ok", Bytes: "\x15echo keel-agent-ok\n", Risk: "readonly"}, nil
+}
+
+func (f *fakeBackend) SaveAgentSettings(_ context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error) {
+	f.rec("save agent settings")
+	f.convs.saves = append(f.convs.saves, p)
+	s, _ := f.AgentSettings(context.Background())
+	if p.Provider != nil {
+		s.Settings.Provider = *p.Provider
+	}
+	if p.Model != nil {
+		s.Settings.Model = *p.Model
+	}
+	if p.Detection != nil {
+		s.Settings.Detection = *p.Detection
+	}
+	if p.Suggestions != nil {
+		s.Settings.Suggestions = *p.Suggestions
+	}
+	if p.HistorySuggestions != nil {
+		s.Settings.HistorySuggestions = *p.HistorySuggestions
+	}
+	if p.DefaultScope != nil {
+		s.Settings.DefaultScope = *p.DefaultScope
+	}
+	if p.ScrollbackLines != nil {
+		s.Settings.ScrollbackLines = min(max(*p.ScrollbackLines, 50), 1000)
+	}
+	if p.Redact != nil {
+		s.Settings.Redact.IPs, s.Settings.Redact.Hostnames, s.Settings.Redact.Secrets = p.Redact.IPs, p.Redact.Hostnames, true
+	}
+	if p.HistoryDays != nil {
+		s.Settings.HistoryDays = *p.HistoryDays
+	}
+	if p.ClaudeCode != nil {
+		s.Settings.ClaudeCode = *p.ClaudeCode
+	}
+	f.agent.settings = s
+	return s, nil
+}
+
+func (f *fakeBackend) DeleteAgentKey(_ context.Context, provider string) error {
+	f.rec("delete agent key")
+	f.convs.keysGone = append(f.convs.keysGone, provider)
+	s, _ := f.AgentSettings(context.Background())
+	s.Keys[provider] = struct {
+		Configured bool `json:"configured"`
+	}{false}
+	f.agent.settings = s
+	return nil
+}

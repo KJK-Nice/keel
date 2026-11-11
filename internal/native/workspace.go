@@ -98,6 +98,16 @@ type backend interface {
 	Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error)
 	EditProposal(ctx context.Context, conversationID, proposalID, command string) (keelclient.Proposal, error)
 
+	// Saved conversations and Settings · Agent (agentconv.go, agentsettings.go): read into memory, never kept on disk.
+	Conversations(ctx context.Context) (keelclient.ConversationList, error)
+	Conversation(ctx context.Context, id string) (keelclient.Transcript, error)
+	RenameConversation(ctx context.Context, id, title string) (string, error)
+	DeleteConversation(ctx context.Context, id string) error
+	DeleteAllConversations(ctx context.Context) error
+	ProposeAgain(ctx context.Context, conversationID, proposalID string) (keelclient.Proposal, error)
+	SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error)
+	DeleteAgentKey(ctx context.Context, provider string) error
+
 	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
 	Share(ctx context.Context, sessionID string) (string, error)
 	AdmitShare(ctx context.Context, sessionID, peerID string, allow bool) error
