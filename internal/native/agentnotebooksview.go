@@ -82,11 +82,34 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 			return
 		}
 		ui.Row(c).Padding(space1_5, space2, space1).Children(func() { menuLabel(c, "Notebooks to send with your question") })
+		if a.nbRowH == nil {
+			a.nbRowH = map[string]*ui.Handle{}
+		}
+		// ↑ ↓ walk between the rows, wrapping at both ends (agentpanel.js nbPickerKeys): from the row that has the keyboard.
+		panel.ObserveInput(func(ev ui.InputEvent) {
+			if ev.Kind != ui.InputKeyDown || (ev.Key != ui.KeyDown && ev.Key != ui.KeyUp) || ev.Mods != 0 {
+				return
+			}
+			d := 1
+			if ev.Key == ui.KeyUp {
+				d = -1
+			}
+			for i, nb := range all {
+				if h := a.nbRowH[nb.ID]; h != nil && h.FocusWithin(c) {
+					next := all[(i+d+len(all))%len(all)].ID
+					w.act(func() { a.nbWalk = next })
+					return
+				}
+			}
+		})
 		for _, nb := range all {
 			id, name := nb.ID, notebookName(nb)
 			ticked := contains(a.attached, id)
 			off := (!ticked && full) || nb.Private
-			r := ui.Row(c).FillWidth().Padding(space1_5, space2).Gap(space2).Radius(radiusSm).Key(id).Label("pick notebook " + name).Focusable()
+			if a.nbRowH[id] == nil {
+				a.nbRowH[id] = new(ui.Handle)
+			}
+			r := ui.Row(c).FillWidth().Padding(space1_5, space2).Gap(space2).Radius(radiusSm).Key(id).Label("pick notebook " + name).Focusable().Bind(a.nbRowH[id])
 			if off {
 				r.Opacity(0.6).Cursor(ui.CursorNotAllowed)
 				if nb.Private {
@@ -119,6 +142,10 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 			if r.Clicked() {
 				w.act(func() { w.toggleAttachedNotebook(id) }) // a row that cannot be ticked says why
 			}
+		}
+		if h := a.nbRowH[a.nbWalk]; a.nbWalk != "" && h != nil {
+			h.Focus(c)
+			a.nbWalk = ""
 		}
 		ui.Row(c).FillWidth().Padding(space1_5, space2, space1).Children(func() {
 			ui.Text(c, nbPickerNote).TextColor(inkMuted).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)

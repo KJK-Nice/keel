@@ -109,6 +109,8 @@ type agentPanel struct {
 	attached []string
 	nbProps  map[string]*agentNbProp
 	nbPicker string
+	nbRowH   map[string]*ui.Handle // the picker's rows, to walk between with ↑ ↓
+	nbWalk   string                // the row that takes the keyboard in the next frame
 
 	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.

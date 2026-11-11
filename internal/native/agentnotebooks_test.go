@@ -62,6 +62,43 @@ func (r *rig) openNbPicker(t *testing.T) {
 	}
 }
 
+// agentpanel.js nbPickerKeys: ↓ and ↑ move the keyboard between the rows, wrapping at both ends, and tick nothing.
+func TestThePickersArrowKeysWalkBetweenRowsAndTickNothing(t *testing.T) {
+	r := nbAgentRig(t)
+	r.openNbPicker(t)
+	// The picker lists them by name: Backups, Deploy, Keys (private), Scratch.
+	rows := []string{"pick notebook Backups", "pick notebook Deploy", "pick notebook Keys", "pick notebook Scratch"}
+	r.click(t, rows[2]) // the private one: a click gives it the keyboard and ticks nothing
+	if !r.tt.Focused(rows[2]) {
+		t.Fatal("the click did not give the row the keyboard")
+	}
+	for i, want := range []string{rows[3], rows[0], rows[1], rows[2]} { // ↓ four times: to the end, around it, then down the list
+		r.tt.Key(0, ui.KeyDown)
+		r.tt.Frame()
+		r.tt.Frame()
+		if !r.tt.Focused(want) {
+			t.Fatalf("after %d ↓ the keyboard is not on %q", i+1, want)
+		}
+	}
+	r.tt.Key(0, ui.KeyUp)
+	r.tt.Frame()
+	r.tt.Frame()
+	if !r.tt.Focused(rows[1]) {
+		t.Fatalf("↑ from Keys did not go to the row before it")
+	}
+	r.click(t, rows[0])
+	r.click(t, rows[0]) // ticked and un-ticked again; the first row has the keyboard
+	r.tt.Key(0, ui.KeyUp)
+	r.tt.Frame()
+	r.tt.Frame()
+	if !r.tt.Focused(rows[3]) {
+		t.Fatalf("↑ from the first row did not wrap to the last")
+	}
+	if len(r.w.agent.attached) != 0 {
+		t.Errorf("walking ticked %v", r.w.agent.attached)
+	}
+}
+
 func TestThePickerListsSavedNotebooksAndATickedOneIsSentByIdWithEachQuestion(t *testing.T) {
 	r := nbAgentRig(t)
 	r.ask(t, "first")
