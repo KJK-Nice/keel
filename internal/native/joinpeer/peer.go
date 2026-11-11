@@ -375,3 +375,9 @@ var ErrNoApprovedInject = errors.New("Session is not connected")
 func (p *Peer) ApprovedInject(context.Context, string, *keelclient.AgentRef) error {
 	return ErrNoApprovedInject
 }
+
+// DirectType types nothing into a joined pane either (keel serve refuses a pane a share peer drives). The window never
+// asks; this is the refusal if it did, and no frame goes out.
+func (p *Peer) DirectType(context.Context, string, keelclient.DirectRef, *keelclient.AgentRef) (keelclient.DirectResult, error) {
+	return keelclient.DirectResult{}, ErrNoApprovedInject
+}

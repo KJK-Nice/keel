@@ -306,10 +306,10 @@ func (w *workspace) paletteItems() []palItem {
 			}
 		}})
 	}
-	// Snippets only ever go through typeSnippet: Approve before type. The webview types a one-line, plainly read-only
-	// snippet with no dialog (rule 13); this client does not, so every row says "Approve first" (docs/native.md).
+	// Snippets only ever go through typeSnippet. "Approve first" only on a snippet that will certainly ask (rule 13: more
+	// than one line, or outside the direct grammar); the others may type with no dialog (term.js snippetBadge).
 	for _, sn := range w.snippets {
-		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: "Approve first",
+		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: snippetBadge(sn.Command),
 			run: func(bool) { w.typeSnippet(sn.ID) }})
 	}
 	return items

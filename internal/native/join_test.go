@@ -206,8 +206,8 @@ func TestAJoinedTabIsNotSavedAndTakesNoSnippetOrSplit(t *testing.T) {
 	// Approve before type: refused for a joined pane, with the app's words, and nothing is typed.
 	jr.w.typeSnippet("sn1")
 	jr.tt.Frame()
-	if jr.w.approve != nil || !jr.tt.HasText("Open a session first") || len(jr.conns[0].injected) != 0 {
-		t.Errorf("approve %v injected %v", jr.w.approve != nil, jr.conns[0].injected)
+	if jr.w.approve != nil || !jr.tt.HasText("Open a session first") || len(jr.conns[0].injected) != 0 || len(jr.conns[0].directs) != 0 {
+		t.Errorf("approve %v injected %v directs %v", jr.w.approve != nil, jr.conns[0].injected, jr.conns[0].directs)
 	}
 	// Split: the app's refusal.
 	jr.w.splitFocused(1)

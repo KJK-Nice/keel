@@ -116,7 +116,7 @@ func directHint(command string) bool {
 }
 
 // snippetLine is what a direct type of a snippet sends: its command without the newlines that would run it.
-func snippetLine(command string) string { return strings.TrimRight(command, "\r\n") }
+func snippetLine(command string) string { return strings.TrimRight(command, crlf) }
 
 // snippetBadge is "Approve first" only on a snippet that will certainly open the dialog: one outside the grammar.
 func snippetBadge(command string) string {
@@ -159,6 +159,10 @@ var (
 	snapEscape = regexp.MustCompile("\x1b\\[[0-9;:?]*[A-Za-z]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)|\x1b[^\\[\\]]")
 )
 
+// crlf is CR and LF. A snapshot puts them between rows, and snippetLine cuts them off a snippet. Nothing here ever adds
+// one to what is typed (guard_test.go).
+var crlf = string([]byte{13, 10})
+
 // promptLineMax is the longest line sent, as the page's cursorLine (lib/typedirect.js) cuts it.
 const promptLineMax = 512
 
@@ -185,7 +189,7 @@ func screenOf(snap string, rows int) (altScreen bool, promptLine string) {
 		body = body[:m[0]]
 	}
 	var lines []string
-	for _, l := range strings.Split(body, "\r\n") {
+	for _, l := range strings.Split(body, crlf) {
 		lines = append(lines, strings.TrimRight(snapEscape.ReplaceAllString(l, ""), " "))
 	}
 	line := ""

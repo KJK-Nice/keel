@@ -547,11 +547,13 @@ func (w *workspace) startEdit(rec *agentProp) {
 	rec.editing, rec.edit, rec.focusEdit = true, rec.p.Command, true
 }
 
-// typeButton is Type into pane…, with its key: ↵, or ⇧↵ when the proposal needs ⇧. A press asks the workspace, which opens
-// Approve before type; it never types. ⇧ held on the click is the ⇧ of the ⇧ rule.
+// typeButton is Type into pane, with its key: ↵, or ⇧↵ when the proposal needs ⇧. It ends in "…" when a dialog will
+// follow and not when the proposal looks typeable with one click (agentpanel.js typeLabel). A press asks the workspace,
+// which types it directly or opens Approve before type; the card never types. ⇧ held on the click is the ⇧ of the ⇧ rule.
 func (w *workspace) typeButton(c *ui.Context, id, offer string) {
+	word := typeWord("Type into pane", proposalDirect(w.agent.props[id].p))
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label("Type into pane…").Cursor(ui.CursorPointer).Focusable()
+		Label(word).Cursor(ui.CursorPointer).Focusable()
 	bg := brass
 	if b.Hovered() {
 		bg = brassStrong
@@ -565,7 +567,7 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string) {
 		cap = shiftWord()
 	}
 	b.Children(func() {
-		label(c, "Type into pane…", onBrass)
+		label(c, word, onBrass)
 		text(c, cap, onBrass, kbdSize, weightMedium).Font(monoStack)
 	})
 	if b.Clicked() {

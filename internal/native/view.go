@@ -72,6 +72,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.approveView(c)
 	w.confirmView(c)
 	w.paletteView(c)
+	w.reviewFocus(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
 			p.handle.Focus(c)

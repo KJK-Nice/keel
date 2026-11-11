@@ -18,8 +18,9 @@ import (
 // ⇧↵ rule and the editor's preview. AgentUsable ("Let the agent suggest this snippet") is the agent phase's: this
 // client reads it and a save never sends it, so keel serve keeps the flag.
 //
-// Nothing here types. Every entry point (a row, the row menu, the editor's "Type into pane…", the palette) calls
-// typeSnippet, which opens the Approve before type dialog (approve.go); none of them reaches the writer.
+// Nothing here writes to a session. Every entry point (a row, the row menu, the editor's "Type into pane…", the palette)
+// calls typeSnippet, which hands the snippet to typeNow (typenow.go): a read-only one-liner keel serve agrees to is typed
+// without the dialog and without Enter, any other opens the Approve before type dialog (approve.go).
 
 // snippetsPage is the state of the Snippets tab.
 type snippetsPage struct {
@@ -112,15 +113,27 @@ func (e *snippetEditor) sync(s keelclient.Snippet) {
 	e.origName, e.origCommand = e.name, e.command
 }
 
-// typeSnippet is "Type into pane…", a row, the palette: it asks Approve before type for the snippet as it is saved.
-// It never types.
+// typeSnippet is "Type into pane…", a row, the palette (term.js paletteRunSnippet). A one-line, plainly read-only snippet
+// keel serve agrees to is typed with no dialog and no Enter; every other one opens Approve before type for the snippet as
+// it is saved. Both go through typeNow, which is the only thing here that types.
 func (w *workspace) typeSnippet(id string) {
-	if _, ok := w.snippet(id); !ok {
+	sn, ok := w.snippet(id)
+	if !ok {
 		return
 	}
-	w.askType(func() (string, bool) {
+	p, why := w.typeTarget()
+	if p == nil {
+		w.say(why)
+		return
+	}
+	source := func() (string, bool) {
 		s, ok := w.snippet(id)
 		return s.Command, ok
+	}
+	w.typeNow(p, typeSource{
+		line:      snippetLine(sn.Command),
+		snippetID: id,
+		dialog:    func() { w.openApprove(p, source) },
 	})
 }
 

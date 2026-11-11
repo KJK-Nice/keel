@@ -307,7 +307,7 @@ func TestSidebarSnippetsEmpty(t *testing.T) {
 	r.texts(t, "No snippets yet.", "Manage snippets")
 }
 
-func TestPaletteSnippetsGroupFollowsActionsWithApproveFirst(t *testing.T) {
+func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *testing.T) {
 	r := snippetRig(t, snippetBackend())
 	r.openPal(t)
 	var groups []string
@@ -322,8 +322,14 @@ func TestPaletteSnippetsGroupFollowsActionsWithApproveFirst(t *testing.T) {
 	var rows []string
 	for _, it := range r.rows() {
 		if it.group == "Snippets" {
-			if it.badge != "Approve first" || it.icon != "snippet" {
-				t.Errorf("%s: badge %q icon %q", it.title, it.badge, it.icon)
+			// "Approve first" only where the dialog is certain (term.js snippetBadge): two lines. The one-line read-only
+			// ones may type with no dialog.
+			wantBadge := ""
+			if it.title == "Type snippet: two steps" {
+				wantBadge = "Approve first"
+			}
+			if it.badge != wantBadge || it.icon != "snippet" {
+				t.Errorf("%s: badge %q (want %q) icon %q", it.title, it.badge, wantBadge, it.icon)
 			}
 			rows = append(rows, it.title+" | "+it.hint)
 		}

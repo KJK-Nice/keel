@@ -10,7 +10,8 @@ import (
 
 // The agent panel's calls (internal/httpapi/agent.go, agentask.go). Nothing here reads a pane or types: keel serve reads
 // the panes named in an ask, redacts them and asks the model; a proposal reaches a pane only through ApprovedInject
-// (inject.go) after the user approves its bytes. This client sends the question and session ids, never pane text.
+// (inject.go) after the user approves its bytes, or through DirectType (inject.go) when keel serve calls it plainly
+// read-only and one line. This client sends the question and session ids, never pane text.
 
 // AgentSettings is GET /api/agent/settings as the panel reads it: the provider, how a new conversation starts
 // (DefaultScope: focused, tab or pick) and how many lines of a pane the agent reads. Keys says only whether a key is

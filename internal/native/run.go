@@ -83,6 +83,10 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 	p.view = func(c *ui.Context) ui.Element { return terminal.View(c, term).Fill() }
 	p.size = term.Size
+	p.screen = func() (bool, string) {
+		_, rows := term.Size()
+		return screenOf(string(term.Snapshot()), rows)
+	}
 	p.release = func() { term.Close() }
 	p.setCopy = func(on bool) {
 		if on {

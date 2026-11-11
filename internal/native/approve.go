@@ -8,9 +8,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Approve before type (docs/ui-redesign.md §6): keel-native never types anything on the user's behalf until the user
-// has seen the exact bytes and pressed Type. This file is the only caller of keelclient.ApprovedInject, and Type is
-// its only trigger (guard_test.go keeps both true). Words, bytes and rules are the webview's: ptyInjectDialog in
+// Approve before type (docs/ui-redesign.md §6): keel-native types nothing on the user's behalf until the user has seen
+// the exact bytes and pressed Type, except one plainly read-only line that keel serve agrees to type with no dialog and
+// no Enter (typenow.go, rule 13). This file is the only caller of keelclient.ApprovedInject, and Type is its only
+// trigger (guard_test.go keeps both true). Words, bytes and rules are the webview's: ptyInjectDialog in
 // internal/ui/dialogs.templ and approveBeforeType, settlePtyInject and paletteRunSnippet in cmd/keel/web/js/term.js,
 // and sendApprovedInject in pty.js.
 //

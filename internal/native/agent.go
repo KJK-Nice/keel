@@ -22,10 +22,11 @@ import (
 // What this file does and does not do:
 //   - keel serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
 //     (keelclient.AskRequest has no field for pane text). This client reads no scrollback for the agent.
-//   - Nothing here writes to a session. A card's Type into pane opens the Approve before type dialog (approve.go) with the
-//     proposal's bytes, as keel serve holds them; the dialog's Type action is the one caller of ApprovedInject, and keel
-//     serve checks the proposal, the bytes, the role and the ⇧ rule again before it writes, and answers. A refusal is shown
-//     and nothing is tried again.
+//   - Nothing here writes to a session. A card's Type into pane goes to typeNow (typenow.go). A read-only one-line proposal
+//     keel serve agrees to is typed with no dialog and no Enter, the command alone with the reference to the proposal; any
+//     other opens the Approve before type dialog (approve.go) with the proposal's bytes, as keel serve holds them, whose
+//     Type action is the one caller of ApprovedInject. keel serve checks the proposal, the bytes, the role and the ⇧ rule
+//     again before it writes either, and answers. A refusal is shown and nothing is tried again.
 //   - The provider key goes from a masked field to PUT /api/agent/keys/{provider} once; the field is emptied when the key
 //     is sent and nothing keeps it.
 //
@@ -473,23 +474,36 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 		return
 	}
 	host := orElse(rec.p.Host, pane.p.title())
-	w.openApproveAgent(pane.p, &approveAgent{
-		conv: a.conv, proposal: id, shift: shift,
-		session: paneTarget(host, pane.sub) + " (agent proposal)",
-		source: func() (string, bool) {
-			r := a.props[id]
-			if r == nil {
-				return "", false
-			}
-			return r.p.Bytes, true // what keel serve holds for the proposal: the edit's answer, not a draft
+	// A read-only one-liner keel serve agrees to is typed with no dialog and no Enter (rule 13); the card's refusals above
+	// stand, and a destructive or state-changing proposal never reaches here without ⇧ and never goes direct.
+	line := ""
+	if proposalDirect(rec.p) {
+		line = rec.p.Command
+	}
+	w.typeNow(pane.p, typeSource{
+		line: line, conv: a.conv, proposal: id, shift: shift, target: host,
+		dialog: func() {
+			w.openApproveAgent(pane.p, &approveAgent{
+				conv: a.conv, proposal: id, shift: shift,
+				session: paneTarget(host, pane.sub) + " (agent proposal)",
+				source: func() (string, bool) {
+					r := a.props[id]
+					if r == nil {
+						return "", false
+					}
+					return r.p.Bytes, true // what keel serve holds for the proposal: the edit's answer, not a draft
+				},
+				done: func(err error) {
+					rec.status = &agentStatus{ok: err == nil, text: "Typed into " + host + "."}
+					if err != nil {
+						rec.status.text = err.Error()
+					}
+				},
+				cancelled: func() { rec.status = nil },
+			})
 		},
-		done: func(err error) {
-			rec.status = &agentStatus{ok: err == nil, text: "Typed into " + host + "."}
-			if err != nil {
-				rec.status.text = err.Error()
-			}
-		},
-		cancelled: func() { rec.status = nil },
+		// Typed with no dialog: the card says so, and that Enter is the user's (the page's res.direct message).
+		done: func(typed bool, message string) { rec.status = &agentStatus{ok: typed, text: message} },
 	})
 }
 

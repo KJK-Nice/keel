@@ -37,6 +37,9 @@ type session interface {
 	// an agent proposal's, which keel serve checks again and answers. Only the Approve before type dialog's Type
 	// action calls it.
 	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef) error
+	// DirectType asks keel serve to type a plainly read-only one-line command without the dialog and without Enter
+	// (keelclient/inject.go). Only typeNow (typenow.go) calls it.
+	DirectType(ctx context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error)
 }
 
 // backend is keel serve as the workspace uses it.
@@ -133,6 +136,11 @@ type pane struct {
 	release func()
 
 	handle ui.Handle // the body's identity, for keyboard focus
+
+	// What the terminal shows, for a direct type (typenow.go): whether it is on the alternate screen and the line the
+	// cursor is on. nil for a placeholder body: then the screen is unknown, which is read as the alternate screen.
+	screen func() (altScreen bool, promptLine string)
+	typing bool // a direct type is on its way: another press gets the app's message
 
 	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
 	joinKey     string // which join it is (the origin and the room, never the key)
@@ -258,6 +266,8 @@ type workspace struct {
 
 	seq       int
 	wantFocus string                      // pane to give the keyboard to once it is on screen
+	reviewing string                      // pane to give it to after a direct type, once no key is held (typenow.go)
+	reviewAt  time.Time                   // when that began
 	splits    map[*layout.Node]*ui.Handle // each split's container, for its size while dragging
 	later     []func()                    // actions queued by the view, run when the frame is built
 

@@ -34,6 +34,19 @@ type fakeConn struct {
 	injected  []string               // what ApprovedInject was asked to type, in order
 	injectErr error                  // what it answers
 	agentRefs []*keelclient.AgentRef // the agent reference of each, nil for a snippet
+
+	// DirectType, recorded: the bare command, the direct part and the agent reference of each call, in order.
+	directs   []fakeDirect
+	directRes keelclient.DirectResult // what it answers; the zero value is a refusal with no words, so a test sets it
+	directErr error
+	directGo  chan struct{} // when set, a DirectType waits for it to be closed
+}
+
+// fakeDirect is one DirectType call.
+type fakeDirect struct {
+	command string
+	ref     keelclient.DirectRef
+	agent   *keelclient.AgentRef
 }
 
 func (c *fakeConn) state() keelclient.State {
@@ -65,6 +78,13 @@ func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *keel
 	c.injected = append(c.injected, command)
 	c.agentRefs = append(c.agentRefs, agent)
 	return c.injectErr
+}
+func (c *fakeConn) DirectType(_ context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error) {
+	c.directs = append(c.directs, fakeDirect{command, ref, agent})
+	if c.directGo != nil {
+		<-c.directGo
+	}
+	return c.directRes, c.directErr
 }
 
 // fakeBackend records what the workspace asks of keel serve.
