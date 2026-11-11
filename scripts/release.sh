@@ -46,9 +46,22 @@ app)
 			GOARCH=$arch sh scripts/go.sh build $tags -trimpath -ldflags "$ld" -o "bin/keel-$arch" ./cmd/keel
 		done
 		lipo -create -output bin/keel bin/keel-arm64 bin/keel-amd64
+		# libghostty-vt for both CPUs in one dylib. MyGo's loader fetches (SHA-256 pinned) only the library of the
+		# machine it runs on, so the x86_64 slice comes from the loader of an x86_64 keel-native, run under Rosetta.
+		lib=bin/libghostty-vt-universal
+		rm -rf "$lib" && mkdir -p "$lib"
+		for arch in arm64 amd64; do
+			CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -trimpath -o "bin/keel-native-$arch" ./cmd/keel-native
+		done
+		cp "$(bin/keel-native-arm64 --library-path)" "$lib/arm64.dylib"
+		cp "$(arch -x86_64 bin/keel-native-amd64 --library-path)" "$lib/amd64.dylib" ||
+			{ echo "release: the x86_64 libghostty-vt needs Rosetta to fetch (arch -x86_64 failed)" >&2; exit 1; }
+		lipo -create -output "$lib/libghostty-vt.dylib" "$lib/arm64.dylib" "$lib/amd64.dylib"
+		archs=$(lipo -archs "$lib/libghostty-vt.dylib")
+		case "$archs" in *arm64*x86_64* | *x86_64*arm64*) ;; *) echo "release: libghostty-vt is $archs, want arm64 and x86_64" >&2; exit 1 ;; esac
 		notices=
 		if [ -f THIRD_PARTY_NOTICES ]; then notices=THIRD_PARTY_NOTICES; fi
-		make macos-app KEEL_VERSION="$tag" KEEL_NOTICES="$notices"
+		make macos-app KEEL_VERSION="$tag" KEEL_NOTICES="$notices" KEEL_LIBGHOSTTY="$lib/libghostty-vt.dylib"
 		codesign --verify --deep --strict bin/Keel.app
 		ditto -c -k --keepParent bin/Keel.app "dist/Keel-$v-macos-universal.zip"
 		;;
@@ -56,7 +69,9 @@ app)
 		name="keel-$v-linux-$(archname "$(go env GOARCH)")"
 		sh scripts/go.sh build $tags -trimpath -ldflags "$ld" -o bin/keel ./cmd/keel
 		rm -rf "dist/$name" && mkdir "dist/$name"
-		cp bin/keel README.md "dist/$name/"
+		# The native window loads libghostty-vt.so from beside the binary (MyGo's loader), so the tarball carries it.
+		CGO_ENABLED=0 go build -trimpath -o bin/keel-native ./cmd/keel-native
+		cp bin/keel README.md "$(bin/keel-native --library-path)" "dist/$name/"
 		docs "dist/$name"
 		tar -C dist -czf "dist/$name.tar.gz" "$name"
 		rm -rf "dist/$name"

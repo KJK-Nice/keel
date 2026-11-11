@@ -82,6 +82,10 @@ jobs:
           echo "$archs" | grep -qw x86_64 && echo "$archs" | grep -qw arm64
           bin/Keel.app/Contents/MacOS/keel version | grep -qx "keel $VERSION"
           test "$(plutil -extract CFBundleShortVersionString raw bin/Keel.app/Contents/Info.plist)" = "${VERSION#v}"
+          # The native window's terminal engine ships in the app, for both CPUs.
+          libs=$(lipo -archs bin/Keel.app/Contents/MacOS/libghostty-vt.dylib)
+          echo "$libs" | grep -qw x86_64 && echo "$libs" | grep -qw arm64
+          codesign --verify --deep --strict bin/Keel.app
 
       - uses: actions/upload-artifact@v4
         with:
@@ -119,7 +123,9 @@ jobs:
       - run: sh scripts/release.sh "$VERSION" app
 
       - name: Check the binary
-        run: bin/keel version | grep -qx "keel $VERSION"
+        run: |
+          bin/keel version | grep -qx "keel $VERSION"
+          tar -tzf dist/keel-*-linux-*.tar.gz | grep -q '/libghostty-vt\.so$'
 
       - uses: actions/upload-artifact@v4
         with:

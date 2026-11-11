@@ -88,6 +88,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
+  # Nobody has seen a headless macOS runner run it (it needs the window server), so a failure does not fail the
+  # workflow yet: make it required once it has passed here. The unit tests of internal/native run in make test above.
+  native-e2e:
+    name: native e2e (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: make native-e2e
+        run: sh scripts/ci-run.sh "native e2e" make native-e2e
+
+      - name: Upload the screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-e2e
+          path: .scratch-native/e2e/
+          if-no-files-found: ignore
+          retention-days: 7
+
   generated:
     name: generated files
     runs-on: ubuntu-24.04

@@ -67,7 +67,17 @@ datastar=$(head -c 100 cmd/keel/web/js/datastar.js | sed -n 's#^// Datastar v\([
 section "Datastar v$datastar (github.com/starfederation/datastar)"
 curl -fsSL "https://raw.githubusercontent.com/starfederation/datastar/v$datastar/LICENSE.md" >>"$tmp/notices"
 
-for f in cmd/keel/web/fonts/OFL-*.txt; do
+# libghostty-vt, the terminal engine of the native window (MyGo's terminal plugin downloads it, SHA-256 pinned, and
+# Keel.app and the Linux archives carry it). Its source is a Ghostty commit named in the plugin's manifest; the
+# license is read at that commit.
+mygo=$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)
+ghostty=$(sed -n 's#.*"source": "https://github.com/ghostty-org/ghostty/tree/\([0-9a-f]*\)".*#\1#p' "$mygo/plugins/terminal/mygo-plugin.json" | head -1)
+[ -n "$ghostty" ] || { echo "notices: no Ghostty commit in MyGo's terminal manifest" >&2; exit 1; }
+section "libghostty-vt (github.com/ghostty-org/ghostty, $ghostty)"
+curl -fsSL "https://raw.githubusercontent.com/ghostty-org/ghostty/$ghostty/LICENSE" >>"$tmp/notices"
+
+# The fonts of the native window are internal/native/fonts, the same files as the webview's.
+for f in internal/native/fonts/OFL-*.txt; do
 	name=$(basename "$f" .txt | sed 's/^OFL-//')
 	section "$name (font)"
 	cat "$f" >>"$tmp/notices"
