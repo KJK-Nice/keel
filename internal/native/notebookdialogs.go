@@ -347,12 +347,12 @@ func (w *workspace) versionDiff(c *ui.Context, d *nbDialog) {
 		return
 	}
 	if d.kind == "trash" {
-		ui.Text(c, txt).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0).Label("deleted notebook text")
+		ui.Text(c, txt).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 		return
 	}
 	cur, _ := w.notebook(d.id)
 	diff := diffLines(txt, cur.Markdown(), diffMaxCells)
-	ui.Text(c, "From this version to now: "+diffSummary(diff)).TextColor(inkMuted).FontSize(captionSize).Label("diff summary")
+	ui.Text(c, "From this version to now: "+diffSummary(diff)).TextColor(inkMuted).FontSize(captionSize)
 	for _, r := range diffView(diff, 2) {
 		if r.Op == "gap" {
 			word := "lines"
