@@ -70,6 +70,42 @@ func (r *rig) startRun(run keelclient.GroupRun) {
 	r.tt.Frame()
 }
 
+// keel.css #page-grouprun container query: the steps (size-agentpage-context wide) are beside the detail; under 760 px of page
+// width they are above it, across the width and at most 40% of the height.
+func TestTheRunPagePutsTheStepsAboveTheDetailUnderSevenHundredSixtyPixels(t *testing.T) {
+	r := runRig(t, 2)
+	r.startRun(runOf("echo grp-1", "readonly", 2, nil))
+	r.tt.Frame()
+	r.tt.Frame()
+	steps, ok1 := r.tt.Find("Steps")
+	detail, ok2 := r.tt.Find("Group run")
+	if !ok1 || !ok2 {
+		t.Fatal("no steps or no detail")
+	}
+	if !(steps.X+steps.W <= detail.X+1) || steps.W < sizeAgentPageContext-1 || steps.W > sizeAgentPageContext+1 {
+		t.Fatalf("wide: steps %v, detail %v: want the steps %v wide at the left", steps, detail, float32(sizeAgentPageContext))
+	}
+	r.tt.SetSize(900, 1000) // the page is what the sidebar leaves: 900 - 252 = 648
+	r.tt.Frame()
+	r.tt.Frame()
+	r.tt.Frame()
+	steps, _ = r.tt.Find("Steps")
+	detail, _ = r.tt.Find("Group run")
+	page, _ := r.tt.Find("group run page")
+	if page.W >= groupRunNarrow || !(steps.Y+steps.H <= detail.Y+1) || steps.W < page.W-2 || steps.H > page.H*0.4+1 {
+		t.Fatalf("narrow: page %v steps %v detail %v", page, steps, detail)
+	}
+	r.tt.SetSize(1280, 2000)
+	r.tt.Frame()
+	r.tt.Frame()
+	r.tt.Frame()
+	steps, _ = r.tt.Find("Steps")
+	detail, _ = r.tt.Find("Group run")
+	if !(steps.X+steps.W <= detail.X+1) {
+		t.Errorf("wide again: steps %v, detail %v", steps, detail)
+	}
+}
+
 // pressTypeAll presses "Type into N panes…" on the run page.
 func (r *rig) pressTypeAll(t *testing.T, n int) {
 	t.Helper()

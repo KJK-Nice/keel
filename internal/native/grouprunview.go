@@ -23,8 +23,26 @@ func (w *workspace) groupRunView(c *ui.Context, p *groupRunPage) {
 		})
 		return
 	}
-	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
-		hairline(ui.Column(c).Width(sizeList).Shrink(0).FillHeight().Background(w.ground(surface)), 0, 1, 0, 0).Label("Steps").Children(func() {
+	// .k-gx-split: the steps (size-agentpage-context wide) beside the detail; under 760 px of page width (#page-grouprun's
+	// container query) they go above it, at most 40% of the height, with their border below instead of at the right.
+	narrow := p.width > 0 && p.width < groupRunNarrow
+	var root ui.Element
+	if narrow {
+		root = ui.Column(c).Grow(1).FillWidth().FillHeight().Label("group run page")
+	} else {
+		root = ui.Row(c).Grow(1).FillWidth().FillHeight().Label("group run page")
+	}
+	p.width = root.Bounds().W
+	root.Children(func() {
+		steps := ui.Column(c).Shrink(0).Background(w.ground(surface)).Label("Steps")
+		if narrow {
+			steps.FillWidth().MaxHeight(max(root.Bounds().H, 0) * 0.4)
+			hairline(steps, 0, 0, 1, 0)
+		} else {
+			steps.Width(sizeAgentPageContext).FillHeight()
+			hairline(steps, 0, 1, 0, 0)
+		}
+		steps.Children(func() {
 			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Children(func() { w.runSteps(c, p, run) })
 		})
 		ui.Scroll(c).Grow(1).FillHeight().Shrink(1).MinWidth(0).Background(w.ground(stage)).Label("Group run").Children(func() {

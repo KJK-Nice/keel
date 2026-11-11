@@ -53,7 +53,11 @@ type groupRunPage struct {
 	busy    int  // marks, mode changes and stops that are out
 	calls   int  // how many have been made: only the newest answer is shown
 	gen     int
+	width   float32 // the page's width as last drawn: under groupRunNarrow the steps go above the detail
 }
+
+// groupRunNarrow is #page-grouprun's container query (keel.css): under this width the steps sit above the detail.
+const groupRunNarrow = 760
 
 // groupRunPageState is the page of the Group run tab, or nil.
 func (w *workspace) groupRunPageState() *groupRunPage {
