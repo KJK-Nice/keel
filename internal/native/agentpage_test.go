@@ -155,14 +155,12 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	if p.renaming || len(r.fb.convs.renamed) != 1 {
 		t.Fatalf("Esc renamed or kept the field: %v", r.fb.convs.renamed)
 	}
-	// Delete asks first, then the panel starts over.
+	// Delete acts at once, as the app's does, and the panel starts over.
 	r.click(t, "Delete this conversation")
 	r.tt.Frame()
-	if r.w.confirm == nil || len(r.fb.convs.deleted) != 0 {
-		t.Fatal("Delete on the page did not ask first")
+	if r.w.confirm != nil {
+		t.Fatal("Delete on the page asked: the app deletes one conversation without asking")
 	}
-	r.click(t, deleteOneAction)
-	r.tt.Frame()
 	if !slices.Equal(r.fb.convs.deleted, []string{"c-today"}) || r.w.agent.conv == "c-today" || len(r.w.agent.turns) != 0 || r.w.agent.title != "" {
 		t.Fatalf("deleted %v, conv %q", r.fb.convs.deleted, r.w.agent.conv)
 	}

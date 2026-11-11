@@ -31,9 +31,6 @@ const (
 	deleteAllTitle  = "Delete all conversations?"
 	deleteAllAction = "Delete all"
 	deleteAllText   = "Every saved agent conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs."
-	deleteOneTitle  = "Delete this conversation?"
-	deleteOneAction = "Delete"
-	deleteOneText   = "This conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs."
 )
 
 // sessUI is the Recent conversations popover's own state.
@@ -271,16 +268,12 @@ func (w *workspace) renameConversation(id, title string) {
 	})
 }
 
-// askDeleteConversation is Delete on a row or on the page: it asks first.
-func (w *workspace) askDeleteConversation(id string) {
+// deleteConversation is Delete on a row or on the page: at once, as the app does (agentpanel.js deleteSession asks
+// nothing; only Delete all and Disconnect ask), on the id keel serve gave. The toast is the app's.
+func (w *workspace) deleteConversation(id string) {
 	if id == "" {
 		return
 	}
-	w.closeSessions() // the dialog is on top: a press on it must not first dismiss the list
-	w.askConfirm(&hostConfirm{title: deleteOneTitle, message: deleteOneText, action: deleteOneAction, run: func() { w.deleteConversation(id) }})
-}
-
-func (w *workspace) deleteConversation(id string) {
 	a := w.agent
 	w.work(func() {
 		c, cancel := ctx()

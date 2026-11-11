@@ -337,13 +337,8 @@ func TestE2EAgentPage(t *testing.T) {
 	}, "keel serve to hold the new title")
 	e.pump(func() bool { return e.w.agent.title == "Page renamed" && e.hasLabel("Recent conversations") }, "the panel to follow")
 
-	// Delete on the page asks first; then keel serve and the panel follow.
+	// Delete on the page acts at once, as the app's does; keel serve and the panel follow.
 	e.click("Delete this conversation")
-	e.pump(func() bool { return e.w.confirm != nil }, "the confirm")
-	if n := len(e.convList().Sessions); n != 2 {
-		t.Fatalf("asking deleted: %d left", n)
-	}
-	e.click("Delete")
 	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agent.turns) == 0 }, "the conversation to be gone on keel serve and in the panel")
 	if e.w.agent.title != "" || e.w.agent.conv == one.ID {
 		t.Error("the panel still has the deleted conversation")

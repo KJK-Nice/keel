@@ -185,7 +185,7 @@ func (w *workspace) sessionRow(c *ui.Context, s keelclient.ConversationSummary, 
 			}
 			if iconBtn(c, "agent-trash", "Delete "+title, sizeControlSm, false) {
 				id := s.ID
-				w.act(func() { w.askDeleteConversation(id) })
+				w.act(func() { w.deleteConversation(id) })
 			}
 		}
 	})

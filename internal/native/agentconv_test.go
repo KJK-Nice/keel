@@ -124,30 +124,18 @@ func TestRenameInlineEnterSendsAndEscLeavesTheTitle(t *testing.T) {
 	}
 }
 
-func TestDeleteAsksFirstAndDeleteAllAsksFirst(t *testing.T) {
+func TestDeleteActsAtOnceAndDeleteAllAsksFirst(t *testing.T) {
 	r := savedRig(t)
 	r.openRecent(t)
-	r.click(t, "Delete Disk full")
+	r.click(t, "Delete Disk full") // as the app: one conversation is deleted without asking
 	r.tt.Frame()
-	if r.w.confirm == nil || len(r.fb.convs.deleted) != 0 {
-		t.Fatal("Delete did not ask first")
+	if r.w.confirm != nil || !slices.Equal(r.fb.convs.deleted, []string{"c-old"}) || !r.tt.HasText("Conversation deleted") {
+		t.Fatalf("deleted %v, confirm %v", r.fb.convs.deleted, r.w.confirm)
 	}
-	r.click(t, "Cancel")
-	r.tt.Frame()
-	r.tt.Frame()
-	if len(r.fb.convs.deleted) != 0 || r.w.confirm != nil {
-		t.Fatalf("Cancel deleted the conversation (deleted %v, confirm %v)", r.fb.convs.deleted, r.w.confirm)
-	}
-	r.openRecent(t)
-	r.click(t, "Delete Disk full")
-	r.tt.Frame()
-	r.click(t, deleteOneAction)
-	r.tt.Frame()
-	if !slices.Equal(r.fb.convs.deleted, []string{"c-old"}) {
-		t.Fatalf("deleted %v", r.fb.convs.deleted)
+	if !r.w.agent.sessOpen { // the list stays open and repaints, as the app's does
+		t.Fatal("the list closed after a delete")
 	}
 
-	r.openRecent(t)
 	r.click(t, "Delete all")
 	r.tt.Frame()
 	if r.w.confirm == nil || r.w.confirm.title != "Delete all conversations?" || r.fb.convs.deletedAll != 0 {

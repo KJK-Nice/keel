@@ -192,7 +192,7 @@ func (w *workspace) pageHead(c *ui.Context, p *agentPage) {
 		}
 		if iconBtnOff(c, "agent-trash", "Delete this conversation", sizeControlSm, false, !known) {
 			conv := a.conv
-			w.act(func() { w.askDeleteConversation(conv) })
+			w.act(func() { w.deleteConversation(conv) })
 		}
 	})
 }
