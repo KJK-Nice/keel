@@ -78,7 +78,11 @@ func (w *workspace) view(c *ui.Context) {
 	w.reviewFocus(c)
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
-			p.handle.Focus(c)
+			if p.nb != nil && p.nb.editing { // the text being edited takes the keyboard
+				p.nb.editH.Focus(c)
+			} else {
+				p.handle.Focus(c)
+			}
 			w.wantFocus = ""
 		}
 	}

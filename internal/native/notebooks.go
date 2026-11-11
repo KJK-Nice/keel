@@ -31,6 +31,7 @@ import (
 const (
 	notebookLimitName = 120        // store.MaxNotebookNameBytes
 	notebookLimitText = 256 * 1024 // store.MaxNotebookBytes
+	notebookReadLimit = 64 * 1024  // a longer notebook opens in Edit: rendering it takes seconds
 
 	// defaultNotebookMD is the starter text of a new notebook (term.js DEFAULT_NOTEBOOK_MD). The name is the title, so
 	// it has no H1.
@@ -221,7 +222,10 @@ func (w *workspace) newNotebookPane(rec *keelclient.Notebook) *pane {
 	n.opts = &markdown.Options{}
 	if rec != nil {
 		n.load(*rec)
-		n.editing = strings.TrimSpace(n.md) == "" // an empty notebook opens in Edit
+		// An empty notebook opens in Edit. So does one too big to render quickly: markdown.View lays out every block, which
+		// took about 6 s for 256 KiB (about 1.5 s for 64 KiB) while the text area takes 40 ms.
+		// shortcut: no windowing of the rendered view, upgrade when MyGo's Markdown view windows long documents.
+		n.editing = strings.TrimSpace(n.md) == "" || len(n.md) > notebookReadLimit
 	} else {
 		n.title, n.md = "Notebook", defaultNotebookMD
 		n.titleSeen, n.mdSeen = n.title, n.md
