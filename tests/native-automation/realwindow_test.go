@@ -314,9 +314,18 @@ func (r *rig) screenCapture(name, rect string) (path string) {
 	return path
 }
 
-// skipNoScreen skips the test when the last capture made no picture.
+// skipCIScreen skips on GitHub's runners, whose screencapture is not a faithful photo of the composited window.
+func (r *rig) skipCIScreen() {
+	r.t.Helper()
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		r.t.Skip("screen-pixel tests need a real desktop session; skipped on GitHub Actions (run make native-automation on a Mac)")
+	}
+}
+
+// skipNoScreen skips the test when the last capture made no picture (or on CI).
 func (r *rig) skipNoScreen(path string) {
 	r.t.Helper()
+	r.skipCIScreen()
 	if path == "" {
 		r.t.Skip(r.noScreen)
 	}
@@ -325,6 +334,7 @@ func (r *rig) skipNoScreen(path string) {
 // screenPicture is screenShot for a test that judges the picture: it returns the file's path, or skips the test.
 func (r *rig) screenPicture(name string) string {
 	r.t.Helper()
+	r.skipCIScreen()
 	r.screenShot(name)
 	p := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
 	if _, err := os.Stat(p); err != nil {
