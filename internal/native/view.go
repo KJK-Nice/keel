@@ -68,7 +68,10 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	useControls(1, w.dark) // toasts, dialogs, the palette and their controls are never translucent (nativeonly.go)
 	windowTheme(c, w.dark) // MyGo's controls read the theme as they are built: the opaque fills from here on
-	w.toastsView(c)        // under the dialogs: a dialog opened over a toast keeps its buttons
+	if w.alpha < 1 {       // setting the theme gives the window its ground back
+		c.Root().Background(ui.Transparent)
+	}
+	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
