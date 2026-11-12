@@ -26,8 +26,8 @@ func terminalTheme() *terminal.Theme {
 //go:embed fonts/*.woff2
 var fontFiles embed.FS
 
-// registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ is a copy of
-// cmd/keel/web/fonts (TestEmbeddedFontsMatchTheWebviews keeps them equal).
+// registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ holds the
+// eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
 	files, _ := fontFiles.ReadDir("fonts")
 	for _, f := range files {

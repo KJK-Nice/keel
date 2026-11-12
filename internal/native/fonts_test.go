@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -23,7 +24,7 @@ func renderIn(family string) []byte {
 // TestRegisterFontAcceptsWOFF2 is the proof for the font decision: a registered family must render
 // differently from a family that does not exist.
 func TestRegisterFontAcceptsWOFF2(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "fonts", "jetbrains-mono-latin-400-normal.woff2"))
+	b, err := os.ReadFile(filepath.Join("fonts", "jetbrains-mono-latin-400-normal.woff2"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,24 +45,24 @@ func errString(err error) string {
 	return err.Error()
 }
 
-// The embedded fonts are copies of the webview's; they must not drift.
-func TestEmbeddedFontsMatchTheWebviews(t *testing.T) {
+// The embedded fonts are the eight woff2 files the window ships, and their licences sit beside them.
+func TestEmbeddedFontsAreTheShippedSet(t *testing.T) {
 	files, err := fontFiles.ReadDir("fonts")
-	if err != nil || len(files) != 8 {
-		t.Fatalf("embedded fonts: %d files, err %v; want 8 woff2 (JetBrains Mono and IBM Plex Mono, 400 and 500, latin and latin-ext)", len(files), err)
+	if err != nil {
+		t.Fatal(err)
 	}
+	woff2 := 0
 	for _, f := range files {
-		mine, _ := fontFiles.ReadFile("fonts/" + f.Name())
-		orig, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "fonts", f.Name()))
-		if err != nil || !bytes.Equal(mine, orig) {
-			t.Errorf("%s differs from cmd/keel/web/fonts (err %v)", f.Name(), err)
+		if strings.HasSuffix(f.Name(), ".woff2") {
+			woff2++
 		}
 	}
+	if woff2 != 8 {
+		t.Fatalf("embedded fonts: %d woff2 files; want 8 (JetBrains Mono and IBM Plex Mono, 400 and 500, latin and latin-ext)", woff2)
+	}
 	for _, name := range []string{"OFL-jetbrains-mono.txt", "OFL-ibm-plex-mono.txt"} {
-		mine, _ := os.ReadFile(filepath.Join("fonts", name))
-		orig, _ := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "fonts", name))
-		if len(mine) == 0 || !bytes.Equal(mine, orig) {
-			t.Errorf("%s is missing or differs", name)
+		if b, _ := os.ReadFile(filepath.Join("fonts", name)); len(b) == 0 {
+			t.Errorf("%s is missing", name)
 		}
 	}
 }

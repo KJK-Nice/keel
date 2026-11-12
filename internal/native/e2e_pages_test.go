@@ -80,7 +80,7 @@ func writeKey(t *testing.T, path, comment, passphrase string) {
 	}
 }
 
-// sshFixtureDir is the fixture ~/.ssh under dir (scripts/e2e-serve.sh does the same): tests/fixtures/ssh-home/.ssh
+// sshFixtureDir is the fixture ~/.ssh under dir (the same folder the web e2e used): tests/fixtures/ssh-home/.ssh
 // copied, plus one key without a passphrase and one with. A config's ~ is the folder above it.
 func sshFixtureDir(t *testing.T, dir string) string {
 	t.Helper()
