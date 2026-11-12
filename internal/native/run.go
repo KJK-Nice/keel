@@ -148,9 +148,10 @@ func RunWith(o Options) error {
 		mygo.Theme.SetSource(mygo.ThemeSource(pr.Theme))
 	}
 
+	mygo.App.SetWindowStateStore(newWindowStateStore(o.DataDir))
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title: "Keel", Width: 1280, Height: 800,
+			Title: "Keel", Width: 1280, Height: 800, StateKey: "main",
 			TitleBarStyle: mygo.TitleBarHidden,
 			// Hidden, not HiddenInset: HiddenInset's toolbar makes a taller bar than sizeTitlebar. The position
 			// centres the lights vertically in that row; x is the usual window padding.
