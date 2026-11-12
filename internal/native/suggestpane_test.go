@@ -103,9 +103,15 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 		t.Fatalf("asks %v", got)
 	}
 	r.texts(t, "Suggesting a command…", "keep my words")
+	if !r.has("Suggesting a command") { // plan 030: loading.Blocks, named, while the model works
+		t.Error("no Blocks while the suggestion is asked")
+	}
 	a := r.c.asks[0]
 	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: a.seq, OK: true,
 		Suggestion: card(ro("find . -type f -size +100M"), ro("du -ah . | sort -rh | head"))})
+	if r.has("Suggesting a command") {
+		t.Error("Blocks still shows after the answer")
+	}
 	r.texts(t, "find . -type f -size +100M", "Read-only", "Lists the files.", "Suggested from your words", "du -ah . | sort -rh | head", "insert", "other options", "keep my words")
 	if r.has("suggestion card destructive") {
 		t.Error("a read-only card is red")

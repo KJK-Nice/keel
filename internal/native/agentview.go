@@ -405,7 +405,10 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 					}
 					msg = "Reading " + strconv.Itoa(t.scoped) + " " + noun + " and asking"
 				}
-				traceRow(c, "agent-busy", brassInk, msg)
+				ui.Row(c).FillWidth().Gap(space2).Children(func() {
+					workingBlocks(c, brassInk, "Agent is working")
+					text(c, msg, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0)
+				})
 			case t.stopped:
 				traceRow(c, "agent-skip", inkFaint, "Stopped")
 			case t.done:

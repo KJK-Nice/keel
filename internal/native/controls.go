@@ -1,6 +1,17 @@
 package native
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/plugins/loading"
+	"github.com/egoist/mygo/ui"
+)
+
+// workingBlocks is the mark of the model at work (plan 030 step 4): MyGo's loading.Blocks, sized to the line it sits in, in
+// the accent or, in muted text, that colour, and named for assistive technology. It means "the model is working" and nothing
+// else: a wait on keel serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
+// asks for no frames where the desktop asks for less motion, and it takes no input, so Stop stays clickable.
+func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
+	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
+}
 
 // The shared control layer (plan 030 step 3): Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
 // two looks MyGo has no variant for: quiet (no face until hovered) and destructive (the flare colours of the Destructive

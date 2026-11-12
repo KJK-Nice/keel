@@ -166,7 +166,12 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 			if v.State == sugError {
 				msg = v.Message
 			}
-			ui.Box(c).FillWidth().Padding(space1_5, space3, 0, space3).Children(func() { wrapText(c, msg, inkMuted) })
+			ui.Row(c).FillWidth().Padding(space1_5, space3, 0, space3).Gap(space2).Children(func() {
+				if v.State == sugLoading {
+					workingBlocks(c, inkMuted, "Suggesting a command")
+				}
+				wrapText(c, msg, inkMuted).Shrink(1).MinWidth(0)
+			})
 			foot(keep, "")
 		default:
 			head(sourceLabel(opt.Source), true)
