@@ -23,7 +23,7 @@ import (
 func agentRig(t *testing.T) *rig {
 	t.Helper()
 	r := approveRig(t)
-	r.w.dataDir = t.TempDir()
+	r.w.useDataDir(t, t.TempDir())
 	r.fb.agent.settings.Keys = map[string]struct {
 		Configured bool `json:"configured"`
 	}{"gemini": {true}}
@@ -163,7 +163,7 @@ func (r *rig) answers(ps ...keelclient.Proposal) {
 func TestTheShortcutTheButtonAndThePaletteToggleThePanelAndItIsRemembered(t *testing.T) {
 	r := approveRig(t)
 	dir := t.TempDir()
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	if r.w.agent.open || r.tt.HasText("Reads ") {
 		t.Fatal("the panel starts closed")
 	}
@@ -238,7 +238,7 @@ func TestAWindowOpensWithThePanelAsItWasLeft(t *testing.T) {
 
 func TestAJoinedTabHasNoPanelNoButtonAndTheShortcutSaysWhy(t *testing.T) {
 	jr := newJoinRig(t)
-	jr.w.dataDir = t.TempDir()
+	jr.w.useDataDir(t, t.TempDir())
 	jr.tt.Key(agentMods(), ui.KeyI)
 	jr.tt.Frame()
 	if !jr.w.agent.open {
@@ -703,7 +703,7 @@ func TestNoTypeButtonForAFollowedPaneAClosedPaneOrAProposalWithNoPane(t *testing
 
 func TestNoKeyShowsTheConnectCardAndTheKeyIsSentOnceAndTheFieldCleared(t *testing.T) {
 	r := approveRig(t)
-	r.w.dataDir = t.TempDir()
+	r.w.useDataDir(t, t.TempDir())
 	r.tt.Key(agentMods(), ui.KeyI)
 	r.tt.Frame()
 	for _, s := range []string{"Connect Gemini", "Gemini API key", "Connect", "Get a key", "On the free tier of the Gemini API, Google may use the content you submit."} {

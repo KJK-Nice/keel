@@ -129,7 +129,7 @@ func TestFindBarIsInOnePaneAndGoesWithIt(t *testing.T) {
 func TestTextSizeKeysClampAndSave(t *testing.T) {
 	dir := t.TempDir()
 	r := newRig(t, okBackend())
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	fs := r.withSearch()
 	r.tt.Frame()
 	r.click(t, "host api-1")

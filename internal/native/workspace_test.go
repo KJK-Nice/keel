@@ -621,6 +621,24 @@ func newRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
+// useDataDir gives the window a data dir after it started. persist then schedules the workspace write on a timer
+// (saveDelay), a goroutine that would write into the dir after the test returned and break t.TempDir's RemoveAll. Call
+// it once the dir exists: its cleanup then runs before the dir's removal. It stops the timer and drops what the timer
+// had pending, so a flush that already fired and waits for the lock writes nothing.
+func (w *workspace) useDataDir(t *testing.T, dir string) {
+	t.Helper()
+	w.dataDir = dir
+	t.Cleanup(func() {
+		w.saved.stop()
+		w.saved.mu.Lock()
+		w.saved.pending = nil
+		w.saved.mu.Unlock()
+		if w.shadowTimer != nil {
+			w.shadowTimer.Stop()
+		}
+	})
+}
+
 func okBackend() *fakeBackend { return &fakeBackend{hosts: testHosts} }
 
 // open clicks a host row and settles the frames.

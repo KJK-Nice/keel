@@ -326,7 +326,7 @@ func TestAResumedConversationShowsItsNotesAndRunbooksCards(t *testing.T) {
 func TestNotesAndRunbooksAreNeverWrittenToDisk(t *testing.T) {
 	r := agentRig(t)
 	dir := t.TempDir()
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	r.answersNotes(noteProposal())
 	r.ask(t, "remember it")
 	r.click(t, "Save")

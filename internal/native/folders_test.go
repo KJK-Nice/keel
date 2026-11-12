@@ -231,7 +231,7 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 // keel-group-collapsed); the file's other fields stay as they are.
 func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	r := folderRig(t)
-	r.w.dataDir = t.TempDir()
+	r.w.useDataDir(t, t.TempDir())
 	if err := savePrefs(r.w.dataDir, map[string]any{"termSize": 14}); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	// A new window on the same data folder shows Infra closed and the rest open.
 	fb := r.fb
 	w2 := newRig(t, fb)
-	w2.w.dataDir = r.w.dataDir
+	w2.w.useDataDir(t, r.w.dataDir)
 	w2.w.collapsed = loadCollapsed(w2.w.dataDir) // what start reads
 	w2.tt.Frame()
 	if _, ok := w2.tt.Find("host pg-1"); ok {

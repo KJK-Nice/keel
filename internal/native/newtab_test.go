@@ -364,7 +364,7 @@ func TestAnInvalidInputShowsTheError(t *testing.T) {
 func TestConnectOnceAsksForThePasswordAndSavesAQuickHost(t *testing.T) {
 	r := startRig(t)
 	dir := t.TempDir()
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	r.tt.Type("ssh -p 2222 -i ~/.ssh/k deploy@10.0.0.5")
 	r.tt.Frame()
 	r.click(t, "Connect once")
@@ -456,7 +456,7 @@ func TestRecentlyClosedRowsReopenAsANewSession(t *testing.T) {
 func TestANewTabIsNotSaved(t *testing.T) {
 	r := startRig(t)
 	dir := t.TempDir()
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	r.click(t, "start card Local Shell")
 	r.press(ui.Cmd, ui.KeyT)
 	r.onPage(t)
@@ -480,7 +480,7 @@ func TestRecentHostsSurviveAPrefsRoundTripAndHoldOnlyIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := startRig(t)
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	for _, id := range []string{"h1", "h2", "h3", "h1"} {
 		r.w.rememberRecent(id)
 	}

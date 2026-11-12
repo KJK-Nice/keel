@@ -116,7 +116,7 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 	r := &rig{fb: fb}
 	r.w = newWorkspace(fb)
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	r.w.win = loadPrefs(dir)
 	r.w.translucentWin, r.w.alpha = true, r.w.win.alpha() // the window started translucent
 	r.w.work = func(fn func()) { fn() }

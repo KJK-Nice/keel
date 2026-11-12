@@ -292,7 +292,7 @@ func TestNotSavedShowsWhenHistoryIsOffAndSavedWhenItIsOn(t *testing.T) {
 func TestAConversationIsNeverWrittenToDisk(t *testing.T) {
 	r := savedRig(t)
 	dir := t.TempDir()
-	r.w.dataDir = dir
+	r.w.useDataDir(t, dir)
 	r.openRecent(t)
 	r.click(t, "conversation Why is pg-2 lagging")
 	r.tt.Frame()
