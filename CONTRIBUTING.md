@@ -8,9 +8,9 @@ make build && ./bin/keel
 make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
-Keel is pure Go: no cgo, no Node, no generated code. `make build` compiles `bin/keel` (`CGO_ENABLED=0`), `bin/keel-signal` and `bin/keel-sshtest`; on macOS it also writes `bin/Keel.app` from `packaging/macos/` (Info.plist, icon, entitlements) with libghostty-vt beside the binary; on Linux it puts `libghostty-vt.so` in `bin/`. MyGo's loader downloads libghostty-vt once (SHA-256 checked); the app and the release archives carry it, so they never download. `make app` runs the window from source.
+Keel is pure Go: no cgo, no Node, no generated code. `make build` compiles `bin/keel` (`CGO_ENABLED=0`, the plain binary for development), `bin/keel-signal` and `bin/keel-sshtest`, then runs `make package`: `go tool mygo build` (MyGo's CLI, pinned by the `tool` line of `go.mod`; the app is described by `mygo.json`) writes the shipped app into `build/<os>-<arch>/` for this machine: `Keel.app` and its disk image on macOS; the binary, `.tar.gz` and `.deb` on Linux. `make package PLATFORM=darwin/universal,linux/amd64,linux/arm64` builds other targets (`mygo build` needs no cgo, so any machine builds any of them; the app is signed and put in a disk image on macOS only). The first package makes `THIRD_PARTY_NOTICES` (`scripts/notices.sh`, needs the network; delete the file to make it again). MyGo's CLI downloads libghostty-vt once (SHA-256 checked) and puts it in the package (`Contents/Resources` in the app, beside the binary on Linux), so the packaged app never downloads it; `bin/keel` downloads it into the user cache on first run. `make package` signs ad hoc; `KEEL_SIGN="Developer ID Application: …"` signs with that identity and notarizes the disk image with the keychain profile `notary`. `make app` runs the window from source.
 
-macOS needs the Xcode Command Line Tools for `codesign` (`xcode-select --install`). `make macos-icon` regenerates the icon files in `packaging/macos/` from `Keel.icon`.
+macOS needs the Xcode Command Line Tools for `codesign` (`xcode-select --install`). `make macos-icon` regenerates the icon files in `packaging/macos/` from `Keel.icon`; `mygo.json` points at `packaging/macos/icon.png` and `Keel.icns`.
 
 `keel app` opens the native window (MyGo, libghostty-vt terminals): see `docs/native.md`. `make native-e2e` drives the window under MyGo's tester; `make native-automation` drives the built app from outside through MyGo's automation socket (menu bar, close and reopen, real keys, both themes). It builds `bin/keel-e2e` with the build tag `keelautomation`, which no release path may pass, opens real windows briefly and runs only on scratch data; see "Driving the built app from outside" in `docs/native.md`.
 
@@ -28,15 +28,15 @@ Set `KEEL_KEYRING=off` (and `KEEL_AGENT_PROVIDER=fake` when the agent is involve
 
 ## Releasing
 
-Releases are cut from `main` by pushing a tag; `.github/workflows/release.yml` does the rest:
+Releases are cut from `main` by pushing a tag; `.github/workflows/release.yml` does the rest. First set `"version"` in `mygo.json` to the release (`0.1.0`), commit it, then tag that commit:
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-It builds `Keel-<v>-macos-universal.zip` (arm64 + x86_64, ad-hoc signed, not notarized), `keel-<v>-linux-{x86_64,arm64}.tar.gz` and `keel-signal` for macOS, Linux and Windows with `scripts/release.sh`, puts `LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) in each archive, and publishes a GitHub Release with `SHA256SUMS`, the install notes in `.github/release-notes.md` and notes generated from the merged PRs. A tag with a hyphen (`v0.2.0-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`.
+The workflow runs `scripts/release.sh` for each target, which calls `go tool mygo build`. The script fails, before anything is published, when the tag and `mygo.json` disagree. It makes `keel-<version>.dmg` (macOS, universal: arm64 + x86_64, `Keel.app` inside), `keel-<version>-linux-{amd64,arm64}.tar.gz` and `keel_<version>_{amd64,arm64}.deb` (one Ubuntu runner builds both) and `keel-signal-<version>-<os>-<cpu>` for macOS, Linux and Windows (plain `go build`). `LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each; `SHA256SUMS` lists them all. The release is published with the install notes in `.github/release-notes.md` and notes generated from the merged PRs. A tag with a hyphen (`v0.2.0-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`. The macOS app is signed ad hoc and not notarized unless the repository has the signing secrets of [docs/release.md](docs/release.md).
 
-A PR that changes the release tooling runs the same builds as a dry run and keeps the archives as workflow artifacts. Locally, `sh scripts/release.sh v0.0.0-test app` builds this machine's archive into `dist/`.
+A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh v0.1.0 macos|linux|signal` builds into `dist/` (the version of `mygo.json` is 0.1.0); it never uploads. The packages keep MyGo's file names.
 
 ## UI work
 

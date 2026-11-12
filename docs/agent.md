@@ -32,15 +32,16 @@ The Claude client calls the Messages API (`POST /v1/messages`, key in `x-api-key
 It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (keel mcp)**, or on macOS from the same switch in Keel's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Keel: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
 
 ```bash
-# The keel binary: on macOS the one in Keel.app (bin/Keel.app/Contents/MacOS/keel
-# when built from source, or wherever you put Keel.app); elsewhere bin/keel.
-claude mcp add keel -- /Applications/Keel.app/Contents/MacOS/keel mcp
+# The keel binary: on macOS the one in Keel.app (build/darwin-*/Keel.app/Contents/MacOS/Keel
+# when built from source, or wherever you put Keel.app); on Linux `keel` (the .deb
+# links it into /usr/bin) or bin/keel.
+claude mcp add keel -- /Applications/Keel.app/Contents/MacOS/Keel mcp
 ```
 
 Or in a project's `.mcp.json`:
 
 ```json
-{ "mcpServers": { "keel": { "command": "/Applications/Keel.app/Contents/MacOS/keel", "args": ["mcp"] } } }
+{ "mcpServers": { "keel": { "command": "/Applications/Keel.app/Contents/MacOS/Keel", "args": ["mcp"] } } }
 ```
 
 Set `KEEL_ADDR` / `KEEL_DATA` in the server's `env` if your Keel uses others.

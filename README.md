@@ -38,15 +38,18 @@
 
 Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/releases/latest)**.
 
-**macOS 13+** (Apple Silicon and Intel): unzip `Keel-*-macos-universal.zip` and move **Keel.app** to Applications. Keel is not notarized by Apple yet, so macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`.
+**macOS 13+** (Apple Silicon and Intel): open `keel-<version>.dmg` and drag **Keel.app** to Applications. Unless the release says it is notarized, macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`. The `keel` command of the app (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
 
-**Linux**, x86_64 or arm64 (the window is Keel's own, so there is no GTK or WebKit to install; the archive carries libghostty-vt beside the binary):
+**Linux**, x86_64 (`amd64`) or arm64 (the window is Keel's own, so there is no WebKit to install; it needs GTK 3, and the package carries libghostty-vt beside the binary):
 
 ```bash
-tar -xzf keel-*-linux-x86_64.tar.gz && ./keel-*/keel
+# Debian, Ubuntu: installs /opt/keel, the `keel` command and a menu entry
+sudo apt install ./keel_<version>_amd64.deb        # or _arm64.deb
+# any distribution: unpack the archive into a folder of its own and run keel there
+mkdir keel && tar -xzf keel-<version>-linux-amd64.tar.gz -C keel && ./keel/keel   # or -arm64
 ```
 
-Windows is not supported yet. Each release lists its files' checksums in `SHA256SUMS`; `keel version` prints the version you run.
+The Linux window has not been run by the maintainer yet (`docs/native.md`). Windows is not supported yet. Each release lists its files' checksums in `SHA256SUMS`; `keel version` prints the version you run.
 
 ### Build from source
 
@@ -55,7 +58,7 @@ With Go (the version in `go.mod`):
 ```bash
 git clone https://github.com/KJK-Nice/keel.git && cd keel
 make build
-./bin/keel            # macOS: or open bin/Keel.app
+./bin/keel            # macOS: or open build/darwin-*/Keel.app (make build packages it)
 ```
 
 No C toolchain is needed to build; macOS needs the Xcode Command Line Tools (`xcode-select --install`) for `codesign`. Details in [CONTRIBUTING.md](CONTRIBUTING.md).

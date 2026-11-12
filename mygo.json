@@ -1,0 +1,23 @@
+{
+  "name": "Keel",
+  "slug": "keel",
+  "identifier": "app.keel.desktop",
+  "version": "0.1.0",
+  "main": "./cmd/keel",
+  "out": "build",
+  "icon": "packaging/macos/icon.png",
+  "resources": ["LICENSE", "THIRD_PARTY_NOTICES"],
+  "macos": {
+    "icon": "packaging/macos/Keel.icns",
+    "minimumSystemVersion": "13.0",
+    "entitlements": "packaging/macos/entitlements.plist",
+    "notarize": { "keychainProfile": "notary" },
+    "infoPlist": { "ApplePressAndHoldEnabled": false }
+  },
+  "linux": {
+    "comment": "Local SSH workspace",
+    "categories": ["Network", "System"],
+    "webview": false,
+    "command": "keel"
+  }
+}

@@ -2,6 +2,8 @@ module keel
 
 go 1.27.3
 
+tool github.com/egoist/mygo/cmd/mygo
+
 require (
 	filippo.io/age v1.3.1
 	github.com/creack/pty v1.1.24

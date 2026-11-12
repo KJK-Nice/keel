@@ -78,4 +78,4 @@ Two Keel windows on one Mac: the second instance needs its own port and data dir
 KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
 ```
 
-`open bin/Keel.app` does not pass those env vars.
+`open Keel.app` does not pass those env vars.

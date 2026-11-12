@@ -132,5 +132,5 @@ and SHA-256 checked on first run, or found beside the binary). Build:
   make build
   make build KEEL_SIGNAL=https://your-signal.example
 
-On macOS make build also writes bin/Keel.app — open that, or run ./bin/keel.
+make build also packages the app with mygo build (build/darwin-*/Keel.app on macOS) — open that, or run ./bin/keel.
 `
