@@ -36,14 +36,12 @@ docs() {
 
 case "$what" in
 app)
-	make ui
-	tags=$(sh scripts/go-tags.sh)
 	ld="-X main.version=$tag"
 	case "$(uname -s)" in
 	Darwin)
-		# One universal Keel.app: cgo cross-builds x86_64 on Apple Silicon.
+		# One universal Keel.app: pure Go (no cgo), so x86_64 cross-builds on Apple Silicon.
 		for arch in arm64 amd64; do
-			GOARCH=$arch sh scripts/go.sh build $tags -trimpath -ldflags "$ld" -o "bin/keel-$arch" ./cmd/keel
+			CGO_ENABLED=0 GOARCH=$arch go build -trimpath -ldflags "$ld" -o "bin/keel-$arch" ./cmd/keel
 		done
 		lipo -create -output bin/keel bin/keel-arm64 bin/keel-amd64
 		# libghostty-vt for both CPUs in one dylib. MyGo's loader fetches (SHA-256 pinned) only the library of the
@@ -67,7 +65,7 @@ app)
 		;;
 	Linux)
 		name="keel-$v-linux-$(archname "$(go env GOARCH)")"
-		sh scripts/go.sh build $tags -trimpath -ldflags "$ld" -o bin/keel ./cmd/keel
+		CGO_ENABLED=0 go build -trimpath -ldflags "$ld" -o bin/keel ./cmd/keel
 		rm -rf "dist/$name" && mkdir "dist/$name"
 		# The native window loads libghostty-vt.so from beside the binary (MyGo's loader), so the tarball carries it.
 		CGO_ENABLED=0 go build -trimpath -o bin/keel-native ./cmd/keel-native

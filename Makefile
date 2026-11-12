@@ -1,26 +1,7 @@
-.PHONY: app native native-app native-e2e native-automation native-automation-buildbuild test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app build native native-app native-e2e native-automation native-automation-build test signal macos-app macos-icon lint fmt vet staticcheck vulncheck
 
 ADDR ?= 127.0.0.1:47241
-GO := sh scripts/go.sh
-GO_TAGS := $(shell ./scripts/go-tags.sh)
 UNAME_S := $(shell uname -s)
-TEMPL := go tool templ
-UNAME_M := $(shell uname -m)
-# Pinned so every machine and CI builds the same output.css. The standalone
-# binary is downloaded into bin/ on first use; override TAILWIND to use your own.
-TAILWIND_VERSION := v4.1.17
-ifeq ($(UNAME_S),Darwin)
-TAILWIND_OS := macos
-else
-TAILWIND_OS := linux
-endif
-ifneq ($(filter arm64 aarch64,$(UNAME_M)),)
-TAILWIND_ARCH := arm64
-else
-TAILWIND_ARCH := x64
-endif
-TAILWIND_BIN := bin/tailwindcss-$(TAILWIND_VERSION)
-TAILWIND ?= $(TAILWIND_BIN)
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
 # Release builds stamp the version (keel version, Keel.app's Info.plist):
@@ -36,24 +17,15 @@ KEEL_LDFLAGS := -ldflags "$(KEEL_X)"
 # A THIRD_PARTY_NOTICES file to put in Keel.app (scripts/notices.sh makes it).
 KEEL_NOTICES ?=
 
-$(TAILWIND_BIN):
-	mkdir -p bin
-	curl -fsSL -o $@.tmp https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(TAILWIND_OS)-$(TAILWIND_ARCH)
-	chmod +x $@.tmp
-	mv $@.tmp $@
-
-ui: $(if $(filter $(TAILWIND_BIN),$(TAILWIND)),$(TAILWIND_BIN))
-	go run ./internal/design/tokensgen docs/design/tokens.json docs/design/tokens.css cmd/keel/web/css/tokens.css
-	$(TEMPL) generate
-	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
-
+# Keel is pure Go (the native window is MyGo, purego): no cgo, so a build needs no C toolchain and carries no
+# macOS deployment target of its own.
 # make app opens the native window.
-app: ui
-	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app
+app:
+	CGO_ENABLED=0 KEEL_ADDR=$(ADDR) go run $(KEEL_LDFLAGS) ./cmd/keel app
 
-build: ui
+build:
 	rm -f bin/keel
-	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
+	CGO_ENABLED=0 go build $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 ifeq ($(UNAME_S),Darwin)
@@ -118,55 +90,34 @@ native-app: native
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
 native-e2e:
 	rm -f bin/keel
-	$(GO) build $(GO_TAGS) -o bin/keel ./cmd/keel
+	CGO_ENABLED=0 go build -o bin/keel ./cmd/keel
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 native-automation-build:
 	rm -f bin/keel-e2e
-	$(GO) build $(GO_TAGS),keelautomation -o bin/keel-e2e ./cmd/keel
+	CGO_ENABLED=0 go build -tags keelautomation -o bin/keel-e2e ./cmd/keel
 
 # Drives the built app from outside through MyGo's automation socket (plan 029). Opens real windows briefly.
 # Scratch data only; not part of make test or make native-e2e.
 native-automation: native-automation-build
 	go test -tags nativeautomation -count=1 -timeout 10m ./tests/native-automation/
 
-test: ui test-js
-	$(GO) test $(GO_TAGS) ./...
-
-# Regenerate the vendored notebook editor bundle from js/notebook-editor.mjs.
-notebook-editor:
-	sh cmd/keel/web/js/notebook-editor.build.sh
-
-# Pure frontend modules (cmd/keel/web/js/lib) with node's built-in runner.
-test-js:
-	node --test 'cmd/keel/web/js/test/*.test.mjs'
-
-# The e2e suite (tests/*.e2e.ts) in WebKit against a scratch keel serve
-# (e2e.config.ts), as CI runs it. Build first: the UI is embedded in
-# bin/keel. readme.e2e.ts only makes the docs screenshots, so it is left
-# out. The tests press ⌘ (Meta), so run it on macOS.
-E2E_TESTS := $(filter-out tests/readme.e2e.ts,$(wildcard tests/*.e2e.ts))
-e2e:
-	npx e2e run --target webkit --reporter list --trace retain-on-failure $(E2E_TESTS)
-
-# Fails when the committed templ output or output.css differs from what the
-# pinned tools generate.
-check-generated: ui
-	@sh scripts/check-generated.sh
+test:
+	go test ./...
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \
 	if [ -n "$$out" ]; then echo "gofmt needed:" >&2; echo "$$out" >&2; exit 1; fi
 
 vet:
-	$(GO) vet $(GO_TAGS) ./...
+	go vet ./...
 
 staticcheck:
-	$(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) $(GO_TAGS) ./...
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
 vulncheck:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) $(GO_TAGS) ./...
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 lint: fmt vet staticcheck vulncheck

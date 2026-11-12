@@ -50,9 +50,8 @@ func TestAutomationPluginIsLinkedOnlyWithItsTag(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs go list")
 	}
-	release := "desktop,production,private_mac_apis"
 	for _, c := range []struct{ pkg, tags, cgo string }{
-		{"./cmd/keel", release, "1"},
+		{"./cmd/keel", "", "0"},
 		{"./cmd/keel-native", "", "0"},
 	} {
 		if hasPkg(goDeps(t, c.pkg, c.tags, c.cgo)) {

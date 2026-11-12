@@ -17,7 +17,7 @@ step() {
 	echo "# $(go version) | $(uname -sm) | commit $(git rev-parse --short HEAD)"
 	echo
 	echo "## store (fsync + global lock)"
-	step sh scripts/go.sh test ./internal/store -run '^$' \
+	step go test ./internal/store -run '^$' \
 		-bench 'NotebookAutosave|ReadIdle|ReadDuringSaves' \
 		-benchmem -count 3 -benchtime 2s \
 		-cpuprofile "$prof/store.cpu" -o "$prof/store.test"
@@ -26,7 +26,7 @@ step() {
 	step go tool pprof -top -nodecount 20 "$prof/store.test" "$prof/store.cpu" | sed -n '1,30p'
 	echo
 	echo "## scrollback ring"
-	step sh scripts/go.sh test ./internal/runtime -run '^$' -bench RingWrite -benchmem -count 3
+	step go test ./internal/runtime -run '^$' -bench RingWrite -benchmem -count 3
 } | tee "$out"
 echo
 echo "Saved to $out"

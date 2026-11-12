@@ -6,10 +6,9 @@
 xattr -dr com.apple.quarantine /Applications/Keel.app
 ```
 
-**Linux** (Ubuntu 24.04 or later, or another distro with GTK 4 and WebKitGTK 6): install the libraries, then run `keel` from the archive for your CPU.
+**Linux**: unpack the archive for your CPU and run `keel`. The window is Keel's own (not a web view), so there is no GTK or WebKitGTK to install; the archive carries `libghostty-vt.so`, the terminal engine, beside the binary. What the desktop itself must provide for a window is MyGo's concern (<https://github.com/egoist/mygo>); Keel's CI does not run on Linux windows, so the Linux build is not checked there.
 
 ```bash
-sudo apt install libgtk-4-1 libwebkitgtk-6.0-4
 tar -xzf keel-*-linux-x86_64.tar.gz   # or linux-arm64
 ./keel-*/keel
 ```
