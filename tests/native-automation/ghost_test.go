@@ -84,7 +84,7 @@ func TestNoGhostUnderLowOpacity(t *testing.T) {
 	cases := []struct {
 		opacity, blur int
 		theme         string
-	}{{30, 0, "dark"}, {30, 20, "light"}}
+	}{{30, 0, "dark"}, {30, 0, "light"}, {70, 20, "dark"}}
 	if os.Getenv("GHOST_MATRIX") == "full" {
 		cases = nil
 		for _, op := range []int{30, 50, 70, 100} {
