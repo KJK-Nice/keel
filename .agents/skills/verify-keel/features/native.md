@@ -419,7 +419,7 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 
 ## References and key caps (plan 016)
 
-- `docs/images/` and `docs/images/reference/` are screenshots of the removed webview and have no generator now; do not refresh them. Judge a screen from the native shot (`.scratch-native/e2e/`) against the rules and tokens.
+- `docs/images/` holds screenshots of the removed webview and has no generator now; do not refresh them. The further 28 reference screenshots of the removed webview were deleted. Judge a screen from the native shot (`.scratch-native/e2e/`) against the rules and tokens.
 - Key caps (`keycaps.go`): the clock is the tester's, so hold with `tt.HoldModifiers(ui.Cmd)`, `Frame()`, then `tt.Advance(capDelay + capFade)`; caps are elements labelled `key cap <keys>` (`tt.Texts()`, `tt.Find`). A key pressed with `tt.KeyDown` or a click with `tt.ClickAtWith(ui.Cmd, x, y)` hides them; `tt.SetFocused(false)` too. In the e2e a menu shortcut (⌘⇧D) leaves its key "down", so the hold ignores keys down when it began. Shots: `TestE2EKeyCaps-dark` and `-light`.
 
 ## Look (plan 028)

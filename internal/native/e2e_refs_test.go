@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Every Settings section the app has and this client builds, in both themes: the shots are looked at beside
-// docs/images/reference/settings-<section>-<theme>.png (docs/native.md, "Compared with the app").
+// Every Settings section the app has and this client builds, in both themes: the shots are judged against
+// the rules and tokens (docs/native.md, "Compared with the app"); the old webview reference images are gone.
 func TestE2ESettingsSections(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
