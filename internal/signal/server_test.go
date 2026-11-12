@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -77,7 +76,8 @@ func TestRoomRelay(t *testing.T) {
 	}
 }
 
-func TestJoinPage(t *testing.T) {
+// A share link opened in a browser gets one plain line and nothing else: no page, no script, no stylesheet.
+func TestJoinAnswersAPlainNoteAndTheRelayServesNoPage(t *testing.T) {
 	srv := httptest.NewServer(New().Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/join?room=x")
@@ -88,113 +88,31 @@ func TestJoinPage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", res.StatusCode)
 	}
+	if got := res.Header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("Content-Type %q", got)
+	}
+	if got := res.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options %q", got)
+	}
+	if got := res.Header.Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control %q", got)
+	}
 	body, _ := io.ReadAll(res.Body)
-	html := string(body)
-	if strings.Contains(html, "jsdelivr") || strings.Contains(html, "cdn.") {
-		t.Fatalf("join page still loads a CDN: %s", html)
+	if string(body) != "This is a Keel share link. Open Keel and choose Join session, then paste the link.\n" {
+		t.Fatalf("body %q", body)
 	}
-	if !strings.Contains(html, "/vendor/xterm/xterm.min.js") {
-		t.Fatal("expected vendored xterm")
-	}
-	if !strings.Contains(html, "addon-unicode-graphemes.js") ||
-		!strings.Contains(html, "addon-web-links.js") ||
-		!strings.Contains(html, "addon-progress.js") {
-		t.Fatal("join page must load unicode graphemes, web-links, and progress addons")
-	}
-	if strings.Contains(html, "addon-search.js") {
-		t.Fatal("join page should not load the search addon")
-	}
-	css, err := http.Get(srv.URL + "/vendor/xterm/xterm.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer css.Body.Close()
-	if css.StatusCode != http.StatusOK {
-		t.Fatalf("xterm.css %d", css.StatusCode)
-	}
-	js, err := http.Get(srv.URL + "/vendor/xterm/xterm.min.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer js.Body.Close()
-	if js.StatusCode != http.StatusOK {
-		t.Fatalf("xterm.min.js %d", js.StatusCode)
-	}
-	jsBody, _ := io.ReadAll(js.Body)
-	cssBody, _ := io.ReadAll(css.Body)
-	if !strings.Contains(string(jsBody), "@xterm/xterm@6.0.0") || !strings.Contains(string(cssBody), "@xterm/xterm@6.0.0") {
-		t.Fatal("join page must vendor xterm 6.0.0")
-	}
-	for _, spec := range []struct {
-		path   string
-		banner string
-		global string
-	}{
-		{"/vendor/xterm/addon-unicode-graphemes.js", "@xterm/addon-unicode-graphemes@0.4.0", "window.UnicodeGraphemesAddon=i"},
-		{"/vendor/xterm/addon-web-links.js", "@xterm/addon-web-links@0.12.0", "window.WebLinksAddon=i"},
-		{"/vendor/xterm/addon-progress.js", "@xterm/addon-progress@0.2.0", "window.ProgressAddon=i"},
-	} {
-		res, err := http.Get(srv.URL + spec.path)
+	for _, p := range []string{"/", "/join.js", "/joinpeer.js", "/sharemac.js", "/vendor/xterm/xterm.min.js", "/index.html"} {
+		r, err := http.Get(srv.URL + p)
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, _ := io.ReadAll(res.Body)
-		res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("%s %d", spec.path, res.StatusCode)
-		}
-		if !strings.Contains(string(b), spec.banner) || !bytes.Contains(b, []byte(spec.global)) {
-			t.Fatalf("join %s must vendor %s onto window", spec.path, spec.banner)
+		r.Body.Close()
+		if r.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404: the relay has no page of its own", p, r.StatusCode)
 		}
 	}
-	joinJS, err := http.Get(srv.URL + "/join.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer joinJS.Body.Close()
-	joinBody, _ := io.ReadAll(joinJS.Body)
-	if !strings.Contains(string(joinBody), "UnicodeGraphemesAddon") ||
-		!strings.Contains(string(joinBody), "WebLinksAddon") ||
-		!strings.Contains(string(joinBody), "ProgressAddon") ||
-		!strings.Contains(string(joinBody), "openJoinLink") {
-		t.Fatal("join.js must wire unicode graphemes, web links, and progress")
-	}
-	if !strings.Contains(string(joinBody), `from "/joinpeer.js"`) {
-		t.Fatal("join.js must connect through /joinpeer.js (which verifies the host)")
-	}
-	peerJS, err := http.Get(srv.URL + "/joinpeer.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	peerBody, _ := io.ReadAll(peerJS.Body)
-	peerJS.Body.Close()
-	if peerJS.StatusCode != http.StatusOK || !strings.Contains(string(peerBody), `from "./sharemac.js"`) {
-		t.Fatalf("/joinpeer.js = %d, must import ./sharemac.js", peerJS.StatusCode)
-	}
-	page, err := http.Get(srv.URL + "/join")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pageBody, _ := io.ReadAll(page.Body)
-	page.Body.Close()
-	if !strings.Contains(string(pageBody), `<script type="module" src="/join.js">`) {
-		t.Fatal("join.html must load join.js as a module (it imports sharemac.js)")
-	}
-	mac, err := http.Get(srv.URL + "/sharemac.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	macBody, _ := io.ReadAll(mac.Body)
-	mac.Body.Close()
-	if mac.StatusCode != http.StatusOK || !strings.HasPrefix(mac.Header.Get("Content-Type"), "text/javascript") ||
-		!strings.Contains(string(macBody), "export async function answerOffer") {
-		t.Fatalf("/sharemac.js = %d %q", mac.StatusCode, mac.Header.Get("Content-Type"))
-	}
-	fsMark := bytes.Index(jsBody, []byte(`e.FS="`))
-	usMark := bytes.Index(jsBody, []byte(`e.US=`))
-	if fsMark < 0 || usMark <= fsMark || bytes.Contains(jsBody[fsMark:usMark], []byte("\n")) ||
-		!bytes.Contains(jsBody[fsMark:usMark], []byte{0x1c}) {
-		t.Fatal("join xterm C0 File/Group/Record separators must stay inside the minified string literals")
+	if h, err := http.Get(srv.URL + "/healthz"); err != nil || h.StatusCode != http.StatusOK {
+		t.Fatalf("/healthz: %v %v", h, err)
 	}
 }
 
@@ -271,10 +189,22 @@ func TestSignalRejectsCrossSiteOrigin(t *testing.T) {
 	if resp != nil && resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("ws status = %d", resp.StatusCode)
 	}
-	hdr.Set("Origin", srv.URL)
-	conn, _, err = websocket.DefaultDialer.Dial(ws, hdr)
+	// The relay serves no page, so not even its own origin or a loopback one has a reason to use it: any Origin is
+	// refused. Keel's dialers (the host's and the joiner's) send none, which is what every other test here does.
+	for _, origin := range []string{srv.URL, "http://127.0.0.1:47241", "http://localhost", "null"} {
+		hdr.Set("Origin", origin)
+		conn, resp, err = websocket.DefaultDialer.Dial(ws, hdr)
+		if err == nil {
+			conn.Close()
+			t.Fatalf("Origin %q was admitted", origin)
+		}
+		if resp != nil && resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("Origin %q: ws status = %d", origin, resp.StatusCode)
+		}
+	}
+	conn, _, err = websocket.DefaultDialer.Dial(ws, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("a dialer with no Origin (Keel's) was refused: %v", err)
 	}
 	conn.Close()
 }

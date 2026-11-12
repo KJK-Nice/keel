@@ -1,4 +1,4 @@
-# Isolated signal binary — do not build cmd/keel (Wails/CGO).
+# Isolated signal binary: only cmd/keel-signal and internal/signal are copied in.
 FROM golang:1.27.3-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
