@@ -77,21 +77,21 @@ macos-app: native
 	cp bin/keel bin/Keel.app/Contents/MacOS/keel
 	cp "$(if $(KEEL_LIBGHOSTTY),$(KEEL_LIBGHOSTTY),$$(./bin/keel-native --library-path))" bin/Keel.app/Contents/MacOS/libghostty-vt.dylib
 	codesign --force --sign - bin/Keel.app/Contents/MacOS/libghostty-vt.dylib
-	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
+	cp packaging/macos/Info.plist bin/Keel.app/Contents/Info.plist
 ifneq ($(KEEL_VERSION),dev)
 	plutil -replace CFBundleShortVersionString -string $(patsubst v%,%,$(KEEL_VERSION)) bin/Keel.app/Contents/Info.plist
 endif
 	if [ -f LICENSE ]; then cp LICENSE bin/Keel.app/Contents/Resources/LICENSE; fi
 	if [ -n "$(KEEL_NOTICES)" ]; then cp "$(KEEL_NOTICES)" bin/Keel.app/Contents/Resources/THIRD_PARTY_NOTICES; fi
-	cp internal/desktop/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
+	cp packaging/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
 	rm -rf bin/Keel.app/Contents/Resources/Keel.icon
-	cp -R internal/desktop/macos/Keel.icon bin/Keel.app/Contents/Resources/Keel.icon
-	if [ -f internal/desktop/macos/Assets.car ]; then cp internal/desktop/macos/Assets.car bin/Keel.app/Contents/Resources/Assets.car; fi
-	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app/Contents/MacOS/keel
-	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app
+	cp -R packaging/macos/Keel.icon bin/Keel.app/Contents/Resources/Keel.icon
+	if [ -f packaging/macos/Assets.car ]; then cp packaging/macos/Assets.car bin/Keel.app/Contents/Resources/Assets.car; fi
+	codesign --force --sign - --identifier app.keel.desktop --entitlements packaging/macos/entitlements.plist bin/Keel.app/Contents/MacOS/keel
+	codesign --force --sign - --identifier app.keel.desktop --entitlements packaging/macos/entitlements.plist bin/Keel.app
 
 macos-icon:
-	cd internal/desktop/macos && go run genicon.go
+	cd packaging/macos && go run genicon.go
 
 signal:
 	go run ./cmd/keel-signal
@@ -109,7 +109,7 @@ native-app: native
 	cp bin/keel-native "bin/Keel Native.app/Contents/MacOS/keel-native"
 	cp "$$(./bin/keel-native --library-path)" "bin/Keel Native.app/Contents/MacOS/"
 	cp internal/native/macos/Info.plist "bin/Keel Native.app/Contents/Info.plist"
-	cp internal/desktop/macos/Keel.icns "bin/Keel Native.app/Contents/Resources/Keel.icns"
+	cp packaging/macos/Keel.icns "bin/Keel Native.app/Contents/Resources/Keel.icns"
 	if [ -f LICENSE ]; then cp LICENSE "bin/Keel Native.app/Contents/Resources/LICENSE"; fi
 	codesign --force --sign - "bin/Keel Native.app/Contents/MacOS/libghostty-vt.dylib"
 	codesign --force --sign - --identifier app.keel.native "bin/Keel Native.app"

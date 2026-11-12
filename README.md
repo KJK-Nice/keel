@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="internal/desktop/macos/icon.png" width="96" alt="Keel">
+<img src="packaging/macos/icon.png" width="96" alt="Keel">
 
 # Keel
 
