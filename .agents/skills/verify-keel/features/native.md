@@ -421,6 +421,17 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Refresh the references where `node_modules` exists (a worktree has none: link the main checkout's read-only, use `npx --no-install`, remove the link after, never stage it; never install): `make build`, then `npx --no-install e2e run tests/readme.e2e.ts --target webkit --output .e2e/proof/readme` (seeded made-up hosts, `scripts/e2e-serve.sh`: `KEEL_KEYRING=off`, scratch data, fake agent). The `reference screens` tests write `ref-<screen>-<theme>` shots under `.e2e/proof/readme/results/*/attempt-1/screenshots/`; copy them to `docs/images/reference/` without the number and `ref-`. The tests scrub path, host, user and join-link values from the DOM first, but look at every PNG for real data before committing it.
 - Key caps (`keycaps.go`): the clock is the tester's, so hold with `tt.HoldModifiers(ui.Cmd)`, `Frame()`, then `tt.Advance(capDelay + capFade)`; caps are elements labelled `key cap <keys>` (`tt.Texts()`, `tt.Find`). A key pressed with `tt.KeyDown` or a click with `tt.ClickAtWith(ui.Cmd, x, y)` hides them; `tt.SetFocused(false)` too. In the e2e a menu shortcut (⌘⇧D) leaves its key "down", so the hold ignores keys down when it began. Shots: `TestE2EKeyCaps-dark` and `-light`.
 
+## Look (plan 028)
+
+- Opacity: `TestE2EControlsUnderWindowOpacity` sets the window to 70% (`translucentWin`, `win.Opacity`, `alpha`) and writes
+  `TestE2EOpacity-{workspace,agent,newtab,settings}-{dark,light}.png`. The Tester draws over nothing (premultiplied pixels), so
+  `shotOn` puts the picture on a flat blue-grey (110, 138, 176) before writing; look at the PNGs next to each other. Unit tests:
+  `controls_test.go` (the contrast table is printed with `-v`). Real blur behind is person-only.
+- Ring: `TestE2EPaneRing-{dark,light,mixed-dark,mixed-light}.png`; unit: `ring_test.go` (`SetWindowActive(false)` is the window not
+  being the active one). Seams and key caps: `lines_test.go` (`SetScale(2)` for device pixels).
+- Empty states: `TestE2EEmptyStates` empties the seeded snippets and writes `TestE2EEmpty-<place>-{dark,light}.png`; unit:
+  `empty_test.go`. Flat caps beside text: `TestE2EFlatKeyCapShots`, and `TestE2EKeyCaps-{dark,light}` for the held ones.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
