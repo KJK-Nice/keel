@@ -23,38 +23,38 @@ type notebooksPage struct {
 func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		id := nb.ID
-		if m.Item("Open").Chosen() {
+		if menuItem(m, "Open").Chosen() {
 			w.act(func() { w.openNotebook(id) })
 		}
-		if m.Item("Rename").Chosen() {
+		if menuItem(m, "Rename").Chosen() {
 			w.act(func() { w.openRenameNotebook(id) })
 		}
 		pin := "Pin"
 		if nb.Pinned {
 			pin = "Unpin"
 		}
-		if m.Item(pin).Chosen() {
+		if menuItem(m, pin).Chosen() {
 			w.act(func() { w.toggleNotebookPin(id) })
 		}
 		priv := "Make private"
 		if nb.Private {
 			priv = "Let the agent read it"
 		}
-		if m.Item(priv).Chosen() {
+		if menuItem(m, priv).Chosen() {
 			w.act(func() { w.toggleNotebookPrivate(id) })
 		}
-		if m.Item("History").Chosen() {
+		if menuItem(m, "History").Chosen() {
 			w.act(func() { w.openNotebookHistory(id) })
 		}
 		if !nb.Private {
 			// §6 rule 12: a private notebook does not exist for the agent, so it is never offered to it.
 			m.Separator()
-			if m.Item("Ask the agent about this notebook").Chosen() {
+			if menuItem(m, "Ask the agent about this notebook").Chosen() {
 				w.act(func() { w.askAboutNotebook(id) })
 			}
 		}
 		m.Separator()
-		if m.Item("Delete").Chosen() {
+		if menuItem(m, "Delete").Chosen() {
 			w.act(func() { w.askDeleteNotebook(id) })
 		}
 	}
@@ -114,7 +114,6 @@ func (w *workspace) notebookRow(c *ui.Context, nb keelclient.Notebook) {
 			text(c, notebookPreview(nb), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
 		w.notebookBadges(c, nb)
-		iconMenuBtn(c, "more-horizontal", "Actions for "+notebookName(nb), sizeControlSm, w.notebookMenu(nb))
 	})
 	if r.Clicked() {
 		id := nb.ID
@@ -195,9 +194,6 @@ func (w *workspace) sideNotebookRow(c *ui.Context, nb keelclient.Notebook) {
 				pin = "Unpin"
 			}
 			pinClicked = iconBtn(c, "pin", pin+" "+name, sizeControlSm, nb.Pinned)
-		}
-		if hover || r.FocusWithin() {
-			iconMenuBtn(c, "more-horizontal", "Notebook actions for "+name, sizeControlSm, w.notebookMenu(nb))
 		}
 	})
 	switch {

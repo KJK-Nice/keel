@@ -311,7 +311,7 @@ func (w *workspace) agentNbCardMenu(m *ui.Menu, id string) {
 	}
 	p := rec.p
 	for _, act := range cardActions(p) {
-		if m.Item(nbCardLabels[act]).Chosen() {
+		if menuItem(m, nbCardLabels[act]).Chosen() {
 			w.act(func() { w.cardAction(p, act) })
 		}
 	}

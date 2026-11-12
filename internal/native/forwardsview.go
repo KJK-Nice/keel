@@ -17,7 +17,6 @@ const (
 	fwdThroughCol = 140
 	fwdStatusCol  = 200
 	fwdOnCol      = 56
-	fwdActionCol  = 36
 )
 
 var fwdChips = [][2]string{{tunnelAll, "All"}, {tunnelRunning, "Running"}, {tunnelStopped, "Stopped"}}
@@ -26,23 +25,23 @@ var fwdChips = [][2]string{{tunnelAll, "All"}, {tunnelRunning, "Running"}, {tunn
 func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if tunnelState(t).on {
-			if m.Item("Stop").Chosen() {
+			if menuItem(m, "Stop").Chosen() {
 				w.act(func() { w.setTunnelOn(t, false) })
 			}
-		} else if m.Item("Start").Chosen() {
+		} else if menuItem(m, "Start").Chosen() {
 			w.act(func() { w.setTunnelOn(t, true) })
 		}
 		if addr := tunnelLocalAddress(t); addr != "" {
-			if m.Item("Copy local address").Chosen() {
+			if menuItem(m, "Copy local address").Chosen() {
 				w.act(func() { c.WriteClipboard(addr); w.say("Copied local address") })
 			}
 		}
 		m.Separator()
-		if m.Item("Edit").Chosen() {
+		if menuItem(m, "Edit").Chosen() {
 			w.act(func() { w.editForward(t) })
 		}
 		m.Separator()
-		if m.Item("Delete").Chosen() {
+		if menuItem(m, "Delete").Chosen() {
 			w.act(func() { w.askDeleteTunnel(t) })
 		}
 	}
@@ -110,7 +109,6 @@ func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 			ui.Row(c).Width(fwdThroughCol).Shrink(0).Children(func() { label(c, "Through", inkFaint) })
 			ui.Row(c).Width(fwdStatusCol).Shrink(0).Children(func() { label(c, "Status", inkFaint) })
 			ui.Row(c).Width(fwdOnCol).Shrink(0).Justify(ui.End).Children(func() { label(c, "On", inkFaint) })
-			ui.Row(c).Width(fwdActionCol).Shrink(0)
 		})
 		shown := w.shownTunnels(p)
 		switch {
@@ -165,9 +163,6 @@ func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 			}
 		})
 		ui.Row(c).Width(fwdOnCol).Shrink(0).Justify(ui.End).Children(func() { w.tunnelSwitch(c, t) })
-		ui.Row(c).Width(fwdActionCol).Shrink(0).Justify(ui.End).Children(func() {
-			iconMenuBtn(c, "more-horizontal", "Actions for "+t.Name, sizeControlSm, w.tunnelMenu(c, t))
-		})
 	})
 }
 
@@ -230,12 +225,6 @@ func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
 			w.act(func() { w.openPage("forwards") }) // data-open-page="forwards"
 		}
 		w.tunnelSwitch(c, t)
-		// The menu button shows on hover; its place stays, or the switch would move under the pointer.
-		if hover || item.FocusWithin() {
-			iconMenuBtn(c, "more-horizontal", "Forward actions for "+t.Name, sizeControlSm, w.tunnelMenu(c, t))
-		} else {
-			ui.Box(c).Size(sizeControlSm, sizeControlSm).Shrink(0)
-		}
 	})
 }
 

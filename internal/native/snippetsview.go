@@ -13,18 +13,18 @@ import (
 // pane…" asks Approve before type; nothing in the menu types.
 func (w *workspace) snippetMenu(c *ui.Context, s keelclient.Snippet) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		if m.Item("Type into pane…").Chosen() {
+		if menuItem(m, "Type into pane…").Chosen() {
 			w.act(func() { w.typeSnippet(s.ID) })
 		}
-		if m.Item("Copy").Chosen() {
+		if menuItem(m, "Copy").Chosen() {
 			w.act(func() { c.WriteClipboard(s.Command) })
 		}
 		m.Separator()
-		if m.Item("Edit").Chosen() {
+		if menuItem(m, "Edit").Chosen() {
 			w.act(func() { w.editSnippet(s) })
 		}
 		m.Separator()
-		if m.Item("Delete").Chosen() {
+		if menuItem(m, "Delete").Chosen() {
 			w.act(func() { w.askDeleteSnippet(s) })
 		}
 	}
@@ -103,9 +103,6 @@ func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s keelclient.Snip
 			bodyStrong(c, s.Name, ink).MinWidth(0)
 			text(c, snippetFirstLine(s), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
-		if hover {
-			iconMenuBtn(c, "more-horizontal", "Snippet actions for "+s.Name, sizeControlSm, w.snippetMenu(c, s))
-		}
 	})
 	if r.Clicked() {
 		w.act(func() { p.selected = s.ID })
@@ -223,9 +220,6 @@ func (w *workspace) sideSnippetRow(c *ui.Context, s keelclient.Snippet) {
 			body(c, snippetName(s), ink).MinWidth(0)
 			text(c, snippetFirstLine(s), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
-		if hover || r.FocusWithin() {
-			iconMenuBtn(c, "more-horizontal", "Snippet actions for "+snippetName(s), sizeControlSm, w.snippetMenu(c, s))
-		}
 	})
 	if r.Clicked() {
 		w.act(func() { w.typeSnippet(s.ID) })

@@ -738,21 +738,21 @@ func (w *workspace) agentCardMenu(m *ui.Menu, id, offer string) {
 		return
 	}
 	if rec.editing {
-		if m.Item("Cancel").Chosen() {
+		if menuItem(m, "Cancel").Chosen() {
 			w.act(func() { rec.editing = false })
 		}
-		if m.Item("Save command").Chosen() {
+		if menuItem(m, "Save command").Chosen() {
 			w.act(func() { w.editAgentProposal(id) })
 		}
 		return
 	}
-	if m.Item("Edit command").Chosen() {
+	if menuItem(m, "Edit command").Chosen() {
 		w.act(func() { w.startEdit(rec) })
 	}
-	if m.Item("Copy command").Chosen() {
+	if menuItem(m, "Copy command").Chosen() {
 		w.act(func() { w.copyOut = rec.p.Command }) // the command only, never the bytes; the next frame writes it
 	}
-	if (offer == offerType || offer == offerShift) && m.Item("Type into pane…").Chosen() {
+	if (offer == offerType || offer == offerShift) && menuItem(m, "Type into pane…").Chosen() {
 		w.act(func() { w.typeAgentProposal(id, false) }) // from a menu ⇧ is not held: a ⇧ proposal says so on its card
 	}
 }

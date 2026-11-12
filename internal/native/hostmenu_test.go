@@ -300,16 +300,15 @@ func TestUnlockedElsewhereTakesTheScreenAway(t *testing.T) {
 	}
 }
 
-func TestTheRowsMoreControlOpensTheMenuWithoutOpeningTheHost(t *testing.T) {
+func TestTheRowsRightClickOpensTheMenuWithoutOpeningTheHost(t *testing.T) {
 	r := hostRig(t)
-	rc, _ := r.tt.Find("host api-1")
-	r.tt.Move(rc.X+20, rc.Y+rc.H/2) // the control shows while the pointer is on the row
-	r.tt.Frame()
-	r.click(t, "Actions for api-1")
+	if err := r.tt.RightClick("host api-1"); err != nil {
+		t.Fatal(err)
+	}
 	if m := slices.DeleteFunc(r.tt.Menu(), func(s string) bool { return s == "-" }); !slices.Contains(m, "Edit") {
 		t.Fatalf("menu %v", m)
 	}
 	if len(r.fb.spawned) != 0 {
-		t.Errorf("the … control opened the host: %v", r.fb.spawned)
+		t.Errorf("the right-click opened the host: %v", r.fb.spawned)
 	}
 }

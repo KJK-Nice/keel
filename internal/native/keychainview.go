@@ -120,10 +120,7 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 			bodyStrong(c, id.Name, ink).MinWidth(0)
 			text(c, identitySubtitle(w.hosts, id), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
-		switch {
-		case hover:
-			iconMenuBtn(c, "more-horizontal", "Actions for "+id.Name, sizeControlSm, w.identityMenu(id))
-		case identityKind(id) == "key" && id.HasPassphrase:
+		if identityKind(id) == "key" && id.HasPassphrase {
 			neutralBadge(c, "passphrase")
 		}
 	})
@@ -136,12 +133,12 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 // secret, and an identity a host still uses cannot be deleted.
 func (w *workspace) identityMenu(id keelclient.Identity) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		if m.Item("Edit").Chosen() {
+		if menuItem(m, "Edit").Chosen() {
 			w.act(func() { w.editIdentity(id) })
 		}
 		m.Separator()
 		inUse := len(identityHostsOf(w.hosts, id.ID)) > 0
-		if m.Item("Delete").Disabled(inUse).Chosen() {
+		if menuItem(m, "Delete").Disabled(inUse).Chosen() {
 			w.act(func() { w.askDeleteIdentity(id) })
 		}
 	}

@@ -16,32 +16,32 @@ import (
 func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		local := h.AuthType == "local"
-		if m.Item("Connect").Chosen() {
+		if menuItem(m, "Connect").Chosen() {
 			w.act(func() { w.openHost(h) })
 		}
-		if m.Item("Open in split").Shortcut(ui.Alt, ui.KeyEnter).Chosen() {
+		if menuItem(m, "Open in split").Shortcut(ui.Alt, ui.KeyEnter).Chosen() {
 			w.act(func() { w.openHostInSplit(h) })
 		}
 		m.Separator()
-		if m.Item("Edit").Chosen() {
+		if menuItem(m, "Edit").Chosen() {
 			w.act(func() { w.editHost(h) })
 		}
-		if !local && m.Item("Duplicate").Chosen() {
+		if !local && menuItem(m, "Duplicate").Chosen() {
 			w.act(func() { w.duplicateHost(h) })
 		}
-		if cmd := sshCommand(h, w.hosts); cmd != "" && m.Item("Copy SSH command").Chosen() {
+		if cmd := sshCommand(h, w.hosts); cmd != "" && menuItem(m, "Copy SSH command").Chosen() {
 			w.act(func() { w.copyToClipboard(cmd, "SSH command") })
 		}
-		if m.Item("Move to folder…").Chosen() {
+		if menuItem(m, "Move to folder…").Chosen() {
 			w.act(func() { w.moveHostToFolder(h) })
 		}
 		on := h.AgentReadable == nil || *h.AgentReadable
-		if m.Item("Agent can read").Checked(on).Chosen() {
+		if menuItem(m, "Agent can read").Checked(on).Chosen() {
 			w.act(func() { w.setAgentReadable(h, !on) })
 		}
 		if !local {
 			m.Separator()
-			if m.Item("Delete").Chosen() {
+			if menuItem(m, "Delete").Chosen() {
 				w.act(func() { w.askDeleteHost(h) })
 			}
 		}

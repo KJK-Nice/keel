@@ -481,16 +481,16 @@ func (w *workspace) sidebarView(c *ui.Context) {
 // hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect, Join session, New
 // group and Local terminal.
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
-	if m.Item("Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
+	if menuItem(m, "Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
 		w.act(func() { w.openQuick("", nil) })
 	}
-	if m.Item("Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
+	if menuItem(m, "Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
 		w.act(w.openJoin)
 	}
-	if m.Item("New group").Chosen() {
+	if menuItem(m, "New group").Chosen() {
 		w.act(func() { w.newFolder("") })
 	}
-	if m.Item("Local terminal").Chosen() {
+	if menuItem(m, "Local terminal").Chosen() {
 		w.act(w.newLocalTab)
 	}
 }
@@ -570,13 +570,7 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 	r.Children(func() {
 		rowTile(c, "server", hostTint(host.Color), accentOn, nameCol)
 		body(c, host.Name, nameCol).Grow(1).Shrink(1).MinWidth(0)
-		if hover || r.FocusWithin() {
-			menuCol := inkMuted
-			if accentOn {
-				menuCol = nameCol
-			}
-			iconMenuBtnIn(c, "more-horizontal", "Actions for "+host.Name, sizeControlSm, menuCol, w.hostMenu(host))
-		} else if current {
+		if current {
 			live, count := tide, inkMuted
 			if accentOn {
 				live, count = nameCol, nameCol

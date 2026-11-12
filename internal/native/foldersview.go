@@ -43,30 +43,30 @@ func (w *workspace) folderTreeView(c *ui.Context) {
 // folderMenu is groupRowMenu.
 func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		if m.Item("Roles and runbooks").Chosen() {
+		if menuItem(m, "Roles and runbooks").Chosen() {
 			w.act(func() { w.openGroupPage(g.ID, false) })
 		}
-		if m.Item("Run a runbook…").Chosen() {
+		if menuItem(m, "Run a runbook…").Chosen() {
 			w.act(func() { w.openGroupPage(g.ID, true) })
 		}
 		m.Separator()
-		if m.Item("New host").Chosen() {
+		if menuItem(m, "New host").Chosen() {
 			w.act(func() { w.newHostIn(g.ID) })
 		}
-		if m.Item("New subgroup").Chosen() {
+		if menuItem(m, "New subgroup").Chosen() {
 			w.act(func() { w.newFolder(g.ID) })
 		}
-		if m.Item("Edit").Chosen() {
+		if menuItem(m, "Edit").Chosen() {
 			w.act(func() { w.editFolder(g.ID) })
 		}
-		if m.Item("Rename").Chosen() {
+		if menuItem(m, "Rename").Chosen() {
 			w.act(func() { w.renameFolder(g.ID) })
 		}
-		if m.Item("Move into…").Chosen() {
+		if menuItem(m, "Move into…").Chosen() {
 			w.act(func() { w.editFolder(g.ID) })
 		}
 		m.Separator()
-		if m.Item("Delete").Chosen() {
+		if menuItem(m, "Delete").Chosen() {
 			w.act(func() { w.askDeleteFolder(g.ID) })
 		}
 	}
@@ -101,11 +101,7 @@ func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
 				label(c, n.g.Name, inkMuted).Grow(1).Shrink(1).MinWidth(0)
 			}
 			if !renaming {
-				if h.Hovered() || h.FocusWithin() {
-					iconMenuBtn(c, "more-horizontal", "Actions for "+n.g.Name, sizeControlSm, w.folderMenu(n.g))
-				} else {
-					caption(c, fmt.Sprint(n.count), inkMuted)
-				}
+				caption(c, fmt.Sprint(n.count), inkMuted)
 			}
 		})
 		if h.Clicked() && !renaming {
