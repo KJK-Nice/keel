@@ -68,16 +68,14 @@ native-automation-build:
 native-automation: native-automation-build
 	go test -tags nativeautomation -count=1 -timeout 10m ./tests/native-automation/
 
-TEST_PKGS ?= ./...
-
 test:
-	go test $(TEST_PKGS)
+	go test ./...
 
 # Every package except the window (keel/internal/native itself; its sub-packages keelclient, joinpeer, layout and sshparse
 # stay). CI's Linux leg runs this because the window's tests are not green on Linux yet (docs/native.md "Linux"); make test
 # on a Linux machine still runs everything, so the gap stays visible there.
 test-nonwindow:
-	$(MAKE) test TEST_PKGS="$$(go list ./... | grep -v '^keel/internal/native$$')"
+	go test $$(go list ./... | grep -v '^keel/internal/native$$')
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \
