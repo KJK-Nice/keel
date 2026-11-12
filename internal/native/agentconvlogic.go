@@ -12,8 +12,6 @@ import (
 // Agent page's host chips and context column. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs
 // and here by agentconvlogic_test.go). Times are the local ones, as the app shows them.
 
-var monthNames = [...]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-
 // dayDiff is how many calendar days a is after b, by local date.
 func dayDiff(a, b time.Time) int {
 	a, b = a.Local(), b.Local()
