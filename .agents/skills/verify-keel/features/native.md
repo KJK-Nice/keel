@@ -158,6 +158,11 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
   the saved hosts; the fixture's password is the identity's password and is never written to a file
   (`startSSHOnly` deletes `sshtest.json` after reading it).
 - Pages: `e.click("Keychain")` or `"Logs"` (the sidebar footer), tabs are `tab Keychain`; `e.w.pageTab("logs")`.
+- The Logs page also reads every 2 s while it is the selected tab: `w.logsTick()` is one tick (the unit test is
+  `TestLogsPageShowsNewLinesEveryTwoSecondsOnlyWhileItIsTheSelectedTab`).
+- Times go through `clock.go` (`regionFn`): a unit test sets the region with `withRegion` (default in tests: en-US,
+  24-hour). The frame of the window is `window-state.json` in the data dir (`windowstate_test.go`); `RunWith` is
+  not driven by the e2e harness, so a person checks the real restore once.
 
 ## Snippets and Approve before type (`e2e_snippets_test.go`)
 
