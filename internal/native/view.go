@@ -568,13 +568,14 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 		}
 	})
 	r.Children(func() {
-		ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).
-			Background(hostTint(host.Color).Alpha(tileTintAlpha)).Children(func() {
-			iconSized(c, "server", hostTint(host.Color), iconSizeSm)
-		})
+		rowTile(c, "server", hostTint(host.Color), accentOn, nameCol)
 		body(c, host.Name, nameCol).Grow(1).Shrink(1).MinWidth(0)
 		if hover || r.FocusWithin() {
-			iconMenuBtn(c, "more-horizontal", "Actions for "+host.Name, sizeControlSm, w.hostMenu(host))
+			menuCol := inkMuted
+			if accentOn {
+				menuCol = nameCol
+			}
+			iconMenuBtnIn(c, "more-horizontal", "Actions for "+host.Name, sizeControlSm, menuCol, w.hostMenu(host))
 		} else if current {
 			live, count := tide, inkMuted
 			if accentOn {

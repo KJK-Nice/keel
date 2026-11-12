@@ -77,10 +77,15 @@ func (w *workspace) tabMenu(t *tab) func(m *ui.Menu) {
 
 // iconMenuBtn is iconBtn that opens a menu below it.
 func iconMenuBtn(c *ui.Context, name, tip string, size float32, build func(m *ui.Menu)) {
+	iconMenuBtnIn(c, name, tip, size, inkMuted, build)
+}
+
+// iconMenuBtnIn is iconMenuBtn with the icon in col (the on-accent colour on a chosen sidebar row).
+func iconMenuBtnIn(c *ui.Context, name, tip string, size float32, col ui.Color, build func(m *ui.Menu)) {
 	b := ui.Row(c).Size(size, size).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Tooltip(tip).Cursor(ui.CursorPointer)
 	if b.Hovered() {
 		b.Background(hoverGround)
 	}
-	b.Children(func() { icon(c, name, inkMuted) })
+	b.Children(func() { icon(c, name, col) })
 	b.PopoverMenuButton(build)
 }

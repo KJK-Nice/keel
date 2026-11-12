@@ -40,6 +40,11 @@ func TestTheChosenSidebarRowIsAccentWhileTheListHasTheKeyboardAndGreyOtherwise(t
 		if got := px(); !is(got, accentFill) {
 			t.Errorf("%s: the chosen row with the keyboard is %v, want the accent %v", th, got, accentFill)
 		}
+		// The host's tile on the accent is a tint of the on-accent colour, not the host's own colour.
+		tile := onAccent.Alpha(tileTintAlpha).Over(accentFill)
+		if got := r.pixel(row.X+space2+2, row.Y+row.H/2); !is(got, tile) {
+			t.Errorf("%s: the tile on the accent row is %v, want %v", th, got, tile)
+		}
 		if c := contrast(onAccent, accentFill); c < 4.5 {
 			t.Errorf("%s: the text on the accent has contrast %.2f", th, c)
 		}

@@ -72,6 +72,17 @@ func (w *workspace) chosenRow(c *ui.Context, r ui.Element) (fg ui.Color, accentO
 	return ink, false
 }
 
+// rowTile is the host's tile in a sidebar row. On the accent fill (on is true) the glyph takes the on-accent colour and the
+// tile a translucent tint of it, as ui.Sidebar draws an icon on its chosen item: the host's own colour is low contrast there.
+func rowTile(c *ui.Context, glyph string, tint ui.Color, on bool, fg ui.Color) {
+	if on {
+		tint = fg
+	}
+	ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(tint.Alpha(tileTintAlpha)).Children(func() {
+		iconSized(c, glyph, tint, iconSizeSm)
+	})
+}
+
 // barButton is a title bar button: MyGo's quiet button with an icon, the words and, when cap is not empty, the key that
 // presses it. active keeps the face of the pressed state while its popover or panel is open.
 func barButton(c *ui.Context, name, glyph, cap string, active bool) ui.Element {

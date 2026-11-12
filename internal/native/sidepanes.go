@@ -225,8 +225,8 @@ func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) 
 	row := ui.Row(c).FillWidth().Height(paneRowHeight).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(r.id).
 		Label("pane row " + r.name).Tooltip(r.name).Cursor(ui.CursorPointer).Focusable().Selected(current)
 	nameCol, subCol := ink, inkFaint
+	accentOn := false
 	if current {
-		var accentOn bool
 		if nameCol, accentOn = w.chosenRow(c, row); accentOn {
 			subCol = nameCol
 		}
@@ -242,9 +242,7 @@ func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) 
 		case r.host.AuthType == "local" || r.host.ID == "":
 			glyph = "computer-terminal-01"
 		}
-		ui.Row(c).Size(sizeTileSm, sizeTileSm).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hostTint(r.host.Color).Alpha(tileTintAlpha)).Children(func() {
-			iconSized(c, glyph, hostTint(r.host.Color), iconSizeSm)
-		})
+		rowTile(c, glyph, hostTint(r.host.Color), accentOn, nameCol)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
 			if current {
 				bodyStrong(c, r.name, nameCol).MinWidth(0)
