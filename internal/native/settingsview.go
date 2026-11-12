@@ -100,48 +100,39 @@ func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 		ui.Row(c).Padding(space1, space2).Children(func() { menuLabel(c, "Settings") })
 		searchField(c, &p.search, "Search settings", &p.searchH).FillWidth()
 		ui.Box(c).Height(space2).Shrink(0)
-		for _, n := range settingsNav {
-			w.railItem(c, p, n[0], n[1], "")
+		// The sections are MyGo's ui.Sidebar: its item look, the accent while it has the keyboard, grey otherwise, and
+		// ↑ ↓ Home End and typing a name to choose. About Keel is a second one under the first, so ↑ ↓ stop at the seam.
+		chosen := p.section
+		side := func(items func()) ui.Element {
+			return ui.Sidebar(c, &chosen, items).Padding(0).Background(ui.Transparent)
 		}
-		ui.Spacer(c)
+		a := side(func() {
+			for _, n := range settingsNav {
+				ui.SidebarItem(c, n[0], nil, n[1]).Label("settings nav " + n[1])
+			}
+		}).Grow(1)
 		version := ""
 		if p.rt != nil {
 			version = versionOf(p.rt.Build)
 		}
-		w.railItem(c, p, "about", "About Keel", version)
-	})
-}
-
-// railItem is button.k-rail-item: selected has the hover ground and a heavier name; a count sits on the right.
-func (w *workspace) railItem(c *ui.Context, p *settingsPage, id, name, count string) {
-	on := p.section == id
-	r := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).Label("settings nav " + name).
-		Cursor(ui.CursorPointer).Selected(on)
-	if on || r.Hovered() {
-		r.Background(hoverGround)
-	}
-	r.Children(func() {
-		if on {
-			bodyStrong(c, name, ink)
-		} else {
-			body(c, name, inkMuted)
-		}
-		if count != "" {
-			ui.Spacer(c)
-			caption(c, count, inkFaint)
-		}
-	})
-	if r.Clicked() {
-		w.act(func() {
-			p.section, p.search = id, ""
-			if id == "sharing" || id == "vault" || id == "runtime" || id == "about" {
-				w.loadSettings()
-			}
-			if id == "agent" {
-				w.loadAgentSettings()
-			}
+		b := side(func() {
+			ui.SidebarItem(c, "about", nil, "About Keel").Label("settings nav About Keel").Children(func() {
+				caption(c, version, inkFaint).Shrink(0)
+			})
 		})
-	}
+		if (a.Changed() || b.Changed()) && chosen != p.section {
+			id := chosen
+			w.act(func() {
+				p.section, p.search = id, ""
+				if id == "sharing" || id == "vault" || id == "runtime" || id == "about" {
+					w.loadSettings()
+				}
+				if id == "agent" {
+					w.loadAgentSettings()
+				}
+			})
+		}
+	})
 }
 
 func (w *workspace) settingsPanel(c *ui.Context, s settingsSection, p *settingsPage) {
