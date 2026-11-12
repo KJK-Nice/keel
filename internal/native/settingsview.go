@@ -264,7 +264,17 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
 			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.win.Blur)(c) }})
 	}
-	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, UI size, as the app orders them
+	if hasShadowSwitch() {
+		rows = append(rows, prefRow{title: "Window shadow", desc: "The shadow around the window. With a translucent window the shadow shows faintly through it; turn it off for a clean background.",
+			ctl: func(c *ui.Context) {
+				on := !w.win.NoShadow
+				ui.Switch(c, &on).Label("Window shadow switch").Shrink(0)
+				if on != !w.win.NoShadow {
+					w.act(func() { w.setWindowShadow(on) })
+				}
+			}})
+	}
+	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, Window shadow, UI size
 	return settingsSection{id: "appearance", title: "Appearance", groups: []prefGroup{{title: "Display", rows: rows}}}
 }
 

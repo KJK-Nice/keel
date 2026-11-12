@@ -20,9 +20,20 @@ const blurTimeout = 2 * time.Second
 // and never again (MyGo calls invalidateShadow only when it makes the window), so the shadow of the first page stays
 // under every later one: a ghost of it. Call it off the main thread (a goroutine).
 func invalidateWindowShadow(win *mygo.Window) {
-	defer func() { recover() }() // a failure only leaves the old shadow
 	go mygo.RunOnMain(func() {
+		defer func() { recover() }() // a failure only leaves the old shadow
 		if h := win.NativeHandle(); h != 0 {
+			objc.ID(h).Send(objc.RegisterName("invalidateShadow"))
+		}
+	})
+}
+
+// setWindowHasShadow gives the window its shadow or takes it away (Settings · Appearance · Window shadow), on the main thread.
+func setWindowHasShadow(win *mygo.Window, on bool) {
+	go mygo.RunOnMain(func() {
+		defer func() { recover() }()
+		if h := win.NativeHandle(); h != 0 {
+			objc.Send[objc.ID](objc.ID(h), objc.RegisterName("setHasShadow:"), on)
 			objc.ID(h).Send(objc.RegisterName("invalidateShadow"))
 		}
 	})

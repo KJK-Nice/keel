@@ -17,6 +17,8 @@ type prefs struct {
 	Opacity int `json:"opacity"` // 30–100; 100 is opaque
 	Blur    int `json:"blur"`    // 0–64, macOS only, used below 100
 
+	NoShadow bool `json:"-"` // Settings · Appearance · Window shadow turned off; kept as windowShadow (absent is on), macOS only
+
 	TermSize int `json:"termSize"` // terminal text size, 10–22, set by ⌘+ ⌘- ⌘0
 
 	Theme  string `json:"theme"`  // system | light | dark: Settings · Appearance · Theme
@@ -41,10 +43,12 @@ func loadPrefs(dataDir string) prefs {
 	var f struct {
 		Opacity, Blur, TermSize, UISize *int
 		Theme, TermFont                 string
+		WindowShadow                    *bool
 	}
 	if json.Unmarshal(b, &f) != nil {
 		return p
 	}
+	p.NoShadow = f.WindowShadow != nil && !*f.WindowShadow
 	p.Theme, p.TermFont = validTheme(f.Theme), validTermFont(f.TermFont)
 	if f.UISize != nil && *f.UISize >= uiSizeMin && *f.UISize <= uiSizeMax {
 		p.UISize = *f.UISize

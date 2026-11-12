@@ -15,7 +15,9 @@ for w in list where (w[kCGWindowOwnerPID as String] as? Int32) == pid && (w[kCGW
 }
 guard let t = target, let b = t[kCGWindowBounds as String] as? [String: Double], let num = t[kCGWindowNumber as String] as? Int else { exit(2) }
 let screenH = NSScreen.screens[0].frame.height
-let rect = NSRect(x: b["X"]!, y: screenH - b["Y"]! - b["Height"]!, width: b["Width"]!, height: b["Height"]!)
+// Argument 2, if given: points of backdrop to leave around the window, so that its shadow falls on the backdrop.
+let m = CommandLine.arguments.count > 2 ? Double(CommandLine.arguments[2]) ?? 0 : 0
+let rect = NSRect(x: b["X"]! - m, y: screenH - b["Y"]! - b["Height"]! - m, width: b["Width"]! + 2 * m, height: b["Height"]! + 2 * m)
 let win = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
 win.backgroundColor = NSColor(calibratedRed: 0.55, green: 0.6, blue: 0.5, alpha: 1)
 win.isOpaque = true

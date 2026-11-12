@@ -174,18 +174,68 @@ func (w *workspace) applyBlur() {
 	w.blurHook(r)
 }
 
-// shadowSoon has the window's shadow cut again 150 ms after the last frame the view built (plan 032 section 9): a translucent
-// window shows its shadow through its grounds, and a shadow made from an earlier page stays under the later ones as a ghost.
-func (w *workspace) shadowSoon() {
-	if w.shadowHook == nil {
+// hasShadowSwitch reports a window that has the Window shadow row (macOS only, as Window blur).
+func hasShadowSwitch() bool { return runtime.GOOS == "darwin" }
+
+// setWindowShadow is the Window shadow switch: it applies at once and is kept as windowShadow.
+func (w *workspace) setWindowShadow(on bool) {
+	if on == !w.win.NoShadow {
 		return
 	}
-	const shadowDelay = 150 * time.Millisecond
+	w.win.NoShadow = !on
+	w.savePref("windowShadow", on)
+	w.applyShadow()
+}
+
+// applyShadow gives the window its shadow, or takes it away, as saved. With the shadow back, it is cut afresh.
+func (w *workspace) applyShadow() {
+	if w.shadowSetHook != nil {
+		w.shadowSetHook(!w.win.NoShadow)
+	}
+	w.shadowSeen = shadowShape{} // not the shape the shadow was cut for: shadowSoon cuts it again
+}
+
+// shadowShape is what shadowSoon compares: the things that change where the window is opaque. Idle frames (the caret, the
+// poll) change none of it.
+type shadowShape struct {
+	gen    int
+	ww, wh float32
+	modal  bool
+	alpha  float32
+	dark   bool
+}
+
+// shadowDelay is how long after the last frame of a change the shadow is cut again (a var for the test).
+var shadowDelay = 150 * time.Millisecond
+
+// shadowSoon has the window's shadow cut again shadowDelay after the last frame of a change of the window's shape (plan 032
+// sections 9 and 10): a translucent window shows its shadow through its grounds, and a shadow made from an earlier page
+// stays under the later ones as a ghost. Not while the shadow is off, and not on frames that change nothing (the caret's, the
+// poll's): those would cut it twice a second at an idle prompt (22 calls in 10 s before).
+func (w *workspace) shadowSoon(c *ui.Context) {
+	if w.shadowHook == nil || w.win.NoShadow {
+		return
+	}
+	ww, wh := c.Size()
+	if s := (shadowShape{w.shadowGen, ww, wh, w.modalOpen(), w.alpha, w.dark}); s != w.shadowSeen {
+		w.shadowSeen, w.shadowDue = s, true
+	}
+	if !w.shadowDue {
+		return
+	}
 	if w.shadowTimer == nil {
-		w.shadowTimer = time.AfterFunc(shadowDelay, w.shadowHook)
+		w.shadowTimer = time.AfterFunc(shadowDelay, func() { w.post(w.shadowFire) })
 		return
 	}
 	w.shadowTimer.Reset(shadowDelay)
+}
+
+// shadowFire runs on the UI thread once the frames of a change have stopped.
+func (w *workspace) shadowFire() {
+	if w.shadowDue && w.shadowHook != nil && !w.win.NoShadow {
+		w.shadowHook()
+	}
+	w.shadowDue = false
 }
 
 // setCopyOnSelect is the Copy on select switch: every terminal takes it at once.

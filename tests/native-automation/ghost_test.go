@@ -31,13 +31,17 @@ func (r *rig) ghostCfg(opacity, blur int, theme string) {
 
 // backdrop puts a solid window of this test's own just below the app's window, so the screen captures show a known
 // backdrop and never another window that happens to lie behind (a person's Keel, a terminal). It ends with the test.
-func (r *rig) backdrop() {
+func (r *rig) backdrop(margin ...int) {
 	r.t.Helper()
+	args := []string{strconv.Itoa(r.app.Process.Pid)}
+	if len(margin) > 0 {
+		args = append(args, strconv.Itoa(margin[0]))
+	}
 	bin := filepath.Join(r.dir, "backdrop")
 	if o, err := exec.Command("swiftc", "-O", filepath.Join(r.root, "tests", "native-automation", "backdrop.swift"), "-o", bin).CombinedOutput(); err != nil {
 		r.t.Skipf("swiftc: %v %s", err, o)
 	}
-	cmd := exec.Command(bin, strconv.Itoa(r.app.Process.Pid))
+	cmd := exec.Command(bin, args...)
 	in, _ := cmd.StdinPipe()
 	if err := cmd.Start(); err != nil {
 		r.t.Fatal(err)
@@ -49,8 +53,57 @@ func (r *rig) backdrop() {
 	}
 }
 
+// shadowEdge photographs the window with margin points of the backdrop around it, and returns how much darker the backdrop is
+// just below the window than a little further down: the window's shadow. The capture goes to .scratch-native/automation/.
+func (r *rig) shadowEdge(name string, margin int) int {
+	r.t.Helper()
+	r.settle()
+	time.Sleep(700 * time.Millisecond)
+	var ws struct {
+		Windows []struct {
+			Bounds struct{ X, Y, Width, Height float64 }
+		}
+	}
+	r.must("windows", nil, &ws)
+	b := ws.Windows[0].Bounds
+	out := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
+	m := float64(margin)
+	rect := strconv.Itoa(int(b.X-m)) + "," + strconv.Itoa(int(b.Y-m)) + "," + strconv.Itoa(int(b.Width+2*m)) + "," + strconv.Itoa(int(b.Height+2*m))
+	if o, err := exec.Command("screencapture", "-x", "-R", rect, out).CombinedOutput(); err != nil {
+		r.t.Fatalf("screencapture: %v %s", err, o)
+	}
+	f, err := os.Open(out)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	scale := float64(img.Bounds().Dx()) / (b.Width + 2*m)
+	x := int((m + b.Width/2) * scale)
+	below := int((m + b.Height) * scale) // the window's bottom edge
+	lum := func(y int) int { r, g, bl, _ := img.At(x, y).RGBA(); return int(r>>8 + g>>8 + bl>>8) }
+	return lum(below+int(40*scale)) - lum(below+int(6*scale))
+}
+
 // line types a command as text (there is no key for every character) and presses Enter.
 func (r *rig) line(cmd string) { r.t.Helper(); r.typeText(cmd); r.key("Enter") }
+
+func readPNG(t *testing.T, p string) image.Image {
+	t.Helper()
+	f, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return img
+}
 
 // flatness is the largest difference, in one colour channel, between a pixel of rect and the pixel at its middle.
 func flatness(img image.Image, rect image.Rectangle) int {
@@ -71,6 +124,46 @@ func flatness(img image.Image, rect image.Rectangle) int {
 		}
 	}
 	return worst
+}
+
+// TestWindowShadowSwitch (plan 032 section 10): the shadow is there by default, Settings · Appearance · Window shadow takes it
+// away at once and gives it back, and with it off the pane at opacity 30 is flat (no ghost, because no shadow).
+func TestWindowShadowSwitch(t *testing.T) {
+	const margin = 60
+	r := newRig(t)
+	r.ghostCfg(30, 0, "dark")
+	r.startServe()
+	r.startApp()
+	openShell(r)
+	r.backdrop(margin)
+	r.line("clear")
+	on := r.shadowEdge("shadow-1-default", margin)
+	t.Logf("default: the backdrop is %d lighter 40 pt below the window than 6 pt below it", on)
+	if on < 15 {
+		t.Fatalf("the window has no shadow by default (%d)", on)
+	}
+	r.press("Settings")
+	r.waitFor("Settings", has("settings nav Appearance"))
+	r.press("Window shadow switch")
+	off := r.shadowEdge("shadow-2-off", margin)
+	t.Logf("switched off: %d", off)
+	if off > 5 {
+		t.Errorf("the shadow is still there after turning it off (%d)", off)
+	}
+	r.press("tab Local Shell")
+	r.line("clear")
+	r.settle()
+	r.screenShot("shadow-3-off-shell")
+	img := readPNG(t, filepath.Join(r.root, ".scratch-native", "automation", "shadow-3-off-shell.png"))
+	if d := flatness(img, image.Rect(700, 300, 2300, 1300)); d > ghostFlatMax {
+		t.Errorf("with the shadow off the pane is not flat (%d)", d)
+	}
+	r.press("tab Settings")
+	r.press("Window shadow switch")
+	if back := r.shadowEdge("shadow-4-on-again", margin); back < 15 {
+		t.Errorf("the shadow did not come back (%d)", back)
+	}
+	r.quit()
 }
 
 // ghostFlatMax is what an empty part of the pane may differ by: its own shadow's soft edge. A ghost of the New tab page is

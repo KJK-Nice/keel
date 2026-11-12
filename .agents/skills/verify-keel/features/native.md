@@ -477,6 +477,10 @@ Plan 031 (controls and structure), what to check and where it is held:
 `make native-automation` (tests in `tests/native-automation`) and, by hand, MyGo's `mygo-automation` drive the real window
 through a Unix socket. The socket can type into terminals, so: only `bin/keel-e2e` (tag `keelautomation`, built by
 `make native-automation-build`; never `make build`), only scratch data, never the user's Keel or the system clipboard.
+Translucent looks (ghosting, the window shadow) show only in the compositor, so those scenarios (`ghost_test.go`) use
+`screencapture -R` over a solid window of their own (`backdrop.swift`, built with `swiftc`), never over the desktop. Settings ·
+Appearance has Window shadow (macOS): off takes the window's shadow away at once; `workspace.shadowSoon` cuts a translucent
+window's shadow again 150 ms after a change of shape, never at an idle prompt.
 
 ```bash
 go build -o <scratch>/mygo-automation github.com/egoist/mygo/plugins/automation/cmd/mygo-automation   # in the worktree
