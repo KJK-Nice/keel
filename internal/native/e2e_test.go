@@ -1326,7 +1326,9 @@ func TestE2ENewTabLongHostCards(t *testing.T) {
 	e.w.tab().page.query = "eu-central"
 	for _, th := range []string{themeDark, themeLight} {
 		e.w.setTheme(th)
-		e.pump(func() bool { return e.w.dark == (th == themeDark) && e.hasLabel("start card production-database-replica-eu-central-1-az-b-primary") }, th+" theme and the long cards")
+		e.pump(func() bool {
+			return e.w.dark == (th == themeDark) && e.hasLabel("start card production-database-replica-eu-central-1-az-b-primary")
+		}, th+" theme and the long cards")
 		e.settle(300 * time.Millisecond)
 		for _, n := range []string{"production-database-replica-eu-central-1-az-b-primary", "staging-kubernetes-control-plane-ap-southeast-2-node"} {
 			card, ok := e.tt.Find("start card " + n)
