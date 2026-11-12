@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
@@ -171,6 +172,20 @@ func (w *workspace) applyBlur() {
 		r = 0
 	}
 	w.blurHook(r)
+}
+
+// shadowSoon has the window's shadow cut again 150 ms after the last frame the view built (plan 032 section 9): a translucent
+// window shows its shadow through its grounds, and a shadow made from an earlier page stays under the later ones as a ghost.
+func (w *workspace) shadowSoon() {
+	if w.shadowHook == nil {
+		return
+	}
+	const shadowDelay = 150 * time.Millisecond
+	if w.shadowTimer == nil {
+		w.shadowTimer = time.AfterFunc(shadowDelay, w.shadowHook)
+		return
+	}
+	w.shadowTimer.Reset(shadowDelay)
 }
 
 // setCopyOnSelect is the Copy on select switch: every terminal takes it at once.

@@ -15,6 +15,19 @@ import (
 // blurTimeout bounds the wait for the main thread to run the call.
 const blurTimeout = 2 * time.Second
 
+// invalidateWindowShadow makes the window server work the window's shadow out again from what the window shows now. A
+// Transparent window's shadow is cut from its content's alpha and shows through the translucent grounds; it is made once
+// and never again (MyGo calls invalidateShadow only when it makes the window), so the shadow of the first page stays
+// under every later one: a ghost of it. Call it off the main thread (a goroutine).
+func invalidateWindowShadow(win *mygo.Window) {
+	defer func() { recover() }() // a failure only leaves the old shadow
+	go mygo.RunOnMain(func() {
+		if h := win.NativeHandle(); h != 0 {
+			objc.ID(h).Send(objc.RegisterName("invalidateShadow"))
+		}
+	})
+}
+
 // setWindowBlur sets the window server's background blur radius (the call Warp, iTerm2 and
 // Ghostty use). It is a private API: it never panics and returns an error, so the app runs unblurred.
 // Call it off the main thread (a goroutine): it waits for the main thread to run the call.

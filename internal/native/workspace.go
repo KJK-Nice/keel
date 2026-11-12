@@ -352,6 +352,8 @@ type workspace struct {
 	term           termPrefs                         // Copy on select, Right-click in the terminal, the display name
 	translucentWin bool                              // the window was created Transparent: only then can opacity change live
 	blurHook       func(radius int)                  // sets the window's blur; nil in tests
+	shadowHook     func()                            // has the window server cut the shadow again (translucent windows); nil in tests
+	shadowTimer    *time.Timer                       // fires shadowHook once the frames stop (shadowSoon)
 	saveDialog     func(name string) (string, error) // the system's save dialog for a file name: the path, "" when cancelled; nil in tests that set none
 	appearanceHook func(choice string)               // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
 	dark, osDark   bool                              // the theme in use, and whether the OS appearance is dark (theme.go)

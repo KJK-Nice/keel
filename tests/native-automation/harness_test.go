@@ -46,6 +46,7 @@ type rig struct {
 	conn                       net.Conn
 	rd                         *bufio.Reader
 	n                          int
+	appEnv                     []string // extra environment of the app only
 }
 
 func repoRoot(t *testing.T) string {
@@ -147,7 +148,7 @@ func (r *rig) startServe() {
 // startApp runs the window with the socket on, connects, and waits for the first window.
 func (r *rig) startApp() {
 	r.t.Helper()
-	r.app, r.appDone = r.start("app", []string{"MYGO_AUTOMATION=" + r.sock}, "app")
+	r.app, r.appDone = r.start("app", append([]string{"MYGO_AUTOMATION=" + r.sock}, r.appEnv...), "app")
 	deadline := time.Now().Add(60 * time.Second)
 	for {
 		select {

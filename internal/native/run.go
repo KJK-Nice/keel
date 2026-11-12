@@ -166,6 +166,7 @@ func RunWith(o Options) error {
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
 			blur := func(radius int) { blurOnce(win, radius)() }
 			w.blurHook = blur
+			w.shadowHook = func() { invalidateWindowShadow(win) }
 			win.OnShow(func() { w.post(w.applyBlur) })
 		}
 		win.OnClosed(w.closeWindow)

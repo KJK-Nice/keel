@@ -121,6 +121,7 @@ func (w *workspace) view(c *ui.Context) {
 	w.folderRenameFocus(c)
 	w.runLater(c)
 	w.persist()
+	w.shadowSoon()
 }
 
 // runLater runs what the view queued, now that the frame is built.
