@@ -749,7 +749,12 @@ func TestE2EAnsibleExport(t *testing.T) {
 	saved := filepath.Join(t.TempDir(), "downloaded.ini")
 	e.w.saveDialog = func(name string) (string, error) { return saved, nil }
 	e.click("Download")
-	e.pump(func() bool { b, err := os.ReadFile(saved); return err == nil && string(b) == inv.Content }, "the downloaded file to hold the inventory")
+	// The worker writes the file, and only then posts the toast to the window: waiting for the file alone clicked "Close
+	// notification" before it was drawn (a flake, 1 run in 2). The toast is awaited too.
+	e.pump(func() bool {
+		b, err := os.ReadFile(saved)
+		return err == nil && string(b) == inv.Content && e.hasLabel("Close notification")
+	}, "the downloaded file to hold the inventory, and its toast")
 	e.click("Close notification")
 	// YAML and a playbook from the runbook are asked of keel serve and shown as it built them.
 	e.click("YAML")
