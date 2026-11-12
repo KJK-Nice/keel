@@ -263,6 +263,7 @@ func (r *rig) answersBooks(bs ...keelclient.RunbookProposal) {
 func TestARunbookProposalIsKeptOnlyBySaveWithPickOffAndDismissKeepsNothing(t *testing.T) {
 	r := agentRig(t)
 	r.answersBooks(bookProposal())
+	r.tt.SetSize(1280, 900) // plan 030: the body text is 13 pt, so the card's footer needs a taller window to be in view
 	r.ask(t, "save this as a runbook")
 	if miss := r.lacks("Save as a runbook?", "keel-runbook-e2e proposed", "Use when: The marker needs checking", "After reading panes", "2 steps", "echo keel-runbook-proposed",
 		"This runbook was written after reading terminal output. Check every step before saving: a saved runbook can be offered to the agent, and text in a pane can be written to mislead it.",

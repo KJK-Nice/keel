@@ -4,21 +4,6 @@ import "github.com/egoist/mygo/ui"
 
 // Small building blocks shared by the views. Colours and sizes come from tokens.go only.
 
-// windowTheme maps the Keel tokens onto the MyGo theme so stock widgets inherit them.
-func windowTheme(c *ui.Context, dark bool) {
-	t := *c.Theme()
-	if t.Dark != dark { // the choice differs from the system's appearance: the stock widgets take the chosen base
-		if dark {
-			t = *ui.DarkTheme()
-		} else {
-			t = *ui.LightTheme()
-		}
-	}
-	t.Background, t.Surface, t.SurfaceHover, t.Border = chrome, surface, hoverGround, line
-	t.Text, t.TextMuted, t.Accent, t.FontSize = ink, inkMuted, brass, uiFontSize
-	c.SetTheme(&t)
-}
-
 const monoStack = monoFamily + "," + monoFallback
 
 func text(c *ui.Context, s string, col ui.Color, size float32, weight int) ui.Element {

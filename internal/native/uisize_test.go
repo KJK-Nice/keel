@@ -37,18 +37,18 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	if small.sidebarEdge != sizeSidebar || large.sidebarEdge != sizeSidebar {
 		t.Errorf("sidebar width %v and %v, want %v", small.sidebarEdge, large.sidebarEdge, float32(sizeSidebar))
 	}
-	// In rem: value × scale. The body is the UI size itself; a caption is 12/13 of it.
+	// In rem: value × scale. Plan 030: the body is MyGo's 13 at the default size (12) and 13 × size ÷ 12 elsewhere; a caption is 12/13 of it.
 	for _, c := range []struct {
 		n    int
 		got  float32
 		want float32
-	}{{uiSizeMin, small.text, 11}, {uiSizeMax, large.text, 16}} {
+	}{{uiSizeMin, small.text, 13 * 11.0 / 12}, {uiSizeMax, large.text, 13 * 16.0 / 12}} {
 		if math.Abs(float64(c.got-c.want)) > 0.001 {
 			t.Errorf("body text at UI size %d is %v px, want %v", c.n, c.got, c.want)
 		}
 	}
-	if got := captionSize; math.Abs(float64(got-12*16/13.0)) > 0.001 {
-		t.Errorf("caption %v, want %v", got, 12*16/13.0)
+	if got := captionSize; math.Abs(float64(got-12*16/12.0)) > 0.001 {
+		t.Errorf("caption %v, want %v", got, 12*16/12.0)
 	}
 	if ratio := large.status / small.status; ratio < 16.0/11*0.93 || ratio > 16.0/11*1.07 {
 		t.Errorf("the status text grew %vx, want about %v", ratio, 16.0/11)
@@ -58,7 +58,7 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	}
 	// The app's default is 12 px; its bounds are 11 and 16.
 	setUISize(uiSizeDefault)
-	if uiFontSize != 12 || uiScale(uiSizeDefault) != 12.0/13 || uiSizeMin != 11 || uiSizeMax != 16 {
+	if uiFontSize != 13 || uiScale(uiSizeDefault) != 1 || uiSizeMin != 11 || uiSizeMax != 16 {
 		t.Errorf("default body %v, scale %v", uiFontSize, uiScale(uiSizeDefault))
 	}
 	// Out of range or unreadable values fall back to the default; the choice is kept.

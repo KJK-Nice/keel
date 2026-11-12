@@ -9,11 +9,13 @@ import (
 // Control fills under window opacity (plan 028 step 2). The grounds take the window's alpha (workspace.ground); a control
 // drawn on them (an input, a segment, a tab pill, a button, a card, a hover fill) takes a milder one, so with opacity
 // below 1 it reads as part of the glass and not as a sticker on it: controlAlpha = 1 - (1 - alpha) * controlShare, never
-// below controlFloor. At alpha 1 it is 1 and nothing changes. Text, icons, borders, the primary and destructive buttons,
-// dialogs, menus, popovers, toasts, the palette, key caps and the terminal never go through it.
+// below controlFloor. Plan 030: a control over the ground covers 1 - (1-alpha)(1-controlAlpha) of the backdrop, and the
+// share is set so that is 0.8 at window opacity 0.7 (plan 028's 0.6 gave 0.95, too opaque). At alpha 1 it is 1 and nothing
+// changes. Text, icons, borders, the primary and destructive buttons, dialogs, menus, popovers, toasts, the palette, key
+// caps and the terminal never go through it.
 const (
-	controlShare = 0.6
-	controlFloor = 0.72
+	controlShare = 2.2
+	controlFloor = 0.2
 )
 
 // controlAlpha is the fill alpha of controls this frame; useControls sets it, as useTheme sets the colours.

@@ -47,14 +47,13 @@ func TestTokensMatchJSON(t *testing.T) {
 			return v
 		}
 		p := th.p
+		// Plan 030: the look is MyGo's (TestPaletteIsMyGos); what still has to match tokens.json is what is Keel's own: the
+		// meaning colours, the terminal's theme, the stage behind it, the scrim.
 		colors := map[string]string{
-			"chrome": p.chrome, "stage": p.stage, "surface": p.surface, "raised": p.raised,
-			"hover": p.hover, "line": p.line, "line-strong": p.lineStrong, "ink": p.ink,
-			"ink-muted": p.inkMuted, "ink-faint": p.inkFaint, "brass": p.brass,
-			"brass-ink": p.brassInk, "brass-soft": p.brassSoft, "tide": p.tide, "signal": p.signal, "flare": p.flare, "term-selection": p.termSelection,
-			"brass-strong": p.brassStrong, "on-brass": p.onBrass, "signal-soft": p.signalSoft, "flare-soft": p.flareSoft,
+			"stage": p.stage, "tide": p.tide, "signal": p.signal, "flare": p.flare, "term-selection": p.termSelection,
+			"signal-soft": p.signalSoft, "flare-soft": p.flareSoft,
 			"on-flare": p.onFlare, "haze": p.haze, "haze-soft": p.hazeSoft, "scrim": p.scrim, "tide-soft": p.tideSoft,
-			"focus": p.focus, "term-fg": p.termFg, "term-bg": p.termBg, "term-cursor": p.termCursor,
+			"term-fg": p.termFg, "term-bg": p.termBg, "term-cursor": p.termCursor,
 		}
 		for i, h := range p.ansi {
 			colors[fmt.Sprintf("ansi-%d", i)] = h
@@ -63,9 +62,6 @@ func TestTokensMatchJSON(t *testing.T) {
 			if want := resolve(name); got != want {
 				t.Errorf("%s color %s = %q, tokens.json = %q", th.id, name, got, want)
 			}
-		}
-		if len(colors) != len(doc.Color.Tokens) {
-			t.Errorf("%s: %d colours checked, tokens.json has %d", th.id, len(colors), len(doc.Color.Tokens))
 		}
 	}
 	px := map[string]float64{}

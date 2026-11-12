@@ -6,38 +6,33 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// hexPalette is one theme's colours as hex: the values of docs/design/tokens.json, which TestTokensMatchJSON keeps them in
-// step with. This file is the only place that names a hex value or a theme; views read the colour variables below.
-// shortcut: hand-copied; generate from tokens.json with internal/design/tokensgen when the list grows (docs/native.md).
+// hexPalette is one theme's colours as hex. Plan 030: the chrome's grounds, controls, text and lines are MyGo's own light
+// and dark themes (TestPaletteIsMyGos keeps them equal); what stays Keel's is the meaning colours (tide, signal, flare,
+// haze: Read-only, Changes state, Destructive, Production, live, failure), the terminal's theme and the stage behind it.
+// The accent is not here: it is the system's (theme.go useAccent). This file is the only place that names a hex value.
 type hexPalette struct {
 	chrome, stage, surface, raised, hover, line, lineStrong, ink, inkMuted, inkFaint     string
-	brass, brassInk, brassSoft, brassStrong, onBrass                                     string
 	tide, tideSoft, signal, signalSoft, flare, flareSoft, onFlare, haze, hazeSoft, scrim string
-	focus, termFg, termBg, termCursor, termSelection                                     string
-	shadowModal, shadowPop                                                               string // the drop shadows of shadow-modal and shadow-pop; their 1px rings are not drawn
+	termFg, termBg, termCursor, termSelection                                            string
+	shadowModal, shadowPop                                                               string // the drop shadows of the modal and the popover
 	ansi                                                                                 [16]string
 }
 
 var darkHex = hexPalette{
-	chrome:        "#0c1117",
-	stage:         "#080b10",
-	surface:       "#11161d",
-	raised:        "#1a2027",
-	hover:         "#222831",
-	line:          "#2a3037",
-	lineStrong:    "#5c646e",
-	ink:           "#e9edf2",
-	inkMuted:      "#a7adb5",
-	inkFaint:      "#878d95",
-	brass:         "#e8b960",
-	brassInk:      "#e8b960",
-	brassSoft:     "#e8b96024",
+	chrome:        "#18181b", // MyGo DarkTheme Background
+	stage:         "#080b10", // the terminal's surround: it must match termBg
+	surface:       "#18181b", // the page ground: the same Background
+	raised:        "#27272a", // DarkTheme Surface: controls, cards, dialogs
+	hover:         "#323236", // SurfaceHover
+	line:          "#3f3f46", // Border: seams and control outlines
+	lineStrong:    "#7e7e87", // Border toward Text by 35%: the unfocused ring and the few custom outlines
+	ink:           "#f4f4f5", // Text
+	inkMuted:      "#a1a1aa", // TextMuted
+	inkFaint:      "#86868d", // TextMuted toward Background by 20%
 	tide:          "#5dd2bd",
 	signal:        "#fc984c",
 	flare:         "#f66d67",
 	termSelection: "#e8b96047",
-	brassStrong:   "#f4cb75",
-	onBrass:       "#291906",
 	signalSoft:    "#fc984c24",
 	flareSoft:     "#f66d6726",
 	onFlare:       "#200a08",
@@ -45,7 +40,6 @@ var darkHex = hexPalette{
 	hazeSoft:      "#85b6e926",
 	scrim:         "#020407b8",
 	tideSoft:      "#5dd2bd24",
-	focus:         "#e8b960",
 	termFg:        "#e9edf2",
 	termBg:        "#080b10",
 	termCursor:    "#e8b960",
@@ -54,25 +48,20 @@ var darkHex = hexPalette{
 }
 
 var lightHex = hexPalette{
-	chrome:        "#e6eaef",
+	chrome:        "#f4f4f5", // MyGo LightTheme Surface: the bars and the sidebar sit a step off the page
 	stage:         "#fafcfe",
-	surface:       "#f1f4f7",
+	surface:       "#ffffff", // Background: the page ground
 	raised:        "#ffffff",
-	hover:         "#dfe3ea",
-	line:          "#d4d8dd",
-	lineStrong:    "#878d95",
-	ink:           "#141a22",
-	inkMuted:      "#545c65",
-	inkFaint:      "#696f77",
-	brass:         "#e7b551",
-	brassInk:      "#82510d",
-	brassSoft:     "#e7b55138",
+	hover:         "#e9e9ec", // SurfaceHover
+	line:          "#d9d9de", // Border
+	lineStrong:    "#96969a", // Border toward Text by 35%
+	ink:           "#18181b", // Text
+	inkMuted:      "#71717a", // TextMuted
+	inkFaint:      "#8d8d94", // TextMuted toward Background by 20%
 	tide:          "#0e6b62",
 	signal:        "#a54801",
 	flare:         "#ba2524",
 	termSelection: "#e7b55159",
-	brassStrong:   "#d7a035",
-	onBrass:       "#291906",
 	signalSoft:    "#a548011f",
 	flareSoft:     "#ba25241a",
 	onFlare:       "#fcfcfc",
@@ -80,7 +69,6 @@ var lightHex = hexPalette{
 	hazeSoft:      "#2c5ca31c",
 	scrim:         "#141a2266",
 	tideSoft:      "#0e6b621f",
-	focus:         "#82510d",
 	termFg:        "#141a22",
 	termBg:        "#fafcfe",
 	termCursor:    "#82510d",
@@ -140,12 +128,12 @@ const (
 	termShareLight   = 0.3  // vibrancy-term-share, light: the share of the chrome's see-through the terminal body keeps (dark is 1)
 )
 
-// The app writes these in rem (px ÷ 13, keel.css) so Settings · Appearance · UI size scales them; the px sizes above,
-// the spacing and the radii stay as they are. The design value is tokens.json's, at its 13px base; the app's default UI
-// size is 12px (term.js UI_SIZE_DEFAULT), so a rem is 12/13 of the design px until the setting moves.
+// What is written in rem scales with Settings · Appearance · UI size; the px sizes above, the spacing and the radii stay
+// as they are. The design px are at 13, MyGo's body size on macOS, and are 1:1 at the default UI size (12), so the theme's
+// FontSize (13 × size ÷ 12) and the hand-set text agree.
 const (
 	uiSizeMin, uiSizeMax, uiSizeDefault = 11, 16, 12 // term.js UI_SIZE_MIN, UI_SIZE_MAX, UI_SIZE_DEFAULT
-	uiSizeBase                          = 13         // what the design px are written at
+	uiSizeBase                          = uiSizeDefault
 )
 
 // Design values in px at uiSizeBase.
@@ -208,11 +196,16 @@ func tok(hex string) ui.Color { return ui.Hex(hex) }
 // never names a theme.
 var (
 	chrome, stage, surface, raised, hoverGround, line, lineStrong, ink, inkMuted, inkFaint ui.Color
-	brass, brassInk, brassSoft, tide, signal, flare, focus, termSelection, brassStrong     ui.Color
-	onBrass, signalSoft, flareSoft, onFlare, haze, hazeSoft, scrim, tideSoft               ui.Color
+	tide, signal, flare, termSelection                                                     ui.Color
+	signalSoft, flareSoft, onFlare, haze, hazeSoft, scrim, tideSoft                        ui.Color
 	shadowModal, shadowPop, termFg, termBg, termCursor                                     ui.Color
 	ansi                                                                                   [16]ui.Color
 )
+
+// The accent family (plan 030): the system accent colour, set by useAccent. The names are the brass tokens' they replace:
+// brass is the accent fill (primary buttons, selected marks), brassStrong its hover, onBrass the text on it, brassInk the
+// accent as text or an icon on the page, brassSoft a wash of it, focus the focus ring. Keel's brass is the app icon only.
+var brass, brassInk, brassSoft, brassStrong, onBrass, focus ui.Color
 
 func init() { useTheme(true) }
 
@@ -229,10 +222,10 @@ func useTheme(dark bool) {
 	p := paletteOf(dark)
 	chrome, stage, surface, raised, hoverGround = tok(p.chrome), tok(p.stage), tok(p.surface), tok(p.raised), tok(p.hover)
 	line, lineStrong, ink, inkMuted, inkFaint = tok(p.line), tok(p.lineStrong), tok(p.ink), tok(p.inkMuted), tok(p.inkFaint)
-	brass, brassInk, brassSoft, brassStrong, onBrass = tok(p.brass), tok(p.brassInk), tok(p.brassSoft), tok(p.brassStrong), tok(p.onBrass)
 	tide, tideSoft, signal, signalSoft = tok(p.tide), tok(p.tideSoft), tok(p.signal), tok(p.signalSoft)
 	flare, flareSoft, onFlare, haze, hazeSoft, scrim = tok(p.flare), tok(p.flareSoft), tok(p.onFlare), tok(p.haze), tok(p.hazeSoft), tok(p.scrim)
-	focus, termFg, termBg, termCursor, termSelection = tok(p.focus), tok(p.termFg), tok(p.termBg), tok(p.termCursor), tok(p.termSelection)
+	termFg, termBg, termCursor, termSelection = tok(p.termFg), tok(p.termBg), tok(p.termCursor), tok(p.termSelection)
+	useAccent(dark, ui.Color{}) // the default accent until the frame reads the system's
 	shadowModal, shadowPop = tok(p.shadowModal), tok(p.shadowPop)
 	for i, h := range p.ansi {
 		ansi[i] = tok(h)

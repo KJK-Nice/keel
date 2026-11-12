@@ -11,11 +11,16 @@ import (
 
 func TestControlAlphaFollowsTheWindowAlpha(t *testing.T) {
 	t.Cleanup(func() { useControls(1, true) })
-	for _, c := range []struct{ window, want float32 }{{1, 1}, {0.85, 0.91}, {0.7, 0.82}, {0.5, 0.72}, {0.3, 0.72}} {
+	for _, c := range []struct{ window, want float32 }{{1, 1}, {0.85, 0.67}, {0.7, 0.34}, {0.5, 0.2}, {0.3, 0.2}} {
 		useControls(c.window, true)
 		if math.Abs(float64(controlAlpha-c.want)) > 0.005 {
 			t.Errorf("window alpha %v: control alpha %v, want %v", c.window, controlAlpha, c.want)
 		}
+	}
+	// Plan 030: a control over the ground covers about 0.8 of the backdrop at window opacity 0.7.
+	useControls(0.7, true)
+	if cover := 1 - (1-0.7)*(1-float64(controlAlpha)); math.Abs(cover-0.8) > 0.02 {
+		t.Errorf("a control over the ground covers %.2f at opacity 0.7, want about 0.8", cover)
 	}
 }
 
