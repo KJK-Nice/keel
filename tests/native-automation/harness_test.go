@@ -34,6 +34,7 @@ type node struct {
 	Label  string   `json:"label"`
 	Value  string   `json:"value"`
 	States []string `json:"states"`
+	Bounds struct{ X, Y, Width, Height float64 }
 }
 
 type rig struct {

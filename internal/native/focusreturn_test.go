@@ -131,6 +131,28 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 	})
 }
 
+// Plan 032 step 4, found in a real window: a drag on a sash gave the sash the keyboard and kept it, so the next typing (text
+// goes to the focused element) reached nothing until the terminal was clicked. A pointer drag gives the pane the keyboard back;
+// a sash reached by Tab keeps it for its arrow keys.
+func TestDraggingASashGivesTheKeyboardBackToThePane(t *testing.T) {
+	r := approveRig(t)
+	s, ok := r.tt.Find("Resize sidebar")
+	if !ok {
+		t.Fatal("no sidebar sash")
+	}
+	x, y := s.X+s.W/2, s.Y+s.H/2
+	r.tt.Press(x, y)
+	r.tt.Move(x+30, y)
+	r.tt.Frame()
+	r.tt.Release(x+30, y)
+	for i := 0; i < 4; i++ {
+		r.tt.Frame()
+	}
+	if !r.tt.Focused("body 1") {
+		t.Error("after a drag the keyboard is not on the pane")
+	}
+}
+
 // Plan 031 step 0: whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
 // by Escape gives the keyboard back to the pane that had it. Typing then reaches the terminal, not the page behind it.
 func TestEscapeGivesTheKeyboardBackToThePane(t *testing.T) {

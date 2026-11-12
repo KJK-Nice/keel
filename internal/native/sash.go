@@ -77,8 +77,9 @@ func (w *workspace) sidebarSash(c *ui.Context) {
 
 // sashState is a sash's own state: whether it is being dragged (the width is kept when it lets go) and its keyboard handle.
 type sashState struct {
-	drag bool
-	h    ui.Handle
+	drag  bool
+	moved bool // the pointer moved during this drag
+	h     ui.Handle
 }
 
 // sashSpec says what a sash resizes. Widths handed to keep are what is saved: 0 is the default.
@@ -109,11 +110,21 @@ func (w *workspace) widthSash(c *ui.Context, s *sashState, sp sashSpec) {
 	if dx, _, down := b.Dragged(); down {
 		s.drag = true
 		if dx != 0 {
+			s.moved = true
 			sp.live(sp.clamp(sp.cur + sign*dx))
 		}
 	} else if s.drag { // let go: keep the width
 		s.drag = false
-		w.act(func() { sp.keep(sp.cur) })
+		moved := s.moved
+		s.moved = false
+		w.act(func() {
+			sp.keep(sp.cur)
+			// A drag took the keyboard and typing would reach nothing: the pane has it again. A plain click, or Tab, leaves it
+			// on the sash for its arrow keys.
+			if t := w.tab(); moved && t != nil {
+				w.wantFocus = t.focused
+			}
+		})
 	}
 	if b.DoubleClicked() {
 		w.act(func() { sp.keep(0) })
