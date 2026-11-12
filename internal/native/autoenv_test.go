@@ -15,7 +15,7 @@ import (
 
 const automationPkg = "github.com/egoist/mygo/plugins/automation"
 
-func repoRoot(t *testing.T) string {
+func autoRepoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
@@ -28,7 +28,7 @@ func repoRoot(t *testing.T) string {
 func goDeps(t *testing.T, pkg, tags, cgo string) string {
 	t.Helper()
 	cmd := exec.Command("go", "list", "-deps", "-tags="+tags, pkg)
-	cmd.Dir = repoRoot(t)
+	cmd.Dir = autoRepoRoot(t)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED="+cgo)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -66,7 +66,7 @@ func TestAutomationPluginIsLinkedOnlyWithItsTag(t *testing.T) {
 }
 
 func TestAutomationIsImportedOnlyByTheTaggedFiles(t *testing.T) {
-	root := repoRoot(t)
+	root := autoRepoRoot(t)
 	var found []string
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -105,7 +105,7 @@ func TestAutomationIsImportedOnlyByTheTaggedFiles(t *testing.T) {
 }
 
 func TestNoReleasePathPassesTheAutomationTag(t *testing.T) {
-	root := repoRoot(t)
+	root := autoRepoRoot(t)
 	mk, err := os.ReadFile(filepath.Join(root, "Makefile"))
 	if err != nil {
 		t.Fatal(err)
