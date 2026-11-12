@@ -136,16 +136,6 @@ func useAccent(dark bool, a ui.Color) {
 	accentFill, accentStrong, onAccent, accentInk, accentSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
 }
 
-// terminalCursor is the terminal's cursor: the system accent itself, unless that has less than 3:1 against the terminal's
-// background (a pale accent on the light terminal, a dark one on the dark), when it is the terminal's foreground (plan 032
-// section 11).
-func terminalCursor(a accentSet, bg, fg ui.Color) ui.Color {
-	if contrast(a.base, bg) >= 3 {
-		return a.base
-	}
-	return fg
-}
-
 // readableOn is the one of the candidates with the most contrast against bg.
 func readableOn(bg ui.Color, candidates ...ui.Color) ui.Color {
 	best := candidates[0]
@@ -157,17 +147,16 @@ func readableOn(bg ui.Color, candidates ...ui.Color) ui.Color {
 	return best
 }
 
-// terminalColors is Keel's terminal theme from the colours in use. The cursor and the selection follow the system accent
-// (the selection is the accent's, as in a text field), and the text under a block cursor is whichever of the terminal's own
-// two colours reads better on it. A find match is a neutral tint; the current one is the accent, as the cursor is.
+// terminalColors is Keel's terminal theme from the colours in use. The cursor is the terminal's text colour (the maintainer's
+// choice, plan 032 section 11) and the text under a block cursor the terminal's background; the selection is the system
+// accent's, as in a text field. A find match is a neutral tint; the current one is the accent.
 func terminalColors(a accentSet, fg, bg ui.Color, palette [16]ui.Color) *terminal.Theme {
-	cur := terminalCursor(a, bg, fg)
 	return &terminal.Theme{
 		Foreground: fg, Background: bg, Palette: palette,
-		Cursor: cur, CursorText: readableOn(cur, bg, fg),
+		Cursor: fg, CursorText: bg,
 		Selection: a.selection,
 		Search:    bg.Mix(fg, 0.3), SearchText: fg,
-		SearchSelected: cur, SearchSelectedText: readableOn(cur, bg, fg),
+		SearchSelected: a.base, SearchSelectedText: readableOn(a.base, bg, fg),
 	}
 }
 

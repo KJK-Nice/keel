@@ -166,9 +166,9 @@ func TestWindowShadowSwitch(t *testing.T) {
 	r.quit()
 }
 
-// TestTerminalCursorAndSelectionAreNotBrass (plan 032 section 11): in a real window the terminal's cursor and selection are the
-// system accent's, not the old brass (#e8b960 dark, #82510d light). The shots (term-accent-dark.png, term-accent-light.png) are
-// opened by eye; the scan fails on any pixel within 10 of the old cursor colour.
+// TestTerminalCursorAndSelectionAreNotBrass (plan 032 section 11): in a real window the terminal's cursor is its text colour and
+// the selection the system accent's, not the old brass (#e8b960 dark, #82510d light). The shots (term-accent-dark.png,
+// term-accent-light.png) are opened by eye; the scan fails on any pixel within 10 of the old cursor colour.
 func TestTerminalCursorAndSelectionAreNotBrass(t *testing.T) {
 	for theme, brass := range map[string][3]int{"dark": {0xe8, 0xb9, 0x60}, "light": {0x82, 0x51, 0x0d}} {
 		t.Run(theme, func(t *testing.T) {
