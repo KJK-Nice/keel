@@ -570,9 +570,10 @@ func TestE2EWrongKey(t *testing.T) {
 	if m := r.b.snap().Message; !strings.Contains(m, "host could not be verified") {
 		t.Fatalf("B's message %q", m)
 	}
-	if !r.b.tt.HasText("host could not be verified: the link is wrong or the signal server tampered with the connection") {
-		t.Errorf("B shows %q", r.b.tt.Texts())
-	}
+	// The snapshot says error a frame before B's window draws it: wait for the words, not for one look.
+	pump30(t, r.wins(), func() bool {
+		return r.b.tt.HasText("host could not be verified: the link is wrong or the signal server tampered with the connection")
+	}, "B's words")
 	r.settle(1 * time.Second)
 	if got := r.b.tees[0].text(); got != "" {
 		t.Errorf("B's terminal output after a failed verification: %q", got)
