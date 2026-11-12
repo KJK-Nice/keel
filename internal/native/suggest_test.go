@@ -283,6 +283,26 @@ func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) { // JS 9
 	}
 }
 
+// Esc on the notice is Keel's (the webview also passes it to the shell, which then eats the next key as Meta+key); the
+// key typed right after goes to the session, and Esc with nothing showing stays the shell's.
+func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
+	h := newHarness(t)
+	if h.m.OnKey(kd("Escape")) {
+		t.Fatal("Esc taken with nothing showing")
+	}
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "jev")
+	h.state(sugNotice)
+	if !h.m.OnKey(kd("Escape")) {
+		t.Fatal("Esc on the notice was passed to the shell")
+	}
+	h.state(sugIdle)
+	if h.m.OnKey(kd("a")) {
+		t.Fatal("the key after Esc did not reach the session")
+	}
+}
+
 func TestAFollowerGetsNothing(t *testing.T) { // JS 10
 	h := newHarness(t)
 	h.driving = false

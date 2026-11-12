@@ -449,6 +449,7 @@ func (m *sugMachine) OnKey(k sugKey) bool {
 		if k.Name == "Escape" {
 			m.dismissed = m.st.Words
 			m.idle()
+			return true // not the shell's: sh reads Esc plus the next key as Meta+key and loses that key
 		}
 		return false
 	case sugLoading, sugInserting:
