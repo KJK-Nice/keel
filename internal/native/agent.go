@@ -140,9 +140,8 @@ type agentPanel struct {
 	scroll ui.ScrollState
 	stick  bool // scroll to the end in the next frame
 
-	width    float32 // the panel's width as kept; 0 is size-agent (clampAgentWidth)
-	sashDrag bool    // the sash is being dragged: the width is kept when it lets go
-	sashH    ui.Handle
+	width float32 // the panel's width as kept; 0 is size-agent (clampAgentWidth)
+	sash  sashState
 }
 
 func newAgentPanel() *agentPanel {

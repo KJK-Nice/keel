@@ -368,6 +368,8 @@ type workspace struct {
 	filter         string
 	sidebar        bool
 	collapsed      map[string]bool
+	sideWidth      float32     // the sidebar's width as kept; 0 is sidebarWidth() (sidebarresize.js)
+	sideSash       sashState   // the sidebar's resize handle
 	queued         []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
 	blocked        string      // a message that replaces the workspace (locked vault, no keel serve)
 	gate           *unlockGate // the Unlock screen, over the whole window
@@ -496,6 +498,7 @@ func (w *workspace) start() {
 	}
 	if w.dataDir != "" {
 		w.agent.width = loadAgentWidth(w.dataDir)
+		w.sideWidth = loadSidebarWidth(w.dataDir)
 		w.collapsed = loadCollapsed(w.dataDir)
 	}
 	w.checkRuntimeBuild()

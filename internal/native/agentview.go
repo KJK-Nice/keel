@@ -832,42 +832,12 @@ func (w *workspace) agentComposer(c *ui.Context) {
 // and widest, a double click puts the default back. The width is kept when the pointer lets go and after each key.
 func (w *workspace) agentSash(c *ui.Context, winW float32) {
 	a := w.agent
-	s := ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(space2).Cursor(ui.CursorResizeColumn).Focusable().Bind(&a.sashH).Label("Resize agent panel")
-	cur := clampAgentWidth(a.width, winW)
-	if dx, _, down := s.Dragged(); down {
-		a.sashDrag = true
-		if dx != 0 {
-			a.width = clampAgentWidth(cur-dx, winW)
-		}
-	} else if a.sashDrag { // let go: keep the width
-		a.sashDrag = false
-		w.act(func() { w.setAgentWidth(a.width) })
-	}
-	if s.DoubleClicked() {
-		w.act(func() { w.setAgentWidth(0) })
-	}
-	s.ObserveInput(func(ev ui.InputEvent) {
-		if ev.Kind != ui.InputKeyDown {
-			return
-		}
-		step := float32(sizeAgentStep)
-		if ev.Mods&ui.Shift != 0 {
-			step *= 4
-		}
-		switch ev.Key { // the panel is on the right: ← widens it
-		case ui.KeyLeft:
-			w.act(func() { w.setAgentWidth(clampAgentWidth(cur+step, winW)) })
-		case ui.KeyRight:
-			w.act(func() { w.setAgentWidth(clampAgentWidth(cur-step, winW)) })
-		case ui.KeyHome:
-			w.act(func() { w.setAgentWidth(0) })
-		case ui.KeyEnd:
-			w.act(func() { w.setAgentWidth(winW) }) // clamped to half the window
-		}
+	w.widthSash(c, &a.sash, sashSpec{
+		label: "Resize agent panel", cur: clampAgentWidth(a.width, winW), step: sizeAgentStep, // the panel is on the right: ← widens it
+		clamp: func(v float32) float32 { return clampAgentWidth(v, winW) },
+		home:  0, end: winW, // Home is the narrowest, size-agent; End is clamped to half the window
+		live: func(v float32) { a.width = v }, keep: w.setAgentWidth,
 	})
-	if a.sashDrag || s.Hovered() || a.sashH.FocusWithin(c) {
-		s.Children(func() { ui.Box(c).Absolute().Top(0).Bottom(0).Left(space1).Width(1).Background(accentInk) })
-	}
 }
 
 func removeID(ids []string, id string) (out []string) {

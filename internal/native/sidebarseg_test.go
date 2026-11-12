@@ -9,11 +9,20 @@ import (
 // Plan 031 step 1: the four section labels (Hosts, Panes with its count, Snippets, Forwards) show whole at the default
 // sidebar width and at every UI size, in both appearances. A label is whole when its segment, less its padding and
 // border, is as wide as the text measured at the theme's font size.
-func TestSidebarSegmentLabelsFitAtEveryUISize(t *testing.T) {
+func TestSidebarSegmentLabelsFitAtEveryUISize(t *testing.T) { sidebarSegmentsFit(t, false) }
+
+// ... and at the narrowest the sash (sash.go sidebarMin) lets the sidebar be.
+func TestSidebarSegmentLabelsFitAtTheNarrowestSidebar(t *testing.T) { sidebarSegmentsFit(t, true) }
+
+func sidebarSegmentsFit(t *testing.T, narrow bool) {
 	defer setUISize(uiSizeDefault)
 	for _, dark := range []bool{false, true} {
 		for size := uiSizeMin; size <= uiSizeMax; size++ {
 			r := splitRig(t) // two panes, so Panes shows
+			setUISize(size)
+			if narrow {
+				r.w.sideWidth = sidebarMin()
+			}
 			r.w.setTheme(map[bool]string{true: themeDark, false: themeLight}[dark])
 			widths := map[string]float32{}
 			r.tt = ui.NewTester(func(c *ui.Context) {
@@ -37,8 +46,8 @@ func TestSidebarSegmentLabelsFitAtEveryUISize(t *testing.T) {
 					t.Errorf("dark %v size %d: %q has %.1f px for a %.1f px word", dark, size, c.seg, room, widths[c.word])
 				}
 			}
-			if track, ok := r.tt.Find("Vault section"); !ok || track.W > sidebarWidth() {
-				t.Errorf("dark %v size %d: the switch %v is wider than the sidebar %v", dark, size, track, sidebarWidth())
+			if track, ok := r.tt.Find("Vault section"); !ok || track.W > r.w.sidebarNow() {
+				t.Errorf("narrow %v dark %v size %d: the switch %v is wider than the sidebar %v", narrow, dark, size, track, r.w.sidebarNow())
 			}
 		}
 	}

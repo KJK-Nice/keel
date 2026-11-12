@@ -411,7 +411,8 @@ func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
 func sidebarWidth() float32 { return max(sizeSidebar, rem(sizeSidebar)) }
 
 func (w *workspace) sidebarView(c *ui.Context) {
-	hairline(ui.Column(c).Width(sidebarWidth()).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
+	hairline(ui.Column(c).Width(w.sidebarNow()).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
+		w.sidebarSash(c)
 		// .k-sidebar-head: 12 8 8, the tools row and the section switch 8 apart.
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
