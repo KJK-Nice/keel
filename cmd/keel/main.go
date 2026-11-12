@@ -1,9 +1,7 @@
 package main
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"runtime"
@@ -19,9 +17,6 @@ func init() {
 	runtime.LockOSThread()
 }
 
-//go:embed all:web
-var embeddedWeb embed.FS
-
 // version is the release this binary was built as, set by the release
 // build: make build VERSION=v0.1.0 (-X main.version).
 var version = "dev"
@@ -35,10 +30,6 @@ func main() {
 	}
 	addr := paths.Addr()
 	dataDir := paths.DataDir()
-	web, err := fs.Sub(embeddedWeb, "web")
-	if err != nil {
-		log.Fatalf("web assets: %v", err)
-	}
 
 	switch cmd {
 	case "app":
@@ -47,7 +38,7 @@ func main() {
 		}
 		// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
 		os.Setenv("KEEL_NAME", parseName(args))
-		if err := app.RunNative(web, addr, dataDir); err != nil {
+		if err := app.RunNative(addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
 	case "serve":
@@ -57,13 +48,13 @@ func main() {
 			}
 			return
 		}
-		if err := app.RunServe(web, addr, dataDir); err != nil {
+		if err := app.RunServe(addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
 	case "mcp":
 		// stdout carries MCP messages only: logs go to stderr.
 		log.SetOutput(os.Stderr)
-		if err := app.RunMCP(web, addr, dataDir); err != nil {
+		if err := app.RunMCP(addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
 	case "version", "--version":

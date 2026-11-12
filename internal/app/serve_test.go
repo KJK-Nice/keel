@@ -1,7 +1,6 @@
 package app
 
 import (
-	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"keel/internal/authtoken"
@@ -80,9 +78,8 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	addr := ln.Addr().String()
 	ln.Close()
 
-	web := fs.FS(fstest.MapFS{"index.html": {Data: []byte("ok")}})
 	done := make(chan error, 1)
-	go func() { done <- RunServe(web, addr, dir) }()
+	go func() { done <- RunServe(addr, dir) }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {

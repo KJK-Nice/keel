@@ -1,70 +1,89 @@
-// Package buildid names a Keel build, so the desktop app can tell when the
-// keel serve it connects to came from a different build.
+// Package buildid names a Keel build, so the window can tell when the keel
+// serve it connects to came from a different build.
 //
-// keel serve outlives the window (sessions keep running), and it, not the
-// app, serves the UI. After an upgrade the old daemon keeps serving the old
-// UI until it is stopped, which looks exactly like a fix that didn't land.
+// keel serve outlives the window (sessions keep running). After an upgrade
+// the old daemon keeps running the old code until it is stopped, which looks
+// exactly like a fix that didn't land.
 package buildid
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"io/fs"
+	"os"
 	"runtime/debug"
-	"sort"
+	"sync"
 )
 
-// Of returns an id for this binary: the VCS revision it was built from
-// (with "+dirty" for a modified tree) and a hash of the embedded web UI.
-// The hash catches UI changes that a dirty tree's revision doesn't, and it
-// survives the ad-hoc code signing that changes the binary's own bytes.
-func Of(web fs.FS) string {
-	rev := "dev"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		var modified bool
-		for _, s := range info.Settings {
-			switch s.Key {
-			case "vcs.revision":
-				if len(s.Value) >= 12 {
-					rev = s.Value[:12]
-				} else if s.Value != "" {
-					rev = s.Value
-				}
-			case "vcs.modified":
-				modified = s.Value == "true"
-			}
-		}
-		if modified {
-			rev += "+dirty"
-		}
-	}
-	return rev + "-" + webHash(web)
+// Of returns an id for this binary: the VCS revision it was built from. A
+// build from a modified tree, or one with no revision (go run, go test, a
+// source archive), adds a hash of the running binary, so two different dev
+// builds still differ. keel app and the keel serve it starts run the same
+// executable and agree; a keel serve left over from an older binary differs.
+func Of() string {
+	rev, modified := vcs()
+	return compose(rev, modified, binaryHash)
 }
 
-// webHash hashes every file's path and contents, in path order.
-func webHash(web fs.FS) string {
-	if web == nil {
-		return "noweb"
+// vcs reads the revision (12 characters, "" when the build has none) and whether the tree was modified.
+func vcs() (rev string, modified bool) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", false
 	}
-	var paths []string
-	_ = fs.WalkDir(web, ".", func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() {
-			paths = append(paths, p)
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+			if len(rev) > 12 {
+				rev = rev[:12]
+			}
+		case "vcs.modified":
+			modified = s.Value == "true"
 		}
-		return nil
+	}
+	return rev, modified
+}
+
+// compose is Of with its inputs given: a clean revision names the build alone; otherwise the binary's hash joins it.
+func compose(rev string, modified bool, binHash func() string) string {
+	switch {
+	case rev == "":
+		return "dev-" + binHash()
+	case modified:
+		return rev + "+dirty-" + binHash()
+	}
+	return rev
+}
+
+var (
+	binOnce sync.Once
+	binSum  string
+)
+
+// binaryHash is the first 12 hex digits of the SHA-256 of the running executable ("unknown" when it cannot be
+// read, which makes every such build differ from every other only by revision). It is computed once.
+func binaryHash() string {
+	binOnce.Do(func() {
+		binSum = "unknown"
+		if exe, err := os.Executable(); err == nil {
+			if sum, err := hashFile(exe); err == nil {
+				binSum = sum
+			}
+		}
 	})
-	sort.Strings(paths)
-	h := sha256.New()
-	for _, p := range paths {
-		f, err := web.Open(p)
-		if err != nil {
-			continue
-		}
-		_, _ = io.WriteString(h, p+"\x00")
-		_, _ = io.Copy(h, f)
-		_, _ = io.WriteString(h, "\x00")
-		_ = f.Close()
+	return binSum
+}
+
+func hashFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil))[:12]
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12], nil
 }
