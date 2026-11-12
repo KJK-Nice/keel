@@ -14,6 +14,8 @@ make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 
 `keel app` opens the native window (MyGo, pure Go, libghostty-vt terminals); `keel app --webview` or `KEEL_UI=webview` opens the Wails webview until it is removed. `make app` runs the native window, `make app WEBVIEW=1` the webview. `make build` puts libghostty-vt beside the binary (`bin/Keel.app/Contents/MacOS` on macOS, `bin/` on Linux; MyGo's loader downloads it once, SHA-256 checked). `make native-e2e` drives the native window; see `docs/native.md`.
 
+`make native-automation` drives the built app from outside through MyGo's automation socket (menu bar, close and reopen, real keys, both themes). It builds `bin/keel-e2e` with the build tag `keelautomation`, which no release path may pass, opens real windows briefly and runs only on scratch data; see "Driving the built app from outside" in `docs/native.md`.
+
 The webview still needs, on Ubuntu 24.04+, GTK4 + WebKitGTK 6 (Wails v3):
 
 ```bash

@@ -115,6 +115,32 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The built app driven from outside through MyGo's automation socket (plan 029; a test build, scratch data).
+  # A headless runner may not have a window server, so a failure does not fail the workflow.
+  native-automation:
+    name: native automation (macOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: make native-automation
+        run: sh scripts/ci-run.sh "native automation" make native-automation
+
+      - name: Upload the screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-automation
+          path: .scratch-native/automation/
+          if-no-files-found: ignore
+          retention-days: 7
+
   generated:
     name: generated files
     runs-on: ubuntu-24.04

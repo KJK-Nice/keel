@@ -432,6 +432,35 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Empty states: `TestE2EEmptyStates` empties the seeded snippets and writes `TestE2EEmpty-<place>-{dark,light}.png`; unit:
   `empty_test.go`. Flat caps beside text: `TestE2EFlatKeyCapShots`, and `TestE2EKeyCaps-{dark,light}` for the held ones.
 
+## The built app from outside (plan 029)
+
+`make native-automation` (tests in `tests/native-automation`) and, by hand, MyGo's `mygo-automation` drive the real window
+through a Unix socket. The socket can type into terminals, so: only `bin/keel-e2e` (tag `keelautomation`, built by
+`make native-automation-build`; never `make build`), only scratch data, never the user's Keel or the system clipboard.
+
+```bash
+go build -o <scratch>/mygo-automation github.com/egoist/mygo/plugins/automation/cmd/mygo-automation   # in the worktree
+D=$(mktemp -d)   # 0700; data and socket dirs inside, both 0700
+env KEEL_DATA=$D/data KEEL_ADDR=127.0.0.1:<free port, never 47241/47298/47299> KEEL_KEYRING=off KEEL_AGENT_PROVIDER=fake \
+  SHELL=/bin/sh KEEL_VAULT_PASSPHRASE=scratch ./bin/keel-e2e serve &       # a vault with no first run; keep its pid
+env <the same, no passphrase> MYGO_AUTOMATION=$D/s/a.sock ./bin/keel-e2e app &    # keep its pid
+export MYGO_AUTOMATION_SESSION=mine
+mygo-automation open --socket $D/s/a.sock
+mygo-automation snapshot -i              # refs, roles, labels
+mygo-automation press @e27 --settle      # the diff of what changed
+mygo-automation type 'echo hi'; mygo-automation key Enter
+mygo-automation menu File "Split Right"
+mygo-automation screenshot $D/a.png      # then read it with the image reader
+mygo-automation menu keel-e2e "Quit keel-e2e"; mygo-automation close
+env <the same> ./bin/keel-e2e serve stop # then check both pids are gone, and rm -rf $D
+```
+
+A tagged binary exits with "automation refused" if `KEEL_DATA` is unset or the default, or the socket's directory is not
+0700. Labels worth knowing: `host Local Shell` (press it for a shell), `Terminal`, `pane N`, `tab <name>`, `Settings` (sidebar
+footer), `settings nav <Section>`, `Color theme` (children System/Light/Dark), `Filter hosts`, `agent panel`. The terminal's
+text is not in the tree: read it from `GET /api/sessions/<id>/scrollback` with the scratch token (never print it). The menu's
+tray item and Dock are not reachable; Close Window leaves the window hidden for good.
+
 ## Not covered
 
 Say so when a change lives there: the OS window (traffic lights, full
