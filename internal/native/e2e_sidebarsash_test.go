@@ -9,6 +9,23 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The find bar in a real window, with a query that has matches, in both themes (plan 031 step 3: nobody had looked at it).
+func TestE2EFindBarLooks(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openLocal()
+	e.settle(300 * time.Millisecond)
+	e.key(ui.Cmd, ui.KeyF)
+	e.pump(func() bool { _, ok := e.tt.Find("find bar"); return ok }, "the find bar")
+	e.tt.Type("sh")
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EFindBar-dark")
+	e.w.setTheme(themeLight)
+	e.pump(func() bool { return !e.w.dark }, "the light theme")
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EFindBar-light")
+}
+
 // The chosen row of the sidebar in a real window: grey while the terminal has the keyboard, the accent while the list has it,
 // in both themes.
 func TestE2ESidebarChosenRow(t *testing.T) {
