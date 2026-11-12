@@ -139,6 +139,7 @@ func (w *workspace) shareBody(c *ui.Context, s *sharePop) {
 		label(c, "Join link", ink)
 		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space0_5, 0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Label("Join link field").Children(func() {
 			if s.link.url == "" {
+				ui.Spinner(c).Label("Creating link").Shrink(0)
 				mono(c, "Creating link…", inkFaint).Grow(1).Shrink(1).MinWidth(0)
 			} else {
 				mono(c, s.link.url, ink).Grow(1).Shrink(1).MinWidth(0)

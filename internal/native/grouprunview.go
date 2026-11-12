@@ -355,6 +355,7 @@ func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelcli
 				shown += " ⇧"
 			}
 			off := len(ready) == 0 || p.typing
+			busyMark(c, p.typing, "Filling in the values")
 			if textBtnOffAs(c, label, shown, btnPrimary, off) {
 				w.act(w.typeGroupRun)
 			}

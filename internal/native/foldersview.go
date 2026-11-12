@@ -208,6 +208,7 @@ func (w *workspace) folderDialogView(c *ui.Context) {
 			if textBtn(c, "Cancel", btnGhost) {
 				open = false
 			}
+			busyMark(c, d.saving, "Saving")
 			if textBtnOff(c, "Save group", btnPrimary, d.saving) {
 				w.act(w.saveFolderDialog)
 			}

@@ -1,6 +1,8 @@
 package native
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 )
@@ -45,6 +47,22 @@ func ctlButton(c *ui.Context, name, shown string, kind btnKind) ui.Element {
 func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 	return ui.Button(c, "").Label(tip).Tooltip(tip).Size(size, size).Padding(0).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).KeepFocus().
 		Border(1, ui.Transparent).Background(ui.Transparent)
+}
+
+// waitHelp is a wait that does not end at the model (keel serve, the network, a load): MyGo's spinner, named by the words,
+// beside the words in help text. Blocks stay for the model alone (workingBlocks).
+func waitHelp(c *ui.Context, msg string) {
+	ui.Row(c).Gap(space1_5).AlignItems(ui.Center).Children(func() {
+		ui.Spinner(c).Label(strings.TrimSuffix(msg, "…")).Shrink(0)
+		help(c, msg)
+	})
+}
+
+// busyMark is MyGo's spinner beside the button of an action that waits on keel serve (a save, a restore) while on is true.
+func busyMark(c *ui.Context, on bool, name string) {
+	if on {
+		ui.Spinner(c).Label(name).Shrink(0)
+	}
 }
 
 // modalChrome gives a dialog MyGo's Modal look (the dimmed backdrop, the theme's panel with its radius, border and shadow, sized

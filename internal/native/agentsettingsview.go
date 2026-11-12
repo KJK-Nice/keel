@@ -181,7 +181,7 @@ func radioGroup(c *ui.Context, name string, opts [][2]string, current string, of
 func (w *workspace) providerCards(c *ui.Context, p *settingsPage, s keelclient.AgentSettings) {
 	ui.Column(c).FillWidth().Gap(space3).Label("agent providers").Children(func() {
 		if len(w.agent.provs) == 0 {
-			help(c, "Reading the providers…")
+			waitHelp(c, "Reading the providers…")
 		}
 		for _, d := range w.agent.provs {
 			w.providerCard(c, p, d, s.Keys[d.ID].Configured)

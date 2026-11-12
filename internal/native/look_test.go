@@ -6,6 +6,26 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// Plan 031 step 2, group 6: a wait that does not end at the model shows MyGo's spinner, named by the wait, and none shows
+// when nothing waits.
+func TestWaitsShowASpinner(t *testing.T) {
+	r := approveRig(t)
+	r.w.newHost()
+	r.tt.Frame()
+	r.tt.Frame()
+	d := r.w.hostDlg
+	d.test = hostTest{state: "dead", short: "Could not test", sent: d.draftHash()}
+	r.tt.Frame()
+	if r.has("Testing") {
+		t.Error("a spinner shows with no test running")
+	}
+	d.test = hostTest{running: true, state: "connecting", short: "Testing…", sent: d.draftHash(), cancel: func() {}}
+	r.tt.Frame()
+	if !r.has("Testing") {
+		t.Error("no spinner while the connection is tested")
+	}
+}
+
 // Plan 030 step 2: the theme is MyGo's, with the system accent and Keel's meaning colours.
 
 // The palette's chrome, text and lines are MyGo's own themes' values, so a MyGo update that moves them is seen here.

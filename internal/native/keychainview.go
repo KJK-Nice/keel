@@ -282,6 +282,7 @@ func (w *workspace) identityDialogView(c *ui.Context) {
 			if textBtn(c, "Cancel", btnGhost) {
 				open = false
 			}
+			busyMark(c, d.saving, "Saving")
 			if textBtn(c, "Save identity", btnPrimary) {
 				w.act(w.saveIdentity)
 			}

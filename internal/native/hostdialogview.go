@@ -381,7 +381,11 @@ func (w *workspace) hostFooter(c *ui.Context, d *hostDialog, local bool) {
 	ui.Spacer(c)
 	if t := &d.test; t.short != "" {
 		ui.Row(c).Gap(space1_5).Label("test state").Children(func() {
-			stateDot(c, t.state)
+			if t.running {
+				ui.Spinner(c).Label("Testing").Shrink(0)
+			} else {
+				stateDot(c, t.state)
+			}
 			caption(c, t.short, inkMuted)
 		})
 	}
@@ -397,6 +401,7 @@ func (w *workspace) hostFooter(c *ui.Context, d *hostDialog, local bool) {
 	if textBtn(c, "Cancel", btnGhost) {
 		w.act(w.closeHostDialog)
 	}
+	busyMark(c, d.saving, "Saving")
 	r := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(brass).Label("Save host").Cursor(ui.CursorPointer)
 	if r.Hovered() {
 		r.Background(brassStrong)

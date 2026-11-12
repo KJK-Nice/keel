@@ -324,6 +324,7 @@ func (w *workspace) hostsStep(c *ui.Context, f *firstRun) {
 			w.act(func() { f.notice = ""; w.afterHosts(f) })
 		}
 		n := f.addCount()
+		busyMark(c, f.busy, "Adding hosts")
 		if bigPrimary(c, addLabel(n), n > 0 && !f.busy) {
 			w.act(w.runImport)
 		}

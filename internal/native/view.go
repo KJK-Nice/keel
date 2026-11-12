@@ -223,6 +223,9 @@ func (w *workspace) titlebar(c *ui.Context) {
 			}
 		}
 		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
+			if s == "Connecting…" {
+				ui.Spinner(c).Label("Connecting").Shrink(0)
+			}
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
 		w.shareControls(c) // the watchers badge and the Share button of a session tab

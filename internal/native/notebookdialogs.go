@@ -286,6 +286,7 @@ func (w *workspace) notebookDialogView(c *ui.Context) {
 		}
 		off := d.selected == "" || d.busy
 		ui.Row(c).FillWidth().Gap(space2).Justify(ui.End).Children(func() {
+			busyMark(c, d.busy, "Working")
 			if dialogBtn(c, purge, btnGhost, &d.purgeH, off) {
 				w.act(func() { w.nbAskPurge(d) })
 			}
@@ -309,7 +310,11 @@ func (w *workspace) notebookDialogView(c *ui.Context) {
 // versionRows is the list of versions, or what stands in for it.
 func (w *workspace) versionRows(c *ui.Context, d *nbDialog) {
 	if d.empty != "" {
-		help(c, d.empty)
+		if d.empty == loadingWord {
+			waitHelp(c, d.empty)
+		} else {
+			help(c, d.empty)
+		}
 		return
 	}
 	for _, v := range d.versions {

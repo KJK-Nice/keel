@@ -299,6 +299,7 @@ func (w *workspace) forwardDialogView(c *ui.Context) {
 			if textBtn(c, "Cancel", btnGhost) {
 				open = false
 			}
+			busyMark(c, d.saving, "Saving")
 			if textBtn(c, "Save forward", btnPrimary) {
 				w.act(w.saveForward)
 			}

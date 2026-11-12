@@ -118,7 +118,7 @@ func (w *workspace) conversationMenu(c *ui.Context, p *runbooksPage) {
 		help(c, "Make a draft from a conversation: its proposals become steps.")
 		switch {
 		case p.menuLoad:
-			help(c, "Loading…")
+			waitHelp(c, "Loading…")
 		case len(p.menuItems) == 0:
 			help(c, p.menuEmpty)
 		}
@@ -559,7 +559,7 @@ func (w *workspace) runOthers(c *ui.Context, u *runUse) {
 	ui.Column(c).FillWidth().Gap(space0_5).Label("Other runbooks").Children(func() {
 		switch {
 		case !u.listed:
-			help(c, "Loading…")
+			waitHelp(c, "Loading…")
 		case len(u.others) == 0:
 			help(c, "No other runbooks. Add one on the Runbooks page.")
 		}

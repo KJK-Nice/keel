@@ -173,6 +173,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 			bodyStrong(c, h.Name, ink).MinWidth(0)
 			ui.Row(c).Gap(space1_5).MinWidth(0).Children(func() {
 				if p.connecting == h.ID {
+					ui.Spinner(c).Label("Connecting").Shrink(0)
 					cardSub(c, "Connecting…")
 					return
 				}

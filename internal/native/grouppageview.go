@@ -68,7 +68,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 			help(c, p.run.err)
 			return
 		case p.run.loading && len(p.run.books) == 0:
-			help(c, "Loading runbooks…")
+			waitHelp(c, "Loading runbooks…")
 			return
 		case len(p.run.books) == 0:
 			if emptySide(c, emptySentences("book", groupNoBooks, "Open Runbooks")) {

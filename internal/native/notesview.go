@@ -65,11 +65,11 @@ func (w *workspace) notesBlock(c *ui.Context, e *notesEditor, o notesBlockOpts) 
 		}
 		ui.Column(c).FillWidth().Gap(space1_5).Label("notes list").Children(func() {
 			if len(e.notes) == 0 {
-				msg := "Loading notes…"
 				if e.loaded {
-					msg = emptyNotesText(e, o.host)
+					help(c, emptyNotesText(e, o.host))
+				} else {
+					waitHelp(c, "Loading notes…")
 				}
-				help(c, msg)
 			}
 			for _, n := range e.notes {
 				w.noteRow(c, e, n)
