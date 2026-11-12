@@ -132,6 +132,14 @@ func useAccent(dark bool, a ui.Color) {
 	brass, brassStrong, onBrass, brassInk, brassSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
 }
 
+// controlBase is the opaque face of MyGo's controls (Theme.Surface) in an appearance, before the control alpha.
+func controlBase(dark bool) ui.Color {
+	if dark {
+		return ui.DarkTheme().Surface
+	}
+	return ui.LightTheme().Surface
+}
+
 // windowTheme is the one place that builds the MyGo theme for a frame and sets it (plan 030). It starts from MyGo's own light
 // or dark theme, whose radius, spacing, control sizes and focus ring stay, and changes only: the system accent family, the
 // meaning colours MyGo's components use (Danger, Warning, Success are flare, signal and tide), the control fills at the window's
@@ -144,7 +152,7 @@ func windowTheme(c *ui.Context, dark bool) {
 	if dark {
 		t = ui.DarkTheme()
 	}
-	t.Background, t.Surface, t.SurfaceHover, t.SurfacePressed = surface, controlFill(t.Surface), hoverGround, controlFill(t.SurfacePressed)
+	t.Background, t.Surface, t.SurfaceHover, t.SurfacePressed = surface, controlFill(controlBase(dark)), hoverGround, controlFill(t.SurfacePressed)
 	t.Border, t.Text, t.TextMuted = line, ink, inkMuted
 	t.Danger, t.Warning, t.Success = flare, signal, tide
 	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = accent.fill, accent.hover, accent.pressed, accent.text

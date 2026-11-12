@@ -150,8 +150,8 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	if got, want := status2.H/status.H, float32(16)/12; got < want*0.93 || got > want*1.07 {
 		t.Errorf("the status text grew %vx, want about %v (16 over the default 12)", got, want)
 	}
-	if uiFontSize != 16 {
-		t.Errorf("body text is %v px at UI size 16", uiFontSize)
+	if want := float32(13 * 16.0 / 12); uiFontSize < want-0.01 || uiFontSize > want+0.01 { // plan 030: MyGo's 13 at the default size, scaled
+		t.Errorf("body text is %v px at UI size 16, want %v", uiFontSize, want)
 	}
 	if got := cols(); got != colsBefore {
 		t.Errorf("the session has %d columns after UI size 16, %d before: the terminal is not scaled", got, colsBefore)

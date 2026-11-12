@@ -20,33 +20,20 @@ func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *str
 				w.act(onNew)
 			}
 		})
-		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
-			icon(c, "search-01", inkFaint)
-			ui.TextInputBase(c, filter).Label(filterLabel).Placeholder(filterLabel).PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(h)
-		})
+		searchField(c, filter, filterLabel, h).FillWidth()
 	})
 }
 
 // textBtnIcon is a small k-btn with an icon before its name.
 func textBtnIcon(c *ui.Context, glyph, name string, kind btnKind) bool {
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(name).Cursor(ui.CursorPointer)
-	bg, fg := raised, ink
-	if b.Hovered() {
-		bg = hoverGround
-	}
-	if kind == btnGhost {
-		bg, fg = ui.Transparent, inkMuted
-		if b.Hovered() {
-			bg, fg = hoverGround, ink
-		}
-	}
-	b.Background(bg)
-	if kind == btnDefault {
-		b.Border(1, lineStrong)
+	b := ctlButton(c, name, "", kind)
+	fg := ink
+	if kind == btnGhost && !b.Hovered() {
+		fg = inkMuted
 	}
 	b.Children(func() {
 		icon(c, glyph, fg)
-		label(c, name, fg)
+		ui.Text(c, name).SingleLine()
 	})
 	return b.Clicked()
 }

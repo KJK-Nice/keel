@@ -98,16 +98,17 @@ func TestControlFillOnTheGlass(t *testing.T) {
 			t.Fatal("no filter input")
 		}
 		useControls(a, true)
-		want := controlFill(stage)
+		fill := controlBase(true) // plan 030: the field is MyGo's SearchField, drawn in the theme's Surface
+		want := controlFill(fill)
 		useControls(1, true)
 		// The fill sits on the sidebar's ground, so what shows is the fill at ac over the ground at a: coverage
-		// 1-(1-ac)(1-a), colour (stage*ac + chrome*a*(1-ac)), premultiplied.
+		// 1-(1-ac)(1-a), colour (fill*ac + chrome*a*(1-ac)), premultiplied.
 		ac := float32(want.A) / 255
 		got := img.RGBAAt(int(in.X+in.W-4), int(in.Y+in.H/2))
 		near := func(g uint8, v float32) bool { d := float32(g) - v; return d >= -2 && d <= 2 }
-		if !near(got.R, float32(stage.R)*ac+float32(chrome.R)*a*(1-ac)) || !near(got.G, float32(stage.G)*ac+float32(chrome.G)*a*(1-ac)) ||
-			!near(got.B, float32(stage.B)*ac+float32(chrome.B)*a*(1-ac)) || !near(got.A, 255*(1-(1-ac)*(1-a))) {
-			t.Errorf("filter input at window alpha %v: got %v, want stage at %.2f over the ground at %v", a, got, ac, a)
+		if !near(got.R, float32(fill.R)*ac+float32(chrome.R)*a*(1-ac)) || !near(got.G, float32(fill.G)*ac+float32(chrome.G)*a*(1-ac)) ||
+			!near(got.B, float32(fill.B)*ac+float32(chrome.B)*a*(1-ac)) || !near(got.A, 255*(1-(1-ac)*(1-a))) {
+			t.Errorf("filter input at window alpha %v: got %v, want the control fill at %.2f over the ground at %v", a, got, ac, a)
 		}
 		wantPixel(t, "sidebar ground", img, 100, 400, chrome, a)
 		if a == 1 && want.A != 255 {

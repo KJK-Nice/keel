@@ -29,36 +29,7 @@ func textBtn(c *ui.Context, name string, kind btnKind) bool { return textBtnAs(c
 // textBtnAs is textBtn with a name of its own: several of a kind on one page (a Disconnect on each provider card) need names
 // that tell them apart.
 func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label(name).Cursor(ui.CursorPointer)
-	bg, fg, hov := controlFill(raised), ink, b.Hovered()
-	switch kind {
-	case btnGhost:
-		bg, fg = ui.Transparent, inkMuted
-		if hov {
-			bg, fg = hoverGround, ink
-		}
-	case btnPrimary:
-		bg, fg = brass, onBrass
-		if hov {
-			bg = brassStrong
-		}
-	case btnDanger:
-		bg, fg = flareSoft, flare
-		if hov {
-			bg, fg = flare, onFlare
-		}
-	default:
-		if hov {
-			bg = hoverGround
-		}
-	}
-	b.Background(bg)
-	if kind == btnDefault {
-		b.Border(1, lineStrong)
-	}
-	b.Children(func() { label(c, shown, fg) })
-	return b.Clicked()
+	return ctlButton(c, name, shown, kind).Clicked()
 }
 
 // failHeadline is term.js failHeadline for a session that is down.

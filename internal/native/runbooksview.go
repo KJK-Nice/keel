@@ -86,11 +86,7 @@ func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 		if p.menu {
 			w.conversationMenu(c, p)
 		}
-		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
-			icon(c, "search-01", inkFaint)
-			ph := "Filter " + countWord(len(p.list), "runbook", "runbooks")
-			ui.TextInputBase(c, &p.filter).Label("Filter runbooks").Placeholder(ph).PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
-		})
+		searchField(c, &p.filter, "Filter runbooks", &p.filterH).FillWidth().Placeholder("Filter " + countWord(len(p.list), "runbook", "runbooks"))
 	})
 }
 

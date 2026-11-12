@@ -85,15 +85,14 @@ func TestHostsSegmentIsPressedAtStartWithTheLineRing(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	h, _ := r.tt.Find("Hosts")
-	// The selected segment is raised, with a 1px ring of line just outside it (aria-pressed in keel.css).
-	if got := r.pixel(h.X+h.W/2, h.Y+3); !is(got, raised) {
-		t.Errorf("Hosts is %v, want raised %v: Hosts is the default section and is pressed", got, raised)
-	}
-	if got := r.pixel(h.X-0.5, h.Y+h.H/2); !is(got, line) {
-		t.Errorf("the ring is %v, want line %v", got, line)
+	s, _ := r.tt.Find("Snippets")
+	// Plan 030: the section switch is MyGo's Segmented: the chosen segment has a face of its own, the others do not.
+	chosen, other := r.pixel(h.X+h.W/2, h.Y+3), r.pixel(s.X+s.W/2, s.Y+3)
+	if chosen == other {
+		t.Errorf("Hosts is %v and Snippets %v: Hosts is the default section and is pressed", chosen, other)
 	}
 	r.click(t, "Snippets")
-	if got := r.pixel(h.X+h.W/2, h.Y+3); is(got, raised) {
+	if got := r.pixel(h.X+h.W/2, h.Y+3); got == chosen {
 		t.Error("Hosts stays pressed after Snippets is chosen")
 	}
 }
@@ -130,8 +129,8 @@ func TestFocusViewToolIsOffForAOnePaneTabAndOnWithTwo(t *testing.T) {
 	dim := r.inkSum(icon1)
 	r.click(t, "Split right")
 	icon2, _ := r.tt.Find("Focus view")
-	if bright := r.inkSum(icon2); bright < dim*2 {
-		t.Errorf("the tool draws %d of ink with one pane and %d with two: .icon-btn:disabled is 32%% opaque", dim, bright)
+	if bright := r.inkSum(icon2); bright < dim*3/2 { // plan 030: MyGo's disabled button dims by its own amount
+		t.Errorf("the tool draws %d of ink with one pane and %d with two: a disabled button is dimmed", dim, bright)
 	}
 }
 

@@ -389,11 +389,7 @@ func bytesNamesView(c *ui.Context, bytes string) {
 
 // textBtnOffAs is textBtnAs that ignores a press and dims while off.
 func textBtnOffAs(c *ui.Context, name, shown string, kind btnKind, off bool) bool {
-	if !off {
-		return textBtnAs(c, name, shown, kind)
-	}
-	ui.Row(c).Height(sizeControlSm).Padding(0, space2).Justify(ui.Center).Shrink(0).Opacity(0.45).Label(name).Disabled(true).Children(func() { label(c, shown, inkMuted) })
-	return false
+	return ctlButton(c, name, shown, kind).Disabled(off).Clicked() && !off
 }
 
 // ---- the captured values ----

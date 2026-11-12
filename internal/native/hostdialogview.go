@@ -15,22 +15,19 @@ func (w *workspace) modalOpen() bool {
 
 // inputBox is a single-line input in a bordered box (k-input).
 func inputBox(c *ui.Context, name string, value *string, placeholder string, h *ui.Handle, mono, masked bool, maxLen int, onKey func(ui.TextKey) bool) {
-	ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
-		in := ui.TextInputBase(c, value).Label(name).Placeholder(placeholder).PlaceholderColor(inkFaint).TextColor(ink).
-			FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(h)
-		if mono {
-			in.Font(monoStack)
-		}
-		if masked {
-			in.Password()
-		}
-		if maxLen > 0 {
-			in.MaxLength(maxLen)
-		}
-		if onKey != nil {
-			in.OnTextKey(onKey)
-		}
-	})
+	in := ui.TextInput(c, value).Label(name).Placeholder(placeholder).FillWidth().MinWidth(0).Bind(h)
+	if mono {
+		in.Font(monoStack)
+	}
+	if masked {
+		in.Password()
+	}
+	if maxLen > 0 {
+		in.MaxLength(maxLen)
+	}
+	if onKey != nil {
+		in.OnTextKey(onKey)
+	}
 }
 
 // labeled is a k-field: the label above, the control below. Clicking the label gives h (when there is one) the
@@ -61,10 +58,10 @@ func picker(c *ui.Context, name, current string, entries []pickEntry, onPick fun
 			shown = e.label
 		}
 	}
-	b := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).
-		Label(name + " picker").Cursor(ui.CursorPointer) // not the label's own name: a click by name finds the label first
+	b := ui.Button(c, "").FillWidth().Justify(ui.Start).
+		Label(name + " picker") // not the label's own name: a click by name finds the label first
 	b.Children(func() {
-		body(c, shown, ink).Grow(1).MinWidth(0)
+		ui.Text(c, shown).SingleLine().Grow(1).MinWidth(0)
 		icon(c, "chevron-down", inkMuted)
 	})
 	b.PopoverMenuButton(func(m *ui.Menu) {
@@ -83,25 +80,18 @@ func picker(c *ui.Context, name, current string, entries []pickEntry, onPick fun
 
 // segControl is k-seg: one option is on.
 func segControl(c *ui.Context, name string, current string, opts [][2]string, onPick func(string)) {
-	ui.Row(c).FillWidth().Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, line).Label(name).Children(func() {
-		for _, o := range opts {
-			on := o[0] == current
-			r := ui.Row(c).Grow(1).Height(sizeControlSm).Justify(ui.Center).Radius(radiusXs).Label(o[1]).Cursor(ui.CursorPointer)
-			col := inkMuted
-			switch {
-			case on: // aria-pressed: the raised ground with a 1px line ring (box-shadow in keel.css)
-				r.Background(controlFill(raised)).Shadow(0, 0, 0, 1, line)
-				col = ink
-			case r.Hovered():
-				r.Background(hoverGround)
-			}
-			r.Children(func() { text(c, o[1], col, uiFontSize, weightMedium) })
-			if r.Clicked() {
-				v := o[0]
-				onPick(v)
-			}
+	labels := make([]string, len(opts))
+	at := 0
+	for i, o := range opts {
+		labels[i] = o[1]
+		if o[0] == current {
+			at = i
 		}
-	})
+	}
+	idx := at
+	if ui.Segmented(c, &idx, labels...).Label(name).FillWidth().Changed() && idx != at {
+		onPick(opts[idx][0])
+	}
 }
 
 // switchRow is a k-field--row: the text on the left, the switch on the right.

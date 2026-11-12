@@ -273,9 +273,5 @@ func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 
 // textBtnOff is textBtn that ignores a press and dims while off (a card whose request is out).
 func textBtnOff(c *ui.Context, name string, kind btnKind, off bool) bool {
-	if !off {
-		return textBtn(c, name, kind)
-	}
-	ui.Row(c).Height(sizeControlSm).Padding(0, space2).Justify(ui.Center).Shrink(0).Opacity(0.45).Label(name).Children(func() { label(c, name, inkMuted) })
-	return false
+	return textBtnOffAs(c, name, name, kind, off)
 }

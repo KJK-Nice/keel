@@ -67,6 +67,7 @@ func (w *workspace) view(c *ui.Context) {
 		w.statusbar(c)
 	})
 	useControls(1, w.dark) // toasts, dialogs, the palette and their controls are never translucent (nativeonly.go)
+	windowTheme(c, w.dark) // MyGo's controls read the theme as they are built: the opaque fills from here on
 	w.toastsView(c)        // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
 	w.hostKeyDialog(c)
@@ -405,24 +406,16 @@ func (w *workspace) sidebarView(c *ui.Context) {
 		// .k-sidebar-head: 12 8 8, the tools row and the section switch 8 apart.
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
-				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
-					Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
-					icon(c, "search-01", inkFaint)
-					switch {
-					case w.sidePanes():
-						ui.TextInputBase(c, &w.paneQuery).Label("Filter panes").Placeholder("Filter panes").
-							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.paneH)
-					case w.sideSnippets(): // each section has its own filter (term.js sidebarQuery)
-						ui.TextInputBase(c, &w.snipQuery).Label("Filter snippets").Placeholder("Filter snippets").
-							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.snipH)
-					case w.sideForwards():
-						ui.TextInputBase(c, &w.fwdQuery).Label("Filter forwards").Placeholder("Filter forwards").
-							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.fwdH)
-					default:
-						ui.TextInputBase(c, &w.filter).Label("Filter hosts").Placeholder("Filter hosts").
-							PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).Bind(&w.hostsH)
-					}
-				})
+				switch {
+				case w.sidePanes():
+					searchField(c, &w.paneQuery, "Filter panes", &w.paneH).Grow(1).Shrink(1)
+				case w.sideSnippets(): // each section has its own filter (term.js sidebarQuery)
+					searchField(c, &w.snipQuery, "Filter snippets", &w.snipH).Grow(1).Shrink(1)
+				case w.sideForwards():
+					searchField(c, &w.fwdQuery, "Filter forwards", &w.fwdH).Grow(1).Shrink(1)
+				default:
+					searchField(c, &w.filter, "Filter hosts", &w.hostsH).Grow(1).Shrink(1)
+				}
 				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {
 					if w.capBtn(c, "N", "add-01", "New host", sizeControlSm, false, false) { // btn-new-host: k-btn--sm k-btn--icon
 						w.act(w.newHost)

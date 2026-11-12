@@ -16,26 +16,10 @@ func dialogBtn(c *ui.Context, name string, kind btnKind, h *ui.Handle, off bool)
 // dialogBtnMods is dialogBtn that also says which modifiers were held with the press (⇧ for a group's Type). shown is the
 // text on the button; name is what a test or assistive technology finds it by.
 func dialogBtnMods(c *ui.Context, name, shown string, kind btnKind, h *ui.Handle, off bool) (bool, ui.Modifiers) {
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label(name).Cursor(ui.CursorPointer).Focusable().Bind(h)
-	bg, fg := raised, ink
-	switch kind {
-	case btnGhost:
-		bg, fg = ui.Transparent, inkMuted
-		if b.Hovered() && !off {
-			bg, fg = hoverGround, ink
-		}
-	case btnPrimary:
-		bg, fg = brass, onBrass
-		if b.Hovered() && !off {
-			bg = brassStrong
-		}
-	}
-	b.Background(bg)
+	b := ctlButton(c, name, shown, kind).Focusable().Bind(h)
 	if off {
-		b.Opacity(0.45).Disabled(true)
+		b.Disabled(true)
 	}
-	b.Children(func() { label(c, shown, fg) })
 	if b.Clicked() {
 		return true, b.ClickModifiers()
 	}

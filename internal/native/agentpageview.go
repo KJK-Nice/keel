@@ -68,11 +68,7 @@ func (w *workspace) pageListCol(c *ui.Context, p *agentPage, col ui.Element) {
 					w.act(func() { w.pageNewConversation(p) })
 				}
 			})
-			ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
-				icon(c, "search-01", inkFaint)
-				ui.TextInputBase(c, &p.filter).Label("Search conversations").Placeholder("Search conversations").PlaceholderColor(inkFaint).
-					TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
-			})
+			searchField(c, &p.filter, "Search conversations", &p.filterH).FillWidth()
 			w.pageHostChips(c, p)
 		})
 		groups := w.listGroups(p.filter, p.host)

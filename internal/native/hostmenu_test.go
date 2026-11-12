@@ -148,7 +148,7 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1") // a session tab to split
 	r.click(t, "Filter hosts")
-	for i := 0; i < 8 && !r.tt.Focused("host staging-web"); i++ { // Tab walks from the filter to the rows
+	for i := 0; i < 16 && !r.tt.Focused("host staging-web"); i++ { // Tab walks from the filter to the rows (plan 030: MyGo's buttons are stops of their own)
 		r.press(0, ui.KeyTab)
 	}
 	if !r.tt.Focused("host staging-web") {

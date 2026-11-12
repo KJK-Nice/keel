@@ -42,9 +42,9 @@ func iconBtnOff(c *ui.Context, name, tip string, size float32, pressed, off bool
 
 // iconBtnCap is iconBtnOff with a key cap: cap, when set, is drawn over the corner of an enabled button (keycaps.go).
 func iconBtnCap(c *ui.Context, name, tip string, size float32, pressed, off bool, cap func()) bool {
-	b := ui.Row(c).Size(size, size).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Cursor(ui.CursorPointer)
+	b := ctlIconButton(c, tip, size)
 	if off {
-		b.Opacity(disabledAlpha).Disabled(true)
+		b.Disabled(true)
 		b.Children(func() { icon(c, name, inkMuted) })
 		return false
 	}
@@ -82,7 +82,7 @@ func statusColor(status string) ui.Color {
 
 // glyphBtn is iconBtn with a character for its icon (the find bar's ↑ ↓ ×, as the webview draws them).
 func glyphBtn(c *ui.Context, glyph, tip string) bool {
-	b := ui.Row(c).Size(sizeControlSm, sizeControlSm).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label(tip).Cursor(ui.CursorPointer)
+	b := ctlIconButton(c, tip, sizeControlSm)
 	if b.Hovered() {
 		b.Background(hoverGround)
 	}
