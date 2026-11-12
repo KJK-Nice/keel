@@ -283,6 +283,9 @@ func (w *workspace) attach(fill *tab, p *pane) {
 
 // openCard is ⌥1 to ⌥6 and a click on a card.
 func (w *workspace) openCard(t *tab, n int) {
+	if t.page == nil { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
+		return
+	}
 	if cards := w.cards(t.page); n >= 0 && n < len(cards) {
 		w.openFrom(t, cards[n])
 	}

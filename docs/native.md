@@ -43,6 +43,22 @@ Nothing in the shell is missing an API in MyGo v0.8.3. None of it can be reached
 
 `make native-e2e` builds `bin/keel`, `bin/keel-sshtest` and `bin/keel-signal` and drives the real window under MyGo's `ui.Tester` against a scratch `keel serve` it starts per test (scratch data in `.scratch-native/e2e/`, one PNG per scenario). It needs macOS and does not touch your Keel.
 
+### Linux
+
+The window's tests (package `keel/internal/native`) are **not yet green on Linux**. They were written and run only on macOS; the first Linux CI run (ubuntu-24.04) failed seven of them and one of those panicked, which aborts the package, so every test after it never ran there and the real count is unknown. CI's Linux leg therefore runs `make test-nonwindow` (every package except `keel/internal/native`; its sub-packages `keelclient`, `joinpeer`, `layout` and `sshparse` still run); the macOS leg runs `make test`, and `make test` on a Linux machine still runs everything. Nobody has had a Linux machine to reproduce on. Simulating Linux on macOS (flipping every `runtime.GOOS == "darwin"` branch and the tests' `agentMods`) did not reproduce any of the seven, so the key-cap and shortcut branches are not the cause. Diagnosis, from the CI log and the code:
+
+| Test | Failure on Linux | Most likely cause (not proven) |
+| --- | --- | --- |
+| `TestAltNumberOpensThatCardsHost` | nil pointer in `cards` (newtab.go) from `openCard`, called by the first `⌥2` | `openCard` read `t.page` of a tab that had already become a session tab: the shortcut closure ran again after the first run opened the card. `openCard` now returns when `t.page` is nil. Why the closure ran twice on Linux is not explained; this is a guard, not the root cause. |
+| `TestPickingARowResumesForThePanelAndThePage` | clicking `conversation Why is pg-2 lagging` on the Agent page did not resume it | a click on the Agent page's content did nothing: the page is laid out differently on Linux (see `TestTheNarrowLayoutsFollowTheTabWidth`), so the row is probably clipped or covered. Not explained. |
+| `TestRenameAndDeleteOnThePageChangeThePanel` | `Rename this conversation` did not open the heading field | same: a click on the Agent page did nothing |
+| `TestTheHostChipsFilterTheList` | `host filter ceph-rgw-1` did not filter | same |
+| `TestRetentionSettingsOpensSettingsAgent` | `Retention settings` did not open Settings | same |
+| `TestTheNarrowLayoutsFollowTheTabWidth` | in a 1100 px window the page is 975 px wide (the test expects 660 to 960), in an 850 px window not narrow | the width left for the page is larger on Linux than on macOS (by 65 px or more), so something in the chrome is narrower there: the sidebar, the Agent toggle's key cap (`Ctrl+⇧I` against `⌘I`) or a font that measures differently without the macOS system font. Not explained. |
+| `TestShippedFamiliesRenderDifferently` | JetBrains Mono and IBM Plex Mono render alike | both families render as the same face (fonts are registered, since each differs from a missing family): probably the Linux text shaper or a missing system font under the headless runner. Not explained. |
+
+Follow-up: run the package on a Linux machine (or a container), start with the page-width difference (it probably explains the four click failures), fix the causes, then drop `test-nonwindow` from the workflow so both legs run `make test`.
+
 ### Driving the built app from outside (plan 029)
 
 `make native-automation` builds `bin/keel-e2e` (the project tags plus `keelautomation`) and runs `tests/native-automation` (tag `nativeautomation`, so `go test ./...` never runs it). It starts the real window on scratch data and drives it through MyGo's automation socket (`MYGO_AUTOMATION`, newline-delimited JSON; the tests speak the protocol directly). It opens real windows for a few seconds each, so run it where a window can open. It covers what `ui.Tester` cannot: First run in a real window; every File and View menu item of `shell.go` chosen through the menu bar, with New Tab, Split Right/Down, Toggle Vault Sidebar and Toggle Agent Panel checked in the tree; Close Window hiding the window while the app runs; real key events into a real terminal (read back from keel serve's scrollback, because the terminal's text is not in the tree); both themes captured from the real window (`.scratch-native/automation/`); and the run-time guard. Not covered: Show from the menu bar item or the Dock (neither is reachable through the socket), and a paste with Sync input (the protocol has no clipboard call, and no test touches the system clipboard).

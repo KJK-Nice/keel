@@ -20,6 +20,7 @@ The same ones CI runs on every PR:
 
 ```bash
 make test              # go test ./...
+make test-nonwindow    # the same without the window package (CI's Linux leg: the window's tests are not green on Linux, docs/native.md)
 make lint              # gofmt, go vet, staticcheck, govulncheck
 make native-e2e        # the window end to end (macOS); PNGs in .scratch-native/e2e/
 ```
