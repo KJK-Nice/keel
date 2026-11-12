@@ -268,8 +268,8 @@ func (w *workspace) notebookDialogView(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(sizeReading+sizeList).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + d.title)
+		modalChrome(c, backdrop, panel)
+		panel.Width(sizeReading+sizeList).Padding(space4).Gap(space3).Label("dialog " + d.title)
 		text(c, d.title, ink, titleSize, weightSemibold)
 		ui.Text(c, d.desc).TextColor(inkMuted).FontSize(uiFontSize).MaxLines(0)
 		ui.Row(c).FillWidth().Gap(space3).Height(sizeRow * 8).MinHeight(0).Children(func() {
@@ -396,8 +396,8 @@ func (w *workspace) versionDiff(c *ui.Context, d *nbDialog) {
 func (w *workspace) renameNotebookView(c *ui.Context, d *nbDialog) {
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog Rename notebook")
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("dialog Rename notebook")
 		panel.ObserveInput(func(ev ui.InputEvent) {
 			if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEnter && ev.Mods == 0 && d.nameH.FocusWithin(c) {
 				w.act(func() { w.renameNotebook(d.id, d.name) })

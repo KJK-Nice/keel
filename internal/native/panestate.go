@@ -281,8 +281,8 @@ func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed b
 		trust = btnDanger
 	}
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space3).Gap(space2).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + title)
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space3).Gap(space2).Label("dialog " + title)
 		bodyStrong(c, title, ink)
 		ui.Text(c, hint).TextColor(inkMuted).FontSize(captionSize)
 		body(c, k.Hostname, ink).Font(monoStack)

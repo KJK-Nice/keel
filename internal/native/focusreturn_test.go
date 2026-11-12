@@ -8,6 +8,40 @@ import (
 	"keel/internal/native/keelclient"
 )
 
+// Plan 031 step 2, group 7: a confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,
+// whichever way the confirm was asked; the action is a click, or Tab and ↵.
+func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
+	for _, name := range []string{"standalone", "inside the host dialog"} {
+		t.Run(name, func(t *testing.T) {
+			r := approveRig(t)
+			ran := false
+			cf := &hostConfirm{title: "Confirm", message: "Remove x?", action: "Remove", run: func() { ran = true }}
+			if name == "standalone" {
+				r.w.askConfirm(cf)
+			} else {
+				r.w.newHost()
+				r.tt.Frame()
+				r.w.hostDlg.confirm = cf
+			}
+			r.tt.Frame()
+			r.tt.Frame()
+			if !r.tt.Focused("Cancel") {
+				t.Fatal("the keyboard does not start on Cancel")
+			}
+			r.tt.Key(0, ui.KeyEnter)
+			for i := 0; i < 4; i++ {
+				r.tt.Frame()
+			}
+			if ran {
+				t.Fatal("↵ on open ran the destructive action")
+			}
+			if r.w.confirm != nil || (r.w.hostDlg != nil && r.w.hostDlg.confirm != nil) {
+				t.Error("↵ on Cancel did not close the confirm")
+			}
+		})
+	}
+}
+
 // Plan 031 step 0: whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
 // by Escape gives the keyboard back to the pane that had it. Typing then reaches the terminal, not the page behind it.
 func TestEscapeGivesTheKeyboardBackToThePane(t *testing.T) {

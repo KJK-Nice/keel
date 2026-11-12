@@ -80,8 +80,8 @@ func (w *workspace) quickDialogView(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space3).Gap(space2).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog Quick connect")
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space3).Gap(space2).Label("dialog Quick connect")
 		bodyStrong(c, "Quick connect", ink)
 		ui.Text(c, "Paste user@host or user@host:2222. Saved under Quick connect.").TextColor(inkMuted).FontSize(captionSize)
 		if q.notes != nil {

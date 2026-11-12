@@ -156,8 +156,8 @@ func (w *workspace) hostDialogView(c *ui.Context) {
 	local := d.f.auth == "local"
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(hostDialogWidth).Background(raised).Border(1, line).Radius(radiusMd).Clip().Label("dialog " + title)
+		modalChrome(c, backdrop, panel)
+		panel.Width(hostDialogWidth).Clip().Label("dialog " + title)
 		// ⌘↵ saves from any field (§5.8, §8).
 		panel.ObserveInput(func(ev ui.InputEvent) {
 			if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEnter && ev.Mods == ui.Cmd {
@@ -425,15 +425,15 @@ func (w *workspace) confirmView(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("alertdialog " + cf.title)
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("alertdialog " + cf.title)
 		bodyStrong(c, cf.title, ink)
 		ui.Text(c, cf.message).TextColor(inkMuted).FontSize(uiFontSize)
 		ui.Row(c).FillWidth().Gap(space2).Justify(ui.End).Children(func() {
-			if textBtn(c, "Cancel", btnGhost) {
+			if dialogBtn(c, "Cancel", btnGhost, &cf.cancelH, false) {
 				open = false
 			}
-			if textBtn(c, cf.action, btnDanger) {
+			if dialogBtn(c, cf.action, btnDanger, &cf.actionH, false) {
 				w.act(func() {
 					w.endConfirm(standalone)
 					cf.run()
@@ -441,6 +441,10 @@ func (w *workspace) confirmView(c *ui.Context) {
 			}
 		})
 	})
+	if !cf.focused { // the keyboard starts on Cancel, so a stray ↵ never destroys: the action is a click, or Tab and ↵
+		cf.cancelH.Focus(c)
+		cf.focused = true
+	}
 	if !open {
 		w.act(func() { w.endConfirm(standalone) })
 	}

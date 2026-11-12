@@ -43,8 +43,8 @@ func (w *workspace) approveView(c *ui.Context) {
 	why := d.blocked() // driver only, and the session ready: else Type is off and this says why
 	shown := d.shown() // what is typed after Ctrl-U: the same call as Type makes
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + approveTitle)
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("dialog " + approveTitle)
 		text(c, approveTitle, ink, titleSize, weightSemibold)
 		hint := approveHint
 		if d.notebook {

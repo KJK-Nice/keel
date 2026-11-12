@@ -47,6 +47,16 @@ func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 		Border(1, ui.Transparent).Background(ui.Transparent)
 }
 
+// modalChrome gives a dialog MyGo's Modal look (the dimmed backdrop, the theme's panel with its radius, border and shadow, sized
+// to fit the window) on a ui.DialogBase, which is the part of ui.Modal that lets Keel set the panel's width, label and keys.
+func modalChrome(c *ui.Context, backdrop, panel ui.Element) {
+	t := c.Theme()
+	w, h := c.Size()
+	backdrop.Background(ui.RGBA(0, 0, 0, 0.4))
+	panel.Radius(t.Space(2.5)).Background(t.Background).Border(1, t.Border).Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3)).
+		MaxWidth(w - t.Space(10)).MaxHeight(h - t.Space(10))
+}
+
 // searchField is MyGo's search field for a filter: the label is its name and its placeholder.
 func searchField(c *ui.Context, value *string, name string, h *ui.Handle) ui.Element {
 	return ui.SearchField(c, value).Label(name).Placeholder(name).MinWidth(0).Bind(h)

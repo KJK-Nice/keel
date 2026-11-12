@@ -67,6 +67,8 @@ type hostTest struct {
 type hostConfirm struct {
 	title, message, action string
 	run                    func()
+	cancelH, actionH       ui.Handle
+	focused                bool // the keyboard has been put on Cancel
 }
 
 type hostDialog struct {

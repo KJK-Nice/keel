@@ -14,8 +14,8 @@ func (w *workspace) joinDialogView(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space3).Gap(space2).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + joinTitle)
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space3).Gap(space2).Label("dialog " + joinTitle)
 		bodyStrong(c, joinTitle, ink)
 		ui.Text(c, joinDesc).TextColor(inkMuted).FontSize(captionSize)
 		field(c, "Join link", &d.link, "https://…/join?room=…", false, &d.h, func(k ui.TextKey) bool {

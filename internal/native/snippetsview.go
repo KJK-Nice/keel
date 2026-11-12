@@ -247,8 +247,8 @@ func (w *workspace) snippetDialogView(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(scrim)
-		panel.Width(dialogWidth).Padding(space4).Gap(space3).Background(raised).Border(1, line).Radius(radiusMd).Label("dialog " + title)
+		modalChrome(c, backdrop, panel)
+		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("dialog " + title)
 		panel.ObserveInput(func(ev ui.InputEvent) { // ⌘↵ saves from any field
 			if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEnter && ev.Mods == ui.Cmd {
 				w.act(w.saveSnippetDialog)
