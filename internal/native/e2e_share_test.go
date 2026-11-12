@@ -425,7 +425,10 @@ func TestE2EShareAndJoin(t *testing.T) {
 		t.Errorf("B's banner: %q", r.b.tt.Texts())
 	}
 	before := r.b.bodyInk()
-	r.a.clickBody("1")
+	// The popover is still open on A and, at the theme's sizes, covers the pane's centre: click the pane's left side, outside it.
+	pr, _ := r.a.tt.Find("pane 1")
+	r.a.tt.ClickAt(pr.X+pr.W/4, pr.Y+pr.H/2)
+	r.a.step()
 	r.a.typeLine("echo hello-$((1+1))")
 	pump30(t, r.wins(), func() bool { return strings.Contains(r.b.tees[0].text(), "hello-2") }, "hello-2 in B's terminal")
 	pump30(t, r.wins(), func() bool { return r.b.bodyInk() > before }, "B's terminal drawn")
