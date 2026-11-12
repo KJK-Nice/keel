@@ -22,12 +22,9 @@ func dayDiff(a, b time.Time) int {
 	return int(ay.Sub(by).Hours() / 24)
 }
 
-func hhmm(t time.Time) string { t = t.Local(); return fmt.Sprintf("%02d:%02d", t.Hour(), t.Minute()) }
+func hhmm(t time.Time) string { return clockHM(t) }
 
-func monthDay(t time.Time) string {
-	t = t.Local()
-	return fmt.Sprintf("%s %d", monthNames[t.Month()-1], t.Day())
-}
+func monthDay(t time.Time) string { return clockMD(t) }
 
 // dayGroup puts a time in "Today", "Yesterday" or "Older" by local date. A time that is not set is "Older".
 func dayGroup(when, now time.Time) string {

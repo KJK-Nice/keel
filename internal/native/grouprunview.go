@@ -91,7 +91,7 @@ func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.Gro
 		line = countWord(len(run.Steps), "step", "steps") + " · " + fmt.Sprintf("%d %s state", changes, verb)
 	}
 	if !run.StartedAt.IsZero() {
-		line += " · started " + run.StartedAt.Local().Format("15:04") + " by you"
+		line += " · started " + clockHM(run.StartedAt) + " by you"
 	}
 	ui.Column(c).FillWidth().Padding(space6, space4, space3).Gap(space1).Children(func() {
 		menuLabel(c, "Runbook on "+run.Group)

@@ -76,7 +76,7 @@ func logTimeLabel(e keelclient.LogEntry) string {
 	if e.Time.IsZero() {
 		return ""
 	}
-	return e.Time.Local().Format("15:04:05")
+	return clockHMS(e.Time)
 }
 
 // logBadgeFailed marks failures with flare; every other kind stays neutral (data.go logBadgeClass).

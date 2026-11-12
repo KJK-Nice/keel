@@ -21,7 +21,7 @@ func dayLabel(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Local().Format("Jan 2")
+	return clockMD(t)
 }
 
 func joinNonEmpty(sep string, parts ...string) string {

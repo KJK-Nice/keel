@@ -175,7 +175,7 @@ func (w *workspace) notebookMeta(c *ui.Context, t *tab, p *pane, rec keelclient.
 		caption(c, "Notebook", inkMuted)
 		if saved && !rec.UpdatedAt.IsZero() {
 			sep()
-			caption(c, "Updated "+rec.UpdatedAt.Local().Format("Jan 2"), inkMuted)
+			caption(c, "Updated "+clockMD(rec.UpdatedAt), inkMuted)
 		}
 		sep()
 		if term := t.firstTerm(); term != nil {

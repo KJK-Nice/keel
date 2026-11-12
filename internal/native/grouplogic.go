@@ -271,7 +271,7 @@ func expiryLine(step keelclient.GroupRunStep) string {
 	}
 	at := "after 1 hour"
 	if first != nil {
-		at = "at " + first.ExpiresAt.Local().Format("15:04")
+		at = "at " + clockHM(*first.ExpiresAt)
 	}
 	return "Kept in keel serve's memory for this run only. Deleted when the runbook ends, or " + at + "."
 }

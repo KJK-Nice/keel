@@ -116,7 +116,7 @@ func dateLabel(id keelclient.Identity) string {
 	if id.CreatedAt.IsZero() {
 		return ""
 	}
-	return id.CreatedAt.Local().Format("Jan 2, 2006")
+	return clockMDY(id.CreatedAt)
 }
 
 // ---- reading ----

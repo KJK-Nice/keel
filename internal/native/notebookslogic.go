@@ -248,9 +248,9 @@ func whenText(at, now time.Time) string {
 	}
 	at, now = at.Local(), now.Local()
 	if at.YearDay() == now.YearDay() && at.Year() == now.Year() {
-		return "today " + at.Format("15:04")
+		return "today " + clockHM(at)
 	}
-	return at.Format("Jan 2 15:04")
+	return clockMD(at) + " " + clockHM(at)
 }
 
 // versionText is a version's text (lib/notebooks.js versionText).
