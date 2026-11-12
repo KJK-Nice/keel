@@ -57,6 +57,25 @@ func capButton(c *ui.Context, name, cap string, off bool) ui.Element {
 	return b
 }
 
+// barButton is a title bar button: MyGo's quiet button with an icon, the words and, when cap is not empty, the key that
+// presses it. active keeps the face of the pressed state while its popover or panel is open.
+func barButton(c *ui.Context, name, glyph, cap string, active bool) ui.Element {
+	b := ctlButton(c, name, "", btnGhost)
+	fg := inkMuted
+	if active || b.Hovered() {
+		b.Background(hoverGround).TextColor(ink)
+		fg = ink
+	}
+	b.Gap(space1_5).Children(func() {
+		icon(c, glyph, fg)
+		ui.Text(c, name).SingleLine()
+		if cap != "" {
+			kbd(c, cap)
+		}
+	})
+	return b
+}
+
 // ctlIconButton is a square button holding an icon, named and given a tooltip by tip.
 func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 	return ui.Button(c, "").Label(tip).Tooltip(tip).Size(size, size).Padding(0).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).KeepFocus().

@@ -871,18 +871,7 @@ func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label("Agent").Cursor(ui.CursorPointer)
-	fg := inkMuted
-	if w.agent.open || b.Hovered() {
-		b.Background(hoverGround)
-		fg = ink
-	}
-	b.Children(func() {
-		icon(c, "ai-magic", fg)
-		label(c, "Agent", fg)
-		kbd(c, agentKeys()) // one cap, as the app's #btn-agent-kbd
-	})
+	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.agent.open) // one cap, as the app's #btn-agent-kbd
 	if b.Clicked() {
 		w.act(w.toggleAgent)
 	}

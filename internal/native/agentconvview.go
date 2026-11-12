@@ -57,15 +57,7 @@ func (w *workspace) agentSessions(c *ui.Context, anchor ui.Element) {
 			}
 			ui.Spacer(c)
 			off := len(a.list.sessions) == 0 && !a.list.unreadable
-			b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Delete all").Cursor(ui.CursorPointer)
-			if b.Hovered() && !off {
-				b.Background(hoverGround)
-			}
-			if off {
-				b.Opacity(dimAlpha).Disabled(true)
-			}
-			b.Children(func() { label(c, "Delete all", flare) })
-			if b.Clicked() && !off {
+			if textBtnOffAs(c, "Delete all", "Delete all", btnDanger, off) {
 				w.act(w.askDeleteAll)
 			}
 		})

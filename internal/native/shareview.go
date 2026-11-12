@@ -33,17 +33,7 @@ func (w *workspace) shareControls(c *ui.Context) {
 			w.act(w.toggleShare)
 		}
 	}
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label("Share").Cursor(ui.CursorPointer)
-	fg := inkMuted
-	if w.share != nil && w.share.open || b.Hovered() {
-		b.Background(hoverGround)
-		fg = ink
-	}
-	b.Children(func() {
-		icon(c, "share-08", fg)
-		label(c, "Share", fg)
-	})
+	b := barButton(c, "Share", "share-08", "", w.share != nil && w.share.open)
 	if b.Clicked() {
 		w.act(w.toggleShare)
 	}

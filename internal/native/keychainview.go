@@ -102,7 +102,7 @@ func (w *workspace) identityList(c *ui.Context, p *keychainPage, current string)
 
 func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Identity, selected bool) {
 	r := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Cursor(ui.CursorPointer).Key(id.ID).
-		Label("identity "+id.Name).Selected(selected), 0, 0, 1, 0)
+		Label("identity "+id.Name).Tooltip(id.Name+" · "+identitySubtitle(w.hosts, id)).Selected(selected), 0, 0, 1, 0)
 	hover := r.Hovered()
 	if selected || hover {
 		r.Background(hoverGround)
@@ -201,18 +201,10 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 	inUse := len(used) > 0
 	hairline(ui.Row(c).FillWidth().Padding(space2, 0, 0).Gap(space2), 1, 0, 0, 0).Children(func() {
 		ui.Spacer(c)
-		b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Delete identity").Cursor(ui.CursorPointer).
-			Background(flareSoft)
+		b := ctlButton(c, "Delete identity", "Delete identity", btnDanger).Disabled(inUse)
 		if inUse {
-			b.Opacity(0.45).Disabled(true).Tooltip("Remove it from " + hostsWord(len(used)) + " first")
-		} else if b.Hovered() {
-			b.Background(flare)
+			b.Tooltip("Remove it from " + hostsWord(len(used)) + " first")
 		}
-		fg := flare
-		if b.Hovered() && !inUse {
-			fg = onFlare
-		}
-		b.Children(func() { label(c, "Delete identity", fg) })
 		if !inUse && b.Clicked() {
 			w.act(func() { w.askDeleteIdentity(id) })
 		}

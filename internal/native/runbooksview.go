@@ -2,6 +2,7 @@ package native
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -185,7 +186,7 @@ func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Run
 		row.Background(hoverGround)
 	}
 	row.Children(func() {
-		pick := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Gap(space3).Cursor(ui.CursorPointer).Label("Open " + rb.Name)
+		pick := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Gap(space3).Cursor(ui.CursorPointer).Label("Open " + rb.Name).Tooltip(strings.TrimSuffix(rb.Name+" · "+rb.When, " · "))
 		pick.Children(func() {
 			ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(inkMuted.Alpha(tileTintAlpha)).Children(func() {
 				iconSized(c, "book", inkMuted, iconSize-space0_5)

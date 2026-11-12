@@ -439,19 +439,7 @@ func (w *workspace) runtimeSection(p *settingsPage) settingsSection {
 	stop := prefGroup{title: "Stop", rows: []prefRow{{title: "Stop the Keel runtime",
 		desc: "Ends every running session and port forward, then closes keel serve. Reopen Keel to start it again.",
 		ctl: func(c *ui.Context) {
-			b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Stop runtime…").Cursor(ui.CursorPointer)
-			fg := flare
-			switch {
-			case !canStop:
-				b.Background(flareSoft).Opacity(dimAlpha).Disabled(true)
-			case b.Hovered():
-				b.Background(flare)
-				fg = onFlare
-			default:
-				b.Background(flareSoft)
-			}
-			b.Children(func() { label(c, "Stop runtime…", fg) })
-			if b.Clicked() && canStop {
+			if textBtnOffAs(c, "Stop runtime…", "Stop runtime…", btnDanger, !canStop) {
 				w.act(w.askStopRuntime)
 			}
 		}}}}

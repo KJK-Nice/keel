@@ -79,7 +79,7 @@ func (w *workspace) snippetList(c *ui.Context, p *snippetsPage, current string) 
 
 func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s keelclient.Snippet, selected bool) {
 	r := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Cursor(ui.CursorPointer).Key(s.ID).
-		Label("snippet "+s.Name).Selected(selected), 0, 0, 1, 0)
+		Label("snippet "+s.Name).Tooltip(s.Name+" · "+snippetFirstLine(s)).Selected(selected), 0, 0, 1, 0)
 	hover := r.Hovered()
 	if selected || hover {
 		r.Background(hoverGround)
