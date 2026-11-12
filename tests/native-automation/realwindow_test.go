@@ -13,7 +13,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -275,5 +277,63 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	r.key("Escape")
 	r.waitFor("the card gone", lacks("suggested command"))
 	r.shot("suggest-04-second-esc")
+	r.quit()
+}
+
+// screenShot captures the window's rectangle of the screen with screencapture(1), which, unlike the socket's capture, shows a
+// native menu that is open. It needs the screen-recording permission; without it the file is the wallpaper only.
+func (r *rig) screenShot(name string) {
+	r.t.Helper()
+	var ws struct {
+		Windows []struct {
+			Bounds struct{ X, Y, Width, Height float64 }
+		}
+	}
+	r.must("windows", nil, &ws)
+	b := ws.Windows[0].Bounds
+	out := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
+	rect := strconv.Itoa(int(b.X)) + "," + strconv.Itoa(int(b.Y)) + "," + strconv.Itoa(int(b.Width)) + "," + strconv.Itoa(int(b.Height))
+	if o, err := exec.Command("screencapture", "-x", "-R", rect, out).CombinedOutput(); err != nil {
+		r.t.Logf("screencapture: %v %s", err, o)
+	}
+}
+
+// Plan 032 step 7 / plan 031 looks, in both themes: both sashes hovered, and a row's context menu (a native menu, so it is
+// taken from the screen). Looked at by eye; the sash pixels are the headless tests' (sashpixels_test.go).
+func TestContextMenuAndSashesBothThemes(t *testing.T) {
+	r := newRig(t)
+	r.startServe()
+	r.startApp()
+	openShell(r)
+	r.press("Settings")
+	r.waitFor("Settings", has("settings nav Appearance"))
+	for _, theme := range []string{"Dark", "Light"} {
+		r.pressIn("Color theme", theme)
+		r.press("tab Local Shell")
+		r.waitFor("the shell tab", has("pane 1"))
+		tag := strings.ToLower(theme)
+		hover := func(label, name string) {
+			s := find(r.tree(), label)
+			r.input(map[string]any{"type": "pointerMove", "x": s.Bounds.X + s.Bounds.Width/2, "y": s.Bounds.Y + s.Bounds.Height/2})
+			r.shot(name + "-" + tag)
+		}
+		hover("Resize sidebar", "sash-sidebar-hover")
+		r.press("Agent")
+		r.waitFor("the agent panel", has("agent panel"))
+		hover("Resize agent panel", "sash-agent-hover")
+		r.press("Agent")
+		r.waitFor("the agent panel closed", lacks("agent panel"))
+
+		h := find(r.tree(), "host Local Shell")
+		r.input(map[string]any{"type": "click", "button": "right", "x": h.Bounds.X + 60, "y": h.Bounds.Y + h.Bounds.Height/2})
+		time.Sleep(700 * time.Millisecond)
+		r.screenShot("context-menu-" + tag)
+		r.key("Escape")
+		r.settle()
+
+		r.press("tab Settings")
+		r.waitFor("Settings", has("settings nav Appearance"))
+	}
+	r.press("tab Local Shell")
 	r.quit()
 }
