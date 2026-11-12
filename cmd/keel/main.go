@@ -42,18 +42,12 @@ func main() {
 
 	switch cmd {
 	case "app":
-		webview, err := app.WantWebview(args, os.Getenv(app.UIEnv))
-		if err != nil {
-			log.Fatal(err)
+		if os.Getenv("KEEL_UI") == "webview" || hasArg(args, "--webview") {
+			fmt.Fprintln(os.Stderr, "the webview was removed; Keel opens its native window")
 		}
-		if webview {
-			err = app.RunDesktop(web, addr, dataDir, parseName(args))
-		} else {
-			// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
-			os.Setenv("KEEL_NAME", parseName(args))
-			err = app.RunNative(web, addr, dataDir)
-		}
-		if err != nil {
+		// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
+		os.Setenv("KEEL_NAME", parseName(args))
+		if err := app.RunNative(web, addr, dataDir); err != nil {
 			log.Fatal(err)
 		}
 	case "serve":
@@ -79,6 +73,15 @@ func main() {
 	default:
 		log.Fatalf("unknown command %q (try keel, keel app, keel serve, or keel mcp)", cmd)
 	}
+}
+
+func hasArg(args []string, want string) bool {
+	for _, a := range args {
+		if a == want {
+			return true
+		}
+	}
+	return false
 }
 
 func parseName(args []string) string {
@@ -108,9 +111,6 @@ session tab kills that PTY.
 
   keel            open the desktop app (starts serve if needed)
   keel app        same
-  keel app --webview
-                  the previous window, a Wails webview (also KEEL_UI=webview;
-                  KEEL_UI=native is the default; anything else is an error)
   keel serve      run the runtime daemon in the foreground
   keel serve stop stop the daemon and kill leftover sessions
   keel version    print the version
@@ -132,19 +132,14 @@ Environment:
   KEEL_ADDR       local bind of keel serve (default 127.0.0.1:47241)
   KEEL_DATA       data directory (default: OS config dir / keel)
   KEEL_NAME       display name (keel app --name sets it for the run)
-  KEEL_UI         native (default) or webview
   KEEL_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
   KEEL_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
 
-The default window is native (MyGo, pure Go; libghostty-vt terminals, fetched
-and SHA-256 checked on first run, or found beside the binary). --webview opens
-the Wails WebKit/WebView2 window. Build:
+The window is native (MyGo, pure Go; libghostty-vt terminals, fetched
+and SHA-256 checked on first run, or found beside the binary). Build:
 
   make build
   make build KEEL_SIGNAL=https://your-signal.example
 
-Linux packages: libgtk-4-dev libwebkitgtk-6.0-dev
-macOS: Xcode Command Line Tools (use make / scripts/go.sh so Wails CGO flags are set).
-With --webview, a naked ./bin/keel relaunches as ~/Library/Caches/keel/Keel.app so WebKit JIT is allowed.
-make build also writes bin/Keel.app — open that, or run ./bin/keel.
+On macOS make build also writes bin/Keel.app — open that, or run ./bin/keel.
 `

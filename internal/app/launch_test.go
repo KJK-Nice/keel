@@ -7,30 +7,6 @@ import (
 	"testing"
 )
 
-func TestWantWebview(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		args []string
-		env  string
-		want bool
-		err  string
-	}{
-		{"default", nil, "", false, ""},
-		{"env native", nil, "native", false, ""},
-		{"env webview", nil, "webview", true, ""},
-		{"flag", []string{"--webview"}, "", true, ""},
-		{"flag beats env native", []string{"--name", "x", "--webview"}, "native", true, ""},
-		{"flag beats a bad env", []string{"--webview"}, "gtk", true, ""},
-		{"unknown env", nil, "gtk", false, "native or webview"},
-		{"case matters", nil, "Webview", false, "native or webview"},
-	} {
-		got, err := WantWebview(c.args, c.env)
-		if got != c.want || (err == nil) != (c.err == "") || (err != nil && !strings.Contains(err.Error(), c.err)) {
-			t.Errorf("%s: got %v, %v", c.name, got, err)
-		}
-	}
-}
-
 // The calls before a window run in this order, with a 0700 data directory, and stop at the first failure.
 func TestPrepareOrder(t *testing.T) {
 	var calls []string

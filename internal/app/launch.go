@@ -1,31 +1,10 @@
 package app
 
 import (
-	"fmt"
 	"os"
 
 	"keel/internal/authtoken"
 )
-
-// UIEnv selects the window of keel app: "native" (the default) or "webview" (Wails). --webview wins over it.
-const UIEnv = "KEEL_UI"
-
-// WantWebview reports whether keel app opens the Wails window: --webview in args, else KEEL_UI=webview. An unknown
-// KEEL_UI is an error naming both values.
-func WantWebview(args []string, env string) (bool, error) {
-	for _, a := range args {
-		if a == "--webview" {
-			return true, nil
-		}
-	}
-	switch env {
-	case "", "native":
-		return false, nil
-	case "webview":
-		return true, nil
-	}
-	return false, fmt.Errorf("%s=%q: want native or webview", UIEnv, env)
-}
 
 // serveSteps are the calls that come before any window, in this order. Fakes in tests.
 type serveSteps struct {

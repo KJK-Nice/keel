@@ -47,9 +47,9 @@ ui: $(if $(filter $(TAILWIND_BIN),$(TAILWIND)),$(TAILWIND_BIN))
 	$(TEMPL) generate
 	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
 
-# make app opens the native window; make app WEBVIEW=1 the Wails one (keel app --webview).
+# make app opens the native window.
 app: ui
-	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app $(if $(WEBVIEW),--webview)
+	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app
 
 build: ui
 	rm -f bin/keel
