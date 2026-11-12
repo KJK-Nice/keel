@@ -78,9 +78,9 @@ func tabKey(i, n int) string {
 
 // keyCap puts the cap of a shortcut over the middle of the element being built, where its icon is: the cap stands in for
 // the icon while ⌘ is held, as the app's does, and covers no label. keyCapLead is the same over a tab's status dot or icon
-// at its left. A cap is the kbd type on a raised ground with a line border and a thick bottom edge, as a k-kbd, and a pop
-// shadow so it reads over any ground, translucent ones included. It is absolute: the element never moves or resizes.
-// It draws nothing while caps are hidden.
+// at its left. A cap is the flat face of keyCapFace, raised and opaque with a line-strong border (plan 028 step 5: no
+// shadow, no thicker edge) so it reads over any ground, translucent ones included. It is absolute: the element never moves
+// or resizes. It draws nothing while caps are hidden.
 func (w *workspace) keyCap(c *ui.Context, keys string) {
 	if w.capAlpha > 0 {
 		ui.Row(c).Absolute().Top(0).Right(0).Bottom(0).Left(0).Center().Children(func() { w.capFace(c, keys) })
@@ -94,7 +94,5 @@ func (w *workspace) keyCapLead(c *ui.Context, keys string) {
 }
 
 func (w *workspace) capFace(c *ui.Context, keys string) {
-	hairline(ui.Row(c).MinWidth(kbdBox).Height(kbdBox).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).
-		Background(raised).Opacity(w.capAlpha).Label("key cap "+keys).Shadow(0, 1, 4, 0, shadowPop), 1, 1, 2, 1).BorderColor(lineStrong).
-		Children(func() { text(c, keys, ink, kbdSize, weightMedium).Font(monoStack) })
+	keyCapFace(c, keys, true, func(e ui.Element) { e.Opacity(w.capAlpha).Label("key cap " + keys) })
 }

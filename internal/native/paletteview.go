@@ -8,11 +8,24 @@ import (
 // keel.css): the input with esc, group headings, rows with icon, title, hint and meta, and a footer of keys.
 // The input has the keyboard while it is open, so no key reaches a terminal.
 
-// kbd is one key cap (k-kbd).
-func kbd(c *ui.Context, s string) ui.Element {
-	// k-kbd is 18 px with its border inside (border-box); the border here is outside the box, so its 2 + 1 px come off.
-	return hairline(ui.Row(c).MinWidth(kbdBox-2).Height(kbdBox-3).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(surface), 1, 1, 2, 1).
-		Children(func() { text(c, s, inkMuted, kbdSize, weightMedium).Font(monoStack) })
+// kbd is one key cap (k-kbd), flat: see keyCapFace.
+func kbd(c *ui.Context, s string) ui.Element { return keyCapFace(c, s, false, nil) }
+
+// keyCapFace is the face of every key cap, the inline k-kbd and the one shown while ⌘ is held, in one place (plan 028 step 5,
+// which supersedes the raised look of plan 016). Flat: a 1 px border on all four sides, radiusXs, no shadow and no thicker
+// bottom edge, the same box as before (kbdBox, border inside). Inline it is surface with a line border and ink-muted mono
+// text; held it must read on any ground, translucent ones and icons too, so it is raised, fully opaque, with a line-strong
+// border and ink text. extra sets what the caller adds (an opacity, a label) before the children are drawn.
+func keyCapFace(c *ui.Context, s string, held bool, extra func(ui.Element)) ui.Element {
+	fill, edge, fg := surface, line, inkMuted
+	if held {
+		fill, edge, fg = raised, lineStrong, ink
+	}
+	box := ui.Row(c).MinWidth(kbdBox).Height(kbdBox).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(fill).Border(1, edge)
+	if extra != nil {
+		extra(box)
+	}
+	return box.Children(func() { text(c, s, fg, kbdSize, weightMedium).Font(monoStack) })
 }
 
 // keyCaps draws a shortcut as one cap per key: "⌘⇧O" is ⌘, ⇧ and O (k-keys).

@@ -1,6 +1,7 @@
 package native
 
 import (
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -47,6 +48,60 @@ func TestUnfocusedTileBodyKeepsItsGround(t *testing.T) {
 			t.Errorf("%s: unfocused body %v, focused body %v, want both the stage %v", th, pa, pb, stage)
 		}
 	}
+}
+
+// Plan 028 step 5: a key cap is flat, inline and held, in both themes: the same colour on all four edges, one device pixel
+// wide at scale 1, nothing under the bottom edge (no shadow, no thicker edge), the same box as before (kbdBox).
+func TestKeyCapsAreFlat(t *testing.T) {
+	for _, dark := range []bool{true, false} {
+		for _, held := range []bool{false, true} {
+			useTheme(dark)
+			useControls(1, dark)
+			tt := ui.NewTester(func(c *ui.Context) {
+				ui.Column(c).Fill().Background(stage).Padding(20).AlignItems(ui.Start).Children(func() {
+					keyCapFace(c, "K", held, func(e ui.Element) { e.Label("cap") })
+				})
+			}, 120, 80)
+			tt.Frame()
+			img := tt.Image()
+			if img == nil {
+				t.Skip("Tester.Image gave no pixels")
+			}
+			r, ok := tt.Find("cap")
+			if !ok {
+				t.Fatal("no cap")
+			}
+			if r.H < kbdBox-0.01 || r.H > kbdBox+0.01 || r.W < kbdBox-0.01 {
+				t.Errorf("held=%v: cap box %vx%v, want at least %vx%v", held, r.W, r.H, kbdBox, kbdBox)
+			}
+			x0, y0, x1, y1 := int(math.Round(float64(r.X))), int(math.Round(float64(r.Y))), int(math.Round(float64(r.X+r.W)))-1, int(math.Round(float64(r.Y+r.H)))-1
+			edge, fill := line, surface
+			if held {
+				edge, fill = lineStrong, raised
+			}
+			at := func(x, y int) [3]uint8 {
+				c := img.RGBAAt(x, y)
+				return [3]uint8{c.R, c.G, c.B}
+			}
+			midX, midY := x0+5, y0+9 // clear of the rounded corners (radius 3) and the glyph
+			for name, p := range map[string][3]uint8{
+				"top": at(midX, y0), "bottom": at(midX, y1), "left": at(x0, midY), "right": at(x1, midY),
+			} {
+				if !is(p, edge) {
+					t.Errorf("dark=%v held=%v: %s edge %v, want %v", dark, held, name, p, edge)
+				}
+			}
+			if !is(at(midX, y0+1), fill) || !is(at(midX, y1-1), fill) {
+				t.Errorf("dark=%v held=%v: the edge is wider than one pixel", dark, held)
+			}
+			for dy := 1; dy <= 3; dy++ { // under the cap: the ground, no shadow
+				if p := at(midX, y1+dy); !is(p, stage) {
+					t.Errorf("dark=%v held=%v: %d px under the cap is %v, want the stage (a shadow?)", dark, held, dy, p)
+				}
+			}
+		}
+	}
+	useTheme(true)
 }
 
 // The token values themselves, measured for the maintainer (docs/design/tokens.json is not changed by plan 028): how far each
