@@ -7,7 +7,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -90,14 +88,13 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	})
 	f.logPath = filepath.Join(dir, "keel.log")
 	f.logs = applog.New(f.logPath)
-	webFS := fstest.MapFS{"index.html": {Data: []byte("ok")}}
 	factory := func(id, key string) (provider.Provider, error) {
 		if key != askKey {
 			t.Errorf("provider built with key %q", key)
 		}
 		return f.fake, nil
 	}
-	server := New(st, f.rt, fs.FS(webFS), nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
+	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
 	f.srv = httptest.NewServer(server.Handler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {

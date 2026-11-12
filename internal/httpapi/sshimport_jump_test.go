@@ -1,14 +1,12 @@
 package httpapi
 
 import (
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 
 	"keel/internal/hostimport"
 	"keel/internal/runtime"
@@ -33,8 +31,7 @@ func jumpImportFixture(t *testing.T, cfg string) importFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, runtime.New(st, nil), fs.FS(web), nil).WithSSHDir(sshDir).Handler())
+	srv := httptest.NewServer(New(st, runtime.New(st, nil), nil).WithSSHDir(sshDir).Handler())
 	t.Cleanup(srv.Close)
 	return importFixture{srv: srv, st: st, sshDir: sshDir}
 }

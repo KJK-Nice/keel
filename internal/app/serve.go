@@ -69,7 +69,7 @@ func RunServe(web fs.FS, addr, dataDir string) error {
 	var once sync.Once
 	shutdown := func() { once.Do(func() { close(stop) }) }
 
-	api := httpapi.New(st, rt, web, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithMCPAuth(mcpToken).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
+	api := httpapi.New(st, rt, hub).WithBuild(buildid.Of(web)).WithAuth(token).WithMCPAuth(mcpToken).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
 	httpSrv := &http.Server{
 		Addr:              addr,
 		Handler:           api.Handler(),

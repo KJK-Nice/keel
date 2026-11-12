@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 
 	"keel/internal/applog"
 	"keel/internal/authtoken"
@@ -39,8 +37,7 @@ func newAgentFixture(t *testing.T, token string) agentFixture {
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
 	logs := applog.New(filepath.Join(dir, "keel.log"))
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithLogs(logs).WithAuth(token).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithLogs(logs).WithAuth(token).Handler())
 	t.Cleanup(srv.Close)
 	return agentFixture{srv: srv, st: st, dir: dir, logs: logs}
 }
@@ -257,7 +254,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 		t.Fatal("expected a locked vault")
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
-	srv := httptest.NewServer(New(st, rt, fstest.MapFS{}, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).Handler())
 	defer srv.Close()
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/agent/keys/gemini", strings.NewReader(`{"key":"abc"}`))
 	resp, err := http.DefaultClient.Do(req)

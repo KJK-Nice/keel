@@ -72,7 +72,7 @@ type Info struct {
 	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
 	HostKeyType        string    `json:"hostKeyType,omitempty"`
 	// HostKeyToken names the store's trust offer for the refused key.
-	// It is sent only to the session's own clients, not in herd updates.
+	// It is sent only to the session's own clients.
 	HostKeyToken string `json:"-"`
 }
 
@@ -86,13 +86,6 @@ type Event struct {
 	TargetID uint64
 	// Peer identifies a share joiner in "join-request" and "join-resolved".
 	Peer string
-}
-
-type HerdEvent struct {
-	Type     string `json:"type"` // snapshot, spawn, kill, update
-	Sessions []Info `json:"sessions,omitempty"`
-	Session  Info   `json:"session,omitempty"`
-	ID       string `json:"id,omitempty"`
 }
 
 type Opener func(host store.Host, cols, rows int) (session.Bridge, error)
@@ -116,9 +109,6 @@ type Runtime struct {
 	opener   Opener
 	mu       sync.Mutex
 	sess     map[string]*Session
-	herdMu   sync.Mutex
-	herd     map[uint64]chan HerdEvent
-	herdNext uint64
 	backoff  time.Duration
 	notifyMu sync.Mutex
 	notify   func(kind, msg, hostID, sessionID string)
@@ -153,7 +143,6 @@ func New(st *store.Store, opener Opener) *Runtime {
 		store:  st,
 		opener: opener,
 		sess:   map[string]*Session{},
-		herd:   map[uint64]chan HerdEvent{},
 	}
 }
 
@@ -196,11 +185,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	r.mu.Lock()
 	r.sess[s.id] = s
 	r.mu.Unlock()
-	// Announce the session before runLoop can report on it: a fast connect
-	// (Local Shell) otherwise emitted "update" ahead of "spawn", so herd
-	// clients got an update for a session they did not know yet.
 	info := s.Info()
-	r.emitHerd(HerdEvent{Type: "spawn", Session: info, ID: s.id})
 	go s.runLoop()
 	return info, nil
 }
@@ -265,7 +250,6 @@ func (r *Runtime) Kill(id string) error {
 	delete(r.sess, id)
 	r.mu.Unlock()
 	s.close()
-	r.emitHerd(HerdEvent{Type: "kill", ID: id, Session: Info{ID: id}})
 	return nil
 }
 
@@ -278,46 +262,6 @@ func (r *Runtime) KillAll() {
 	r.mu.Unlock()
 	for _, id := range ids {
 		_ = r.Kill(id)
-	}
-}
-
-func (r *Runtime) SubscribeHerd() (id uint64, events <-chan HerdEvent, snapshot []Info) {
-	r.herdMu.Lock()
-	r.herdNext++
-	id = r.herdNext
-	ch := make(chan HerdEvent, 32)
-	r.herd[id] = ch
-	r.herdMu.Unlock()
-	return id, ch, r.List()
-}
-
-func (r *Runtime) UnsubscribeHerd(id uint64) {
-	r.herdMu.Lock()
-	defer r.herdMu.Unlock()
-	if ch, ok := r.herd[id]; ok {
-		delete(r.herd, id)
-		close(ch)
-	}
-}
-
-func (r *Runtime) emitHerd(ev HerdEvent) {
-	r.herdMu.Lock()
-	defer r.herdMu.Unlock()
-	for id, ch := range r.herd {
-		select {
-		case ch <- ev:
-		default:
-			select {
-			case <-ch:
-			default:
-			}
-			select {
-			case ch <- ev:
-			default:
-				delete(r.herd, id)
-				close(ch)
-			}
-		}
 	}
 }
 
@@ -852,9 +796,6 @@ func (s *Session) RequestControl(from uint64) error {
 		Info:    info,
 		FromID:  from,
 	})
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-	}
 	return nil
 }
 
@@ -876,9 +817,6 @@ func (s *Session) GrantControl(from, to uint64) error {
 	info := s.infoLocked()
 	s.mu.Unlock()
 	s.broadcast(Event{Kind: "control", Message: "control passed", Info: info, FromID: from, TargetID: to})
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-	}
 	return nil
 }
 
@@ -900,18 +838,12 @@ func (s *Session) TakeControl(from uint64) error {
 	info := s.infoLocked()
 	s.mu.Unlock()
 	s.broadcast(Event{Kind: "control", Message: "took control", Info: info, FromID: from, TargetID: from})
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-	}
 	return nil
 }
 
 func (s *Session) emitPresence(msg string) {
 	info := s.Info()
 	s.broadcast(Event{Kind: "presence", Message: msg, Info: info})
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-	}
 }
 
 func (s *Session) requestReconnect() error {
@@ -1060,9 +992,6 @@ func (s *Session) runLoop() {
 		}
 		info := s.Info()
 		s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
-		if s.rt != nil {
-			s.rt.emitHerd(HerdEvent{Type: "update", Session: info, ID: s.id})
-		}
 		s.sendStartupCommand(br, host)
 
 		buf := make([]byte, 32*1024)
@@ -1247,9 +1176,6 @@ func (s *Session) setStatus(st Status, msg string) {
 	s.info.Status = st
 	s.info.Error = msg
 	s.mu.Unlock()
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})
-	}
 }
 
 func (s *Session) setConnectError(err error) {
@@ -1280,9 +1206,6 @@ func (s *Session) setConnectError(err error) {
 		s.info.HostKeyToken = mm.Token
 	}
 	s.mu.Unlock()
-	if s.rt != nil {
-		s.rt.emitHerd(HerdEvent{Type: "update", Session: s.Info(), ID: s.id})
-	}
 }
 
 func (s *Session) broadcast(ev Event) {

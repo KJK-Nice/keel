@@ -3,11 +3,9 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"testing/fstest"
 
 	"keel/internal/runtime"
 	"keel/internal/share"
@@ -25,8 +23,7 @@ func signalServer(t *testing.T) (*httptest.Server, *store.Store, *share.Hub) {
 	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), hub).Handler())
+	srv := httptest.NewServer(New(st, rt, hub).Handler())
 	t.Cleanup(srv.Close)
 	return srv, st, hub
 }
