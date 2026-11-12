@@ -131,6 +131,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	colsBefore := cols()
 	row, _ := e.tt.Find("host Local Shell")
 	status, _ := e.tt.Find("keel serve · 1 session")
+	paneBefore, _ := e.tt.Find("pane 1")
 	e.shot("TestE2EUISizeAndFont-default")
 
 	// UI size to its maximum (16): the app's setting scales what is written in rem (text), not the px sizes (a row, the
@@ -153,8 +154,12 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	if want := float32(13 * 16.0 / 12); uiFontSize < want-0.01 || uiFontSize > want+0.01 { // plan 030: MyGo's 13 at the default size, scaled
 		t.Errorf("body text is %v px at UI size 16, want %v", uiFontSize, want)
 	}
-	if got := cols(); got != colsBefore {
-		t.Errorf("the session has %d columns after UI size 16, %d before: the terminal is not scaled", got, colsBefore)
+	// Plan 031: the sidebar is wider at size 16 (its labels scale), so the stage is narrower by that much and no more:
+	// the cell is the same size, the columns lost are the sidebar's growth over the cell width.
+	cell := paneBefore.W / float32(colsBefore)
+	lost := (sidebarWidth() - sizeSidebar) / cell
+	if got := float32(cols()); got < float32(colsBefore)-lost-1.5 || got > float32(colsBefore)-lost+1.5 {
+		t.Errorf("the session has %v columns after UI size 16, %d before, about %.1f of them gone with the sidebar's growth: the terminal is scaled", got, colsBefore, lost)
 	}
 	e.shot("TestE2EUISizeAndFont-ui16")
 	e.openSettings()
