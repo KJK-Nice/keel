@@ -3,6 +3,7 @@ package native
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -67,36 +68,55 @@ func TestShadowHookArmsOnlyOnAChangeAndNeverWhenOff(t *testing.T) {
 	r := newRig(t, settingsBackend())
 	n := 0
 	r.w.shadowHook = func() { n++ }
-	r.w.post = func(f func()) { f() }
+	// The timer posts from its own goroutine; post is the UI thread's, so the test queues what is posted and runs it
+	// itself in settle, as the UI thread would (running it on the timer's goroutine raced with the frames).
+	var mu sync.Mutex
+	var queue []func()
+	r.w.post = func(f func()) { mu.Lock(); queue = append(queue, f); mu.Unlock() }
+	settle := func() {
+		time.Sleep(30 * time.Millisecond)
+		mu.Lock()
+		run := queue
+		queue = nil
+		mu.Unlock()
+		for _, f := range run {
+			f()
+		}
+	}
+	t.Cleanup(func() {
+		if r.w.shadowTimer != nil {
+			r.w.shadowTimer.Stop()
+		}
+	})
 
 	r.w.win.NoShadow = true
 	for i := 0; i < 5; i++ {
 		r.w.shadowGen++
 		r.tt.Frame()
 	}
-	time.Sleep(30 * time.Millisecond)
+	settle()
 	if r.w.shadowTimer != nil || n != 0 {
 		t.Fatalf("armed with the shadow off: timer %v, %d calls", r.w.shadowTimer, n)
 	}
 
 	r.w.win.NoShadow = false
 	r.tt.Frame() // the first frame of a shape: due
-	time.Sleep(30 * time.Millisecond)
+	settle()
 	r.tt.Frame()
-	time.Sleep(30 * time.Millisecond)
+	settle()
 	if n != 1 {
 		t.Fatalf("one shape, %d calls", n)
 	}
 	for i := 0; i < 20; i++ { // idle frames
 		r.tt.Frame()
 	}
-	time.Sleep(30 * time.Millisecond)
+	settle()
 	if n != 1 {
 		t.Fatalf("idle frames cut the shadow again: %d calls", n)
 	}
 	r.w.shadowGen++ // a user action ran
 	r.tt.Frame()
-	time.Sleep(30 * time.Millisecond)
+	settle()
 	if n != 2 {
 		t.Fatalf("a change did not cut the shadow: %d calls", n)
 	}
