@@ -404,8 +404,11 @@ func (w *workspace) sideSnippets() bool { return w.sideSeg == "snippets" }
 // sideForwards is the sidebar's Forwards section showing.
 func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
 
+// sidebarWidth is size-sidebar at the default UI size and under it, and grows with the UI size above it (plan 031).
+func sidebarWidth() float32 { return max(sizeSidebar, rem(sizeSidebar)) }
+
 func (w *workspace) sidebarView(c *ui.Context) {
-	hairline(ui.Column(c).Width(sizeSidebar).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
+	hairline(ui.Column(c).Width(sidebarWidth()).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		// .k-sidebar-head: 12 8 8, the tools row and the section switch 8 apart.
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
@@ -435,7 +438,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 			if cur == "" { // Hosts is the default section, and the one pressed
 				cur = "hosts"
 			}
-			segControl(c, "Vault section", cur, segs, func(v string) { w.sideSeg = v })
+			segControlSized(c, "Vault section", cur, segs, func(v string) { w.sideSeg = v }, captionSize, space0_5)
 		})
 		// .k-sidebar-body: 0 6 8, scrolling.
 		body := func(label string, kids func()) {

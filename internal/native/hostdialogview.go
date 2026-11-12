@@ -1,6 +1,8 @@
 package native
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -80,6 +82,12 @@ func picker(c *ui.Context, name, current string, entries []pickEntry, onPick fun
 
 // segControl is k-seg: one option is on.
 func segControl(c *ui.Context, name string, current string, opts [][2]string, onPick func(string)) {
+	segControlSized(c, name, current, opts, onPick, c.Theme().FontSize, space1)
+}
+
+// segControlSized is segControl with the labels' size and each segment's side padding set: the sidebar's four sections
+// (Hosts, Panes with its count, Snippets, Forwards) take the caption size and a narrow padding so they show whole.
+func segControlSized(c *ui.Context, name string, current string, opts [][2]string, onPick func(string), size, padX float32) {
 	labels := make([]string, len(opts))
 	at := 0
 	for i, o := range opts {
@@ -94,11 +102,29 @@ func segControl(c *ui.Context, name string, current string, opts [][2]string, on
 	t := c.Theme()
 	seg.Track.FillWidth().AlignItems(ui.Stretch).Padding(2).Gap(2).Radius(t.Radius).Border(1, t.Border).Label(name).Children(func() {
 		for i, l := range labels {
-			s := seg.Segment(i).Grow(1).Shrink(1).MinWidth(0).Padding(space1, space1_5).Radius(max(t.Radius-2, 0)).Justify(ui.Center).Label(l).KeepFocus()
+			word, count, hasCount := strings.Cut(l, " ") // "Panes 3": the count is a badge beside the word, so the label stays short
+			if hasCount && strings.Trim(count, "0123456789") != "" {
+				word, count, hasCount = l, "", false
+			}
+			// Each segment starts from its text and shares the free room, so a long label never gives way to a short one.
+			need, _ := c.MeasureText(0, ui.Span{Text: word, Size: size})
+			if hasCount {
+				cw, _ := c.MeasureText(0, ui.Span{Text: count, Size: kbdSize})
+				need += space1 + cw + 2*space1_5 // the badge's own padding
+			}
+			s := seg.Segment(i).Grow(1).Shrink(1).Basis(need+2*padX+2).MinWidth(0).Padding(space1, padX).Radius(max(t.Radius-2, 0)).Justify(ui.Center).Label(l).KeepFocus()
 			if i == idx {
 				s.Background(hoverGround).Border(1, t.Border)
 			}
-			s.Children(func() { ui.Text(c, l).SingleLine().TextColor(map[bool]ui.Color{true: ink, false: inkMuted}[i == idx]) })
+			col := map[bool]ui.Color{true: ink, false: inkMuted}[i == idx]
+			s.Children(func() {
+				ui.Row(c).Gap(space1).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, word).SingleLine().TextColor(col).FontSize(size)
+					if hasCount {
+						ui.Badge(c, count).FontSize(kbdSize)
+					}
+				})
+			})
 		}
 	})
 	if idx != at {

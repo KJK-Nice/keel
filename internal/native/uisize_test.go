@@ -34,8 +34,10 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	if small.newHost != sizeControlSm || large.newHost != sizeControlSm {
 		t.Errorf("control height %v and %v, want %v", small.newHost, large.newHost, float32(sizeControlSm))
 	}
-	if small.sidebarEdge != sizeSidebar || large.sidebarEdge != sizeSidebar {
-		t.Errorf("sidebar width %v and %v, want %v", small.sidebarEdge, large.sidebarEdge, float32(sizeSidebar))
+	// Plan 031: the sidebar is size-sidebar at the default size and below, and grows with the UI size above it, so the four
+	// section labels fit.
+	if small.sidebarEdge != sizeSidebar || math.Abs(float64(large.sidebarEdge-sizeSidebar*16/12.0)) > 0.01 {
+		t.Errorf("sidebar width %v and %v, want %v and %v", small.sidebarEdge, large.sidebarEdge, float32(sizeSidebar), sizeSidebar*16/12.0)
 	}
 	// In rem: value × scale. Plan 030: the body is MyGo's 13 at the default size (12) and 13 × size ÷ 12 elsewhere; a caption is 12/13 of it.
 	for _, c := range []struct {
