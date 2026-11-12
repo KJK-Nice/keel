@@ -45,9 +45,9 @@ func TestTerminalColoursAreNotBrass(t *testing.T) {
 		useTheme(dark)
 		useAccent(dark, ui.RGB(0, 122, 255))
 		th := terminalTheme()
-		for _, brass := range []string{"#e8b960", "#82510d"} {
-			if th.Cursor == tok(brass) {
-				t.Errorf("dark=%v: the cursor is brass %s", dark, brass)
+		for _, brass := range []ui.Color{ui.RGB(0xe8, 0xb9, 0x60), ui.RGB(0x82, 0x51, 0x0d)} { // the old dark and light cursors
+			if th.Cursor == brass {
+				t.Errorf("dark=%v: the cursor is brass %v", dark, brass)
 			}
 		}
 		if th.Cursor != termFg || th.CursorText != termBg || th.Selection != accent.selection {
