@@ -1,4 +1,4 @@
-.PHONY: app native native-app native-e2e build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app native native-app native-e2e native-automation native-automation-buildbuild test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
 
 ADDR ?= 127.0.0.1:47241
 GO := sh scripts/go.sh
@@ -122,6 +122,15 @@ native-e2e:
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
+
+native-automation-build:
+	rm -f bin/keel-e2e
+	$(GO) build $(GO_TAGS),keelautomation -o bin/keel-e2e ./cmd/keel
+
+# Drives the built app from outside through MyGo's automation socket (plan 029). Opens real windows briefly.
+# Scratch data only; not part of make test or make native-e2e.
+native-automation: native-automation-build
+	go test -tags nativeautomation -count=1 -timeout 10m ./tests/native-automation/
 
 test: ui test-js
 	$(GO) test $(GO_TAGS) ./...
