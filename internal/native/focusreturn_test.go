@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/native/layout"
 )
 
 // Plan 031 step 2, group 7: a confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,
@@ -40,6 +41,94 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Plan 032 step 4: the same, closing by a button, by a click outside, and by choosing a menu entry that opens nothing.
+func TestClosingByButtonClickOrMenuGivesTheKeyboardBackToThePane(t *testing.T) {
+	local := keelclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
+	for _, c := range []struct {
+		name  string
+		open  func(w *workspace)
+		up    func(w *workspace) bool
+		close func(r *rig)
+	}{
+		{"new host, Cancel", func(w *workspace) { w.newHost() }, func(w *workspace) bool { return w.hostDlg != nil }, func(r *rig) { r.tt.Click("Cancel") }},
+		{"new snippet, Cancel", func(w *workspace) { w.newSnippet() }, func(w *workspace) bool { return w.snipDlg != nil }, func(r *rig) { r.tt.Click("Cancel") }},
+		{"delete host, Cancel", func(w *workspace) { w.askDeleteHost(local) }, func(w *workspace) bool { return w.confirm != nil }, func(r *rig) { r.tt.Click("Cancel") }},
+		{"palette, click outside", func(w *workspace) { w.openPalette() }, func(w *workspace) bool { return w.pal != nil }, func(r *rig) { r.tt.ClickAt(1270, 710) }},
+		{"share, click outside", func(w *workspace) { w.openShare() }, func(w *workspace) bool { return w.share != nil }, func(r *rig) { r.tt.ClickAt(1270, 710) }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := approveRig(t)
+			c.open(r.w)
+			r.tt.Frame()
+			r.tt.Frame()
+			if !c.up(r.w) {
+				t.Fatal("it did not open")
+			}
+			c.close(r)
+			for i := 0; i < 4; i++ {
+				r.tt.Frame()
+			}
+			if c.up(r.w) {
+				t.Fatal("it did not close")
+			}
+			if !r.tt.Focused("body 1") {
+				t.Error("the keyboard did not go back to the pane")
+			}
+		})
+	}
+	t.Run("a menu entry that opens nothing", func(t *testing.T) {
+		r := approveRig(t)
+		if err := r.tt.RightClick("host api-1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.tt.ChooseMenuItem("Agent can read"); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 4; i++ {
+			r.tt.Frame()
+		}
+		if !r.tt.Focused("body 1") {
+			t.Error("the keyboard did not go back to the pane")
+		}
+	})
+}
+
+// Plan 032 step 4: the pane has the keyboard right after a session opens, after a split (the new pane), and after the
+// sidebar was clicked and then the terminal. (The headless tester does not deliver typed text to a fake session, so the
+// keyboard owner is what can be checked here; text reaching the session needs the real window.)
+func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
+	t.Run("right after opening a host", func(t *testing.T) {
+		r := newRig(t, okBackend())
+		r.tt.Frame()
+		r.click(t, "host api-1")
+		r.tt.Frame()
+		if !r.tt.Focused("body 1") {
+			t.Error("the new session's pane does not have the keyboard")
+		}
+	})
+	t.Run("after a split", func(t *testing.T) {
+		r := approveRig(t)
+		r.w.act(func() { r.w.split(r.w.tab(), r.w.tab().focused, layout.Row) })
+		r.tt.Frame()
+		r.tt.Frame()
+		if len(r.fb.conns) < 2 {
+			t.Skip("the split opened no second session in this rig")
+		}
+		r.tt.Frame()
+		if !r.tt.Focused("body 2") {
+			t.Error("the new pane does not have the keyboard")
+		}
+	})
+	t.Run("after the sidebar was clicked, then the terminal", func(t *testing.T) {
+		r := approveRig(t)
+		r.click(t, "Filter hosts")
+		r.click(t, "body 1")
+		if !r.tt.Focused("body 1") {
+			t.Error("the pane does not have the keyboard")
+		}
+	})
 }
 
 // Plan 031 step 0: whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
