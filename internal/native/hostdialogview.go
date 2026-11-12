@@ -89,7 +89,18 @@ func segControl(c *ui.Context, name string, current string, opts [][2]string, on
 		}
 	}
 	idx := at
-	if ui.Segmented(c, &idx, labels...).Label(name).FillWidth().Changed() && idx != at {
+	// ui.SegmentedBase: MyGo's segmented control with a tighter segment, so four labels fit the sidebar at 13 pt.
+	seg := ui.SegmentedBase(c, &idx, len(opts))
+	t := c.Theme()
+	seg.Track.FillWidth().Padding(2).Gap(2).Radius(t.Radius).Border(1, t.Border).Label(name)
+	for i, l := range labels {
+		s := seg.Segment(i).Grow(1).Shrink(1).MinWidth(0).Padding(space1, space1_5).Radius(max(t.Radius-2, 0)).Justify(ui.Center).Label(l).KeepFocus()
+		if i == idx {
+			s.Background(hoverGround).Border(1, t.Border)
+		}
+		s.Children(func() { ui.Text(c, l).SingleLine().TextColor(map[bool]ui.Color{true: ink, false: inkMuted}[i == idx]) })
+	}
+	if idx != at {
 		onPick(opts[idx][0])
 	}
 }

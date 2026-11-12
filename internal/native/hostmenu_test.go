@@ -164,7 +164,7 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 	}
 	// ↵ alone opens the focused row's host in a tab of its own.
 	r.click(t, "Filter hosts")
-	for i := 0; i < 8 && !r.tt.Focused("host pg-primary"); i++ {
+	for i := 0; i < 16 && !r.tt.Focused("host pg-primary"); i++ { // plan 030: more tab stops
 		r.press(0, ui.KeyTab)
 	}
 	r.press(0, ui.KeyEnter)

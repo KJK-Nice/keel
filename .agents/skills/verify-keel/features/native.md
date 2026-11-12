@@ -432,6 +432,18 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Empty states: `TestE2EEmptyStates` empties the seeded snippets and writes `TestE2EEmpty-<place>-{dark,light}.png`; unit:
   `empty_test.go`. Flat caps beside text: `TestE2EFlatKeyCapShots`, and `TestE2EKeyCaps-{dark,light}` for the held ones.
 
+## Look (plan 030)
+
+The look is MyGo's: its components, its light and dark themes, the system font, the **system accent** and Keel's fixed meaning
+colours. It is defined in `internal/native/theme.go` (`windowTheme`, `deriveAccent`, `useAccent`), `tokens.go` (the palette:
+MyGo's values plus the meaning colours, terminal theme and stage) and `controls.go` (`ctlButton`, `ctlIconButton`,
+`searchField`, `workingBlocks`). The Tester has no system accent, so its shots show MyGo's default blue; the real accent shows
+only in a real window: `make native-automation` captures both themes to `.scratch-native/automation/` (look at them with the
+Read tool). Unit: `look_test.go` (palette equals MyGo's, accent contrast for the eight macOS accents and graphite, meaning colours
+fixed), `working_test.go` (Blocks while the model works, gone on answer, error, timeout and Stop, still under reduced motion).
+Take BASE shots into a temp dir before changing a screen and compare after; a pixel test of a look now asserts the same fact on
+the MyGo component (the chosen segment has its own face; a disabled button is dimmer), not a colour literal.
+
 ## The built app from outside (plan 029)
 
 `make native-automation` (tests in `tests/native-automation`) and, by hand, MyGo's `mygo-automation` drive the real window
