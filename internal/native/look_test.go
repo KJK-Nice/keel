@@ -93,7 +93,7 @@ func TestMeaningColoursDoNotFollowTheAccent(t *testing.T) {
 		tt := ui.NewTester(func(c *ui.Context) {
 			windowTheme(c, dark)
 			th := c.Theme()
-			if th.Danger != flare || th.Warning != signal || th.Success != tide || th.Font != "" || th.Accent != brass {
+			if th.Danger != flare || th.Warning != signal || th.Success != tide || th.Font != "" || th.Accent != accentFill {
 				t.Errorf("dark=%v: theme Danger %v Warning %v Success %v Font %q Accent %v", dark, th.Danger, th.Warning, th.Success, th.Font, th.Accent)
 			}
 			ui.Box(c)

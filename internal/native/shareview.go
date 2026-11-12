@@ -165,7 +165,7 @@ func (w *workspace) personRow(c *ui.Context, p *pane, r person, s seat, grantOne
 	ui.Row(c).FillWidth().Padding(space1_5, space2).Gap(space2).Radius(radiusSm).Label("person " + r.name).Children(func() {
 		bg, fg := hazeSoft, haze
 		if r.you {
-			bg, fg = brassSoft, brassInk
+			bg, fg = accentSoft, accentInk
 		}
 		ui.Row(c).Size(rem(avatarPx), rem(avatarPx)).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(bg).Children(func() {
 			text(c, r.initials, fg, rem(11), weightSemibold)

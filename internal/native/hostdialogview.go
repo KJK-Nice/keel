@@ -401,15 +401,7 @@ func (w *workspace) hostFooter(c *ui.Context, d *hostDialog, local bool) {
 		w.act(w.closeHostDialog)
 	}
 	busyMark(c, d.saving, "Saving")
-	r := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(brass).Label("Save host").Cursor(ui.CursorPointer)
-	if r.Hovered() {
-		r.Background(brassStrong)
-	}
-	r.Children(func() {
-		label(c, "Save host", onBrass)
-		text(c, "⌘↵", onBrass, kbdSize, weightMedium).Font(monoStack)
-	})
-	if r.Clicked() {
+	if capButton(c, "Save host", "⌘↵", false).Clicked() {
 		w.act(w.saveHost)
 	}
 }

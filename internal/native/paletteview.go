@@ -134,7 +134,7 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 		}
 		col := inkMuted
 		if sel {
-			col = brassInk
+			col = accentInk
 		}
 		icon(c, ic, col)
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).MaxLines(1).Shrink(0).MaxWidthPercent(70).Children(func() {
@@ -145,7 +145,7 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 			for _, s := range spans {
 				t := ui.Text(c, s.text)
 				if s.mark {
-					t.TextColor(brassInk).FontWeight(weightSemibold)
+					t.TextColor(accentInk).FontWeight(weightSemibold)
 				}
 			}
 		})

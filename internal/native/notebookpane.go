@@ -219,8 +219,8 @@ func (w *workspace) metaButton(c *ui.Context, glyph, name string, on bool, tipOn
 	col := inkMuted
 	switch {
 	case on:
-		b.Background(brassSoft)
-		col = brassInk
+		b.Background(accentSoft)
+		col = accentInk
 	case b.Hovered():
 		b.Background(hoverGround)
 		col = ink
@@ -305,7 +305,7 @@ func (w *workspace) notebookTheme() *markdown.Theme {
 		FontSize: uiFontSize * 1.077, CodeFont: monoStack, Text: ink, Muted: inkMuted, Link: haze, Strong: ink,
 		Code: ink, CodeBackground: hoverGround, QuoteBar: line, QuoteText: inkMuted, Rule: line,
 		CodeBlockBackground: stage, CodeBlockBorder: line, CodeBlockRadius: radiusMd, TableBorder: line, TableHeader: hoverGround,
-		Checkbox: brass,
+		Checkbox: accentFill,
 	}
 }
 

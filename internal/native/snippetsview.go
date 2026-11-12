@@ -132,7 +132,7 @@ func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelcl
 				for _, l := range lines {
 					ui.RichText(c).FontSize(captionSize).TextColor(ink).Font(monoStack).Children(func() {
 						ui.Text(c, l)
-						ui.Text(c, " ↵ ").TextColor(brassInk).Background(brassSoft).FontWeight(weightMedium)
+						ui.Text(c, " ↵ ").TextColor(accentInk).Background(accentSoft).FontWeight(weightMedium)
 					})
 				}
 			})
@@ -159,20 +159,8 @@ func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelcl
 
 // saveBtn is the primary Save with its ⌘S key cap; it ignores a click while a save is out.
 func saveBtn(c *ui.Context, saving bool) bool {
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Save").Cursor(ui.CursorPointer)
-	bg := brass
-	if b.Hovered() {
-		bg = brassStrong
-	}
-	b.Background(bg)
-	if saving {
-		b.Opacity(0.45)
-	}
-	b.Children(func() {
-		label(c, "Save", onBrass)
-		kbd(c, "⌘S")
-	})
-	return b.Clicked() && !saving
+	busyMark(c, saving, "Saving")
+	return capButton(c, "Save", "⌘S", saving).Clicked() && !saving
 }
 
 // snippetKeys is ⌘S in the editor (term.js: the editor's keydown handler).

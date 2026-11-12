@@ -120,7 +120,7 @@ const (
 	dimAlpha         = 0.70 // unfocused terminals in a split tab
 	disabledAlpha    = 0.32 // .pane-bar .icon-btn:disabled
 	tileTintAlpha    = 0.16 // k-tile: 16% of the host colour
-	paneDropAlpha    = 0.38 // .pane-drop-region: 38% of brass-ink
+	paneDropAlpha    = 0.38 // .pane-drop-region: 38% of the accent ink
 	minTileWidth     = 240  // not a token: narrowest a split tile may be dragged to
 	minTileHeight    = 120  // not a token: shortest a stacked tile may be dragged to
 	dialogWidth      = 420  // .modal width in keel.css
@@ -202,10 +202,10 @@ var (
 	ansi                                                                                   [16]ui.Color
 )
 
-// The accent family (plan 030): the system accent colour, set by useAccent. The names are the brass tokens' they replace:
-// brass is the accent fill (primary buttons, selected marks), brassStrong its hover, onBrass the text on it, brassInk the
-// accent as text or an icon on the page, brassSoft a wash of it, focus the focus ring. Keel's brass is the app icon only.
-var brass, brassInk, brassSoft, brassStrong, onBrass, focus ui.Color
+// The accent family (plan 030): the system accent colour, set by useAccent. accentFill is the fill (primary buttons, selected
+// marks), accentStrong its hover, onAccent the text on it, accentInk the accent as text or an icon on the page, accentSoft a
+// wash of it, focus the focus ring. Keel's brass is the app icon only.
+var accentFill, accentInk, accentSoft, accentStrong, onAccent, focus ui.Color
 
 func init() { useTheme(true) }
 

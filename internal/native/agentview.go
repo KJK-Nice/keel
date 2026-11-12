@@ -31,7 +31,7 @@ func bytesView(c *ui.Context, bytes string) {
 	for _, r := range bytesRuns(bytes) {
 		sp := ui.Span{Text: r.text}
 		if r.ctl {
-			sp.Color, sp.Background, sp.Weight, sp.Radius, sp.PaddingX = brassInk, brassSoft, weightMedium, radiusXs, 3
+			sp.Color, sp.Background, sp.Weight, sp.Radius, sp.PaddingX = accentInk, accentSoft, weightMedium, radiusXs, 3
 		}
 		spans = append(spans, sp)
 	}
@@ -81,7 +81,7 @@ func (w *workspace) agentView(c *ui.Context) {
 func (w *workspace) agentHead(c *ui.Context) {
 	a := w.agent
 	hairline(ui.Row(c).FillWidth().Height(sizeControlLg+space2).Shrink(0).Padding(0, space1_5, 0, space3).Gap(space2), 0, 0, 1, 0).Children(func() {
-		icon(c, "ai-magic", brassInk)
+		icon(c, "ai-magic", accentInk)
 		// The title is the button that opens Recent conversations (agent.templ #agent-sessions-btn).
 		t := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1).Radius(radiusSm).Shrink(1).MinWidth(0).
 			Label("Recent conversations").Cursor(ui.CursorPointer).Focusable().Selected(a.sessOpen)
@@ -183,11 +183,11 @@ func (w *workspace) agentPicker(c *ui.Context, anchor ui.Element) {
 			r.Children(func() {
 				box := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).Shrink(0).Border(1, lineStrong).Background(stage)
 				if on {
-					box.Background(brass)
+					box.Background(accentFill)
 				}
 				box.Children(func() {
 					if on {
-						iconSized(c, "tick", onBrass, iconSizeSm)
+						iconSized(c, "tick", onAccent, iconSizeSm)
 					}
 				})
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
@@ -329,7 +329,7 @@ func (w *workspace) agentConnect(c *ui.Context) {
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1).Children(func() {
 					ui.Text(c, d.Warning).TextColor(ink).FontSize(captionSize)
 					if strings.HasPrefix(d.TermsURL, "https://") {
-						ui.Link(c, short+" API terms", d.TermsURL).TextColor(brassInk).FontSize(captionSize)
+						ui.Link(c, short+" API terms", d.TermsURL).TextColor(accentInk).FontSize(captionSize)
 					}
 				})
 			})
@@ -355,7 +355,7 @@ func (w *workspace) agentConnect(c *ui.Context) {
 			ui.Row(c).FillWidth().Label("agent key error").Children(func() { ui.Text(c, a.keyErr).TextColor(flare).FontSize(captionSize) })
 		}
 		if strings.HasPrefix(d.KeyHelpURL, "https://") {
-			ui.Link(c, "Get a key", d.KeyHelpURL).TextColor(brassInk).FontSize(captionSize)
+			ui.Link(c, "Get a key", d.KeyHelpURL).TextColor(accentInk).FontSize(captionSize)
 		}
 	})
 	if a.focusKey {
@@ -367,7 +367,7 @@ func (w *workspace) agentConnect(c *ui.Context) {
 func (w *workspace) agentWho(c *ui.Context, who string, ai bool) {
 	ui.Row(c).Gap(space1_5).Children(func() {
 		if ai {
-			iconSized(c, "ai-magic", brassInk, iconSizeSm)
+			iconSized(c, "ai-magic", accentInk, iconSizeSm)
 		}
 		label(c, who, inkMuted)
 	})
@@ -406,7 +406,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 					msg = "Reading " + strconv.Itoa(t.scoped) + " " + noun + " and asking"
 				}
 				ui.Row(c).FillWidth().Gap(space2).Children(func() {
-					workingBlocks(c, brassInk, "Agent is working")
+					workingBlocks(c, accentInk, "Agent is working")
 					text(c, msg, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0)
 				})
 			case t.stopped:
@@ -709,9 +709,9 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	word := typeWord(name, proposalDirect(rec.p))
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 		Label(word).Cursor(ui.CursorPointer).Focusable()
-	bg := brass
+	bg := accentFill
 	if b.Hovered() {
-		bg = brassStrong
+		bg = accentStrong
 	}
 	b.Background(bg)
 	// The app's key cap is ↵, or ⇧↵ for a proposal that needs ⇧. MyGo gives a button pressed from the keyboard no modifier, so
@@ -722,8 +722,8 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 		cap = shiftWord()
 	}
 	b.Children(func() {
-		label(c, word, onBrass)
-		text(c, cap, onBrass, kbdSize, weightMedium).Font(monoStack)
+		label(c, word, onAccent)
+		text(c, cap, onAccent, kbdSize, weightMedium).Font(monoStack)
 	})
 	if b.Clicked() {
 		shift := b.ClickModifiers()&ui.Shift != 0
@@ -827,7 +827,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 	}
 }
 
-// agentSash is .k-agent-sash: a strip on the panel's left edge (8 px wide, a brass line while hovered, focused or dragged).
+// agentSash is .k-agent-sash: a strip on the panel's left edge (8 px wide, an accent line while hovered, focused or dragged).
 // Dragging it left widens the panel; ← and → step it by size-agent-step (⇧ four times that), Home and End go to the narrowest
 // and widest, a double click puts the default back. The width is kept when the pointer lets go and after each key.
 func (w *workspace) agentSash(c *ui.Context, winW float32) {
@@ -866,7 +866,7 @@ func (w *workspace) agentSash(c *ui.Context, winW float32) {
 		}
 	})
 	if a.sashDrag || s.Hovered() || a.sashH.FocusWithin(c) {
-		s.Children(func() { ui.Box(c).Absolute().Top(0).Bottom(0).Left(space1).Width(1).Background(brassInk) })
+		s.Children(func() { ui.Box(c).Absolute().Top(0).Bottom(0).Left(space1).Width(1).Background(accentInk) })
 	}
 }
 

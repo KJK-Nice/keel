@@ -43,6 +43,20 @@ func ctlButton(c *ui.Context, name, shown string, kind btnKind) ui.Element {
 	return b
 }
 
+// capButton is MyGo's primary button with the key that presses it drawn as a cap after the words. name is what a test or
+// assistive technology finds it by; off greys it and takes no click.
+func capButton(c *ui.Context, name, cap string, off bool) ui.Element {
+	b := ctlButton(c, name, "", btnPrimary).Gap(space1_5)
+	b.Children(func() {
+		ui.Text(c, name).SingleLine()
+		text(c, cap, onAccent, kbdSize, weightMedium).Font(monoStack)
+	})
+	if off {
+		b.Disabled(true)
+	}
+	return b
+}
+
 // ctlIconButton is a square button holding an icon, named and given a tooltip by tip.
 func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 	return ui.Button(c, "").Label(tip).Tooltip(tip).Size(size, size).Padding(0).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).KeepFocus().

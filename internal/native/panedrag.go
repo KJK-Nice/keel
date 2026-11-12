@@ -174,7 +174,7 @@ func (w *workspace) paneDropZone(c *ui.Context, t *tab, p *pane, tl ui.Element) 
 		return
 	}
 	i, half := float32(paneDropInset), b.W/2
-	box := ui.Box(c).Absolute().Radius(radiusSm).Background(brassInk.Alpha(paneDropAlpha)).Border(2, brassInk).Label("pane drop region")
+	box := ui.Box(c).Absolute().Radius(radiusSm).Background(accentInk.Alpha(paneDropAlpha)).Border(2, accentInk).Label("pane drop region")
 	edge := dropEdge(x/b.W, y/b.H)
 	if dock && edge == "center" {
 		edge = "right"

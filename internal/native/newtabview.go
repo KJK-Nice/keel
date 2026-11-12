@@ -186,8 +186,8 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 		})
 		for i, o := range w.cards(p) {
 			if o.ID == h.ID && i < recentCards {
-				ui.Row(c).Absolute().Top(space1_5).Right(space1_5).Padding(1, space1).Radius(radiusXs).Background(brass).Children(func() {
-					text(c, fmt.Sprintf("⌥%d", i+1), onBrass, keyhintSize, weightMedium).Font(monoStack)
+				ui.Row(c).Absolute().Top(space1_5).Right(space1_5).Padding(1, space1).Radius(radiusXs).Background(accentFill).Children(func() {
+					text(c, fmt.Sprintf("⌥%d", i+1), onAccent, keyhintSize, weightMedium).Font(monoStack)
 				})
 			}
 		}
@@ -247,7 +247,7 @@ func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 	ui.Column(c).FillWidth().Padding(space3).Gap(space2).Background(controlFill(surface)).Border(1, line).Radius(radiusMd).Label("pasted command").Children(func() {
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).Children(func() {
 			ui.Text(c, "Read as ")
-			ui.Text(c, targetText(r)).Font(monoStack).TextColor(brassInk)
+			ui.Text(c, targetText(r)).Font(monoStack).TextColor(accentInk)
 			ui.Text(c, ". Nothing has run.")
 		})
 		w.notesView(c, r)
@@ -264,15 +264,7 @@ func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 
 // saveAsHostButton is the offer's primary button: it opens New host filled from the command (offerSaveHost).
 func (w *workspace) saveAsHostButton(c *ui.Context, r *sshparse.Result) {
-	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(brass).Label("Save as host").Cursor(ui.CursorPointer)
-	if b.Hovered() {
-		b.Background(brassStrong)
-	}
-	b.Children(func() {
-		label(c, "Save as host", onBrass)
-		text(c, "↵", onBrass, kbdSize, weightMedium).Font(monoStack)
-	})
-	if b.Clicked() {
+	if capButton(c, "Save as host", "↵", false).Clicked() {
 		w.act(func() { w.saveAsHost(r) })
 	}
 }

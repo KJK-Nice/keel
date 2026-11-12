@@ -67,7 +67,7 @@ func markColor(state string) ui.Color {
 	case "failed":
 		return flare
 	case "now":
-		return brass
+		return accentFill
 	case "skipped":
 		return inkFaint
 	}
@@ -374,13 +374,13 @@ func bytesNamesView(c *ui.Context, bytes string) {
 	var spans []ui.Span
 	for _, seg := range splitVars(bytes) {
 		if seg.isName {
-			spans = append(spans, ui.Span{Text: seg.text, Color: brassInk, Background: brassSoft, Weight: weightMedium, Radius: radiusXs, PaddingX: 3})
+			spans = append(spans, ui.Span{Text: seg.text, Color: accentInk, Background: accentSoft, Weight: weightMedium, Radius: radiusXs, PaddingX: 3})
 			continue
 		}
 		for _, r := range bytesRuns(seg.text) {
 			sp := ui.Span{Text: r.text}
 			if r.ctl {
-				sp.Color, sp.Background, sp.Weight, sp.Radius, sp.PaddingX = brassInk, brassSoft, weightMedium, radiusXs, 3
+				sp.Color, sp.Background, sp.Weight, sp.Radius, sp.PaddingX = accentInk, accentSoft, weightMedium, radiusXs, 3
 			}
 			spans = append(spans, sp)
 		}
@@ -412,7 +412,7 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Wrap().Children(func() {
 			icon(c, "shield-01", inkMuted)
 			body(c, fmt.Sprintf("Captured from step %d · %s", i+1, st.Title), ink).Grow(1)
-			pill(c, "Captured by Keel, never sent to the agent", brassSoft, brassInk)
+			pill(c, "Captured by Keel, never sent to the agent", accentSoft, accentInk)
 		})
 		for _, cap := range st.Captures {
 			ui.Column(c).FillWidth().Gap(space1).Key(cap.Name).Label("capture " + cap.Name).Children(func() {
@@ -554,7 +554,7 @@ func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient
 				case "fail":
 					col = flare
 				case "run":
-					col = brass
+					col = accentFill
 				}
 				text(c, v.glyph+" "+v.text, col, captionSize, weightMedium)
 			})

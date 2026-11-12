@@ -79,7 +79,7 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 		if ok {
 			lead, tail := noticeHintText(mac)
 			hint(r, "suggestion hint", func() {
-				icon(c, "ai-magic", brassInk)
+				icon(c, "ai-magic", accentInk)
 				caption(c, lead, inkFaint)
 				kbd(c, k.Tab)
 				caption(c, tail, inkFaint)
@@ -89,7 +89,7 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 		if !v.Seen {
 			return
 		}
-		if r, ok := mark(line.Start, len([]rune(v.Command)), brassSoft, "suggestion inserted", false); ok {
+		if r, ok := mark(line.Start, len([]rune(v.Command)), accentSoft, "suggestion inserted", false); ok {
 			hint(r, "suggestion hint", func() {
 				caption(c, "Inserted, not run", inkFaint)
 				kbd(c, k.Enter)
@@ -140,7 +140,7 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 	col.Children(func() {
 		head := func(src string, withBadge bool) {
 			ui.Row(c).FillWidth().Padding(space2, space3, 0, space3).Gap(space2).AlignItems(ui.Center).Children(func() {
-				icon(c, "ai-magic", brassInk)
+				icon(c, "ai-magic", accentInk)
 				caption(c, src, inkFaint)
 				if withBadge && opt != nil {
 					ui.Spacer(c)

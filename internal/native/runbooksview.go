@@ -462,7 +462,7 @@ func stepMarkColor(state string) ui.Color {
 	case "failed":
 		return flare
 	case "now":
-		return brassInk
+		return accentInk
 	}
 	return inkFaint
 }

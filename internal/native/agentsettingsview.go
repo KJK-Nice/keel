@@ -199,7 +199,7 @@ func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d keelclient.Ag
 	}
 	ui.Column(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Key(d.ID).Label("agent card " + d.Name).Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Start).Children(func() {
-			ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Background(hoverGround).Justify(ui.Center).Shrink(0).Children(func() { icon(c, glyph, brassInk) })
+			ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Background(hoverGround).Justify(ui.Center).Shrink(0).Children(func() { icon(c, glyph, accentInk) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
 				ui.Row(c).Gap(space2).AlignItems(ui.Center).Children(func() {
 					body(c, d.Name, ink)
@@ -271,10 +271,10 @@ func (w *workspace) keyForm(c *ui.Context, p *settingsPage, d keelclient.AgentPr
 			}
 			ui.Spacer(c)
 			if u := safeURL(d.KeyHelpURL); u != "" {
-				ui.Link(c, "Get a key", u).TextColor(brassInk).FontSize(captionSize)
+				ui.Link(c, "Get a key", u).TextColor(accentInk).FontSize(captionSize)
 			}
 			if u := safeURL(d.TermsURL); u != "" {
-				ui.Link(c, "Terms", u).TextColor(brassInk).FontSize(captionSize)
+				ui.Link(c, "Terms", u).TextColor(accentInk).FontSize(captionSize)
 			}
 		})
 	})

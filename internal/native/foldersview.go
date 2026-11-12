@@ -83,7 +83,7 @@ func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
 		over, isOver := ui.DragOver[*treeDrag](node)
 		switch {
 		case isOver && over != nil && over.folder != n.g.ID: // is-drop-target
-			h.Background(hoverGround).Border(1, brass)
+			h.Background(hoverGround).Border(1, accentFill)
 		case h.Hovered():
 			h.Background(hoverGround)
 		}

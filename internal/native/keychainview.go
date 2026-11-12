@@ -160,8 +160,8 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		tileIcon = "square-lock-password"
 	}
 	ui.Row(c).FillWidth().Gap(space3).Children(func() {
-		ui.Row(c).Size(tileLgSize, tileLgSize).Radius(radiusMd).Justify(ui.Center).Shrink(0).Background(brassSoft).Children(func() {
-			iconSized(c, tileIcon, brassInk, tileLgIcon)
+		ui.Row(c).Size(tileLgSize, tileLgSize).Radius(radiusMd).Justify(ui.Center).Shrink(0).Background(accentSoft).Children(func() {
+			iconSized(c, tileIcon, accentInk, tileLgIcon)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
 			ui.Text(c, id.Name).TextColor(ink).FontSize(titleLg).FontWeight(weightSemibold)

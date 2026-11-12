@@ -120,8 +120,8 @@ func TestAgentPageHostChipsHostFilterAndContextColumn(t *testing.T) {
 		label, kind string
 	}{
 		{keelclient.Proposal{Expired: true}, false, "Expired", ""},
-		{keelclient.Proposal{Expired: true, TypedAt: &at}, false, "Typed", "brass"},
-		{keelclient.Proposal{Edited: true}, true, "Edited, typed", "brass"},
+		{keelclient.Proposal{Expired: true, TypedAt: &at}, false, "Typed", "accent"},
+		{keelclient.Proposal{Edited: true}, true, "Edited, typed", "accent"},
 		{keelclient.Proposal{}, false, "Not typed", "outline"},
 	} {
 		if l, k := proposalState(c.p, c.typed); l != c.label || k != c.kind {

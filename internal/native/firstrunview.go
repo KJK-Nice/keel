@@ -107,8 +107,8 @@ func (w *workspace) stepper(c *ui.Context, f *firstRun) {
 				n := ui.Row(c).Size(stepDotSize, stepDotSize).Radius(radiusFull).Justify(ui.Center).Shrink(0)
 				switch {
 				case i == f.step:
-					n.Border(1, brassInk)
-					n.Children(func() { text(c, fmt.Sprint(i+1), brassInk, captionSize, weightMedium) })
+					n.Border(1, accentInk)
+					n.Children(func() { text(c, fmt.Sprint(i+1), accentInk, captionSize, weightMedium) })
 				case i < f.step:
 					n.Background(tideSoft)
 					n.Children(func() { iconSized(c, "tick", tide, iconSizeSm+space1) })
@@ -158,7 +158,7 @@ func neutralBadge(c *ui.Context, s string) ui.Element {
 
 // accentBadge is neutralBadge in the accent, for a label that points at the choice to take.
 func accentBadge(c *ui.Context, s string) ui.Element {
-	return neutralBadge(c, s).Background(brassSoft).TextColor(brassInk)
+	return neutralBadge(c, s).Background(accentSoft).TextColor(accentInk)
 }
 
 // tag is a k-badge that means something (Edited by agent, a failure, Already saved): a small label on a soft ground, in
@@ -173,26 +173,15 @@ func (f *firstRun) foot(kids func()) { f.footFn = kids }
 
 // bigPrimary is k-btn--primary k-btn--lg with the ↵ key cap. It reports a click and ignores one while off.
 func bigPrimary(c *ui.Context, name string, enabled bool) bool {
-	b := ui.Row(c).Height(sizeControlLg).Padding(0, space3).Gap(space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
-		Label(name).Cursor(ui.CursorPointer).Background(brass)
-	if !enabled {
-		b.Opacity(dimAlpha).Disabled(true)
-	} else if b.Hovered() {
-		b.Background(brassStrong)
-	}
-	b.Children(func() {
-		bodyStrong(c, name, onBrass)
-		text(c, "↵", onBrass, kbdSize, weightMedium).Font(monoStack)
-	})
-	return enabled && b.Clicked()
+	return capButton(c, name, "↵", !enabled).Clicked() && enabled
 }
 
 // radio is k-radio.
 func radio(c *ui.Context, on bool) {
 	r := ui.Row(c).Size(radioSize, radioSize).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(stage)
 	if on {
-		r.Border(1, brassInk)
-		r.Children(func() { ui.Box(c).Size(radioDot, radioDot).Radius(radiusFull).Background(brassInk) })
+		r.Border(1, accentInk)
+		r.Children(func() { ui.Box(c).Size(radioDot, radioDot).Radius(radiusFull).Background(accentInk) })
 		return
 	}
 	r.Border(1, lineStrong)
@@ -598,7 +587,7 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 			detail string
 		}{
 			{"eye", haze, "Reads only the panes you pick", `Every pane it can read carries an "Agent reads" mark. Hosts can opt out.`},
-			{"shield-01", brassInk, "Suggests commands; you press Type", "The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥."},
+			{"shield-01", accentInk, "Suggests commands; you press Type", "The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥."},
 			{"lock", tide, "Secrets are redacted, the vault stays closed", "No passwords, keys or snippets leave it. Secret-looking values in a pane are redacted before sending."},
 		} {
 			ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Start).Label("promise " + p.title).Children(func() {
@@ -678,11 +667,11 @@ func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
 			}
 			ui.Row(c).Gap(space1_5).Children(func() {
 				if strings.HasPrefix(d.KeyHelpURL, "https://") {
-					ui.Link(c, "Get a key", d.KeyHelpURL).TextColor(brassInk).FontSize(captionSize)
+					ui.Link(c, "Get a key", d.KeyHelpURL).TextColor(accentInk).FontSize(captionSize)
 				}
 				if strings.HasPrefix(d.TermsURL, "https://") {
 					help(c, "·")
-					ui.Link(c, "Gemini API terms", d.TermsURL).TextColor(brassInk).FontSize(captionSize)
+					ui.Link(c, "Gemini API terms", d.TermsURL).TextColor(accentInk).FontSize(captionSize)
 				}
 			})
 		}

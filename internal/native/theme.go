@@ -129,7 +129,7 @@ func deriveAccent(dark bool, a ui.Color) accentSet {
 // useAccent sets the accent family of the colour variables for the system accent a (zero: MyGo's default).
 func useAccent(dark bool, a ui.Color) {
 	accent = deriveAccent(dark, a)
-	brass, brassStrong, onBrass, brassInk, brassSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
+	accentFill, accentStrong, onAccent, accentInk, accentSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
 }
 
 // controlBase is the opaque face of MyGo's controls (Theme.Surface) in an appearance, before the control alpha.
@@ -145,7 +145,7 @@ func controlBase(dark bool) ui.Color {
 // meaning colours MyGo's components use (Danger, Warning, Success are flare, signal and tide), the control fills at the window's
 // control alpha, and the font size (the system font, scaled by Appearance · UI size). The old per-frame globals map as:
 // Background = surface (the page), Surface/SurfaceHover = the control fills, Border = line, Text/TextMuted = ink/inkMuted,
-// Accent = brass, Focus = focus, FontSize = uiFontSize. The grounds the window draws itself (w.ground) are chrome, surface
+// Accent = accentFill, Focus = focus, FontSize = uiFontSize. The grounds the window draws itself (w.ground) are chrome, surface
 // and stage.
 func windowTheme(c *ui.Context, dark bool) {
 	t := ui.LightTheme()

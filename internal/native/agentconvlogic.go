@@ -258,9 +258,9 @@ func proposalState(p keelclient.Proposal, typed bool) (label, kind string) {
 	switch {
 	case typed || p.TypedAt != nil:
 		if p.Edited {
-			return "Edited, typed", "brass"
+			return "Edited, typed", "accent"
 		}
-		return "Typed", "brass"
+		return "Typed", "accent"
 	case p.Expired:
 		return "Expired", ""
 	}

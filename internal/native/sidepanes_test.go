@@ -80,7 +80,7 @@ func TestPanesMapMirrorsTheSplitTreeAndMarksTheFocusedCell(t *testing.T) {
 	if !(a.X == b.X && a.Y < b.Y && c3.X > a.X && c3.H > a.H) {
 		t.Errorf("the map does not follow the split: %v %v %v", a, b, c3)
 	}
-	// The cell of the focused pane carries the brass line.
+	// The cell of the focused pane carries the accent line.
 	if !r.has("focused pane " + t0.focused) {
 		t.Errorf("the focused cell is not marked (focused %q)", t0.focused)
 	}

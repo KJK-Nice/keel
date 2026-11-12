@@ -212,15 +212,7 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 	if !g.vault.KeyringOff {
 		caption(c, "Keel always asks "+keychainName(runtime.GOOS)+" first when keel serve starts.", inkMuted)
 	}
-	b := ui.Row(c).FillWidth().Height(sizeControlLg).Gap(space2).Justify(ui.Center).Radius(radiusSm).Label("Unlock").Cursor(ui.CursorPointer).Background(brass)
-	if b.Hovered() {
-		b.Background(brassStrong)
-	}
-	b.Children(func() {
-		bodyStrong(c, "Unlock", onBrass)
-		text(c, "↵", onBrass, kbdSize, weightMedium).Font(monoStack)
-	})
-	if b.Clicked() {
+	if capButton(c, "Unlock", "↵", false).FillWidth().Clicked() {
 		w.act(w.submitUnlock)
 	}
 	ui.Text(c, "Forgot it? Keel can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.").

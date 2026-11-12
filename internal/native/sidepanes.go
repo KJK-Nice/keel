@@ -13,7 +13,7 @@ import (
 // The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"; term.js panesTab, applySidebarSeg,
 // revealPanes, pickPane, paneRowInfo, paintPanesSection). The segment exists only while the active tab has two or more
 // panes; its count follows the label; when that ends (a pane closed, another tab selected) the sidebar falls back to
-// Hosts. A map of the tab's split tree (each cell sized like its pane, the focused one with a brass line on top) and
+// Hosts. A map of the tab's split tree (each cell sized like its pane, the focused one with an accent line on top) and
 // "This tab" with one row per pane. A row or a cell focuses its pane and leaves focus view first. Clicking into a
 // pane of a split tab shows this section without moving the keyboard out of the terminal. The filter reads the rows,
 // never the map.
@@ -189,7 +189,7 @@ func (w *workspace) paneMapNode(c *ui.Context, t *tab, n *layout.Node, rows []pa
 }
 
 // paneMapCell is button.k-panemap-cell in its slot: the number and the name; the focused cell is on surface with a
-// 2px brass line on top.
+// 2px accent line on top.
 func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current bool, fit func(ui.Element) ui.Element) {
 	fit(ui.Box(c)).Padding(1).Children(func() {
 		cell := ui.Column(c).Fill().Padding(space1, space1_5).Radius(radiusXs).Background(controlFill(stage)).Clip().Cursor(ui.CursorPointer).
@@ -205,7 +205,7 @@ func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current
 		}
 		cell.Children(func() {
 			if current {
-				ui.Box(c).FillWidth().Height(2).Background(brass).Shrink(0).Label("focused pane " + r.id)
+				ui.Box(c).FillWidth().Height(2).Background(accentFill).Shrink(0).Label("focused pane " + r.id)
 			}
 			ui.Row(c).Gap(space1).Children(func() {
 				text(c, fmt.Sprint(n), inkFaint, kbdSize, weightRegular).Font(monoStack).Shrink(0)

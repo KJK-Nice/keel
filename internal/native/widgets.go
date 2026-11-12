@@ -51,8 +51,8 @@ func iconBtnCap(c *ui.Context, name, tip string, size float32, pressed, off bool
 	col := inkMuted
 	switch {
 	case pressed:
-		b.Background(brassSoft)
-		col = brassInk
+		b.Background(accentSoft)
+		col = accentInk
 	case b.Hovered():
 		b.Background(hoverGround)
 	}

@@ -45,8 +45,8 @@ func (w *workspace) attachButton(c *ui.Context, where string) {
 	col := inkMuted
 	switch {
 	case on:
-		b.Background(brassSoft)
-		col = brassInk
+		b.Background(accentSoft)
+		col = accentInk
 	case b.Hovered():
 		b.Background(hoverGround)
 	}
@@ -126,11 +126,11 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 			r.Children(func() {
 				box := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).Shrink(0).Border(1, lineStrong).Background(stage)
 				if ticked {
-					box.Background(brass)
+					box.Background(accentFill)
 				}
 				box.Children(func() {
 					if ticked {
-						iconSized(c, "tick", onBrass, iconSizeSm)
+						iconSized(c, "tick", onAccent, iconSizeSm)
 					}
 				})
 				body(c, name, ink).Grow(1).Shrink(1).MinWidth(0).MaxLines(1)

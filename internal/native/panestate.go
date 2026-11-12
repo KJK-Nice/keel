@@ -191,7 +191,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 func chip(c *ui.Context, text string, driving bool) {
 	bg, fg := ui.Transparent, inkMuted
 	if driving {
-		bg, fg = brassSoft, brassInk
+		bg, fg = accentSoft, accentInk
 	}
 	r := roleChipBox(c, "role "+text, bg)
 	if !driving {
@@ -223,7 +223,7 @@ func roleChip(c *ui.Context, role string) {
 	text, glyph, bg, fg := "", "steering", ui.Transparent, inkMuted
 	switch role {
 	case "driver":
-		text, bg, fg = "Driving", brassSoft, brassInk
+		text, bg, fg = "Driving", accentSoft, accentInk
 	case "owner":
 		text = "Owner"
 	case "follower":

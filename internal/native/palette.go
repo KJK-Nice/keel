@@ -24,7 +24,7 @@ type palItem struct {
 	group, title, hint, keys string
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
-	badge                    string // a brass label before the keys ("Approve first" on snippets)
+	badge                    string // an accent label before the keys ("Approve first" on snippets)
 	bare                     bool   // no group heading above it (lib/palette.js askRow)
 	run                      func(split bool)
 }

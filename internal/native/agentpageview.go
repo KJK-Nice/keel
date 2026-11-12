@@ -80,7 +80,7 @@ func (w *workspace) pageListCol(c *ui.Context, p *agentPage, col ui.Element) {
 		hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2, space3).Gap(space2).AlignItems(ui.Center), 1, 0, 0, 0).Children(func() {
 			ui.Text(c, a.pageRetention()).TextColor(inkMuted).FontSize(captionSize - 1).Grow(1).Shrink(1).MinWidth(0)
 			r := ui.Row(c).Shrink(0).Label("Retention settings").Cursor(ui.CursorPointer)
-			r.Children(func() { text(c, "Retention settings", brassInk, captionSize-1, weightMedium) })
+			r.Children(func() { text(c, "Retention settings", accentInk, captionSize-1, weightMedium) })
 			if r.Clicked() {
 				w.act(w.openRetentionSettings)
 			}
@@ -110,8 +110,8 @@ func (w *workspace) pageHostChips(c *ui.Context, p *agentPage) {
 			col := inkMuted
 			switch {
 			case on:
-				ch.Background(brassSoft)
-				col = brassInk
+				ch.Background(accentSoft)
+				col = accentInk
 			default:
 				ch.Border(1, line)
 				if ch.Hovered() {
@@ -335,8 +335,8 @@ func (w *workspace) pageContextCol(c *ui.Context, p *agentPage, col ui.Element, 
 						ui.Row(c).FillWidth().MinHeight(sizeControlSm).Gap(space2).AlignItems(ui.Center).Key(pr.p.ID).Children(func() {
 							mono(c, strings.Join(strings.Fields(pr.p.Command), " "), ink).Grow(1).Shrink(1).MinWidth(0).MaxLines(1)
 							switch kind {
-							case "brass":
-								pill(c, lbl, brassSoft, brassInk)
+							case "accent":
+								pill(c, lbl, accentSoft, accentInk)
 							case "outline":
 								outlineBadge(c, lbl)
 							default:
