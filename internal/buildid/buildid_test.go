@@ -33,7 +33,8 @@ func TestADirtyOrRevisionlessBuildAddsTheBinaryHash(t *testing.T) {
 	if got := compose("", false, hash("aaaa")); got != "dev-aaaa" {
 		t.Fatalf("id %q", got)
 	}
-	if compose("", false, hash("aaaa")) != compose("", false, hash("aaaa")) {
+	again := compose("", false, hash("aaaa"))
+	if got := compose("", false, hash("aaaa")); got != again {
 		t.Fatal("the same binary must give the same id")
 	}
 }
@@ -64,7 +65,8 @@ func TestHashFileFollowsTheBytes(t *testing.T) {
 // The running test binary is hashed once and the id is stable inside the process: the app and its serve are two
 // processes of one executable and compute the same value.
 func TestOfIsStableAndNamesTheRunningBinary(t *testing.T) {
-	if Of() != Of() {
+	first := Of()
+	if got := Of(); got != first {
 		t.Fatal("two calls differ")
 	}
 	if binaryHash() == "unknown" {

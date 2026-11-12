@@ -52,38 +52,6 @@ func (s *Server) saveHost(h store.Host) (store.Host, error) {
 	return saved, nil
 }
 
-// saveGroup creates (id "") or updates a group.
-func (s *Server) saveGroup(id, name, parentID string) (store.Group, error) {
-	if strings.TrimSpace(name) == "" {
-		return store.Group{}, badInput("name is required")
-	}
-	g := store.Group{Name: name, ParentID: parentID}
-	if id != "" {
-		for _, x := range s.mustGroups() {
-			if x.ID == id {
-				g = x
-				g.Name, g.ParentID = name, parentID
-			}
-		}
-	}
-	g.ID = id
-	saved, err := s.store.UpsertGroup(g)
-	if err != nil {
-		return store.Group{}, err
-	}
-	if id == "" {
-		s.note("group", "group created: "+saved.Name, "", "", "")
-	} else {
-		s.note("group", "group updated: "+saved.Name, "", "", "")
-	}
-	return saved, nil
-}
-
-func (s *Server) mustGroups() []store.Group {
-	gs, _ := s.store.ListGroups()
-	return gs
-}
-
 // saveIdentity creates (in.ID "") or updates an identity. Blank secrets
 // keep the saved ones (store.UpsertIdentity).
 func (s *Server) saveIdentity(in store.Identity) (store.Identity, error) {
