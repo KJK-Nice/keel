@@ -55,11 +55,12 @@ judge it as a MyGo app (see "Look (plans 030 and 031)").
 
 ## The bundle
 
-`make native-app`, then each as its own command: `"bin/Keel Native.app/Contents/MacOS/keel-native" --library-path`
-prints a path inside the bundle; `codesign --verify --deep --strict "bin/Keel Native.app"`
-exits 0; `otool -L "bin/Keel Native.app/Contents/MacOS/keel-native" | grep -c libghostty`
-prints 0; with a scratch daemon, `env -u MYGO_GHOSTTY_VT KEEL_NATIVE_CAPTURE=.scratch-native/app.png`
-and the bundled binary exits 0 and the PNG shows a prompt. Opening it from Finder is person-only.
+`make package` (`mygo build`), then each as its own command: `ls build/darwin-*/Keel.app/Contents/Resources/libghostty-vt.dylib`
+exists; `lipo -archs` of it and of `Contents/MacOS/Keel` name the architectures built (arm64 and x86_64 for
+`PLATFORM=darwin/universal`); `codesign --verify --deep --strict build/darwin-*/Keel.app` exits 0; with
+`scripts/release.sh vX.Y.Z macos` all of that and `keel version` are checked. To see the dylib loaded from the
+bundle, run the app on scratch data (see Bundle in SKILL.md) and `lsof -p <pid> | grep ghostty`. Opening it from
+Finder is person-only.
 
 ## Evidence
 

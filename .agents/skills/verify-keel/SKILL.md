@@ -35,7 +35,7 @@ There is no browser and no web page to drive. A person drives the real window; a
 
 ## Bundle
 
-`make build` writes `bin/Keel.app` on macOS (the shipped app: `packaging/macos/`, libghostty-vt beside the binary). To check that it launches, run it on scratch data: `env KEEL_ADDR=127.0.0.1:<free port> KEEL_DATA=<scratch dir> KEEL_KEYRING=off KEEL_VAULT_PASSPHRASE=<scratch> SHELL=/bin/sh bin/Keel.app/Contents/MacOS/keel app`, wait for the port, then stop it and its `keel serve` as above. Opening the app from Finder is a person-only check.
+`make build` (or `make package`) writes the shipped app with `mygo build` into `build/darwin-<arch>/Keel.app` on macOS (`mygo.json`, `packaging/macos/`, libghostty-vt in `Contents/Resources`). To check that it launches, run it on scratch data: `env KEEL_ADDR=127.0.0.1:<free port> KEEL_DATA=<scratch dir> KEEL_KEYRING=off KEEL_VAULT_PASSPHRASE=<scratch> SHELL=/bin/sh build/darwin-arm64/Keel.app/Contents/MacOS/Keel app`, wait for the port, then stop it and its `keel serve` as above. Opening the app from Finder is a person-only check.
 
 ## What only a person can check
 
