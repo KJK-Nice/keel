@@ -426,16 +426,13 @@ func TestE2ESplitAndFocus(t *testing.T) {
 	if e.w.tab().focused != "1" {
 		t.Fatalf("focused %q after clicking pane 1's body", e.w.tab().focused)
 	}
-	ring := focus.Alpha(focusRingAlpha).Over(chrome)
 	a, _ := e.tt.Find("pane 1")
 	b, _ := e.tt.Find("pane 2")
-	if a.X < b.X { // pane 1 is left of pane 2: its ring is in the gap before it, or the area padding at the edge
-		if got := e.pixel(a.X-1.5, a.Y+a.H/2); !is(got, ring) {
-			t.Errorf("pane 1 outer edge %v, want ring %v", got, ring)
-		}
+	if got := e.pixel(a.X+0.5, a.Y+a.H/2); !is(got, focus) {
+		t.Errorf("pane 1 border %v, want focus %v", got, focus)
 	}
-	if got := e.pixel(b.X-1.5, b.Y+b.H/2); is(got, ring) {
-		t.Errorf("unfocused pane 2 has a ring at %v", got)
+	if got := e.pixel(b.X+0.5, b.Y+b.H/2); is(got, focus) {
+		t.Errorf("unfocused pane 2 has the ring at %v", got)
 	}
 
 	// Click a pane bar: that pane takes the keyboard, and typing lands in its session only.

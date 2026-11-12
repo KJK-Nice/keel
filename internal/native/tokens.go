@@ -128,9 +128,7 @@ const (
 	weightSemibold   = 600
 	monoFamily       = "JetBrains Mono"
 	monoFallback     = "monospace"
-	statusbarSize    = 24 // not a token: "about 24" in the plan
-	focusRingWidth   = 3  // shadow-tile-focus
-	focusRingAlpha   = 0.30
+	statusbarSize    = 24   // not a token: "about 24" in the plan
 	dimAlpha         = 0.70 // unfocused terminals in a split tab
 	disabledAlpha    = 0.32 // .pane-bar .icon-btn:disabled
 	tileTintAlpha    = 0.16 // k-tile: 16% of the host colour

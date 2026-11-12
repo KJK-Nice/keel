@@ -788,13 +788,12 @@ func TestSinglePaneIsFullBleedAndSplitHasARingOnTheFocusedTileOnly(t *testing.T)
 	a, _ := r.tt.Find("pane 1")
 	b, _ := r.tt.Find("pane 2")
 	my := b.Y + b.H/2
-	// The new pane is focused: its ring (3px of focus at 30%) lies in the gap before it; the other tile has none.
-	ring := focus.Alpha(focusRingAlpha).Over(chrome)
-	if got := r.pixel(b.X-1.5, my); !is(got, ring) {
-		t.Errorf("focused tile outer edge %v, want ring %v", got, ring)
+	// The new pane is focused: its 1.5 px border is focus inside the tile; the other tile's is line (ring_test.go).
+	if got := r.pixel(b.X+0.5, my); !is(got, focus) {
+		t.Errorf("focused tile border %v, want focus %v", got, focus)
 	}
-	if got := r.pixel(a.X+a.W+1, my); !is(got, chrome) {
-		t.Errorf("unfocused tile outer edge %v, want chrome", got)
+	if got := r.pixel(a.X+a.W-0.5, my); !is(got, line) {
+		t.Errorf("unfocused tile border %v, want line %v", got, line)
 	}
 	if !r.tt.HasText("2") {
 		t.Error("no pane count badge 2 on the tab")

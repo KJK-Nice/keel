@@ -705,9 +705,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 	tl := fit(ui.Column(c)).Label("pane " + p.id).Key(p.id)
 	if multi {
 		tl.Radius(radiusMd).Clip()
-		if focused {
-			tl.Shadow(0, 0, 0, focusRingWidth, focus.Alpha(focusRingAlpha))
-		}
+		w.tileRing(c, tl, focused)
 	}
 	tl.Children(func() {
 		barGround, hostCol := w.ground(surface), inkMuted

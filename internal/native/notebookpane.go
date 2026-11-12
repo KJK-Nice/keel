@@ -27,9 +27,7 @@ func (w *workspace) tileNotebook(c *ui.Context, t *tab, p *pane, multi bool, fit
 	tl := fit(ui.Column(c)).Label("pane " + p.id).Key(p.id)
 	if multi {
 		tl.Radius(radiusMd).Clip()
-		if focused {
-			tl.Shadow(0, 0, 0, focusRingWidth, focus.Alpha(focusRingAlpha))
-		}
+		w.tileRing(c, tl, focused)
 	}
 	tl.Children(func() {
 		barGround, titleCol := w.ground(surface), inkMuted
