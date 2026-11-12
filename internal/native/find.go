@@ -105,13 +105,13 @@ func (w *workspace) findBar(c *ui.Context, p *pane) {
 			return true
 		})
 		caption(c, w.findCount(p), inkMuted)
-		if glyphBtn(c, "↑", "Previous match") {
+		if iconBtn(c, "chevron-up", "Previous match", sizeControlSm, false) {
 			w.act(func() { w.findStep(false) })
 		}
-		if glyphBtn(c, "↓", "Next match") {
+		if iconBtn(c, "chevron-down", "Next match", sizeControlSm, false) {
 			w.act(func() { w.findStep(true) })
 		}
-		if glyphBtn(c, "×", "Close") {
+		if iconBtn(c, "cancel-01", "Close", sizeControlSm, false) {
 			w.act(func() { w.closeFind(true) })
 		}
 	})
