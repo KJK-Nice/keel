@@ -68,6 +68,12 @@ func TestE2EThemeSwitch(t *testing.T) {
 	p2, _ := e.tt.Find("pane 2")
 	e.wantPix("light pane bar", p2.X+p2.W/2, p2.Y+3, lightHex.surface) // above the text
 	e.shot("TestE2EThemeSwitch-light")
+	// A dialog in the light theme: MyGo's Modal chrome, the check boxes and the badges of the form (plan 031 step 2).
+	e.click("New host")
+	e.pump(func() bool { return e.hasLabel("dialog New host") }, "the New host dialog")
+	e.shot("TestE2EThemeSwitch-light-dialog")
+	e.key(0, ui.KeyEscape)
+	e.pump(func() bool { return e.w.hostDlg == nil }, "the dialog closed")
 	// Back to dark in the same window.
 	e.openSettings()
 	e.click("Dark")
