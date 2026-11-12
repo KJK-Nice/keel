@@ -787,12 +787,12 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				w.act(func() { w.revealPanes(t) })
 			}
 		})
-		if multi && !focused {
-			pane.Opacity(dimAlpha)
-		}
 		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
 		pane.Children(func() {
-			p.view(c).Bind(&p.handle)
+			tv := p.view(c).Bind(&p.handle)
+			if multi && !focused { // the terminal's text dims, the body keeps its ground (keel.css:942 dims .xterm only)
+				tv.Opacity(dimAlpha)
+			}
 			w.suggestOverlay(c, p)
 			w.connectLogView(c, p, st)
 		})
