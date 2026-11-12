@@ -68,7 +68,7 @@ func (w *workspace) pageListCol(c *ui.Context, p *agentPage, col ui.Element) {
 					w.act(func() { w.pageNewConversation(p) })
 				}
 			})
-			ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				icon(c, "search-01", inkFaint)
 				ui.TextInputBase(c, &p.filter).Label("Search conversations").Placeholder("Search conversations").PlaceholderColor(inkFaint).
 					TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
@@ -236,7 +236,7 @@ func (w *workspace) pageRenameField(c *ui.Context, p *agentPage) {
 func (w *workspace) pageComposer(c *ui.Context, p *agentPage) {
 	a := w.agent
 	ui.Column(c).FillWidth().Shrink(0).Padding(0, space6, space4).Children(func() {
-		ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Padding(space2, space3, space3).Gap(space2).Radius(radiusMd).Background(raised).Border(1, line).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Padding(space2, space3, space3).Gap(space2).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Children(func() {
 			if len(a.attached) > 0 { // the page's chips are the attached notebooks (agentpage.js paintChips)
 				ui.Row(c).FillWidth().Wrap().Gap(space1_5).Children(func() { w.nbChips(c) })
 			}

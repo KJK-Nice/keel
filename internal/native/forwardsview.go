@@ -78,7 +78,7 @@ func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 		all, running, stopped := w.tunnelCounts()
 		counts := map[string]int{tunnelAll: all, tunnelRunning: running, tunnelStopped: stopped}
 		ui.Row(c).FillWidth().Padding(0, space8, space3).Gap(space2).Wrap().Shrink(0).Children(func() {
-			ui.Row(c).Width(sizeSidebar).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Row(c).Width(sizeSidebar).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				icon(c, "search-01", inkFaint)
 				ui.TextInputBase(c, &p.filter).Label("Filter forwards").Placeholder("Filter forwards").PlaceholderColor(inkFaint).TextColor(ink).
 					FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)

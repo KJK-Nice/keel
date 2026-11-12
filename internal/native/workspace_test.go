@@ -1046,10 +1046,15 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 		wantPixel(t, "single pane body", img, p.X+p.W/2, p.Y+p.H/2, stage, a)
 		wantPixel(t, "single pane bar", img, p.X+p.W/2, p.Y+sizePanebar/2, surface, a)
 		r.click(t, "Split right")
+		r.tt.SetWindowActive(false) // the focused tile's glow lies in the gap: an inactive window has none
+		r.tt.Frame()
 		img = r.tt.Image()
 		g, _ := r.tt.Find("split handle")
 		wantPixel(t, "gap", img, g.X+1, g.Y+g.H/2, chrome, a)
 		wantPixel(t, "inset", img, g.X-100, 40, chrome, a)
+		r.tt.SetWindowActive(true)
+		r.tt.Frame()
+		img = r.tt.Image()
 		// Pane 2 holds the keyboard: not dimmed.
 		p2, _ := r.tt.Find("pane 2")
 		wantPixel(t, "tile body", img, p2.X+p2.W/2, p2.Y+p2.H/2, stage, a)

@@ -66,7 +66,8 @@ func (w *workspace) view(c *ui.Context) {
 		})
 		w.statusbar(c)
 	})
-	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
+	useControls(1, w.dark) // toasts, dialogs, the palette and their controls are never translucent (nativeonly.go)
+	w.toastsView(c)        // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
 	w.hostKeyDialog(c)
 	w.quickDialogView(c)
@@ -268,7 +269,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		Label("tab " + t.name()).Cursor(ui.CursorPointer).Key(t).Bind(&t.h).Drag(t)
 	switch {
 	case selected:
-		r.Background(raised)
+		r.Background(controlFill(raised))
 	case r.Hovered():
 		r.Background(hoverGround)
 	}
@@ -405,7 +406,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
 			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
 				ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
-					Background(stage).Border(1, lineStrong).Children(func() {
+					Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 					icon(c, "search-01", inkFaint)
 					switch {
 					case w.sidePanes():

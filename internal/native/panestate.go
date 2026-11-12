@@ -31,7 +31,7 @@ func textBtn(c *ui.Context, name string, kind btnKind) bool { return textBtnAs(c
 func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 	b := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 		Label(name).Cursor(ui.CursorPointer)
-	bg, fg, hov := raised, ink, b.Hovered()
+	bg, fg, hov := controlFill(raised), ink, b.Hovered()
 	switch kind {
 	case btnGhost:
 		bg, fg = ui.Transparent, inkMuted

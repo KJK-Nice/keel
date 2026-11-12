@@ -534,7 +534,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	if p.Risk == "destructive" {
 		border = flare
 	}
-	card := ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(raised).Border(1, border).Clip().Label("Proposal")
+	card := ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposal")
 	card.PopoverMenu(func(m *ui.Menu) { w.agentCardMenu(m, id, offer) })
 	card.Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
@@ -633,7 +633,7 @@ func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
 	if p.ProposedAt != nil {
 		meta = "Proposed " + stampLabel(*p.ProposedAt, now) + " · " + meta
 	}
-	ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(raised).Border(1, line).Clip().Opacity(0.92).Label("Proposal expired").Children(func() {
+	ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Clip().Opacity(0.92).Label("Proposal expired").Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
 			icon(c, "agent-cmd", inkMuted)
 			label(c, runOnLabel(p), ink)
@@ -788,7 +788,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 			})
 		}
 		w.nbHint(c)
-		ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+		ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 			ui.TextAreaBase(c, &a.input).Label("Message the agent").Placeholder(agentInputHint).PlaceholderColor(inkFaint).TextColor(ink).
 				FontSize(uiFontSize).Lines(2, 8).FillWidth().Bind(&a.inputH).OnTextKey(func(k ui.TextKey) bool {
 				if k.Key != ui.KeyEnter || k.Mods != 0 { // ⇧↵ is a newline

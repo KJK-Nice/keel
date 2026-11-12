@@ -15,7 +15,7 @@ func (w *workspace) modalOpen() bool {
 
 // inputBox is a single-line input in a bordered box (k-input).
 func inputBox(c *ui.Context, name string, value *string, placeholder string, h *ui.Handle, mono, masked bool, maxLen int, onKey func(ui.TextKey) bool) {
-	ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+	ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 		in := ui.TextInputBase(c, value).Label(name).Placeholder(placeholder).PlaceholderColor(inkFaint).TextColor(ink).
 			FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(h)
 		if mono {
@@ -83,14 +83,14 @@ func picker(c *ui.Context, name, current string, entries []pickEntry, onPick fun
 
 // segControl is k-seg: one option is on.
 func segControl(c *ui.Context, name string, current string, opts [][2]string, onPick func(string)) {
-	ui.Row(c).FillWidth().Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(stage).Border(1, line).Label(name).Children(func() {
+	ui.Row(c).FillWidth().Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, line).Label(name).Children(func() {
 		for _, o := range opts {
 			on := o[0] == current
 			r := ui.Row(c).Grow(1).Height(sizeControlSm).Justify(ui.Center).Radius(radiusXs).Label(o[1]).Cursor(ui.CursorPointer)
 			col := inkMuted
 			switch {
 			case on: // aria-pressed: the raised ground with a 1px line ring (box-shadow in keel.css)
-				r.Background(raised).Shadow(0, 0, 0, 1, line)
+				r.Background(controlFill(raised)).Shadow(0, 0, 0, 1, line)
 				col = ink
 			case r.Hovered():
 				r.Background(hoverGround)

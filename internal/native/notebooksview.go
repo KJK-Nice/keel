@@ -75,7 +75,7 @@ func (w *workspace) notebooksView(c *ui.Context, p *notebooksPage) {
 			})
 		})
 		ui.Row(c).FillWidth().Padding(0, space8, space3).Gap(space2).Wrap().Shrink(0).Children(func() {
-			ui.Row(c).Width(sizeSidebar).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Row(c).Width(sizeSidebar).Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				icon(c, "search-01", inkFaint)
 				ui.TextInputBase(c, &p.filter).Label("Filter notebooks").Placeholder("Filter notebooks").PlaceholderColor(inkFaint).TextColor(ink).
 					FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)

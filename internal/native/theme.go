@@ -49,6 +49,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 			w.alpha = 1
 		}
 	}
+	useControls(w.alpha, dark)
 	if !changed {
 		return
 	}

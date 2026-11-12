@@ -31,7 +31,7 @@ func (w *workspace) agentSessions(c *ui.Context, anchor ui.Element) {
 		rows := flatRows(groups)
 		a.sess.sel = min(a.sess.sel, len(rows)-1)
 		ui.Row(c).FillWidth().Shrink(0).Padding(space2, space2, space1).Children(func() {
-			ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				icon(c, "search-01", inkFaint)
 				in := ui.TextInputBase(c, &a.sess.filter).Label("Search conversations").Placeholder("Search conversations").PlaceholderColor(inkFaint).
 					TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&a.sess.filterH)

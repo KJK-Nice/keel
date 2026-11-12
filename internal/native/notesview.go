@@ -190,7 +190,7 @@ func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 	if warn && n.Status == "open" && !n.Expired {
 		border = signal
 	}
-	card := ui.Column(c).FillWidth().Key("note "+id).Radius(radiusMd).Background(raised).Border(1, border).Clip().Label("Proposed note")
+	card := ui.Column(c).FillWidth().Key("note "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed note")
 	card.Children(func() {
 		if n.Status != "open" || n.Expired {
 			msg := noteProposalDone(n)

@@ -150,7 +150,7 @@ func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 // card is one recent host (k-start-card): its tile, name and address, the live count and the ⌥ number.
 func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 	p := t.page
-	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(surface).Label("start card " + h.Name).Cursor(ui.CursorPointer)
+	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(surface)).Label("start card " + h.Name).Cursor(ui.CursorPointer)
 	border := line
 	switch {
 	case p.pick == h.ID:
@@ -241,7 +241,7 @@ func (w *workspace) closedRowView(c *ui.Context, t *tab, i int, e closedEntry, n
 // offerView is the panel for a read command (offerHTML): what was read, what was left out, and Connect once.
 // Save as host opens the host dialog filled from the command. Nothing has run.
 func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
-	ui.Column(c).FillWidth().Padding(space3).Gap(space2).Background(surface).Border(1, line).Radius(radiusMd).Label("pasted command").Children(func() {
+	ui.Column(c).FillWidth().Padding(space3).Gap(space2).Background(controlFill(surface)).Border(1, line).Radius(radiusMd).Label("pasted command").Children(func() {
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).Children(func() {
 			ui.Text(c, "Read as ")
 			ui.Text(c, targetText(r)).Font(monoStack).TextColor(brassInk)

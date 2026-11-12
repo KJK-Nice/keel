@@ -190,12 +190,12 @@ func (w *workspace) paneMapNode(c *ui.Context, t *tab, n *layout.Node, rows []pa
 // 2px brass line on top.
 func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current bool, fit func(ui.Element) ui.Element) {
 	fit(ui.Box(c)).Padding(1).Children(func() {
-		cell := ui.Column(c).Fill().Padding(space1, space1_5).Radius(radiusXs).Background(stage).Clip().Cursor(ui.CursorPointer).
+		cell := ui.Column(c).Fill().Padding(space1, space1_5).Radius(radiusXs).Background(controlFill(stage)).Clip().Cursor(ui.CursorPointer).
 			Label(fmt.Sprintf("Focus pane %d, %s", n, r.name)).Tooltip(r.name).Selected(current)
 		col := inkFaint
 		switch {
 		case current:
-			cell.Background(surface)
+			cell.Background(controlFill(surface))
 			col = ink
 		case cell.Hovered():
 			cell.Background(hoverGround)

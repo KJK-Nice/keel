@@ -205,7 +205,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	}
 	head := cardHead(p)
 	title := orElse(p.Title, "Notebook")
-	card := ui.Column(c).FillWidth().Key("nb "+id).Radius(radiusMd).Background(raised).Border(1, border).Clip().Label(head)
+	card := ui.Column(c).FillWidth().Key("nb "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label(head)
 	if !live || p.Expired {
 		card.Opacity(0.92)
 	}

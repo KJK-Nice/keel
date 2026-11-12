@@ -96,7 +96,7 @@ func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 	hairline(ui.Column(c).Width(sizeRail).Shrink(0).FillHeight().Padding(space3, space2).Gap(space0_5).Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Row(c).Padding(space1, space2).Children(func() { menuLabel(c, "Settings") })
-		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 			icon(c, "search-01", inkFaint)
 			ui.TextInputBase(c, &p.search).Label("Search settings").Placeholder("Search settings").PlaceholderColor(inkFaint).TextColor(ink).
 				FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.searchH)

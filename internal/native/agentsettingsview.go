@@ -211,7 +211,7 @@ func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d keelclient.Ag
 	if d.Kind == "detector" {
 		role, glyph = "Plain-language detection", "lock"
 	}
-	ui.Column(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(raised).Border(1, line).Key(d.ID).Label("agent card " + d.Name).Children(func() {
+	ui.Column(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Key(d.ID).Label("agent card " + d.Name).Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Start).Children(func() {
 			ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Background(hoverGround).Justify(ui.Center).Shrink(0).Children(func() { icon(c, glyph, brassInk) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {

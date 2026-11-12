@@ -86,7 +86,7 @@ func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 		if p.menu {
 			w.conversationMenu(c, p)
 		}
-		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+		ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 			icon(c, "search-01", inkFaint)
 			ph := "Filter " + countWord(len(p.list), "runbook", "runbooks")
 			ui.TextInputBase(c, &p.filter).Label("Filter runbooks").Placeholder(ph).PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
@@ -477,7 +477,7 @@ func (w *workspace) runCard(c *ui.Context, runID string) {
 	case u.names[runID] != "":
 		name = u.names[runID]
 	}
-	card := ui.Column(c).FillWidth().Key("run "+runID).Padding(space3).Gap(space2).Radius(radiusMd).Background(raised).Border(1, line).Label("Runbook " + name)
+	card := ui.Column(c).FillWidth().Key("run "+runID).Padding(space3).Gap(space2).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Label("Runbook " + name)
 	card.Children(func() {
 		nameRow := func(badge string) {
 			ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
@@ -674,7 +674,7 @@ func (w *workspace) agentBookCard(c *ui.Context, id string) {
 	if warn && b.Status == "open" && !b.Expired {
 		border = signal
 	}
-	card := ui.Column(c).FillWidth().Key("book "+id).Radius(radiusMd).Background(raised).Border(1, border).Clip().Label("Proposed runbook")
+	card := ui.Column(c).FillWidth().Key("book "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed runbook")
 	card.Children(func() {
 		if b.Status != "open" || b.Expired {
 			msg := runbookProposalDone(b)

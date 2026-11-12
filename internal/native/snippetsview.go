@@ -109,7 +109,7 @@ func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelcl
 			}
 		})
 		labeled(c, "Commands", &e.cmdH, func() {
-			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				ui.TextAreaBase(c, &e.command).Label("Snippet commands").TextColor(ink).FontSize(captionSize).Font(monoStack).
 					Lines(6, 6).FillWidth().Bind(&e.cmdH)
 			})
@@ -244,7 +244,7 @@ func (w *workspace) snippetDialogView(c *ui.Context) {
 		text(c, title, ink, titleSize, weightSemibold)
 		labeled(c, "Name", &d.nameH, func() { inputBox(c, "Snippet dialog name", &d.name, "disk usage", &d.nameH, false, false, 0, nil) })
 		labeled(c, "Command", &d.cmdH, func() {
-			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
+			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(controlFill(stage)).Border(1, lineStrong).Children(func() {
 				ui.TextAreaBase(c, &d.command).Label("Snippet dialog command").Placeholder("df -h").PlaceholderColor(inkFaint).TextColor(ink).
 					FontSize(captionSize).Font(monoStack).Lines(4, 4).FillWidth().Bind(&d.cmdH)
 			})
