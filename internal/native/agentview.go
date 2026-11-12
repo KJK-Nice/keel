@@ -120,7 +120,7 @@ func (w *workspace) agentSub(c *ui.Context) {
 	m := len(candidatePanes(w.agentPanes()))
 	hairline(ui.Row(c).FillWidth().Height(sizeControlLg+space1).Shrink(0).Padding(0, space3).Gap(space2), 0, 0, 1, 0).Children(func() {
 		chip := ui.Row(c).Height(sizeControlSm).Padding(0, space2).Gap(space1_5).Radius(radiusFull).Border(1, line).Shrink(1).MinWidth(0).
-			Label("Choose what the agent can read").Cursor(ui.CursorPointer)
+			Label("Choose what the agent can read").Tooltip("Choose what the agent can read").Cursor(ui.CursorPointer)
 		col := inkMuted
 		if a.picker || chip.Hovered() {
 			chip.Border(1, lineStrong)

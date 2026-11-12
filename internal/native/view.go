@@ -273,7 +273,7 @@ func paneSubtitle(p *pane, st keelclient.State) string {
 func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 	selected := i == w.active
 	r := ui.Row(c).Height(sizeTab).MaxWidth(tabMaxWidth).Padding(0, space2).Gap(space1_5).Radius(radiusSm).
-		Label("tab " + t.name()).Cursor(ui.CursorPointer).Key(t).Bind(&t.h).Drag(t)
+		Label("tab " + t.name()).Tooltip(t.name()).Cursor(ui.CursorPointer).Key(t).Bind(&t.h).Drag(t)
 	switch {
 	case selected:
 		r.Background(controlFill(raised))
@@ -376,7 +376,7 @@ func (w *workspace) dropPaneOnStrip(p *pane, slot int) {
 func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) {
 	// .tab .close is 16 px, not rem.
 	b := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).
-		Label("Close " + t.name()).Cursor(ui.CursorPointer)
+		Label("Close " + t.name()).Tooltip("Close " + t.name()).Cursor(ui.CursorPointer)
 	capped := selected && w.capAlpha > 0
 	show := pillHovered || capped
 	if !show {
@@ -518,7 +518,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 func (w *workspace) group(c *ui.Context, g hostGroup) {
 	open := !w.collapsed[g.name]
 	ui.Column(c).FillWidth().Key(g.name).Children(func() {
-		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Label("group " + g.name).Cursor(ui.CursorPointer)
+		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Label("group " + g.name).Tooltip(g.name).Cursor(ui.CursorPointer)
 		h.Children(func() {
 			chev := "chevron-down"
 			if !open {
@@ -547,7 +547,7 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 		current = p.host.ID == host.ID
 	}
 	r := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).
-		Label("host " + host.Name).Cursor(ui.CursorPointer).Key(host.ID).Focusable()
+		Label("host " + host.Name).Tooltip(host.Name).Cursor(ui.CursorPointer).Key(host.ID).Focusable()
 	if w.hasFolders() { // a host drags onto a folder (foldersview.go)
 		r.Drag(&treeDrag{hosts: []string{host.ID}})
 	}

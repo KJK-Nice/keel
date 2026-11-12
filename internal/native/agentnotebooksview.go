@@ -41,7 +41,7 @@ func (w *workspace) nbHint(c *ui.Context) {
 func (w *workspace) attachButton(c *ui.Context, where string) {
 	a := w.agent
 	on := a.nbPicker == where
-	b := ui.Row(c).Size(sizeControlSm, sizeControlSm).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Attach notebook").Cursor(ui.CursorPointer)
+	b := ui.Row(c).Size(sizeControlSm, sizeControlSm).Radius(radiusSm).Justify(ui.Center).Shrink(0).Label("Attach notebook").Tooltip("Attach notebook").Cursor(ui.CursorPointer)
 	col := inkMuted
 	switch {
 	case on:

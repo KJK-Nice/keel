@@ -223,7 +223,7 @@ func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current
 // drive a shared pane, the agent's mark when it can read the pane).
 func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) {
 	row := ui.Row(c).FillWidth().Height(paneRowHeight).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(r.id).
-		Label("pane row " + r.name).Cursor(ui.CursorPointer).Focusable().Selected(current)
+		Label("pane row " + r.name).Tooltip(r.name).Cursor(ui.CursorPointer).Focusable().Selected(current)
 	if current || row.Hovered() {
 		row.Background(hoverGround)
 	}

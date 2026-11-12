@@ -79,7 +79,7 @@ func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
 	node.Children(func() {
 		indent := float32(n.depth-1) * space3
 		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2, 0, space2+indent).Gap(space1_5).Radius(radiusSm).
-			Label("folder " + n.g.Name).Cursor(ui.CursorPointer).Drag(&treeDrag{folder: n.g.ID})
+			Label("folder " + n.g.Name).Tooltip(n.g.Name).Cursor(ui.CursorPointer).Drag(&treeDrag{folder: n.g.ID})
 		over, isOver := ui.DragOver[*treeDrag](node)
 		switch {
 		case isOver && over != nil && over.folder != n.g.ID: // is-drop-target

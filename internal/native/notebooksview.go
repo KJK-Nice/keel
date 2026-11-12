@@ -177,7 +177,7 @@ func (w *workspace) sidebarNotebooks(c *ui.Context) {
 func (w *workspace) sideNotebookRow(c *ui.Context, nb keelclient.Notebook) {
 	name := notebookName(nb)
 	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(nb.ID).
-		Label("sidebar notebook " + name).Cursor(ui.CursorPointer).Focusable()
+		Label("sidebar notebook " + name).Tooltip(name).Cursor(ui.CursorPointer).Focusable()
 	hover := r.Hovered()
 	if hover {
 		r.Background(hoverGround)
