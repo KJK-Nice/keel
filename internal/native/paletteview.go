@@ -158,7 +158,7 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 			stateDot(c, it.state)
 		}
 		if it.badge != "" { // k-badge--brass
-			tag(c, it.badge, brassSoft, brassInk, false)
+			accentBadge(c, it.badge)
 		}
 		if it.keys != "" {
 			keyCaps(c, it.keys)

@@ -332,15 +332,14 @@ func (w *workspace) hostKeyBlock(c *ui.Context, d *hostDialog) {
 
 // badge is the host key badge: Trusted (tide) or Not saved (outline).
 func badge(c *ui.Context, trusted bool) {
-	r := ui.Row(c).Height(space4).Padding(0, space1_5).Radius(radiusXs).Justify(ui.Center).Shrink(0)
-	s, fg := "Not saved", inkMuted
+	s := "Not saved"
 	if trusted {
-		s, fg = "Trusted", tide
-		r.Background(tideSoft)
-	} else {
-		r.Border(1, lineStrong)
+		s = "Trusted"
 	}
-	r.Label("host key " + s).Children(func() { text(c, s, fg, kbdSize, weightSemibold) })
+	b := ui.Badge(c, s).Label("host key " + s).Shrink(0)
+	if trusted {
+		b.Background(tideSoft).TextColor(tide)
+	}
 }
 
 // hostTestView is the result under the columns: its explanation, an offered key and the trust button.

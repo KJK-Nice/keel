@@ -124,7 +124,7 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 		case hover:
 			iconMenuBtn(c, "more-horizontal", "Actions for "+id.Name, sizeControlSm, w.identityMenu(id))
 		case identityKind(id) == "key" && id.HasPassphrase:
-			tag(c, "passphrase", hoverGround, inkMuted, false)
+			neutralBadge(c, "passphrase")
 		}
 	})
 	if r.Clicked() {

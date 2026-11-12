@@ -96,9 +96,9 @@ func (w *workspace) logRow(c *ui.Context, i int, e keelclient.LogEntry) {
 		ui.Row(c).Width(logTimeCol).Shrink(0).Children(func() { mono(c, logTimeLabel(e), inkMuted) })
 		ui.Row(c).Width(logKindCol).Shrink(0).Children(func() {
 			if logBadgeFailed(e.Kind) {
-				tag(c, e.Kind, flareSoft, flare, false)
+				tag(c, e.Kind, flareSoft, flare)
 			} else {
-				tag(c, e.Kind, hoverGround, inkMuted, false)
+				neutralBadge(c, e.Kind)
 			}
 		})
 		ui.Row(c).Width(logTargCol).Shrink(0).Children(func() { mono(c, logTarget(w.hosts, e), inkMuted).MinWidth(0) })

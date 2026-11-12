@@ -199,7 +199,7 @@ func (w *workspace) notebookMeta(c *ui.Context, t *tab, p *pane, rec keelclient.
 				w.act(func() { w.openNotebookHistory(id) })
 			})
 			if rec.AgentUnreviewed {
-				tag(c, "Edited by agent", signalSoft, signal, false)
+				tag(c, "Edited by agent", signalSoft, signal)
 			}
 		}
 		ui.Spacer(c)

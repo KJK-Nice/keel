@@ -334,7 +334,7 @@ func (w *workspace) versionRows(c *ui.Context, d *nbDialog) {
 				if v.By == byAgent {
 					outlineBadge(c, who)
 				} else {
-					tag(c, who, hoverGround, inkMuted, false)
+					neutralBadge(c, who)
 				}
 				body(c, title, ink).MinWidth(0)
 			})

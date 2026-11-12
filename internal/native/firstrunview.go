@@ -151,15 +151,20 @@ func kv(c *ui.Context, key, value string, monospace bool) {
 	})
 }
 
-// tag is a k-badge: a small label on a soft ground, or outlined.
-func tag(c *ui.Context, s string, bg, fg ui.Color, outline bool) {
-	r := ui.Row(c).Height(space4).Padding(0, space1_5).Radius(radiusXs).Justify(ui.Center).Shrink(0).Label("badge " + s)
-	if outline {
-		r.Border(1, lineStrong)
-	} else {
-		r.Background(bg)
-	}
-	r.Children(func() { text(c, s, fg, kbdSize, weightSemibold) })
+// neutralBadge is MyGo's badge for a neutral label or count; "badge s" names it for the tester and assistive technology.
+func neutralBadge(c *ui.Context, s string) ui.Element {
+	return ui.Badge(c, s).Label("badge " + s).Shrink(0)
+}
+
+// accentBadge is neutralBadge in the accent, for a label that points at the choice to take.
+func accentBadge(c *ui.Context, s string) ui.Element {
+	return neutralBadge(c, s).Background(brassSoft).TextColor(brassInk)
+}
+
+// tag is a k-badge that means something (Edited by agent, a failure, Already saved): a small label on a soft ground, in
+// the meaning's colour. Neutral labels and counts are neutralBadge.
+func tag(c *ui.Context, s string, bg, fg ui.Color) {
+	neutralBadge(c, s).Background(bg).TextColor(fg)
 }
 
 // foot is k-onb-foot: a hairline above the buttons. It stays at the bottom of the window while the step scrolls
@@ -214,7 +219,7 @@ func choiceCard(c *ui.Context, name string, on, disabled bool, title, badgeText,
 			ui.Row(c).Gap(space2).Children(func() {
 				bodyStrong(c, title, ink)
 				if badgeText != "" {
-					tag(c, badgeText, brassSoft, brassInk, false)
+					accentBadge(c, badgeText)
 				}
 			})
 			ui.Text(c, desc).TextColor(inkMuted).FontSize(captionSize)
@@ -431,7 +436,7 @@ func (w *workspace) importTable(c *ui.Context, f *firstRun, p keelclient.SSHPrev
 					cell(0).Children(func() {
 						body(c, h.Alias, ink).Shrink(1).MinWidth(0)
 						if h.Saved {
-							tag(c, "Already saved", hazeSoft, haze, false)
+							tag(c, "Already saved", hazeSoft, haze)
 						}
 					})
 					cell(1).Children(func() { mono(c, hostAddress(h), inkMuted).MinWidth(0) })
@@ -515,7 +520,7 @@ func (w *workspace) importKeys(c *ui.Context, f *firstRun, p keelclient.SSHPrevi
 						}
 						mono(c, name, ink)
 						if k.Encrypted {
-							tag(c, "Passphrase", brassSoft, inkMuted, true)
+							neutralBadge(c, "Passphrase")
 						}
 						if len(k.UsedBy) > 0 {
 							help(c, "Used by "+joinWords(k.UsedBy))

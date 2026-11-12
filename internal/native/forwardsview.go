@@ -149,7 +149,7 @@ func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 	r.PopoverMenu(w.tunnelMenu(c, t))
 	r.Children(func() {
 		ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { bodyStrong(c, t.Name, ink).MinWidth(0) })
-		ui.Row(c).Width(fwdTypeCol).Shrink(0).Children(func() { tag(c, tunnelFlag(t.Kind), hoverGround, inkMuted, false) })
+		ui.Row(c).Width(fwdTypeCol).Shrink(0).Children(func() { neutralBadge(c, tunnelFlag(t.Kind)) })
 		ui.Row(c).Grow(2).Shrink(1).MinWidth(0).Gap(space2).AlignItems(ui.Center).Wrap().Children(func() {
 			mono(c, tunnelListen(t)+" → "+tunnelDest(t), ink).MinWidth(0)
 			if tunnelEveryInterface(t) {

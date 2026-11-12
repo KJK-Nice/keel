@@ -133,13 +133,13 @@ func (w *workspace) notebookBadges(c *ui.Context, nb keelclient.Notebook) {
 			})
 		}
 		if nb.AgentUnreviewed {
-			tag(c, "Edited by agent", signalSoft, signal, false)
+			tag(c, "Edited by agent", signalSoft, signal)
 		}
 		if nb.Source == byAgent {
 			outlineBadge(c, "From agent")
 		}
 		if nb.Pinned {
-			tag(c, "Pinned", hoverGround, inkMuted, false)
+			neutralBadge(c, "Pinned")
 		}
 	})
 }

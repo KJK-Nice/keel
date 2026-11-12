@@ -209,8 +209,8 @@ func alwaysOn(c *ui.Context) {
 	})
 }
 
-// outlineBadge is .k-badge--outline with a text.
-func outlineBadge(c *ui.Context, s string) { tag(c, s, ui.Transparent, ink, true) }
+// outlineBadge is a neutral badge with a text (.k-badge--outline in the app).
+func outlineBadge(c *ui.Context, s string) { neutralBadge(c, s) }
 
 // statValue is .k-mono.k-pref-value: a value on the right, in the mono face, wrapping.
 func statValue(c *ui.Context, s string) {

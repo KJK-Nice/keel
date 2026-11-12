@@ -32,6 +32,9 @@ func badgeColors(kind string) (bg, fg ui.Color) {
 }
 
 func kindPill(c *ui.Context, label, kind string) ui.Element {
+	if kind == "" {
+		return neutralBadge(c, label)
+	}
 	bg, fg := badgeColors(kind)
 	return pill(c, label, bg, fg)
 }
