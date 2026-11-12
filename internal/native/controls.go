@@ -57,6 +57,21 @@ func capButton(c *ui.Context, name, cap string, off bool) ui.Element {
 	return b
 }
 
+// chosenRow gives the chosen row of the sidebar the source-list look of ui.Sidebar's chosen item (MyGo sidebar.go, same
+// theme values): the accent with AccentText on it while the sidebar's list has the keyboard in a window drawn as active,
+// the neutral SurfacePressed grey otherwise (the list unfocused, or the window not the user's). It returns the colour for
+// the row's text and whether the accent is on, so a mark that means something (the live dot) can take the text colour
+// instead of vanishing on the fill. AccentText on Accent is the pair deriveAccent holds to 4.5:1.
+func (w *workspace) chosenRow(c *ui.Context, r ui.Element) (fg ui.Color, accentOn bool) {
+	t := c.Theme()
+	if c.WindowActive() && w.sideListH.FocusWithin(c) {
+		r.Background(t.Accent)
+		return t.AccentText, true
+	}
+	r.Background(t.SurfacePressed)
+	return ink, false
+}
+
 // barButton is a title bar button: MyGo's quiet button with an icon, the words and, when cap is not empty, the key that
 // presses it. active keeps the face of the pressed state while its popover or panel is open.
 func barButton(c *ui.Context, name, glyph, cap string, active bool) ui.Element {

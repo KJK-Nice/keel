@@ -5,7 +5,33 @@ package native
 import (
 	"testing"
 	"time"
+
+	"github.com/egoist/mygo/ui"
 )
+
+// The chosen row of the sidebar in a real window: grey while the terminal has the keyboard, the accent while the list has it,
+// in both themes.
+func TestE2ESidebarChosenRow(t *testing.T) {
+	addr, dir := startServe(t, true)
+	e := newWin(t, addr, dir, nil)
+	e.openLocal()
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2ESidebarChosen-grey-dark")
+	e.click("Filter hosts") // the terminal keeps Tab for the shell; start from the filter and walk down
+	for i := 0; i < 40 && !e.tt.Focused("host Local Shell"); i++ {
+		e.tt.Key(0, ui.KeyTab)
+		e.step()
+	}
+	if !e.tt.Focused("host Local Shell") {
+		t.Fatal("Tab never reached the host row")
+	}
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2ESidebarChosen-accent-dark")
+	e.w.setTheme(themeLight)
+	e.pump(func() bool { return !e.w.dark }, "the light theme")
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2ESidebarChosen-accent-light")
+}
 
 // The sidebar's sash in a real window: a drag widens the sidebar and the terminal pane gives way (keel serve sees the
 // narrower terminal), the width is kept and a window opened later on the same data starts at it. Shots in both themes.

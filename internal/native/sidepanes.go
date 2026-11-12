@@ -224,7 +224,13 @@ func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current
 func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) {
 	row := ui.Row(c).FillWidth().Height(paneRowHeight).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(r.id).
 		Label("pane row " + r.name).Tooltip(r.name).Cursor(ui.CursorPointer).Focusable().Selected(current)
-	if current || row.Hovered() {
+	nameCol, subCol := ink, inkFaint
+	if current {
+		var accentOn bool
+		if nameCol, accentOn = w.chosenRow(c, row); accentOn {
+			subCol = nameCol
+		}
+	} else if row.Hovered() {
 		row.Background(hoverGround)
 	}
 	row.PopoverMenu(w.paneMenuFor(t, t.panes[r.id], true))
@@ -241,11 +247,11 @@ func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) 
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
 			if current {
-				bodyStrong(c, r.name, ink).MinWidth(0)
+				bodyStrong(c, r.name, nameCol).MinWidth(0)
 			} else {
 				body(c, r.name, inkMuted).MinWidth(0)
 			}
-			text(c, r.sub, inkFaint, itemSub, weightRegular).Font(monoStack).MinWidth(0)
+			text(c, r.sub, subCol, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
 		if r.driving || r.agent {
 			ui.Row(c).Gap(space1_5).Shrink(0).Children(func() {

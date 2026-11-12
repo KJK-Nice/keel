@@ -446,7 +446,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 		})
 		// .k-sidebar-body: 0 6 8, scrolling.
 		body := func(label string, kids func()) {
-			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label(label).Children(func() {
+			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label(label).Bind(&w.sideListH).Children(func() {
 				ui.Column(c).FillWidth().Padding(0, space1_5, space2).Children(kids)
 			})
 		}
@@ -553,7 +553,10 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 		r.Drag(&treeDrag{hosts: []string{host.ID}})
 	}
 	hover := r.Hovered()
-	if current || hover {
+	nameCol, accentOn := ink, false
+	if current {
+		nameCol, accentOn = w.chosenRow(c, r)
+	} else if hover {
 		r.Background(hoverGround)
 	}
 	r.PopoverMenu(w.hostMenu(host))
@@ -569,12 +572,16 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 			Background(hostTint(host.Color).Alpha(tileTintAlpha)).Children(func() {
 			iconSized(c, "server", hostTint(host.Color), iconSizeSm)
 		})
-		body(c, host.Name, ink).Grow(1).Shrink(1).MinWidth(0)
+		body(c, host.Name, nameCol).Grow(1).Shrink(1).MinWidth(0)
 		if hover || r.FocusWithin() {
 			iconMenuBtn(c, "more-horizontal", "Actions for "+host.Name, sizeControlSm, w.hostMenu(host))
 		} else if current {
-			dot(c, tide)
-			caption(c, fmt.Sprint(w.panesOn(host.ID)), inkMuted)
+			live, count := tide, inkMuted
+			if accentOn {
+				live, count = nameCol, nameCol
+			}
+			dot(c, live)
+			caption(c, fmt.Sprint(w.panesOn(host.ID)), count)
 		}
 	})
 	if r.Clicked() {

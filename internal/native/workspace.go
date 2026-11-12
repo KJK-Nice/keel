@@ -370,6 +370,7 @@ type workspace struct {
 	collapsed      map[string]bool
 	sideWidth      float32     // the sidebar's width as kept; 0 is sidebarWidth() (sidebarresize.js)
 	sideSash       sashState   // the sidebar's resize handle
+	sideListH      ui.Handle   // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
 	queued         []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
 	blocked        string      // a message that replaces the workspace (locked vault, no keel serve)
 	gate           *unlockGate // the Unlock screen, over the whole window
