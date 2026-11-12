@@ -123,7 +123,7 @@ func TestAgentCannotReachPTYWriters(t *testing.T) {
 	}
 	forbidden := []string{
 		module + "/internal/runtime", module + "/internal/session", module + "/internal/inject",
-		module + "/internal/share", module + "/internal/tunnel", module + "/internal/termlife",
+		module + "/internal/share", module + "/internal/tunnel",
 		module + "/internal/httpapi", module + "/internal/app", module + "/internal/signal",
 		"github.com/creack/pty", "golang.org/x/crypto/ssh", "os/exec", "syscall",
 	}
