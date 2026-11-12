@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -25,6 +26,7 @@ type logsPage struct {
 	kind    string // the chip: all, sessions, forwards, vault or agent
 	entries []keelclient.LogEntry
 	loaded  bool
+	reading bool // a logsTick read is out
 	err     string
 	filterH ui.Handle
 }
@@ -153,6 +155,36 @@ func logFactsTitle(e keelclient.LogEntry) string {
 		parts[i] = fmt.Sprintf("%s %d", k, e.Redactions[k])
 	}
 	return "Redacted: " + strings.Join(parts, ", ")
+}
+
+// logsEvery is how often the Logs page reads GET /api/logs while it is the selected tab. The webview's Datastar stream
+// pushes server-rendered HTML (LogList), which this client cannot consume as data; the endpoint has no since
+// parameter, so a read is the newest logsLimit entries. 2 s is the forwards page's rate (forwardsEvery).
+const logsEvery = 2 * time.Second
+
+// logsTick is one tick of that read: it reads only while the Logs page is the selected tab and no read is out. A
+// failed read is not news (the next tick tries again), and it leaves the entries and the error as they were.
+func (w *workspace) logsTick() {
+	if w.closed || w.gate != nil || w.first != nil {
+		return
+	}
+	t := w.tab()
+	if t == nil || t.pg == nil || t.pg.logs == nil || t.pg.logs.reading {
+		return
+	}
+	p := t.pg.logs
+	p.reading = true
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		entries, err := w.be.Logs(c, logsLimit)
+		w.post(func() {
+			p.reading = false
+			if !w.closed && err == nil {
+				p.err, p.loaded, p.entries = "", true, entries
+			}
+		})
+	})
 }
 
 // loadLogs reads the log again (the page opened or was selected, the vault changed, or Refresh).

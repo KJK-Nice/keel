@@ -608,6 +608,35 @@ func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	r.texts(t, "Nothing matches “nothing like this”", "empty Clear filter")
 }
 
+func TestLogsPageShowsNewLinesEveryTwoSecondsOnlyWhileItIsTheSelectedTab(t *testing.T) {
+	fb := logsBackend()
+	r := pageRig(t, fb)
+	r.tt.Frame()
+	n := fb.logsCalls
+	r.w.logsTick()
+	if fb.logsCalls != n {
+		t.Fatal("read with the page not open")
+	}
+	r.w.openPage("logs")
+	r.tt.Frame()
+	n = fb.logsCalls
+	fb.logs = append([]keelclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
+	r.w.logsTick() // no Refresh
+	r.tt.Frame()
+	if fb.logsCalls != n+1 || !r.tt.HasText("vault unlocked") {
+		t.Fatalf("calls %d→%d, new line shown %v", n, fb.logsCalls, r.tt.HasText("vault unlocked"))
+	}
+	r.w.selectTab(0) // another tab is selected: the Logs page is hidden
+	n = fb.logsCalls
+	r.w.logsTick()
+	if fb.logsCalls != n {
+		t.Error("read while the page was hidden")
+	}
+	if logsEvery != 2*time.Second {
+		t.Errorf("logsEvery %v", logsEvery)
+	}
+}
+
 func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 	fb := logsBackend()
 	fb.vault.Rev = "r1"
