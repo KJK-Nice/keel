@@ -98,7 +98,10 @@ const (
 	trayQuick      = "Quick Connect…"
 	trayClaudeCode = "Allow Claude Code (keel mcp)"
 	trayQuit       = "Quit Keel"
-	trayRefresh    = 3 * time.Second // the session count and the Claude Code switch can change from another client
+	// The session count and the Claude Code switch can change from another client. The tray reads GET /api/vault and
+	// GET /api/agent/settings for them; at 3 s that was one call a few seconds all day for a menu seen now and then (the
+	// window's own poll, pollEvery, is what notices a locked vault). Showing or hiding the window refreshes it at once.
+	trayRefresh = 20 * time.Second
 )
 
 // menuBarItem is desktop.menuBarItem: Keel lives in the menu bar on macOS.
