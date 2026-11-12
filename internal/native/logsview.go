@@ -67,18 +67,25 @@ func (w *workspace) logsView(c *ui.Context, p *logsPage) {
 			ui.Row(c).Width(logTargCol).Shrink(0).Children(func() { label(c, "Target", inkFaint) })
 			ui.Row(c).Grow(1).Children(func() { label(c, "Event", inkFaint) })
 		})
-		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("log list").Children(func() {
-			rows := p.rows()
-			switch {
-			case p.err != "":
-				ui.Row(c).FillWidth().Padding(space6, space8).Children(func() { ui.Text(c, p.err).TextColor(flare).FontSize(uiFontSize) })
-			case len(rows) == 0 && p.loaded:
-				sideEmpty(c, "No log entries", "Sessions, forwards and vault changes show up here.")
+		rows := p.rows()
+		switch {
+		case p.err != "":
+			if pr, _ := emptyPage(c, emptyFailed("logs-tab", "the log", p.err)); pr {
+				w.act(func() { w.loadPage(w.tab()) })
 			}
-			for i, e := range rows {
-				w.logRow(c, i, e)
+		case len(rows) == 0 && p.loaded && len(p.entries) == 0:
+			emptyPage(c, emptyNone("logs-tab", "No log entries", logsNone, ""))
+		case len(rows) == 0 && p.loaded:
+			if pr, _ := emptyPage(c, emptyNoMatch("search-01", orElse(p.filter, p.kind))); pr {
+				w.act(func() { p.filter, p.kind = "", "all" })
 			}
-		})
+		default:
+			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("log list").Children(func() {
+				for i, e := range rows {
+					w.logRow(c, i, e)
+				}
+			})
+		}
 	})
 }
 

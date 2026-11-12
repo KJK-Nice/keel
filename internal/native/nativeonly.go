@@ -112,6 +112,8 @@ const (
 	glowBlur       = 8    // the focused tile's soft outer glow
 	glowAlphaDark  = 0.18 // focus at this alpha on a dark stage
 	glowAlphaLight = 0.12 // and on a light one, so it does not smear
+	emptyAbove     = 38   // the page-size empty state sits this share of the free height down (docs/native.md)
+	emptyDescPx    = 300  // its words' widest, about 44 characters at the caption size
 )
 
 // tileRing draws the border and the glow of a tile of a split tab. Focus changes the colour and the weight, never the

@@ -25,7 +25,7 @@ func (w *workspace) folderTreeView(c *ui.Context) {
 	root := ui.Column(c).FillWidth().Label("host tree")
 	root.Children(func() {
 		if folderTreeEmpty(tree, loose) {
-			sideEmpty(c, "No hosts match", "Add a host or clear the filter.")
+			w.hostsEmpty(c)
 			return
 		}
 		for _, h := range loose {

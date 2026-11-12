@@ -75,7 +75,9 @@ func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 			ui.Column(c).FillWidth().MaxWidth(rem(settingsMaxWidth) + 2*space8).Padding(space8).Gap(space6).Children(func() {
 				switch {
 				case q != "" && len(shown) == 0:
-					help(c, "No settings match.")
+					if emptySide(c, emptyNoMatch("search-01", strings.TrimSpace(p.search))) {
+						w.act(func() { p.search = "" })
+					}
 				case q != "":
 					for _, s := range shown {
 						w.settingsPanel(c, s, p)

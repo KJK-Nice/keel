@@ -81,15 +81,23 @@ func (w *workspace) notebooksView(c *ui.Context, p *notebooksPage) {
 					FontSize(uiFontSize).Grow(1).MinWidth(0).Bind(&p.filterH)
 			})
 		})
-		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("notebook list").Children(func() {
-			if len(w.notebooks) == 0 {
-				sideEmpty(c, "No notebooks yet", "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm.")
-				return
+		shown := w.shownNotebooks(p.filter)
+		switch {
+		case len(w.notebooks) == 0 && w.live:
+			if pr, _ := emptyPage(c, emptyNone("notebook-pen", "No notebooks yet", notebooksNone, "New notebook")); pr {
+				w.act(w.newNotebook)
 			}
-			for _, nb := range w.shownNotebooks(p.filter) {
-				w.notebookRow(c, nb)
+		case len(shown) == 0 && w.live:
+			if pr, _ := emptyPage(c, emptyNoMatch("search-01", p.filter)); pr {
+				w.act(func() { p.filter = "" })
 			}
-		})
+		default:
+			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("notebook list").Children(func() {
+				for _, nb := range shown {
+					w.notebookRow(c, nb)
+				}
+			})
+		}
 	})
 }
 
@@ -152,10 +160,12 @@ func (w *workspace) sidebarNotebooks(c *ui.Context) {
 			w.sideNotebookRow(c, nb)
 		}
 		switch {
-		case len(w.notebooks) == 0:
-			caption(c, "No notebooks yet.", inkMuted)
-		case len(shown) == 0:
-			caption(c, "No notebooks match.", inkMuted)
+		case len(w.notebooks) == 0 && w.live:
+			emptySide(c, emptyNone("notebook-pen", "No notebooks yet", notebooksNone, "")) // New notebook is the button below
+		case len(shown) == 0 && w.live:
+			if emptySide(c, emptyNoMatch("search-01", w.snipQuery)) {
+				w.act(func() { w.snipQuery = "" })
+			}
 		}
 		ui.Row(c).FillWidth().Gap(space1).Wrap().Children(func() {
 			if textBtn(c, "New notebook", btnGhost) {

@@ -369,6 +369,5 @@ func (w *workspace) ctxSection(c *ui.Context, title string, n int, rows func()) 
 	})
 }
 
-func ctxEmpty(c *ui.Context, s string) {
-	ui.Text(c, s).TextColor(inkMuted).FontSize(captionSize - 1)
-}
+// ctxEmpty is a context section with nothing in it: the side size, no action.
+func ctxEmpty(c *ui.Context, s string) { emptySide(c, emptySpec{icon: "agent-info", title: s}) }

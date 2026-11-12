@@ -118,12 +118,19 @@ func (w *workspace) sessionKey(k ui.TextKey, rows []keelclient.ConversationSumma
 func (w *workspace) sessionList(c *ui.Context, groups []sessionGroup, host string, actions bool) {
 	a := w.agent
 	if empty := sessionsEmptyText(a.list, len(groups)); empty != "" {
-		if host != "" && len(a.list.sessions) > 0 && a.list.err == "" && !a.list.unreadable {
-			empty = "No conversations on this host."
+		spec := emptyNone("agent-history", empty, "", "")
+		clear := func() {}
+		switch {
+		case a.list.err != "" || a.list.unreadable:
+			spec, clear = emptyFailed("agent-history", "saved conversations", empty), w.loadConversations
+		case host != "" && len(a.list.sessions) > 0:
+			spec = emptyNone("agent-history", "No conversations on this host.", "", "")
+		case len(a.list.sessions) > 0:
+			spec, clear = emptyNoMatch("agent-history", a.sess.filter), func() { a.sess.filter = "" }
 		}
-		ui.Row(c).FillWidth().Padding(space3, space2).Children(func() {
-			ui.Text(c, empty).TextColor(inkMuted).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
-		})
+		if emptySide(c, spec) {
+			w.act(clear)
+		}
 		return
 	}
 	i := 0

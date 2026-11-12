@@ -67,7 +67,7 @@ func TestTheTitleOpensRecentConversationsGroupedAndSearchable(t *testing.T) {
 	r.tt.Key(ui.Cmd, ui.KeyA)
 	r.tt.Type("nothing at all")
 	r.tt.Frame()
-	if !r.tt.HasText("No conversation matches.") {
+	if !r.tt.HasText("Nothing matches “nothing at all”") {
 		t.Errorf("no empty text for a search without a match: %v", r.tt.Texts())
 	}
 }

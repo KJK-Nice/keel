@@ -349,7 +349,7 @@ func TestSidebarSnippetsSectionListsEverySnippetAndFilters(t *testing.T) {
 	r.tt.Key(ui.Cmd, ui.KeyA)
 	r.tt.Type("zzz")
 	r.tt.Frame()
-	r.texts(t, "No snippets match.")
+	r.texts(t, "Nothing matches “zzz”")
 	r.click(t, "Manage snippets")
 	if r.w.tab().pg == nil || r.w.tab().pg.snippets == nil {
 		t.Fatal("Manage snippets did not open the page")
@@ -362,7 +362,7 @@ func TestSidebarSnippetsEmpty(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "Snippets")
-	r.texts(t, "No snippets yet.", "Manage snippets")
+	r.texts(t, "No snippets yet", "Manage snippets")
 }
 
 func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *testing.T) {

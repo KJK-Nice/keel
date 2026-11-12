@@ -223,11 +223,3 @@ func (w *workspace) pageView(c *ui.Context, t *tab) {
 		w.groupRunView(c, t.pg.grouprun)
 	}
 }
-
-// sideEmpty is k-side-empty: a title and a line under it, centred.
-func sideEmpty(c *ui.Context, title, desc string) {
-	ui.Column(c).FillWidth().Padding(space6, space2).Gap(space1).AlignItems(ui.Center).Children(func() {
-		bodyStrong(c, title, ink)
-		ui.Text(c, desc).TextColor(inkMuted).FontSize(captionSize).Center()
-	})
-}

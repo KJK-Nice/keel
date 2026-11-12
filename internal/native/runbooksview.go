@@ -148,20 +148,28 @@ func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
 	ui.Column(c).FillWidth().Children(func() {
 		switch {
 		case p.unreadable:
-			sideEmpty(c, "Runbooks cannot be opened", "keel.memory cannot be read. Delete all notes in Settings · Agent starts a fresh file.")
+			if emptySide(c, emptyFailed("book", "runbooks", "keel.memory cannot be read. Delete all notes in Settings · Agent starts a fresh file.")) {
+				w.act(w.loadRunbooks)
+			}
 			return
 		case p.err != "":
-			sideEmpty(c, "Runbooks", p.err)
+			if emptySide(c, emptyFailed("book", "runbooks", p.err)) {
+				w.act(w.loadRunbooks)
+			}
 			return
 		case len(p.list) == 0:
 			if p.loaded {
-				sideEmpty(c, "No runbooks yet", "Write the steps you take for a known problem. The agent can walk you through them, one proposal at a time.")
+				if emptySide(c, emptyNone("book", "No runbooks yet", runbooksNone, "New runbook")) {
+					w.act(w.newRunbook)
+				}
 			}
 			return
 		}
 		shown := filterRunbooks(p.list, p.filter)
 		if len(shown) == 0 {
-			sideEmpty(c, "No runbook matches.", "Clear the filter.")
+			if emptySide(c, emptyNoMatch("search-01", p.filter)) {
+				w.act(func() { p.filter = "" })
+			}
 			return
 		}
 		for _, rb := range shown {

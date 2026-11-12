@@ -279,7 +279,7 @@ func TestSidebarFilterReadsFoldersAboveTheHost(t *testing.T) {
 	}
 	r.w.filter = "zzz"
 	r.tt.Frame()
-	if !r.tt.HasText("No hosts match") {
+	if !r.tt.HasText("Nothing matches “zzz”") {
 		t.Error("nothing matches: the tree says so")
 	}
 }

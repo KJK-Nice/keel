@@ -35,6 +35,12 @@ func (w *workspace) snippetsView(c *ui.Context, p *snippetsPage) {
 	if hasCur {
 		p.ed.sync(cur)
 	}
+	if len(w.snippets) == 0 && w.live {
+		if pr, _ := w.emptyStage(c, emptyNone("snippet", "No snippets yet", snippetsNone, "New snippet")); pr {
+			w.act(w.newSnippet)
+		}
+		return
+	}
 	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
 		hairline(ui.Column(c).Width(sizeList).Shrink(0).FillHeight().Background(w.ground(surface)), 0, 1, 0, 0).Children(func() {
 			w.splitHead(c, "Snippets", "New snippet", &p.filter, "Filter snippets", &p.filterH, w.newSnippet)
@@ -58,11 +64,14 @@ func (w *workspace) snippetsView(c *ui.Context, p *snippetsPage) {
 
 func (w *workspace) snippetList(c *ui.Context, p *snippetsPage, current string) {
 	ui.Column(c).FillWidth().Children(func() {
-		if len(w.snippets) == 0 {
-			sideEmpty(c, "No snippets yet", "Save commands you type often. Typing one always goes through Approve before type.")
+		shown := w.shownSnippets(p.filter)
+		if len(shown) == 0 && w.live { // none at all is the whole page's empty state (snippetsView)
+			if emptySide(c, emptyNoMatch("search-01", p.filter)) {
+				w.act(func() { p.filter = "" })
+			}
 			return
 		}
-		for _, s := range w.shownSnippets(p.filter) {
+		for _, s := range shown {
 			w.snippetRow(c, p, s, s.ID == current)
 		}
 	})
@@ -184,10 +193,14 @@ func (w *workspace) sidebarSnippets(c *ui.Context) {
 			w.sideSnippetRow(c, s)
 		}
 		switch {
-		case len(w.snippets) == 0:
-			caption(c, "No snippets yet.", inkMuted)
-		case len(shown) == 0:
-			caption(c, "No snippets match.", inkMuted)
+		case len(w.snippets) == 0 && w.live:
+			if emptySide(c, emptyNone("snippet", "No snippets yet", snippetsNone, "New snippet")) {
+				w.act(w.newSnippet)
+			}
+		case len(shown) == 0 && w.live:
+			if emptySide(c, emptyNoMatch("search-01", w.snipQuery)) {
+				w.act(func() { w.snipQuery = "" })
+			}
 		}
 		if textBtn(c, "Manage snippets", btnGhost) {
 			w.act(func() { w.openPage("snippets") })

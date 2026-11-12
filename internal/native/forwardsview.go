@@ -116,15 +116,23 @@ func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 			ui.Row(c).Width(fwdOnCol).Shrink(0).Justify(ui.End).Children(func() { label(c, "On", inkFaint) })
 			ui.Row(c).Width(fwdActionCol).Shrink(0)
 		})
-		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("forward list").Children(func() {
-			if len(w.tunnels) == 0 {
-				sideEmpty(c, "No forwards yet", "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host.")
-				return
+		shown := w.shownTunnels(p)
+		switch {
+		case len(w.tunnels) == 0 && w.live:
+			if pr, _ := emptyPage(c, emptyNone("forwards", "No forwards yet", forwardsNone, "New forward")); pr {
+				w.act(w.newForward)
 			}
-			for _, t := range w.shownTunnels(p) {
-				w.forwardRow(c, t)
+		case len(shown) == 0 && w.live:
+			if pr, _ := emptyPage(c, emptyNoMatch("search-01", orElse(p.filter, p.show))); pr {
+				w.act(func() { p.filter, p.show = "", tunnelAll })
 			}
-		})
+		default:
+			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("forward list").Children(func() {
+				for _, t := range shown {
+					w.forwardRow(c, t)
+				}
+			})
+		}
 	})
 }
 
@@ -187,10 +195,12 @@ func (w *workspace) sidebarForwards(c *ui.Context) {
 			w.sideForwardRow(c, t)
 		}
 		switch {
-		case len(w.tunnels) == 0:
-			caption(c, "No forwards yet.", inkMuted)
-		case len(shown) == 0:
-			caption(c, "No forwards match.", inkMuted)
+		case len(w.tunnels) == 0 && w.live:
+			emptySide(c, emptyNone("forwards", "No forwards yet", forwardsNone, "")) // New forward is the button below
+		case len(shown) == 0 && w.live:
+			if emptySide(c, emptyNoMatch("search-01", w.fwdQuery)) {
+				w.act(func() { w.fwdQuery = "" })
+			}
 		}
 		if textBtn(c, "New forward", btnGhost) {
 			w.act(w.newForward)

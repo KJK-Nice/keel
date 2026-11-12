@@ -346,7 +346,7 @@ func TestSidebarForwardsSectionAndStatusBar(t *testing.T) {
 		t.Errorf("the filter reads the host's name: %v", r.tt.Texts())
 	}
 	r.fill(t, "Filter forwards", "zzz")
-	r.texts(t, "No forwards match.")
+	r.texts(t, "Nothing matches “zzz”")
 	r.fill(t, "Filter forwards", "")
 	r.click(t, "web back on") // the section's switch
 	if !slices.Equal(fb.tunStarted, []string{"t2"}) {
@@ -371,7 +371,7 @@ func TestSidebarForwardsEmpty(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "Forwards")
-	r.texts(t, "No forwards yet.")
+	r.texts(t, "No forwards yet")
 	r.click(t, "New forward")
 	r.texts(t, "New forward")
 }

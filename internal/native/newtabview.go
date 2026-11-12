@@ -66,7 +66,9 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 						})
 					})
 				case q != "" && offer == nil && offerErr == "":
-					body(c, "No saved host matches “"+q+"”.", inkMuted)
+					if emptySide(c, emptySpec{icon: "search-01", title: "No saved host matches “" + q + "”", desc: "Paste an ssh command to connect, or save it as a host.", action: "Clear filter"}) {
+						w.act(func() { t.page.query = "" })
+					}
 				}
 				w.section(c, "Start", "", func() {
 					ui.Grid(c).Columns(startGrid).Gap(space2).FillWidth().Children(func() {

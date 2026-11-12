@@ -233,7 +233,7 @@ func TestTypingFiltersTheCardsAndEnterOpensTheHighlightedOne(t *testing.T) {
 	}
 	r.tt.Type("9")
 	r.tt.Frame()
-	if len(cardNames(r)) != 0 || !r.tt.HasText("No saved host matches “srv-79”.") {
+	if len(cardNames(r)) != 0 || !r.tt.HasText("No saved host matches “srv-79”") {
 		t.Fatal("no empty message")
 	}
 	r.press(0, ui.KeyBackspace)

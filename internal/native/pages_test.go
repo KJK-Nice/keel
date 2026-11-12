@@ -273,7 +273,7 @@ func TestKeychainPageEmptyAndFilteredStates(t *testing.T) {
 	r2.tt.Key(ui.Cmd, ui.KeyA)
 	r2.tt.Type("zzz")
 	r2.tt.Frame()
-	r2.texts(t, "No identities match")
+	r2.texts(t, "Nothing matches “zzz”")
 }
 
 func TestKeychainPageNeverRendersASecret(t *testing.T) {
@@ -605,7 +605,7 @@ func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	r.tt.Key(ui.Cmd, ui.KeyA)
 	r.tt.Type("nothing like this")
 	r.tt.Frame()
-	r.texts(t, "No log entries", "Sessions, forwards and vault changes show up here.")
+	r.texts(t, "Nothing matches “nothing like this”", "empty Clear filter")
 }
 
 func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {

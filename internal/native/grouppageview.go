@@ -71,7 +71,9 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 			help(c, "Loading runbooks…")
 			return
 		case len(p.run.books) == 0:
-			help(c, groupNoBooks)
+			if emptySide(c, emptySentences("book", groupNoBooks, "Open Runbooks")) {
+				w.act(func() { w.openPage("runbooks") })
+			}
 			return
 		}
 		menuLabel(c, "Run on "+orElse(p.title, "this group"))
@@ -144,11 +146,9 @@ func (w *workspace) groupHostsTable(c *ui.Context, p *groupPage) {
 			}
 		})
 		if len(p.members) == 0 {
-			ui.Row(c).FillWidth().Padding(space6, space3).Justify(ui.Center).Children(func() {
-				if p.loaded {
-					help(c, groupNoHosts)
-				}
-			})
+			if p.loaded {
+				emptySide(c, emptySentences("server", groupNoHosts, ""))
+			}
 			return
 		}
 		for _, m := range p.members {
@@ -243,7 +243,7 @@ func (w *workspace) groupVarsBox(c *ui.Context, p *groupPage) {
 		})
 		ui.Column(c).FillWidth().Gap(space1_5).Label("group variables list").Children(func() {
 			if len(p.group.Vars) == 0 {
-				help(c, groupVarsEmpty)
+				emptySide(c, emptySentences("group", groupVarsEmpty, "")) // the Add row below is the action
 			}
 			for _, v := range p.group.Vars {
 				w.varRow(c, p, v)

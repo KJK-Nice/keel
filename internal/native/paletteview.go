@@ -66,7 +66,7 @@ func (w *workspace) paletteView(c *ui.Context) {
 				// With only the ask row left the filter found nothing. The app's list holds just that row and no message;
 				// the line stays here so that "nothing matched" still reads (a recorded difference).
 				if len(rows) == 0 || (len(rows) == 1 && rows[0].bare) {
-					ui.Row(c).FillWidth().Padding(space4, space3).Justify(ui.Center).Children(func() { body(c, "No matching commands", inkMuted) })
+					emptySide(c, emptySpec{icon: "search-01", title: "No matching commands"})
 				}
 				group := ""
 				for i, it := range rows {

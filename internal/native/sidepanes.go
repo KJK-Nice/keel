@@ -150,7 +150,9 @@ func (w *workspace) sidebarPanes(c *ui.Context, t *tab) {
 			w.paneRowView(c, t, r, r.id == focused)
 		}
 		if len(shown) == 0 {
-			caption(c, "No panes match.", inkMuted)
+			if emptySide(c, emptyNoMatch("panes-layout", w.paneQuery)) {
+				w.act(func() { w.paneQuery = "" })
+			}
 		}
 	})
 }

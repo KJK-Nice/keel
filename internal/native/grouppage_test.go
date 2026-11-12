@@ -45,7 +45,7 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 	if r.w.tab() != r.w.pageTab("group") || p.id != "infra" || r.w.tab().name() != "Infra" {
 		t.Fatalf("page %+v, tab %q", p, r.w.tab().name())
 	}
-	if miss := r.lacks("Infra", "Folder · 2 hosts.", "Run a runbook on this group", "Export to Ansible", "pg-1", "pg-2", "Address", "Agent", "Role", "Tags", groupRoleHelp, "Group variables", groupVarsEmpty); len(miss) > 0 {
+	if miss := r.lacks("Infra", "Folder · 2 hosts.", "Run a runbook on this group", "Export to Ansible", "pg-1", "pg-2", "Address", "Agent", "Role", "Tags", groupRoleHelp, "Group variables", emptyTitle(groupVarsEmpty)); len(miss) > 0 {
 		t.Errorf("the page lacks %q: %v", miss, r.tt.Texts())
 	}
 	// A folder below Infra: its page replaces the first (one instance), named after it.
@@ -228,7 +228,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	}
 	// Remove removes it.
 	r.click(t, "Remove k8s_version")
-	if g, _ = groupByID(r.fb.groups, "infra"); len(g.Vars) != 0 || !r.hasText(groupVarsEmpty) {
+	if g, _ = groupByID(r.fb.groups, "infra"); len(g.Vars) != 0 || !r.hasText(emptyTitle(groupVarsEmpty)) {
 		t.Errorf("variables %+v", g.Vars)
 	}
 }
@@ -256,7 +256,7 @@ func TestTheRunbookListOffersRunbooksWithStepsAndTheirRoles(t *testing.T) {
 	r.fb.mem.runbooks = nil
 	r.w.loadGroupRunbooks(r.w.groupPageState())
 	r.tt.Frame()
-	if !r.hasText(groupNoBooks) {
+	if !r.hasText(emptyTitle(groupNoBooks)) {
 		t.Errorf("no empty line: %v", r.tt.Texts())
 	}
 }

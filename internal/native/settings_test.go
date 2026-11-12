@@ -446,7 +446,7 @@ func TestSettingsAboutAndSearch(t *testing.T) {
 	r.fill(t, "Search settings", "⌘⇧T")
 	r.texts(t, "Keyboard", "Reopen last tab")
 	r.fill(t, "Search settings", "zzzz")
-	r.texts(t, "No settings match.")
+	r.texts(t, "Nothing matches")
 	r.fill(t, "Search settings", "")
 	r.texts(t, "About Keel", "Source")
 }

@@ -78,7 +78,9 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 	ui.PopoverBase(c, anchor, &open, func(panel ui.Element) {
 		panel.Width(sizeAgent-space6).Background(raised).Border(1, line).Radius(radiusMd).Shadow(0, 8, 24, 0, shadowPop).Padding(space1).Label("dialog Notebooks to send with your question")
 		if len(all) == 0 {
-			ui.Row(c).Padding(space2).Children(func() { help(c, "No notebooks yet. Write one first; then attach it here.") })
+			if emptySide(c, emptyNone("notebook-pen", "No notebooks yet", "Write one first; then attach it here.", "New notebook")) {
+				w.act(func() { a.nbPicker = ""; w.newNotebook() })
+			}
 			return
 		}
 		ui.Row(c).Padding(space1_5, space2, space1).Children(func() { menuLabel(c, "Notebooks to send with your question") })

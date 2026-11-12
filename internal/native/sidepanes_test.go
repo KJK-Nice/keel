@@ -125,7 +125,7 @@ func TestPanesFilterNarrowsRowsAndNeverTheMap(t *testing.T) {
 		t.Error("the filter narrowed the map")
 	}
 	r.fill(t, "Filter panes", "zzz")
-	r.texts(t, "No panes match.")
+	r.texts(t, "Nothing matches “zzz”")
 	// The sub line is read too, and each section keeps its own filter.
 	r.fill(t, "Filter panes", "Connected")
 	if !r.has("pane row api-1") || !r.has("pane row staging-web") {

@@ -291,14 +291,9 @@ func (w *workspace) agentEmpty(c *ui.Context, onPage bool) {
 		if a.provider != nil {
 			name = orElse(a.provider.Name, name)
 		}
-		ui.Column(c).FillWidth().Padding(space6, space2).Gap(space2).AlignItems(ui.Center).Children(func() {
-			icon(c, "ai-magic", inkFaint)
-			text(c, "Connect "+name+" first", ink, titleSize, weightSemibold)
-			ui.Text(c, "Add a key in the agent panel or in Settings · Agent. Nothing is sent until then.").TextColor(inkMuted).FontSize(captionSize).TextAlign(ui.Center)
-			if textBtn(c, "Open the agent panel", btnDefault) {
-				w.act(func() { w.setAgentOpen(true) })
-			}
-		})
+		if pr, _ := emptyPage(c, emptyNone("ai-magic", "Connect "+name+" first", "Add a key in the agent panel or in Settings · Agent. Nothing is sent until then.", "Open the agent panel")); pr {
+			w.act(func() { w.setAgentOpen(true) })
+		}
 		return
 	}
 	n := 200
@@ -309,11 +304,12 @@ func (w *workspace) agentEmpty(c *ui.Context, onPage bool) {
 	if onPage {
 		msg = "Pick a conversation on the left, or ask a new question. The agent reads the last " + strconv.Itoa(n) + " lines of each pane in scope, redacts secrets, and answers. Every read is written to the log."
 	}
-	ui.Column(c).FillWidth().Padding(space6, space2).Gap(space2).AlignItems(ui.Center).Children(func() {
-		icon(c, "ai-magic", inkFaint)
-		text(c, agentEmptyTitle, ink, titleSize, weightSemibold)
-		ui.Text(c, msg).TextColor(inkMuted).FontSize(captionSize).TextAlign(ui.Center)
-	})
+	spec := emptySpec{icon: "ai-magic", title: agentEmptyTitle, desc: msg}
+	if onPage { // the page has the room: the page size; the narrow panel gets the side size
+		emptyPage(c, spec)
+		return
+	}
+	emptySide(c, spec)
 }
 
 // agentConnect is "Connect Gemini": the provider's warning and the masked key field (PUT /api/agent/keys/{provider}).

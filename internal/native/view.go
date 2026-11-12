@@ -461,7 +461,11 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					return
 				}
 				ui.Column(c).FillWidth().Gap(space2).Children(func() {
-					for _, g := range w.groups() {
+					gs := w.groups()
+					if len(gs) == 0 {
+						w.hostsEmpty(c)
+					}
+					for _, g := range gs {
 						w.group(c, g)
 					}
 				})

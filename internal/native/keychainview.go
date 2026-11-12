@@ -81,14 +81,23 @@ func (w *workspace) keychainView(c *ui.Context, p *keychainPage) {
 func (w *workspace) identityList(c *ui.Context, p *keychainPage, current string) {
 	ui.Column(c).FillWidth().Children(func() {
 		if len(p.idents) == 0 {
-			if p.loaded {
-				sideEmpty(c, "No identities yet", "Add an SSH key or a password and attach it to hosts.")
+			switch {
+			case p.err != "":
+				if emptySide(c, emptyFailed("key-01", "identities", p.err)) {
+					w.act(func() { w.loadPage(w.tab()) })
+				}
+			case p.loaded:
+				if emptySide(c, emptyNone("key-01", "No identities yet", identitiesNone, "New identity")) {
+					w.act(w.newIdentity)
+				}
 			}
 			return
 		}
 		shown := p.shown()
 		if len(shown) == 0 {
-			sideEmpty(c, "No identities match", "Clear the filter.")
+			if emptySide(c, emptyNoMatch("search-01", p.filter)) {
+				w.act(func() { p.filter = "" })
+			}
 			return
 		}
 		for _, g := range []struct{ kind, name string }{{"key", "SSH keys"}, {"password", "Passwords"}} {

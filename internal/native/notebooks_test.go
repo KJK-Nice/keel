@@ -74,14 +74,14 @@ func TestTheSidebarListsNotebooksPinnedFirstAndFiltersThem(t *testing.T) {
 	}
 	r.w.snipQuery = "nothing like this"
 	r.frames(2)
-	if !r.tt.HasText("No notebooks match.") {
-		t.Error("no 'No notebooks match.'")
+	if !r.tt.HasText("Nothing matches “nothing like this”") {
+		t.Error("no no-match state")
 	}
 	r.w.notebooks = nil
 	r.w.snipQuery = ""
 	r.frames(2)
-	if !r.tt.HasText("No notebooks yet.") {
-		t.Error("no 'No notebooks yet.'")
+	if !r.tt.HasText("No notebooks yet") {
+		t.Error("no 'No notebooks yet'")
 	}
 }
 
