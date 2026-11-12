@@ -66,12 +66,10 @@ func (r *rig) shadowEdge(name string, margin int) int {
 	}
 	r.must("windows", nil, &ws)
 	b := ws.Windows[0].Bounds
-	out := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
 	m := float64(margin)
 	rect := strconv.Itoa(int(b.X-m)) + "," + strconv.Itoa(int(b.Y-m)) + "," + strconv.Itoa(int(b.Width+2*m)) + "," + strconv.Itoa(int(b.Height+2*m))
-	if o, err := exec.Command("screencapture", "-x", "-R", rect, out).CombinedOutput(); err != nil {
-		r.t.Fatalf("screencapture: %v %s", err, o)
-	}
+	out := r.screenCapture(name, rect)
+	r.skipNoScreen(out)
 	f, err := os.Open(out)
 	if err != nil {
 		r.t.Fatal(err)
@@ -153,8 +151,7 @@ func TestWindowShadowSwitch(t *testing.T) {
 	r.press("tab Local Shell")
 	r.line("clear")
 	r.settle()
-	r.screenShot("shadow-3-off-shell")
-	img := readPNG(t, filepath.Join(r.root, ".scratch-native", "automation", "shadow-3-off-shell.png"))
+	img := readPNG(t, r.screenPicture("shadow-3-off-shell"))
 	if d := flatness(img, image.Rect(700, 300, 2300, 1300)); d > ghostFlatMax {
 		t.Errorf("with the shadow off the pane is not flat (%d)", d)
 	}
@@ -185,8 +182,7 @@ func TestTerminalCursorAndSelectionAreNotBrass(t *testing.T) {
 			y := p.Bounds.Y + 58
 			r.drag(p.Bounds.X+8, y, p.Bounds.X+8+120, y)
 			r.settle()
-			r.screenShot("term-accent-" + theme)
-			img := readPNG(t, filepath.Join(r.root, ".scratch-native", "automation", "term-accent-"+theme+".png"))
+			img := readPNG(t, r.screenPicture("term-accent-"+theme))
 			near := 0
 			b := img.Bounds()
 			for y := b.Min.Y + 140; y < b.Min.Y+400; y++ {
@@ -247,13 +243,11 @@ func TestNoGhostUnderLowOpacity(t *testing.T) {
 			openShell(r)
 			r.backdrop()
 			r.line("clear")
-			dir := filepath.Join(r.root, ".scratch-native", "automation")
 			check := func(step string) {
 				t.Helper()
 				r.settle()
 				time.Sleep(700 * time.Millisecond) // the shadow is cut again 150 ms after the last frame
-				r.screenShot(name + "-" + step)
-				f, err := os.Open(filepath.Join(dir, name+"-"+step+".png"))
+				f, err := os.Open(r.screenPicture(name + "-" + step))
 				if err != nil {
 					t.Fatal(err)
 				}

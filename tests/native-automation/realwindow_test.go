@@ -291,11 +291,46 @@ func (r *rig) screenShot(name string) {
 	}
 	r.must("windows", nil, &ws)
 	b := ws.Windows[0].Bounds
-	out := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
 	rect := strconv.Itoa(int(b.X)) + "," + strconv.Itoa(int(b.Y)) + "," + strconv.Itoa(int(b.Width)) + "," + strconv.Itoa(int(b.Height))
-	if o, err := exec.Command("screencapture", "-x", "-R", rect, out).CombinedOutput(); err != nil {
+	r.screenCapture(name, rect)
+}
+
+// screenCapture runs screencapture -R rect into .scratch-native/automation/<name>.png and returns the path. A runner without
+// the screen-recording permission (or without a screen) makes no file: a test that reads the picture then SKIPS
+// (skipNoScreen); one that only keeps it for the eye goes on.
+func (r *rig) screenCapture(name, rect string) (path string) {
+	r.t.Helper()
+	path = filepath.Join(r.root, ".scratch-native", "automation", name+".png")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.Remove(path) // a picture of an earlier run must not pass for this one
+	o, err := exec.Command("screencapture", "-x", "-R", rect, path).CombinedOutput()
+	if err != nil {
 		r.t.Logf("screencapture: %v %s", err, o)
 	}
+	if st, serr := os.Stat(path); serr != nil || st.Size() == 0 {
+		r.noScreen = "screencapture made no picture (" + strings.TrimSpace(string(o)) + "); it needs the screen-recording permission and a screen"
+		return ""
+	}
+	return path
+}
+
+// skipNoScreen skips the test when the last capture made no picture.
+func (r *rig) skipNoScreen(path string) {
+	r.t.Helper()
+	if path == "" {
+		r.t.Skip(r.noScreen)
+	}
+}
+
+// screenPicture is screenShot for a test that judges the picture: it returns the file's path, or skips the test.
+func (r *rig) screenPicture(name string) string {
+	r.t.Helper()
+	r.screenShot(name)
+	p := filepath.Join(r.root, ".scratch-native", "automation", name+".png")
+	if _, err := os.Stat(p); err != nil {
+		r.t.Skip(r.noScreen)
+	}
+	return p
 }
 
 // Plan 032 step 7 / plan 031 looks, in both themes: both sashes hovered, and a row's context menu (a native menu, so it is

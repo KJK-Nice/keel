@@ -46,6 +46,7 @@ type rig struct {
 	conn                       net.Conn
 	rd                         *bufio.Reader
 	n                          int
+	noScreen                   string // why the last screencapture made no picture (realwindow_test.go capture)
 }
 
 func repoRoot(t *testing.T) string {
@@ -375,7 +376,9 @@ func (r *rig) cleanup() {
 		select {
 		case <-r.appDone:
 		default:
-			r.t.Error("the app was still running at the end of the test; killing it")
+			if !r.t.Skipped() { // a test skipped for want of a screen leaves the app running on purpose
+				r.t.Error("the app was still running at the end of the test; killing it")
+			}
 			r.app.Process.Kill()
 			<-r.appDone
 		}
@@ -402,7 +405,10 @@ func (r *rig) cleanup() {
 		}
 	}
 	if _, err := os.Lstat(r.sock); err == nil {
-		r.t.Errorf("the socket file is left at the end of the test")
+		if !r.t.Skipped() {
+			r.t.Errorf("the socket file is left at the end of the test")
+		}
+		os.Remove(r.sock)
 	}
 	os.RemoveAll(r.dir)
 }
