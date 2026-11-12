@@ -438,6 +438,9 @@ type runbooksPage struct {
 	err        string
 	loaded     bool
 
+	listState ui.ListState // the list's keyboard choice (Up, Down, Home, End), MyGo's ui.List
+	choice    int          // the row of listState.Selected
+
 	selected string // the saved runbook open in the editor
 	ed       *rbEditor
 	saving   bool

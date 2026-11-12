@@ -46,7 +46,7 @@ func (w *workspace) runbooksView(c *ui.Context, p *runbooksPage) {
 	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
 		hairline(ui.Column(c).Width(sizeList).Shrink(0).FillHeight().Background(w.ground(surface)), 0, 1, 0, 0).Children(func() {
 			w.runbooksHead(c, p)
-			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("runbooks list").Children(func() { w.runbooksList(c, p) })
+			w.runbooksList(c, p)
 			hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space2, space4), 1, 0, 0, 0).Children(func() {
 				if !p.unreadable && p.err == "" {
 					caption(c, countWord(len(p.list), "runbook", "runbooks")+" · stored in the vault", inkFaint)
@@ -145,37 +145,46 @@ func (w *workspace) conversationMenu(c *ui.Context, p *runbooksPage) {
 }
 
 func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
-	ui.Column(c).FillWidth().Children(func() {
+	var shown []keelclient.Runbook
+	if !p.unreadable && p.err == "" {
+		shown = filterRunbooks(p.list, p.filter)
+	}
+	p.choice = -1
+	for i, rb := range shown {
+		if rb.ID == p.selected {
+			p.choice = i
+		}
+	}
+	p.listState.Key = func(i int) any { return shown[i].ID }
+	p.listState.Label = func(i int) string { return shown[i].Name }
+	p.listState.Selected = &p.choice
+	l := ui.List(c, &p.listState, len(shown), func(i int) { w.runbookRow(c, p, shown[i]) }).FillWidth().Grow(1).Shrink(1).Label("runbooks list")
+	l.Children(func() {
 		switch {
 		case p.unreadable:
 			if emptySide(c, emptyFailed("book", "runbooks", "keel.memory cannot be read. Delete all notes in Settings · Agent starts a fresh file.")) {
 				w.act(w.loadRunbooks)
 			}
-			return
 		case p.err != "":
 			if emptySide(c, emptyFailed("book", "runbooks", p.err)) {
 				w.act(w.loadRunbooks)
 			}
-			return
 		case len(p.list) == 0:
 			if p.loaded {
 				if emptySide(c, emptyNone("book", "No runbooks yet", runbooksNone, "New runbook")) {
 					w.act(w.newRunbook)
 				}
 			}
-			return
-		}
-		shown := filterRunbooks(p.list, p.filter)
-		if len(shown) == 0 {
+		case len(shown) == 0:
 			if emptySide(c, emptyNoMatch("search-01", p.filter)) {
 				w.act(func() { p.filter = "" })
 			}
-			return
-		}
-		for _, rb := range shown {
-			w.runbookRow(c, p, rb)
 		}
 	})
+	if l.Changed() && p.choice >= 0 && p.choice < len(shown) {
+		id := shown[p.choice].ID
+		w.act(func() { w.selectRunbook(id) })
+	}
 }
 
 // runbookRow is a list row: its name, where it came from, Use when and its hosts, and the Agent may pick switch.

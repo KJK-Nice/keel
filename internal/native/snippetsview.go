@@ -44,9 +44,7 @@ func (w *workspace) snippetsView(c *ui.Context, p *snippetsPage) {
 	ui.Row(c).Grow(1).FillWidth().FillHeight().Children(func() {
 		hairline(ui.Column(c).Width(sizeList).Shrink(0).FillHeight().Background(w.ground(surface)), 0, 1, 0, 0).Children(func() {
 			w.splitHead(c, "Snippets", "New snippet", &p.filter, "Filter snippets", &p.filterH, w.newSnippet)
-			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label("snippet list").Children(func() {
-				w.snippetList(c, p, cur.ID)
-			})
+			w.snippetList(c, p, cur.ID)
 		})
 		ui.Scroll(c).Grow(1).FillHeight().Shrink(1).MinWidth(0).Background(w.ground(stage)).Label("snippet editor").ObserveInput(w.snippetKeys).Children(func() {
 			ui.Column(c).FillWidth().Padding(space6, space8).Gap(space4).Children(func() {
@@ -63,18 +61,30 @@ func (w *workspace) snippetsView(c *ui.Context, p *snippetsPage) {
 }
 
 func (w *workspace) snippetList(c *ui.Context, p *snippetsPage, current string) {
-	ui.Column(c).FillWidth().Children(func() {
-		shown := w.shownSnippets(p.filter)
+	shown := w.shownSnippets(p.filter)
+	p.choice = -1
+	for i, s := range shown {
+		if s.ID == current {
+			p.choice = i
+		}
+	}
+	p.list.Key = func(i int) any { return shown[i].ID }
+	p.list.Label = func(i int) string { return shown[i].Name }
+	p.list.Selected = &p.choice
+	l := ui.List(c, &p.list, len(shown), func(i int) {
+		w.snippetRow(c, p, shown[i], shown[i].ID == current)
+	}).FillWidth().Grow(1).Shrink(1).Label("snippet list")
+	l.Children(func() {
 		if len(shown) == 0 && w.live { // none at all is the whole page's empty state (snippetsView)
 			if emptySide(c, emptyNoMatch("search-01", p.filter)) {
 				w.act(func() { p.filter = "" })
 			}
-			return
-		}
-		for _, s := range shown {
-			w.snippetRow(c, p, s, s.ID == current)
 		}
 	})
+	if l.Changed() && p.choice >= 0 && p.choice < len(shown) {
+		id := shown[p.choice].ID
+		w.act(func() { p.selected = id })
+	}
 }
 
 func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s keelclient.Snippet, selected bool) {

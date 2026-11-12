@@ -28,6 +28,8 @@ type snippetsPage struct {
 	filter   string
 	selected string // the snippet id; the first one while this is not in the list
 	filterH  ui.Handle
+	list     ui.ListState // the list's keyboard choice (Up, Down, Home, End), MyGo's ui.List
+	choice   int          // the row of list.Selected
 	ed       snippetEditor
 }
 
