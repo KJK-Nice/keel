@@ -125,6 +125,53 @@ func cardNames(r *rig) (out []string) {
 	return
 }
 
+// Plan 032 item 8b: a card's name and its user@address line stay inside the card's padding at every UI size and in a
+// narrow window, and a tip on each carries the full text.
+func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
+	defer setUISize(uiSizeDefault)
+	long := keelclient.Host{ID: "hl", Name: "production-database-replica-eu-central-1-az-b-primary", Address: "db-replica-01.eu-central-1.internal.example-corporation.com", Username: "deployment-automation", AuthType: "key"}
+	sub := hostSubtitle(long)
+	for _, width := range []int{1280, 760} {
+		for size := uiSizeMin; size <= uiSizeMax; size++ {
+			r := newRig(t, &fakeBackend{hosts: []keelclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", AuthType: "local"}, long}})
+			setUISize(size)
+			r.w.win.UISize = size
+			r.tt.SetSize(width, 720)
+			r.w.tab().page.query = "production" // the card of a host that is not a recent one
+			r.tt.Frame()
+			r.tt.Frame()
+			card, ok := r.tt.Find("start card " + long.Name)
+			if !ok {
+				t.Fatalf("size %d width %v: no card in %v", size, width, r.tt.Texts())
+			}
+			for _, s := range []string{long.Name, sub} {
+				box, ok := r.tt.Find(s)
+				if !ok {
+					t.Fatalf("size %d width %v: no text %q", size, width, s)
+				}
+				if edge := box.X + box.W; edge > card.X+card.W-space3 {
+					t.Errorf("size %d width %v: %q ends at %.1f, the card's padding starts at %.1f", size, width, s, edge, card.X+card.W-space3)
+				}
+				r.tt.Move(box.X+box.W/2, box.Y+box.H/2)
+				r.tt.Advance(time.Second)
+				r.tt.Frame()
+				n := 0
+				for _, x := range r.tt.Texts() {
+					if x == s {
+						n++
+					}
+				}
+				if n != 2 { // the text and its tip
+					t.Errorf("size %d width %v: %q shown %d times with the pointer on it, want the text and its tip", size, width, s, n)
+				}
+				r.tt.Move(1, 1)
+				r.tt.Advance(time.Second)
+				r.tt.Frame()
+			}
+		}
+	}
+}
+
 func TestEmptyWindowShowsTheNewTabPage(t *testing.T) {
 	r := startRig(t)
 	r.onPage(t)

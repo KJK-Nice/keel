@@ -1297,6 +1297,48 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.shot("TestE2ENewTabPage")
 }
 
+// Plan 032 item 8b: cards of hosts with long names and addresses keep their text inside the card, in both themes.
+func TestE2ENewTabLongHostCards(t *testing.T) {
+	addr, dir := startServe(t, true)
+	tok, err := authtoken.Read(dir)
+	if err != nil {
+		t.Fatal("read token: ", err)
+	}
+	for i, n := range []string{"production-database-replica-eu-central-1-az-b-primary", "staging-kubernetes-control-plane-ap-southeast-2-node"} {
+		body, _ := json.Marshal(map[string]any{
+			"name": n, "address": fmt.Sprintf("host-%d.eu-central-1.internal.example-corporation.com", i), "port": 2222, "username": "deployment-automation",
+			"authType": "password", "password": "unused-fixture", "noAutoReconnect": true, "tags": []string{"prod"},
+		})
+		req, _ := http.NewRequest("POST", "http://"+addr+"/api/hosts", strings.NewReader(string(body)))
+		req.Header.Set(authtoken.Header, tok)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("POST /api/hosts: %s", resp.Status)
+		}
+	}
+	e := newWin(t, addr, dir, nil)
+	e.pump(e.onStartPage, "the New tab page")
+	e.w.tab().page.query = "eu-central"
+	for _, th := range []string{themeDark, themeLight} {
+		e.w.setTheme(th)
+		e.pump(func() bool { return e.w.dark == (th == themeDark) && e.hasLabel("start card production-database-replica-eu-central-1-az-b-primary") }, th+" theme and the long cards")
+		e.settle(300 * time.Millisecond)
+		for _, n := range []string{"production-database-replica-eu-central-1-az-b-primary", "staging-kubernetes-control-plane-ap-southeast-2-node"} {
+			card, ok := e.tt.Find("start card " + n)
+			box, ok2 := e.tt.Find(n)
+			if !ok || !ok2 || box.X+box.W > card.X+card.W-space3 {
+				t.Errorf("%s: %q at %v is not inside its card %v", th, n, box, card)
+			}
+		}
+		e.shot("TestE2ENewTabLongHostCards-" + th)
+	}
+}
+
 // A pane dragged by its bar onto the centre of another swaps the two; no session is opened or closed, and the new order is
 // what the saved workspace restores.
 func TestE2EDraggingAPaneBarSwapsThePanes(t *testing.T) {

@@ -170,8 +170,8 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 		ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).
 			Background(hostTint(h.Color).Alpha(tileTintAlpha)).Children(func() { icon(c, ic, hostTint(h.Color)) })
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
-			bodyStrong(c, h.Name, ink).MinWidth(0)
-			ui.Row(c).Gap(space1_5).MinWidth(0).Children(func() {
+			bodyStrong(c, h.Name, ink).MinWidth(0).Tooltip(h.Name)
+			ui.Row(c).FillWidth().Gap(space1_5).MinWidth(0).Children(func() {
 				if p.connecting == h.ID {
 					ui.Spinner(c).Label("Connecting").Shrink(0)
 					cardSub(c, "Connecting…")
@@ -179,9 +179,10 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 				}
 				if n := w.panesOn(h.ID); n > 0 {
 					stateDot(c, "live")
-					cardSub(c, fmt.Sprintf("%d live · ", n))
+					cardSub(c, fmt.Sprintf("%d live · ", n)).Shrink(0)
 				}
-				cardSub(c, hostSubtitle(h))
+				sub := hostSubtitle(h)
+				cardSub(c, sub).Tooltip(sub)
 			})
 		})
 		for i, o := range w.cards(p) {
@@ -197,7 +198,9 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 	}
 }
 
-func cardSub(c *ui.Context, s string) { text(c, s, inkMuted, kbdSize, weightRegular).Font(monoStack) }
+func cardSub(c *ui.Context, s string) ui.Element {
+	return text(c, s, inkMuted, kbdSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0)
+}
 
 // startAction is a k-start-action button: icon, label, key cap.
 func (w *workspace) startAction(c *ui.Context, glyph, name, keys string, run func()) {
@@ -229,9 +232,9 @@ func (w *workspace) closedRowView(c *ui.Context, t *tab, i int, e closedEntry, n
 	}
 	r.Children(func() {
 		icon(c, "reopen", inkMuted)
-		body(c, label, col).MinWidth(0)
+		body(c, label, col).MinWidth(0).Shrink(1).Tooltip(label)
 		ui.Spacer(c)
-		body(c, ageLabel(e.at, now), inkFaint)
+		body(c, ageLabel(e.at, now), inkFaint).Shrink(0)
 		if i == 0 {
 			kbd(c, "⌘⇧T")
 		}
