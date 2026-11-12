@@ -49,12 +49,12 @@ hex out of views. `uisize_test.go` checks UI size scales rem sizes, not px ones;
 `TestSplitsTileTheStage` and `assertFits` check that splits fit the window.
 Check a new view in both themes (`TestE2EThemeSwitch` writes the `-light` shots).
 
-**Look at the reference image next to the native shot before claiming a screen
-matches**: open `docs/images/<screen>.png` and `.scratch-native/e2e/<Test>.png`
-with the image reader and list every difference (layout, spacing, size, colour,
-icon, wording, missing elements). Read the app's templ and `keel.css` too: the
-images are older than the code. Record it in "Compared with the app" in
-`docs/native.md`: fixed, known gap (phase) or needs a decision.
+**The look is native first (plans 030, 031), not the webview's**: do not hold a
+screen to `docs/images/`. Open `.scratch-native/e2e/<Test>.png` in both themes
+with the image reader and judge it as a MyGo app (see "Look (plans 030 and 031)").
+Compare with the app's reference image only for behaviour and content (words,
+order, controls, missing elements) and record those in "Compared with the app"
+in `docs/native.md`.
 
 ## The bundle
 
@@ -432,7 +432,9 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 - Empty states: `TestE2EEmptyStates` empties the seeded snippets and writes `TestE2EEmpty-<place>-{dark,light}.png`; unit:
   `empty_test.go`. Flat caps beside text: `TestE2EFlatKeyCapShots`, and `TestE2EKeyCaps-{dark,light}` for the held ones.
 
-## Look (plan 030)
+## Look (plans 030 and 031)
+
+The sections "Look (plan 028)" above are partly superseded: the opacity formula and lines are plan 030's, below.
 
 The look is MyGo's: its components, its light and dark themes, the system font, the **system accent** and Keel's fixed meaning
 colours. It is defined in `internal/native/theme.go` (`windowTheme`, `deriveAccent`, `useAccent`), `tokens.go` (the palette:
@@ -443,6 +445,27 @@ Read tool). Unit: `look_test.go` (palette equals MyGo's, accent contrast for the
 fixed), `working_test.go` (Blocks while the model works, gone on answer, error, timeout and Stop, still under reduced motion).
 Take BASE shots into a temp dir before changing a screen and compare after; a pixel test of a look now asserts the same fact on
 the MyGo component (the chosen segment has its own face; a disabled button is dimmer), not a colour literal.
+
+Plan 031 (controls and structure), what to check and where it is held:
+
+- Theme: Settings · Appearance has System / Light / Dark; `theme_test.go`, `TestE2EThemeSwitch-light*.png`. The accent is the
+  system's (MyGo's blue in the Tester); `theme.go` derives the family (`accentFill`, `accentInk`, `accentSoft`, `accentStrong`,
+  `onAccent`).
+- MyGo controls: buttons, inputs, search fields, segmented controls, switches, sliders, check boxes (`ui.CheckboxState`), radio
+  groups, badges (`neutralBadge`), spinners (`waitHelp`, `busyMark`; MyGo's Blocks only while the model works), tooltips on icon
+  buttons and truncated rows. Snippets and Runbooks lists are `ui.List`; the Settings section list is `ui.Sidebar`.
+- Dialogs wear `modalChrome` and every confirm starts on Cancel, Enter does not destroy:
+  `TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy`; Escape returns the keyboard to the pane: `TestEscapeGivesTheKeyboardBackToThePane`
+  (`focusreturn_test.go`). Shots: `TestE2EThemeSwitch-light-dialog.png`, `TestE2EApproveBeforeType-dialog.png`,
+  `TestE2EAgentProposesADelete-confirm.png`.
+- Sidebar: resizable from its right edge (`sash.go`, `sidebarsash_test.go`, `TestE2ESidebarWidthIsKept`; saved as `sidebarWidth`
+  in `keel-native.json`; minimum is the four labels' width, 246 at the default UI size; Enter or double click resets, Home / End,
+  arrows and ⇧ step). The agent panel's sash is the same `widthSash` (Enter resets it too). The chosen host or pane row is accent
+  while the list has the keyboard in an active window and grey otherwise: `chosenrow_test.go`; on the accent its tile and "…" icon
+  are on-accent coloured. Shots: `TestE2ESidebarChosen-accent-{dark,light}.png`, `-grey-dark.png`, `TestE2ESidebarWidth-{dark,light}.png`, `TestE2ESettingsSections-*-{dark,light}.png`
+  (arrows stop at the seam above About Keel), `TestE2EFindBar-{dark,light}.png`.
+- The e2e PNGs are in `.scratch-native/e2e/` (run `TestE2ESidebar|TestE2ESettings` for these); open both themes, never one.
+- Not covered by a test, person only: the system accent changing while the window runs, real blur, VoiceOver names.
 
 ## The built app from outside (plan 029)
 
