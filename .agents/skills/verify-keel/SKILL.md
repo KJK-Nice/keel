@@ -1,210 +1,44 @@
 ---
 name: verify-keel
-description: Launch, check, drive, prove, and bug bash Keel's UI (the Vault, terminal tabs, command palette) with e2e, against an isolated `keel serve` in WebKit (primary) or Chromium. Use before claiming a Keel UI or httpapi change works, when asked to verify or screenshot a Keel screen, or to bug bash Keel. Also covers the native MyGo client `keel-native`, through `make native-e2e`.
+description: Launch, check, drive and prove Keel's native window (tabs, the Vault sidebar, the command palette, dialogs, the terminal) with `make native-e2e` and `make native-automation`, against a scratch `keel serve`. Use before claiming a Keel UI or httpapi change works, or when asked to verify or screenshot a Keel screen.
 ---
 
 # Verify Keel
 
-Read `.agents/skills/e2e/SKILL.md` first. This skill only says what is true
-of Keel. The config is `e2e.config.ts` (two targets sharing one app:
-`webkit`, the primary, because the macOS app is a WKWebView, and `chromium`,
-a stand-in for Windows WebView2; tests `tests/**/*.e2e.ts`). Use `--target
-webkit` for proofs and screenshots, and run both targets before claiming a
-change works, one `--target` per invocation (both would share one data dir); shared helpers are in `tests/keel.ts`; the bug bash
-uses `e2e.bugbash.config.ts`.
+Keel has one UI: the native MyGo window in `internal/native` (the Wails webview and the web page the daemon served were removed in cutover stage 2). `keel serve` serves only its JSON/WebSocket API. What is true of the window and how each feature behaves is in [features/native.md](features/native.md) and `docs/native.md`; read the section for the feature you touched.
 
-Which UI a check drives: `keel app` now opens the native MyGo window, so a change to the window itself is checked with [features/native.md](features/native.md) (`make native-e2e`), not with this skill's e2e. The rest of this skill is the webview (`keel app --webview`) and the `keel serve` HTTP/UI page, which stay until the webview is removed.
+## Rules that never bend
 
-What is driven: the webview app is a Wails webview pointed at `keel serve`'s
-loopback HTTP server, and the same page loads in a browser. e2e drives that
-page in headless Playwright WebKit or Chromium against a `keel serve` it starts itself. The
-Wails window's own chrome (the system WKWebView, which differs from Playwright's WebKit build; the macOS menu, ⌘-shortcuts Wails owns, the dock) is
-still not covered; say so when a change lives there. The MyGo client `keel-native` is verified as [features/native.md](features/native.md) describes.
+- Scratch data only. Every check runs on its own data directory and loopback port, with `KEEL_KEYRING=off` (never read or write the OS keychain item) and `KEEL_AGENT_PROVIDER=fake` when the agent is involved. Never point anything at the user's Keel: not `127.0.0.1:47241`, not the default data directory, not `~/.ssh` (the host import reads `KEEL_SSH_DIR`, which the tests point at a copy of `tests/fixtures/ssh-home/.ssh`).
+- Stop a daemon you started by its handle or with `KEEL_ADDR=<addr> KEEL_DATA=<dir> ./bin/keel serve stop`, never `pkill keel`: that kills the user's own Keel and its PTYs.
+- Never print a token file's contents.
 
-## Launch
+## The checks
 
-Build first, every time Go, `.templ`, JS, or CSS changed: `make build`. The
-web assets are embedded in `bin/keel`, so a stale binary serves a stale UI
-and tests pass against old code. `/api/health` reports the `build` id.
+```bash
+go test -count=1 ./internal/native/...   # logic and view tests under MyGo's ui.Tester, no window
+make native-e2e                          # the real view, terminal (libghostty) and client against a scratch keel serve it starts
+make native-automation                   # the built app driven from outside through MyGo's automation socket (opens real windows briefly)
+```
 
-The target's `app.command` runs `scripts/e2e-serve.sh serve`, which starts
-`bin/keel-signal` on a free loopback port (log `.e2e/logs/keel-signal.log`),
-then `./bin/keel serve` with `KEEL_SIGNAL` pointing at it (so Share and Join
-work; see [features/share.md](features/share.md)), and with:
-
-- `KEEL_ADDR=127.0.0.1:{port}`: port `0` in `app.url`, so every run gets a
-  free port and never touches the user's Keel on `127.0.0.1:47241`.
-- `KEEL_DATA=.e2e/keel-data` (or `$KEEL_E2E_DATA`): a scratch `keel.json`,
-  `keel.vault`, `keel.log`, and token. keel serve locks this dir, so two runs
-  at once need two dirs.
-- `KEEL_VAULT_PASSPHRASE` (scratch value, `$KEEL_E2E_VAULT_PASSPHRASE`
-  overrides) opens the scratch vault, and `KEEL_KEYRING=off` keeps keel
-  serve away from the OS keychain: it neither reads nor writes the user's
-  real `keel`/`vault` item. Never drop either.
-- `KEEL_SSH_DIR=.e2e/ssh-home/.ssh`: the host import reads this fixture
-  (copied from `tests/fixtures/ssh-home/.ssh` by `e2e-serve.sh`, with two
-  fresh keys), never the real `~/.ssh`. `~` in it is `.e2e/ssh-home`.
-- `SHELL=/bin/sh`: Local Shell gets a plain `sh-3.2$` prompt, not the
-  user's shell config.
-- `bin/keel-sshtest` (built by `make build`): two throwaway SSH servers on
-  127.0.0.1, a jump host and a target behind it, with an echo shell. Their
-  ports, users, passwords and fingerprints are in `$KEEL_DATA/sshtest.json`;
-  tests read them with `sshTest()` from `tests/keel.ts`
-  (`tests/host-dialog.e2e.ts`). They are the only SSH servers in e2e; any
-  other host fails to connect.
-
-The runner waits for `/api/health`, then stops the process after the run.
-Server output goes to `.e2e/logs/keel-serve.log`. Nothing else to start: a
-fresh data dir seeds the Local Shell host and four snippets. With
-`KEEL_VAULT_PASSPHRASE` set there is no first run, so tests open on the
-Vault.
-
-The vault screens (First run, Unlock) need a keel serve without a
-passphrase: `startScratchKeel(name)` in `tests/keel.ts` starts one on a free
-port with `KEEL_KEYRING=off`, the fixture `KEEL_SSH_DIR`, a scratch `HOME`
-and data in `.e2e/first-run-data/<name>`, and stops it by PID
-(`features/onboarding.md`, `features/unlock.md`). Never start one without
-`KEEL_KEYRING=off` and never point `KEEL_SSH_DIR` at a real `~/.ssh`.
-
-Auth: keel serve requires a token on `/`, `/api/`, `/ws/`, `/ui/`. The config
-calls `keelToken()` at load, which writes `keel-serve.token` into the data
-dir before keel serve starts and registers it as the `keel-token` secret, so
-traces show `<secret:keel-token>`. Every test opens the UI with
-`openKeel(app)`, which loads `/?keel_token=…&name=e2e`; the server trades it
-for a cookie and redirects to `/?name=e2e`. `app.open('/')` alone is a 401
-page ("open this window from the Keel app").
+- `make native-e2e` builds `bin/keel`, `bin/keel-sshtest` and `bin/keel-signal`, then runs `go test -tags nativee2e -run TestE2E ./internal/native/`. It writes one PNG per test to `.scratch-native/e2e/<Test>.png` and the daemon log to `.scratch-native/e2e/<Test>/serve.log`. Look at the PNGs, in both themes, before you claim a visual change works. Run it twice when a change touches timing.
+- `make native-automation` builds `bin/keel-e2e` (the build tag `keelautomation`, which no release path passes) and runs `tests/native-automation/`: the menu bar, close and reopen, real keys, both themes. See "Driving the built app from outside" in `docs/native.md`. It is not part of `make test`.
+- A change to `keel serve` (the httpapi) is also covered by `go test ./internal/httpapi/`; the window and the daemon agree through `internal/native/keelclient`.
 
 ## Doctor
 
-```bash
-make build                          # only if bin/keel is older than your change
-npx e2e list                        # loads the config, starts nothing; exit 0, each test listed for webkit and chromium
-npx e2e run tests/smoke.e2e.ts --target webkit  # starts keel serve, opens the window, pins the Vault sidebar's New host + Search hosts; exit 0
-```
-
-`list` failing is the config or `npm install`. `run` failing with
-`APP_UNREACHABLE` is keel serve dying on boot: read
-`.e2e/logs/keel-serve.log` (a held lock means another run, or a keel serve
-you started, uses the same `KEEL_DATA`). `LOCATOR_NOT_FOUND` on `New host` is
-a 401 page (token) or a stale binary. Run Doctor first whenever anything
-looks off. Every page load logs one `SyntaxError: Unexpected token ')'` in both engines (see
-Gotchas); that alone is not a Doctor failure.
+If something looks off: `go build ./... && go vet ./...`, then `make native-e2e` for one test (`go test -tags nativee2e -count=1 -run TestE2ESplitAndFocus ./internal/native/`, after `make native-e2e` has built `bin/keel` once). A held lock on a data directory means another daemon uses it. The first run fetches libghostty-vt into the user cache (SHA-256 checked).
 
 ## Drive
 
-Live, over the registered `e2e mcp` server (`.mcp.json`): `open_session
-{config: "e2e.bugbash.config.ts"}`, which authenticates the browser up front
-(below) so the first observation is the Vault; on `e2e.config.ts` it is the
-401 page. Then `observe`, the verbs, and `locate` before writing any locator
-(topic `mcp`). The catalog offers no project tools and no `type_secret`: the
-config declares no credentials. A session and `npx e2e run` on the same
-`KEEL_DATA` cannot both hold its lock: close the session first.
+There is no browser and no web page to drive. A person drives the real window; an agent drives it with the tester (`ui.Tester`: `Click`, `Key`, `Type`, `Image`) in a `TestE2E…` test, or from outside with the automation socket in `tests/native-automation/`. Check effects on the server (`Sessions()`, `/api/sessions/<id>/scrollback`, `/api/hosts`, `/api/logs` with the `X-Keel-Token` header), not only in the model. To add a scenario see "Adding a scenario" in [features/native.md](features/native.md).
 
-Scripted: a test under `tests/`, importing `openKeel`, `keelApi`, `keelJson`
-from `./keel.ts`. Use `screen` for every control in the feature map; all
-the Vault's controls have accessible names. Use `agent.act` only for a flow
-that varies; it needs `AI_GATEWAY_API_KEY` (the config's model is
-`gateway('openai/gpt-6-luna-fast')`). Handles that hold:
+## Bundle
 
-- The Vault is a sidebar: `screen.getByRole('complementary', 'Vault')`;
-  scope to it, since the tab strip and the New tab repeat names. Its
-  segments are buttons `Hosts` | `Panes` (only while the tab has 2+ panes) | `Snippets` | `Forwards`, its footer
-  `Keychain` | `Logs` | `Settings`. Tab pages are regions:
-  `getByRole('region', 'Keychain' | 'Port forwarding' | 'Snippets' |
-  'Notebooks' | 'Logs' | 'Settings')`. The sidebar segment and open state
-  persist in `localStorage` across tests in one browser.
-- Modals (`New host`, `New identity`, `New snippet`) are `<dialog>`s with
-  no accessible name: `screen.getByRole('dialog').filter({ hasText: 'New
-  host' })`, fields by label inside it.
-- Every card's menu button is just `Actions`: narrow the list with the
-  page's search first, then `getByRole('button', 'Actions', { visible: true
-  })`. Confirm dialogs are `alertdialog` with a `Remove` button.
-- The terminal is `getByRole('textbox', 'Terminal input')`; its output is
-  painted with WebGL and is not in the DOM. Read it from
-  `keelApi(app.baseUrl, '/api/sessions/<id>/scrollback')`.
+`make build` writes `bin/Keel.app` on macOS (the shipped app: `packaging/macos/`, libghostty-vt beside the binary). To check that it launches, run it on scratch data: `env KEEL_ADDR=127.0.0.1:<free port> KEEL_DATA=<scratch dir> KEEL_KEYRING=off KEEL_VAULT_PASSPHRASE=<scratch> SHELL=/bin/sh bin/Keel.app/Contents/MacOS/keel app`, wait for the port, then stop it and its `keel serve` as above. Opening the app from Finder is a person-only check.
 
-No signed-in sessions: the token cookie is the only auth, set per test by
-`openKeel`.
+## What only a person can check
 
-## Evidence
-
-Every run writes `.e2e/report.json`. A failed test gets
-`.e2e/results/<test>/trace.md` with the screen tree, the app log, and a
-screenshot; `--trace on` writes it for passing tests too; `--video` records
-each attempt; `app.screenshot('<name>')` saves a named frame (the hosts and
-terminal tests save `host-added` and `terminal-output`). The next run clears
-`.e2e/results/`, Doctor included, so a proof that must outlive it runs with
-`--output .e2e/proof/<name>`.
-
-Visual-only changes (tokens, CSS, fonts): `tests/visual.e2e.ts` saves
-`<theme>-hosts`, `-new-host`, `-snippets`, `-settings`, `-terminal`,
-`-palette`, `-newtab`, `-palette-groups`, and more in dark and light. Run it with `--target webkit` on the base build with `--output
-.e2e/proof/<name>-before`, then `make build` with the change and run it with
-`--output .e2e/proof/<name>-after`; compare the pairs by name. It sets the
-theme through `localStorage['keel-theme']`, as the Settings select does.
-
-A proof drives the page the way a user does: the sidebar or footer button, the
-labelled field, the Save button, the card's menu, and captures the action
-and the state after it, not only the final screen. Check side effects in
-keel serve, read-only, with `keelApi` (the `X-Keel-Token` header, like
-native clients): `/api/hosts`, `/api/identities`, `/api/snippets`,
-`/api/notebooks`, `/api/sessions`, `/api/sessions/<id>/scrollback`,
-`/api/logs`. On disk, `keelJson()` is `.e2e/keel-data/keel.json`; secrets
-must be absent from it and live only in the encrypted `keel.vault` (the
-hosts test pins this). Never drive the UI through the API or a POST; that
-is not the user path.
-
-## Bug bash
-
-`e2e.bugbash.config.ts` spreads `e2e.config.ts`, adds
-`tests/bugbash/**` to the glob, and replaces the engine (keeping each target's browser) with `web({ browser, headers:
-{ 'X-Keel-Token': keelToken() }, initScripts: [<sets the keel_auth_<port>
-cookie to the token>] })`: explore and MCP open the bare app URL, which is
-a 401 without auth, and WebSockets (`/ws/session`, `/ws/herd`) carry no
-extra headers, hence the cookie. It declares `default`, `skeptic`, and
-`fuzzer` personas on `gateway('openai/gpt-6-luna-fast')` with 40 steps and
-model calls. Its `context` says what local Keel cannot do: no reachable SSH
-server (any host but Local Shell fails to connect), a loopback signal server
-only (a window can join its own share), no destructive terminal commands, the WebGL terminal
-is invisible to the tree. Set `AI_GATEWAY_API_KEY` first.
-
-The charters are in [features/](features/), under each feature's `Charters`
-H2, in the `slug|target|agent|charter` format topic `bug-bash` step 3 reads.
-No accounts to seed. Isolation: port `0` gives each explorer its own keel
-serve, but each also needs its own data dir, so the fan-out sets
-`KEEL_E2E_DATA=.e2e/bugbash-data/$1` per charter:
-
-```bash
-... | xargs -0 -n 4 -P 4 sh -c \
-  'KEEL_E2E_DATA=".e2e/bugbash-data/$1" npx e2e explore "$4" --config e2e.bugbash.config.ts --target "$2" --agent "$3" --output ".e2e/bugbash/$1" --max-steps 6 --video --reporter list,markdown < /dev/null > ".e2e/bugbash/$1.log" 2>&1' _
-```
-
-Explorers start on the window with the Vault sidebar (the header and
-cookie above): begin each charter with "Starting at the Vault sidebar (the
-app opens with it beside a New tab),". `.e2e/bugbash/`, `.e2e/bugbash-data/`,
-`.e2e/proof/`, `.e2e/keel-data/`, `.e2e/ssh-home/` and `.e2e/first-run-data/` are in `.gitignore`. A finding is a bug
-once `tests/bugbash/<slug>.e2e.ts` fails with `ASSERTION_FAILED` on the
-assertion that encodes it; anything else is the explorer's claim.
-
-## Cleanup
-
-The runner stops the keel serve it started; `close_session` stops the one a
-session started. A keel serve you started by hand is yours to stop with
-`KEEL_ADDR=<addr> KEEL_DATA=<dir> ./bin/keel serve stop`, never `pkill
-keel` (that kills the user's own Keel and its PTYs). Then:
-
-- `rm -rf .e2e/keel-data` resets the Vault to its seed state. Runs share it,
-  so a test that failed midway leaves its host or snippet behind; tests use
-  unique names and do not depend on an empty list.
-- `rm -rf .e2e/bugbash-data/<slug>` per charter after the bash, and
-  `.e2e/bugbash/<slug>/` for a charter whose findings were all rejected.
-
-Keep `.e2e/results/`, `.e2e/proof/`, `.e2e/report.json`, and the videos;
-that is the proof, and all of it is gitignored.
-
-## Helpers
-
-`tests/keel.ts`: `keelData`, `keelToken()`, `openKeel(app)`,
-`keelApi(baseUrl, path)`, `keelJson()`, `sshDir`, `startScratchKeel(name)`. No scripts; the e2e CLI is the helper.
+The blur and the real see-through window, the menu chords, Dock and menu bar behaviour, Finder launch and the look on a real display. Say so when a change lives there.
 
 PR before/after screenshots: see `.agents/skills/pr-screenshots/SKILL.md`.

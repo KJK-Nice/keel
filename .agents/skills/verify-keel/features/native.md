@@ -1,8 +1,7 @@
 # Native client (keel-native)
 
-The MyGo window in `internal/native`, the window `keel app` opens (cutover
-stage 1; `--webview` opens the old one) and a client of `keel serve`
-(`docs/native.md`). It is verified with Go tests, not with e2e or a browser.
+The MyGo window in `internal/native`, the window `keel app` opens (the only
+UI since cutover stage 2) and a client of `keel serve` (`docs/native.md`). It is verified with Go tests, not with e2e or a browser.
 The app shell (menu bar, menu bar item, keep in menu bar, Dock) is not
 reachable by the tester; `shell_test.go` covers its tables and docs/native.md
 lists what a person checks.
@@ -50,11 +49,9 @@ hex out of views. `uisize_test.go` checks UI size scales rem sizes, not px ones;
 Check a new view in both themes (`TestE2EThemeSwitch` writes the `-light` shots).
 
 **The look is native first (plans 030, 031), not the webview's**: do not hold a
-screen to `docs/images/`. Open `.scratch-native/e2e/<Test>.png` in both themes
-with the image reader and judge it as a MyGo app (see "Look (plans 030 and 031)").
-Compare with the app's reference image only for behaviour and content (words,
-order, controls, missing elements) and record those in "Compared with the app"
-in `docs/native.md`.
+screen to `docs/images/` (screenshots of the removed webview). Open
+`.scratch-native/e2e/<Test>.png` in both themes with the image reader and
+judge it as a MyGo app (see "Look (plans 030 and 031)").
 
 ## The bundle
 
@@ -68,8 +65,7 @@ and the bundled binary exits 0 and the PNG shows a prompt. Opening it from Finde
 
 `.scratch-native/e2e/<Test>.png` (one per test) and the daemon log
 `.scratch-native/e2e/<Test>/serve.log`. Look at the PNGs before claiming a
-visual change works, next to `docs/images/hero-dark.png` or the matching
-webview screenshot. The tree is git-ignored.
+visual change works. The tree is git-ignored.
 
 ## Adding a scenario
 
@@ -369,7 +365,7 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 
 ## Notebooks and the agent (`e2e_agentnotebooks_test.go`, `agentnotebooks_test.go`, `agentnbcards_test.go`, plan 024)
 
-- The fake provider's notebook questions (`providertest/scripted.go`, `tests/agent-notebooks.e2e.ts`): `edit the notebook <title in lower case>`
+- The fake provider's notebook questions (`providertest/scripted.go`): `edit the notebook <title in lower case>`
   turns `keel-edit-me` into `keel-edited-by-agent` (it reads the notebook first, so the ask makes a Read line and an Edited card),
   `drop the notebook <title>` proposes a delete, `read the notebook <title>` reads it, `write this up` creates `keel-notebook-e2e draft`.
   `e.putAgentKey()`, `e.openLocal()`, `e.openAgent()` first; `e.settledAsk(q)` waits for the answer.
@@ -422,8 +418,7 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 
 ## References and key caps (plan 016)
 
-- Before claiming a screen matches the app, open the native shot beside the app's image: `docs/images/<screen>.png` (five) and, where they exist, `docs/images/reference/<screen>-<theme>.png`. Record each visible difference in the table in `docs/native.md`. A screen with no reference is compared only with the rules and tokens; say so.
-- Refresh the references where `node_modules` exists (a worktree has none: link the main checkout's read-only, use `npx --no-install`, remove the link after, never stage it; never install): `make build`, then `npx --no-install e2e run tests/readme.e2e.ts --target webkit --output .e2e/proof/readme` (seeded made-up hosts, `scripts/e2e-serve.sh`: `KEEL_KEYRING=off`, scratch data, fake agent). The `reference screens` tests write `ref-<screen>-<theme>` shots under `.e2e/proof/readme/results/*/attempt-1/screenshots/`; copy them to `docs/images/reference/` without the number and `ref-`. The tests scrub path, host, user and join-link values from the DOM first, but look at every PNG for real data before committing it.
+- `docs/images/` and `docs/images/reference/` are screenshots of the removed webview and have no generator now; do not refresh them. Judge a screen from the native shot (`.scratch-native/e2e/`) against the rules and tokens.
 - Key caps (`keycaps.go`): the clock is the tester's, so hold with `tt.HoldModifiers(ui.Cmd)`, `Frame()`, then `tt.Advance(capDelay + capFade)`; caps are elements labelled `key cap <keys>` (`tt.Texts()`, `tt.Find`). A key pressed with `tt.KeyDown` or a click with `tt.ClickAtWith(ui.Cmd, x, y)` hides them; `tt.SetFocused(false)` too. In the e2e a menu shortcut (⌘⇧D) leaves its key "down", so the hold ignores keys down when it began. Shots: `TestE2EKeyCaps-dark` and `-light`.
 
 ## Look (plan 028)

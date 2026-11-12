@@ -20,7 +20,7 @@
 
 ## Features
 
-- **Native desktop window** ([MyGo](https://github.com/egoist/mygo) and libghostty terminals, no webview; `keel app --webview` opens the previous Wails window for now). Tabs, splits, a command palette (⌘K) and [keyboard shortcuts](docs/shortcuts.md) for everything.
+- **Native desktop window** ([MyGo](https://github.com/egoist/mygo) and libghostty terminals, no webview). Tabs, splits, a command palette (⌘K) and [keyboard shortcuts](docs/shortcuts.md) for everything.
 - **Sessions that survive the window.** PTYs live in `keel serve`; close the window to detach, reopen Keel and your tabs come back.
 - **Encrypted vault.** Passwords, private keys and passphrases are encrypted with [age](https://age-encryption.org) and wrapped by the OS keychain. Import hosts from `~/.ssh/config` in one step; your `~/.ssh` is never changed. [More →](docs/vault.md)
 - **Share a session over the internet** with WebRTC. Joiners see one terminal, never your hosts or keys, and follow read-only until you hand over control. [More →](docs/sharing.md)
@@ -40,10 +40,9 @@ Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/rel
 
 **macOS 13+** (Apple Silicon and Intel): unzip `Keel-*-macos-universal.zip` and move **Keel.app** to Applications. Keel is not notarized by Apple yet, so macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`.
 
-**Linux** (Ubuntu 24.04+ or another distro with GTK 4 and WebKitGTK 6), x86_64 or arm64:
+**Linux**, x86_64 or arm64 (the window is Keel's own, so there is no GTK or WebKit to install; the archive carries libghostty-vt beside the binary):
 
 ```bash
-sudo apt install libgtk-4-1 libwebkitgtk-6.0-4
 tar -xzf keel-*-linux-x86_64.tar.gz && ./keel-*/keel
 ```
 
@@ -59,7 +58,7 @@ make build
 ./bin/keel            # macOS: or open bin/Keel.app
 ```
 
-Linux needs `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`; macOS needs the Xcode Command Line Tools (`xcode-select --install`). Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+No C toolchain is needed to build; macOS needs the Xcode Command Line Tools (`xcode-select --install`) for `codesign`. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 
@@ -83,7 +82,7 @@ Close the window whenever you like: sessions keep running in `keel serve` until 
 
 ## How it works
 
-Go owns SSH and PTYs in a local daemon, `keel serve`. The window is native ([MyGo](https://github.com/egoist/mygo), pure Go, with [libghostty](https://ghostty.org) terminals) and talks to `keel serve` on a loopback-only, token-protected HTTP server (`docs/native.md`). Until the webview is removed, `keel app --webview` (or `KEEL_UI=webview`) opens the previous window: a [Wails v3](https://v3.wails.io) webview whose UI is [templ](https://templ.guide) + [shadcn-templ](https://shadcn-templ.com) + [Datastar](https://data-star.dev) with [xterm.js](https://xtermjs.org) terminals. Shared sessions travel over WebRTC, so the local API never leaves your machine.
+Go owns SSH and PTYs in a local daemon, `keel serve`. The window is native ([MyGo](https://github.com/egoist/mygo), pure Go, with [libghostty](https://ghostty.org) terminals) and talks to `keel serve` on a loopback-only, token-protected HTTP server (`docs/native.md`). The daemon serves no web page. Shared sessions travel over WebRTC, so the local API never leaves your machine.
 
 ## License
 

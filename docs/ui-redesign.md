@@ -2,9 +2,10 @@
 
 Status: design approved for build · 2026-10-13
 
-- Tokens and components (source of truth in the repo): [`docs/design/`](design/)
-  - `tokens.json`: every token, both themes. `tokens.css`: the same as CSS custom properties.
-  - `components.css`: reference `k-*` component styles. `README.md`: usage rules (the brand book).
+> **Note (cutover stage 2, 2026-11-12).** This spec was written for the Wails webview (templ, Datastar, xterm.js, `cmd/keel/web`, `internal/ui`), which has been removed. [`native.md`](native.md) describes what is built in the native window; the screens, the agent invariants (§6) and the rationale below still hold, and the native code cites these section numbers. File names, CSS classes (`k-*`), `term.js` and the Datastar stream mentioned below are history. `tokens.css` and `components.css` no longer exist.
+
+- Tokens (source of truth in the repo): [`docs/design/`](design/)
+  - `tokens.json`: every token, both themes. `README.md`: usage rules (the brand book).
 - Design system (live, browsable): https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1
 - Screens (canvas, 17 boards): https://claude.ai/artifact/GJaVi8YQSrxoNiDVXoi2sW
 
