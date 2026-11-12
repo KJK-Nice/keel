@@ -2,11 +2,11 @@
 # Builds the release files into dist/. The release workflow runs it
 # (.github/workflows/release.yml); it also runs locally, and changes nothing outside the worktree: it never uploads.
 #
-#   sh scripts/release.sh v0.1.0 macos   Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
+#   sh scripts/release.sh v0.2.0 macos  Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
 #                                        keel-<mygo.json version>.dmg (Keel.app inside)
-#   sh scripts/release.sh v0.1.0 linux   Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
+#   sh scripts/release.sh v0.2.0 linux  Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
 #                                        keel-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
-#   sh scripts/release.sh v0.1.0 signal  keel-signal for every OS (plain go build, not a MyGo app)
+#   sh scripts/release.sh v0.2.0 signal keel-signal for every OS (plain go build, not a MyGo app)
 #
 # The version of the packages is "version" in mygo.json and must equal the tag (a v0.0.0-pr<N> dry run of the
 # workflow is the one exception). `keel version` prints the tag (MYGO_LDFLAGS -X main.version).
@@ -19,7 +19,7 @@ set -eu
 
 tag=${1:?usage: scripts/release.sh vX.Y.Z macos|linux|signal}
 what=${2:?usage: scripts/release.sh vX.Y.Z macos|linux|signal}
-case "$tag" in v[0-9]*) ;; *) echo "release: version must look like v0.1.0, got $tag" >&2; exit 1 ;; esac
+case "$tag" in v[0-9]*) ;; *) echo "release: version must look like v0.2.0, got $tag" >&2; exit 1 ;; esac
 v=${tag#v}
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

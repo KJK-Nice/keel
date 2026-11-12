@@ -18,7 +18,7 @@ func init() {
 }
 
 // version is the release this binary was built as, set by the release
-// build: make build VERSION=v0.1.0 (-X main.version).
+// build: make build KEEL_VERSION=v0.2.0 (-X main.version).
 var version = "dev"
 
 func main() {

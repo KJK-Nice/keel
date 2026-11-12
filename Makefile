@@ -4,7 +4,7 @@ ADDR ?= 127.0.0.1:47241
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
 # Release builds stamp the version into `keel version`:
-#   make package KEEL_VERSION=v0.1.0
+#   make package KEEL_VERSION=v0.2.0
 # (the packages carry the version of mygo.json; scripts/release.sh checks the two agree)
 KEEL_VERSION ?= dev
 KEEL_X := -X main.version=$(KEEL_VERSION)

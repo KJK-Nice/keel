@@ -1,6 +1,16 @@
+## What's new in v0.2.0
+
+- **The window is native.** Keel's window is drawn by [MyGo](https://github.com/egoist/mygo) with libghostty terminals; the webview is gone, and so is `keel app --webview` (a leftover `--webview` argument or `KEEL_UI=webview` prints one line saying so). The daemon serves no web page.
+- **Building needs no GTK or WebKit** (nor cgo, Node or a C toolchain): `make build` is pure Go. On Linux the window needs GTK 3 at run time.
+- **Packages.** macOS: one universal `.dmg` (Apple Silicon and Intel). Linux: a `.tar.gz` and a `.deb` for x86_64 (`amd64`) and arm64. Each carries libghostty-vt, so Keel never downloads it.
+- **Sharing.** The browser join page is gone: a shared session is joined from Keel, with **Join session** and the link. A link opened in a browser answers one line saying so.
+- **The local API** accepts only the `X-Keel-Token` header (no cookie, no query parameter).
+- **Known gaps** compared with the old window: the find bar has no Match case, there is no Previous / Next command, and the terminal's right-click menu is the plugin's own (Copy, Paste, Select all, Clear), without Find, Split or Close pane. `docs/native.md` lists what is missing.
+- **Linux** packages are built but the Linux window has not been run by the maintainer.
+
 ## Install
 
-**macOS 13 or later** (Apple Silicon and Intel): download `keel-*.dmg`, open it and drag **Keel.app** to Applications. If the release is not notarized by Apple (its notes say so), the first launch is blocked: open **System Settings → Privacy & Security**, scroll to "Keel was blocked…" and click **Open Anyway**, or run
+**macOS 13 or later** (Apple Silicon and Intel): download `keel-*.dmg`, open it and drag **Keel.app** to Applications. Keel is signed ad hoc and not notarized unless this release says it is; macOS then blocks the first launch: open **System Settings → Privacy & Security**, scroll to "Keel was blocked…" and click **Open Anyway** (skip this if macOS opens it without a warning), or run
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Keel.app
