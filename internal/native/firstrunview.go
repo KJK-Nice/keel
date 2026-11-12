@@ -195,8 +195,8 @@ func radio(c *ui.Context, on bool) {
 
 // choiceCard is button.k-choice-card: a radio, a title with an optional badge, and the description. It reports a click.
 func choiceCard(c *ui.Context, name string, on, disabled bool, title, badgeText, desc string) bool {
-	r := ui.Row(c).FillWidth().Padding(space3, space4).Gap(space3).AlignItems(ui.Start).Radius(radiusMd).Background(surface).
-		Label(name).Cursor(ui.CursorPointer).Checked(on)
+	selected := on
+	r := ui.RadioBase(c, &selected, true).Row().FillWidth().Padding(space3, space4).Gap(space3).AlignItems(ui.Start).Radius(radiusMd).Background(surface).Label(name)
 	switch {
 	case on:
 		r.Border(1, focus).Shadow(0, 0, 0, 1, focus)
@@ -330,26 +330,21 @@ func (w *workspace) hostsStep(c *ui.Context, f *firstRun) {
 	})
 }
 
-// checkBox is k-check: a square with a tick, a bar when mixed. It reports a click.
+// checkBox is MyGo's check box that can be mixed (a dash), named by name. The caller owns the state: this reports a click and
+// the caller sets the state it shows next frame.
 func checkBox(c *ui.Context, name string, st checkState, disabled bool) bool {
-	r := ui.Row(c).Size(radioSize, radioSize).Radius(radiusXs).Justify(ui.Center).Shrink(0).Label(name).Cursor(ui.CursorPointer).Checked(st == checkOn)
-	if st == checkOff {
-		r.Background(stage).Border(1, lineStrong)
-	} else {
-		r.Background(brass).Border(1, brass)
+	s := ui.CheckOff
+	switch st {
+	case checkOn:
+		s = ui.CheckOn
+	case checkMixed:
+		s = ui.CheckMixed
 	}
+	b := ui.CheckboxState(c, &s, "").Label(name)
 	if disabled {
-		r.Opacity(dimAlpha).Disabled(true)
+		b.Disabled(true)
 	}
-	r.Children(func() {
-		switch st {
-		case checkOn:
-			iconSized(c, "tick", onBrass, iconSizeSm)
-		case checkMixed:
-			ui.Box(c).Size(space3, space0_5).Radius(radiusFull).Background(onBrass)
-		}
-	})
-	return !disabled && r.Clicked()
+	return !disabled && b.Changed()
 }
 
 // importCols are the table's columns as weights: Host, Address, User, Key, Via.

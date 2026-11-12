@@ -157,37 +157,23 @@ func sliderCtlStep(c *ui.Context, name string, v *float64, lo, hi, step float64,
 
 // radioGroup is a k-radios group: one choice is on; a badge sits beside a choice's words; off greys the group.
 func radioGroup(c *ui.Context, name string, opts [][2]string, current string, off bool, badges map[string]string, pick func(string)) {
-	ui.Column(c).FillWidth().Gap(space0_5).Label(name).Children(func() {
+	sel := current
+	ui.RadioGroup(c, func() {
 		for _, o := range opts {
-			on := o[0] == current
-			r := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(o[0]).Label(name + " " + o[1]).Cursor(ui.CursorPointer).Selected(on)
-			switch {
-			case off:
-				r.Opacity(dimAlpha).Disabled(true)
-			case r.Hovered():
-				r.Background(hoverGround)
-			}
-			r.Children(func() {
-				ring := ui.Row(c).Size(space4, space4).Radius(radiusFull).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).Background(stage).Border(1, lineStrong)
-				if on {
-					ring.Border(1, brass)
+			ui.Row(c).FillWidth().Gap(space2).Key(o[0]).Children(func() {
+				r := ui.Radio(c, &sel, o[0], o[1]).Label(name + " " + o[1])
+				if off {
+					r.Disabled(true)
 				}
-				ring.Children(func() {
-					if on {
-						ui.Box(c).Size(space2, space2).Radius(radiusFull).Background(brass)
-					}
-				})
-				body(c, o[1], ink)
 				if b := badges[o[0]]; b != "" {
 					outlineBadge(c, b)
 				}
 			})
-			if r.Clicked() && !off && !on {
-				v := o[0]
-				pick(v)
-			}
 		}
-	})
+	}).Label(name)
+	if sel != current && !off {
+		pick(sel)
+	}
 }
 
 // ---- the provider cards ----
