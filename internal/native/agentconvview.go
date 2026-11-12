@@ -31,9 +31,17 @@ func (w *workspace) agentSessions(c *ui.Context, anchor ui.Element) {
 		rows := flatRows(groups)
 		a.sess.sel = min(a.sess.sel, len(rows)-1)
 		ui.Row(c).FillWidth().Shrink(0).Padding(space2, space2, space1).Children(func() {
-			// A TextInput that asks to be a search field: OnTextKey reaches an input, not the field around one.
-			ui.TextInput(c, &a.sess.filter).Search().Label("Search conversations").Placeholder("Search conversations").FillWidth().MinWidth(0).
-				Bind(&a.sess.filterH).OnTextKey(func(k ui.TextKey) bool { return w.sessionKey(k, rows) })
+			// MyGo's way to a search field that sees ↑ ↓ ↵: OnTextKey reaches an input, not the field around one, so the field
+			// is built as ui.SearchField draws it (a magnifier and an input in the theme's field chrome) on an input that asks
+			// to be a search field.
+			t := c.Theme()
+			ui.Row(c).FillWidth().MinWidth(0).AlignItems(ui.Center).Gap(space1_5).Padding(t.Space(1.5), t.Space(2)).Radius(t.Radius).
+				Background(t.Surface).Border(1, t.Border).Children(func() {
+				icon(c, "search-01", inkMuted)
+				ui.TextInputBase(c, &a.sess.filter).Search().Label("Search conversations").Placeholder("Search conversations").
+					PlaceholderColor(inkFaint).TextColor(ink).FontSize(uiFontSize).Grow(1).MinWidth(0).
+					Bind(&a.sess.filterH).OnTextKey(func(k ui.TextKey) bool { return w.sessionKey(k, rows) })
+			})
 		})
 		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).MinHeight(0).Label("conversations").Children(func() {
 			ui.Column(c).FillWidth().Padding(space1, space1_5, space1_5).Children(func() {

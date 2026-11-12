@@ -42,7 +42,7 @@ func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
 	shift := rowsNeedShift(live)
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
 		modalChrome(c, backdrop, panel)
-		panel.Width(dialogWidth*1.4).Padding(space4).Gap(space3).Label("dialog " + groupApproveTitle)
+		panel.Width(dialogWidth * 1.4).Padding(space4).Gap(space3).Label("dialog " + groupApproveTitle)
 		text(c, groupApproveTitle, ink, titleSize, weightSemibold)
 		ui.Text(c, groupApproveHint).TextColor(inkMuted).FontSize(uiFontSize)
 		if same && len(typeable) > 0 {

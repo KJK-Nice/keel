@@ -269,7 +269,7 @@ func (w *workspace) notebookDialogView(c *ui.Context) {
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
 		modalChrome(c, backdrop, panel)
-		panel.Width(sizeReading+sizeList).Padding(space4).Gap(space3).Label("dialog " + d.title)
+		panel.Width(sizeReading + sizeList).Padding(space4).Gap(space3).Label("dialog " + d.title)
 		text(c, d.title, ink, titleSize, weightSemibold)
 		ui.Text(c, d.desc).TextColor(inkMuted).FontSize(uiFontSize).MaxLines(0)
 		ui.Row(c).FillWidth().Gap(space3).Height(sizeRow * 8).MinHeight(0).Children(func() {
