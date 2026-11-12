@@ -20,7 +20,7 @@ func TestTheSidebarsSashResizesItAndTheWidthIsKept(t *testing.T) {
 		}
 	}
 	r := agentRig(t)
-	width := func() float32 { p, ok := r.tt.Find("Resize sidebar"); _ = ok; return p.X + p.W + 1 } // the sash is on the right edge, inside the 1 px seam
+	width := func() float32 { p, ok := r.tt.Find("Resize sidebar"); _ = ok; return p.X + p.W } // the sash is on the right edge, over the 1 px seam
 	near := func(got, want float32) bool { return got > want-1 && got < want+1 }
 	sash := func() (x, y float32) {
 		s, ok := r.tt.Find("Resize sidebar")

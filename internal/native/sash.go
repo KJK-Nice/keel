@@ -98,11 +98,13 @@ type sashSpec struct {
 func (w *workspace) widthSash(c *ui.Context, s *sashState, sp sashSpec) {
 	sign := float32(-1) // a sash on the left edge: dragging left widens
 	b := ui.Box(c).Absolute().Top(0).Bottom(0).Width(space2).Cursor(ui.CursorResizeColumn).Focusable().Bind(&s.h).Label(sp.label)
+	// The panel's 1 px border is outside the box's containing block, so the strip reaches one pixel over it and the visible
+	// line (below) covers the border and the pixel inside it.
 	if sp.rightEdge {
 		sign = 1
-		b.Right(0)
+		b.Right(-1)
 	} else {
-		b.Left(0)
+		b.Left(-1)
 	}
 	if dx, _, down := b.Dragged(); down {
 		s.drag = true
@@ -138,6 +140,13 @@ func (w *workspace) widthSash(c *ui.Context, s *sashState, sp sashSpec) {
 		}
 	})
 	if s.drag || b.Hovered() || s.h.FocusWithin(c) {
-		b.Children(func() { ui.Box(c).Absolute().Top(0).Bottom(0).Left(space1).Width(1).Background(accentInk) })
+		b.Children(func() {
+			l := ui.Box(c).Absolute().Top(0).Bottom(0).Width(2).Background(accentInk)
+			if sp.rightEdge {
+				l.Right(0)
+			} else {
+				l.Left(0)
+			}
+		})
 	}
 }
