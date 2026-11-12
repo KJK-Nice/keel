@@ -127,7 +127,7 @@ func TestEveryOpenTerminalGetsTheThemesColours(t *testing.T) {
 		t.Errorf("panes told %v, want once each", n)
 	}
 	if th := terminalTheme(); th.Background != tok(lightHex.termBg) || th.Foreground != tok(lightHex.termFg) || th.Palette[1] != tok(lightHex.ansi[1]) ||
-		th.Cursor != tok(lightHex.termCursor) || th.Selection != tok(lightHex.termSelection) {
+		th.Cursor != accent.base || th.Selection != accent.selection { // the system accent (terminalcolors_test.go has the rest)
 		t.Errorf("light terminal theme %+v", th)
 	}
 	r.w.setTheme(themeDark)

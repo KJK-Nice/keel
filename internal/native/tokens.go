@@ -13,66 +13,62 @@ import (
 type hexPalette struct {
 	chrome, stage, surface, raised, hover, line, lineStrong, ink, inkMuted, inkFaint     string
 	tide, tideSoft, signal, signalSoft, flare, flareSoft, onFlare, haze, hazeSoft, scrim string
-	termFg, termBg, termCursor, termSelection                                            string
+	termFg, termBg                                                                       string // the cursor and selection follow the system accent (terminalTheme)
 	shadowModal, shadowPop                                                               string // the drop shadows of the modal and the popover
 	ansi                                                                                 [16]string
 }
 
 var darkHex = hexPalette{
-	chrome:        "#18181b", // MyGo DarkTheme Background
-	stage:         "#080b10", // the terminal's surround: it must match termBg
-	surface:       "#18181b", // the page ground: the same Background
-	raised:        "#27272a", // DarkTheme Surface: controls, cards, dialogs
-	hover:         "#323236", // SurfaceHover
-	line:          "#3f3f46", // Border: seams and control outlines
-	lineStrong:    "#7e7e87", // Border toward Text by 35%: the unfocused ring and the few custom outlines
-	ink:           "#f4f4f5", // Text
-	inkMuted:      "#a1a1aa", // TextMuted
-	inkFaint:      "#86868d", // TextMuted toward Background by 20%
-	tide:          "#5dd2bd",
-	signal:        "#fc984c",
-	flare:         "#f66d67",
-	termSelection: "#e8b96047",
-	signalSoft:    "#fc984c24",
-	flareSoft:     "#f66d6726",
-	onFlare:       "#200a08",
-	haze:          "#85b6e9",
-	hazeSoft:      "#85b6e926",
-	scrim:         "#020407b8",
-	tideSoft:      "#5dd2bd24",
-	termFg:        "#e9edf2",
-	termBg:        "#080b10",
-	termCursor:    "#e8b960",
-	shadowModal:   "#000000a6", shadowPop: "#00000080",
+	chrome:      "#18181b", // MyGo DarkTheme Background
+	stage:       "#080b10", // the terminal's surround: it must match termBg
+	surface:     "#18181b", // the page ground: the same Background
+	raised:      "#27272a", // DarkTheme Surface: controls, cards, dialogs
+	hover:       "#323236", // SurfaceHover
+	line:        "#3f3f46", // Border: seams and control outlines
+	lineStrong:  "#7e7e87", // Border toward Text by 35%: the unfocused ring and the few custom outlines
+	ink:         "#f4f4f5", // Text
+	inkMuted:    "#a1a1aa", // TextMuted
+	inkFaint:    "#86868d", // TextMuted toward Background by 20%
+	tide:        "#5dd2bd",
+	signal:      "#fc984c",
+	flare:       "#f66d67",
+	signalSoft:  "#fc984c24",
+	flareSoft:   "#f66d6726",
+	onFlare:     "#200a08",
+	haze:        "#85b6e9",
+	hazeSoft:    "#85b6e926",
+	scrim:       "#020407b8",
+	tideSoft:    "#5dd2bd24",
+	termFg:      "#e9edf2",
+	termBg:      "#080b10",
+	shadowModal: "#000000a6", shadowPop: "#00000080",
 	ansi: [16]string{"#1c222a", "#f26d6a", "#8fcf8a", "#e8b960", "#7aaee8", "#c79bd8", "#5dd2bd", "#c5cbd3", "#4f5761", "#ff8f88", "#aee3a6", "#f5d08a", "#a3c8f2", "#dcb8e8", "#8ce6d6", "#f2f5f8"},
 }
 
 var lightHex = hexPalette{
-	chrome:        "#f4f4f5", // MyGo LightTheme Surface: the bars and the sidebar sit a step off the page
-	stage:         "#fafcfe",
-	surface:       "#ffffff", // Background: the page ground
-	raised:        "#ffffff",
-	hover:         "#e9e9ec", // SurfaceHover
-	line:          "#d9d9de", // Border
-	lineStrong:    "#96969a", // Border toward Text by 35%
-	ink:           "#18181b", // Text
-	inkMuted:      "#71717a", // TextMuted
-	inkFaint:      "#8d8d94", // TextMuted toward Background by 20%
-	tide:          "#0e6b62",
-	signal:        "#a54801",
-	flare:         "#ba2524",
-	termSelection: "#e7b55159",
-	signalSoft:    "#a548011f",
-	flareSoft:     "#ba25241a",
-	onFlare:       "#fcfcfc",
-	haze:          "#2c5ca3",
-	hazeSoft:      "#2c5ca31c",
-	scrim:         "#141a2266",
-	tideSoft:      "#0e6b621f",
-	termFg:        "#141a22",
-	termBg:        "#fafcfe",
-	termCursor:    "#82510d",
-	shadowModal:   "#141a2233", shadowPop: "#141a221f",
+	chrome:      "#f4f4f5", // MyGo LightTheme Surface: the bars and the sidebar sit a step off the page
+	stage:       "#fafcfe",
+	surface:     "#ffffff", // Background: the page ground
+	raised:      "#ffffff",
+	hover:       "#e9e9ec", // SurfaceHover
+	line:        "#d9d9de", // Border
+	lineStrong:  "#96969a", // Border toward Text by 35%
+	ink:         "#18181b", // Text
+	inkMuted:    "#71717a", // TextMuted
+	inkFaint:    "#8d8d94", // TextMuted toward Background by 20%
+	tide:        "#0e6b62",
+	signal:      "#a54801",
+	flare:       "#ba2524",
+	signalSoft:  "#a548011f",
+	flareSoft:   "#ba25241a",
+	onFlare:     "#fcfcfc",
+	haze:        "#2c5ca3",
+	hazeSoft:    "#2c5ca31c",
+	scrim:       "#141a2266",
+	tideSoft:    "#0e6b621f",
+	termFg:      "#141a22",
+	termBg:      "#fafcfe",
+	shadowModal: "#141a2233", shadowPop: "#141a221f",
 	ansi: [16]string{"#141a22", "#c22f2c", "#2f7a32", "#8a5a0c", "#2f62ac", "#8a3fa0", "#00736a", "#5a626b", "#6f7780", "#d9443f", "#3e8f40", "#a06e16", "#3f74c4", "#9c52b2", "#0d877c", "#9aa1a8"},
 }
 
@@ -196,9 +192,9 @@ func tok(hex string) ui.Color { return ui.Hex(hex) }
 // never names a theme.
 var (
 	chrome, stage, surface, raised, hoverGround, line, lineStrong, ink, inkMuted, inkFaint ui.Color
-	tide, signal, flare, termSelection                                                     ui.Color
+	tide, signal, flare                                                                    ui.Color
 	signalSoft, flareSoft, onFlare, haze, hazeSoft, scrim, tideSoft                        ui.Color
-	shadowModal, shadowPop, termFg, termBg, termCursor                                     ui.Color
+	shadowModal, shadowPop, termFg, termBg                                                 ui.Color
 	ansi                                                                                   [16]ui.Color
 )
 
@@ -224,7 +220,7 @@ func useTheme(dark bool) {
 	line, lineStrong, ink, inkMuted, inkFaint = tok(p.line), tok(p.lineStrong), tok(p.ink), tok(p.inkMuted), tok(p.inkFaint)
 	tide, tideSoft, signal, signalSoft = tok(p.tide), tok(p.tideSoft), tok(p.signal), tok(p.signalSoft)
 	flare, flareSoft, onFlare, haze, hazeSoft, scrim = tok(p.flare), tok(p.flareSoft), tok(p.onFlare), tok(p.haze), tok(p.hazeSoft), tok(p.scrim)
-	termFg, termBg, termCursor, termSelection = tok(p.termFg), tok(p.termBg), tok(p.termCursor), tok(p.termSelection)
+	termFg, termBg = tok(p.termFg), tok(p.termBg)
 	useAccent(dark, ui.Color{}) // the default accent until the frame reads the system's
 	shadowModal, shadowPop = tok(p.shadowModal), tok(p.shadowPop)
 	for i, h := range p.ansi {

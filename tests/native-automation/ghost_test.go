@@ -166,6 +166,52 @@ func TestWindowShadowSwitch(t *testing.T) {
 	r.quit()
 }
 
+// TestTerminalCursorAndSelectionAreNotBrass (plan 032 section 11): in a real window the terminal's cursor and selection are the
+// system accent's, not the old brass (#e8b960 dark, #82510d light). The shots (term-accent-dark.png, term-accent-light.png) are
+// opened by eye; the scan fails on any pixel within 10 of the old cursor colour.
+func TestTerminalCursorAndSelectionAreNotBrass(t *testing.T) {
+	for theme, brass := range map[string][3]int{"dark": {0xe8, 0xb9, 0x60}, "light": {0x82, 0x51, 0x0d}} {
+		t.Run(theme, func(t *testing.T) {
+			r := newRig(t)
+			r.ghostCfg(100, 0, theme)
+			r.startServe()
+			r.startApp()
+			openShell(r)
+			r.backdrop()
+			r.line("clear")
+			r.line("echo select this text")
+			r.settle()
+			p := find(r.tree(), "pane 1")
+			y := p.Bounds.Y + 58
+			r.drag(p.Bounds.X+8, y, p.Bounds.X+8+120, y)
+			r.settle()
+			r.screenShot("term-accent-" + theme)
+			img := readPNG(t, filepath.Join(r.root, ".scratch-native", "automation", "term-accent-"+theme+".png"))
+			near := 0
+			b := img.Bounds()
+			for y := b.Min.Y + 140; y < b.Min.Y+400; y++ {
+				for x := b.Min.X + 500; x < b.Min.X+1400; x++ {
+					cr, cg, cb, _ := img.At(x, y).RGBA()
+					if abs(int(cr>>8)-brass[0]) < 10 && abs(int(cg>>8)-brass[1]) < 10 && abs(int(cb>>8)-brass[2]) < 10 {
+						near++
+					}
+				}
+			}
+			if near > 0 {
+				t.Errorf("%d pixels of the old brass cursor colour in the terminal (term-accent-%s.png)", near, theme)
+			}
+			r.quit()
+		})
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 // ghostFlatMax is what an empty part of the pane may differ by: its own shadow's soft edge. A ghost of the New tab page is
 // 20 to 60 in this measure (see the captures ghost-*).
 const ghostFlatMax = 8

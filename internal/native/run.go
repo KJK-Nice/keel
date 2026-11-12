@@ -20,7 +20,7 @@ import (
 
 // terminalTheme is Keel's terminal palette from the tokens of the theme in use.
 func terminalTheme() *terminal.Theme {
-	return &terminal.Theme{Foreground: termFg, Background: termBg, Cursor: termCursor, Selection: termSelection, Palette: ansi}
+	return terminalColors(accent, termFg, termBg, ansi)
 }
 
 //go:embed fonts/*.woff2

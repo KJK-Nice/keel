@@ -3,6 +3,7 @@ package native
 import (
 	"runtime"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -44,6 +45,9 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 	w.osDark, w.dark, w.themeSeen = osDark, dark, true
 	useTheme(dark)
 	useAccent(dark, c.Preferences().Accent)
+	if accent != w.termAccent { // a new system accent gives every terminal its cursor and selection
+		changed, w.termAccent = true, accent
+	}
 	if w.translucentWin { // the grounds' alpha: the opacity, unless the theme cannot match the backdrop
 		w.alpha = alphaFor(w.win.Opacity)
 		if w.opaqueForTheme() {
@@ -67,7 +71,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 // Linux) and hands it to a frame as Context.Preferences().Accent, and a change of it repaints the next frame; zero means the
 // desktop has none, and the appearance's MyGo accent stands. No cgo and no private API: nothing of Keel's own reads it.
 // accentSet is the family a theme and the views take from it.
-type accentSet struct{ fill, hover, pressed, text, ink, soft, focus, selection ui.Color }
+type accentSet struct{ fill, hover, pressed, text, ink, soft, focus, selection, base ui.Color } // base is the system accent itself, opaque
 
 var accent accentSet
 
@@ -107,7 +111,7 @@ func deriveAccent(dark bool, a ui.Color) accentSet {
 			}
 		}
 	}
-	s := accentSet{fill: fill, text: text}
+	s := accentSet{fill: fill, text: text, base: a}
 	if dark {
 		s.hover, s.pressed = fill.Mix(white, 0.2), fill.Mix(black, 0.15)
 		s.selection, s.focus, s.soft = a.Alpha(0.4), a.Mix(white, 0.2).Alpha(0.6), a.Alpha(0.16)
@@ -130,6 +134,41 @@ func deriveAccent(dark bool, a ui.Color) accentSet {
 func useAccent(dark bool, a ui.Color) {
 	accent = deriveAccent(dark, a)
 	accentFill, accentStrong, onAccent, accentInk, accentSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
+}
+
+// terminalCursor is the terminal's cursor: the system accent itself, unless that has less than 3:1 against the terminal's
+// background (a pale accent on the light terminal, a dark one on the dark), when it is the terminal's foreground (plan 032
+// section 11).
+func terminalCursor(a accentSet, bg, fg ui.Color) ui.Color {
+	if contrast(a.base, bg) >= 3 {
+		return a.base
+	}
+	return fg
+}
+
+// readableOn is the one of the candidates with the most contrast against bg.
+func readableOn(bg ui.Color, candidates ...ui.Color) ui.Color {
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if contrast(c, bg) > contrast(best, bg) {
+			best = c
+		}
+	}
+	return best
+}
+
+// terminalColors is Keel's terminal theme from the colours in use. The cursor and the selection follow the system accent
+// (the selection is the accent's, as in a text field), and the text under a block cursor is whichever of the terminal's own
+// two colours reads better on it. A find match is a neutral tint; the current one is the accent, as the cursor is.
+func terminalColors(a accentSet, fg, bg ui.Color, palette [16]ui.Color) *terminal.Theme {
+	cur := terminalCursor(a, bg, fg)
+	return &terminal.Theme{
+		Foreground: fg, Background: bg, Palette: palette,
+		Cursor: cur, CursorText: readableOn(cur, bg, fg),
+		Selection: a.selection,
+		Search:    bg.Mix(fg, 0.3), SearchText: fg,
+		SearchSelected: cur, SearchSelectedText: readableOn(cur, bg, fg),
+	}
 }
 
 // controlBase is the opaque face of MyGo's controls (Theme.Surface) in an appearance, before the control alpha.

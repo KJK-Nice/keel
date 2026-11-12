@@ -362,6 +362,7 @@ type workspace struct {
 	appearanceHook func(choice string)               // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
 	dark, osDark   bool                              // the theme in use, and whether the OS appearance is dark (theme.go)
 	themeSeen      bool                              // the first frame has set the theme
+	termAccent     accentSet                         // the accent the terminals were last given their cursor and selection from
 	themeNative    bool                              // the window takes the theme as its own appearance: no opaque rule (theme.go)
 	paneH          ui.Handle
 	hostsH         ui.Handle // the Hosts filter's field
