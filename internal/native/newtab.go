@@ -144,7 +144,7 @@ func (w *workspace) cards(p *startPage) []keelclient.Host {
 	if h, ok := w.localHost(); ok {
 		local = &h
 	}
-	return pickCards(w.folders, w.hosts, w.recentIDs, p.query, local)
+	return pickCards(w.folders, w.hosts, w.prefs.RecentHosts, p.query, local)
 }
 
 // ageLabel is lib/newtab.js ageLabel: "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".
@@ -170,7 +170,7 @@ func ageLabel(at, now time.Time) string {
 // closedList is the recently closed entries whose host still exists, newest first (liveClosed).
 func (w *workspace) closedList() []closedEntry {
 	var out []closedEntry
-	for _, e := range w.recent {
+	for _, e := range w.prefs.ClosedTabs {
 		if slices.ContainsFunc(w.hosts, func(h keelclient.Host) bool { return h.ID == e.hostID }) {
 			out = append(out, e)
 		}

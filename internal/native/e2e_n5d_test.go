@@ -324,9 +324,9 @@ func TestE2EPanesSection(t *testing.T) {
 // useSavedWindowPrefs is what Run does at start: the window prefs from keel-native.json, and a translucent window
 // when the opacity is below 100.
 func (e *win) useSavedWindowPrefs() {
-	e.w.win, e.w.term = loadPrefs(e.w.dataDir), loadTermPrefs(e.w.dataDir)
-	if e.w.win.Opacity < opacityMax {
-		e.w.translucentWin, e.w.alpha = true, e.w.win.alpha()
+	e.w.prefs = loadPrefs(e.w.dataDir)
+	if e.w.prefs.Opacity < opacityMax {
+		e.w.translucentWin, e.w.alpha = true, e.w.prefs.alpha()
 	}
 	e.tt.Frame()
 }
@@ -355,7 +355,7 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	e.shot("TestE2ESettingsAppearanceLive-appearance")
 	// 66 to 80 by the keyboard: a click puts the slider in the middle (65), the arrow keys step it.
 	e.click("Window opacity slider")
-	for e.w.win.Opacity < 80 {
+	for e.w.prefs.Opacity < 80 {
 		e.key(0, ui.KeyRight)
 	}
 	e.pump(func() bool { a := titleAlpha(); return a >= 202 && a <= 206 }, "the title bar to repaint at about 0.8")
@@ -371,8 +371,8 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	// A second window on the same data starts at 80.
 	e2 := newWin(t, addr, data, nil)
 	e2.useSavedWindowPrefs()
-	if e2.w.win.Opacity != 80 || !(e2.w.alpha > 0.79 && e2.w.alpha < 0.81) {
-		t.Fatalf("the second window starts at opacity %d alpha %v", e2.w.win.Opacity, e2.w.alpha)
+	if e2.w.prefs.Opacity != 80 || !(e2.w.alpha > 0.79 && e2.w.alpha < 0.81) {
+		t.Fatalf("the second window starts at opacity %d alpha %v", e2.w.prefs.Opacity, e2.w.alpha)
 	}
 	e2.key(ui.Cmd, ui.KeyComma)
 	e2.pump(func() bool { return e2.hasLabel("Window opacity slider") }, "Settings in the second window")

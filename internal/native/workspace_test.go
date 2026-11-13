@@ -7,10 +7,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -1050,6 +1052,7 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 	for _, a := range []float32{0.66, 1} {
 		r := newRig(t, okBackend())
 		r.w.alpha = a
+		r.w.prefs.Theme = themeDark // the default is System, which is light under the tester
 		r.tt = ui.NewTester(r.w.view, 1280, 720)
 		r.tt.Frame()
 		r.click(t, "host api-1")
@@ -1088,19 +1091,24 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 }
 
 func TestLoadPrefs(t *testing.T) {
-	def := prefs{Opacity: 66, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}
+	with := func(opacity, blur int) prefsDoc {
+		p := defaultPrefs()
+		p.Opacity, p.Blur = opacity, blur
+		return p
+	}
 	for _, tc := range []struct {
 		name, file string
-		want       prefs
+		want       prefsDoc
 	}{
-		{"missing", "", def},
-		{"bad json", "{", def},
-		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"blur too high", `{"opacity":50,"blur":99}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"only blur", `{"blur":0}`, prefs{Opacity: 66, Blur: 0, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"valid", `{"opacity":100,"blur":64}`, prefs{Opacity: 100, Blur: 64, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"missing", "", with(66, 20)},
+		{"bad json", "{", with(66, 20)},
+		{"opacity too low", `{"opacity":10,"blur":8}`, with(66, 8)},
+		{"opacity too high", `{"opacity":200,"blur":8}`, with(66, 8)},
+		{"blur negative", `{"opacity":50,"blur":-1}`, with(50, 20)},
+		{"blur too high", `{"opacity":50,"blur":99}`, with(50, 20)},
+		{"only blur", `{"blur":0}`, with(66, 0)},
+		{"valid", `{"opacity":100,"blur":64}`, with(100, 64)},
+		{"wrong type", `{"opacity":"x","blur":5,"termSize":14.5}`, with(66, 5)},
 	} {
 		dir := t.TempDir()
 		if tc.file != "" {
@@ -1108,30 +1116,50 @@ func TestLoadPrefs(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if got := loadPrefs(dir); got != tc.want {
+		if got := loadPrefs(dir); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: got %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
-	if got := (prefs{Opacity: 66}).alpha(); got != 0.66 {
+	if got := (prefsDoc{Opacity: 66}).alpha(); got != 0.66 {
 		t.Errorf("alpha %v", got)
 	}
 }
 
-func TestPrefsEnvOverridesAndRejects(t *testing.T) {
-	t.Setenv("KEEL_NATIVE_OPACITY", "50")
-	t.Setenv("KEEL_NATIVE_BLUR", "")
-	p, err := prefs{Opacity: 66, Blur: 20}.withEnv()
-	if err != nil || p != (prefs{Opacity: 50, Blur: 20}) {
-		t.Errorf("got %+v, %v", p, err)
+// A keel-native.json as v0.2.1 wrote it, with every key it knew, a key a newer Keel may add and the retired windowShadow:
+// it loads with the same values, the next save keeps the unknown key and drops windowShadow, and what is written loads the same.
+func TestPrefsFileOfV021LoadsKeepsUnknownKeysAndRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	const file = `{
+  "opacity": 80, "blur": 12, "termSize": 15, "uiSize": 13, "theme": "light", "termFont": "ibmplex",
+  "copyOnSelect": false, "rightClick": "paste", "name": "Ann",
+  "sidebarWidth": 300, "agentWidth": 410, "agentPanel": true,
+  "groupCollapsed": ["infra", "g-2"], "recentHosts": ["h2", "h1"],
+  "closedTabs": [{"hostId": "h3", "title": "api", "kind": "pane", "at": 5000}],
+  "windowShadow": false, "future": {"a": 1}
+}`
+	if err := os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(file), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	t.Setenv("KEEL_NATIVE_BLUR", "lots")
-	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_BLUR") {
-		t.Errorf("err %v", err)
+	want := prefsDoc{
+		Opacity: 80, Blur: 12, TermSize: 15, UISize: 13, Theme: themeLight, TermFont: fontPlex,
+		CopyOnSelect: false, RightClick: rightPaste, Name: "Ann",
+		SidebarWidth: 300, AgentWidth: 410, AgentPanel: true,
+		Collapsed: map[string]bool{"infra": true, "g-2": true}, RecentHosts: []string{"h2", "h1"},
+		ClosedTabs: []closedEntry{{hostID: "h3", title: "api", kind: "pane", at: time.UnixMilli(5000)}},
 	}
-	t.Setenv("KEEL_NATIVE_BLUR", "")
-	t.Setenv("KEEL_NATIVE_OPACITY", "5")
-	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_OPACITY") {
-		t.Errorf("err %v", err)
+	if got := loadPrefs(dir); !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded %+v, want %+v", got, want)
+	}
+	if err := savePrefs(dir, map[string]any{keyTermSize: 16}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+	if !strings.Contains(string(b), `"future"`) || strings.Contains(string(b), "windowShadow") {
+		t.Errorf("the save kept or dropped the wrong keys: %s", b)
+	}
+	want.TermSize = 16
+	if got := loadPrefs(dir); !reflect.DeepEqual(got, want) {
+		t.Errorf("after a save %+v, want %+v", got, want)
 	}
 }
 

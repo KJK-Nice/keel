@@ -217,16 +217,16 @@ func TestE2EFolders(t *testing.T) {
 	// A closed folder is kept across a restart: close fx-top, reopen the window on the same data, and it is closed there.
 	topID, _ := e.apiGroupNamed("fx-top")
 	e.click("folder fx-top")
-	e.pump(func() bool { return loadCollapsed(dir)[topID.ID] }, "the closed folder in keel-native.json")
+	e.pump(func() bool { return loadPrefs(dir).Collapsed[topID.ID] }, "the closed folder in keel-native.json")
 	e.settle(300 * time.Millisecond)
 	e.w.closeWindow()
 	e = newWin(t, addr, dir, nil)
 	e.pump(func() bool { return e.hasLabel("folder fx-top") }, "the folders after a restart")
-	if !e.w.collapsed[topID.ID] {
+	if !e.w.prefs.Collapsed[topID.ID] {
 		t.Error("fx-top is open again after a restart")
 	}
 	e.click("folder fx-top")
-	e.pump(func() bool { return !loadCollapsed(dir)[topID.ID] }, "the folder opened and forgotten")
+	e.pump(func() bool { return !loadPrefs(dir).Collapsed[topID.ID] }, "the folder opened and forgotten")
 
 	// Rename in the tree.
 	e.menuPick("folder fx-top", "Rename")

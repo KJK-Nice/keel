@@ -65,8 +65,8 @@ func viewMenu(goos string) []menuEntry {
 		{},
 		{"Focus View", "CmdOrCtrl+Shift+enter", (*workspace).zoomFocused},
 		{},
-		{"Zoom In", "CmdOrCtrl+=", func(w *workspace) { w.setTermSize(w.termSize + 1) }},
-		{"Zoom Out", "CmdOrCtrl+-", func(w *workspace) { w.setTermSize(w.termSize - 1) }},
+		{"Zoom In", "CmdOrCtrl+=", func(w *workspace) { w.setTermSize(w.prefs.TermSize + 1) }},
+		{"Zoom Out", "CmdOrCtrl+-", func(w *workspace) { w.setTermSize(w.prefs.TermSize - 1) }},
 		{"Actual Size", "CmdOrCtrl+0", func(w *workspace) { w.setTermSize(termSizeDefault) }},
 	}
 }

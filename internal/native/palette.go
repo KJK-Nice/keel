@@ -287,8 +287,8 @@ func (w *workspace) paletteItems() []palItem {
 	if w.tab().canSync() { // not in a joined tab, nor in a tab with no terminal
 		add("Panes", "Toggle sync input", "", "", func() { w.toggleSync(w.tab()) })
 	}
-	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
-	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
+	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.prefs.TermSize + 1) })
+	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.prefs.TermSize - 1) })
 	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })
 	add("Terminal", "Share session (join link)", "", "", w.openShare)
 	add("Terminal", "Stop sharing this session", "", "", w.stopShare)

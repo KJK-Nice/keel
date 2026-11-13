@@ -97,8 +97,8 @@ func TestE2EThemeSwitch(t *testing.T) {
 	e2.useSavedWindowPrefs()
 	e2.pump(func() bool { return e2.hasLabel("host Local Shell") }, "the host tree")
 	e2.settle(300 * time.Millisecond)
-	if e2.w.dark || e2.w.win.Theme != themeLight {
-		t.Fatalf("the second window is dark=%v with choice %q", e2.w.dark, e2.w.win.Theme)
+	if e2.w.dark || e2.w.prefs.Theme != themeLight {
+		t.Fatalf("the second window is dark=%v with choice %q", e2.w.dark, e2.w.prefs.Theme)
 	}
 	img := e2.tt.Image() // the window is translucent (opacity 66 is the default): the ground is the token at that alpha
 	s := float32(img.Bounds().Dx()) / 1280
@@ -144,7 +144,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	// title bar, the sidebar), and not the terminal, so the session keeps its columns.
 	e.openSettings()
 	e.click("UI size slider")
-	for e.w.win.UISize < uiSizeMax {
+	for e.w.prefs.UISize < uiSizeMax {
 		e.key(0, ui.KeyRight)
 	}
 	e.key(ui.Cmd, ui.Key1)
@@ -170,7 +170,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.shot("TestE2EUISizeAndFont-ui16")
 	e.openSettings()
 	e.click("UI size slider")
-	for e.w.win.UISize > uiSizeDefault {
+	for e.w.prefs.UISize > uiSizeDefault {
 		e.key(0, ui.KeyLeft)
 	}
 
@@ -189,7 +189,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.step()
-	e.pump(func() bool { return e.w.win.TermFont == fontPlex }, "the font choice")
+	e.pump(func() bool { return e.w.prefs.TermFont == fontPlex }, "the font choice")
 	e.key(ui.Cmd, ui.Key1)
 	e.settle(800 * time.Millisecond)
 	plex := e.crop(area)

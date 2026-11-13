@@ -43,7 +43,7 @@ func TestTheSidebarsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	if got := width(); !near(got, def+60) {
 		t.Fatalf("after a drag 60 px right the sidebar is %v wide, want %v", got, def+60)
 	}
-	if got := loadSidebarWidth(r.w.dataDir); !near(got, def+60) {
+	if got := loadPrefs(r.w.dataDir).SidebarWidth; !near(got, def+60) {
 		t.Errorf("keel-native.json holds %v", got)
 	}
 	// Far right stops at twice the default; far left at the narrowest.
@@ -102,8 +102,8 @@ func TestTheSidebarsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	r.tt.Key(0, ui.KeyRight)
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if got := width(); !near(got, def) || loadSidebarWidth(r.w.dataDir) != 0 {
-		t.Errorf("Enter gives %v, kept %v", got, loadSidebarWidth(r.w.dataDir))
+	if got := width(); !near(got, def) || loadPrefs(r.w.dataDir).SidebarWidth != 0 {
+		t.Errorf("Enter gives %v, kept %v", got, loadPrefs(r.w.dataDir).SidebarWidth)
 	}
 	// A double click puts the default back.
 	r.w.setSidebarWidth(400)
@@ -119,12 +119,13 @@ func TestTheSidebarsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	r.w.setSidebarWidth(420)
 	w2 := newWorkspace(r.fb)
 	w2.dataDir = r.w.dataDir
+	w2.prefs = loadPrefs(w2.dataDir) // what RunWith does
 	w2.work, w2.post, w2.mkBody = func(fn func()) { fn() }, func(fn func()) { fn() }, placeholder(&r.released)
 	w2.start()
-	if !near(w2.sideWidth, 420) || !near(w2.sidebarNow(), 420) {
-		t.Errorf("a new window has width %v", w2.sideWidth)
+	if !near(w2.prefs.SidebarWidth, 420) || !near(w2.sidebarNow(), 420) {
+		t.Errorf("a new window has width %v", w2.prefs.SidebarWidth)
 	}
-	w2.sideWidth = 10000
+	w2.prefs.SidebarWidth = 10000
 	if w2.sidebarNow() != hi {
 		t.Errorf("an out of range width draws at %v, want %v", w2.sidebarNow(), hi)
 	}

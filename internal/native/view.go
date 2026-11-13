@@ -17,7 +17,7 @@ import (
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
 	w.resolveTheme(c)
-	setUISize(w.win.UISize)
+	setUISize(w.prefs.UISize)
 	windowTheme(c, w.dark)
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
@@ -191,9 +191,9 @@ func (w *workspace) shortcuts(c *ui.Context) {
 		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
 	}
 	// Terminal text size: ⌘+ is ⌘= with or without ⇧.
-	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { w.act(func() { w.setTermSize(w.termSize - 1) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.prefs.TermSize + 1) }) })
+	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.prefs.TermSize + 1) }) })
+	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { w.act(func() { w.setTermSize(w.prefs.TermSize - 1) }) })
 	c.OnWindowShortcut(ui.Cmd, ui.Key0, func() { w.act(func() { w.setTermSize(termSizeDefault) }) })
 }
 
@@ -520,7 +520,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 }
 
 func (w *workspace) group(c *ui.Context, g hostGroup) {
-	open := !w.collapsed[g.name]
+	open := !w.prefs.Collapsed[g.name]
 	ui.Column(c).FillWidth().Key(g.name).Children(func() {
 		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Label("group " + g.name).Tooltip(g.name).Cursor(ui.CursorPointer)
 		h.Children(func() {
@@ -893,7 +893,7 @@ func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.agent.open) // one cap, as the app's #btn-agent-kbd
+	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel) // one cap, as the app's #btn-agent-kbd
 	if b.Clicked() {
 		w.act(w.toggleAgent)
 	}

@@ -141,7 +141,7 @@ func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
 	e.settle(300 * time.Millisecond)
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool {
-		return e2.w.agent.open && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
+		return e2.w.prefs.AgentPanel && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
 	}, "the panel in the new window")
 	e2.openRecent()
 	e2.pump(func() bool { return e2.tt.HasText("Renamed alpha") && e2.tt.HasText(beta.Title) }, "both conversations listed in the new window")
@@ -194,7 +194,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		addr2, _ := startServeAt(t, dir, "serve2", true)
 		e2 := newWin(t, addr2, dataDir, nil)
 		e2.pump(func() bool {
-			return e2.w.agent.open && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
+			return e2.w.prefs.AgentPanel && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
 		}, "the panel on the new daemon")
 		e2.openRecent()
 		e2.click("conversation what should I run?")

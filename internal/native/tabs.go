@@ -185,10 +185,10 @@ func (w *workspace) recordClosed(p *pane, kind string) {
 		return
 	}
 	e := closedEntry{p.host.ID, p.host.Name, kind, time.Now()}
-	rest := slices.DeleteFunc(slices.Clone(w.recent), func(o closedEntry) bool { return o.hostID == e.hostID && o.kind == e.kind })
-	w.recent = append([]closedEntry{e}, rest...)
-	if len(w.recent) > closedMax {
-		w.recent = w.recent[:closedMax]
+	rest := slices.DeleteFunc(slices.Clone(w.prefs.ClosedTabs), func(o closedEntry) bool { return o.hostID == e.hostID && o.kind == e.kind })
+	w.prefs.ClosedTabs = append([]closedEntry{e}, rest...)
+	if len(w.prefs.ClosedTabs) > closedMax {
+		w.prefs.ClosedTabs = w.prefs.ClosedTabs[:closedMax]
 	}
 	w.keepClosed()
 }
@@ -196,14 +196,7 @@ func (w *workspace) recordClosed(p *pane, kind string) {
 // keepClosed saves the recently closed list in keel-native.json (the app keeps it in localStorage, so the New tab page and
 // ⌘⇧T know it after the window was closed): host ids, titles and times, off the UI thread.
 func (w *workspace) keepClosed() {
-	if dir := w.dataDir; dir != "" {
-		keep := closedJSON(w.recent)
-		w.work(func() {
-			if err := savePrefs(dir, map[string]any{"closedTabs": keep}); err != nil {
-				w.post(func() { w.fail("save recently closed", err) })
-			}
-		})
-	}
+	w.savePref("recently closed", keyClosedTabs, closedJSON(w.prefs.ClosedTabs))
 }
 
 // reopenClosed opens the newest closed entry whose host still exists as a new session (⌘⇧T).
@@ -218,7 +211,7 @@ func (w *workspace) reopenClosedAt(t *tab, i int) {
 		return
 	}
 	e := list[i]
-	w.recent = slices.DeleteFunc(slices.Clone(w.recent), func(o closedEntry) bool { return o == e })
+	w.prefs.ClosedTabs = slices.DeleteFunc(slices.Clone(w.prefs.ClosedTabs), func(o closedEntry) bool { return o == e })
 	w.keepClosed()
 	for _, h := range w.hosts {
 		if h.ID == e.hostID {
@@ -242,16 +235,9 @@ func (w *workspace) rememberRecent(id string) {
 	if id == "" {
 		return
 	}
-	ids := append([]string{id}, slices.DeleteFunc(slices.Clone(w.recentIDs), func(o string) bool { return o == id })...)
-	w.recentIDs = ids[:min(len(ids), recentMax)]
-	if dir := w.dataDir; dir != "" {
-		keep := slices.Clone(w.recentIDs)
-		w.work(func() {
-			if err := savePrefs(dir, map[string]any{"recentHosts": keep}); err != nil {
-				w.post(func() { w.fail("save recent hosts", err) })
-			}
-		})
-	}
+	ids := append([]string{id}, slices.DeleteFunc(slices.Clone(w.prefs.RecentHosts), func(o string) bool { return o == id })...)
+	w.prefs.RecentHosts = ids[:min(len(ids), recentMax)]
+	w.savePref("recent hosts", keyRecentHosts, slices.Clone(w.prefs.RecentHosts))
 }
 
 // ---- terminal text size ----
@@ -263,10 +249,10 @@ const (
 // setTermSize sets the terminal font size of every pane, clamped, and keeps it in keel-native.json.
 func (w *workspace) setTermSize(n int) {
 	n = min(max(n, termSizeMin), termSizeMax)
-	if n == w.termSize {
+	if n == w.prefs.TermSize {
 		return
 	}
-	w.termSize = n
+	w.prefs.TermSize = n
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.fontSize = float32(n)
@@ -275,11 +261,5 @@ func (w *workspace) setTermSize(n int) {
 			}
 		}
 	}
-	if dir := w.dataDir; dir != "" {
-		w.work(func() {
-			if err := savePrefs(dir, map[string]any{"termSize": n}); err != nil {
-				w.post(func() { w.fail("save text size", err) })
-			}
-		})
-	}
+	w.savePref("text size", keyTermSize, n)
 }

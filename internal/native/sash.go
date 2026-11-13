@@ -1,19 +1,14 @@
 package native
 
 import (
-	"encoding/json"
 	"math"
-	"os"
-	"path/filepath"
 	"runtime"
 
 	"github.com/egoist/mygo/ui"
 )
 
-// The sidebar's width (lib/sidebarwidth.js, term.js createSidebarResize): a whole number of pixels from size-rail up to twice
-// the default, 0 for the default (size-sidebar, grown with the UI size), stepped by space-4, kept as sidebarWidth in
-// keel-native.json.
-const sidebarWidthFileKey = "sidebarWidth"
+// The sidebar's width: a whole number of pixels from size-rail up to twice the default, 0 for the default (size-sidebar,
+// grown with the UI size), stepped by space-4, kept as sidebarWidth in keel-native.json.
 
 // sidebarMin is size-rail (208) in the app. Here the four section labels (Hosts, Panes 2, Snippets, Forwards) do not fit in
 // 208 at any UI size (plan 031 step 1), so the minimum is the width they need (measured: 246 at the default UI size, only a
@@ -45,34 +40,15 @@ func clampSidebarWidth(v float32) float32 {
 }
 
 // sidebarNow is the width the sidebar is drawn at.
-func (w *workspace) sidebarNow() float32 { return clampSidebarWidth(w.sideWidth) }
-
-// loadSidebarWidth is savedWidth: the width the sidebar was left at, 0 (the default) when absent or not a number.
-func loadSidebarWidth(dataDir string) float32 {
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return 0
-	}
-	var f struct {
-		W float32 `json:"sidebarWidth"`
-	}
-	if json.Unmarshal(b, &f) != nil || f.W <= 0 || math.IsNaN(float64(f.W)) || math.IsInf(float64(f.W), 0) {
-		return 0
-	}
-	return f.W
-}
+func (w *workspace) sidebarNow() float32 { return clampSidebarWidth(w.prefs.SidebarWidth) }
 
 // setSidebarWidth keeps a new width (0 puts the default back) in keel-native.json.
 func (w *workspace) setSidebarWidth(v float32) {
 	if v > 0 {
 		v = clampSidebarWidth(v)
 	}
-	w.sideWidth = v
-	if w.dataDir != "" {
-		if err := savePrefs(w.dataDir, map[string]any{sidebarWidthFileKey: v}); err != nil {
-			w.fail("save the sidebar width", err)
-		}
-	}
+	w.prefs.SidebarWidth = v
+	w.savePref("the sidebar width", keySidebarWidth, v)
 }
 
 // sidebarSash is the handle on the sidebar's right edge.
@@ -80,7 +56,7 @@ func (w *workspace) sidebarSash(c *ui.Context) {
 	w.widthSash(c, &w.sideSash, sashSpec{
 		label: "Resize sidebar", rightEdge: true, cur: w.sidebarNow(), step: space4,
 		clamp: clampSidebarWidth, home: sidebarMin(), end: sidebarMax(),
-		live: func(v float32) { w.sideWidth = v }, keep: w.setSidebarWidth,
+		live: func(v float32) { w.prefs.SidebarWidth = v }, keep: w.setSidebarWidth,
 	})
 }
 

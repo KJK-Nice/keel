@@ -218,7 +218,7 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 	}
 	// Clicking a folder collapses it, and again opens it.
 	r.click(t, "folder Infra")
-	if _, ok := r.tt.Find("host pg-1"); ok || !r.w.collapsed["infra"] {
+	if _, ok := r.tt.Find("host pg-1"); ok || !r.w.prefs.Collapsed["infra"] {
 		t.Error("Infra did not collapse")
 	}
 	r.click(t, "folder Infra")
@@ -237,11 +237,11 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	}
 	r.click(t, "folder Infra")
 	r.click(t, "folder Apps")
-	if got := loadCollapsed(r.w.dataDir); len(got) != 2 || !got["infra"] || !got["apps"] {
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 2|| !got["infra"] || !got["apps"] {
 		t.Fatalf("kept %v", got)
 	}
 	r.click(t, "folder Apps") // opened again: no longer kept
-	if got := loadCollapsed(r.w.dataDir); len(got) != 1 || !got["infra"] {
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 1|| !got["infra"] {
 		t.Fatalf("kept after opening Apps: %v", got)
 	}
 	if b, _ := os.ReadFile(filepath.Join(r.w.dataDir, "keel-native.json")); !strings.Contains(string(b), `"termSize": 14`) {
@@ -251,7 +251,7 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	fb := r.fb
 	w2 := newRig(t, fb)
 	w2.w.useDataDir(t, r.w.dataDir)
-	w2.w.collapsed = loadCollapsed(w2.w.dataDir) // what start reads
+	w2.w.prefs = loadPrefs(w2.w.dataDir) // what RunWith does
 	w2.tt.Frame()
 	if _, ok := w2.tt.Find("host pg-1"); ok {
 		t.Error("Infra is open again after a restart")

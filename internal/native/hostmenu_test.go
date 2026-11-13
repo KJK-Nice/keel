@@ -177,7 +177,7 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1")
 	r.w.filter = "pg"
-	r.w.collapsed["staging"] = true
+	r.w.prefs.Collapsed["staging"] = true
 	r.tt.Frame()
 	before := r.fb.hostsCalls
 	r.fb.hosts = append(r.fb.hosts, keelclient.Host{ID: "h-new", Name: "pg-replica", Group: "production", AuthType: "key", Address: "10.0.0.9", Username: "dba"})
@@ -186,8 +186,8 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	if r.fb.hostsCalls != before+1 || !r.hasText("pg-replica") {
 		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.hasText("pg-replica"))
 	}
-	if r.w.filter != "pg" || !r.w.collapsed["staging"] || len(r.w.tabs) != 1 || r.hasText("api-1 ") && false {
-		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.collapsed, len(r.w.tabs))
+	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || len(r.w.tabs) != 1 || r.hasText("api-1 ") && false {
+		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.prefs.Collapsed, len(r.w.tabs))
 	}
 	// A pane takes its host's new name.
 	h := r.fb.hosts[0]

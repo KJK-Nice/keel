@@ -66,15 +66,15 @@ func TestShellMenuActions(t *testing.T) {
 	if w.sidebar == was {
 		t.Error("Toggle Vault Sidebar did nothing")
 	}
-	size := w.termSize
+	size := w.prefs.TermSize
 	byLabel(view, "Zoom In").run(w)
-	if w.termSize != size+1 {
-		t.Errorf("Zoom In: %d, was %d", w.termSize, size)
+	if w.prefs.TermSize != size+1 {
+		t.Errorf("Zoom In: %d, was %d", w.prefs.TermSize, size)
 	}
 	byLabel(view, "Zoom Out").run(w)
 	byLabel(view, "Actual Size").run(w)
-	if w.termSize != termSizeDefault {
-		t.Errorf("Actual Size: %d", w.termSize)
+	if w.prefs.TermSize != termSizeDefault {
+		t.Errorf("Actual Size: %d", w.prefs.TermSize)
 	}
 	byLabel(fileMenu(), "Join Session").run(w)
 	if w.joinDlg == nil {

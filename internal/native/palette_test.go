@@ -208,8 +208,8 @@ func TestPaletteAskTheAgentRowAndSearchHosts(t *testing.T) {
 	}
 	asks := len(r.fb.agent.asks)
 	r.press(ui.Cmd, ui.KeyEnter)
-	if r.w.pal != nil || !r.w.agent.open || r.w.agent.input != "zzz no such command" {
-		t.Fatalf("palette open %v, panel open %v, composer %q", r.w.pal != nil, r.w.agent.open, r.w.agent.input)
+	if r.w.pal != nil || !r.w.prefs.AgentPanel || r.w.agent.input != "zzz no such command" {
+		t.Fatalf("palette open %v, panel open %v, composer %q", r.w.pal != nil, r.w.prefs.AgentPanel, r.w.agent.input)
 	}
 	if len(r.fb.agent.asks) != asks {
 		t.Error("the palette sent a question: it only fills the composer")

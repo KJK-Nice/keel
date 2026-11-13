@@ -96,7 +96,7 @@ func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
 
 func TestJoiningOpensAFollowingTabWithTheAppsBannerAndNothingElse(t *testing.T) {
 	jr := newJoinRig(t)
-	jr.w.term.Name = "Zed"
+	jr.w.prefs.Name = "Zed"
 	jr.join(t, joinTestLink)
 	if len(jr.links) != 1 || jr.links[0].Key != shareTestKey || jr.links[0].Room != "r1" || jr.links[0].Origin != "http://127.0.0.1:9" || jr.names[0] != "Zed" {
 		t.Fatalf("joined %v as %v", jr.links, jr.names)
@@ -187,8 +187,8 @@ func TestAskForControlLeaveAndTheFollowNotice(t *testing.T) {
 	if !jr.conns[0].closed || len(jr.w.tabs) != 1 || jr.w.tabs[0].remote || len(jr.fb.killed) != 0 {
 		t.Errorf("closed %v tabs %d killed %v", jr.conns[0].closed, len(jr.w.tabs), jr.fb.killed)
 	}
-	if len(jr.w.recent) != 0 {
-		t.Errorf("a joined tab was recorded as recently closed: %v", jr.w.recent)
+	if len(jr.w.prefs.ClosedTabs) != 0 {
+		t.Errorf("a joined tab was recorded as recently closed: %v", jr.w.prefs.ClosedTabs)
 	}
 }
 

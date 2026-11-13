@@ -116,8 +116,8 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	r := &rig{fb: fb}
 	r.w = newWorkspace(fb)
 	r.w.useDataDir(t, dir)
-	r.w.win = loadPrefs(dir)
-	r.w.translucentWin, r.w.alpha = true, r.w.win.alpha() // the window started translucent
+	r.w.prefs = loadPrefs(dir)
+	r.w.translucentWin, r.w.alpha = true, r.w.prefs.alpha() // the window started translucent
 	r.w.work = func(fn func()) { fn() }
 	r.w.post = func(fn func()) { fn() }
 	r.w.mkBody = placeholder(&r.released)
@@ -174,8 +174,8 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 	p.sizeV = 18
 	r.tt.Frame()
-	if r.w.termSize != 18 || r.w.tabs[0].panes["1"].fontSize != 18 {
-		t.Errorf("the slider left the text size at %d (pane %v)", r.w.termSize, r.w.tabs[0].panes["1"].fontSize)
+	if r.w.prefs.TermSize != 18 || r.w.tabs[0].panes["1"].fontSize != 18 {
+		t.Errorf("the slider left the text size at %d (pane %v)", r.w.prefs.TermSize, r.w.tabs[0].panes["1"].fontSize)
 	}
 }
 
@@ -210,14 +210,14 @@ func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
 	r.tt.Key(0, ui.KeyRight)
 	r.tt.Frame()
 	// The click set the middle of 10–22 (16) and → stepped to 17.
-	if r.w.termSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
-		t.Errorf("→ on the Text size slider left %d", r.w.termSize)
+	if r.w.prefs.TermSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
+		t.Errorf("→ on the Text size slider left %d", r.w.prefs.TermSize)
 	}
 }
 
 func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	r := settingsRig(t, settingsBackend()) // translucentWin is false: the window started opaque
-	r.w.win.Opacity = 100
+	r.w.prefs.Opacity = 100
 	p := r.w.pageTab("settings").pg.settings
 	p.opacityV = 70
 	r.tt.Frame()
@@ -236,8 +236,8 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	r.texts(t, "Session", "Text size", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
 		"Right-click in the terminal", "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
 		"Paste", "Menu", "Nothing", "guest@keel:~ $ ssh prod-api")
-	if !r.w.term.CopyOnSelect || r.w.term.RightClick != "menu" {
-		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.term)
+	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
+		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
 	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the app's five, chosen by default
 	r.w.openHost(testHosts[1])                                                 // a pane to change live
@@ -251,36 +251,36 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 		}
 	}
 	r.click(t, "Copy on select switch")
-	if r.w.term.CopyOnSelect || !slices.Equal(offs, []bool{false}) || string(r.prefsFile(t)["copyOnSelect"]) != "false" {
-		t.Errorf("copy on select: %+v calls %v file %v", r.w.term, offs, r.prefsFile(t))
+	if r.w.prefs.CopyOnSelect || !slices.Equal(offs, []bool{false}) || string(r.prefsFile(t)["copyOnSelect"]) != "false" {
+		t.Errorf("copy on select: %+v calls %v file %v", r.w.prefs, offs, r.prefsFile(t))
 	}
 	r.click(t, "Paste")
-	if r.w.term.RightClick != "paste" || string(r.prefsFile(t)["rightClick"]) != `"paste"` {
-		t.Errorf("right click %q file %v", r.w.term.RightClick, r.prefsFile(t))
+	if r.w.prefs.RightClick != "paste" || string(r.prefsFile(t)["rightClick"]) != `"paste"` {
+		t.Errorf("right click %q file %v", r.w.prefs.RightClick, r.prefsFile(t))
 	}
 	// A pane opened now takes it; the file is read back as written.
 	r.w.openHost(testHosts[1])
 	if got := r.w.focusedPane(); got.rightClick != "paste" || got.copyOnSelect {
 		t.Errorf("a new pane has %q %v", got.rightClick, got.copyOnSelect)
 	}
-	if got := loadTermPrefs(r.w.dataDir); got.RightClick != "paste" || got.CopyOnSelect {
+	if got := loadPrefs(r.w.dataDir); got.RightClick != "paste" || got.CopyOnSelect {
 		t.Errorf("read back %+v", got)
 	}
 	r.w.openPage("settings")
 	r.tt.Frame()
 	r.click(t, "Nothing")
-	if r.w.term.RightClick != "nothing" {
-		t.Errorf("right click %q", r.w.term.RightClick)
+	if r.w.prefs.RightClick != "nothing" {
+		t.Errorf("right click %q", r.w.prefs.RightClick)
 	}
 }
 
 func TestLoadTermPrefs(t *testing.T) {
 	dir := t.TempDir()
-	if got := loadTermPrefs(dir); got != (termPrefs{CopyOnSelect: true, RightClick: "menu"}) {
+	if got := loadPrefs(dir); !got.CopyOnSelect || got.RightClick != "menu" || got.Name != "" {
 		t.Errorf("missing file: %+v", got)
 	}
 	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"copyOnSelect":false,"rightClick":"sideways","name":"  `+strings.Repeat("é", 50)+` "}`), 0o600)
-	got := loadTermPrefs(dir)
+	got := loadPrefs(dir)
 	if got.CopyOnSelect || got.RightClick != "menu" || len([]rune(got.Name)) != nameMax {
 		t.Errorf("got %+v", got)
 	}
@@ -321,13 +321,13 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	r.fill(t, "Display name input", "  Ann  ")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.term.Name != "Ann" {
-		t.Errorf("the name is trimmed: %q", r.w.term.Name)
+	if r.w.prefs.Name != "Ann" {
+		t.Errorf("the name is trimmed: %q", r.w.prefs.Name)
 	}
 	r.fill(t, "Display name input", strings.Repeat("n", 50))
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if got := r.w.term.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
+	if got := r.w.prefs.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
 		t.Errorf("name %q file %v", got, r.prefsFile(t)["name"])
 	}
 	// The signal server goes to keel serve as typed (trimmed); keel serve validates it.

@@ -66,7 +66,7 @@ func (w *workspace) submitJoin() {
 func joinKey(l joinpeer.Link) string { return "join:" + l.Origin + ":" + l.Room }
 
 // joinName is what the host is told: the display name, as the Sharing page says (term.js state.name).
-func (w *workspace) joinName() string { return displayName(w.term.Name, defaultName()) }
+func (w *workspace) joinName() string { return displayName(w.prefs.Name, defaultName()) }
 
 // joinRemote opens a tab that follows the share. Pasting the link of a join that is already open shows that tab; one
 // that was denied, failed verification or was lost is closed and joined again.
