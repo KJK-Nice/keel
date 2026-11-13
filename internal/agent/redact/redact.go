@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"keel/internal/cmdrule"
+	"keel/internal/runvars"
 )
 
 // Kind is one rule that matched. Kinds are stable: they are written to
@@ -214,17 +215,7 @@ func namedList(values []Named) []knownValue {
 
 // validLabel keeps a placeholder to {{name}} with a plain variable name, so
 // a label can never draw anything else into the text.
-func validLabel(s string) bool {
-	if s == "" || len(s) > 32 {
-		return false
-	}
-	for i, c := range s {
-		if !(c == '_' || c >= 'a' && c <= 'z' || i > 0 && c >= '0' && c <= '9') {
-			return false
-		}
-	}
-	return true
-}
+func validLabel(s string) bool { return runvars.NameRe.MatchString(s) }
 
 // Text redacts s and returns it as Safe. Placeholders are shared with
 // every other Text call on this Redactor.

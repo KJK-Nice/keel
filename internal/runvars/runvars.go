@@ -55,11 +55,18 @@ const (
 	QuoteFilter = "q"
 )
 
+// namePattern is a declared variable's name: lower-case letters, digits and
+// "_", not starting with a digit.
+const namePattern = `[a-z_][a-z0-9_]{0,31}`
+
 var (
 	// NameRe is a variable name as it is declared (a group variable or a
-	// capture): lower-case letters, digits and "_", not starting with a
-	// digit.
-	NameRe = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,31}$`)
+	// capture). The redactor's label rule and the window's are this one.
+	NameRe = regexp.MustCompile(`^` + namePattern + `$`)
+	// DeclaredRefRe finds a reference to a name that can be declared
+	// (lower case only, reserved words included): what stands for a value
+	// Keel withholds from the model. refRe below is wider on purpose.
+	DeclaredRefRe = regexp.MustCompile(`\{\{` + namePattern + `(\|q)?\}\}`)
 	// refRe finds a reference. It accepts upper case too, so `{{FOO}}` is
 	// a reference to a variable no one can declare (and is refused as
 	// missing) instead of being typed as text. No space is allowed inside
@@ -82,6 +89,9 @@ type Ref struct {
 	start  int
 	end    int
 }
+
+// Span is where the reference sits in the command it came from: cmd[start:end].
+func (r Ref) Span() (start, end int) { return r.start, r.end }
 
 // reserved are words Go templates write alone in braces (kubectl
 // -o go-template='{{range .items}}…{{end}}', helm): never references, never

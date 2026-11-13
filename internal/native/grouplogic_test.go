@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/runvars"
 )
 
 // The rules of cmd/keel/web/js/lib/grouprun.js (roles) and lib/groupvars.js, case for case from test/grouprun.test.mjs and
@@ -80,9 +81,9 @@ func TestARunbookStepKeepsItsRoleAndOneHost(t *testing.T) { // "a runbook step k
 
 func TestVarRefsLikeRunvarsNeverGoTemplatesJinjaOrReservedWords(t *testing.T) { // "refs: …"
 	names := func(cmd string) (out []string) {
-		for _, r := range varRefs(cmd) {
-			n := r.name
-			if r.quoted {
+		for _, r := range runvars.Refs(cmd) {
+			n := r.Name
+			if r.Quoted {
 				n += "|q"
 			}
 			out = append(out, n)

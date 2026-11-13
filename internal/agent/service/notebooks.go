@@ -13,6 +13,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
 	"keel/internal/cmdrule"
+	"keel/internal/runvars"
 	"keel/internal/store"
 )
 
@@ -471,7 +472,7 @@ func agentLine(s string, r *redact.Redactor, max int) string {
 
 // namedRe matches a {{name}} that stands for a value Keel withholds from
 // the model (a captured value or a group variable).
-var namedRe = regexp.MustCompile(`\{\{[a-z_][a-z0-9_]{0,31}(\|q)?\}\}`)
+var namedRe = runvars.DeclaredRefRe
 
 // inlineImageRe matches a markdown inline image at the start of the text:
 // ![alt](url) or ![alt](<url> "title").
