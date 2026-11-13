@@ -218,7 +218,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
 	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
-	mux.HandleFunc("GET /api/agent/groupruns", s.agentGroupRuns)
 	mux.HandleFunc("POST /api/agent/groupruns", s.agentStartGroupRun)
 	mux.HandleFunc("GET /api/agent/groupruns/{id}", s.agentGroupRun)
 	mux.HandleFunc("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
@@ -228,7 +227,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
-	mux.HandleFunc("POST /api/sessions", s.spawnSession)
 	mux.HandleFunc("GET /api/sessions/{id}/scrollback", s.readScrollback)
 	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
@@ -884,33 +882,6 @@ func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.rt.List())
-}
-
-func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		HostID string `json:"hostId"`
-		Cols   int    `json:"cols"`
-		Rows   int    `json:"rows"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid session payload")
-		return
-	}
-	info, err := s.rt.Spawn(req.HostID, req.Cols, req.Rows)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		if errors.Is(err, store.ErrHostField) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	s.note("session", "session spawned: "+info.Title, info.HostID, info.ID, "")
-	writeJSON(w, http.StatusCreated, info)
 }
 
 // readScrollback is the inspection path for clients (and later AI). It always

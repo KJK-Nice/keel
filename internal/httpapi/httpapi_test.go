@@ -1302,22 +1302,39 @@ func TestManualServe(t *testing.T) {
 	}
 }
 
+// spawn starts a session on hostID the way the window does (the session
+// socket with hostId), detaches, and returns once the session has no client
+// again, so the test's first dial is the owner and driver.
 func spawn(t *testing.T, base, hostID string) runtime.Info {
 	t.Helper()
-	res, err := http.Post(base+"/api/sessions", "application/json", strings.NewReader(`{"hostId":"`+hostID+`","cols":80,"rows":24}`))
+	u := "ws" + strings.TrimPrefix(base, "http") + "/ws/session?hostId=" + hostID + "&cols=80&rows=24&name=spawn"
+	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("spawn: %v", err)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		b, _ := io.ReadAll(res.Body)
-		t.Fatalf("spawn %d %s", res.StatusCode, b)
+	id, _ := waitJSON(t, conn, "ready")["id"].(string)
+	_ = conn.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := http.Get(base + "/api/sessions")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var list []runtime.Info
+		err = json.NewDecoder(res.Body).Decode(&list)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, info := range list {
+			if info.ID == id && info.Clients == 0 {
+				return info
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	var info runtime.Info
-	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
-		t.Fatal(err)
-	}
-	return info
+	t.Fatalf("spawn: session %q did not come up without a client", id)
+	return runtime.Info{}
 }
 
 func dialSession(t *testing.T, base, id, name, kind string) *websocket.Conn {

@@ -1181,15 +1181,3 @@ func (s *Service) StopGroupRun(id string) (GroupRun, error) {
 	s.audit.RunbookEvent(fmt.Sprintf("group run %s stopped by you at step %d of %d", id, at, len(out.Steps)), rb, "", redact.Report{})
 	return out, nil
 }
-
-// ListGroupRuns returns the runs keel serve holds, newest first.
-func (s *Service) ListGroupRuns() []GroupRun {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]GroupRun, 0, len(s.groupRuns))
-	for _, r := range s.groupRuns {
-		out = append(out, r.view())
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
-	return out
-}

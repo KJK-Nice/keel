@@ -14,15 +14,6 @@ import (
 
 func groupRunPath(id string) string { return "/api/agent/groupruns/" + url.PathEscape(id) }
 
-// GroupRuns is GET /api/agent/groupruns.
-func (c *Client) GroupRuns(ctx context.Context) ([]GroupRun, error) {
-	var out struct {
-		Runs []GroupRun `json:"runs"`
-	}
-	err := c.do(ctx, http.MethodGet, "/api/agent/groupruns", nil, &out)
-	return out.Runs, err
-}
-
 // StartGroupRun is POST /api/agent/groupruns {runbookId, groupId, mode}: keel serve fixes the run's hosts per step at that
 // moment (the members with the step's role whose Agent can read is on). No model is called and no pane is read.
 func (c *Client) StartGroupRun(ctx context.Context, runbookID, groupID, mode string) (out GroupRun, err error) {

@@ -267,7 +267,6 @@ func TestDirectTypeStopsWhenItsContextEnds(t *testing.T) {
 	}
 }
 
-
 func TestDirectLineMatchesTheServersRule(t *testing.T) {
 	for _, ok := range []string{"ls -la", "echo 'h\xc3\xa9llo'"} {
 		if !DirectLine(ok) {

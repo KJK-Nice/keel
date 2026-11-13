@@ -58,14 +58,6 @@ func (s *Server) setGroupRole(w http.ResponseWriter, r *http.Request) {
 	s.note("group", "host role set in group "+g.ID, req.HostID, "", "")
 }
 
-func (s *Server) agentGroupRuns(w http.ResponseWriter, _ *http.Request) {
-	if s.agent == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"runs": []service.GroupRun{}})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": s.agent.ListGroupRuns()})
-}
-
 func (s *Server) agentStartGroupRun(w http.ResponseWriter, r *http.Request) {
 	if s.agent == nil {
 		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
