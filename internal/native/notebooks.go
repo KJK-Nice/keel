@@ -245,7 +245,7 @@ func (t *tab) onlyNotebooks() bool { return len(t.panes) > 0 && t.firstTerm() ==
 // openNotebook).
 func (w *workspace) placeNotebook(np *pane) {
 	t := w.tab()
-	if t != nil && !t.isNew() && !t.isPage() && !t.remote && t.root != nil && len(t.panes) > 0 {
+	if t != nil && (t.mode() == modeSession || t.mode() == modeNotebooks) && t.root != nil && len(t.panes) > 0 {
 		sibling := t.firstTerm()
 		if sibling == nil {
 			sibling = t.panes[t.focused]

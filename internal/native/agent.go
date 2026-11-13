@@ -193,11 +193,11 @@ func (w *workspace) setAgentWidth(width float32) {
 // when a page is.
 func (w *workspace) agentPanes() (out []agentPane) {
 	sessionTab := w.tab()
-	if sessionTab == nil || sessionTab.isNew() || sessionTab.isPage() {
+	if sessionTab == nil || !sessionTab.mode().hasPanes() {
 		sessionTab = w.lastSession
 	}
 	for _, t := range w.tabs {
-		if t.isNew() || t.isPage() {
+		if !t.mode().hasPanes() {
 			continue
 		}
 		for _, id := range t.root.Leaves() {

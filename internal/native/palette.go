@@ -268,11 +268,11 @@ func (w *workspace) paletteItems() []palItem {
 			keys = tabKeyLabel(9)
 		}
 		focusTab := func() { w.selectTab(i) }
-		if t.isNew() {
+		switch t.mode() {
+		case modeNew:
 			items = append(items, palItem{group: "Open now", title: "New tab", hint: fmt.Sprintf("tab %d", n), keys: keys, icon: "add-01", run: func(bool) { focusTab() }})
 			continue
-		}
-		if t.isPage() {
+		case modePage:
 			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: pageDefs[t.pg.name].paletteTag, run: func(bool) { focusTab() }})
 			continue
 		}

@@ -233,7 +233,7 @@ func popoverAction(rows []person, s seat) (kind string, who person) {
 // shareTarget is the pane Share acts on: the focused pane of a session tab, when it is a live local session.
 func (w *workspace) shareTarget() *pane {
 	t := w.tab()
-	if t == nil || t.isNew() || t.isPage() || t.remote {
+	if t == nil || t.mode() == modeRemote || !t.mode().hasPanes() {
 		return nil
 	}
 	if p := t.panes[t.focused]; p != nil && !p.remote && p.sessionID() != "" {

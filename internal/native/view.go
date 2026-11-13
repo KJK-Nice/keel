@@ -182,9 +182,9 @@ func (w *workspace) titlebar(c *ui.Context) {
 func (w *workspace) barStatus() string {
 	t := w.tab()
 	switch {
-	case t == nil || t.isPage():
+	case t == nil || t.mode() == modePage:
 		return ""
-	case t.isNew():
+	case t.mode() == modeNew:
 		if t.page.connecting != "" {
 			return "Connecting…"
 		}
@@ -232,14 +232,14 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			status = p.status()
 		}
 		var lead ui.Element
-		switch {
-		case t.isNew():
+		switch t.mode() {
+		case modeNew:
 			lead = icon(c, "computer-terminal-01", inkMuted)
-		case t.isPage():
+		case modePage:
 			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
-		case t.remote: // the joined-share link (lib/tabstrip.js)
+		case modeRemote: // the joined-share link (lib/tabstrip.js)
 			lead = icon(c, "link", inkMuted)
-		case t.onlyNotebooks(): // no session to have a state
+		case modeNotebooks: // no session to have a state
 			lead = icon(c, "notebook-pen", inkMuted)
 		default:
 			lead = dot(c, statusColor(status))
@@ -536,9 +536,9 @@ func (w *workspace) stage(c *ui.Context) {
 		w.centered(c, w.blocked)
 	case t == nil:
 		w.centered(c, "") // the window keeps a tab: this is only the moment before the first listing
-	case t.isNew():
+	case t.mode() == modeNew:
 		w.startPageView(c, t)
-	case t.isPage():
+	case t.mode() == modePage:
 		w.pageView(c, t)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {

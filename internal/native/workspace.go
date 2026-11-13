@@ -291,6 +291,35 @@ type tab struct {
 // isNew reports the New tab page.
 func (t *tab) isNew() bool { return t.page != nil }
 
+// tabMode is what a tab is: the New tab page, a page, someone else's share, notebooks only, or sessions. A tab is exactly
+// one of them.
+type tabMode int
+
+const (
+	modeSession   tabMode = iota // terminals (and notebooks beside them)
+	modeNotebooks                // notebooks only: no session to have a state
+	modeRemote                   // joined someone else's share: a terminal and nothing else, never saved
+	modeNew                      // the New tab start page
+	modePage                     // Keychain, Logs, …
+)
+
+func (t *tab) mode() tabMode {
+	switch {
+	case t.isNew():
+		return modeNew
+	case t.isPage():
+		return modePage
+	case t.remote:
+		return modeRemote
+	case t.onlyNotebooks():
+		return modeNotebooks
+	}
+	return modeSession
+}
+
+// hasPanes reports a tab that holds panes (a page and the New tab page hold none).
+func (m tabMode) hasPanes() bool { return m != modeNew && m != modePage }
+
 func (t *tab) name() string {
 	if t.pg != nil { // a page is named by what it is: no rename
 		switch { // the Group page by its folder, the group run page by its runbook (term.js setPageTitle)
@@ -790,13 +819,15 @@ func (w *workspace) killWhenNamed(conn session) {
 // window shows: closing it would only open another (term.js closeActivePaneOrTab).
 func (w *workspace) closeFocused() {
 	t := w.tab()
-	switch {
-	case t == nil:
-	case t.isNew():
+	if t == nil {
+		return
+	}
+	switch t.mode() {
+	case modeNew:
 		if len(w.tabs) > 1 {
 			w.closeTab(t)
 		}
-	case t.isPage():
+	case modePage:
 		w.closeTab(t)
 	default:
 		w.closePane(t, t.focused)
