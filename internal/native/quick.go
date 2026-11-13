@@ -29,13 +29,7 @@ func (w *workspace) openQuick(target string, notes *sshparse.Result) {
 
 func (w *workspace) closeQuick() {
 	w.quick = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
 // quickColor is the colour the webview gives a quick host.

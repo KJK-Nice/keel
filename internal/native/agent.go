@@ -275,9 +275,7 @@ func (w *workspace) setAgentOpen(open bool) {
 		return
 	}
 	a.picker, a.sessOpen = false, false
-	if t := w.tab(); t != nil && t.panes[t.focused] != nil { // the keyboard goes back to the pane
-		w.wantFocus = t.focused
-	}
+	w.returnKeyboard(false) // the keyboard goes back to the pane
 }
 
 // loadAgent reads the agent settings (the default scope, whether a key is saved) and, with no key, the provider's words

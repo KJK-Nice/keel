@@ -38,13 +38,7 @@ func (w *workspace) openJoin() { w.joinDlg = &joinDialog{} }
 
 func (w *workspace) closeJoin() {
 	w.joinDlg = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
 // submitJoin reads the link: the app's error is a toast and the dialog stays; otherwise the dialog closes, its text

@@ -209,13 +209,7 @@ func (w *workspace) closeHostDialog() {
 	d.stopTest()
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", ""
 	w.hostDlg = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
 // defaultIdentity picks the first identity for a new Identity host, as fillIdentitySelect does ({first: !saved}):

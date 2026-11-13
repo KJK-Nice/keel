@@ -367,9 +367,7 @@ func (w *workspace) closePalette() {
 		return
 	}
 	w.pal = nil
-	if t := w.tab(); t != nil && t.panes[t.focused] != nil {
-		w.wantFocus = t.focused
-	}
+	w.returnKeyboard(false)
 }
 
 func (w *workspace) togglePalette() {

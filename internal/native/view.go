@@ -68,19 +68,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
-	w.hostKeyDialog(c)
-	w.quickDialogView(c)
-	w.joinDialogView(c)
-	w.hostDialogView(c)
-	w.identityDialogView(c)
-	w.snippetDialogView(c)
-	w.notebookDialogView(c)
-	w.folderDialogView(c)
-	w.forwardDialogView(c)
-	w.forwardKeyView(c)
-	w.approveView(c)
-	w.confirmView(c)
-	w.paletteView(c)
+	w.dialogsView(c)
 	w.reviewFocus(c)
 	if w.focusHosts && !w.modalOpen() {
 		w.hostsH.Focus(c)
