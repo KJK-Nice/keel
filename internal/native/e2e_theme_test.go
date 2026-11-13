@@ -43,6 +43,7 @@ func (e *win) paneBodyPix(id string) [3]uint8 {
 func TestE2EThemeSwitch(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
+	e.w.prefs.Theme = themeDark // the default is System, which is light under the tester
 	e.openPanes(2)
 	e.settle(500 * time.Millisecond)
 	e.wantPix("dark title bar", 900, 10, darkHex.chrome)
