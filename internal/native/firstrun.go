@@ -510,6 +510,7 @@ func (w *workspace) openKeel(f *firstRun) {
 				f.agentErr = keyError(err)
 				return
 			}
+			w.refreshSuggestSettings() // the switch just saved (suggestions on or off)
 			w.finishFirstRun(f)
 		})
 	})

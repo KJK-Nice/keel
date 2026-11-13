@@ -14,6 +14,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/applog"
+	"keel/internal/store"
 )
 
 func sendJSON(t *testing.T, conn *websocket.Conn, v map[string]any) {
@@ -33,6 +34,19 @@ func insertOverSocket(t *testing.T, conn *websocket.Conn, bytes, suggestionID st
 	return waitJSON(t, conn, "agent-insert")
 }
 
+// detectAuto turns on "Notice automatically", the opt-in detector; the default is "Only lines starting with #".
+func (f *askFixture) detectAuto(t *testing.T) {
+	t.Helper()
+	set, err := f.st.AgentSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.Detection = store.DetectionAuto
+	if _, err := f.st.SetAgentSettings(set); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func noPTY(t *testing.T, got <-chan string, what string) {
 	t.Helper()
 	select {
@@ -47,6 +61,7 @@ func noPTY(t *testing.T, got <-chan string, what string) {
 // follower gets no notice, no suggestion and cannot insert.
 func TestSuggestOverSessionSocket(t *testing.T) {
 	f := newAskFixture(t, true)
+	f.detectAuto(t)
 	if err := f.st.SetAgentKey("jev", "jev-test-key-0123"); err != nil {
 		t.Fatal(err)
 	}
@@ -254,6 +269,7 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 	// Registered first, so it runs after the fixture's server is closed.
 	t.Cleanup(func() { suggestNow = time.Now })
 	f := newAskFixture(t, true)
+	f.detectAuto(t)
 	if err := f.st.SetAgentKey("jev", "jev-test-key-0123"); err != nil {
 		t.Fatal(err)
 	}

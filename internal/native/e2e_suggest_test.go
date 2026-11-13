@@ -34,14 +34,18 @@ func (e *win) suggestSetup(detection string) {
 	if code, body := e.raw("PUT", "/api/agent/keys/jev", map[string]string{"key": fakeJevKey}); code != 200 {
 		e.t.Fatalf("PUT /api/agent/keys/jev: %d %s", code, body)
 	}
+	e.w.startPoll(200 * time.Millisecond) // the window learns of settings changed elsewhere through the vault rev (plan 036)
 	e.suggestSettings("on", detection)
 }
 
+// suggestSettings saves the settings as another window would (straight to keel serve) and waits for this window to learn
+// of it through the rev poll.
 func (e *win) suggestSettings(suggestions, detection string) {
 	e.t.Helper()
 	if code, body := e.raw("PUT", "/api/agent/settings", map[string]string{"suggestions": suggestions, "detection": detection}); code != 200 {
 		e.t.Fatalf("PUT /api/agent/settings: %d %s", code, body)
 	}
+	e.pump(func() bool { return e.w.sugSet == sugSettings{suggestions, detection} }, "the window to learn of the settings")
 }
 
 // pumpClock is pump with the window's clock moving.
@@ -135,12 +139,13 @@ func (e *win) logCount(kind, sid string) (n int) {
 	return n
 }
 
-// toCard types words, waits for the notice, presses ⇥ and waits for the card.
+// toCard types words, waits for the notice, presses the suggest key (⌘Y: a line noticed on its own leaves ⇥ to the shell)
+// and waits for the card.
 func (e *win) toCard(words string) {
 	e.t.Helper()
 	e.typeKeys(words)
 	e.pumpClock(e.notice, "the notice for "+words)
-	e.key(0, ui.KeyTab)
+	e.key(ui.Cmd, ui.KeyY)
 	e.pumpClock(func() bool { return e.sugState() == sugCard }, "the card")
 }
 
@@ -156,9 +161,10 @@ func TestE2ESuggestInsertNotRun(t *testing.T) {
 	if !e.hasLabel("suggestion notice") {
 		t.Error("the line is not highlighted")
 	}
+	e.needTexts("⌘", "Y", "suggest a command") // the notice names the key: ⇥ stays the shell's
 	e.shot("TestE2ESuggestInsertNotRun-notice")
 
-	e.key(0, ui.KeyTab)
+	e.key(ui.Cmd, ui.KeyY)
 	e.pumpClock(func() bool { return e.sugState() == sugCard && e.tt.HasText("echo keel-suggest-ok") }, "the card")
 	e.needTexts("Read-only", "Prints a marker to show the command reached the prompt line.", "echo keel-suggest-alt-2", "echo keel-suggest-alt-3", "Suggested from your words", "insert", "keep my words")
 	e.shot("TestE2ESuggestInsertNotRun-card")
@@ -284,13 +290,24 @@ func TestE2ESuggestHashMode(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
 	e.suggestSetup("hash-only")
-	e.openLocal()
+	sid := e.openLocal()
 	e.clickBody("1")
 	e.typeKeys("show the files here")
 	e.settleClock(1500 * time.Millisecond)
 	if e.notice() {
 		t.Fatal("a plain line is noticed when only # lines are")
 	}
+	for _, l := range e.logEntries() {
+		if l.SessionID == sid && strings.HasPrefix(l.Kind, "agent.") {
+			t.Fatalf("a typed line without # reached keel serve's agent: %+v", l)
+		}
+	}
+	// The suggest key asks for it, and keel serve logs it as it logs a ⇥ request.
+	e.key(ui.Cmd, ui.KeyY)
+	e.pumpClock(func() bool { return e.sugState() == sugCard && e.tt.HasText("echo keel-suggest-ok") }, "the card for the asked line")
+	e.pumpClock(func() bool { return e.logCount("agent.suggest", sid) > 0 }, "the agent.suggest log row")
+	e.key(0, ui.KeyEscape)
+	e.pump(func() bool { return e.sugState() == sugIdle }, "the card to close")
 	e.key(ui.Ctrl, ui.KeyU)
 	e.typeKeys("# show the files here")
 	e.pumpClock(e.notice, "the notice for a # line")
@@ -311,9 +328,11 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 	if a.notice() {
 		t.Fatal("a notice with suggestions off")
 	}
+	a.key(ui.Cmd, ui.KeyY) // the key says so rather than doing nothing (on the words still typed: an empty line is no prompt to read)
+	a.pumpClock(func() bool { return a.tt.HasText("Suggestions in panes are off. Turn them on in Settings · Agent.") }, "the message")
+	a.key(0, ui.KeyEscape)
 	a.key(ui.Ctrl, ui.KeyU)
 	a.suggestSettings("on", "auto")
-	a.settleClock(16 * time.Second) // keel serve's "off" backs the pane off for 15 s
 
 	// "Agent can read" off for the host: nothing.
 	if err := a.tt.RightClick("host Local Shell"); err != nil {

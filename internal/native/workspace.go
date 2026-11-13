@@ -384,6 +384,9 @@ type workspace struct {
 	first          *firstRun   // the First run screens (or the palette's host import), over the whole window
 	closed         bool
 	sugNow         time.Time // the frame's time, the suggestion machines' clock
+	sugMode        sugMode   // what the settings let a pane do on its own, as the machines last heard it
+	sugModeSeen    bool
+	sugSet         sugSettings // the agent settings the machines follow
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool          // a poll is in flight
@@ -600,6 +603,7 @@ func (w *workspace) start() {
 				w.fail("attach", failed)
 			}
 			w.live = true
+			w.refreshSuggestSettings()
 			w.settle() // an empty window shows a New tab
 			w.saved.ready = true
 		})

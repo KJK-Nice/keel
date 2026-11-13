@@ -326,6 +326,11 @@ type persistData struct {
 	// Agent holds the agent settings. No secret lives here: provider keys
 	// are vault secrets (agentkeys.go).
 	Agent *AgentSettings `json:"agent,omitempty"`
+	// AgentDetectionDefault records that the detection default moved from
+	// "auto" to "hash-only" (plan 036): a file without it that holds "auto"
+	// is moved once, on load, since a stored value cannot tell a choice
+	// from the old default. It is written with the next save.
+	AgentDetectionDefault bool `json:"agentDetectionDefault,omitempty"`
 	// Share holds Settings · Sharing's saved values (sharesettings.go).
 	Share *ShareSettings `json:"share,omitempty"`
 }
@@ -472,6 +477,8 @@ func loadPlain(b []byte) (loaded, error) {
 		KeyTypes   map[string]string `json:"knownHostTypes"`
 		Agent      *AgentSettings    `json:"agent"`
 		Share      *ShareSettings    `json:"share"`
+
+		AgentDetectionDefault bool `json:"agentDetectionDefault"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return loaded{}, fmt.Errorf("parse store: %w", err)
@@ -490,6 +497,11 @@ func loadPlain(b []byte) (loaded, error) {
 		Share:      raw.Share,
 
 		KnownHostTypes: raw.KeyTypes,
+
+		AgentDetectionDefault: true,
+	}
+	if out.Agent != nil && !raw.AgentDetectionDefault && out.Agent.Detection == DetectionAuto {
+		out.Agent.Detection = DetectionHashOnly
 	}
 	if out.KnownHosts == nil {
 		out.KnownHosts = map[string]string{}
@@ -1202,6 +1214,7 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 		return saveSnapshot{}, errors.New("vault has no recipient")
 	}
 	s.data.Version = 3
+	s.data.AgentDetectionDefault = true // every file Keel writes has the new detection default; a later "auto" is a choice
 	b, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
 		return saveSnapshot{}, err

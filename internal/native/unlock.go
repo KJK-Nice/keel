@@ -133,6 +133,7 @@ func (w *workspace) unlocked(g *unlockGate) {
 	w.gate = nil
 	if w.live {
 		w.reloadHosts()
+		w.refreshSuggestSettings()
 		return
 	}
 	w.start()

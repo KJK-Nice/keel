@@ -81,7 +81,7 @@ func TestAgentSettingsAPI(t *testing.T) {
 	}
 	_ = json.Unmarshal(b, &got)
 	s := got.Settings
-	if s.ScrollbackLines != 1000 || !s.Redact.Secrets || !s.Redact.IPs || s.DefaultScope != "tab" || s.Detection != "auto" || s.Provider != "gemini" {
+	if s.ScrollbackLines != 1000 || !s.Redact.Secrets || !s.Redact.IPs || s.DefaultScope != "tab" || s.Detection != "hash-only" || s.Provider != "gemini" {
 		t.Fatalf("saved = %+v", s)
 	}
 	for _, bad := range []map[string]any{

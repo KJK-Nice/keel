@@ -302,6 +302,49 @@ func TestDuplicateKeepsAgentFlags(t *testing.T) {
 	}
 }
 
+// Plan 036: the detection default moved from auto to hash-only. A file written before that holds "auto" for people who never
+// chose it, so it is moved once on load; an "auto" saved by the new build is a choice and stays.
+func TestOldAutoDetectionMovesOnceToHashOnly(t *testing.T) {
+	st, path := agentStore(t)
+	if d, _ := st.AgentSettings(); d.Detection != DetectionHashOnly {
+		t.Fatalf("default detection %q", d.Detection)
+	}
+	if _, err := st.SetAgentSettings(AgentSettings{Detection: DetectionAuto}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if string(doc["agentDetectionDefault"]) != "true" {
+		t.Fatalf("a saved file does not record the move: %v", doc["agentDetectionDefault"])
+	}
+	if got, _ := reopen(t, path).AgentSettings(); got.Detection != DetectionAuto {
+		t.Fatalf("a chosen auto became %q", got.Detection)
+	}
+	delete(doc, "agentDetectionDefault") // the file as an older build wrote it
+	if b, err = json.Marshal(doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := reopen(t, path)
+	if got, _ := old.AgentSettings(); got.Detection != DetectionHashOnly {
+		t.Fatalf("an old auto stayed %q", got.Detection)
+	}
+	if _, err := old.SetAgentSettings(AgentSettings{Detection: DetectionAuto}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := reopen(t, path).AgentSettings(); got.Detection != DetectionAuto {
+		t.Fatalf("auto chosen after the move became %q", got.Detection)
+	}
+}
+
 func TestAgentSettingsDefaultsNormalizeAndPersist(t *testing.T) {
 	st, path := agentStore(t)
 	got, err := st.AgentSettings()

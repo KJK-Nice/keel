@@ -103,6 +103,7 @@ func (w *workspace) pollOnce() {
 		case v.Rev != w.rev && w.live:
 			w.rev = v.Rev
 			w.reloadHosts()
+			w.refreshSuggestSettings() // the agent settings may have changed in another window
 			w.reloadSnippets()
 			w.reloadNotebooks()
 			w.reloadTunnels()

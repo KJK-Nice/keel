@@ -48,7 +48,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 	}}
 
 	suggest := prefGroup{title: "Suggestions in panes", rows: []prefRow{
-		{title: "Suggest a command when I type plain language", desc: "Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.",
+		{title: "Suggest commands in panes", desc: "Start a line with # and press ⇥, or press " + suggestKeyHere() + " on any line. Nothing is inserted until you accept, and nothing runs until you press ↵.",
 			ctl: w.switchCtl("Suggest commands", v.Suggestions != "off", func(on bool) { save(keelclient.AgentSettingsPatch{Suggestions: str(onOff(on))}) })},
 		{title: "Suggest from this pane's scrollback", desc: "Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.",
 			ctl: w.switchCtl("Suggest from this pane's scrollback", v.HistorySuggestions != "off", func(on bool) { save(keelclient.AgentSettingsPatch{HistorySuggestions: str(onOff(on))}) })},

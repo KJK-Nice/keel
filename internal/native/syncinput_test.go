@@ -228,7 +228,7 @@ func TestWhatKeelTypesGoesToOnePaneEvenWithSyncOn(t *testing.T) {
 	}
 	others("the dialog's Type")
 	// A suggestion insert and the ⌘Z put-back.
-	r.line = "sh-3.2$ show the files here"
+	r.line = "sh-3.2$ # show the files here"
 	r.carded(t, card(ro("find . -type f")))
 	if !r.key(0, ui.KeyTab) {
 		t.Fatal("⇥ not taken on the card")

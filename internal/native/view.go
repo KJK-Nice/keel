@@ -170,6 +170,8 @@ func (w *workspace) shortcuts(c *ui.Context) {
 		agentMods |= ui.Shift
 	}
 	c.OnWindowShortcut(agentMods, ui.KeyI, func() { w.act(w.toggleAgent) })
+	// ⌘Y asks for a command for the words on the prompt line (Ctrl+⇧Y elsewhere: Ctrl+Y is the shell's yank). It types nothing.
+	c.OnWindowShortcut(agentMods, ui.KeyY, func() { w.act(w.suggestRequest) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(w.toggleSidebar) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })

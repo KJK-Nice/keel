@@ -16,6 +16,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 | ⌘< / ⌘> (or ⌘⇧[ / ⌘⇧]) | Ctrl+< / Ctrl+> (or Ctrl+Shift+[ / Ctrl+Shift+]) | Previous / next tab (wraps) |
 | ⌘B | Ctrl+B | Show or hide the Vault sidebar (drag its right edge to resize it: arrows, Home and End on the focused edge; double-click goes back to the default width) |
 | ⌘I | Ctrl+Shift+I | Show or hide the agent panel (Ctrl+I is Tab in a terminal, so it stays with the shell) |
+| ⌘Y | Ctrl+Shift+Y | In a pane: suggest a command for the words on the prompt line (the same as the palette's "Suggest a command for this line"). It asks; nothing is typed until you press ⇥ on the card |
 | ⌘K / ⌘⇧P | Ctrl+K / Ctrl+Shift+P | Command palette |
 | ⌘⇧D | Ctrl+Shift+D | Split → |
 | ⌘⇧E | Ctrl+Shift+E | Split ↓ |

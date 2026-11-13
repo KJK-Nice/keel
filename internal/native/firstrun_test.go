@@ -354,7 +354,7 @@ func TestFirstRunSkipAndBack(t *testing.T) {
 		t.Fatalf("imports %v, step %d", fb.imports, r.w.first.step)
 	}
 	r.texts(t, "An agent that suggests, never types",
-		"Ask it about a session, or type plain language at a prompt and press ⇥. It is optional, and you can set it up later in Settings.",
+		"Ask it about a session, or start a line with # at a prompt and press ⇥ (or press "+suggestKeyHere()+" on any line) to get a command. It is optional, and you can set it up later in Settings.",
 		"Reads only the panes you pick", `Every pane it can read carries an "Agent reads" mark. Hosts can opt out.`,
 		"Suggests commands; you press Type", "The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥.",
 		"Secrets are redacted, the vault stays closed", "No passwords, keys or snippets leave it. Secret-looking values in a pane are redacted before sending.",
@@ -506,8 +506,8 @@ func TestFirstRunStep3StartsOnNotNowWithTheSwitchOnAndSendsOnlyTheSwitch(t *test
 	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
 	r := atAgentStep(t, fb)
 	r.texts(t, "Provider", "Google Gemini", "Answers questions and writes suggestions. Needs an API key.", "Not now",
-		"Connect a provider later in Settings, Agent.", "Suggest commands when I type plain language",
-		"Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.")
+		"Connect a provider later in Settings, Agent.", "Suggest commands for # lines and when I ask",
+		"Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or ask for a suggestion.")
 	if r.has("Gemini API key input") {
 		t.Fatal("the key field shows with Not now chosen")
 	}
@@ -536,7 +536,7 @@ func TestFirstRunStep3GeminiNeedsAKeyThenSendsItOnceAndEmptiesTheField(t *testin
 	if r.tt.HasText(fakeFirstRunKey) {
 		t.Error("the key is drawn")
 	}
-	r.click(t, "Suggest commands when I type plain language switch")
+	r.click(t, "Suggest commands for # lines and when I ask switch")
 	r.click(t, "Open Keel")
 	if len(fb.agent.keys) != 1 || fb.agent.keys[0].Provider != "gemini" || fb.agent.keys[0].Key != fakeFirstRunKey {
 		t.Fatalf("the key was sent %d times", len(fb.agent.keys))

@@ -22,7 +22,7 @@ func providerPurpose(id string) string {
 	case "gemini", "anthropic":
 		return model
 	case "jev":
-		return "Plain-language detection: notices when the line you are typing is plain language, so a suggestion can start by itself. That line is sent, redacted, and when you press ⇥ so are recent commands from the pane (unless scrollback suggestions are off) and snippets you marked for the agent."
+		return "Plain-language detection, used only when you turn on Notice automatically: after a pause in typing, the line is sent, redacted, to see whether it is plain language. When you ask for a suggestion, recent commands from the pane (unless scrollback suggestions are off) and snippets you marked for the agent are sent too."
 	}
 	return ""
 }
@@ -47,11 +47,11 @@ func detectionNote(suggestions, detection string, jevConfigured bool) string {
 	case suggestions == "off":
 		return ""
 	case detection == detectionHashOnly:
-		return "Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment."
+		return "Nothing you type is sent until you start a line with # or press " + suggestKeyHere() + ". Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment."
 	case !jevConfigured:
 		return "Jev is not connected, so Keel notices only lines that start with # for now. Connect Jev above to notice plain language automatically."
 	}
-	return ""
+	return "After a pause in typing, the line is sent, redacted, to Jev to check for plain language. A notice shows and ⇥ stays the shell's: press " + suggestKeyHere() + " to ask."
 }
 
 var agentScopes = [][2]string{{"focused", "Focused pane only"}, {"pick", "Panes I pick each time"}, {"tab", "Every pane in the tab"}}

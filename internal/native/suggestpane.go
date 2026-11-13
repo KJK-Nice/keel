@@ -88,6 +88,7 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 	p.sg.m = newSugMachine(sugDeps{
 		readLine:   p.promptLine,
 		canSuggest: func() bool { return w.canSuggest(p) },
+		mode:       w.suggestMode,
 		sendDetect: func(seq int, line string) { _ = p.conn.SuggestDetect(seq, line) },
 		sendSuggest: func(seq int, line string) {
 			if err := p.conn.SuggestAsk(seq, line); err != nil { // not asked: never leave the card loading
@@ -103,6 +104,72 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		mac:     runtime.GOOS == "darwin",
 	})
 	return p.sg.m
+}
+
+// suggestKeyHere is the suggest key as this platform writes it (⌘Y, Ctrl+Shift+Y).
+func suggestKeyHere() string { return suggestKeyLabel(runtime.GOOS == "darwin") }
+
+// sugSettings are the two agent settings the machines follow, as last read or saved. They are kept apart from the
+// Settings page's copy so that reading them for the panes never overwrites what that page or the panel shows.
+type sugSettings struct{ suggestions, detection string }
+
+// suggestMode is what the agent settings let a pane do on its own. Before the first read it is the defaults: on, and
+// only lines starting with #.
+func (w *workspace) suggestMode() sugMode {
+	switch {
+	case w.sugSet.suggestions == "off":
+		return sugOff
+	case w.sugSet.detection == detectionAuto:
+		return sugAuto
+	}
+	return sugHash
+}
+
+// noteSuggestSettings takes the settings keel serve answered with, or the ones the Settings page just changed.
+func (w *workspace) noteSuggestSettings(s keelclient.AgentSettings) {
+	w.sugSet = sugSettings{s.Settings.Suggestions, s.Settings.Detection}
+	w.suggestSettingsChanged()
+}
+
+// suggestSettingsChanged tells every pane's machine when the settings changed what a pane may do on its own (suggestions
+// on or off, how a line is noticed): at once, from the Settings switch (before keel serve has answered the save), from
+// First run, and through the vault rev poll when another window changed them.
+func (w *workspace) suggestSettingsChanged() {
+	mode := w.suggestMode()
+	if w.sugModeSeen && mode == w.sugMode {
+		return
+	}
+	w.sugMode, w.sugModeSeen = mode, true
+	for _, t := range w.tabs {
+		for _, p := range t.panes {
+			if p.sg.m != nil {
+				p.sg.m.ModeChanged()
+			}
+		}
+	}
+	w.redraw()
+}
+
+// refreshSuggestSettings reads the agent settings again, for the machines (the window's start, an unlock, a changed rev).
+func (w *workspace) refreshSuggestSettings() {
+	w.work(func() {
+		c, cancel := ctx()
+		defer cancel()
+		s, err := w.be.AgentSettings(c)
+		w.post(func() {
+			if !w.closed && err == nil {
+				w.noteSuggestSettings(s)
+			}
+		})
+	})
+}
+
+// suggestRequest is the suggest key and the palette's action: ask for a command for the words on the focused pane's
+// prompt line. It only asks (the machine's one question to keel serve); the card's ⇥ is the one way a command is inserted.
+func (w *workspace) suggestRequest() {
+	if p := w.focusedPane(); p != nil && !p.remote {
+		w.suggestMachine(p).Request()
+	}
 }
 
 // keyNames are the keys the machine knows by name; any other key is "?".
