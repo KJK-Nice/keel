@@ -18,10 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"keel/internal/agent"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	// ExternalSource names the outside agent in keel.log (Source).
 	ExternalSource = "claude-code"
 	// ExternalTitle is that conversation's title.
-	ExternalTitle = "Claude Code"
+	ExternalTitle = wire.ExternalTitle
 	// maxExternalPanes caps one pane list.
 	maxExternalPanes = 64
 )
@@ -46,19 +46,19 @@ type PaneLister interface {
 	PaneIDs() []string
 }
 
-// ExternalPane is one pane an outside agent may read.
-type ExternalPane struct {
-	PaneID     string `json:"paneId"`
-	Host       string `json:"host"`
-	Production bool   `json:"production"`
-}
-
-// ExternalPaneList is the panes an outside agent may read, and how many
-// others are open on hosts it may not read (never their names).
-type ExternalPaneList struct {
-	Panes      []ExternalPane `json:"panes"`
-	NotAllowed int            `json:"notAllowed"`
-}
+// The shapes keel mcp reads are internal/wire's.
+type (
+	// ExternalPane is one pane an outside agent may read.
+	ExternalPane = wire.ExternalPane
+	// ExternalPaneList is the panes an outside agent may read, and how many
+	// others are open on hosts it may not read (never their names).
+	ExternalPaneList = wire.ExternalPaneList
+	// ExternalExcerpt is one pane as an outside agent reads it: redacted.
+	ExternalExcerpt = wire.ExternalExcerpt
+	// ExternalProposalState is what an outside agent may know of a proposal
+	// it made: whether the user typed it, and when.
+	ExternalProposalState = wire.ExternalProposalState
+)
 
 // ExternalPanes lists the open panes an outside agent may read. A host's
 // name goes through the request Redactor, so it is hidden when Settings ·
@@ -110,17 +110,6 @@ func hostName(h agent.Host) string {
 		return "unknown host"
 	}
 	return h.Name
-}
-
-// ExternalExcerpt is one pane as an outside agent reads it: redacted.
-type ExternalExcerpt struct {
-	PaneID      string         `json:"paneId"`
-	Host        string         `json:"host"`
-	Production  bool           `json:"production"`
-	Lines       int            `json:"lines"`
-	LastCommand string         `json:"lastCommand,omitempty"` // "exit 1", "still running", … when read from OSC 133 marks
-	Redactions  map[string]int `json:"redactions,omitempty"`
-	Text        string         `json:"text"`
 }
 
 // ExternalRead reads one pane for an outside agent: at most lines lines
@@ -253,15 +242,6 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	s.mu.Unlock()
 	s.persist(conv)
 	return out, nil
-}
-
-// ExternalProposalState is what an outside agent may know of a proposal
-// it made: whether the user typed it, and when.
-type ExternalProposalState struct {
-	ProposalID string     `json:"proposalId"`
-	Typed      bool       `json:"typed"`
-	TypedAt    *time.Time `json:"typedAt,omitempty"`
-	Edited     bool       `json:"edited"`
 }
 
 // ExternalProposal reports whether the user typed a proposal of the

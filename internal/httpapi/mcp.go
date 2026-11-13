@@ -9,6 +9,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // keel mcp's routes (docs/agent.md, Claude Code): the bridge that lets
@@ -79,15 +80,15 @@ func (s *Server) mcpPropose(w http.ResponseWriter, r *http.Request) {
 		writeMCPErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"proposalId":     p.ID,
-		"conversationId": service.ExternalConversationID,
-		"conversation":   service.ExternalTitle,
-		"paneId":         p.SessionID,
-		"host":           p.Host,
-		"risk":           p.Risk,
-		"needsShift":     p.NeedsShift,
-		"placeholders":   p.Placeholders,
+	writeJSON(w, http.StatusOK, wire.ExternalProposed{
+		ProposalID:     p.ID,
+		ConversationID: service.ExternalConversationID,
+		Conversation:   service.ExternalTitle,
+		PaneID:         p.SessionID,
+		Host:           p.Host,
+		Risk:           p.Risk,
+		NeedsShift:     p.NeedsShift,
+		Placeholders:   p.Placeholders,
 	})
 }
 

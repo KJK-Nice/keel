@@ -8,6 +8,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
 	"keel/internal/cmdrule"
+	"keel/internal/wire"
 )
 
 // ProposalFence is the info string of the fenced block in which the model
@@ -26,8 +27,8 @@ const ProposalFence = "keel-proposal"
 
 const (
 	maxProposals     = 3
-	maxCommandBytes  = 2048
-	maxCommandLines  = 20
+	maxCommandBytes  = wire.MaxProposalCommandBytes
+	maxCommandLines  = wire.MaxProposalCommandLines
 	maxWhyBytes      = 300
 	maxAnswerBytes   = 32 * 1024
 	maxQuestionBytes = 8 * 1024
