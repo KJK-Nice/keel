@@ -36,11 +36,6 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.fallBackToHosts()
 	w.publishSync()
-	if w.clip != "" { // a menu's Copy has no context to write with: the next frame does (term.js data-copy)
-		c.WriteClipboard(w.clip)
-		w.say("Copied " + w.clipWhat)
-		w.clip, w.clipWhat = "", ""
-	}
 	w.shareFrame(c)
 	w.suggestFrame(c)
 	w.shortcuts(c)
@@ -73,19 +68,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
-	w.hostKeyDialog(c)
-	w.quickDialogView(c)
-	w.joinDialogView(c)
-	w.hostDialogView(c)
-	w.identityDialogView(c)
-	w.snippetDialogView(c)
-	w.notebookDialogView(c)
-	w.folderDialogView(c)
-	w.forwardDialogView(c)
-	w.forwardKeyView(c)
-	w.approveView(c)
-	w.confirmView(c)
-	w.paletteView(c)
+	w.dialogsView(c)
 	w.reviewFocus(c)
 	if w.focusHosts && !w.modalOpen() {
 		w.hostsH.Focus(c)
@@ -134,6 +117,7 @@ func (w *workspace) runLater(c *ui.Context) {
 		w.publishSync()
 		c.Invalidate()
 	}
+	w.flushClipboard(c)
 }
 
 // shortcuts declares the window shortcuts: the commands' keys (commands.go), the New tab page's cards and the find bar's. A
@@ -198,9 +182,9 @@ func (w *workspace) titlebar(c *ui.Context) {
 func (w *workspace) barStatus() string {
 	t := w.tab()
 	switch {
-	case t == nil || t.isPage():
+	case t == nil || t.mode() == modePage:
 		return ""
-	case t.isNew():
+	case t.mode() == modeNew:
 		if t.page.connecting != "" {
 			return "Connecting…"
 		}
@@ -248,14 +232,14 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			status = p.status()
 		}
 		var lead ui.Element
-		switch {
-		case t.isNew():
+		switch t.mode() {
+		case modeNew:
 			lead = icon(c, "computer-terminal-01", inkMuted)
-		case t.isPage():
+		case modePage:
 			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
-		case t.remote: // the joined-share link (lib/tabstrip.js)
+		case modeRemote: // the joined-share link (lib/tabstrip.js)
 			lead = icon(c, "link", inkMuted)
-		case t.onlyNotebooks(): // no session to have a state
+		case modeNotebooks: // no session to have a state
 			lead = icon(c, "notebook-pen", inkMuted)
 		default:
 			lead = dot(c, statusColor(status))
@@ -552,9 +536,9 @@ func (w *workspace) stage(c *ui.Context) {
 		w.centered(c, w.blocked)
 	case t == nil:
 		w.centered(c, "") // the window keeps a tab: this is only the moment before the first listing
-	case t.isNew():
+	case t.mode() == modeNew:
 		w.startPageView(c, t)
-	case t.isPage():
+	case t.mode() == modePage:
 		w.pageView(c, t)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {

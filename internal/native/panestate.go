@@ -141,7 +141,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 	common := func() {
 		if textBtn(c, "Copy logs", btnGhost) {
 			text := logText(connectLog(p.host, st))
-			w.act(func() { c.WriteClipboard(text); w.say("Copied connection log") })
+			w.act(func() { w.copy(text, "connection log") })
 		}
 		if textBtn(c, "Close", btnGhost) {
 			w.act(func() { w.closePane(t, p.id) })

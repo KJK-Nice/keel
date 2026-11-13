@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"slices"
 
@@ -181,45 +182,39 @@ func (w *workspace) nbPropAction(id, action string) {
 	conv, was := a.conv, rec.p
 	rec.busy, rec.err = true, ""
 	w.nbFlushAll(func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			var res keelclient.NotebookAction
-			var err error
+		call(w, func(c context.Context) (res keelclient.NotebookAction, err error) {
 			switch action {
 			case actUndo:
-				res, err = w.be.UndoNotebookChange(c, conv, id)
+				return w.be.UndoNotebookChange(c, conv, id)
 			case actDelete:
-				res, err = w.be.PostNotebookDeleteConfirm(c, conv, id)
+				return w.be.PostNotebookDeleteConfirm(c, conv, id)
 			case actKeep:
-				res, err = w.be.DismissNotebookProposal(c, conv, id)
+				return w.be.DismissNotebookProposal(c, conv, id)
 			case actRestore:
-				res, err = w.be.RestoreNotebookChange(c, conv, id)
-			default:
-				err = errors.New("unknown card action")
+				return w.be.RestoreNotebookChange(c, conv, id)
 			}
-			w.post(func() {
-				rec.busy = false
-				if w.closed || a.conv != conv {
-					return
-				}
-				if err != nil {
-					rec.err = nbCardMessage(err)
-					return
-				}
-				gone := (action == actDelete || (action == actUndo && was.Kind == "create")) && was.NotebookID != ""
-				if res.Proposal.ID != "" {
-					rec.p = res.Proposal
-					rec.p.Record = nil
-				}
-				if res.Notebook != nil {
-					w.applyNotebook(*res.Notebook)
-				}
-				if gone {
-					w.removeNotebook(was.NotebookID)
-				}
-				w.reloadNotebooks()
-			})
+			return res, errors.New("unknown card action")
+		}, func(res keelclient.NotebookAction, err error) {
+			rec.busy = false
+			if a.conv != conv {
+				return
+			}
+			if err != nil {
+				rec.err = nbCardMessage(err)
+				return
+			}
+			gone := (action == actDelete || (action == actUndo && was.Kind == "create")) && was.NotebookID != ""
+			if res.Proposal.ID != "" {
+				rec.p = res.Proposal
+				rec.p.Record = nil
+			}
+			if res.Notebook != nil {
+				w.applyNotebook(*res.Notebook)
+			}
+			if gone {
+				w.removeNotebook(was.NotebookID)
+			}
+			w.reloadNotebooks()
 		})
 	})
 }
@@ -234,51 +229,37 @@ func (w *workspace) undoAgentEdit(id string) {
 		if !ok {
 			return
 		}
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			vs, err := w.be.NotebookHistory(c, id)
-			w.post(func() {
-				if w.closed {
-					return
-				}
-				if err != nil {
-					w.warn(nbErr(err, "Could not undo"))
-					return
-				}
-				i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == "before-agent-edit" })
-				if i < 0 {
-					w.warn("Keel has no version from before the agent's edit. Open History to choose one.")
-					return
-				}
-				vid := vs[i].ID
-				if rec.LastBy != byAgent {
-					w.askConfirm(&hostConfirm{title: "Undo the agent's edit", action: "Undo",
-						message: "You changed this notebook after the agent's edit. Undo puts back the version from before the agent's edit; your later changes stay in History.",
-						run:     func() { w.restoreBeforeAgentEdit(id, vid, rec.Rev) }})
-					return
-				}
-				w.restoreBeforeAgentEdit(id, vid, rec.Rev)
-			})
+		call(w, func(c context.Context) ([]keelclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []keelclient.NotebookVersion, err error) {
+			if err != nil {
+				w.warn(nbErr(err, "Could not undo"))
+				return
+			}
+			i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == "before-agent-edit" })
+			if i < 0 {
+				w.warn("Keel has no version from before the agent's edit. Open History to choose one.")
+				return
+			}
+			vid := vs[i].ID
+			if rec.LastBy != byAgent {
+				w.askConfirm(&hostConfirm{title: "Undo the agent's edit", action: "Undo",
+					message: "You changed this notebook after the agent's edit. Undo puts back the version from before the agent's edit; your later changes stay in History.",
+					run:     func() { w.restoreBeforeAgentEdit(id, vid, rec.Rev) }})
+				return
+			}
+			w.restoreBeforeAgentEdit(id, vid, rec.Rev)
 		})
 	})
 }
 
 func (w *workspace) restoreBeforeAgentEdit(id, vid string, rev int) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.RestoreNotebookVersion(c, id, vid, rev)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(nbErr(err, "Could not undo"))
-				return
-			}
-			w.applyNotebook(saved)
-			w.say("Undone. The agent's version is in History.")
-		})
+	call(w, func(c context.Context) (keelclient.Notebook, error) {
+		return w.be.RestoreNotebookVersion(c, id, vid, rev)
+	}, func(saved keelclient.Notebook, err error) {
+		if err != nil {
+			w.warn(nbErr(err, "Could not undo"))
+			return
+		}
+		w.applyNotebook(saved)
+		w.say("Undone. The agent's version is in History.")
 	})
 }

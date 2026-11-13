@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -71,41 +72,33 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 	target := orElse(s.target, orElse(p.title(), st.Subtitle))
 	conn, line := p.conn, s.line
 	p.typing = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := conn.DirectType(c, line, ref, agent)
-		w.post(func() {
-			p.typing = false
-			if w.closed {
-				return
-			}
-			msg := ""
-			switch {
-			case err != nil: // includes no answer: it may have been typed, so no dialog and no retry
-				msg = err.Error()
-			case res.Typed:
-				note := typedNote(target)
-				w.say(note)
-				if t := w.tabOf(p); t != nil && t == w.tab() {
-					w.reviewing, w.reviewAt = p.id, time.Now()
-				}
-				if s.done != nil {
-					s.done(true, note)
-				}
-				return
-			case res.Dialog:
-				s.dialog()
-				return
-			default:
-				msg = res.Message
+	call(w, func(c context.Context) (keelclient.DirectResult, error) { return conn.DirectType(c, line, ref, agent) }, func(res keelclient.DirectResult, err error) {
+		p.typing = false
+		msg := ""
+		switch {
+		case err != nil: // includes no answer: it may have been typed, so no dialog and no retry
+			msg = err.Error()
+		case res.Typed:
+			note := typedNote(target)
+			w.say(note)
+			if t := w.tabOf(p); t != nil && t == w.tab() {
+				w.reviewing, w.reviewAt = p.id, time.Now()
 			}
 			if s.done != nil {
-				s.done(false, msg)
-				return
+				s.done(true, note)
 			}
-			w.warn(msg)
-		})
+			return
+		case res.Dialog:
+			s.dialog()
+			return
+		default:
+			msg = res.Message
+		}
+		if s.done != nil {
+			s.done(false, msg)
+			return
+		}
+		w.warn(msg)
 	})
 }
 

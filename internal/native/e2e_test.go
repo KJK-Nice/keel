@@ -382,17 +382,20 @@ func (e *win) openPanes(n int) {
 	e.t.Helper()
 	e.openLocal()
 	for i := 1; i < n; i++ {
+		was := e.w.tab().focused
 		e.key(ui.Cmd|ui.Shift, ui.KeyD)
 		e.pump(func() bool { return len(e.sessions()) == i+1 && e.w.paneCount() == i+1 }, fmt.Sprintf("%d sessions", i+1))
+		// The new pane takes the keyboard once its terminal is on screen: a click before that loses to it.
+		e.pump(func() bool { return e.w.tab().focused != was }, "the new pane to take focus")
 	}
 	e.pump(func() bool {
 		for _, p := range e.w.tab().panes {
-			if p.sessionID() == "" {
+			if p.sessionID() == "" || p.conn.Snapshot().Status != "ready" {
 				return false
 			}
 		}
 		return true
-	}, "every pane to be named")
+	}, "every pane to be named and ready")
 }
 
 func TestE2EOpenAndType(t *testing.T) {

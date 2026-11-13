@@ -19,11 +19,6 @@ func (w *workspace) agentPageView(c *ui.Context, p *agentPage) {
 		a.loadTried = true
 		w.act(w.loadAgent)
 	}
-	if w.copyOut != "" { // a Copy from a card, which has no context to write with
-		c.WriteClipboard(w.copyOut)
-		w.copyOut = ""
-		w.say("Copied")
-	}
 	layout := pageLayout(p.width)
 	// MinWidth(0): the page takes the room the window leaves beside the panel, whatever its content would like. Without it the
 	// page was 975 px wide in a 1028 px space beside the 380 px panel on Ubuntu (a wider UI font), pushing the panel 327 px out of

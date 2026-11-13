@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"time"
 
 	"keel/internal/native/keelclient"
@@ -39,62 +40,50 @@ func hostByID(hosts []keelclient.Host, id string) (keelclient.Host, bool) {
 
 // reloadHosts reads the hosts again.
 func (w *workspace) reloadHosts() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		hosts, err := w.be.Hosts(c)
-		folders, ferr := w.be.Groups(c)
-		w.post(func() {
-			switch {
-			case w.closed:
-			case err != nil:
-				w.fail("hosts", err)
-			default:
-				w.setHosts(hosts)
-				if ferr == nil {
-					w.folders = folders
-				}
-			}
-		})
+	type read struct {
+		hosts   []keelclient.Host
+		folders []keelclient.Group
+		ferr    error
+	}
+	call(w, func(c context.Context) (r read, err error) {
+		r.hosts, err = w.be.Hosts(c)
+		r.folders, r.ferr = w.be.Groups(c)
+		return r, err
+	}, func(r read, err error) {
+		if err != nil {
+			w.fail("hosts", err)
+			return
+		}
+		w.setHosts(r.hosts)
+		if r.ferr == nil {
+			w.folders = r.folders
+		}
 	})
 }
 
 // reloadSnippets reads the snippets again.
 func (w *workspace) reloadSnippets() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		snippets, err := w.be.Snippets(c)
-		w.post(func() {
-			switch {
-			case w.closed:
-			case err != nil:
-				w.fail("snippets", err)
-			default:
-				w.snippets = snippets
-			}
-		})
+	call(w, w.be.Snippets, func(snippets []keelclient.Snippet, err error) {
+		if err != nil {
+			w.fail("snippets", err)
+			return
+		}
+		w.snippets = snippets
 	})
 }
 
 // pollTick is one tick of the poll: it starts a check, unless the window is closed or one is still running.
 func (w *workspace) pollTick() {
-	if w.closed || w.polling {
-		return
+	if !w.closed {
+		w.pollOnce()
 	}
-	w.polling = true
-	w.work(w.pollOnce)
 }
 
 // pollOnce reads the vault state. A changed rev reads the hosts again, once; a vault that is locked again puts
 // the Unlock screen over the window (sessions and tabs stay); an unlocked one (by another window) takes it away.
 func (w *workspace) pollOnce() {
-	c, cancel := ctx()
-	defer cancel()
-	v, err := w.be.Vault(c)
-	w.post(func() {
-		w.polling = false
-		if w.closed || err != nil { // keel serve not answering is not news: the sessions say so themselves
+	callOnce(w, &w.polling, nil, w.be.Vault, func(v keelclient.Vault, err error) {
+		if err != nil { // keel serve not answering is not news: the sessions say so themselves
 			return
 		}
 		switch {
@@ -110,45 +99,65 @@ func (w *workspace) pollOnce() {
 			w.rev = v.Rev
 		case v.Rev != w.rev && w.live:
 			w.rev = v.Rev
-			w.reloadHosts()
-			w.refreshSuggestSettings() // the agent settings may have changed in another window
-			w.reloadSnippets()
-			w.reloadNotebooks()
-			w.reloadTunnels()
-			w.refreshPages()
+			for _, refresh := range w.refreshers() {
+				refresh()
+			}
 		}
 	})
 }
 
-// startPoll runs the poll until the window closes. post runs a tick on the UI thread.
+// refreshers are the reads that run again when the vault's rev changes.
+func (w *workspace) refreshers() []func() {
+	return []func(){
+		w.reloadHosts,
+		w.refreshSuggestSettings, // the agent settings may have changed in another window
+		w.reloadSnippets,
+		w.reloadNotebooks,
+		w.reloadTunnels,
+		w.refreshPages,
+	}
+}
+
+// tickUnit is the poll's clock: every ticker's period is a whole number of units.
+const tickUnit = 500 * time.Millisecond
+
+// A ticker runs tick on the UI thread every `every`, rounded to tickUnit. The tick decides whether there is
+// anything to do (a page shown, a read not out).
+type ticker struct {
+	every time.Duration
+	tick  func()
+}
+
+// tickers are the reads that repeat while the window is open.
+func (w *workspace) tickers() []ticker {
+	return []ticker{
+		{pollEvery, w.pollTick},         // the vault's rev
+		{forwardsEvery, w.tunnelTick},   // forwards, while the page or the sidebar section shows
+		{logsEvery, w.logsTick},         // the Logs page, while it is the selected tab
+		{runEvery, w.runTick},           // the run in use, while a typed step waits
+		{groupRunEvery, w.groupRunTick}, // a group run proposes and reads results
+	}
+}
+
+// startPoll runs the tickers until the window closes. every is the vault's period; the others keep their ratio to
+// it (tests pass a short one).
 func (w *workspace) startPoll(every time.Duration) {
 	w.pollStop = make(chan struct{})
 	stop := w.pollStop
+	ts := w.tickers()
 	go func() {
-		t := time.NewTicker(every)
-		f := time.NewTicker(time.Duration(float64(every) * float64(forwardsEvery) / float64(pollEvery)))  // the forwards read at forwardsEvery while pollEvery is the vault's
-		rb := time.NewTicker(time.Duration(float64(every) * float64(runEvery) / float64(pollEvery)))      // the run in use is read at runEvery while a typed step waits (runbooks.go)
-		gr := time.NewTicker(time.Duration(float64(every) * float64(groupRunEvery) / float64(pollEvery))) // a group run asks keel serve to propose and to read results at groupRunEvery (grouprun.go)
-		lg := time.NewTicker(time.Duration(float64(every) * float64(logsEvery) / float64(pollEvery)))     // the Logs page reads at logsEvery while it is the selected tab (logs.go)
-		defer t.Stop()
-		defer lg.Stop()
-		defer f.Stop()
-		defer rb.Stop()
-		defer gr.Stop()
-		for {
+		clock := time.NewTicker(every / time.Duration(pollEvery/tickUnit))
+		defer clock.Stop()
+		for n := 1; ; n++ {
 			select {
 			case <-stop:
 				return
-			case <-t.C:
-				w.post(w.pollTick)
-			case <-f.C:
-				w.post(w.tunnelTick)
-			case <-lg.C:
-				w.post(w.logsTick)
-			case <-rb.C:
-				w.post(w.runTick)
-			case <-gr.C:
-				w.post(w.groupRunTick)
+			case <-clock.C:
+				for _, t := range ts {
+					if n%int(t.every/tickUnit) == 0 {
+						w.post(t.tick)
+					}
+				}
 			}
 		}
 	}()

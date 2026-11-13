@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -45,16 +46,21 @@ type folderRename struct {
 
 // reloadFolders reads the folders again.
 func (w *workspace) reloadFolders() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		groups, err := w.be.Groups(c)
-		w.post(func() {
-			if w.closed || err != nil { // a failed list leaves the tree as it was
-				return
-			}
+	call(w, w.be.Groups, func(groups []keelclient.Group, err error) {
+		if err == nil { // a failed list leaves the tree as it was
 			w.folders = groups
-		})
+		}
+	})
+}
+
+// folderWrite runs one write about folders; a refusal is shown in keel serve's words, an answer reads them again.
+func (w *workspace) folderWrite(do func(context.Context) error) {
+	callErr(w, do, func(err error) {
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		w.afterFolderWrite()
 	})
 }
 
@@ -96,22 +102,17 @@ func (w *workspace) saveFolderDialog() {
 		return
 	}
 	d.saving, d.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.SaveGroup(c, g)
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.folderDlg == d {
-				w.closeFolderDialog()
-			}
-			w.say(folderSavedToast)
-			w.afterFolderWrite()
-		})
+	callErr(w, func(c context.Context) error { _, err := w.be.SaveGroup(c, g); return err }, func(err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.folderDlg == d {
+			w.closeFolderDialog()
+		}
+		w.say(folderSavedToast)
+		w.afterFolderWrite()
 	})
 }
 
@@ -139,18 +140,7 @@ func (w *workspace) endFolderRename(ok bool) {
 		return
 	}
 	g.Name = next
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.SaveGroup(c, g)
-		w.post(func() {
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.afterFolderWrite()
-		})
-	})
+	w.folderWrite(func(c context.Context) error { _, err := w.be.SaveGroup(c, g); return err })
 }
 
 // ---- Delete ----
@@ -170,19 +160,14 @@ func (w *workspace) askDeleteFolder(id string) {
 }
 
 func (w *workspace) deleteFolder(id string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteGroup(c, id)
-		w.post(func() {
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.say(folderGoneToast)
-			w.setCollapsed(id, false)
-			w.afterFolderWrite()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteGroup(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		w.say(folderGoneToast)
+		w.setCollapsed(id, false)
+		w.afterFolderWrite()
 	})
 }
 
@@ -206,18 +191,7 @@ func (w *workspace) moveHostsTo(ids []string, dest string) {
 	if len(ids) == 0 {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.MoveHosts(c, ids, dest)
-		w.post(func() {
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.afterFolderWrite()
-		})
-	})
+	w.folderWrite(func(c context.Context) error { return w.be.MoveHosts(c, ids, dest) })
 }
 
 // moveFolderTo is a folder dropped on another folder or on the root: the app's two refusals first, then a save with the
@@ -232,18 +206,7 @@ func (w *workspace) moveFolderTo(id, dest string) {
 		return
 	}
 	g.ParentID = dest
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.SaveGroup(c, g)
-		w.post(func() {
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.afterFolderWrite()
-		})
-	})
+	w.folderWrite(func(c context.Context) error { _, err := w.be.SaveGroup(c, g); return err })
 }
 
 // dropOnFolder handles whatever was dropped on the folder dest ("" is the root of the tree).

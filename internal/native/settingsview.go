@@ -229,7 +229,7 @@ func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 		return
 	}
 	if textBtn(c, name, btnDefault) {
-		w.act(func() { c.WriteClipboard(value); w.say("Copied") })
+		w.act(func() { w.copy(value, "") })
 	}
 }
 

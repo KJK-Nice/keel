@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -170,38 +171,24 @@ func (w *workspace) logsTick() {
 	if t == nil || t.pg == nil || t.pg.logs == nil || t.pg.logs.reading {
 		return
 	}
-	p := t.pg.logs
-	p.reading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		entries, err := w.be.Logs(c, logsLimit)
-		w.post(func() {
-			p.reading = false
-			if !w.closed && err == nil {
-				p.err, p.loaded, p.entries = "", true, entries
-			}
-		})
-	})
+	w.readLogs(&t.pg.logs.reading, true)
 }
 
 // loadLogs reads the log again (the page opened or was selected, the vault changed, or Refresh).
-func (w *workspace) loadLogs() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		entries, err := w.be.Logs(c, logsLimit)
-		w.post(func() {
-			t := w.pageTab("logs")
-			if w.closed || t == nil {
-				return
-			}
+func (w *workspace) loadLogs() { w.readLogs(new(bool), false) }
+
+// readLogs is the one read of the log. busy is the in-flight flag a tick shares; quiet leaves a failed read
+// unreported.
+func (w *workspace) readLogs(busy *bool, quiet bool) {
+	callOnce(w, busy, nil, func(c context.Context) ([]keelclient.LogEntry, error) { return w.be.Logs(c, logsLimit) }, func(entries []keelclient.LogEntry, err error) {
+		t := w.pageTab("logs")
+		switch {
+		case t == nil:
+		case err == nil:
 			p := t.pg.logs
-			if err != nil {
-				p.err = "Could not read the log: " + hostError(err)
-				return
-			}
 			p.err, p.loaded, p.entries = "", true, entries
-		})
+		case !quiet:
+			t.pg.logs.err = "Could not read the log: " + hostError(err)
+		}
 	})
 }

@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"slices"
 	"strconv"
 	"time"
@@ -75,11 +76,8 @@ func (w *workspace) openNotebookHistoryAt(id, event string) {
 	w.nbFlushID(id, func() {
 		d := &nbDialog{kind: "history", id: id, pick: event, title: "History · " + notebookName(rec), desc: historyDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
 		w.nbDlg = d
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			vs, err := w.be.NotebookHistory(c, id)
-			w.post(func() { w.nbLoaded(d, vs, err, historyNone, "Could not load History") })
+		call(w, func(c context.Context) ([]keelclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []keelclient.NotebookVersion, err error) {
+			w.nbLoaded(d, vs, err, historyNone, "Could not load History")
 		})
 	})
 }
@@ -87,11 +85,8 @@ func (w *workspace) openNotebookHistoryAt(id, event string) {
 func (w *workspace) openNotebookTrash() {
 	d := &nbDialog{kind: "trash", title: trashTitle, desc: trashDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
 	w.nbDlg = d
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		vs, err := w.be.DeletedNotebooks(c)
-		w.post(func() { w.nbLoaded(d, vs, err, trashNone, "Could not load Recently deleted") })
+	call(w, w.be.DeletedNotebooks, func(vs []keelclient.NotebookVersion, err error) {
+		w.nbLoaded(d, vs, err, trashNone, "Could not load Recently deleted")
 	})
 }
 
@@ -124,26 +119,17 @@ func (w *workspace) nbSelect(d *nbDialog, vid string) {
 		return
 	}
 	id, trash := d.id, d.kind == "trash"
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var v keelclient.NotebookVersion
-		var err error
+	call(w, func(c context.Context) (keelclient.NotebookVersion, error) {
 		if trash {
-			v, err = w.be.DeletedNotebook(c, vid)
-		} else {
-			v, err = w.be.NotebookVersion(c, id, vid)
+			return w.be.DeletedNotebook(c, vid)
 		}
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				d.textErr[vid] = nbErr(err, "Could not load this version")
-				return
-			}
-			d.texts[vid] = versionText(v)
-		})
+		return w.be.NotebookVersion(c, id, vid)
+	}, func(v keelclient.NotebookVersion, err error) {
+		if err != nil {
+			d.textErr[vid] = nbErr(err, "Could not load this version")
+			return
+		}
+		d.texts[vid] = versionText(v)
 	})
 }
 
@@ -155,46 +141,32 @@ func (w *workspace) nbRestore(d *nbDialog) {
 	}
 	d.busy = true
 	if d.kind == "trash" {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			saved, err := w.be.RestoreDeletedNotebook(c, vid)
-			w.post(func() {
-				d.busy = false
-				if w.closed {
-					return
-				}
-				if err != nil {
-					w.warn(nbErr(err, "Could not restore"))
-					return
-				}
-				w.rememberNotebook(saved)
-				w.nbDlg = nil
-				w.say("Restored “" + notebookName(saved) + "” to Notebooks.")
-			})
+		call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.RestoreDeletedNotebook(c, vid) }, func(saved keelclient.Notebook, err error) {
+			d.busy = false
+			if err != nil {
+				w.warn(nbErr(err, "Could not restore"))
+				return
+			}
+			w.rememberNotebook(saved)
+			w.nbDlg = nil
+			w.say("Restored “" + notebookName(saved) + "” to Notebooks.")
 		})
 		return
 	}
 	id := d.id
 	w.nbFlushID(id, func() {
 		rec, _ := w.notebook(id)
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			saved, err := w.be.RestoreNotebookVersion(c, id, vid, rec.Rev)
-			w.post(func() {
-				d.busy = false
-				if w.closed {
-					return
-				}
-				if err != nil {
-					w.warn(nbErr(err, "Could not restore"))
-					return
-				}
-				w.applyNotebook(saved)
-				w.nbDlg = nil
-				w.say(restoredWord)
-			})
+		call(w, func(c context.Context) (keelclient.Notebook, error) {
+			return w.be.RestoreNotebookVersion(c, id, vid, rec.Rev)
+		}, func(saved keelclient.Notebook, err error) {
+			d.busy = false
+			if err != nil {
+				w.warn(nbErr(err, "Could not restore"))
+				return
+			}
+			w.applyNotebook(saved)
+			w.nbDlg = nil
+			w.say(restoredWord)
 		})
 	})
 }
@@ -216,42 +188,34 @@ func (w *workspace) nbAskPurge(d *nbDialog) {
 func (w *workspace) nbPurge(d *nbDialog, vid string) {
 	trash, id := d.kind == "trash", d.id
 	d.busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var err error
+	callErr(w, func(c context.Context) error {
 		if trash {
-			err = w.be.PurgeDeletedNotebook(c, vid)
-		} else {
-			err = w.be.PurgeNotebookVersion(c, id, vid)
+			return w.be.PurgeDeletedNotebook(c, vid)
 		}
-		w.post(func() {
-			d.busy = false
-			if w.closed {
-				return
+		return w.be.PurgeNotebookVersion(c, id, vid)
+	}, func(err error) {
+		d.busy = false
+		if err != nil {
+			w.warn(nbErr(err, "Could not delete"))
+			return
+		}
+		rest := d.versions[:0:0]
+		for _, v := range d.versions {
+			if v.ID != vid {
+				rest = append(rest, v)
 			}
-			if err != nil {
-				w.warn(nbErr(err, "Could not delete"))
-				return
-			}
-			rest := d.versions[:0:0]
-			for _, v := range d.versions {
-				if v.ID != vid {
-					rest = append(rest, v)
-				}
-			}
-			d.versions = rest
-			delete(d.texts, vid)
-			d.selected = ""
-			switch {
-			case len(rest) > 0:
-				w.nbSelect(d, rest[0].ID)
-			case trash:
-				d.empty = trashNone
-			default:
-				d.empty = historyLeft
-			}
-		})
+		}
+		d.versions = rest
+		delete(d.texts, vid)
+		d.selected = ""
+		switch {
+		case len(rest) > 0:
+			w.nbSelect(d, rest[0].ID)
+		case trash:
+			d.empty = trashNone
+		default:
+			d.empty = historyLeft
+		}
 	})
 }
 

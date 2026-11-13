@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -201,39 +202,25 @@ func (w *workspace) forwardsShown() bool {
 // ---- reading ----
 
 // reloadTunnels reads the forwards again.
-func (w *workspace) reloadTunnels() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		ts, err := w.be.Tunnels(c)
-		w.post(func() {
-			switch {
-			case w.closed:
-			case err != nil:
-				w.fail("forwards", err)
-			default:
-				w.tunnels = ts
-			}
-		})
-	})
-}
+func (w *workspace) reloadTunnels() { w.readTunnels(new(bool), false) }
 
 // tunnelTick is one tick of the 2 s read: it reads only while the forwards show and no read is out.
 func (w *workspace) tunnelTick() {
-	if !w.forwardsShown() || w.tunReading {
-		return
+	if w.forwardsShown() {
+		w.readTunnels(&w.tunReading, true)
 	}
-	w.tunReading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		ts, err := w.be.Tunnels(c)
-		w.post(func() {
-			w.tunReading = false
-			if !w.closed && err == nil { // a failed read is not news: the next tick tries again
-				w.tunnels = ts
-			}
-		})
+}
+
+// readTunnels is the one read of the forwards. busy is the in-flight flag a tick shares; quiet leaves a failed
+// read unreported (it is not news: the next tick tries again).
+func (w *workspace) readTunnels(busy *bool, quiet bool) {
+	callOnce(w, busy, nil, w.be.Tunnels, func(ts []keelclient.Tunnel, err error) {
+		switch {
+		case err == nil:
+			w.tunnels = ts
+		case !quiet:
+			w.fail("forwards", err)
+		}
 	})
 }
 
@@ -248,47 +235,42 @@ type fwdKeyOffer struct {
 
 // setTunnelOn is the switch, Retry and the menu's Start / Stop.
 func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var err error
+	callErr(w, func(c context.Context) (err error) {
 		if on {
 			_, err = w.be.StartTunnel(c, t.ID)
 		} else {
 			_, err = w.be.StopTunnel(c, t.ID)
 		}
-		w.post(func() {
-			if err != nil {
-				var se *keelclient.StatusError
-				if on && errors.As(err, &se) && se.Offer.Kind != "" { // promptHostKey(err, {tunnelId})
-					w.fwdKey = &fwdKeyOffer{tunnelID: t.ID, key: se.Offer}
-				} else {
-					w.warn(errText("forward", err))
-				}
+		return err
+	}, func(err error) {
+		if err != nil {
+			var se *keelclient.StatusError
+			if on && errors.As(err, &se) && se.Offer.Kind != "" { // promptHostKey(err, {tunnelId})
+				w.fwdKey = &fwdKeyOffer{tunnelID: t.ID, key: se.Offer}
+			} else {
+				w.warn(errText("forward", err))
 			}
-			w.reloadTunnels()
-		})
+		}
+		w.reloadTunnels()
 	})
 }
 
 // trustForwardKey is Trust and connect: it trusts the key the server offered, starts the forward again and says so.
 func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	w.fwdKey = nil
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	callErr(w, func(c context.Context) error {
 		err := w.be.TrustHostKey(c, o.key, o.key.Kind == keelclient.HostKeyMismatch)
 		if err == nil {
 			_, err = w.be.StartTunnel(c, o.tunnelID)
 		}
-		w.post(func() {
-			if err != nil {
-				w.warn(errText("trust host key", err))
-			} else {
-				w.say("Host key saved")
-			}
-			w.reloadTunnels()
-		})
+		return err
+	}, func(err error) {
+		if err != nil {
+			w.warn(errText("trust host key", err))
+		} else {
+			w.say("Host key saved")
+		}
+		w.reloadTunnels()
 	})
 }
 
@@ -298,16 +280,11 @@ func (w *workspace) askDeleteTunnel(t keelclient.Tunnel) {
 }
 
 func (w *workspace) deleteTunnel(t keelclient.Tunnel) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteTunnel(c, t.ID)
-		w.post(func() {
-			if err != nil {
-				w.warn(errText("delete forward", err))
-			}
-			w.reloadTunnels()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteTunnel(c, t.ID) }, func(err error) {
+		if err != nil {
+			w.warn(errText("delete forward", err))
+		}
+		w.reloadTunnels()
 	})
 }
 
@@ -399,21 +376,16 @@ func (w *workspace) saveForward() {
 	}
 	in := d.request()
 	d.saving, d.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.SaveTunnel(c, in)
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.fwdDlg == d {
-				w.closeForwardDialog()
-			}
-			w.say("Forward saved")
-			w.reloadTunnels()
-		})
+	callErr(w, func(c context.Context) error { _, err := w.be.SaveTunnel(c, in); return err }, func(err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.fwdDlg == d {
+			w.closeForwardDialog()
+		}
+		w.say("Forward saved")
+		w.reloadTunnels()
 	})
 }

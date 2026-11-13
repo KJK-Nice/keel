@@ -1,6 +1,8 @@
 package native
 
 import (
+	"context"
+
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
@@ -65,21 +67,13 @@ func (w *workspace) loadNotes(e *notesEditor) {
 	if !e.saved() {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Notes(c)
-		w.post(func() {
-			if w.closed || e.gen != gen {
-				return
-			}
-			if err != nil {
-				e.err = hostError(err)
-			} else {
-				e.unreadable, e.notes = l.Unreadable, e.mine(l.Notes)
-			}
-			e.loaded = true
-		})
+	callIf(w, func() bool { return e.gen == gen }, w.be.Notes, func(l keelclient.NoteList, err error) {
+		if err != nil {
+			e.err = hostError(err)
+		} else {
+			e.unreadable, e.notes = l.Unreadable, e.mine(l.Notes)
+		}
+		e.loaded = true
 	})
 }
 
@@ -124,26 +118,21 @@ func (w *workspace) addNote(e *notesEditor) {
 	case !e.user:
 		in.HostID = e.hostID
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveNote(c, in)
-		w.post(func() {
-			e.busy = false
-			if w.closed || e.gen != gen {
-				return
-			}
-			e.focusInput = true
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			e.notes = append(e.notes, res.Note) // what keel serve kept
-			e.input = ""
-			if t := noteSavedToast("added", res.Redacted); t != "" {
-				w.say(t)
-			}
-		})
+	call(w, func(c context.Context) (keelclient.SavedNote, error) { return w.be.SaveNote(c, in) }, func(res keelclient.SavedNote, err error) {
+		e.busy = false
+		if e.gen != gen {
+			return
+		}
+		e.focusInput = true
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		e.notes = append(e.notes, res.Note) // what keel serve kept
+		e.input = ""
+		if t := noteSavedToast("added", res.Redacted); t != "" {
+			w.say(t)
+		}
 	})
 }
 
@@ -171,29 +160,26 @@ func (w *workspace) saveNoteEdit(e *notesEditor) {
 	}
 	e.busy = true
 	gen := e.gen
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveNote(c, keelclient.NoteInput{ID: id, Text: text})
-		w.post(func() {
-			e.busy = false
-			if w.closed || e.gen != gen {
-				return
+	call(w, func(c context.Context) (keelclient.SavedNote, error) {
+		return w.be.SaveNote(c, keelclient.NoteInput{ID: id, Text: text})
+	}, func(res keelclient.SavedNote, err error) {
+		e.busy = false
+		if e.gen != gen {
+			return
+		}
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		for i := range e.notes {
+			if e.notes[i].ID == id {
+				e.notes[i] = res.Note
 			}
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			for i := range e.notes {
-				if e.notes[i].ID == id {
-					e.notes[i] = res.Note
-				}
-			}
-			e.editing, e.err = "", ""
-			if t := noteSavedToast("saved", res.Redacted); t != "" {
-				w.say(t)
-			}
-		})
+		}
+		e.editing, e.err = "", ""
+		if t := noteSavedToast("saved", res.Redacted); t != "" {
+			w.say(t)
+		}
 	})
 }
 
@@ -204,32 +190,27 @@ func (w *workspace) deleteNote(e *notesEditor, id string) {
 	}
 	e.busy = true
 	gen := e.gen
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteNote(c, id)
-		w.post(func() {
-			e.busy = false
-			if w.closed || e.gen != gen {
-				return
+	callErr(w, func(c context.Context) error { return w.be.DeleteNote(c, id) }, func(err error) {
+		e.busy = false
+		if e.gen != gen {
+			return
+		}
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		var keep []keelclient.Note
+		for _, n := range e.notes {
+			if n.ID != id {
+				keep = append(keep, n)
 			}
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			var keep []keelclient.Note
-			for _, n := range e.notes {
-				if n.ID != id {
-					keep = append(keep, n)
-				}
-			}
-			e.notes, e.err = keep, ""
-			if e.editing == id {
-				e.editing = ""
-			}
-			w.say("Note deleted.")
-			e.focusInput = true
-		})
+		}
+		e.notes, e.err = keep, ""
+		if e.editing == id {
+			e.editing = ""
+		}
+		w.say("Note deleted.")
+		e.focusInput = true
 	})
 }
 
@@ -244,30 +225,22 @@ func (w *workspace) askDeleteAllNotes() {
 }
 
 func (w *workspace) deleteAllNotes() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.DeleteAllNotes(c)
-		w.post(func() {
-			if w.closed {
-				return
+	callErr(w, func(c context.Context) error { _, err := w.be.DeleteAllNotes(c); return err }, func(err error) {
+		if err != nil {
+			msg := hostError(err)
+			if msg == "" {
+				msg = "Could not delete the notes"
 			}
-			if err != nil {
-				msg := hostError(err)
-				if msg == "" {
-					msg = "Could not delete the notes"
-				}
-				w.warn(msg)
-				return
-			}
-			w.say("Notes deleted")
-			if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
-				w.loadNotes(&t.pg.settings.notes)
-			}
-			if d := w.hostDlg; d != nil && d.nb != nil {
-				w.loadNotes(d.nb)
-			}
-		})
+			w.warn(msg)
+			return
+		}
+		w.say("Notes deleted")
+		if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
+			w.loadNotes(&t.pg.settings.notes)
+		}
+		if d := w.hostDlg; d != nil && d.nb != nil {
+			w.loadNotes(d.nb)
+		}
 	})
 }
 
@@ -314,29 +287,24 @@ func (w *workspace) saveNoteProposal(id string) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveProposedNote(c, conv, id, text)
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			if res.Proposal != nil {
-				rec.n = *res.Proposal
-			} else {
-				rec.n.Status, rec.n.NoteID = "saved", res.Note.ID
-			}
-			rec.editing = false
-			if t := savedRedactedToast(res.Redacted); t != "" {
-				w.say(t)
-			}
-		})
+	call(w, func(c context.Context) (keelclient.SavedNote, error) { return w.be.SaveProposedNote(c, conv, id, text) }, func(res keelclient.SavedNote, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		if res.Proposal != nil {
+			rec.n = *res.Proposal
+		} else {
+			rec.n.Status, rec.n.NoteID = "saved", res.Note.ID
+		}
+		rec.editing = false
+		if t := savedRedactedToast(res.Redacted); t != "" {
+			w.say(t)
+		}
 	})
 }
 
@@ -354,27 +322,21 @@ func (w *workspace) noteProposalAction(id string, undo bool) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var n keelclient.NoteProposal
-		var err error
+	call(w, func(c context.Context) (keelclient.NoteProposal, error) {
 		if undo {
-			n, err = w.be.UndoProposedNote(c, conv, id)
-		} else {
-			n, err = w.be.DismissProposedNote(c, conv, id)
+			return w.be.UndoProposedNote(c, conv, id)
 		}
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			rec.n = n
-			rec.editing = false
-		})
+		return w.be.DismissProposedNote(c, conv, id)
+	}, func(n keelclient.NoteProposal, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		rec.n = n
+		rec.editing = false
 	})
 }

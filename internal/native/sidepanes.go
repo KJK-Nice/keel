@@ -28,7 +28,7 @@ const (
 
 // panesTab is the tab the Panes section lists: the active session tab, only while it has two or more panes.
 func (w *workspace) panesTab() *tab {
-	if t := w.tab(); t != nil && !t.isNew() && !t.isPage() && len(t.panes) > 1 {
+	if t := w.tab(); t != nil && t.mode().hasPanes() && len(t.panes) > 1 {
 		return t
 	}
 	return nil

@@ -12,11 +12,6 @@ import (
 // Authentication, Session and Agent; the footer) with the .k-host-* rules of keel.css. "Notes for the agent"
 // (§15) waits for a later phase (docs/native.md).
 
-// modalOpen reports a dialog that has the keyboard: no terminal or page input takes focus while one shows.
-func (w *workspace) modalOpen() bool {
-	return w.pal != nil || w.quick != nil || w.joinDlg != nil || w.hostDlg != nil || w.identDlg != nil || w.confirm != nil || w.approve != nil || w.snipDlg != nil || w.nbDlg != nil || w.folderDlg != nil || w.fwdDlg != nil || w.fwdKey != nil
-}
-
 // inputBox is a single-line input in a bordered box (k-input).
 func inputBox(c *ui.Context, name string, value *string, placeholder string, h *ui.Handle, mono, masked bool, maxLen int, onKey func(ui.TextKey) bool) {
 	in := ui.TextInput(c, value).Label(name).Placeholder(placeholder).FillWidth().MinWidth(0).Bind(h)

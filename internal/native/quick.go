@@ -1,6 +1,8 @@
 package native
 
 import (
+	"context"
+
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
@@ -27,13 +29,7 @@ func (w *workspace) openQuick(target string, notes *sshparse.Result) {
 
 func (w *workspace) closeQuick() {
 	w.quick = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
 // quickColor is the colour the webview gives a quick host.
@@ -57,18 +53,13 @@ func (w *workspace) submitQuick() {
 		AuthType: "password", Password: q.password, Color: quickColor,
 	}
 	w.quick = nil // the password leaves the dialog with the request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.CreateHost(c, h)
-		w.post(func() {
-			if err != nil {
-				w.fail("quick connect", err)
-				return
-			}
-			w.hosts = append(w.hosts, saved)
-			w.openHost(saved)
-		})
+	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved keelclient.Host, err error) {
+		if err != nil {
+			w.fail("quick connect", err)
+			return
+		}
+		w.hosts = append(w.hosts, saved)
+		w.openHost(saved)
 	})
 }
 

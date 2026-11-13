@@ -180,24 +180,23 @@ func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, i
 	}
 	w.hostDlg = d
 	w.loadNotes(d.nb)
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		groups, _ := w.be.Groups(c) // a failed list leaves the picker with "No group", as the webview's catch does
-		idents, _ := w.be.Identities(c)
-		var key *keelclient.KnownKey
+	type read struct {
+		groups []keelclient.Group
+		idents []keelclient.Identity
+		key    *keelclient.KnownKey
+	}
+	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (r read, _ error) {
+		r.groups, _ = w.be.Groups(c) // a failed list leaves the picker with "No group", as the webview's catch does
+		r.idents, _ = w.be.Identities(c)
 		if id != "" && !h.IsLocal() {
 			if k, err := w.be.HostKey(c, id); err == nil {
-				key = &k
+				r.key = &k
 			}
 		}
-		w.post(func() {
-			if w.hostDlg != d {
-				return
-			}
-			d.groups, d.idents, d.key = groups, idents, key
-			d.defaultIdentity()
-		})
+		return r, nil
+	}, func(r read, _ error) {
+		d.groups, d.idents, d.key = r.groups, r.idents, r.key
+		d.defaultIdentity()
 	})
 }
 
@@ -210,13 +209,7 @@ func (w *workspace) closeHostDialog() {
 	d.stopTest()
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", ""
 	w.hostDlg = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
 // defaultIdentity picks the first identity for a new Identity host, as fillIdentitySelect does ({first: !saved}):
@@ -334,23 +327,21 @@ func (w *workspace) saveHost() {
 	d.saving, d.err = true, ""
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", "" // they are in h now, and h only goes in this request
 	d.stopTest()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	call(w, func(c context.Context) (keelclient.Host, error) {
 		saved, err := w.be.SaveHost(c, h)
 		h = keelclient.HostDetail{}
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.hostDlg == d {
-				w.closeHostDialog()
-			}
-			w.say("Host saved")
-			w.afterHostWrite(saved)
-		})
+		return saved, err
+	}, func(saved keelclient.Host, err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.hostDlg == d {
+			w.closeHostDialog()
+		}
+		w.say("Host saved")
+		w.afterHostWrite(saved)
 	})
 }
 
@@ -403,21 +394,16 @@ func (w *workspace) askDeleteHost(h keelclient.Host) {
 // deleteHost deletes the host. Its open sessions are left as they are, as the webview leaves them: they keep
 // running, and a pane keeps the host it had (setHosts).
 func (w *workspace) deleteHost(h keelclient.Host) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteHost(c, h.ID)
-		w.post(func() {
-			if err != nil {
-				w.fail("delete host", err)
-				return
-			}
-			if d := w.hostDlg; d != nil && d.id == h.ID {
-				w.closeHostDialog()
-			}
-			w.hosts = slices.DeleteFunc(slices.Clone(w.hosts), func(o keelclient.Host) bool { return o.ID == h.ID })
-			w.reloadHosts()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteHost(c, h.ID) }, func(err error) {
+		if err != nil {
+			w.fail("delete host", err)
+			return
+		}
+		if d := w.hostDlg; d != nil && d.id == h.ID {
+			w.closeHostDialog()
+		}
+		w.hosts = slices.DeleteFunc(slices.Clone(w.hosts), func(o keelclient.Host) bool { return o.ID == h.ID })
+		w.reloadHosts()
 	})
 }
 
@@ -427,38 +413,28 @@ func (w *workspace) duplicateHost(h keelclient.Host) {
 		w.say("Local Shell cannot be duplicated") // toast(…) without the error flag, as term.js
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		dup, err := w.be.DuplicateHost(c, h.ID)
-		w.post(func() {
-			if err != nil {
-				w.fail("duplicate host", err)
-				return
-			}
-			name := dup.Name
-			if name == "" {
-				name = h.Name + " (copy)"
-			}
-			w.say("Duplicated as " + name)
-			w.reloadHosts()
-		})
+	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.DuplicateHost(c, h.ID) }, func(dup keelclient.Host, err error) {
+		if err != nil {
+			w.fail("duplicate host", err)
+			return
+		}
+		name := dup.Name
+		if name == "" {
+			name = h.Name + " (copy)"
+		}
+		w.say("Duplicated as " + name)
+		w.reloadHosts()
 	})
 }
 
 // setAgentReadable is the host menu's "Agent can read".
 func (w *workspace) setAgentReadable(h keelclient.Host, on bool) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.SetAgentReadable(c, h.ID, on)
-		w.post(func() {
-			if err != nil {
-				w.fail("agent can read", err)
-				return
-			}
-			w.reloadHosts()
-		})
+	callErr(w, func(c context.Context) error { return w.be.SetAgentReadable(c, h.ID, on) }, func(err error) {
+		if err != nil {
+			w.fail("agent can read", err)
+			return
+		}
+		w.reloadHosts()
 	})
 }
 
@@ -485,20 +461,15 @@ func (w *workspace) askForgetKey() {
 }
 
 func (w *workspace) forgetKey(d *hostDialog) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.ForgetHostKey(c, d.id)
-		w.post(func() {
-			if err != nil {
-				w.fail("forget host key", err)
-				return
-			}
-			if w.hostDlg == d {
-				d.key = &keelclient.KnownKey{}
-			}
-			w.say("Host key forgotten")
-		})
+	callErr(w, func(c context.Context) error { return w.be.ForgetHostKey(c, d.id) }, func(err error) {
+		if err != nil {
+			w.fail("forget host key", err)
+			return
+		}
+		if w.hostDlg == d {
+			d.key = &keelclient.KnownKey{}
+		}
+		w.say("Host key forgotten")
 	})
 }
 
@@ -507,16 +478,12 @@ func (w *workspace) loadHostKey(d *hostDialog) {
 	if d.id == "" || d.saved == nil || d.saved.IsLocal() {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		k, err := w.be.HostKey(c, d.id)
-		w.post(func() {
-			if w.hostDlg == d && err == nil {
+	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (keelclient.KnownKey, error) { return w.be.HostKey(c, d.id) },
+		func(k keelclient.KnownKey, err error) {
+			if err == nil {
 				d.key = &k
 			}
 		})
-	})
 }
 
 // keyTypeLabel is lib/hosttest.js keyTypeLabel: the short name ssh-keygen -l prints.
@@ -660,22 +627,17 @@ func (w *workspace) trustTest() {
 	}
 	replace := offer.Kind == keelclient.HostKeyMismatch
 	send := func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			err := w.be.TrustHostKey(c, offer, replace)
-			w.post(func() {
-				if err != nil {
-					w.fail("trust host key", err)
-					return
-				}
-				w.say("Host key saved")
-				if w.hostDlg == d {
-					w.loadHostKey(d)
-					d.test = hostTest{gen: d.test.gen + 1}
-					w.runHostTest()
-				}
-			})
+		callErr(w, func(c context.Context) error { return w.be.TrustHostKey(c, offer, replace) }, func(err error) {
+			if err != nil {
+				w.fail("trust host key", err)
+				return
+			}
+			w.say("Host key saved")
+			if w.hostDlg == d {
+				w.loadHostKey(d)
+				d.test = hostTest{gen: d.test.gen + 1}
+				w.runHostTest()
+			}
 		})
 	}
 	if replace {

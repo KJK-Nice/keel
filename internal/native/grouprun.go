@@ -93,14 +93,8 @@ func (w *workspace) loadGroupRunPage() {
 	}
 	p.gen++
 	gen, id := p.gen, p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.GroupRun(c, id)
-		w.post(func() {
-			if w.closed || w.groupRunPageState() != p || p.gen != gen {
-				return
-			}
+	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupRun, error) { return w.be.GroupRun(c, id) },
+		func(run keelclient.GroupRun, err error) {
 			p.loaded = true
 			if err != nil {
 				var se *keelclient.StatusError
@@ -113,7 +107,6 @@ func (w *workspace) loadGroupRunPage() {
 			}
 			p.run, p.err, p.title = &run, "", "Run · "+run.Name
 		})
-	})
 }
 
 // groupPaneOpen reports a pane this window has open for the session and drives: the only kind a proposal is offered for.
@@ -136,23 +129,13 @@ func (w *workspace) groupPaneIDs() (out []string) {
 // a fill or a Type is out, and never while the approve dialog is open (grouprun.js tick).
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
-	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.polling || p.typing || p.busy > 0 || w.approve != nil {
+	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.typing || p.busy > 0 || w.approve != nil {
 		return
 	}
-	p.polling = true
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.ProposeGroupStep(c, id, panes)
-		w.post(func() {
-			p.polling = false
-			if w.closed || w.groupRunPageState() != p || p.id != id || p.calls != seq { // a press since: its answer is newer
-				return
-			}
-			w.groupRunAnswered(p, run, err)
-		})
-	})
+	callOnce(w, &p.polling, func() bool { return w.groupRunPageState() == p && p.id == id && p.calls == seq }, // a press since: its answer is newer
+		func(c context.Context) (keelclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
+		func(run keelclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
 }
 
 // groupRunAnswered takes keel serve's answer to any call about the run.
@@ -166,7 +149,7 @@ func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, e
 
 // groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; keel serve's refusal (409)
 // is shown in its words.
-func (w *workspace) groupRunCall(p *groupRunPage, call func(c ctxT, id string) (keelclient.GroupRun, error)) {
+func (w *workspace) groupRunCall(p *groupRunPage, do func(c ctxT, id string) (keelclient.GroupRun, error)) {
 	if p.run == nil {
 		return
 	}
@@ -176,17 +159,12 @@ func (w *workspace) groupRunCall(p *groupRunPage, call func(c ctxT, id string) (
 	seq := p.calls
 	p.busy++
 	id := p.run.ID
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := call(c, id)
-		w.post(func() {
-			p.busy--
-			if w.closed || w.groupRunPageState() != p || p.id != id || seq != p.calls {
-				return
-			}
-			w.groupRunAnswered(p, run, err)
-		})
+	call(w, func(c context.Context) (keelclient.GroupRun, error) { return do(c, id) }, func(run keelclient.GroupRun, err error) {
+		p.busy--
+		if w.groupRunPageState() != p || p.id != id || seq != p.calls {
+			return
+		}
+		w.groupRunAnswered(p, run, err)
 	})
 }
 
@@ -233,21 +211,15 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	}
 	p.run.open, p.run.busy = false, true
 	id := p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.StartGroupRun(c, runbookID, id, "rolling")
-		w.post(func() {
-			p.run.busy = false
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.openGroupRun(run)
-		})
+	call(w, func(c context.Context) (keelclient.GroupRun, error) {
+		return w.be.StartGroupRun(c, runbookID, id, "rolling")
+	}, func(run keelclient.GroupRun, err error) {
+		p.run.busy = false
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		w.openGroupRun(run)
 	})
 }
 
@@ -293,14 +265,8 @@ func (w *workspace) typeGroupRun() {
 	// A step that names variables: keel serve fills each host's values in now, and the dialog shows those exact bytes (Type is
 	// refused for any other bytes).
 	p.typing = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		fills, err := w.be.FillGroupStep(c, run.ID, ids)
-		w.post(func() {
-			if w.closed || w.groupRunPageState() != p {
-				return
-			}
+	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]keelclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
+		func(fills []keelclient.GroupFill, err error) {
 			p.typing = false
 			if err != nil {
 				w.warn(hostError(err))
@@ -309,7 +275,6 @@ func (w *workspace) typeGroupRun() {
 			fillRows(rows, fills)
 			open()
 		})
-	})
 }
 
 // groupTyped takes the answers of a group Type: each reached row shows what happened to it, in keel serve's words, and is

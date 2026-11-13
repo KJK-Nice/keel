@@ -142,7 +142,7 @@ func (w *workspace) shareBody(c *ui.Context, s *sharePop) {
 				ui.Row(c).Height(sizeControlSm).Padding(0, space2).Opacity(disabledAlpha).Disabled(true).Label(name).Children(func() { label(c, name, inkMuted) })
 			} else if textBtn(c, name, btnGhost) {
 				url := s.link.url
-				w.act(func() { c.WriteClipboard(url); s.copied = true })
+				w.act(func() { w.copyQuiet(url); s.copied = true })
 			}
 		})
 		help(c, "Works until you stop sharing or close this pane, 24 hours at most. You are asked before anyone joins; a request you do not answer is turned away after 2 minutes. Peer-to-peer over WebRTC; your loopback API stays private.")
@@ -251,7 +251,7 @@ func (w *workspace) shareFrame(c *ui.Context) {
 	w.syncShare()
 	if s := w.share; s != nil && s.wantCopy {
 		s.wantCopy = false
-		c.WriteClipboard(s.link.url)
+		w.copyQuiet(s.link.url)
 		s.copied = true
 	}
 }

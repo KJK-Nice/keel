@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -183,23 +184,18 @@ func (w *workspace) saveEditor() {
 		in.Command += "\n"
 	}
 	e.saving, e.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.SaveSnippet(c, in)
-		w.post(func() {
-			e.saving = false
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			if e.id == saved.ID { // what is saved is what the editor holds now
-				e.name, e.command, e.agent = saved.Name, strings.TrimSuffix(saved.Command, "\n"), saved.AgentUsable
-				e.origName, e.origCommand, e.origAgent = e.name, e.command, e.agent
-			}
-			w.say("Snippet saved")
-			w.reloadSnippets()
-		})
+	call(w, func(c context.Context) (keelclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved keelclient.Snippet, err error) {
+		e.saving = false
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		if e.id == saved.ID { // what is saved is what the editor holds now
+			e.name, e.command, e.agent = saved.Name, strings.TrimSuffix(saved.Command, "\n"), saved.AgentUsable
+			e.origName, e.origCommand, e.origAgent = e.name, e.command, e.agent
+		}
+		w.say("Snippet saved")
+		w.reloadSnippets()
 	})
 }
 
@@ -238,25 +234,20 @@ func (w *workspace) saveSnippetDialog() {
 		return
 	}
 	d.saving, d.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.SaveSnippet(c, in)
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.snipDlg == d {
-				w.closeSnippetDialog()
-			}
-			if t := w.pageTab("snippets"); t != nil && d.id == "" {
-				t.pg.snippets.selected = saved.ID
-			}
-			w.say("Snippet saved")
-			w.reloadSnippets()
-		})
+	call(w, func(c context.Context) (keelclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved keelclient.Snippet, err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.snipDlg == d {
+			w.closeSnippetDialog()
+		}
+		if t := w.pageTab("snippets"); t != nil && d.id == "" {
+			t.pg.snippets.selected = saved.ID
+		}
+		w.say("Snippet saved")
+		w.reloadSnippets()
 	})
 }
 
@@ -268,16 +259,11 @@ func (w *workspace) askDeleteSnippet(s keelclient.Snippet) {
 }
 
 func (w *workspace) deleteSnippet(s keelclient.Snippet) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteSnippet(c, s.ID)
-		w.post(func() {
-			if err != nil {
-				w.fail("delete snippet", err)
-				return
-			}
-			w.reloadSnippets()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteSnippet(c, s.ID) }, func(err error) {
+		if err != nil {
+			w.fail("delete snippet", err)
+			return
+		}
+		w.reloadSnippets()
 	})
 }

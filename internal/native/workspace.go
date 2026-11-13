@@ -291,6 +291,35 @@ type tab struct {
 // isNew reports the New tab page.
 func (t *tab) isNew() bool { return t.page != nil }
 
+// tabMode is what a tab is: the New tab page, a page, someone else's share, notebooks only, or sessions. A tab is exactly
+// one of them.
+type tabMode int
+
+const (
+	modeSession   tabMode = iota // terminals (and notebooks beside them)
+	modeNotebooks                // notebooks only: no session to have a state
+	modeRemote                   // joined someone else's share: a terminal and nothing else, never saved
+	modeNew                      // the New tab start page
+	modePage                     // Keychain, Logs, …
+)
+
+func (t *tab) mode() tabMode {
+	switch {
+	case t.isNew():
+		return modeNew
+	case t.isPage():
+		return modePage
+	case t.remote:
+		return modeRemote
+	case t.onlyNotebooks():
+		return modeNotebooks
+	}
+	return modeSession
+}
+
+// hasPanes reports a tab that holds panes (a page and the New tab page hold none).
+func (m tabMode) hasPanes() bool { return m != modeNew && m != modePage }
+
 func (t *tab) name() string {
 	if t.pg != nil { // a page is named by what it is: no rename
 		switch { // the Group page by its folder, the group run page by its runbook (term.js setPageTitle)
@@ -421,8 +450,7 @@ type workspace struct {
 	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
 	agent           *agentPanel     // the agent panel and its conversation (agent.go)
-	copyOut         string          // text the next frame writes to the clipboard (a card menu's Copy)
-	clip, clipWhat  string          // text the next frame writes to the clipboard, and what it is called in the toast (sshcommand.go)
+	clips           []clipItem      // copies the frame writes to the clipboard (clipboard.go)
 	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
 
 	joinDlg       *joinDialog                                         // Join a session (join.go)
@@ -723,11 +751,14 @@ func (w *workspace) reconnect(p *pane) {
 	if sid == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		if err := w.be.Reconnect(c, sid); err != nil {
-			w.post(func() { w.fail("reconnect", err) })
+	w.failed("reconnect", func(c context.Context) error { return w.be.Reconnect(c, sid) })
+}
+
+// failed runs a request whose only visible result is a toast when it fails.
+func (w *workspace) failed(what string, do func(context.Context) error) {
+	callErr(w, do, func(err error) {
+		if err != nil {
+			w.fail(what, err)
 		}
 	})
 }
@@ -737,27 +768,17 @@ func (w *workspace) reconnect(p *pane) {
 func (w *workspace) trustHostKey(p *pane, k keelclient.HostKey) {
 	p.declined = k // the dialog closes now; a new offer opens it again
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	w.failed("trust host key", func(c context.Context) error {
 		err := w.be.TrustHostKey(c, k, k.Kind == keelclient.HostKeyMismatch)
 		if err == nil && sid != "" {
 			err = w.be.Reconnect(c, sid)
 		}
-		if err != nil {
-			w.post(func() { w.fail("trust host key", err) })
-		}
+		return err
 	})
 }
 
 func (w *workspace) kill(sid string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		if err := w.be.Kill(c, sid); err != nil {
-			w.post(func() { w.fail("close pane", err) })
-		}
-	})
+	w.failed("close pane", func(c context.Context) error { return w.be.Kill(c, sid) })
 }
 
 // killWhenNamed ends a session that was closed before the server's ready frame named it: it kills the
@@ -798,13 +819,15 @@ func (w *workspace) killWhenNamed(conn session) {
 // window shows: closing it would only open another (term.js closeActivePaneOrTab).
 func (w *workspace) closeFocused() {
 	t := w.tab()
-	switch {
-	case t == nil:
-	case t.isNew():
+	if t == nil {
+		return
+	}
+	switch t.mode() {
+	case modeNew:
 		if len(w.tabs) > 1 {
 			w.closeTab(t)
 		}
-	case t.isPage():
+	case modePage:
 		w.closeTab(t)
 	default:
 		w.closePane(t, t.focused)
