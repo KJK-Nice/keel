@@ -2,15 +2,16 @@
 # Builds the release files into dist/. The release workflow runs it
 # (.github/workflows/release.yml); it also runs locally, and changes nothing outside the worktree: it never uploads.
 #
-#   sh scripts/release.sh v0.2.0 macos  Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
+#   sh scripts/release.sh vX.Y.Z macos  Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
 #                                        keel-<mygo.json version>.dmg (Keel.app inside)
-#   sh scripts/release.sh v0.2.0 linux  Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
+#   sh scripts/release.sh vX.Y.Z linux  Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
 #                                        keel-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
-#   sh scripts/release.sh v0.2.0 signal keel-signal for every OS (plain go build, not a MyGo app)
+#   sh scripts/release.sh vX.Y.Z signal keel-signal for every OS (plain go build, not a MyGo app)
 #
 # The version of the packages is "version" in mygo.json and must equal the tag (a v0.0.0-pr<N> dry run of the
 # workflow is the one exception). `keel version` prints the tag (MYGO_LDFLAGS -X main.version).
-# LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every package and archive.
+# LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every package and archive. The list is the variable
+# $shipped below; mygo.json ("resources") has to repeat it, since MyGo reads that file and not this script.
 # KEEL_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
 # keychain profile "notary"; without it the app is signed ad hoc and not notarized, and the log says so.
 # No KEEL_SIGNAL is baked in: Share stays off until the user enters a keel-signal in Settings · Sharing
@@ -19,11 +20,12 @@ set -eu
 
 tag=${1:?usage: scripts/release.sh vX.Y.Z macos|linux|signal}
 what=${2:?usage: scripts/release.sh vX.Y.Z macos|linux|signal}
-case "$tag" in v[0-9]*) ;; *) echo "release: version must look like v0.2.0, got $tag" >&2; exit 1 ;; esac
+case "$tag" in v[0-9]*) ;; *) echo "release: version must look like vX.Y.Z, got $tag" >&2; exit 1 ;; esac
 v=${tag#v}
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 mkdir -p dist
+shipped="LICENSE THIRD_PARTY_NOTICES"
 
 # archname GOARCH: the CPU name in the keel-signal archive names (x86_64, arm64).
 archname() {
@@ -32,7 +34,7 @@ archname() {
 
 # docs FOLDER: the license files that ship beside a binary.
 docs() {
-	for f in LICENSE THIRD_PARTY_NOTICES; do
+	for f in $shipped; do
 		if [ -f "$f" ]; then cp "$f" "$1/"; fi
 	done
 }
@@ -79,7 +81,7 @@ macos)
 	[ "$("$exe" version)" = "keel $tag" ] || fail "keel version is not 'keel $tag'"
 	[ "$(plutil -extract CFBundleIdentifier raw "$app/Contents/Info.plist")" = app.keel.desktop ] || fail "the bundle identifier changed"
 	[ "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" = "$cv" ] || fail "Info.plist version is not $cv"
-	for f in LICENSE THIRD_PARTY_NOTICES; do
+	for f in $shipped; do
 		[ -f "$app/Contents/Resources/$f" ] || fail "$f is not in the app"
 	done
 	codesign --verify --deep --strict "$app"
@@ -90,7 +92,7 @@ linux)
 	for arch in amd64 arm64; do
 		dir=build/linux-$arch
 		listing=$(tar -tzf "$dir/keel-$cv-linux-$arch.tar.gz")
-		for f in keel libghostty-vt.so LICENSE THIRD_PARTY_NOTICES; do
+		for f in keel libghostty-vt.so $shipped; do
 			echo "$listing" | grep -qx "$f" || fail "$f is not in the $arch archive"
 		done
 		case "$arch" in amd64) want='x86-64' ;; arm64) want='ARM aarch64' ;; esac

@@ -28,19 +28,18 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Both legs run every package, the window's (keel/internal/native) included: its tests are green on Ubuntu since
-      # issue #140 (docs/native.md "Linux"). The Linux window itself has still not been run by a person.
+      # Both legs run every package, the window's (keel/internal/native) included (docs/native.md "Linux"). Nobody has
+      # run the window on a Linux desktop.
       - name: make test
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
 
   # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
-  # Nobody has seen a headless macOS runner run it (it needs the window server), so a failure does not fail the
-  # workflow yet: make it required once it has passed here. The unit tests of internal/native run in make test above.
+  # It runs on the macOS runner and a failure fails the workflow. The unit tests of internal/native run in make test
+  # above.
   native-e2e:
     name: native e2e (macOS)
     runs-on: macos-15
     timeout-minutes: 45
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -60,8 +59,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The built app driven from outside through MyGo's automation socket (plan 029; a test build, scratch data).
-  # A headless runner may not have a window server, so a failure does not fail the workflow.
+  # The built app driven from outside through MyGo's automation socket (a test build, scratch data). It opens real
+  # windows, which a hosted runner may not allow, and the scenarios that judge screen pixels skip there (they check
+  # GITHUB_ACTIONS), so a failure does not fail the workflow.
   native-automation:
     name: native automation (macOS)
     runs-on: macos-15

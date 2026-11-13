@@ -1,6 +1,28 @@
-# Releasing Keel: signing and notarizing
+# Releasing Keel
 
-`.github/workflows/release.yml` builds the release (see CONTRIBUTING.md, "Releasing"). The macOS app is signed ad hoc and not notarized unless the repository has all six secrets below; with any of them missing the job log says "The signing secrets are not all set" and the release still builds, as it did before MyGo's packager. Pull requests from forks never see the secrets, so their dry runs are ad hoc too.
+## Cutting a release
+
+Releases are cut from `main` by pushing a tag; `.github/workflows/release.yml` does the rest. First set `"version"` in `mygo.json` (the one place the version lives) to the release, without the `v`, commit it, then tag that commit:
+
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+The workflow runs `scripts/release.sh` for each target; the script is the source of what is built, and it fails, before anything is published, when the tag and `mygo.json` disagree. A tag with a hyphen (`vX.Y.Z-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`. The release is published with the install notes of `.github/release-notes.md` (its "What's new" section is the release's own: rewrite it for each tag) and notes generated from the merged PRs. A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh vX.Y.Z macos|linux|signal` builds into `dist/`; it never uploads.
+
+## Release files
+
+| Target | Files |
+|---|---|
+| macOS, universal (arm64 and x86_64) | `keel-<version>.dmg`, with `Keel.app` inside |
+| Linux, `amd64` and `arm64` (one Ubuntu runner builds both) | `keel-<version>-linux-<arch>.tar.gz` and `keel_<version>_<arch>.deb` |
+| keel-signal, a plain `go build`, for macOS, Linux and Windows | `keel-signal-<version>-<os>-<cpu>` archives |
+
+`LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each, and `SHA256SUMS` lists every file. The packages keep MyGo's file names. Windows has no Keel app, only keel-signal.
+
+## Signing and notarizing
+
+The macOS app is signed ad hoc and not notarized unless the repository has all six secrets below; with any of them missing the job log says "The signing secrets are not all set" and the release still builds, as it did before MyGo's packager. Pull requests from forks never see the secrets, so their dry runs are ad hoc too.
 
 ## Secrets to add
 
@@ -19,13 +41,6 @@ The job puts the certificate and the notary credentials (the keychain profile `n
 
 Windows has no Keel build, so MyGo's Windows secrets (`MYGO_WINDOWS_CERTIFICATE_PASSWORD`) are not used.
 
-## Auto-updates (not enabled)
+## Auto-updates
 
-MyGo can make Keel update itself (`updates` in `mygo.json`, the updater plugin in the app). It is not on: Keel has no updater. Turning it on would take:
-
-- `go tool mygo keygen`, the public key into `mygo.json` (`updates.publicKey`), and the secret key as a repository secret `MYGO_UPDATER_PRIVATE_KEY`;
-- `updates.github` (`KJK-Nice/keel`) in `mygo.json`, and `mygo build` signing an update archive per platform with that key (the workflow would pass the secret, and publish those files and the update manifests with the release);
-- the updater plugin and its user interface in the app (`cmd/keel`, `internal/native`), with the agent invariants of `docs/ui-redesign.md` §6 in mind;
-- notarized macOS builds first, since an update replaces the app Gatekeeper already accepted.
-
-See MyGo's `docs/updates.md`.
+Keel has no updater and `mygo.json` has no `updates` section. MyGo's updates guide (`docs/updates.md` in the MyGo module) describes what MyGo needs for it: a signing key pair, `updates` in `mygo.json`, signed update archives per platform published with the release, and the updater plugin in the app.
