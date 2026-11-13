@@ -39,8 +39,7 @@ import (
 // called only by the window's typeNow (internal/native/typenow.go), and keel serve decides every time: it checks
 // the command, the pane's state and the driver again, at the moment of the write, and answers typed, dialog (nothing
 // written; the window opens Approve before type) or a refusal. This file is the only one that builds the frames of
-// either way: inject-challenge, inject (with or without direct and agent) and type-check. guard_test.go keeps all of it
-// true. The page's version is cmd/keel/web/js/pty.js typeDirect and checkDirect.
+// either way: inject-challenge and inject (with or without direct and agent). guard_test.go keeps all of it true.
 
 // A third way, for the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5; suggestinsert below):
 // SuggestInsert sends the bytes keel serve itself gave for that option (Ctrl-U and the command, no newline) and
@@ -187,7 +186,6 @@ func (c *Conn) injectFrame(data []byte) bool {
 		Ref        string `json:"ref"`
 		Dialog     bool   `json:"dialog"`
 		Reason     string `json:"reason"`
-		Direct     bool   `json:"direct"`
 	}
 	if json.Unmarshal(data, &m) != nil {
 		return false
@@ -195,13 +193,13 @@ func (c *Conn) injectFrame(data []byte) bool {
 	if c.suggestFrame(m.Type, data) {
 		return true
 	}
-	if m.Type == "type-direct" || m.Type == "type-check" { // matched by the ref the request carried (pty.js settleDirect)
+	if m.Type == "type-direct" { // matched by the ref the request carried
 		c.mu.Lock()
 		w := c.directWaiters[m.Ref]
 		c.mu.Unlock()
 		if w != nil {
 			select {
-			case w <- directAnswer{ok: m.OK, dialog: m.Dialog, reason: m.Reason, message: m.Message, direct: m.Direct}:
+			case w <- directAnswer{ok: m.OK, dialog: m.Dialog, reason: m.Reason, message: m.Message}:
 			default:
 			}
 		}
@@ -242,7 +240,7 @@ func agentPart(a *AgentRef) map[string]any {
 	return map[string]any{"conversationId": a.ConversationID, "proposalId": a.ProposalID, "shift": a.Shift}
 }
 
-// DirectRef is the "direct" part of a type-check or a direct inject (internal/httpapi/typedirect.go directTypeMsg): where
+// DirectRef is the "direct" part of a direct inject (internal/httpapi/typedirect.go directTypeMsg): where
 // the command comes from, and what the pane's terminal shows, which keel serve ORs with its own view (it can only add a
 // dialog). The ref that matches an answer is made here.
 type DirectRef struct {
@@ -263,13 +261,13 @@ type DirectResult struct {
 	Message string
 }
 
-// directAnswer is keel serve's type-direct or type-check frame.
+// directAnswer is keel serve's type-direct frame.
 type directAnswer struct {
-	ok, dialog, direct bool
-	reason, message    string
+	ok, dialog      bool
+	reason, message string
 }
 
-// directWait is how long keel serve has to answer a direct type or a check (pty.js askDirect: 8 s).
+// directWait is how long keel serve has to answer a direct type (8 s).
 const directWait = 8 * time.Second
 
 // directReady is pty.js directReady for a connection: nothing goes out for a kind this client does not build, or for a
@@ -288,8 +286,8 @@ func (c *Conn) directReady(ref DirectRef) error {
 	return nil
 }
 
-// directFrame is a type-check or an inject with a direct part. The ref goes into it here and nowhere else.
-func directFrame(kind, command, nonce string, ref DirectRef, id string, agent *AgentRef) []byte {
+// directFrame is an inject with a direct part. The ref goes into it here and nowhere else.
+func directFrame(command, nonce string, ref DirectRef, id string, agent *AgentRef) []byte {
 	d := map[string]any{"kind": ref.Kind, "altScreen": ref.AltScreen, "promptLine": ref.PromptLine, "ref": id}
 	if ref.SnippetID != "" {
 		d["snippetId"] = ref.SnippetID
@@ -297,10 +295,7 @@ func directFrame(kind, command, nonce string, ref DirectRef, id string, agent *A
 	if ref.NotebookID != "" {
 		d["notebookId"] = ref.NotebookID
 	}
-	f := map[string]any{"type": kind, "command": command, "direct": d}
-	if nonce != "" {
-		f["nonce"] = nonce
-	}
+	f := map[string]any{"type": "inject", "command": command, "nonce": nonce, "direct": d}
 	if agent != nil {
 		f["agent"] = agentPart(agent)
 	}
@@ -401,7 +396,7 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 	}
 	id, answer := c.newDirectWaiter()
 	defer c.dropDirectWaiter(id)
-	if err := c.write(websocket.TextMessage, directFrame("inject", command, nonce, ref, id, agent)); err != nil {
+	if err := c.write(websocket.TextMessage, directFrame(command, nonce, ref, id, agent)); err != nil {
 		return DirectResult{}, err
 	}
 	a, ok, err := c.waitDirect(ctx, answer)
@@ -419,25 +414,6 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 		return DirectResult{Message: a.message}, nil
 	}
 	return DirectResult{Typed: true}, nil
-}
-
-// DirectCheck asks keel serve whether DirectType would type command now. It writes nothing. keel serve answers it
-// only for a group run's proposal (every other kind is "dialog"), so the window does not use it to name its buttons: the
-// hint does that, as the page's does. false when keel serve would not, or did not answer in time.
-func (c *Conn) DirectCheck(ctx context.Context, command string, ref DirectRef, agent *AgentRef) (bool, error) {
-	if err := c.directReady(ref); err != nil {
-		return false, err
-	}
-	if !DirectLine(command) {
-		return false, nil
-	}
-	id, answer := c.newDirectWaiter()
-	defer c.dropDirectWaiter(id)
-	if err := c.write(websocket.TextMessage, directFrame("type-check", command, "", ref, id, agent)); err != nil {
-		return false, err
-	}
-	a, ok, err := c.waitDirect(ctx, answer)
-	return ok && a.direct, err
 }
 
 // ---- in-pane suggestions (cmd/keel/web/js/ui/suggest.js, lib/suggest.js; internal/httpapi/agentsuggest.go) ----

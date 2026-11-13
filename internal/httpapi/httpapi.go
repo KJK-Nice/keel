@@ -62,7 +62,7 @@ type Server struct {
 	// vault counts store and tunnel changes: GET /api/vault reports it as "rev" (vaultrev.go).
 	vault *vaultRev
 	// sockets counts the open session sockets and the work they start
-	// off their read loop (suggestions, type-checks, direct types), which
+	// off their read loop (suggestions, direct types), which
 	// can still be logging after the socket closes (waitSockets).
 	sockets sync.WaitGroup
 }
@@ -1096,7 +1096,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	sugCtx, sugCancel := context.WithCancel(r.Context())
 	defer sugCancel()
 	sug := newSuggestConn(sugCtx, s, ws, sess, cl.ID)
-	// Type-checks and direct types are bounded per socket (typedirect.go).
+	// Direct types are bounded per socket (typedirect.go).
 	directLim := newDirectLimiter()
 
 	go func() {
@@ -1164,7 +1164,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				Seq      int    `json:"seq"`
 				Line     string `json:"line"`
 				// Direct marks a type without the approve dialog (§6 rule
-				// 13, typedirect.go): on type-check and on inject.
+				// 13, typedirect.go).
 				Direct *directTypeMsg `json:"direct"`
 			}
 			if json.Unmarshal(msg, &ctl) != nil {
@@ -1186,15 +1186,6 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
 				}
-			case "type-check":
-				if ctl.Direct == nil {
-					break
-				}
-				if !directLim.allow("check") {
-					_ = ws.writeJSON(map[string]any{"type": "type-check", "ref": ctl.Direct.Ref, "ok": false, "direct": false, "dialog": true, "reason": reasonBusy})
-					break
-				}
-				s.goSocket(func() { s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent) })
 			case "agent-detect":
 				sug.detect(ctl.Seq, ctl.Line)
 			case "agent-suggest":

@@ -37,19 +37,6 @@ func directOverSocket(t *testing.T, conn *websocket.Conn, command string, direct
 	return waitJSON(t, conn, "type-direct")
 }
 
-// checkOverSocket asks type-check: would it go without the dialog now.
-func checkOverSocket(t *testing.T, conn *websocket.Conn, command string, direct, agentPart map[string]any) map[string]any {
-	t.Helper()
-	msg := map[string]any{"type": "type-check", "command": command, "direct": direct}
-	if agentPart != nil {
-		msg["agent"] = agentPart
-	}
-	if err := conn.WriteJSON(msg); err != nil {
-		t.Fatal(err)
-	}
-	return waitJSON(t, conn, "type-check")
-}
-
 func agentDirect() map[string]any { return map[string]any{"kind": "agent", "ref": "r1"} }
 
 func convPart(id string) map[string]any {
@@ -124,20 +111,7 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 		t.Fatalf("edit → %d %s", code, b)
 	}
 
-	// type-check says so and writes and logs nothing.
 	got := readPTY(bridge)
-	// type-check is only for a group run's proposal: a conversation's is
-	// answered "dialog" without a check.
-	if r := checkOverSocket(t, driver, "uptime", agentDirect(), convPart(roID)); r["direct"] != false || r["dialog"] != true || r["ref"] != "r1" {
-		t.Fatalf("type-check of a conversation's proposal → %v", r)
-	}
-	if r := checkOverSocket(t, driver, "touch /tmp/keel-agent-e2e-touched", agentDirect(), convPart(chID)); r["direct"] != false || r["dialog"] != true {
-		t.Fatalf("type-check changes → %v", r)
-	}
-	nothingWritten(t, got, "a type-check")
-	if n := len(f.logEntries(agent.EventType)); n != 0 {
-		t.Fatalf("type-check logged %d agent.type", n)
-	}
 
 	// Not read-only: the dialog decides, nothing is written.
 	wantDialog(t, "changes-state proposal", directOverSocket(t, driver, "touch /tmp/keel-agent-e2e-touched", agentDirect(), convPart(chID)), service.ReasonRisk)
@@ -153,10 +127,10 @@ func TestDirectTypeAgentProposal(t *testing.T) {
 	if r := waitJSON(t, follower, "type-direct"); r["ok"] != false || r["dialog"] == true || !strings.Contains(r["message"].(string), "follow") {
 		t.Fatalf("follower → %v", r)
 	}
-	if r := checkOverSocket(t, follower, "uptime", agentDirect(), convPart(roID)); r["direct"] != false {
-		t.Fatalf("follower type-check → %v", r)
-	}
 	nothingWritten(t, got, "a refused direct type")
+	if n := len(f.logEntries(agent.EventType)); n != 0 {
+		t.Fatalf("refused direct types logged %d agent.type", n)
+	}
 
 	// A full-screen program on the alternate screen: keystrokes, not a
 	// command line. Back on the normal screen it goes.
@@ -425,25 +399,19 @@ func TestDirectTypeGroupRun(t *testing.T) {
 	gotProd := readPTY(f.bridge(t, f.prodID))
 	wantDialog(t, "unfilled", directOverSocket(t, conns[f.webID], "kubectl get pods -n {{ver}}", agentDirect(), part(props[f.webID])), service.ReasonBytes)
 	// Another host's proposal in this pane: refused.
-	if r := checkOverSocket(t, conns[f.webID], filled, agentDirect(), part(props[f.prodID])); r["direct"] != false || r["dialog"] == true {
+	if r := directOverSocket(t, conns[f.webID], filled, agentDirect(), part(props[f.prodID])); r["ok"] != false || r["dialog"] == true {
 		t.Fatalf("other host's proposal → %v", r)
 	}
 	// A production host among the step's two: the dialog, for every host.
 	setProd(true)
 	for host, p := range props {
-		if r := checkOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["direct"] != false || !strings.Contains(r["reason"].(string), "production") {
-			t.Fatalf("type-check %s with a production host → %v", host, r)
+		if r := directOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["ok"] != false || r["dialog"] != true || !strings.Contains(r["reason"].(string), "production") {
+			t.Fatalf("direct type %s with a production host → %v", host, r)
 		}
 	}
 	setProd(false)
-	// Every host is checked first (nothing written), then each is typed.
-	for host, p := range props {
-		if r := checkOverSocket(t, conns[host], filled, agentDirect(), part(p)); r["direct"] != true {
-			t.Fatalf("type-check %s → %v", host, r)
-		}
-	}
-	nothingWritten(t, gotWeb, "a group type-check")
-	// The value changed after the check: the old bytes are not the bytes
+	nothingWritten(t, gotWeb, "a refused group direct type")
+	// The value changed after the proposal: the old bytes are not the bytes
 	// filled in now (rule 11), so the dialog decides.
 	if code, b := f.call(t, "PUT", "/api/groups/"+g.ID+"/vars", map[string]string{"name": "ver", "value": "default"}); code != 200 {
 		t.Fatalf("var → %d %s", code, b)

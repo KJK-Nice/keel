@@ -17,12 +17,11 @@ import (
 // file that writes them, and one caller of each. They read the source of every non-test .go file under internal/native,
 // as cmd/keel/web/js/test/approve.test.mjs does for the page.
 //
-//	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject, type-check)
+//	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject)
 //	ApprovedInject(        called once, from approve.go: the Approve before type dialog's Type action
 //	DirectType(            called once, from (*workspace).typeNow in typenow.go
 //	typeNow(               called by the entry points only: a snippet (snippets.go) and an agent card (agent.go)
-//	DirectCheck(           called only by code that names buttons and badges (none today: keel serve answers it for a
-//	                       group run's proposal alone, and the hint does the naming, as the page's does)
+//	DirectCheck, type-check  gone (keel serve has no such frame any more): no file may name either
 
 // sourceFiles are the non-test .go files under internal/native, by path relative to it ("/" separated).
 func sourceFiles(t *testing.T) map[string]string {
@@ -63,7 +62,7 @@ func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	}
 	// And it holds them: the guard is looking for the right strings.
 	src := sourceFiles(t)["keelclient/inject.go"]
-	for _, want := range []string{`"inject-challenge"`, `"inject"`, `"type-check"`, `"direct"`} {
+	for _, want := range []string{`"inject-challenge"`, `"inject"`, `"direct"`} {
 		if !strings.Contains(src, want) {
 			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
 		}
@@ -158,13 +157,14 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 	}
 }
 
-// DirectCheck writes nothing, but it is a question to keel serve about typing: only the code that names buttons and
-// badges may ask it, never the code that types or opens the dialog.
-func TestDirectCheckIsAskedOnlyWhereButtonsAndBadgesAreNamed(t *testing.T) {
-	named := map[string]bool{"typedirect.go": true, "palette.go": true, "agentview.go": true, "snippetsview.go": true}
-	for _, c := range allCallSites(t, "DirectCheck") {
-		if !named[c.file] {
-			t.Errorf("DirectCheck is called from %v: only the code that names buttons and badges may ask", c)
+// DirectCheck was a question to keel serve about typing (the type-check frame). keel serve no longer answers it, so no
+// file may ask it or name the frame, keelclient/inject.go included.
+func TestNoFileAsksATypeCheck(t *testing.T) {
+	for name, src := range sourceFiles(t) {
+		for _, bad := range []string{"DirectCheck", "type-check"} {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s names %s: there is no type-check; a direct type is decided by keel serve at the write", name, bad)
+			}
 		}
 	}
 }

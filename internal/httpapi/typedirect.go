@@ -18,20 +18,17 @@ import (
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
 // review). On the session socket the page sends:
 //
-//	{"type":"type-check", "command", "direct":{…}, "agent":{…}}
-//	    → {"type":"type-check", "ref", "direct", "dialog", "reason", "message"}
 //	{"type":"inject", "command", "nonce", "direct":{…}, "agent":{…}}
 //	    → {"type":"type-direct", "ref", "ok", "dialog", "reason", "message"}
 //
-// type-check writes nothing (the group run page asks it for every host
-// before one click types into them all). An inject with "direct" runs the
-// same checks again, at the moment of the write, on the exact bytes, then
+// An inject with "direct" runs the checks at the moment of the write, on
+// the exact bytes, then
 // consumes the server nonce and writes the bytes: the command alone, never
 // a newline, so it waits on the prompt line for the user's Enter. When
 // any check is not met the answer is dialog:true and nothing is written:
 // the page then opens the approve dialog, the path that was there before.
 
-// directTypeMsg is the "direct" part of a type-check or an inject.
+// directTypeMsg is the "direct" part of an inject.
 type directTypeMsg struct {
 	// Ref is the page's id for this request, sent back with the answer.
 	Ref string `json:"ref"`
@@ -89,8 +86,8 @@ func promptCheck(sess *runtime.Session, d *directTypeMsg) error {
 	return nil
 }
 
-// directLimiter bounds type-checks and direct types on one socket: a
-// bucket of directBurst for each, refilled at one every directRefill. A
+// directLimiter bounds direct types on one socket: a bucket of
+// directBurst for each kind, refilled at one every directRefill. A
 // faster page is misbehaving; it is answered "dialog" and nothing reaches
 // a provider.
 type directLimiter struct {
@@ -187,9 +184,9 @@ var errJoined = errors.New("this pane is joined from another Keel: type into it 
 
 // directCheck runs every check of a type without the dialog for this
 // client of sess. A *service.DialogError sends it to the dialog; another
-// error refuses it. With commit, an agent proposal's agent.type is logged
-// (and a group run's host claimed) as the step before the write.
-func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientID uint64, command string, d *directTypeMsg, am *agentTypeMsg, commit bool) (service.DirectGrant, error) {
+// error refuses it. An agent proposal's agent.type is logged (and a group
+// run's host claimed) as the step before the write.
+func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientID uint64, command string, d *directTypeMsg, am *agentTypeMsg) (service.DirectGrant, error) {
 	var none service.DirectGrant
 	info := sess.Info()
 	if clientID != info.DriverID {
@@ -220,7 +217,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 			SessionID:      info.ID,
 			Role:           clientRole(sess, clientID),
 			Bytes:          command,
-		}, commit)
+		}, true)
 	case directSnippet:
 		// A snippet is the user's own text: one with a placeholder goes
 		// to the dialog, as before, rather than being refused.
@@ -288,31 +285,12 @@ func directAnswer(out map[string]any, err error) {
 	out["ok"] = true
 }
 
-// typeCheck answers a type-check: whether this command would be typed
-// without the dialog now. It writes and logs nothing.
-//
-// Only the group run page needs it (it checks every host before one click
-// types into them all), so only a group run's proposal is checked; every
-// other kind is answered "dialog" without a check.
-func (s *Server) typeCheck(ctx context.Context, ws *wsConn, sess *runtime.Session, clientID uint64, command string, d *directTypeMsg, am *agentTypeMsg) {
-	out := map[string]any{"type": "type-check", "ref": d.Ref}
-	var err error
-	if d.Kind != directAgent || am == nil || am.GroupRunID == "" {
-		err = &service.DialogError{Reason: reasonUnknown}
-	} else {
-		_, err = s.directCheck(ctx, sess, clientID, command, d, am, false)
-	}
-	directAnswer(out, err)
-	out["direct"] = err == nil
-	_ = ws.writeJSON(out)
-}
-
 // typeDirect is an inject with "direct": the checks again, then the
 // write of the command alone with the server nonce, and the log entry.
 func (s *Server) typeDirect(ctx context.Context, ws *wsConn, sess *runtime.Session, clientID uint64, command, nonce string, d *directTypeMsg, am *agentTypeMsg) {
 	out := map[string]any{"type": "type-direct", "ref": d.Ref}
 	info := sess.Info()
-	grant, err := s.directCheck(ctx, sess, clientID, command, d, am, true)
+	grant, err := s.directCheck(ctx, sess, clientID, command, d, am)
 	if err != nil {
 		directAnswer(out, err)
 		_ = ws.writeJSON(out)

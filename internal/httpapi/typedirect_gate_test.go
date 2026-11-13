@@ -171,7 +171,7 @@ func TestDirectTypeGatePromptState(t *testing.T) {
 	written(t, got, "uptime", "a type back at the prompt")
 }
 
-func TestDirectTypeGateNotebookFencesAndTypeCheck(t *testing.T) {
+func TestDirectTypeGateNotebookFences(t *testing.T) {
 	f := newAskFixture(t, true)
 	web := f.open(t, f.webID, "$ ")
 	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
@@ -190,11 +190,6 @@ func TestDirectTypeGateNotebookFencesAndTypeCheck(t *testing.T) {
 		t.Fatalf("a one-line bash block → %v", r)
 	}
 	written(t, got, "pwd", "a one-line bash block")
-	// type-check is for group runs only.
-	sn, _ := f.st.UpsertSnippet(store.Snippet{Name: "u", Command: "uptime"})
-	if r := checkOverSocket(t, driver, "uptime", map[string]any{"kind": "snippet", "snippetId": sn.ID, "ref": "c"}, nil); r["direct"] != false || r["dialog"] != true {
-		t.Fatalf("type-check of a snippet → %v", r)
-	}
 }
 
 func TestDirectLimiter(t *testing.T) {
