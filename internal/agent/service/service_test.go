@@ -178,6 +178,30 @@ func (f *fixture) logKinds(kind string) []applog.Entry {
 	return out
 }
 
+// askReads is the agent.read entries (newest first) for what an Ask read:
+// panes, notebooks, the index. The entries of the requests themselves
+// (written by the one sender) are left out, after checking that every
+// request the provider got has one.
+func (f *fixture) askReads(t *testing.T) []applog.Entry {
+	t.Helper()
+	var out []applog.Entry
+	sends := 0
+	for _, e := range f.logKinds(agent.EventRead) {
+		if strings.HasPrefix(e.Message, "agent sent ") && strings.Contains(e.Message, " to answer it") {
+			if e.Source != "gemini" || e.SessionID != "" {
+				t.Fatalf("the request's entry = %+v", e)
+			}
+			sends++
+			continue
+		}
+		out = append(out, e)
+	}
+	if n := len(f.fake.Requests()); sends != n {
+		t.Fatalf("%d requests reached the provider, %d were logged as sent", n, sends)
+	}
+	return out
+}
+
 // requestBodies is everything the provider received, as JSON, so a test
 // can search it the way a network capture would.
 func (f *fixture) requestBodies(t *testing.T) string {
@@ -230,7 +254,7 @@ func TestAskReadsOnlyScopedReadablePanes(t *testing.T) {
 	if resp.Trace[1].Reason != "not-readable" || resp.Trace[2].Reason != "not-open" {
 		t.Errorf("skip reasons = %q, %q", resp.Trace[1].Reason, resp.Trace[2].Reason)
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 1 || reads[0].SessionID != "s-web" || reads[0].Lines != 6 {
 		t.Fatalf("agent.read log = %+v", reads)
 	}
@@ -256,7 +280,7 @@ func TestAskRedactsBeforeTheProvider(t *testing.T) {
 	if resp.Trace[0].Redactions == nil || resp.QuestionRedactions == nil {
 		t.Errorf("redaction counts missing: trace %v, question %v", resp.Trace[0].Redactions, resp.QuestionRedactions)
 	}
-	if e := f.logKinds(agent.EventRead); len(e) != 1 || len(e[0].Redactions) == 0 {
+	if e := f.askReads(t); len(e) != 1 || len(e[0].Redactions) == 0 {
 		t.Errorf("agent.read must carry redaction counts: %+v", e)
 	}
 	raw, _ := os.ReadFile(f.path)

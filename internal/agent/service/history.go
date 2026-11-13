@@ -51,7 +51,7 @@ const (
 // Service.Suggest, and only when Jev has a key.
 type historySuggester struct {
 	s     *Service
-	judge provider.Judge
+	judge line
 	hosts []agent.Host
 	// words is the prompt line as typed (cleaned, not redacted): the
 	// line being edited is in the scrollback too, and is never a
@@ -60,10 +60,6 @@ type historySuggester struct {
 }
 
 func (h historySuggester) Source() string { return SourceHistory }
-
-// SendsTo is "": the history suggester logs its own egress, after it knows
-// how many candidates it sends and before it sends them.
-func (h historySuggester) SendsTo() string { return "" }
 
 // historyCand is one candidate before Jev: the command (identical before
 // and after redaction) and where it came from.
@@ -98,19 +94,21 @@ func (h historySuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candi
 	qs["exists"] = historyExistsQuestion
 	what := fmt.Sprintf("the words on the prompt line and %d candidate command%s (%d from this pane's scrollback, %d from snippets)",
 		len(cands), plural(len(cands)), nHist, nSnip)
-	h.s.audit.Sent(in.Pane, what, 1+len(cands), in.Redactor.Report(), "TypeSafe Jev", "to pick a command already run", SourceHistory)
 
 	cctx, cancel := context.WithTimeout(ctx, historyTimeout)
 	defer cancel()
-	resp, err := h.judge.Judge(cctx, provider.JudgeRequest{
-		Fields:    map[string]redact.Safe{stateRequest: in.Words},
-		Maps:      map[string]map[string]redact.Safe{stateCandidates: keyed},
-		Questions: qs,
+	rep, err := h.s.send(cctx, h.judge, outbound{
+		judge: &provider.JudgeRequest{
+			Fields:    map[string]redact.Safe{stateRequest: in.Words},
+			Maps:      map[string]map[string]redact.Safe{stateCandidates: keyed},
+			Questions: qs,
+		},
+		log: agent.Egress{Pane: in.Pane, What: what, N: 1 + len(cands), Report: in.Redactor.Report(), To: jevName, Why: "to pick a command already run", Source: SourceHistory},
 	})
 	if err != nil {
 		return nil, nil
 	}
-	i := historyConfident(resp, len(cands))
+	i := historyConfident(rep.judge, len(cands))
 	if i < 0 {
 		return nil, nil
 	}

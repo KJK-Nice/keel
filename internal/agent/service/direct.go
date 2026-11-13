@@ -124,14 +124,24 @@ func (s *Service) DirectRating(ctx context.Context, sessionID, command string, m
 // not read-only sends the Type to the dialog, and so does a call that was
 // made and got no answer (an error, a timeout, offline): fail closed. Jev
 // not asked (no key, or a host the agent may not read): the allowlist
-// alone has decided, and it stands.
+// alone has decided, and it stands. Only those two mean "not asked":
+// anything Keel could not find out (the vault or the hosts cannot be read,
+// the client cannot be built, the entry cannot be logged) sends the Type
+// to the dialog too.
 func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) error {
-	if _, err := s.judgeFor(); err != nil {
+	judge, err := s.judgeFor()
+	if errors.Is(err, ErrNoKey) {
 		return nil
 	}
-	p, _, hosts, err := s.paneFor(sessionID, agent.RoleDriver)
 	if err != nil {
+		return needsDialog(ReasonJevNone)
+	}
+	p, _, hosts, err := s.paneFor(sessionID, agent.RoleDriver)
+	if errors.Is(err, agent.ErrNotReadable) {
 		return nil
+	}
+	if err != nil {
+		return needsDialog(ReasonJevNone)
 	}
 	set, err := s.st.AgentSettings()
 	if err != nil {
@@ -141,7 +151,7 @@ func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) er
 	if err != nil {
 		return needsDialog(ReasonJevNone)
 	}
-	judged, _ := s.judgeRisks(ctx, p, []Candidate{{Command: command}}, []int{0}, r)
+	judged, _ := s.judgeRisks(ctx, judge, p, []Candidate{{Command: command}}, []int{0}, r)
 	j, ok := judged[0]
 	if !ok {
 		return needsDialog(ReasonJevNone)

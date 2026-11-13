@@ -54,7 +54,7 @@ func (s *Service) newProposal(in proposalSpec, now time.Time) *Proposal {
 	}
 	p.seal(in.Floor)
 	if p.SessionID != "" {
-		s.audit.SuggestFrom(in.Pane, in.Report, riskLabel(p.Risk), in.Source)
+		s.audit.Suggest(in.Pane, in.Report, riskLabel(p.Risk), in.Source, agent.Timing{})
 	}
 	return p
 }

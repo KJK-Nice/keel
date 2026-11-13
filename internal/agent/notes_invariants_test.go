@@ -82,7 +82,7 @@ func TestNotesOnlyThroughTheirPaths(t *testing.T) {
 
 type memLog struct{ entries []applog.Entry }
 
-func (m *memLog) Append(e applog.Entry) { m.entries = append(m.entries, e) }
+func (m *memLog) Append(e applog.Entry) error { m.entries = append(m.entries, e); return nil }
 
 // A host's notes are refused, before anything is redacted or logged, when
 // the agent may not read that host.

@@ -74,7 +74,10 @@ func (b *Book) load() {
 	}
 }
 
-func (b *Book) Append(e Entry) {
+// Append adds e to the log. The entry is always kept in memory (Recent);
+// the error says the file did not take it, for a caller that must not go
+// on unlogged (the agent's Auditor).
+func (b *Book) Append(e Entry) error {
 	if e.Time.IsZero() {
 		e.Time = time.Now().UTC()
 	}
@@ -86,11 +89,13 @@ func (b *Book) Append(e Entry) {
 	}
 	f, err := os.OpenFile(b.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return
+		return err
 	}
-	enc := json.NewEncoder(f)
-	_ = enc.Encode(e)
-	_ = f.Close()
+	err = json.NewEncoder(f).Encode(e)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func (b *Book) Recent(limit int) []Entry {

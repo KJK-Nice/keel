@@ -7,7 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/shellmark"
 )
@@ -72,7 +71,7 @@ func TestAskPrefersLastCommandFromMarks(t *testing.T) {
 	if st := resp.Trace[0]; st.Status != "read" || st.Command != "exit 2" || st.Lines != 2 {
 		t.Errorf("trace = %+v", st)
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 1 || !strings.Contains(reads[0].Message, "last command, exit 2") || reads[0].SessionID != "s-web" || reads[0].Redactions["known_secret"] == 0 {
 		t.Fatalf("agent.read = %+v", reads)
 	}

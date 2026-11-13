@@ -10,7 +10,6 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -629,7 +628,7 @@ func (s *Service) DeleteAllNotes() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	s.log.Append(applog.Entry{Kind: agent.EventNote, Message: fmt.Sprintf("every note for the agent deleted by you (%d)", n), Count: n})
+	s.audit.Event(agent.EventNote, "", fmt.Sprintf("every note for the agent deleted by you (%d)", n), n)
 	return n, nil
 }
 

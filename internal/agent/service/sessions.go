@@ -8,7 +8,6 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -478,7 +477,7 @@ func (s *Service) noteSave(err error) {
 	s.saveErr = msg
 	s.mu.Unlock()
 	if changed && msg != "" {
-		s.log.Append(applog.Entry{Kind: "agent", Message: "agent conversation not saved: " + msg})
+		s.audit.Event(agent.EventAgent, "", "agent conversation not saved: "+msg, 0)
 	}
 }
 

@@ -148,7 +148,7 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 	if lines <= 0 || lines > set.ScrollbackLines {
 		lines = set.ScrollbackLines
 	}
-	ex, err := s.audit.ReadPaneFrom(s.panes, scope, p, lines, r, ExternalSource)
+	ex, err := s.audit.ReadPane(s.panes, scope, p, lines, r, ExternalSource)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}

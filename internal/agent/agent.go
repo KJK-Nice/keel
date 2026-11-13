@@ -29,6 +29,13 @@ const (
 	EventType    = "agent.type"    // a proposal was typed into a pane (Type into pane ↵)
 	EventNote    = "agent.note"    // notes for the agent sent with a question, or saved, edited or deleted
 	EventRunbook = "agent.runbook" // a runbook sent with a question, offered, used, changed, or a step's result
+	// EventNotebook: what the agent did to a notebook (created, edited, a
+	// delete it proposed) and what the user did with it (undo, confirm,
+	// restore): ids and counts only.
+	EventNotebook = "agent.notebook"
+	// EventAgent: the agent service saying something about itself that is
+	// none of the above (a reply cut off, a conversation not saved).
+	EventAgent = "agent"
 )
 
 // Role is the client's role in a session. The values match

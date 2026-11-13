@@ -291,16 +291,22 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 }
 
 // In the agent service, the Gemini and Anthropic clients are built only in
-// Real, the Jev
-// client only in RealJudge, the test fakes only in FromEnv; a model
-// provider is called (Generate) only from Ask, the in-pane model
-// suggester and the key-scrubbing wrapper; and a judge (Jev) only from
-// Detect, judgeRisks and its scrubbing wrapper. Ask is reached only from
-// POST /api/agent/ask, the suggester and Detect only from the session
-// socket (TestSuggestionsOnlyFromTheSessionSocket).
+// Real, the Jev client only in RealJudge, the test fakes only in FromEnv.
+//
+// One sender (§6 rules 4 and 7): a model provider (Generate) and a judge
+// (Judge) are each called exactly once in the service, both in
+// Service.send, which writes the agent.read entry (Auditor.Sent) before
+// the call and does not call when it cannot. So nothing is sent without a
+// log entry, and only redact.Safe text can be sent (the request types).
+// send itself is called only for the user's Ask, the in-pane model
+// suggester, Detect, judgeRisks and the history pick. Ask is reached only
+// from POST /api/agent/ask, the suggesters and Detect only from the
+// session socket (TestSuggestionsOnlyFromTheSessionSocket).
 func TestOnlyAskCallsAProvider(t *testing.T) {
 	const svc = module + "/internal/agent/service"
 	seen := map[string]int{}
+	senders := map[string]bool{"Service.Ask": true, "modelSuggester.Suggest": true, "Service.Detect": true, "Service.judgeRisks": true, "historySuggester.Suggest": true}
+	loggers := map[string]bool{"Service.send": true, "Service.noteDetect": true, "Service.flushDetect": true}
 	for _, f := range parseModule(t) {
 		if f.test {
 			continue
@@ -345,23 +351,66 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 					if f.pkg != svc || fn != "FromEnv" {
 						t.Errorf("%s: the test provider is built in %q; only service.FromEnv may", f.rel, fn)
 					}
-				case sel.Sel.Name == "Generate" && f.pkg == svc:
-					seen["Generate"]++
-					if fn != "Service.Ask" && fn != "scrubbing.Generate" && fn != "modelSuggester.Suggest" {
-						t.Errorf("%s: a provider is called in %q; only Service.Ask and modelSuggester.Suggest may", f.rel, fn)
+				case (sel.Sel.Name == "Generate" || sel.Sel.Name == "Judge") && f.pkg == svc:
+					seen[sel.Sel.Name]++
+					if fn != "Service.send" {
+						t.Errorf("%s: a provider is called (%s) in %q; only Service.send may", f.rel, sel.Sel.Name, fn)
 					}
-				case sel.Sel.Name == "Judge" && f.pkg == svc:
-					seen["Judge"]++
-					if fn != "Service.Detect" && fn != "Service.judgeRisks" && fn != "historySuggester.Suggest" && fn != "scrubbingJudge.Judge" {
-						t.Errorf("%s: a judge is called in %q; only Service.Detect, Service.judgeRisks and historySuggester.Suggest may", f.rel, fn)
+				case sel.Sel.Name == "send" && f.pkg == svc:
+					seen["send"]++
+					if !senders[fn] {
+						t.Errorf("%s: Service.send is called in %q; only %v may", f.rel, fn, senders)
+					}
+				case sel.Sel.Name == "Sent" && inAgentTree(f.pkg):
+					seen["Sent"]++
+					if f.pkg != svc || !loggers[fn] {
+						t.Errorf("%s: the egress entry is written in %q; only Service.send (and the detection window it logs through) may", f.rel, fn)
 					}
 				}
 				return true
 			})
 		}
 	}
-	if seen["gemini.New"] != 1 || seen["anthropic.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 4 || seen["Judge"] != 4 {
-		t.Errorf("calls found: %v; want gemini.New, anthropic.New and jev.New once, Generate 4 times (Ask twice: the question and the notebook read rounds; modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
+	if seen["gemini.New"] != 1 || seen["anthropic.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 1 || seen["Judge"] != 1 || seen["send"] != len(senders) || seen["Sent"] != len(loggers) {
+		t.Errorf("calls found: %v; want gemini.New, anthropic.New and jev.New once, Generate and Judge once each (Service.send), send %d times (one in each of %v) and Sent %d times", seen, len(senders), senders, len(loggers))
+	}
+}
+
+// §6 rule 7: nothing in the agent tree writes keel.log but the Auditor,
+// through gate (an entry for something about to happen: refused when it
+// cannot be written) and note (something that happened: owed until it is
+// written).
+func TestOnlyTheAuditorWritesTheLog(t *testing.T) {
+	appends := 0
+	for _, f := range parseModule(t) {
+		if f.test || !inAgentTree(f.pkg) {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			fn := funcName(fd)
+			ast.Inspect(fd, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "Append" {
+					return true
+				}
+				appends++
+				if f.pkg != module+"/internal/agent" || (fn != "Auditor.gate" && fn != "Auditor.flushLocked") {
+					t.Errorf("%s: keel.log is written in %q; only Auditor.gate and Auditor.flushLocked may", f.rel, fn)
+				}
+				return true
+			})
+		}
+	}
+	if appends != 2 {
+		t.Errorf("Append called %d times in the agent tree, want 2", appends)
 	}
 }
 

@@ -34,7 +34,6 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/runvars"
 	"keel/internal/store"
 )
@@ -139,7 +138,6 @@ type Service struct {
 	// model for the life of this keel serve, never used to fill a command
 	// (under mu). The value outlives its run in the panes' scrollback.
 	withheld map[string]string
-	log      agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -172,7 +170,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, nbs: opts.Notebooks, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, nbs: opts.Notebooks, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -455,7 +453,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 			trace = append(trace, step)
 			continue
 		}
-		ex, err := s.audit.ReadPane(s.panes, scope, p, set.ScrollbackLines, r)
+		ex, err := s.audit.ReadPane(s.panes, scope, p, set.ScrollbackLines, r, "")
 		if err != nil {
 			step.Status, step.Reason = "skipped", "read-failed"
 			trace = append(trace, step)
@@ -530,11 +528,23 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	cctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	resp, err := prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
-	if err != nil {
-		return AskResponse{}, s.providerErr(ctx, cctx, err)
+	// ask sends the messages so far: what and n say what this request adds,
+	// for its log entry. The panes read have their own entries; a question
+	// with no pane in scope is logged here like any other.
+	ask := func(what string, n int) (provider.Response, error) {
+		rep, err := s.send(cctx, prov, outbound{
+			model: &provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens},
+			log:   agent.Egress{What: what, N: n, Report: r.Report(), To: desc.Name, Why: "to answer it", Source: desc.ID},
+		})
+		if err != nil {
+			return provider.Response{}, s.providerErr(ctx, cctx, err)
+		}
+		return s.checkCut(desc.ID, rep.model), nil
 	}
-	resp = s.checkCut(desc.ID, resp)
+	resp, err := ask("a question with "+noteCountWord(len(excerpts), "pane", "panes")+" in scope", len(excerpts))
+	if err != nil {
+		return AskResponse{}, err
+	}
 	// The model may ask to read notebooks from the index: keel serve reads
 	// them (within the limits, never a private one) and asks again, at
 	// most maxNotebookReadRounds more times (notebooks.go).
@@ -553,11 +563,10 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 			break
 		}
 		messages = append(messages, provider.Message{Role: provider.RoleModel, Text: r.Text(truncate(resp.Text, maxAnswerBytes))}, provider.Message{Role: provider.RoleUser, Text: r.Text(readText)})
-		resp, err = prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
+		resp, err = ask("the notebooks the agent asked to read", len(readSteps))
 		if err != nil {
-			return AskResponse{}, s.providerErr(ctx, cctx, err)
+			return AskResponse{}, err
 		}
-		resp = s.checkCut(desc.ID, resp)
 		usage.InputTokens += resp.InputTokens
 		usage.OutputTokens += resp.OutputTokens
 	}
@@ -708,109 +717,9 @@ func (s *Service) checkCut(providerID string, resp provider.Response) provider.R
 	if resp.Stop == "" {
 		return resp
 	}
-	s.log.Append(applog.Entry{
-		Kind:    "agent",
-		Source:  providerID,
-		Message: fmt.Sprintf("agent answer cut off (%s): %d answer tokens, %d thinking tokens", resp.Stop, resp.OutputTokens, resp.ThoughtTokens),
-	})
+	s.audit.Event(agent.EventAgent, providerID, fmt.Sprintf("agent answer cut off (%s): %d answer tokens, %d thinking tokens", resp.Stop, resp.OutputTokens, resp.ThoughtTokens), 0)
 	resp.Text = dropOpenBlock(resp.Text)
 	return resp
-}
-
-// providerFor reads the provider key from the vault and builds the client
-// for one Ask. It is the only place in the agent tree that reads a key
-// (internal/agent/invariants_test.go).
-func (s *Service) providerFor(id string) (provider.Provider, error) {
-	key, err := s.st.AgentKey(id)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return nil, ErrNoKey
-		}
-		return nil, err
-	}
-	p, err := s.factory(id, key)
-	if err != nil {
-		if errors.Is(err, provider.ErrNoKey) {
-			return nil, ErrNoKey
-		}
-		return nil, &ProviderError{Msg: scrub(err.Error(), key)}
-	}
-	return scrubbing{p: p, key: key}, nil
-}
-
-// judgeFor reads the detector key (Jev) from the vault and builds its
-// client for one Detect or one risk check. With no key it returns
-// ErrNoKey, and the caller falls back to #-lines and the code rating. It
-// is the only other place in the agent tree that reads a key
-// (internal/agent/invariants_test.go).
-func (s *Service) judgeFor() (provider.Judge, error) {
-	configured, err := s.st.AgentKeyConfigured(JudgeProvider)
-	if err != nil || !configured {
-		return nil, ErrNoKey
-	}
-	key, err := s.st.AgentKey(JudgeProvider)
-	if err != nil {
-		return nil, ErrNoKey
-	}
-	j, err := s.judge(key)
-	if err != nil {
-		return nil, ErrNoKey
-	}
-	return scrubbingJudge{j: j, key: key}, nil
-}
-
-// scrubbingJudge removes the key from any error a judge returns.
-type scrubbingJudge struct {
-	j   provider.Judge
-	key string
-}
-
-func (sc scrubbingJudge) ID() string { return sc.j.ID() }
-
-func (sc scrubbingJudge) Judge(ctx context.Context, req provider.JudgeRequest) (provider.JudgeResponse, error) {
-	resp, err := sc.j.Judge(ctx, req)
-	if err != nil {
-		return resp, &ProviderError{Msg: scrub(err.Error(), sc.key)}
-	}
-	return resp, nil
-}
-
-// scrubbing removes the key from any error a provider returns, on top of
-// the client's own scrubbing.
-type scrubbing struct {
-	p   provider.Provider
-	key string
-}
-
-func (sc scrubbing) ID() string { return sc.p.ID() }
-
-func (sc scrubbing) Generate(ctx context.Context, req provider.Request) (provider.Response, error) {
-	resp, err := sc.p.Generate(ctx, req)
-	if err != nil {
-		return resp, &ProviderError{Msg: scrub(err.Error(), sc.key)}
-	}
-	return resp, nil
-}
-
-func scrub(msg, key string) string {
-	if key != "" {
-		msg = strings.ReplaceAll(msg, key, "[key]")
-	}
-	return msg
-}
-
-func (s *Service) providerErr(parent, cctx context.Context, err error) error {
-	switch {
-	case parent.Err() != nil:
-		return context.Canceled
-	case errors.Is(cctx.Err(), context.DeadlineExceeded):
-		return &ProviderError{Msg: fmt.Sprintf("the provider did not answer within %s", s.timeout)}
-	}
-	var pe *ProviderError
-	if errors.As(err, &pe) {
-		return pe
-	}
-	return &ProviderError{Msg: err.Error()}
 }
 
 func riskLabel(r agent.Risk) string {
