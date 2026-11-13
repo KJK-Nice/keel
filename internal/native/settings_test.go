@@ -180,6 +180,30 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 }
 
+// Plan 037 part C: the Window shadow setting is gone. An old file that has it still loads, the page has no such row, and the
+// next save leaves the key out.
+func TestAnOldWindowShadowKeyIsIgnoredAndDropped(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"windowShadow":false,"opacity":50}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if p := loadPrefs(dir); p.Opacity != 50 {
+		t.Fatalf("prefs %+v", p)
+	}
+	if err := savePrefs(dir, map[string]any{"termSize": 14}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+	if strings.Contains(string(b), "windowShadow") || !strings.Contains(string(b), `"opacity"`) {
+		t.Fatalf("file after a save: %s", b)
+	}
+	r := settingsRig(t, settingsBackend())
+	r.section(t, "Appearance")
+	if !r.tt.HasText("Window opacity") || r.tt.HasText("Window shadow") {
+		t.Fatal("the Window shadow row is still there")
+	}
+}
+
 func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Terminal")

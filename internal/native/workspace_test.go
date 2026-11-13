@@ -633,9 +633,6 @@ func (w *workspace) useDataDir(t *testing.T, dir string) {
 		w.saved.mu.Lock()
 		w.saved.pending = nil
 		w.saved.mu.Unlock()
-		if w.shadowTimer != nil {
-			w.shadowTimer.Stop()
-		}
 	})
 }
 

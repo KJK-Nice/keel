@@ -121,7 +121,6 @@ func (w *workspace) view(c *ui.Context) {
 	w.folderRenameFocus(c)
 	w.runLater(c)
 	w.persist()
-	w.shadowSoon(c)
 }
 
 // runLater runs what the view queued, now that the frame is built.
@@ -129,7 +128,6 @@ func (w *workspace) runLater(c *ui.Context) {
 	if len(w.later) > 0 {
 		run := w.later
 		w.later = nil
-		w.shadowGen++ // a user action ran: the next frames may have another shape (shadowSoon)
 		for _, fn := range run {
 			fn()
 		}

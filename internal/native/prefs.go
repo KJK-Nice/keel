@@ -17,8 +17,6 @@ type prefs struct {
 	Opacity int `json:"opacity"` // 30–100; 100 is opaque
 	Blur    int `json:"blur"`    // 0–64, macOS only, used below 100
 
-	NoShadow bool `json:"-"` // Settings · Appearance · Window shadow turned off; kept as windowShadow (absent is on), macOS only
-
 	TermSize int `json:"termSize"` // terminal text size, 10–22, set by ⌘+ ⌘- ⌘0
 
 	Theme  string `json:"theme"`  // system | light | dark: Settings · Appearance · Theme
@@ -43,12 +41,10 @@ func loadPrefs(dataDir string) prefs {
 	var f struct {
 		Opacity, Blur, TermSize, UISize *int
 		Theme, TermFont                 string
-		WindowShadow                    *bool
-	}
+	} // an older file may hold windowShadow: it is ignored here and dropped by the next save (savePrefs)
 	if json.Unmarshal(b, &f) != nil {
 		return p
 	}
-	p.NoShadow = f.WindowShadow != nil && !*f.WindowShadow
 	p.Theme, p.TermFont = validTheme(f.Theme), validTermFont(f.TermFont)
 	if f.UISize != nil && *f.UISize >= uiSizeMin && *f.UISize <= uiSizeMax {
 		p.UISize = *f.UISize
@@ -145,6 +141,7 @@ func savePrefs(dataDir string, set map[string]any) error {
 	case !os.IsNotExist(err):
 		return err
 	}
+	delete(fields, "windowShadow") // retired in v0.2.1: the window has no shadow, and an old file's value is dropped
 	for k, v := range set {
 		raw, err := json.Marshal(v)
 		if err != nil {
