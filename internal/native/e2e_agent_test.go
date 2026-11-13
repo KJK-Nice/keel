@@ -203,8 +203,9 @@ func TestE2EAgentScope(t *testing.T) {
 	e.pump(func() bool { return e.tt.HasText("Reads 0 of 2 panes") }, "the chip after None")
 	e.agentAsk("no command, just hello")
 	e.pump(func() bool { return e.tt.HasText("I was given 0 pane excerpts and") }, "an answer that read nothing")
-	if reads() != before {
-		t.Fatalf("an ask with no pane in scope wrote an agent.read (%d -> %d)", before, reads())
+	// One entry: the request itself, which keel serve logs for every ask (it names no pane).
+	if reads() != before+1 {
+		t.Fatalf("an ask with no pane in scope wrote %d agent.read entries, want 1 for the request alone", reads()-before)
 	}
 
 	// "Agent can read" off for Local Shell: the picker marks it, it cannot be picked, and the ask reads nothing.
@@ -246,7 +247,8 @@ func TestE2EAgentScope(t *testing.T) {
 	e.agentAsk("no command, again")
 	e.pump(func() bool { return e.answerCount() > answers }, "an answer that read nothing")
 	e.settle(300 * time.Millisecond)
-	if reads() != before {
+	// One entry, as above: the request itself, never the pane.
+	if reads() != before+1 {
 		t.Fatalf("keel serve read a pane whose host the agent cannot read (%d -> %d)", before, reads())
 	}
 
