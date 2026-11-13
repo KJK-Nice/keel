@@ -232,7 +232,7 @@ func TestHistoryRequestShapeOnTheWire(t *testing.T) {
 				answers[id] = map[string]any{"type": "choice", "choice": "readonly", "probabilities": map[string]float64{"readonly": 1}}
 			}
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"model": jev.Model, "answers": answers, "usage": map[string]int{"input_tokens": 100}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": provider.JevModel, "answers": answers, "usage": map[string]int{"input_tokens": 100}})
 	}))
 	defer srv.Close()
 
@@ -260,7 +260,7 @@ func TestHistoryRequestShapeOnTheWire(t *testing.T) {
 		t.Fatalf("%d Jev requests, want the pick and the risk check", len(bodies))
 	}
 	b := bodies[0]
-	if b["model"] != jev.Model {
+	if b["model"] != provider.JevModel {
 		t.Fatalf("model = %v", b["model"])
 	}
 	state := b["state"].(map[string]any)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
@@ -129,12 +128,10 @@ func (s *Service) judgeFor() (line, error) {
 	return line{judge: j, key: key}, nil
 }
 
-func scrub(msg, key string) string {
-	if key != "" {
-		msg = strings.ReplaceAll(msg, key, "[key]")
-	}
-	return msg
-}
+// scrub removes the key from a message, on top of the client's own
+// scrubbing: the same rule, applied to whatever a factory or a client
+// returns.
+func scrub(msg, key string) string { return provider.ScrubKey(msg, key) }
 
 func (s *Service) providerErr(parent, cctx context.Context, err error) error {
 	switch {

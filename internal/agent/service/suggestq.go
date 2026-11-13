@@ -14,7 +14,7 @@ import (
 // (docs/ui-redesign.md §5.5, §7). The client's debounce is in
 // cmd/keel/web/js/lib/suggest.js (DETECT_PAUSE_MS).
 //
-// Tuned against jev-1.13.0 (provider/jev.Model) on 2026-10-15 with 14
+// Tuned against jev-1.13.0 (provider.JevModel) on 2026-10-15 with 14
 // prompt lines and 6 commands: plain requests scored 0.80–0.98 ("list
 // docker containers" 0.80, "which process is listening on 5432" 0.98),
 // commands 0.01–0.28 ("git status" 0.28 in a batch, 0.02 alone). The

@@ -245,8 +245,11 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 }
 
 // clientPkgs are the provider clients: the only packages in the agent tree
-// that open a network connection or hold a key.
+// that name an endpoint. They and transportPkg, the HTTP core they share,
+// are the only ones that open a network connection or hold a key.
 var clientPkgs = []string{module + "/internal/agent/provider/gemini", module + "/internal/agent/provider/anthropic", module + "/internal/agent/provider/jev"}
+
+const transportPkg = module + "/internal/agent/provider/transport"
 
 func isClientPkg(pkg string) bool {
 	for _, p := range clientPkgs {
@@ -255,6 +258,30 @@ func isClientPkg(pkg string) bool {
 		}
 	}
 	return false
+}
+
+// The shared HTTP core is reached only through the three clients: nothing
+// else imports it (tests included), so nothing else can post with it.
+func TestOnlyTheClientsUseTheTransport(t *testing.T) {
+	importers := map[string]bool{}
+	for _, f := range parseModule(t) {
+		for _, p := range imports(f) {
+			if p != transportPkg {
+				continue
+			}
+			importers[f.pkg] = true
+			ok := false
+			for _, c := range clientPkgs {
+				ok = ok || f.pkg == c
+			}
+			if !ok {
+				t.Errorf("%s imports the provider transport; only %v may", f.rel, clientPkgs)
+			}
+		}
+	}
+	if len(importers) != len(clientPkgs) {
+		t.Errorf("transport importers = %v, want exactly the %d clients", importers, len(clientPkgs))
+	}
 }
 
 // The agent's role names must match the runtime's, which the caller maps.
@@ -681,11 +708,13 @@ func TestAgentNeverUsesHTTPScrollback(t *testing.T) {
 
 // The agent core, redaction and provider interface packages open no
 // network connection; only a client package (provider/gemini,
-// provider/anthropic, provider/jev) may.
+// provider/anthropic, provider/jev) and the HTTP core they share
+// (provider/transport, which only they import and which names no
+// endpoint) may.
 func TestAgentCoreHasNoNetwork(t *testing.T) {
 	net := map[string]bool{"net": true, "net/http": true, "net/rpc": true, "net/smtp": true, "crypto/tls": true, "net/http/httputil": true}
 	for _, f := range parseModule(t) {
-		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) {
+		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) || f.pkg == transportPkg {
 			continue
 		}
 		for _, p := range imports(f) {

@@ -62,7 +62,7 @@ func TestJudgeSendsTheDocumentedBodyAndKeyInHeader(t *testing.T) {
 	if path != "/v1/systemone" || auth != "Bearer "+testKey || query != "" {
 		t.Fatalf("path %q auth %q query %q", path, auth, query)
 	}
-	if got["model"] != Model {
+	if got["model"] != provider.JevModel {
 		t.Fatalf("model = %v", got["model"])
 	}
 	state := got["state"].(map[string]any)
