@@ -93,23 +93,11 @@ var (
 	ErrNotebookClosed  = errors.New("agent: this was already done or undone")
 	ErrNotebookExpired = errors.New("agent: Keel no longer holds this conversation's notebook changes; use History on the notebook, or Notebooks · Recently deleted")
 
-	notebookFenceRe       = blockRe(NotebookFence)
-	notebookReadFenceRe   = blockRe(NotebookReadFence)
-	notebookEditFenceRe   = blockRe(NotebookEditFence)
-	notebookDeleteFenceRe = blockRe(NotebookDeleteFence)
-	notebookStatus        = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
+	notebookStatus = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
 
 	errNoMatch = errors.New("no-match")
 	errNothing = errors.New("nothing")
 )
-
-// blockRe matches a fenced block with info string name. The block may be
-// fenced with three or more backticks; its closing fence must start a line.
-// A JSON string holds no raw line break, so a ``` inside the body (a shell
-// fence, escaped as \n```sh) never ends it.
-func blockRe(name string) *regexp.Regexp {
-	return regexp.MustCompile("(?s)`{3,}[ \\t]*" + regexp.QuoteMeta(name) + "[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*`{3,}[ \\t]*(?:\\r?\\n|$)")
-}
 
 // NotebookProposal is one card in the conversation: what the agent did to
 // a notebook, or a delete it proposed, and what the user did with it.
@@ -213,7 +201,7 @@ func takeBlocks(text string, re *regexp.Regexp, max int) (string, []string) {
 // parseNotebookBlock takes the create blocks out of a reply: the first
 // that parses, and the text without any of them.
 func parseNotebookBlock(text string) (string, *rawNotebook) {
-	rest, bodies := takeBlocks(text, notebookFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookFence), 4)
 	for _, b := range bodies {
 		var nb rawNotebook
 		if json.Unmarshal([]byte(b), &nb) == nil && strings.TrimSpace(nb.Body) != "" {
@@ -226,7 +214,7 @@ func parseNotebookBlock(text string) (string, *rawNotebook) {
 // parseNotebookReads takes the read requests out of a reply: the numbers
 // asked for, in order, once each.
 func parseNotebookReads(text string) (string, []int) {
-	rest, bodies := takeBlocks(text, notebookReadFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookReadFence), 4)
 	var nums []int
 	seen := map[int]bool{}
 	for _, b := range bodies {
@@ -245,7 +233,7 @@ func parseNotebookReads(text string) (string, []int) {
 }
 
 func parseNotebookEdits(text string) (string, []rawNbEdit) {
-	rest, bodies := takeBlocks(text, notebookEditFenceRe, maxNotebookEditsPerAnswer)
+	rest, bodies := takeBlocks(text, blockOf(NotebookEditFence), maxNotebookEditsPerAnswer)
 	var out []rawNbEdit
 	for _, b := range bodies {
 		var e rawNbEdit
@@ -257,7 +245,7 @@ func parseNotebookEdits(text string) (string, []rawNbEdit) {
 }
 
 func parseNotebookDelete(text string) (string, *rawNbDelete) {
-	rest, bodies := takeBlocks(text, notebookDeleteFenceRe, 1)
+	rest, bodies := takeBlocks(text, blockOf(NotebookDeleteFence), 1)
 	for _, b := range bodies {
 		var d rawNbDelete
 		if json.Unmarshal([]byte(b), &d) == nil && d.Notebook > 0 {

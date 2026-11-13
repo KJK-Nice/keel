@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -79,7 +78,6 @@ var (
 	ErrNoteRefused     = errors.New("agent: this host no longer lets the agent propose notes")
 	ErrNoteNotReadable = errors.New("agent: Agent can read is off for this host; turn it on to save a note for it")
 	ErrNoteExpired     = errors.New("agent: this note proposal expired; add the note yourself in Edit host or Settings · Agent")
-	noteFenceRe        = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(NoteFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
 	errNoteTooLong     = fmt.Errorf("%w: a note is 1 to %d bytes", ErrBadRequest, store.MaxAgentNoteBytes)
 	noteStatusValid    = map[string]bool{"open": true, "saved": true, "dismissed": true}
 )
@@ -142,6 +140,7 @@ type rawNote struct {
 // whose text is empty or too long is dropped.
 func parseNotes(text string) (string, []rawNote) {
 	var out []rawNote
+	noteFenceRe := blockOf(NoteFence)
 	rest := noteFenceRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := noteFenceRe.FindStringSubmatch(block)
 		if len(m) < 2 || len(out) >= maxNoteProposals {

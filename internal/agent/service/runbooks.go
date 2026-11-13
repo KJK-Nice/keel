@@ -109,8 +109,6 @@ var (
 	// change: kept, it would hold a literal placeholder such as [secret:1]
 	// (a shell glob) that could be typed.
 	ErrSecretInCommand = errors.New("agent: a step command holds a secret or a secret-looking value, and Keel does not keep secrets in runbooks; read it from an environment variable set outside the runbook, or ask for it with a prompt such as read -s DB_PASS")
-	runbookUseRe       = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(RunbookUseFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
-	runbookFenceRe     = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(RunbookFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
 	runbookStatusValid = map[string]bool{"open": true, "saved": true, "dismissed": true}
 )
 
@@ -224,6 +222,7 @@ type rawRunbook struct {
 // pick, the first proposed runbook, and the text without any of them.
 func parseRunbookBlocks(text string) (string, *rawRunbookUse, *rawRunbook) {
 	var use *rawRunbookUse
+	runbookUseRe, runbookFenceRe := blockOf(RunbookUseFence), blockOf(RunbookFence)
 	rest := runbookUseRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := runbookUseRe.FindStringSubmatch(block)
 		if len(m) < 2 || use != nil {
