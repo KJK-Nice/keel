@@ -302,6 +302,12 @@ func TestE2EAgentPage(t *testing.T) {
 	e.pump(func() bool { return e.w.agent.conv == one.ID && e.hasLabel("Message the agent on the page") }, "the page to resume it")
 	e.w.setAgentOpen(true)
 	e.pump(func() bool { return e.hasLabel("Message the agent") }, "the panel")
+	// The page chooses its layout from its width in the frame before, so it follows the panel opening one frame later: wait for
+	// it, as a person's click comes later (with the page 648 px wide the wide layout left its thread 68 px for one frame).
+	e.pump(func() bool {
+		r, ok := e.tt.Find("Message the agent on the page")
+		return ok && r.W > 100
+	}, "the page's composer to have room beside the panel")
 	count := func(s string) (n int) {
 		for _, x := range e.tt.Texts() {
 			if x == s {
