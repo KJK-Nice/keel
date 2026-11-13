@@ -459,11 +459,7 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 		inGroup[m.HostID] = true
 	}
 	now := s.now()
-	type made struct {
-		pane agent.Pane
-		risk agent.Risk
-	}
-	var proposed []made
+	proposed := 0
 	s.mu.Lock()
 	run = s.groupRuns[id]
 	if run == nil || run.Status != runActive {
@@ -559,30 +555,25 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 				continue
 			}
 			h := byID[c.HostID]
-			p := &Proposal{
-				ID: newID("p_"), Command: st.Command, Bytes: typedBytes(st.Command), Why: st.Title,
-				Risk: rate(st.Command, ""), ProposedAt: &now,
-				SessionID: pane.SessionID, HostID: c.HostID, Host: h.Name, Production: h.Production,
-				Runbook: &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: stepNo, Of: of, StepID: st.ID},
-			}
-			p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-			p.Placeholders = hasPlaceholder(p.Command)
+			p := s.newProposal(proposalSpec{
+				Command: st.Command, Why: st.Title,
+				Pane:       agent.Pane{SessionID: pane.SessionID, HostID: c.HostID, HostName: h.Name},
+				Production: h.Production,
+				Step:       &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: stepNo, Of: of, StepID: st.ID},
+			}, now)
 			// The proposal keeps {{name}}: values go in only at Type
 			// (fillProposal), never into a stored proposal.
 			p.Vars = varRefs(p.Command)
 			c.State, c.SessionID, c.Proposal, c.ProposedAt = cellProposed, pane.SessionID, p, &now
 			c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark = nil, "", false, nil, nil, false
-			proposed = append(proposed, made{pane: agent.Pane{SessionID: pane.SessionID, HostID: c.HostID, HostName: h.Name}, risk: p.Risk})
+			proposed++
 		}
 	}
 	out := run.view()
 	runID, rbID, mode := run.ID, run.RunbookID, run.Mode
 	s.mu.Unlock()
-	for _, m := range proposed {
-		s.audit.Suggest(m.pane, redact.Report{}, riskLabel(m.risk))
-	}
-	if len(proposed) > 0 {
-		s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d proposed for %s (%s)", runID, stepNo, of, noteCountWord(len(proposed), "host", "hosts"), mode), rbID, "", redact.Report{})
+	if proposed > 0 {
+		s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d proposed for %s (%s)", runID, stepNo, of, noteCountWord(proposed, "host", "hosts"), mode), rbID, "", redact.Report{})
 	}
 	return out, nil
 }

@@ -274,7 +274,6 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 
 // expiredView shows a saved proposal that can no longer be typed.
 func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]bool) Proposal {
-	risk := agent.Stricter(agent.Classify(sp.Command), agent.Risk(sp.Risk))
 	prod, ok := prodCache[sp.HostID]
 	if !ok {
 		prod, _ = s.hostProduction(sp.HostID)
@@ -284,10 +283,10 @@ func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]b
 	at := sp.ProposedAt
 	out := Proposal{
 		ID: sp.ID, SessionID: sp.SessionID, HostID: sp.HostID, Host: sp.Host, Production: prod,
-		Command: sp.Command, Bytes: typedBytes(sp.Command), Why: sp.Why, Risk: risk,
-		NeedsShift: agent.NeedsShift(risk, prod), Placeholders: hasPlaceholder(sp.Command), Edited: sp.Edited,
+		Command: sp.Command, Why: sp.Why, Edited: sp.Edited,
 		ProposedAt: &at, TypedAt: sp.TypedAt, Expired: true,
 	}
+	out.seal(agent.Risk(sp.Risk))
 	if sp.Step > 0 {
 		out.Runbook = &ProposalStep{Step: sp.Step, Of: sp.Steps}
 	}
@@ -618,24 +617,23 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 	if err != nil {
 		return Proposal{}, err
 	}
-	risk := agent.Stricter(agent.Classify(cmd), agent.Risk(src.Risk))
 	now := s.now()
-	p := &Proposal{ID: newID("p_"), Command: cmd, Bytes: typedBytes(cmd), Why: r.Text(src.Why).String(), Risk: risk, ProposedAt: &now}
-	p.Host, p.HostID = src.Host, src.HostID
-	p.Production = host == nil || host.Production
+	spec := proposalSpec{
+		Command: cmd, Why: r.Text(src.Why).String(), Floor: agent.Risk(src.Risk),
+		Pane:       agent.Pane{HostID: src.HostID, HostName: src.Host},
+		Production: host == nil || host.Production,
+	}
 	if host != nil {
-		p.Host = host.Name
+		spec.Pane.HostName = host.Name
 		// The pane is a target only while it is still open on the same
 		// host and the agent may read that host now (§6.2): otherwise the
 		// new proposal is Copy only.
 		scope := agent.NewScope(agent.HostsFrom(hosts))
 		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID && scope.Allows(pane) {
-			p.SessionID = src.SessionID
-			s.audit.Suggest(agent.Pane{SessionID: pane.SessionID, HostID: host.ID, HostName: host.Name}, redact.Report{}, riskLabel(risk))
+			spec.Pane.SessionID = src.SessionID
 		}
 	}
-	p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-	p.Placeholders = hasPlaceholder(cmd)
+	p := s.newProposal(spec, now)
 
 	s.mu.Lock()
 	c = s.convs[convID]

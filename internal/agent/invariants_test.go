@@ -484,6 +484,72 @@ func TestAgentReadsOnlyAgentUsableSnippets(t *testing.T) {
 	}
 }
 
+// §6 rules 5 and 9: no proposal exists without its rating, its ⇧ rule and
+// its placeholder scan. In the agent service a Proposal is filled in only
+// by newProposal (a new one), expiredView (a saved one, shown) and
+// fillProposal (a group run's step with its values in); the bytes Type
+// sends are made only by Proposal.seal; and the ⇧ rule is computed only
+// there, in the one gate (authorize) and for in-pane suggestions.
+func TestProposalsAreSealedInOnePlace(t *testing.T) {
+	const svc = module + "/internal/agent/service"
+	literals := map[string]bool{"Service.newProposal": true, "Service.expiredView": true, "Service.fillProposal": true}
+	shift := map[string]bool{"Proposal.seal": true, "Service.authorize": true, "codeRatings": true, "RiskCheck.run": true}
+	seals := 0
+	for _, f := range parseModule(t) {
+		if f.test || f.pkg != svc {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			fn := funcName(fd)
+			ast.Inspect(fd, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.CompositeLit:
+					if id, ok := n.Type.(*ast.Ident); ok && id.Name == "Proposal" && len(n.Elts) > 0 && !literals[fn] {
+						t.Errorf("%s: a Proposal is filled in by hand in %s", f.rel, fn)
+					}
+				case *ast.CallExpr:
+					switch fun := n.Fun.(type) {
+					case *ast.Ident:
+						if fun.Name == "typedBytes" && fn != "Proposal.seal" {
+							t.Errorf("%s: typedBytes called in %s; only Proposal.seal may", f.rel, fn)
+						}
+					case *ast.SelectorExpr:
+						if fun.Sel.Name == "NeedsShift" && !shift[fn] {
+							t.Errorf("%s: the ⇧ rule is computed in %s", f.rel, fn)
+						}
+						if fun.Sel.Name == "seal" {
+							seals++
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	if seals < 4 {
+		t.Errorf("Proposal.seal called %d times; the check is out of date", seals)
+	}
+}
+
+// funcName is a function's name, "Type.Method" for a method.
+func funcName(fd *ast.FuncDecl) string {
+	fn := fd.Name.Name
+	if fd.Recv != nil && len(fd.Recv.List) > 0 {
+		typ := fd.Recv.List[0].Type
+		if star, ok := typ.(*ast.StarExpr); ok {
+			typ = star.X
+		}
+		if id, ok := typ.(*ast.Ident); ok {
+			fn = id.Name + "." + fn
+		}
+	}
+	return fn
+}
+
 // The Gemini, Anthropic and Jev endpoints appear in no source but their
 // client packages, so no other code can talk to them directly.
 func TestProviderEndpointsOnlyInClients(t *testing.T) {

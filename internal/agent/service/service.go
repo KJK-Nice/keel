@@ -601,21 +601,15 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		made = append(made, stepProp)
 	}
 	for _, raw := range raws {
-		p := &Proposal{ID: newID("p_"), Command: raw.Command, Bytes: typedBytes(raw.Command), Why: raw.Why, Risk: rate(raw.Command, raw.Risk), ProposedAt: &now}
-		var target *agent.Excerpt
+		spec := proposalSpec{Command: raw.Command, Why: raw.Why, Floor: modelRisk(raw.Risk), Report: r.Report()}
 		switch {
 		case raw.Pane >= 1 && raw.Pane <= len(excerpts):
-			target = &excerpts[raw.Pane-1]
+			spec.Pane = excerpts[raw.Pane-1].Pane
 		case len(excerpts) == 1:
-			target = &excerpts[0]
+			spec.Pane = excerpts[0].Pane
 		}
-		if target != nil {
-			h := byID[target.Pane.HostID]
-			p.SessionID, p.HostID, p.Host, p.Production = target.Pane.SessionID, target.Pane.HostID, target.Pane.HostName, h.Production
-			s.audit.Suggest(target.Pane, r.Report(), riskLabel(p.Risk))
-		}
-		p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-		p.Placeholders = hasPlaceholder(p.Command)
+		spec.Production = byID[spec.Pane.HostID].Production
+		p := s.newProposal(spec, now)
 		out.Proposals = append(out.Proposals, *p)
 		conv.proposals = append(conv.proposals, p)
 		made = append(made, p)
@@ -865,11 +859,8 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 		s.mu.Unlock()
 		return Proposal{}, err
 	}
-	p.Command, p.Bytes, p.Edited = cmd, typedBytes(cmd), true
-	p.Risk = agent.Classify(cmd)
-	p.Production = production
-	p.NeedsShift = agent.NeedsShift(p.Risk, production)
-	p.Placeholders = hasPlaceholder(cmd)
+	p.Command, p.Edited, p.Production = cmd, true, production
+	p.seal("")
 	out := *p
 	c := s.convs[convID]
 	sp := c.recordProposalLocked(proposalID)

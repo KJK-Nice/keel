@@ -204,7 +204,12 @@ func typedBytes(command string) string {
 	return "\x15" + command + "\n"
 }
 
+// modelRisk reads a model's own rating: "" when it gave none, and
+// anything it did not spell as read-only or destructive is "changes".
 func modelRisk(s string) agent.Risk {
+	if s == "" {
+		return ""
+	}
 	switch agent.Risk(strings.ToLower(strings.TrimSpace(s))) {
 	case agent.RiskReadOnly:
 		return agent.RiskReadOnly
@@ -214,12 +219,12 @@ func modelRisk(s string) agent.Risk {
 	return agent.RiskChanges
 }
 
-// rate is Keel's code rule, made stricter (never looser) by the model's
-// own rating when it gave one.
-func rate(command, model string) agent.Risk {
+// rate is Keel's code rule, made stricter (never looser) by floor: a
+// rating from somewhere else (the model's own, a saved one), "" for none.
+func rate(command string, floor agent.Risk) agent.Risk {
 	r := agent.Classify(command)
-	if model != "" {
-		r = agent.Stricter(r, modelRisk(model))
+	if floor != "" {
+		r = agent.Stricter(r, floor)
 	}
 	return r
 }

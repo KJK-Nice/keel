@@ -531,7 +531,7 @@ func (s *Service) since(start time.Time) time.Duration {
 func codeRatings(cands []Candidate, production bool) []SuggestOption {
 	out := make([]SuggestOption, len(cands))
 	for i, c := range cands {
-		risk := rate(c.Command, c.ModelRisk)
+		risk := rate(c.Command, modelRisk(c.ModelRisk))
 		out[i] = SuggestOption{
 			Command:      c.Command,
 			Bytes:        insertBytes(c.Command),

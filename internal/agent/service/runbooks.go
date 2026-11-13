@@ -1018,15 +1018,11 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 	if run.PinHostID == "" {
 		run.PinHostID, run.PinHost, run.PinSessionID = target.Pane.HostID, target.Pane.HostName, target.Pane.SessionID
 	}
-	h := byID[target.Pane.HostID]
-	p := &Proposal{
-		ID: newID("p_"), Command: st.Command, Bytes: typedBytes(st.Command), Why: st.Title,
-		Risk: rate(st.Command, ""), ProposedAt: &now,
-		SessionID: target.Pane.SessionID, HostID: target.Pane.HostID, Host: target.Pane.HostName, Production: h.Production,
-		Runbook: &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: i + 1, Of: len(run.Steps), StepID: st.ID},
-	}
-	p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-	p.Placeholders = hasPlaceholder(p.Command)
+	p := s.newProposal(proposalSpec{
+		Command: st.Command, Why: st.Title, Pane: target.Pane, Production: byID[target.Pane.HostID].Production,
+		Step:   &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: i + 1, Of: len(run.Steps), StepID: st.ID},
+		Report: r.Report(),
+	}, now)
 	st.State, st.ProposalID, st.SessionID, st.HostID, st.Host, st.ProposedAt = stepProposed, p.ID, p.SessionID, p.HostID, p.Host, &now
 	st.Exit, st.Result, st.TypedAt, st.FinishedAt, st.Edited, st.Typed = nil, "", nil, nil, false, ""
 	c.proposals = append(c.proposals, p)
@@ -1035,7 +1031,6 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 	}
 	runbookID, steps := run.RunbookID, len(run.Steps)
 	s.mu.Unlock()
-	s.audit.Suggest(target.Pane, r.Report(), riskLabel(p.Risk))
 	s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d proposed for %s", i+1, steps, p.Host), runbookID, p.HostID, redact.Report{})
 	_ = s.books.MarkRunbookUsed(runbookID, p.Host, now)
 	return p, trace

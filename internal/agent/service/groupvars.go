@@ -516,10 +516,14 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 	if len(filled) > 4*store.MaxRunbookCommandBytes {
 		return f, fmt.Errorf("%w: the filled command is longer than %d bytes", ErrFill, 4*store.MaxRunbookCommandBytes)
 	}
+	// The filled command is sealed like any proposal's, with the saved
+	// rating as its floor and the host counted as production if it was or
+	// is now (a host that cannot be found is).
 	prod, _ := s.hostProduction(snap.HostID)
-	f.Bytes, f.Used, f.command = typedBytes(filled), used, filled
-	f.Risk = agent.Stricter(snap.Risk, agent.Classify(filled))
-	f.NeedsShift = agent.NeedsShift(f.Risk, snap.Production || prod)
+	sealed := Proposal{Command: filled, Production: snap.Production || prod}
+	sealed.seal(snap.Risk)
+	f.Bytes, f.Used, f.command = sealed.Bytes, used, filled
+	f.Risk, f.NeedsShift = sealed.Risk, sealed.NeedsShift
 	return f, nil
 }
 
