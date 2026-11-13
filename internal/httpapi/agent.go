@@ -15,8 +15,6 @@ import (
 // and keys; none of them calls a provider. Keys go into the vault and are
 // never returned: responses only say whether one is configured.
 
-const maxAgentBody = 16 * 1024
-
 type agentKeyState struct {
 	Configured bool `json:"configured"`
 }

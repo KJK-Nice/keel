@@ -13,8 +13,6 @@ import (
 // text for secrets before it is kept and logs agent.note; nothing here
 // reads a pane or sends anything off the machine.
 
-const maxNoteBody = 8 * 1024
-
 type noteBody struct {
 	HostID string `json:"hostId"`
 	// GroupID makes it a group note (§17).

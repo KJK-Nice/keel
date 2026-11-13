@@ -24,8 +24,6 @@ import (
 // socket's approve-before-type path. mcp_test.go checks this file makes no
 // write, inject or spawn call.
 
-const maxMCPBody = 16 * 1024
-
 func (s *Server) mcpPanes(w http.ResponseWriter, _ *http.Request) {
 	list, err := s.agent.ExternalPanes()
 	if err != nil {

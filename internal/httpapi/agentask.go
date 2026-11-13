@@ -23,11 +23,10 @@ import (
 // which asks service.AuthorizeType first. agentask_test.go checks this
 // file makes no write, inject or spawn call.
 
-const maxAskBody = 32 * 1024
-
-// WithAgentProvider sets how the agent builds its provider. keel serve
-// passes service.FromEnv; tests pass a fake. Without it the real clients
-// are used.
+// WithAgentProvider sets how the agent builds its provider, and whether it
+// is a test fake (the trace then says so). keel serve passes the real
+// clients, or the fake in a build with the tag keelfake
+// (internal/app/agent_fake.go); tests pass a fake.
 func (s *Server) WithAgentProvider(f service.Factory, test bool) *Server {
 	s.agentFactory = f
 	s.agentTest = test

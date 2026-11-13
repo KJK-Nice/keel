@@ -40,7 +40,8 @@ import (
 // code rating (whose denylist is final for destructive commands).
 
 // WithAgentJudge sets how the agent builds its detector (TypeSafe Jev).
-// keel serve passes service.FromEnv's; tests pass a fake.
+// keel serve passes the one that goes with its provider (WithAgentProvider);
+// tests pass a fake.
 func (s *Server) WithAgentJudge(f service.JudgeFactory) *Server {
 	s.agentJudge = f
 	return s

@@ -16,8 +16,6 @@ import (
 // only as a proposal, through the session socket's approve-before-type
 // path.
 
-const maxRunbookBody = 256 * 1024
-
 func (s *Server) agentRunbooks(w http.ResponseWriter, _ *http.Request) {
 	if s.agent == nil {
 		writeJSON(w, http.StatusOK, service.RunbooksList{Runbooks: []service.RunbookView{}})
