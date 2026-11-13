@@ -94,7 +94,7 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 	}
 	fmt.Fprintf(&b, "--- end notebook %d ---", n)
 	safe := r.Text(b.String())
-	rep := diff(before, r.Report())
+	rep := Diff(before, r.Report())
 	what := "sent notebook %s (%s) with a question"
 	if rd.Asked {
 		what = "read notebook %s (%s) at its own request"
@@ -160,7 +160,7 @@ func (a *Auditor) NotebookIndex(entries []NotebookIndexEntry, r *redact.Redactor
 	}
 	b.WriteString("--- end notebooks ---")
 	safe := r.Text(b.String())
-	rep := diff(before, r.Report())
+	rep := Diff(before, r.Report())
 	if err := a.gate(applog.Entry{
 		Kind:       EventRead,
 		Message:    fmt.Sprintf("agent sent the titles of %d notebooks (not private) with a question (%s) · %s", len(entries), strings.Join(ids, ", "), redactionNote(rep)),

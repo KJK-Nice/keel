@@ -666,7 +666,7 @@ func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts 
 	if body == "" {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: hasPlaceholder(body) || hasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: HasPlaceholder(body) || HasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
 	fromPanes(&p.NotebookProposal, body, excerpts)
 	nb, err := s.nbs.AgentCreateNotebook(store.Notebook{Name: title, Cells: []store.NotebookCell{{Body: body}}})
 	if err != nil {
@@ -797,7 +797,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = "edited", "", updated.Rev, vid, &updated
 	p.Title = agent.SafeNotebookName(updated.Name, r)
 	p.Bytes = len(notebookText(updated))
-	p.Placeholders = hasPlaceholder(added) || hasPlaceholder(title)
+	p.Placeholders = HasPlaceholder(added) || HasPlaceholder(title)
 	p.Withheld = namedRe.MatchString(added)
 	fromPanes(&p.NotebookProposal, added, excerpts)
 	s.audit.NotebookEvent(fmt.Sprintf("notebook edited by the agent (rev %d to %d, %d bytes, %d replacements, whole text: %t); the version before it is kept", base, updated.Rev, p.Bytes, len(subs), body != nil), []string{e.ID, vid, p.ID, conv.id}, redact.Report{})
@@ -1093,9 +1093,3 @@ func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, erro
 	s.mu.Unlock()
 	return NotebookAction{Proposal: s.finishNbProp(c, p, status, ""), Notebook: &nb}, nil
 }
-
-// HasPlaceholder reports whether a command holds a redaction placeholder
-// such as [secret:1]. keel serve refuses to type a notebook fence that
-// holds one (the session socket's notebook-labelled inject), as
-// AuthorizeType does for a proposal (ErrPlaceholder).
-func HasPlaceholder(s string) bool { return hasPlaceholder(s) }

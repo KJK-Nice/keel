@@ -632,20 +632,12 @@ func recordOf(p *Proposal, command, why string, at time.Time) store.AgentChatPro
 	return out
 }
 
-// TypeDone records that a proposal was typed (keel serve calls it after the
-// approved bytes were written), so the transcript shows it as typed.
-func (s *Service) TypeDone(convID, proposalID string) {
-	s.typeDone(convID, proposalID, 0, false)
-}
-
-// TypeDoneAt is TypeDone with the pane's stream offset taken right before
-// the write: a runbook step's result is the first command the pane's
-// shell reports after it (runbooks.go).
+// TypeDoneAt records that a proposal was typed (keel serve calls it after
+// the bytes were written), so the transcript shows it as typed. mark is
+// the pane's stream offset taken right before the write: a runbook step's
+// result is the first command the pane's shell reports after it
+// (runbooks.go).
 func (s *Service) TypeDoneAt(convID, proposalID string, mark uint64) {
-	s.typeDone(convID, proposalID, mark, true)
-}
-
-func (s *Service) typeDone(convID, proposalID string, mark uint64, hasMark bool) {
 	s.mu.Lock()
 	c := s.convs[convID]
 	if c == nil {
@@ -662,7 +654,7 @@ func (s *Service) typeDone(convID, proposalID string, mark uint64, hasMark bool)
 	if sp != nil {
 		sp.TypedAt = &now
 	}
-	step := c.stepTypedLocked(proposalID, mark, hasMark, now)
+	step := c.stepTypedLocked(proposalID, mark, now)
 	s.mu.Unlock()
 	if sp != nil || step {
 		s.persist(c)

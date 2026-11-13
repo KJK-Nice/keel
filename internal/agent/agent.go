@@ -128,19 +128,6 @@ func (s Scope) AllowsHost(hostID string) bool {
 	return hostID != "" && s.readable[hostID]
 }
 
-// Filter splits panes into the ones the agent may read and the rest, both
-// in their original order (the panel shows "Reads N of M panes").
-func (s Scope) Filter(panes []Pane) (in, out []Pane) {
-	for _, p := range panes {
-		if s.Allows(p) {
-			in = append(in, p)
-		} else {
-			out = append(out, p)
-		}
-	}
-	return in, out
-}
-
 // CanInsert reports whether a client with role may insert agent output
 // into a pane. Only the driver can: a follower never gets the proposal
 // (§6.6), and an owner who passed control is not driving.

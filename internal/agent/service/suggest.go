@@ -556,7 +556,7 @@ func codeRatings(cands []Candidate, production bool) []SuggestOption {
 			Why:          c.Why,
 			Risk:         risk,
 			NeedsShift:   agent.NeedsShift(risk, production),
-			Placeholders: hasPlaceholder(c.Command),
+			Placeholders: HasPlaceholder(c.Command),
 			Source:       c.Source,
 			codeRisk:     risk,
 		}

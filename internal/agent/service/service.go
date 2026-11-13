@@ -198,9 +198,6 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	return s, nil
 }
 
-// TestProvider reports whether answers come from the in-process fake.
-func (s *Service) TestProvider() bool { return s.test }
-
 type turn struct {
 	user  redact.Safe
 	model redact.Safe
@@ -520,7 +517,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	msg.WriteString(question)
 	before := r.Report()
 	userSafe := r.Text(msg.String())
-	qRep := diffReport(before, r.Report())
+	qRep := agent.Diff(before, r.Report())
 
 	messages := make([]provider.Message, 0, 2*len(conv.turns)+1)
 	for _, t := range conv.turns {
@@ -921,16 +918,6 @@ func (c *conversation) trimHistory() {
 		}
 		c.turns = c.turns[1:]
 	}
-}
-
-func diffReport(before, after redact.Report) redact.Report {
-	out := redact.Report{Counts: map[redact.Kind]int{}}
-	for k, v := range after.Counts {
-		if d := v - before.Counts[k]; d > 0 {
-			out.Counts[k] = d
-		}
-	}
-	return out
 }
 
 func uniq(ids []string) []string {

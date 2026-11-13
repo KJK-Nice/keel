@@ -127,16 +127,6 @@ func (r Report) Strings() map[string]int {
 	return out
 }
 
-// Kinds lists the kinds that matched, sorted.
-func (r Report) Kinds() []Kind {
-	out := make([]Kind, 0, len(r.Counts))
-	for k := range r.Counts {
-		out = append(out, k)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out
-}
-
 // Safe is text that went through a Redactor (or is a constant written in
 // Keel's source). Provider requests take Safe values only.
 type Safe struct {

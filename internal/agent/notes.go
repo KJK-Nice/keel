@@ -90,7 +90,7 @@ func (a *Auditor) ReadGroupNotes(scope Scope, groupID string, read []Host, notes
 	}
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n"))
-	ex := NoteExcerpt{Count: n, Text: safe, Report: diff(before, r.Report())}
+	ex := NoteExcerpt{Count: n, Text: safe, Report: Diff(before, r.Report())}
 	if err := a.gate(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("agent sent %s for group %s with a question · %s", noteCount(ex.Count, "group note", "group notes"), groupID, redactionNote(ex.Report)),
@@ -151,7 +151,7 @@ func (a *Auditor) readNotes(notes []string, r *redact.Redactor) (NoteExcerpt, er
 	}
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n"))
-	return NoteExcerpt{Count: n, Text: safe, Report: diff(before, r.Report())}, nil
+	return NoteExcerpt{Count: n, Text: safe, Report: Diff(before, r.Report())}, nil
 }
 
 // NoteChanged logs agent.note for a note the user added, saved from a

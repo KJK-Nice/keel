@@ -552,7 +552,7 @@ const secretLeftOut = "(Command left out: it held a secret. Use an environment v
 // placeholder from an earlier redaction and nothing the save Redactor
 // would replace.
 func commandKeepable(r *redact.Redactor, cmd string) bool {
-	if hasPlaceholder(cmd) {
+	if HasPlaceholder(cmd) {
 		return false
 	}
 	return r.Text(cmd).String() == cmd
@@ -1097,7 +1097,7 @@ func stepCommands(cmd string) int {
 // stepTypedLocked records that a step's proposal was typed: the step waits
 // for its result from the stream offset taken right before the write.
 // Call with s.mu held.
-func (c *conversation) stepTypedLocked(proposalID string, mark uint64, hasMark bool, now time.Time) bool {
+func (c *conversation) stepTypedLocked(proposalID string, mark uint64, now time.Time) bool {
 	if c.run == nil {
 		return false
 	}
@@ -1110,11 +1110,7 @@ func (c *conversation) stepTypedLocked(proposalID string, mark uint64, hasMark b
 		if c.runMarks == nil {
 			c.runMarks = map[string]uint64{}
 		}
-		if hasMark {
-			c.runMarks[st.ID] = mark
-		} else {
-			delete(c.runMarks, st.ID)
-		}
+		c.runMarks[st.ID] = mark
 		return true
 	}
 	return false
@@ -1463,7 +1459,7 @@ func (s *Service) runbookProposal(raw *rawRunbook, excerpts []agent.Excerpt, r *
 		}
 		// A command the Redactor changed holds a placeholder: it is left
 		// out (a save would refuse it), with a note.
-		if hasPlaceholder(cmd) {
+		if HasPlaceholder(cmd) {
 			cmd = ""
 			desc = truncate(strings.TrimSpace(desc+" "+secretLeftOut), store.MaxRunbookTextBytes-4)
 		}

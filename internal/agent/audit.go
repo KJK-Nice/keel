@@ -253,7 +253,7 @@ func (a *Auditor) readCommand(p Pane, blk shellmark.Block, lines int, r *redact.
 	b.WriteString(marked.String())
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n")).Tail(maxExcerptBytes)
-	rep := diff(before, r.Report())
+	rep := Diff(before, r.Report())
 	extra := ""
 	if earlierLines > 0 {
 		extra += fmt.Sprintf(" · %d before it", earlierLines)
@@ -423,7 +423,7 @@ func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	text, n := LastLines(redact.Normalize(in), ClampLines(lines))
 	before := r.Report()
 	safe := r.Text(text).Tail(maxExcerptBytes)
-	rep := diff(before, r.Report())
+	rep := Diff(before, r.Report())
 	if err := a.gate(applog.Entry{
 		Kind:       EventRead,
 		Message:    fmt.Sprintf("agent read %s%s · last %d lines · %s", hostLabel(p), forSource(source), n, redactionNote(rep)),
@@ -589,9 +589,6 @@ func (a *Auditor) logWrite(kind, verb string, p Pane, command, source string, wr
 	return a.gate(e)
 }
 
-// Diff returns what one Redactor redacted between two of its reports.
-func Diff(before, after redact.Report) redact.Report { return diff(before, after) }
-
 // Merge adds the counts of two reports.
 func Merge(a, b redact.Report) redact.Report {
 	out := redact.Report{Counts: map[redact.Kind]int{}}
@@ -604,7 +601,8 @@ func Merge(a, b redact.Report) redact.Report {
 	return out
 }
 
-func diff(before, after redact.Report) redact.Report {
+// Diff returns what one Redactor redacted between two of its reports.
+func Diff(before, after redact.Report) redact.Report {
 	out := redact.Report{Counts: map[redact.Kind]int{}}
 	for k, v := range after.Counts {
 		if d := v - before.Counts[k]; d > 0 {

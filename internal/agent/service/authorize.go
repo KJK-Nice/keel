@@ -185,7 +185,7 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	if err := agent.CanInsert(ask.role); err != nil {
 		return Grant{}, err
 	}
-	if !path.editable && hasPlaceholder(ask.bytes) {
+	if !path.editable && HasPlaceholder(ask.bytes) {
 		return Grant{}, ErrPlaceholder
 	}
 	if path.noDialog && !DirectLine(ask.bytes) {
@@ -203,7 +203,7 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	}
 	command, risk, filled := t.command, t.risk, 0
 	if !path.editable {
-		if hasPlaceholder(t.command) {
+		if HasPlaceholder(t.command) {
 			return Grant{}, ErrPlaceholder
 		}
 		if runvars.HasRefs(t.command) {
@@ -211,7 +211,7 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 				return Grant{}, err
 			}
 		}
-		if hasPlaceholder(command) {
+		if HasPlaceholder(command) {
 			return Grant{}, ErrPlaceholder
 		}
 	}

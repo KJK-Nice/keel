@@ -197,7 +197,7 @@ func snippetCandidate(sn store.Snippet, r *redact.Redactor) (string, bool) {
 	if strings.ContainsAny(cmd, "\r\n") || strings.Contains(cmd, "{{") || !plausibleCommand(cmd) {
 		return "", false
 	}
-	if r.Text(cmd).String() != cmd || hasPlaceholder(cmd) {
+	if r.Text(cmd).String() != cmd || HasPlaceholder(cmd) {
 		return "", false
 	}
 	return cmd, true
@@ -315,7 +315,7 @@ func commandOnLine(line string) (prompt, cmd string, ok bool) {
 		return "", "", false
 	}
 	cmd = strings.TrimSpace(m[3])
-	if hasPlaceholder(line) || passwordRe.MatchString(line) || hasControlNotation(line) || !plausibleCommand(cmd) {
+	if HasPlaceholder(line) || passwordRe.MatchString(line) || hasControlNotation(line) || !plausibleCommand(cmd) {
 		return "", "", false
 	}
 	return prompt, cmd, true

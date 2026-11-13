@@ -269,7 +269,11 @@ func rate(command string, floor agent.Risk) agent.Risk {
 
 var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
 
-func hasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
+// HasPlaceholder reports whether text holds a redaction placeholder such
+// as [secret:1]: a shell glob, never the value. Nothing that holds one is
+// typed (§6 rule 9): the one gate refuses it, and keel serve refuses a
+// notebook fence that holds one.
+func HasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
 
 func truncate(s string, max int) string {
 	if len(s) <= max {

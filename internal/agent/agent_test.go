@@ -79,7 +79,14 @@ func TestScopeExcludesUnreadableHosts(t *testing.T) {
 		{SessionID: "s4", HostID: "deleted-host"},
 		{SessionID: "s5"},
 	}
-	in, out := scope.Filter(panes)
+	var in, out []Pane
+	for _, p := range panes {
+		if scope.Allows(p) {
+			in = append(in, p)
+		} else {
+			out = append(out, p)
+		}
+	}
 	if len(in) != 2 || in[0].SessionID != "s1" || in[1].SessionID != "s3" {
 		t.Fatalf("in = %+v", in)
 	}

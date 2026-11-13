@@ -150,24 +150,15 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 	return false, nil
 }
 
-// overlapsVault reports whether a value to fill in holds a vault value, or
-// (6 bytes or longer) is part of one: a captured piece of a vault secret
-// is as much a secret as the whole. Exported for the Ansible export too
-// (HoldsVaultValue).
-func (s *Service) overlapsVault(v string) (bool, error) {
-	r, err := s.redactorFor(forVaultCheck)
-	if err != nil {
-		return false, err
-	}
-	return r.HoldsKnown(v) || r.InsideKnown(v), nil
-}
-
-// HoldsVaultValue is overlapsVault for keel serve's Ansible export: a
-// group variable saved before its value went into the vault is left out.
-// It fails closed (true) when the vault cannot be read.
+// HoldsVaultValue reports whether a value holds a vault value, or (6 bytes
+// or longer) is part of one: a captured piece of a vault secret is as much
+// a secret as the whole. A captured value that does is not kept, and keel
+// serve's Ansible export leaves out a group variable saved before its
+// value went into the vault. It fails closed (true) when the vault cannot
+// be read.
 func (s *Service) HoldsVaultValue(v string) bool {
-	bad, err := s.overlapsVault(v)
-	return err != nil || bad
+	r, err := s.redactorFor(forVaultCheck)
+	return err != nil || r.HoldsKnown(v) || r.InsideKnown(v)
 }
 
 // maxWithheld bounds the redact-only set of captured values. When it is
@@ -321,7 +312,7 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 		if out[i].state != CaptureCaptured {
 			continue
 		}
-		if bad, err := s.overlapsVault(out[i].value); err != nil || bad {
+		if s.HoldsVaultValue(out[i].value) {
 			out[i].value, out[i].state = "", CaptureBlocked
 		}
 	}
@@ -404,7 +395,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 	s.mu.Unlock()
 	f := GroupFill{ProposalID: snap.ID, HostID: snap.HostID, Host: snap.Host, Bytes: snap.Bytes, Risk: snap.Risk, NeedsShift: snap.NeedsShift, command: snap.Command}
 	if !runvars.HasRefs(snap.Command) {
-		if hasPlaceholder(snap.Command) {
+		if HasPlaceholder(snap.Command) {
 			return f, ErrPlaceholder
 		}
 		return f, nil
@@ -473,7 +464,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		}
 		return f, fmt.Errorf("%w: %v", ErrFill, err)
 	}
-	if hasPlaceholder(filled) {
+	if HasPlaceholder(filled) {
 		return f, ErrPlaceholder
 	}
 	if len(filled) > 4*store.MaxRunbookCommandBytes {
