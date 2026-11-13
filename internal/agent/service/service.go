@@ -260,7 +260,7 @@ type TraceStep struct {
 	HostID     string         `json:"hostId,omitempty"`
 	Host       string         `json:"host"`
 	Pane       int            `json:"pane,omitempty"` // number in the request ("pane N"), when read
-	Status     string         `json:"status"`         // "read" | "skipped"
+	Status     string         `json:"status"`         // a Trace* word (vocab.go)
 	Reason     string         `json:"reason,omitempty"`
 	Lines      int            `json:"lines"`
 	Redactions map[string]int `json:"redactions,omitempty"`
@@ -442,7 +442,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	for _, id := range ids {
 		p, ok := s.panes.Pane(id)
 		if !ok {
-			trace = append(trace, TraceStep{SessionID: id, Host: "closed pane", Status: "skipped", Reason: "not-open"})
+			trace = append(trace, TraceStep{SessionID: id, Host: "closed pane", Status: TraceSkipped, Reason: SkipNotOpen})
 			continue
 		}
 		h := byID[p.HostID]
@@ -452,18 +452,18 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		}
 		step := TraceStep{SessionID: id, HostID: p.HostID, Host: p.HostName}
 		if !scope.Allows(p) {
-			step.Status, step.Reason = "skipped", "not-readable"
+			step.Status, step.Reason = TraceSkipped, SkipNotReadable
 			trace = append(trace, step)
 			continue
 		}
 		ex, err := s.audit.ReadPane(s.panes, scope, p, set.ScrollbackLines, r, "")
 		if err != nil {
-			step.Status, step.Reason = "skipped", "read-failed"
+			step.Status, step.Reason = TraceSkipped, SkipReadFailed
 			trace = append(trace, step)
 			continue
 		}
 		excerpts = append(excerpts, ex)
-		step.Status, step.Pane, step.Lines, step.Redactions = "read", len(excerpts), ex.Lines, ex.Report.Strings()
+		step.Status, step.Pane, step.Lines, step.Redactions = TraceRead, len(excerpts), ex.Lines, ex.Report.Strings()
 		if ex.LastCommand {
 			step.Command = ex.Command.Label()
 		}
@@ -575,7 +575,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	rest, extra := parseNotebookReads(resp.Text)
 	if len(extra) > 0 && nbAsk != nil && !nbAsk.limited {
-		trace = append(trace, TraceStep{Status: "skipped", Reason: "notebook-limit", Host: "notebooks"})
+		trace = append(trace, TraceStep{Status: TraceSkipped, Reason: SkipNotebookLimit, Host: "notebooks"})
 	}
 
 	now := s.now()

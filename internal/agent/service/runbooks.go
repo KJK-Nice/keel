@@ -861,7 +861,7 @@ func (s *Service) runbookBefore(c *conversation, req AskRequest, read []agent.Ex
 			return t, nil
 		}
 		t.text = ex.Text.String()
-		t.trace = append(t.trace, TraceStep{Status: "runbook", Runbook: run.Name, RunbookID: run.RunbookID, Redactions: ex.Report.Strings()})
+		t.trace = append(t.trace, TraceStep{Status: TraceRunbook, Runbook: run.Name, RunbookID: run.RunbookID, Redactions: ex.Report.Strings()})
 		return t, nil
 	}
 	if noRunbook {
@@ -921,14 +921,14 @@ func runbookFrame(run *store.AgentChatRunbook, scope agent.Scope) string {
 		switch {
 		case i == cur && (st.State == stepNext || st.State == stepProposed):
 			state = "current step: Keel proposes it to the user, do not propose it yourself"
-		case st.State == stepTyped && st.Result == "reported" && st.Exit != nil:
+		case st.State == stepTyped && st.Result == ResultReported && st.Exit != nil:
 			state = "typed by the user, waiting for the user to confirm it"
 		case st.State == stepTyped:
 			state = "typed by the user, no result yet"
-		case st.State == stepDone && st.Result == "user", st.State == stepFailed && st.Result == "user":
+		case st.State == stepDone && st.Result == ResultUser, st.State == stepFailed && st.Result == ResultUser:
 			state += ", marked by the user"
 		}
-		if (st.State == stepDone || st.State == stepFailed || st.State == stepTyped) && st.Result == "reported" && st.Exit != nil {
+		if (st.State == stepDone || st.State == stepFailed || st.State == stepTyped) && st.Result == ResultReported && st.Exit != nil {
 			if scope.AllowsHost(st.HostID) {
 				state += fmt.Sprintf(", reported exit %d (unverified)", *st.Exit)
 			}
@@ -974,7 +974,7 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 		s.startRunLocked(c, b, "agent", why, c.asks+1, now)
 		s.mu.Unlock()
 		s.audit.RunbookEvent(fmt.Sprintf("runbook picked by the agent (%d steps)", len(b.Steps)), b.ID, "", redact.Report{})
-		trace = append(trace, TraceStep{Status: "runbook", Runbook: b.Name, RunbookID: b.ID})
+		trace = append(trace, TraceStep{Status: TraceRunbook, Runbook: b.Name, RunbookID: b.ID})
 	}
 	if len(read) == 0 {
 		return nil, trace
@@ -1235,9 +1235,9 @@ func (s *Service) refreshRun(convID string) {
 			n, of, rid, host := g.p.n, len(c.run.Steps), c.run.RunbookID, g.p.hostID
 			switch {
 			case g.noStatus:
-				st.Result = "unreported"
+				st.Result = ResultUnreported
 				if g.abandoned {
-					st.Result = "abandoned"
+					st.Result = ResultAbandoned
 				}
 				logs = append(logs, func() {
 					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d ended with no exit status reported", n, of), rid, host, redact.Report{})
@@ -1246,13 +1246,13 @@ func (s *Service) refreshRun(convID string) {
 				// On a production host a reported exit 0 is not enough:
 				// the user confirms the step (the card says so).
 				exit := 0
-				st.Exit, st.Result = &exit, "reported"
+				st.Exit, st.Result = &exit, ResultReported
 				logs = append(logs, func() {
 					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", n, of), rid, host, redact.Report{})
 				})
 			default:
 				exit := g.exit
-				st.Exit, st.Result, st.FinishedAt = &exit, "reported", &now
+				st.Exit, st.Result, st.FinishedAt = &exit, ResultReported, &now
 				st.State = stepDone
 				if exit != 0 {
 					st.State = stepFailed
@@ -1306,15 +1306,15 @@ func (s *Service) StepAction(convID, stepID, action string) (RunState, error) {
 	var what string
 	switch action {
 	case "done":
-		if st.State == stepTyped && st.Result == "reported" && st.Exit != nil && *st.Exit == 0 {
+		if st.State == stepTyped && st.Result == ResultReported && st.Exit != nil && *st.Exit == 0 {
 			st.State, st.FinishedAt = stepDone, &now
 			what = "confirmed done by you after a reported exit 0"
 			break
 		}
-		st.State, st.Result, st.FinishedAt = stepDone, "user", &now
+		st.State, st.Result, st.FinishedAt = stepDone, ResultUser, &now
 		what = "marked done by you"
 	case "skip":
-		st.State, st.Result, st.FinishedAt = stepSkipped, "user", &now
+		st.State, st.Result, st.FinishedAt = stepSkipped, ResultUser, &now
 		what = "skipped by you"
 	case "retry":
 		if st.State != stepFailed && st.State != stepTyped && st.State != stepProposed {

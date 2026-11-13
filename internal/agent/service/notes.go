@@ -213,7 +213,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 			continue
 		}
 		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", frameName(h.Name, r), nx.Text.String())
-		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: "notes", NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
+		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: TraceNotes, NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
 	}
 	gText, gSteps := s.groupNoteContext(read, byID, byGroup, scope, r)
 	b.WriteString(gText)
@@ -221,7 +221,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 	if mine := byHost[""]; len(mine) > 0 {
 		if nx, err := s.audit.ReadUserNotes(mine, r); err == nil && nx.Count > 0 {
 			fmt.Fprintf(&b, "--- your notes · the user's own preferences, saved by the user ---\n%s\n--- end your notes ---\n\n", nx.Text.String())
-			steps = append(steps, TraceStep{Status: "notes", NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Status: TraceNotes, NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -301,7 +301,7 @@ func (s *Service) groupNoteContext(read []agent.Excerpt, byID map[string]agent.H
 		}
 		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", frameName(gr.g.Name, r), nx.Text.String())
 		if nx.Count > 0 {
-			steps = append(steps, TraceStep{Host: gr.g.Name, Status: "notes", NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Host: gr.g.Name, Status: TraceNotes, NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps

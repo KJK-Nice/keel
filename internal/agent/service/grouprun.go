@@ -778,22 +778,22 @@ func (s *Service) refreshGroupRun(id string) {
 		}
 		switch {
 		case p.noStatus:
-			c.Result = "unreported"
+			c.Result = ResultUnreported
 			if p.abandoned {
-				c.Result = "abandoned"
+				c.Result = ResultAbandoned
 			}
 			logs = append(logs, func() {
 				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d ended with no exit status reported", runID, n, of), rb, host, redact.Report{})
 			})
 		case p.exit == 0 && p.production:
 			exit := 0
-			c.Exit, c.Result, c.Confirm = &exit, "reported", true
+			c.Exit, c.Result, c.Confirm = &exit, ResultReported, true
 			logs = append(logs, func() {
 				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", runID, n, of), rb, host, redact.Report{})
 			})
 		default:
 			exit := p.exit
-			c.Exit, c.Result, c.FinishedAt = &exit, "reported", &now
+			c.Exit, c.Result, c.FinishedAt = &exit, ResultReported, &now
 			c.State = cellDone
 			if exit != 0 {
 				c.State = cellFailed
@@ -903,7 +903,7 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("this host is done")
 			}
-			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark, c.Pending = cellSkipped, nil, "user", &now, false, false
+			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark, c.Pending = cellSkipped, nil, ResultUser, &now, false, false
 			what = "skipped by you"
 		case "done":
 			if c.State != cellTyped && c.State != cellFailed {
@@ -917,7 +917,7 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 			if c.Confirm && c.Exit != nil && *c.Exit == 0 {
 				what = "confirmed done by you after a reported exit 0"
 			} else {
-				c.Result = "user"
+				c.Result = ResultUser
 				what = "marked done by you"
 			}
 			c.State, c.Confirm, c.FinishedAt, c.hasMark, c.Pending = cellDone, false, &now, false, false

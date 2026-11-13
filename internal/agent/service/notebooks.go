@@ -334,7 +334,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		}
 		b.WriteString(idx.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook-index", Host: "notebooks", Count: len(a.entries)})
+		steps = append(steps, TraceStep{Status: TraceNotebookIndex, Host: "notebooks", Count: len(a.entries)})
 	}
 	for _, id := range attached {
 		nb, ok := byID[id]
@@ -345,7 +345,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 			if _, err := s.nbs.AgentGetNotebook(id); errors.Is(err, store.ErrNotebookPrivate) {
 				reason = "notebook-private"
 			}
-			steps = append(steps, TraceStep{Status: "skipped", Reason: reason, Host: "a notebook", NotebookID: id})
+			steps = append(steps, TraceStep{Status: TraceSkipped, Reason: reason, Host: "a notebook", NotebookID: id})
 			continue
 		}
 		e := a.entryFor(id)
@@ -356,7 +356,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
 	}
 	return a, b.String(), steps, nil
 }
@@ -395,7 +395,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		if n >= maxNotebookReadsPerRound || a.asked >= maxNotebookReadsPerAsk || a.askedBytes >= maxNotebookReadBytesPerAsk {
 			if !a.limited {
 				a.limited = true
-				steps = append(steps, TraceStep{Status: "skipped", Reason: "notebook-limit", Host: "notebooks"})
+				steps = append(steps, TraceStep{Status: TraceSkipped, Reason: SkipNotebookLimit, Host: "notebooks"})
 			}
 			break
 		}
@@ -417,7 +417,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
 	}
 	if n == 0 {
 		return "", steps, nil
