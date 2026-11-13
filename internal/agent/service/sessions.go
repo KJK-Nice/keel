@@ -569,16 +569,13 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 	if !ok {
 		return Proposal{}, badRequest("the saved command can no longer be proposed")
 	}
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return Proposal{}, err
 	}
 	var host *agent.Host
-	for _, h := range agent.HostsFrom(hosts) {
-		if src.HostID != "" && h.ID == src.HostID {
-			h := h
-			host = &h
-		}
+	if h, ok := hs.byID[src.HostID]; ok && src.HostID != "" {
+		host = &h
 	}
 	r, err := s.redactorFor(forKept)
 	if err != nil {
@@ -595,8 +592,7 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 		// The pane is a target only while it is still open on the same
 		// host and the agent may read that host now (§6.2): otherwise the
 		// new proposal is Copy only.
-		scope := agent.NewScope(agent.HostsFrom(hosts))
-		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID && scope.Allows(pane) {
+		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID && hs.scope.Allows(pane) {
 			spec.Pane.SessionID = src.SessionID
 		}
 	}

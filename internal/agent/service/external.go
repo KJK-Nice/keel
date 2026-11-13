@@ -72,17 +72,11 @@ func (s *Service) ExternalPanes() (ExternalPaneList, error) {
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	byID := make(map[string]agent.Host, len(hosts))
-	for _, h := range hosts {
-		byID[h.ID] = h
-	}
-	scope := agent.NewScope(hosts)
-	r, err := s.requestRedactor(set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
@@ -92,14 +86,14 @@ func (s *Service) ExternalPanes() (ExternalPaneList, error) {
 		if !ok {
 			continue
 		}
-		if !scope.Allows(p) {
+		if !hs.scope.Allows(p) {
 			out.NotAllowed++
 			continue
 		}
 		if len(out.Panes) >= maxExternalPanes {
 			break
 		}
-		h := byID[p.HostID]
+		h := hs.byID[p.HostID]
 		out.Panes = append(out.Panes, ExternalPane{PaneID: p.SessionID, Host: r.Text(hostName(h)).String(), Production: h.Production})
 	}
 	return out, nil
@@ -121,23 +115,22 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	p, h, scope, err := s.externalPane(paneID, hosts)
+	p, h, err := s.externalPane(paneID, hs)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	r, err := s.requestRedactor(set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
 	if lines <= 0 || lines > set.ScrollbackLines {
 		lines = set.ScrollbackLines
 	}
-	ex, err := s.audit.ReadPane(s.panes, scope, p, lines, r, ExternalSource)
+	ex, err := s.audit.ReadPane(s.panes, hs.scope, p, lines, r, ExternalSource)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
@@ -150,28 +143,21 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 
 // externalPane resolves a pane an outside agent names, refusing one that
 // is not open or is on a host the agent may not read.
-func (s *Service) externalPane(paneID string, hosts []agent.Host) (agent.Pane, agent.Host, agent.Scope, error) {
+func (s *Service) externalPane(paneID string, hs hostSet) (agent.Pane, agent.Host, error) {
 	paneID = strings.TrimSpace(paneID)
 	if paneID == "" {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, badRequest("name a pane (paneId from list_panes)")
+		return agent.Pane{}, agent.Host{}, badRequest("name a pane (paneId from list_panes)")
 	}
 	p, ok := s.panes.Pane(paneID)
 	if !ok {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, ErrNotFound
+		return agent.Pane{}, agent.Host{}, ErrNotFound
 	}
-	scope := agent.NewScope(hosts)
-	if !scope.Allows(p) {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, agent.ErrNotReadable
+	if !hs.scope.Allows(p) {
+		return agent.Pane{}, agent.Host{}, agent.ErrNotReadable
 	}
-	var h agent.Host
-	for _, x := range hosts {
-		if x.ID == p.HostID {
-			h = x
-			break
-		}
-	}
+	h := hs.byID[p.HostID]
 	p.HostName = hostName(h)
-	return p, h, scope, nil
+	return p, h, nil
 }
 
 // ExternalProposeRequest is a command an outside agent proposes.
@@ -191,12 +177,11 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 		return Proposal{}, badRequest(fmt.Sprintf("a command is 1 to %d bytes and %d lines, with no control characters", maxCommandBytes, maxCommandLines))
 	}
 	why := truncate(strings.TrimSpace(req.Why), maxWhyBytes)
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return Proposal{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	pane, h, _, err := s.externalPane(req.PaneID, hosts)
+	pane, h, err := s.externalPane(req.PaneID, hs)
 	if err != nil {
 		return Proposal{}, err
 	}

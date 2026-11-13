@@ -395,16 +395,9 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	if err != nil {
 		return AskResponse{}, err
 	}
-	desc, ok := provider.Lookup(set.Provider)
-	if !ok || desc.Kind != provider.KindModel {
-		return AskResponse{}, ErrNotProvider
-	}
-	configured, err := s.st.AgentKeyConfigured(desc.ID)
+	desc, err := s.askableModel(set)
 	if err != nil {
 		return AskResponse{}, err
-	}
-	if !configured {
-		return AskResponse{}, ErrNoKey
 	}
 
 	// A saved conversation resumes here: its question and reply history
@@ -418,17 +411,12 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	defer s.end(conv)
 
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return AskResponse{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	byID := make(map[string]agent.Host, len(hosts))
-	for _, h := range hosts {
-		byID[h.ID] = h
-	}
-	scope := agent.NewScope(hosts)
-	r, err := s.requestRedactor(set.Redact, hosts)
+	byID, scope := hs.byID, hs.scope
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return AskResponse{}, err
 	}
@@ -831,14 +819,12 @@ func (req TypeRequest) ask(checkOnly bool) typeAsk {
 // closed: a host that can no longer be found (deleted, or no host id)
 // counts as production, so the ⇧ rule is never relaxed by a lookup miss.
 func (s *Service) hostProduction(hostID string) (bool, error) {
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return true, err
 	}
-	for _, h := range agent.HostsFrom(hosts) {
-		if hostID != "" && h.ID == hostID {
-			return h.Production, nil
-		}
+	if h, ok := hs.byID[hostID]; ok && hostID != "" {
+		return h.Production, nil
 	}
 	return true, nil
 }

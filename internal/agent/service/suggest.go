@@ -224,22 +224,16 @@ func (s *Service) paneFor(sessionID string, role agent.Role) (agent.Pane, agent.
 		return agent.Pane{}, agent.Host{}, nil, ErrNotFound
 	}
 	p.Role = role
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return agent.Pane{}, agent.Host{}, nil, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	var host agent.Host
-	for _, h := range hosts {
-		if h.ID == p.HostID {
-			host = h
-		}
-	}
+	host := hs.byID[p.HostID]
 	p.HostName = host.Name
-	if !agent.NewScope(hosts).Allows(p) {
+	if !hs.scope.Allows(p) {
 		return agent.Pane{}, agent.Host{}, nil, agent.ErrNotReadable
 	}
-	return p, host, hosts, nil
+	return p, host, hs.list, nil
 }
 
 // modelReady reports whether the configured model provider has a key. No
@@ -251,6 +245,22 @@ func (s *Service) modelReady(set store.AgentSettings) (provider.Descriptor, bool
 	}
 	configured, err := s.st.AgentKeyConfigured(desc.ID)
 	return desc, configured, err
+}
+
+// askableModel is the configured model provider, for a request that needs
+// an answer from it: ErrNotProvider when none is chosen, ErrNoKey when it
+// has no key.
+func (s *Service) askableModel(set store.AgentSettings) (provider.Descriptor, error) {
+	desc, ready, err := s.modelReady(set)
+	switch {
+	case err != nil:
+		return desc, err
+	case desc.Kind != provider.KindModel:
+		return desc, ErrNotProvider
+	case !ready:
+		return desc, ErrNoKey
+	}
+	return desc, nil
 }
 
 // Detect decides whether the prompt line is plain language (State 1,
@@ -414,15 +424,9 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 	if !set.SuggestionsEnabled() {
 		return Suggestion{}, nil, ErrSuggestOff
 	}
-	desc, ready, err := s.modelReady(set)
+	desc, err := s.askableModel(set)
 	if err != nil {
 		return Suggestion{}, nil, err
-	}
-	if desc.Kind != provider.KindModel {
-		return Suggestion{}, nil, ErrNotProvider
-	}
-	if !ready {
-		return Suggestion{}, nil, ErrNoKey
 	}
 	p, host, hosts, err := s.paneFor(req.SessionID, req.Role)
 	if err != nil {

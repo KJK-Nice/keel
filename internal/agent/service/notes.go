@@ -472,16 +472,15 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 }
 
 func (s *Service) noteHost(hostID string) (agent.Host, error) {
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return agent.Host{}, err
 	}
-	for _, h := range agent.HostsFrom(hosts) {
-		if h.ID == hostID {
-			return h, nil
-		}
+	h, ok := hs.byID[hostID]
+	if !ok {
+		return agent.Host{}, ErrNotFound
 	}
-	return agent.Host{}, ErrNotFound
+	return h, nil
 }
 
 // cleanNote redacts a note's text for keeping and checks it. The raw text

@@ -302,15 +302,11 @@ func (s *Service) groupMembers(groupID string) (store.Group, []store.GroupMember
 		}
 		return store.Group{}, nil, nil, err
 	}
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return store.Group{}, nil, nil, err
 	}
-	byID := map[string]agent.Host{}
-	for _, h := range agent.HostsFrom(hosts) {
-		byID[h.ID] = h
-	}
-	return g, members, byID, nil
+	return g, members, hs.byID, nil
 }
 
 // StartGroupRun starts a runbook on a group. The run's hosts are fixed
