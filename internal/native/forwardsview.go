@@ -33,7 +33,7 @@ func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Me
 		}
 		if addr := tunnelLocalAddress(t); addr != "" {
 			if menuItem(m, "Copy local address").Chosen() {
-				w.act(func() { c.WriteClipboard(addr); w.say("Copied local address") })
+				w.act(func() { w.copy(addr, "local address") })
 			}
 		}
 		m.Separator()

@@ -17,7 +17,7 @@ func (w *workspace) snippetMenu(c *ui.Context, s keelclient.Snippet) func(m *ui.
 			w.act(func() { w.typeSnippet(s.ID) })
 		}
 		if menuItem(m, "Copy").Chosen() {
-			w.act(func() { c.WriteClipboard(s.Command) })
+			w.act(func() { w.copyQuiet(s.Command) })
 		}
 		m.Separator()
 		if menuItem(m, "Edit").Chosen() {

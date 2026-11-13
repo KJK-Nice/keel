@@ -407,8 +407,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 				w.act(func() {
 					if ex.file < len(ex.files) {
 						f := ex.files[ex.file]
-						c.WriteClipboard(f.Content)
-						w.say("Copied " + f.Name + ".")
+						w.copy(f.Content, f.Name+".")
 					}
 				})
 			}

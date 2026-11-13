@@ -764,11 +764,12 @@ func TestTheRunPageFillsBeforeTheDialogOpensAndCopyNeverWritesAValue(t *testing.
 	if !(fill > 0 && rows > fill && open > rows) {
 		t.Errorf("typeGroupRun: FillGroupStep at %d, fillRows at %d, open at %d: want fill, then rows, then the dialog", fill, rows, open)
 	}
-	if !strings.Contains(sourceFiles(t)["grouprunview.go"], "c.WriteClipboard(st.Command)") {
+	if !strings.Contains(sourceFiles(t)["grouprunview.go"], "w.copy(st.Command,") {
 		t.Error("Copy on the run page no longer writes the step's saved command; update the guard")
 	}
 	for _, name := range []string{"grouprunview.go", "grouprun.go"} {
-		if strings.Contains(sourceFiles(t)[name], "WriteClipboard(r.bytes") || strings.Contains(sourceFiles(t)[name], "WriteClipboard(fill") {
+		src := sourceFiles(t)[name]
+		if strings.Contains(src, "WriteClipboard(r.bytes") || strings.Contains(src, "WriteClipboard(fill") || strings.Contains(src, "w.copy(r.bytes") || strings.Contains(src, "w.copy(fill") {
 			t.Errorf("%s puts filled bytes on the clipboard", name)
 		}
 	}

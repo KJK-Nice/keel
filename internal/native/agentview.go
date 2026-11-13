@@ -54,11 +54,6 @@ func (w *workspace) agentView(c *ui.Context) {
 		w.act(w.loadAgent)
 	}
 	w.agentSync()
-	if w.copyOut != "" { // a Copy from a card's menu, which has no context to write with
-		c.WriteClipboard(w.copyOut)
-		w.copyOut = ""
-		w.say("Copied")
-	}
 	winW, _ := c.Size()
 	hairline(ui.Column(c).Width(clampAgentWidth(w.prefs.AgentWidth, winW)).Shrink(0).FillHeight().Background(w.ground(surface)).Label("agent panel"), 0, 0, 0, 1).Children(func() {
 		w.agentSash(c, winW)
@@ -492,7 +487,7 @@ func (w *workspace) agentAnswer(c *ui.Context, answer string) {
 				ui.Text(c, b.text).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 				ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
 					if iconBtn(c, "agent-copy", "Copy code", sizeControlSm, false) {
-						w.act(func() { c.WriteClipboard(b.text); w.say("Copied") })
+						w.act(func() { w.copy(b.text, "") })
 					}
 				})
 			})
@@ -597,7 +592,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 				w.act(func() { w.startEdit(rec) })
 			}
 			if iconBtn(c, "agent-copy", "Copy command", sizeControlSm, false) {
-				w.act(func() { c.WriteClipboard(rec.p.Command); w.say("Copied") }) // the command only, never the bytes
+				w.act(func() { w.copy(rec.p.Command, "") }) // the command only, never the bytes
 			}
 			if offer == offerType || offer == offerShift {
 				w.typeButton(c, id, offer, onPage)
@@ -657,7 +652,7 @@ func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
 			text(c, meta, inkFaint, captionSize, weightRegular)
 			ui.Spacer(c)
 			if textBtn(c, "Copy", btnGhost) {
-				w.act(func() { w.copyOut = p.Command }) // the command only, never the bytes; the next frame writes it
+				w.act(func() { w.copy(p.Command, "") }) // the command only, never the bytes
 			}
 			if textBtn(c, "Propose again", btnDefault) {
 				w.act(func() { w.proposeAgain(id) })
@@ -750,7 +745,7 @@ func (w *workspace) agentCardMenu(m *ui.Menu, id, offer string) {
 		w.act(func() { w.startEdit(rec) })
 	}
 	if menuItem(m, "Copy command").Chosen() {
-		w.act(func() { w.copyOut = rec.p.Command }) // the command only, never the bytes; the next frame writes it
+		w.act(func() { w.copy(rec.p.Command, "") }) // the command only, never the bytes
 	}
 	if (offer == offerType || offer == offerShift) && menuItem(m, "Type into pane…").Chosen() {
 		w.act(func() { w.typeAgentProposal(id, false) }) // from a menu ⇧ is not held: a ⇧ proposal says so on its card

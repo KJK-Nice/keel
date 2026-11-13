@@ -325,7 +325,7 @@ func (w *workspace) notebookCodeBlock(c *ui.Context, t *tab, p *pane, fs []fence
 			copyName := "Copy code"
 			if textBtnAs(c, fenceName(copyName, idx), copyName, btnGhost) {
 				code := f.Code
-				w.act(func() { c.WriteClipboard(code); w.say("Copied") })
+				w.act(func() { w.copy(code, "") })
 			}
 			if f.Shell {
 				// The app's bar always has it: "Type into <pane>", or "Type into pane" with no terminal beside the notebook

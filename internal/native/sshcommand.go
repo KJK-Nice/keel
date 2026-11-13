@@ -66,6 +66,3 @@ func shellWord(s string) string {
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
-
-// copyToClipboard has the next frame write text to the clipboard and say "Copied <what>" (term.js data-copy).
-func (w *workspace) copyToClipboard(text, what string) { w.clip, w.clipWhat = text, what }

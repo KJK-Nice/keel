@@ -348,7 +348,7 @@ func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelcli
 			caption(c, count, inkFaint).Shrink(1).MinWidth(0)
 			ui.Spacer(c)
 			if uses != "" && textBtnAs(c, "Copy the command without values", "Copy", btnGhost) {
-				w.act(func() { c.WriteClipboard(st.Command); w.say("Copied with the {{names}} in, not their values.") })
+				w.act(func() { w.copy(st.Command, "with the {{names}} in, not their values.") })
 			}
 			shown := label
 			if shift && len(ready) > 0 {

@@ -36,11 +36,6 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.fallBackToHosts()
 	w.publishSync()
-	if w.clip != "" { // a menu's Copy has no context to write with: the next frame does (term.js data-copy)
-		c.WriteClipboard(w.clip)
-		w.say("Copied " + w.clipWhat)
-		w.clip, w.clipWhat = "", ""
-	}
 	w.shareFrame(c)
 	w.suggestFrame(c)
 	w.shortcuts(c)
@@ -134,6 +129,7 @@ func (w *workspace) runLater(c *ui.Context) {
 		w.publishSync()
 		c.Invalidate()
 	}
+	w.flushClipboard(c)
 }
 
 // shortcuts declares the window shortcuts: the commands' keys (commands.go), the New tab page's cards and the find bar's. A

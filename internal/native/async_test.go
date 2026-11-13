@@ -34,6 +34,22 @@ func TestCallDropsAnswersAfterCloseAndWhenStale(t *testing.T) {
 	}
 }
 
+func TestACopyIsWrittenWhateverIsOnScreen(t *testing.T) {
+	r := newRig(t, okBackend())
+	r.tt.Frame()
+	r.w.copy("echo hi", "")
+	r.w.copy("host:22", "address")
+	r.w.copyQuiet("quiet")
+	r.tt.Frame()
+	if got := r.tt.Clipboard(); got != "quiet" {
+		t.Errorf("clipboard %q", got)
+	}
+	r.tt.Frame()
+	if !r.tt.HasText("Copied address") {
+		t.Errorf("toast missing: %v", r.tt.Texts())
+	}
+}
+
 func TestCallOnceKeepsOneReadInFlightAndClearsItWhenDropped(t *testing.T) {
 	w := asyncRig()
 	var queued []func()
