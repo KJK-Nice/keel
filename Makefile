@@ -52,16 +52,18 @@ signal:
 
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
+# The tag keelfake links the agent's test provider (KEEL_AGENT_PROVIDER=fake), which no other build has: this
+# bin/keel is a test binary, and make build replaces it.
 native-e2e:
 	rm -f bin/keel
-	CGO_ENABLED=0 go build -o bin/keel ./cmd/keel
+	CGO_ENABLED=0 go build -tags keelfake -o bin/keel ./cmd/keel
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 native-automation-build:
 	rm -f bin/keel-e2e
-	CGO_ENABLED=0 go build -tags keelautomation -o bin/keel-e2e ./cmd/keel
+	CGO_ENABLED=0 go build -tags keelautomation,keelfake -o bin/keel-e2e ./cmd/keel
 
 # Drives the built app from outside through MyGo's automation socket (plan 029). Opens real windows briefly.
 # Scratch data only; not part of make test or make native-e2e.

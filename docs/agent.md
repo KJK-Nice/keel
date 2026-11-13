@@ -12,7 +12,7 @@ The answer can carry command proposals: Keel shows the exact bytes and a Read-on
 
 The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are kept in memory only, until New conversation or `keel serve stop`.
 
-`KEEL_AGENT_PROVIDER=fake` is for end-to-end tests only: the agent then answers from an in-process fake and nothing is sent anywhere.
+`KEEL_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `keel serve` refuses to start with the variable set to `fake`.
 
 ## Model providers
 

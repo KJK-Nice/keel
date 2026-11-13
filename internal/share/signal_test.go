@@ -36,12 +36,11 @@ func TestNormalizeSignal(t *testing.T) {
 // KEEL_SIGNAL beats the server saved in Settings, which beats the one built
 // in.
 func TestHubSignalSources(t *testing.T) {
-	t.Setenv("KEEL_SIGNAL", "")
 	old := DefaultSignal
 	DefaultSignal = "https://baked.example/"
 	t.Cleanup(func() { DefaultSignal = old })
 
-	h := FromEnv(nil)
+	h := ForServe("", nil)
 	if h.URL() != "https://baked.example" || h.Source() != SourceBuild {
 		t.Fatalf("built in: %q (%s)", h.URL(), h.Source())
 	}
@@ -54,8 +53,7 @@ func TestHubSignalSources(t *testing.T) {
 		t.Fatalf("after removing the saved server: %s", h.Source())
 	}
 
-	t.Setenv("KEEL_SIGNAL", "https://env.example")
-	h = FromEnv(nil)
+	h = ForServe("https://env.example", nil)
 	h.SetSaved("https://saved.example")
 	if h.URL() != "https://env.example" || h.Source() != SourceEnv {
 		t.Fatalf("env: %q (%s)", h.URL(), h.Source())

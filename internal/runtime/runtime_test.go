@@ -62,8 +62,7 @@ func (f *fakeBridge) ExitKind() session.ExitKind {
 func testStore(t *testing.T) *store.Store {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

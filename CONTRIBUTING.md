@@ -12,7 +12,7 @@ Keel is pure Go: no cgo, no Node, no generated code. `make build` compiles `bin/
 
 macOS needs the Xcode Command Line Tools for `codesign` (`xcode-select --install`). `make macos-icon` regenerates the icon files in `packaging/macos/` from `Keel.icon`; `mygo.json` points at `packaging/macos/icon.png` and `Keel.icns`.
 
-`keel app` opens the native window (MyGo, libghostty-vt terminals): see `docs/native.md`. `make native-e2e` drives the window under MyGo's tester; `make native-automation` drives the built app from outside through MyGo's automation socket (menu bar, close and reopen, real keys, both themes). It builds `bin/keel-e2e` with the build tag `keelautomation`, which no release path may pass, opens real windows briefly and runs only on scratch data; see "Driving the built app from outside" in `docs/native.md`.
+`keel app` opens the native window (MyGo, libghostty-vt terminals): see `docs/native.md`. `make native-e2e` drives the window under MyGo's tester; `make native-automation` drives the built app from outside through MyGo's automation socket (menu bar, close and reopen, real keys, both themes). It builds `bin/keel-e2e` with the build tags `keelautomation` and `keelfake`, which no release path may pass, opens real windows briefly and runs only on scratch data; see "Driving the built app from outside" in `docs/native.md`.
 
 ## Checks
 
@@ -24,7 +24,7 @@ make lint              # gofmt, go vet, staticcheck, govulncheck
 make native-e2e        # the window end to end (macOS); PNGs in .scratch-native/e2e/
 ```
 
-Set `KEEL_KEYRING=off` (and `KEEL_AGENT_PROVIDER=fake` when the agent is involved) for any command run by a script or an agent. UI changes are verified with `make native-e2e` and, for the menu bar and window lifecycle, `make native-automation`; see `.claude/skills/verify-keel/SKILL.md`.
+Set `KEEL_KEYRING=off` (and `KEEL_AGENT_PROVIDER=fake` when the agent is involved) for any command run by a script or an agent. The fake provider is linked only with the build tag `keelfake`, which `make native-e2e` (`bin/keel`) and `make native-automation` (`bin/keel-e2e`) pass and no release path may: any other build refuses to start `keel serve` with `KEEL_AGENT_PROVIDER=fake`, so run `make build` again before using `bin/keel` for anything but tests. UI changes are verified with `make native-e2e` and, for the menu bar and window lifecycle, `make native-automation`; see `.claude/skills/verify-keel/SKILL.md`.
 
 ## Releasing
 

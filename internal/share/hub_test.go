@@ -33,23 +33,21 @@ func (f *fakeBridge) Close() error {
 	return nil
 }
 
-func TestFromEnvFallsBackToDefault(t *testing.T) {
-	t.Setenv("KEEL_SIGNAL", "")
+func TestForServeFallsBackToDefault(t *testing.T) {
 	old := DefaultSignal
 	DefaultSignal = "https://signal.example"
 	t.Cleanup(func() { DefaultSignal = old })
-	h := FromEnv(nil)
+	h := ForServe("", nil)
 	if h.URL() != "https://signal.example" {
 		t.Fatalf("got %q", h.URL())
 	}
 }
 
-func TestFromEnvOverridesDefault(t *testing.T) {
-	t.Setenv("KEEL_SIGNAL", "https://override.example")
+func TestForServeOverridesDefault(t *testing.T) {
 	old := DefaultSignal
 	DefaultSignal = "https://signal.example"
 	t.Cleanup(func() { DefaultSignal = old })
-	h := FromEnv(nil)
+	h := ForServe("https://override.example", nil)
 	if h.URL() != "https://override.example" {
 		t.Fatalf("got %q", h.URL())
 	}

@@ -73,9 +73,8 @@ func allowClaudeCode(t *testing.T, st *store.Store) {
 func TestMCPRoutesTakeOnlyTheirOwnToken(t *testing.T) {
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "keel.json"))
+	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

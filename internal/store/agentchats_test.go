@@ -48,7 +48,7 @@ func TestAgentChatsSavedEncryptedAndReloaded(t *testing.T) {
 	}
 
 	// A new process with the same vault reads it back.
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestAgentChatsNeedTheVault(t *testing.T) {
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	t.Setenv("KEEL_KEYRING", "off")
-	locked, err := New(st.path)
+	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestAgentChatsRenameDeletePrune(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("delete all: %d %v", n, err)
 	}
-	st2, _ := New(st.path)
+	st2, _ := New(st.path, TestVault())
 	if list, _ := st2.ListAgentChats(); len(list) != 0 {
 		t.Fatalf("after delete all a restart lists %d", len(list))
 	}
@@ -196,7 +196,7 @@ func TestAgentChatsCorruptedFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("age-encryption.org/v1\nnot really"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestAgentChatsCorruptedFile(t *testing.T) {
 	if k := st2.secrets[chatKeySecretID].PrivateKey; k == "" || k == oldKey {
 		t.Fatal("the next save did not start under a new key")
 	}
-	st3, _ := New(st.path)
+	st3, _ := New(st.path, TestVault())
 	if _, err := st3.GetAgentChat("conv-0003"); err != nil {
 		t.Fatalf("fresh file after restart: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestAgentChatsDeleteAllRotatesKey(t *testing.T) {
 	if _, ok := st.secrets[chatKeySecretID]; ok {
 		t.Fatal("key kept")
 	}
-	st2, _ := New(st.path)
+	st2, _ := New(st.path, TestVault())
 	if _, ok := st2.secrets[chatKeySecretID]; ok {
 		t.Fatal("key kept on disk")
 	}

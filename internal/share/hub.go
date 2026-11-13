@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -119,10 +118,11 @@ func New(signalURL string, rt *runtime.Runtime) *Hub {
 	}
 }
 
-// FromEnv makes a hub on KEEL_SIGNAL, falling back to the saved server
-// (SetSaved) and then DefaultSignal.
-func FromEnv(rt *runtime.Runtime) *Hub {
-	h := New(os.Getenv("KEEL_SIGNAL"), rt)
+// ForServe makes keel serve's hub: on signalURL (KEEL_SIGNAL, read by the
+// caller) when it is set, falling back to the saved server (SetSaved) and
+// then DefaultSignal.
+func ForServe(signalURL string, rt *runtime.Runtime) *Hub {
+	h := New(signalURL, rt)
 	h.build = trimSignal(DefaultSignal)
 	return h
 }

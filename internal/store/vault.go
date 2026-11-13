@@ -7,16 +7,22 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"testing"
 
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
 )
 
+// EnvPassphrase names the variable that unlocks or creates the vault at
+// start. It holds a secret: SecretEnv lists it, and a local shell never
+// inherits a listed variable (internal/session).
+const EnvPassphrase = "KEEL_VAULT_PASSPHRASE"
+
+// SecretEnv is every KEEL_* variable whose value is a secret.
+var SecretEnv = []string{EnvPassphrase}
+
 const (
 	keyringService = "keel"
 	keyringAccount = "vault"
-	envPassphrase  = "KEEL_VAULT_PASSPHRASE"
 	// envKeyring set to "off" keeps the store away from the OS keychain:
 	// it neither reads nor writes the "keel"/"vault" item, as if the
 	// keychain did not answer. Unset (the default) keeps today's behavior.
@@ -37,12 +43,19 @@ var (
 	errKeyringOff = errors.New("OS keychain is off (KEEL_KEYRING=off)")
 )
 
-// KeyringOff reports whether KEEL_KEYRING=off keeps the store away from
-// the OS keychain. A test binary is always off: go-keyring shells out to
-// /usr/bin/security on macOS, which endpoint security flags as credential
-// access (INC-777162), whether or not a test remembered the variable.
-func KeyringOff() bool {
-	return os.Getenv(envKeyring) == "off" || testing.Testing()
+// Option changes how New builds a Store.
+type Option func(*Store)
+
+// TestVault is for tests, and every test's store takes it
+// (vault_guard_test.go): the store never asks the OS keychain, whatever
+// KEEL_KEYRING says, and wraps a passphrase vault with a cheap scrypt work
+// factor. go-keyring shells out to /usr/bin/security on macOS, which
+// endpoint security flags as credential access (INC-777162).
+func TestVault() Option {
+	return func(s *Store) {
+		s.keyringOff = true
+		s.scryptWork = 2
+	}
 }
 
 type hostSecret struct {
@@ -58,7 +71,7 @@ type vaultFile struct {
 }
 
 func envPass() string {
-	return os.Getenv(envPassphrase)
+	return os.Getenv(EnvPassphrase)
 }
 
 func encryptVault(secrets map[string]hostSecret, recipients ...age.Recipient) ([]byte, error) {
@@ -103,13 +116,13 @@ func decryptVault(blob []byte, identities ...age.Identity) (map[string]hostSecre
 	return vf.Secrets, nil
 }
 
-func scryptRecipient(pass string) (age.Recipient, error) {
+func (s *Store) scryptRecipient(pass string) (age.Recipient, error) {
 	r, err := age.NewScryptRecipient(pass)
 	if err != nil {
 		return nil, err
 	}
-	if os.Getenv("KEEL_VAULT_FAST") == "1" {
-		r.SetWorkFactor(2)
+	if s.scryptWork > 0 {
+		r.SetWorkFactor(s.scryptWork)
 	}
 	return r, nil
 }
@@ -118,19 +131,19 @@ func scryptIdentity(pass string) (age.Identity, error) {
 	return age.NewScryptIdentity(pass)
 }
 
-func keyringIdentity() (*age.X25519Identity, error) {
-	if KeyringOff() {
+func (s *Store) keyringIdentity() (*age.X25519Identity, error) {
+	if s.keyringOff {
 		return nil, errKeyringOff
 	}
-	s, err := keyring.Get(keyringService, keyringAccount)
+	v, err := keyring.Get(keyringService, keyringAccount)
 	if err != nil {
 		return nil, err
 	}
-	return age.ParseX25519Identity(s)
+	return age.ParseX25519Identity(v)
 }
 
-func saveKeyringIdentity(ident *age.X25519Identity) error {
-	if KeyringOff() {
+func (s *Store) saveKeyringIdentity(ident *age.X25519Identity) error {
+	if s.keyringOff {
 		return errKeyringOff
 	}
 	return keyring.Set(keyringService, keyringAccount, ident.String())

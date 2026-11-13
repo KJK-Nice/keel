@@ -230,7 +230,8 @@ In `internal/native/e2e_test.go` (build tag `nativee2e`, test files only):
 ## The agent panel (`e2e_agent_test.go`, `agentpanel_test.go`)
 
 - **The fake provider is mandatory.** `startServeAt` gives every daemon `KEEL_AGENT_PROVIDER=fake`: keel serve then answers
-  from an in-process fake and sends nothing anywhere. A scenario stores only `fakeAgentKey` (made up), by the API
+  from an in-process fake and sends nothing anywhere. The fake is in `bin/keel` only as `make native-e2e` builds it
+  (tag `keelfake`); a `bin/keel` from `make build` refuses to start with the variable, and the test fails at once. A scenario stores only `fakeAgentKey` (made up), by the API
   (`e.putAgentKey()`) or through the Connect card (`TestE2EAgentNoKey`). Never start a daemon without the variable once
   a key could be stored; never a real key, never a real model. A person tries one real question before the cutover.
 - The fake's words (`internal/agent/provider/providertest/scripted.go`): "Test provider: nothing left this machine. I

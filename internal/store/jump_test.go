@@ -323,7 +323,7 @@ func TestKnownHostReadAndForget(t *testing.T) {
 		t.Fatalf("type lost: %+v", k)
 	}
 	// The type survives a reload.
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -53,8 +53,7 @@ func (f *fakeBridge) Close() error {
 func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,8 +226,7 @@ func TestHostTagsAPI(t *testing.T) {
 
 func TestRuntimeStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,8 +265,7 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
 	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -690,8 +687,7 @@ func TestNotebookAPI(t *testing.T) {
 
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,8 +840,7 @@ func TestReadScrollbackAPINotFound(t *testing.T) {
 
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1308,9 +1303,8 @@ func TestManualServe(t *testing.T) {
 		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(dir + "/keel.json")
+	st, err := store.New(dir+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1486,8 +1480,7 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 
 func TestRuntimeInfo(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

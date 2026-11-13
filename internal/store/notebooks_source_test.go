@@ -68,7 +68,7 @@ func TestNotebookSourceIsNeverFromTheClient(t *testing.T) {
 			t.Errorf("notebook %v: source field present = %v", nb["name"], has)
 		}
 	}
-	st2, err := New(filepath.Join(filepath.Dir(st.path), "keel.json"))
+	st2, err := New(filepath.Join(filepath.Dir(st.path), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

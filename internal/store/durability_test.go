@@ -123,7 +123,7 @@ func TestSaveRewritesVaultOnlyWhenSecretsChange(t *testing.T) {
 	}
 
 	// And it must survive a reopen.
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestSaveRecreatesMissingVault(t *testing.T) {
 	if _, err := os.Stat(st.vaultPath); err != nil {
 		t.Fatalf("vault not recreated: %v", err)
 	}
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestConcurrentSavesKeepEveryChange(t *testing.T) {
 	for err := range errs {
 		t.Fatal(err)
 	}
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestConcurrentHostSecretsSurviveReopen(t *testing.T) {
 	for err := range errs {
 		t.Fatal(err)
 	}
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestFailedVaultWriteRetriedByNextSave(t *testing.T) {
 	if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

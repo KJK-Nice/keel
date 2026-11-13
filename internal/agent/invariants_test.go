@@ -328,8 +328,46 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 	}
 }
 
+// fakeWiring is the one file that links the test fakes, and only in a build
+// with the tag keelfake.
+const fakeWiring = "internal/app/agent_fake.go"
+
+// A release binary holds no test provider: providertest is imported by
+// tests and by fakeWiring, whose first line is its build tag. Nothing under
+// internal/agent imports it outside a test.
+func TestFakeProviderIsLinkedOnlyByTheTaggedFile(t *testing.T) {
+	const fake = module + "/internal/agent/provider/providertest"
+	found := false
+	for _, f := range parseModule(t) {
+		if f.test {
+			continue
+		}
+		for _, imp := range f.ast.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			if p != fake {
+				continue
+			}
+			if strings.HasPrefix(f.rel, "internal/agent/") {
+				t.Errorf("%s imports providertest; no non-test file under internal/agent may", f.rel)
+			}
+			if f.rel != fakeWiring {
+				t.Errorf("%s imports providertest; only %s may", f.rel, fakeWiring)
+				continue
+			}
+			found = true
+			if !strings.HasPrefix(string(f.src), "//go:build keelfake\n") {
+				t.Errorf("%s imports providertest without //go:build keelfake on its first line", f.rel)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("%s does not import providertest: the guard is looking at the wrong file", fakeWiring)
+	}
+}
+
 // In the agent service, the Gemini and Anthropic clients are built only in
-// Real, the Jev client only in RealJudge, the test fakes only in FromEnv.
+// Real, the Jev client only in RealJudge; the test fakes only in
+// fakeWiring.
 //
 // One sender (§6 rules 4 and 7): a model provider (Generate) and a judge
 // (Judge) are each called exactly once in the service, both in
@@ -386,8 +424,8 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 						t.Errorf("%s: jev.New called in %q; only service.RealJudge may", f.rel, fn)
 					}
 				case x != nil && x.Name == "providertest" && (sel.Sel.Name == "NewScripted" || sel.Sel.Name == "NewScriptedJudge"):
-					if f.pkg != svc || fn != "FromEnv" {
-						t.Errorf("%s: the test provider is built in %q; only service.FromEnv may", f.rel, fn)
+					if f.rel != fakeWiring || fn != "agentProviders" {
+						t.Errorf("%s: the test provider is built in %q; only agentProviders in %s may", f.rel, fn, fakeWiring)
 					}
 				case (sel.Sel.Name == "Generate" || sel.Sel.Name == "Judge") && f.pkg == svc:
 					seen[sel.Sel.Name]++

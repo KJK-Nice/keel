@@ -5,7 +5,6 @@ import (
 	"keel/internal/agent/provider/anthropic"
 	"keel/internal/agent/provider/gemini"
 	"keel/internal/agent/provider/jev"
-	"keel/internal/agent/provider/providertest"
 )
 
 // Factory builds the provider for one Ask from the provider id in the
@@ -39,24 +38,4 @@ const JudgeProvider = "jev"
 // prompt line or a suggestion the user asked for.
 func RealJudge(key string) (provider.Judge, error) {
 	return jev.New(key)
-}
-
-// TestProviderEnv names the environment variable that swaps every provider
-// for the in-process test fake. It exists for end-to-end tests only.
-const TestProviderEnv = "KEEL_AGENT_PROVIDER"
-
-// FromEnv returns the factories keel serve uses (model provider and
-// detector), and whether they are the test fakes. Only the exact value
-// "fake" changes anything: it selects providertest.Scripted and
-// providertest.ScriptedJudge, which answer in this process and have no
-// network code, so this switch cannot send pane text anywhere. Any other
-// value (or none) gives the real clients.
-func FromEnv(getenv func(string) string) (Factory, JudgeFactory, bool) {
-	if getenv(TestProviderEnv) == "fake" {
-		fake := providertest.NewScripted()
-		judge := providertest.NewScriptedJudge()
-		return func(string, string) (provider.Provider, error) { return fake, nil },
-			func(string) (provider.Judge, error) { return judge, nil }, true
-	}
-	return Real, RealJudge, false
 }

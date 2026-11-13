@@ -35,8 +35,7 @@ type shareRig struct {
 func newShareRig(t *testing.T) *shareRig {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

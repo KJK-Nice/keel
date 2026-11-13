@@ -481,31 +481,6 @@ func TestScriptedFakeSpeaksTheProposalFormat(t *testing.T) {
 	}
 }
 
-func TestFromEnvOnlyFakeSwitches(t *testing.T) {
-	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
-		if _, _, test := FromEnv(func(string) string { return v }); test {
-			t.Errorf("KEEL_AGENT_PROVIDER=%q selected the fake", v)
-		}
-	}
-	fac, judge, test := FromEnv(func(k string) string {
-		if k == TestProviderEnv {
-			return "fake"
-		}
-		return ""
-	})
-	if !test {
-		t.Fatal("fake not selected")
-	}
-	p, err := fac("gemini", "any")
-	if err != nil || p.ID() != "fake" {
-		t.Fatalf("fake factory = %v, %v", p, err)
-	}
-	j, err := judge("any")
-	if err != nil || j.ID() != "fake-judge" {
-		t.Fatalf("fake judge = %v, %v", j, err)
-	}
-}
-
 func TestHistoryIsBoundedAndReset(t *testing.T) {
 	f := newFixture(t, "answer")
 	for i := 0; i < maxHistoryMessages; i++ {

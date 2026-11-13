@@ -70,10 +70,6 @@ func TestStopServeIgnoresStalePid(t *testing.T) {
 }
 
 func TestStopServeRefusesMismatchedPid(t *testing.T) {
-	prev := stopWait
-	stopWait = 80 * time.Millisecond
-	t.Cleanup(func() { stopWait = prev })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/health":
@@ -94,7 +90,7 @@ func TestStopServeRefusesMismatchedPid(t *testing.T) {
 	pid := bystander(t)
 	writePidFile(t, dir, pid)
 
-	err = StopServe(u.Host, dir)
+	err = stopServe(u.Host, dir, 80*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "not signalling") {
 		t.Fatalf("err = %v", err)
 	}

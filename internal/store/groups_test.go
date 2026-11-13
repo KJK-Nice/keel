@@ -34,7 +34,7 @@ func TestGroupNestPersistAndReload(t *testing.T) {
 		t.Fatalf("host group view = %+v", host)
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

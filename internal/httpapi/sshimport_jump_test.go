@@ -16,7 +16,6 @@ import (
 func jumpImportFixture(t *testing.T, cfg string) importFixture {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("USER", "tester")
 	root := t.TempDir()
@@ -27,7 +26,7 @@ func jumpImportFixture(t *testing.T, cfg string) importFixture {
 	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	st, err := store.New(filepath.Join(root, "data", "keel.json"))
+	st, err := store.New(filepath.Join(root, "data", "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

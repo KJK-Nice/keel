@@ -61,7 +61,7 @@ func TestRunbooksSavedEncryptedAndReloaded(t *testing.T) {
 	if _, err := st.AddAgentNote(AgentNote{Text: "second note"}); err != nil {
 		t.Fatal(err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestRunbooksNeedTheVault(t *testing.T) {
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	t.Setenv("KEEL_KEYRING", "off")
-	locked, err := New(st.path)
+	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestDeleteAllNotesKeepsRunbooks(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("delete all notes %d %v", n, err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

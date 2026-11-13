@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/creack/pty"
+
+	"keel/internal/store"
 )
 
 type localBridge struct {
@@ -46,16 +48,14 @@ func openLocal(cols, rows int) (Bridge, error) {
 	return b, nil
 }
 
-// secretEnv lists variables the daemon reads that must not reach programs
-// running in a local shell: anything there can read its own environment.
-var secretEnv = []string{"KEEL_VAULT_PASSPHRASE"}
-
-// shellEnv returns environ without the daemon's secret variables.
+// shellEnv returns environ without the daemon's secret variables
+// (store.SecretEnv): a program in a local shell can read its own
+// environment.
 func shellEnv(environ []string) []string {
 	out := make([]string, 0, len(environ))
 next:
 	for _, kv := range environ {
-		for _, name := range secretEnv {
+		for _, name := range store.SecretEnv {
 			if strings.HasPrefix(kv, name+"=") {
 				continue next
 			}

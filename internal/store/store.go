@@ -365,8 +365,13 @@ type Store struct {
 	needSetup bool
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
-	fromEnv   bool
-	recipient age.Recipient
+	fromEnv bool
+	// keyringOff is KEEL_KEYRING=off, or TestVault: the OS keychain is never
+	// asked. scryptWork is 0 (age's own work factor) outside tests. Both are
+	// set once, in New.
+	keyringOff bool
+	scryptWork int
+	recipient  age.Recipient
 	// vaultSum and vaultRecipient describe what keel.vault last held, so a
 	// save that changes no secret skips re-encrypting it. In passphrase mode
 	// that encryption is a full scrypt run under s.mu, which stalled every
@@ -429,11 +434,15 @@ func (s *Store) changed() {
 	}
 }
 
-func New(path string) (*Store, error) {
+func New(path string, opts ...Option) (*Store, error) {
 	s := &Store{
-		path:      path,
-		vaultPath: filepath.Join(filepath.Dir(path), "keel.vault"),
-		secrets:   map[string]hostSecret{},
+		path:       path,
+		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
+		secrets:    map[string]hostSecret{},
+		keyringOff: os.Getenv(envKeyring) == "off",
+	}
+	for _, o := range opts {
+		o(s)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
@@ -589,7 +598,7 @@ func (s *Store) bootstrap() error {
 		s.fromEnv = true
 		return nil
 	}
-	if ident, err := keyringIdentity(); err == nil {
+	if ident, err := s.keyringIdentity(); err == nil {
 		blob, rerr := os.ReadFile(s.vaultPath)
 		if rerr != nil && !os.IsNotExist(rerr) {
 			return rerr
@@ -612,7 +621,7 @@ func (s *Store) bootstrap() error {
 		s.locked.Store(false)
 		return nil
 	}
-	blob, err := os.ReadFile(s.vaultPath)
+	_, err := os.ReadFile(s.vaultPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -621,7 +630,7 @@ func (s *Store) bootstrap() error {
 		if gerr != nil {
 			return gerr
 		}
-		if serr := saveKeyringIdentity(ident); serr == nil {
+		if serr := s.saveKeyringIdentity(ident); serr == nil {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
 			s.data.Version = 3
@@ -632,7 +641,6 @@ func (s *Store) bootstrap() error {
 		s.needSetup = true
 		return nil
 	}
-	_ = blob
 	s.locked.Store(true)
 	s.needSetup = false
 	return nil
@@ -687,7 +695,7 @@ func (s *Store) Setup(passphrase string) error {
 }
 
 func (s *Store) setupLocked(passphrase string) error {
-	rec, err := scryptRecipient(passphrase)
+	rec, err := s.scryptRecipient(passphrase)
 	if err != nil {
 		return err
 	}
@@ -712,7 +720,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		if !create && !s.needSetup {
 			return fmt.Errorf("vault file missing")
 		}
-		rec, err := scryptRecipient(passphrase)
+		rec, err := s.scryptRecipient(passphrase)
 		if err != nil {
 			return err
 		}
@@ -731,7 +739,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		s.locked.Store(true)
 		return ErrPassphrase
 	}
-	rec, err := scryptRecipient(passphrase)
+	rec, err := s.scryptRecipient(passphrase)
 	if err != nil {
 		return err
 	}

@@ -21,7 +21,7 @@ func TestSignalURLSurvivesARestartAndALock(t *testing.T) {
 
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	t.Setenv("KEEL_KEYRING", "off")
-	locked, err := New(st.path)
+	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
