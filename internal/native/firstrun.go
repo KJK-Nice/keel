@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -130,18 +131,11 @@ func (w *workspace) openImport() {
 	}
 	f := &firstRun{flow: flowImport}
 	w.first = f
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		v, err := w.be.Vault(c)
-		w.post(func() {
-			if w.first == f && err == nil {
-				f.vault = v
-			}
-			if w.first == f {
-				w.showHostsStep(f)
-			}
-		})
+	callIf(w, func() bool { return w.first == f }, w.be.Vault, func(v keelclient.Vault, err error) {
+		if err == nil {
+			f.vault = v
+		}
+		w.showHostsStep(f)
 	})
 }
 
@@ -166,32 +160,26 @@ func (w *workspace) submitVault() {
 	}
 	pass := f.pass
 	f.pass, f.pass2, f.passErr, f.busy = "", "", "", true // the passphrase is only in this request from here on
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.SetupVault(c, pass)
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (v keelclient.Vault, err error) {
+		err = w.be.SetupVault(c, pass)
 		pass = ""
-		var v keelclient.Vault
 		if err == nil {
 			v, err = w.be.Vault(c) // gate.update: the first run goes on only while it is open
 		}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				f.passErr, f.want = vaultError(err), "pass"
-				return
-			}
-			f.created, f.vault = true, v
-			if v.FirstRun {
-				w.showHostsStep(f)
-				return
-			}
-			w.closeFirstRun() // nothing to set up: the webview's gate hides itself
-			w.start()
-		})
+		return v, err
+	}, func(v keelclient.Vault, err error) {
+		f.busy = false
+		if err != nil {
+			f.passErr, f.want = vaultError(err), "pass"
+			return
+		}
+		f.created, f.vault = true, v
+		if v.FirstRun {
+			w.showHostsStep(f)
+			return
+		}
+		w.closeFirstRun() // nothing to set up: the webview's gate hides itself
+		w.start()
 	})
 }
 
@@ -261,20 +249,12 @@ func (w *workspace) showHostsStep(f *firstRun) {
 	f.gen++
 	gen := f.gen
 	f.lead = "Reading " + f.sshConfig() + "…"
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.SSHConfigPreview(c)
-		w.post(func() {
-			if w.first != f || f.gen != gen || f.step != stepHosts {
-				return
-			}
-			if err != nil {
-				f.lead = "Keel could not read " + f.sshConfig() + ": " + vaultError(err)
-				return
-			}
-			f.preview, f.sel, f.lead = &p, defaultSelection(p), leadText(p)
-		})
+	callIf(w, func() bool { return w.first == f && f.gen == gen && f.step == stepHosts }, w.be.SSHConfigPreview, func(p keelclient.SSHPreview, err error) {
+		if err != nil {
+			f.lead = "Keel could not read " + f.sshConfig() + ": " + vaultError(err)
+			return
+		}
+		f.preview, f.sel, f.lead = &p, defaultSelection(p), leadText(p)
 	})
 }
 
@@ -366,26 +346,21 @@ func (w *workspace) runImport() {
 	}
 	f.busy, f.notice, f.keyErrs = true, "", nil
 	sel.clearSecrets() // the passphrases are in req now, and req only goes in this request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (keelclient.ImportResult, error) {
 		res, err := w.be.SSHConfigImport(c, req)
 		req = keelclient.ImportRequest{}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				w.importRefused(f, p, err)
-				return
-			}
-			f.notice, f.noticeBad = importedText(res), len(res.Failed) > 0
-			w.afterHosts(f)
-			if w.live {
-				w.reloadHosts()
-			}
-		})
+		return res, err
+	}, func(res keelclient.ImportResult, err error) {
+		f.busy = false
+		if err != nil {
+			w.importRefused(f, p, err)
+			return
+		}
+		f.notice, f.noticeBad = importedText(res), len(res.Failed) > 0
+		w.afterHosts(f)
+		if w.live {
+			w.reloadHosts()
+		}
 	})
 }
 
@@ -441,20 +416,15 @@ func (w *workspace) showAgentStep(f *firstRun) {
 	}
 	f.agentProvGen++
 	gen := f.agentProvGen
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		list, err := w.be.AgentProviders(c)
-		w.post(func() {
-			if w.first != f || f.agentProvGen != gen || err != nil {
-				return
+	callIf(w, func() bool { return w.first == f && f.agentProvGen == gen }, w.be.AgentProviders, func(list []keelclient.AgentProvider, err error) {
+		if err != nil {
+			return
+		}
+		for i := range list {
+			if list[i].ID == "gemini" {
+				f.agentProv = &list[i]
 			}
-			for i := range list {
-				if list[i].ID == "gemini" {
-					f.agentProv = &list[i]
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -489,10 +459,7 @@ func (w *workspace) openKeel(f *firstRun) {
 	}
 	gemini := f.agentGemini
 	f.busy, f.agentErr = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var err error
+	callErrIf(w, func() bool { return w.first == f }, func(c context.Context) (err error) {
 		if gemini {
 			err = w.be.SetAgentKey(c, in)
 			in = keelclient.AgentKeyInput{}
@@ -500,18 +467,15 @@ func (w *workspace) openKeel(f *firstRun) {
 		if err == nil {
 			_, err = w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{Suggestions: &on})
 		}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				f.agentErr = keyError(err)
-				return
-			}
-			w.refreshSuggestSettings() // the switch just saved (suggestions on or off)
-			w.finishFirstRun(f)
-		})
+		return err
+	}, func(err error) {
+		f.busy = false
+		if err != nil {
+			f.agentErr = keyError(err)
+			return
+		}
+		w.refreshSuggestSettings() // the switch just saved (suggestions on or off)
+		w.finishFirstRun(f)
 	})
 }
 
@@ -521,19 +485,11 @@ func (w *workspace) finishFirstRun(f *firstRun) {
 		return
 	}
 	f.busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.FirstRunDone(c)
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			w.closeFirstRun()
-			if err != nil { // the webview hides the screen anyway
-				w.fail("finish first run", err)
-			}
-			w.start()
-		})
+	callErrIf(w, func() bool { return w.first == f }, w.be.FirstRunDone, func(err error) {
+		w.closeFirstRun()
+		if err != nil { // the webview hides the screen anyway
+			w.fail("finish first run", err)
+		}
+		w.start()
 	})
 }
