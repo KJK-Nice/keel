@@ -15,7 +15,7 @@ type Runtime struct {
 	DataDir      string `json:"dataDir"`
 	Sessions     int    `json:"sessions"`
 	UptimeSec    int64  `json:"uptimeSec"`
-	CanStop      *bool  `json:"canStop"` // nil reads as true (settingspages.js: canStop === false disables Stop)
+	CanStop      bool   `json:"canStop"`
 	SignalURL    string `json:"signalURL"`
 	SignalSource string `json:"signalSource"`
 	SignalSaved  string `json:"signalSaved"`

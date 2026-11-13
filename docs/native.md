@@ -1,6 +1,6 @@
 # keel-native
 
-`keel-native` is the Keel window: a native window drawn with [MyGo](https://github.com/egoist/mygo) and libghostty terminals. It is the window `keel app` opens, in the same process as `keel` (`internal/app/run_native.go` calls `native.RunWith`; MyGo is purego, so Keel needs no cgo). It is the only UI: the earlier Wails webview, and with it templ, Tailwind and the web page the daemon used to serve, were removed in cutover stage 2 (a leftover `--webview` argument or `KEEL_UI=webview` prints one line saying so and the native window opens). This file is the UI document; `docs/ui-redesign.md` holds the screens and design intent it follows, and its section numbers are cited throughout the code.
+`keel-native` is the Keel window: a native window drawn with [MyGo](https://github.com/egoist/mygo) and libghostty terminals. It is the window `keel app` opens, in the same process as `keel` (`internal/app/run_native.go` calls `native.RunWith`; MyGo is purego, so Keel needs no cgo). It is the only UI: the earlier Wails webview, and with it templ, Tailwind and the web page the daemon used to serve, were removed in cutover stage 2. This file is the UI document; `docs/ui-redesign.md` holds the screens and design intent it follows, and its section numbers are cited throughout the code.
 
 It is a client only. `keel serve` still owns SSH and the PTYs, and the window never reads the keychain or the vault: it sees what `keel serve` returns on loopback, with the token from the data directory (`X-Keel-Token`, never a cookie or an `Origin`).
 

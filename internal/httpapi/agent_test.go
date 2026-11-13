@@ -254,7 +254,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 		t.Fatal("expected a locked vault")
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	defer srv.Close()
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/agent/keys/gemini", strings.NewReader(`{"key":"abc"}`))
 	resp, err := http.DefaultClient.Do(req)

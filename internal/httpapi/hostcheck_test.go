@@ -31,7 +31,7 @@ func hostCheckServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
 	logPath := filepath.Join(dir, "keel.log")
-	srv := httptest.NewServer(New(st, rt, nil).WithLogs(applog.New(logPath)).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithLogs(applog.New(logPath)).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, st, logPath
 }

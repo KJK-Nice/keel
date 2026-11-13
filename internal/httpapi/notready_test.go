@@ -32,7 +32,7 @@ func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeB
 		<-gate
 		return fb, nil
 	})
-	srv = httptest.NewServer(New(st, rt, nil).Handler())
+	srv = httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(func() {
 		release()
 		srv.Close()

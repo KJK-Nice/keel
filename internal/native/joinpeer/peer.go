@@ -157,8 +157,6 @@ func (p *Peer) run(key string) {
 			return
 		}
 		switch m.Type {
-		case "error":
-			p.notice(keelclient.EventNoticeError, orElse(m.Name, "signaling error"))
 		case "leave":
 			_ = p.pc.Close()
 			p.notice(keelclient.EventNotice, msgHostLeft)
@@ -267,13 +265,6 @@ func (p *Peer) fail(msg string, toast bool) {
 	}
 	_ = p.pc.Close()
 	_ = p.ws.Close()
-}
-
-func orElse(s, d string) string {
-	if s != "" {
-		return s
-	}
-	return d
 }
 
 // ---- the connection of a pane ----

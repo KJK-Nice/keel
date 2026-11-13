@@ -18,8 +18,7 @@ import (
 
 func settingsBackend() *fakeBackend {
 	fb := okBackend()
-	yes := true
-	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: &yes}
+	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
 	fb.vault = keelclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
 	return fb
 }
@@ -425,8 +424,7 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	r.tt.Frame()
 	r.texts(t, "stop runtime: nope")
 	// A runtime that cannot be stopped says no.
-	no := false
-	fb.runtime.CanStop = &no
+	fb.runtime.CanStop = false
 	r.w.loadSettings()
 	r.tt.Frame()
 	if err := r.tt.Click("Stop runtime…"); err == nil && r.w.confirm != nil {

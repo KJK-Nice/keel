@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +43,7 @@ type Server struct {
 	started time.Time
 	addr    string
 	dataDir string
-	// authToken, when set, is required on privileged routes (auth.go).
+	// authToken is required on privileged routes (auth.go).
 	authToken string
 	build     string
 	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
@@ -112,7 +110,12 @@ func (s *Server) WithStop(fn func()) *Server {
 	return s
 }
 
+// Handler is the API. It panics when no token was set (WithAuth): keel
+// serve never runs open.
 func (s *Server) Handler() http.Handler {
+	if s.authToken == "" {
+		panic("httpapi: Handler needs WithAuth: there is no server without a token")
+	}
 	s.initAgent()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
@@ -293,11 +296,9 @@ func requestHostPort(r *http.Request) string {
 
 func withLocalOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
-			if !allowLocalOrigin(r) {
-				writeError(w, http.StatusForbidden, "origin not allowed")
-				return
-			}
+		if apiPath(r.URL.Path) && !allowLocalOrigin(r) {
+			writeError(w, http.StatusForbidden, "origin not allowed")
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -309,11 +310,7 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if s.store.Locked() {
+		if apiPath(r.URL.Path) && s.store.Locked() {
 			writeError(w, http.StatusLocked, "vault locked")
 			return
 		}
@@ -322,20 +319,9 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	out := map[string]any{
-		"status":     "ok",
-		"role":       "runtime",
-		"sessions":   s.rt.Count(),
-		"pid":        os.Getpid(),
-		"locked":     s.store.Locked(),
-		"needsSetup": s.store.NeedsSetup(),
-		"signal":     s.share != nil && s.share.Enabled(),
-	}
+	out := map[string]any{"pid": os.Getpid()}
 	if s.build != "" {
 		out["build"] = s.build
-	}
-	if s.share != nil && s.share.Enabled() {
-		out["signalURL"] = s.share.URL()
 	}
 	if proof, ok := s.healthProof(r); ok {
 		out["proof"] = proof
@@ -480,8 +466,6 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	// WKWebView clipboard dies after await fetch (user gesture gone).
-	pasteboardWrite(join)
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
 }
 
@@ -521,26 +505,6 @@ func (s *Server) stopShare(w http.ResponseWriter, r *http.Request) {
 		s.share.Stop(r.PathValue("id"))
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func pasteboardWrite(s string) {
-	var cmd *exec.Cmd
-	switch goruntime.GOOS {
-	case "darwin":
-		cmd = exec.Command("pbcopy")
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "clip")
-	default:
-		if _, err := exec.LookPath("wl-copy"); err == nil {
-			cmd = exec.Command("wl-copy")
-		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		}
-	}
-	cmd.Stdin = strings.NewReader(s)
-	if err := cmd.Run(); err != nil {
-		log.Printf("clipboard: %v", err)
-	}
 }
 
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
@@ -1008,9 +972,6 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	s.sockets.Add(1)
 	defer s.sockets.Done()
 	id := r.URL.Query().Get("id")
-	if id == "" {
-		id = r.URL.Query().Get("sessionId")
-	}
 	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
 	name := r.URL.Query().Get("name")
 	kind := r.URL.Query().Get("kind")

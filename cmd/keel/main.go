@@ -33,9 +33,6 @@ func main() {
 
 	switch cmd {
 	case "app":
-		if os.Getenv("KEEL_UI") == "webview" || hasArg(args, "--webview") {
-			fmt.Fprintln(os.Stderr, "the webview was removed; Keel opens its native window")
-		}
 		// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
 		os.Setenv("KEEL_NAME", parseName(args))
 		if err := app.RunNative(addr, dataDir); err != nil {
@@ -64,15 +61,6 @@ func main() {
 	default:
 		log.Fatalf("unknown command %q (try keel, keel app, keel serve, or keel mcp)", cmd)
 	}
-}
-
-func hasArg(args []string, want string) bool {
-	for _, a := range args {
-		if a == want {
-			return true
-		}
-	}
-	return false
 }
 
 func parseName(args []string) string {

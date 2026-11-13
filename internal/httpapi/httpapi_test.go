@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/applog"
+	"keel/internal/authtoken"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/store"
@@ -61,9 +62,22 @@ func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store,
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, rt, st, fb
+}
+
+// openHandler is the server's handler for tests that are not about the
+// token: the server holds testToken, and a request that carries no token is
+// given it, as the window gives it to every request.
+func (s *Server) openHandler() http.Handler {
+	h := s.WithAuth(testToken).Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) == "" {
+			r.Header.Set(authtoken.Header, testToken)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func firstHost(t *testing.T, st *store.Store) store.Host {
@@ -220,7 +234,7 @@ func TestRuntimeStop(t *testing.T) {
 	}
 	rt := runtime.New(st, nil)
 	stopped := make(chan struct{}, 1)
-	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Post(srv.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -236,7 +250,7 @@ func TestRuntimeStop(t *testing.T) {
 		t.Fatal("onStop was not called")
 	}
 
-	bare := httptest.NewServer(New(st, rt, nil).Handler())
+	bare := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(bare.Close)
 	res2, err := http.Post(bare.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -262,7 +276,7 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 		t.Skip("OS keychain auto-unlocked the vault")
 	}
 	rt := runtime.New(st, nil)
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/hosts")
 	if err != nil {
@@ -678,7 +692,7 @@ func TestSessionReconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -832,7 +846,7 @@ func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -973,7 +987,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return newFakeBridge(), nil
 	})
-	srv2 := httptest.NewServer(New(st, rt, nil).WithTunnels(tnRT).WithLogs(logs).Handler())
+	srv2 := httptest.NewServer(New(st, rt, nil).WithTunnels(tnRT).WithLogs(logs).openHandler())
 	t.Cleanup(srv2.Close)
 
 	body := `{"name":"deploy","kind":"password","username":"ubuntu","password":"pw"}`
@@ -1291,7 +1305,7 @@ func TestManualServe(t *testing.T) {
 	rt := runtime.New(st, nil)
 	logs := applog.New(dir + "/keel.log")
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
-	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).Handler()
+	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).openHandler()
 	addr := "127.0.0.1:47241"
 	if v := os.Getenv("KEEL_SERVE_ADDR"); v != "" {
 		addr = v
@@ -1467,7 +1481,7 @@ func TestRuntimeInfo(t *testing.T) {
 	}
 	rt := runtime.New(st, nil)
 	api := New(st, rt, nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
-	srv := httptest.NewServer(api.Handler())
+	srv := httptest.NewServer(api.openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/runtime")
 	if err != nil {

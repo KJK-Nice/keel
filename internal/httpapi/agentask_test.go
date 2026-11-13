@@ -95,7 +95,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		return f.fake, nil
 	}
 	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
-	f.srv = httptest.NewServer(server.Handler())
+	f.srv = httptest.NewServer(server.openHandler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {
 		f.srv.Close()

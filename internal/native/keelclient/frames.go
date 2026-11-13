@@ -10,9 +10,6 @@ func NewFrameConn() *Conn { return &Conn{} }
 // ApplyFrame applies one text frame (ready, status, presence, control or error) as Read would.
 func (c *Conn) ApplyFrame(data []byte) { c.control(data) }
 
-// Following reports whether this client was told it does not drive: its keystrokes go nowhere.
-func (c *Conn) Following() bool { return c.following() }
-
 // NoteBlocked counts a keystroke that was dropped because the client is following (State.Blocked).
 func (c *Conn) NoteBlocked() { c.block() }
 

@@ -10,9 +10,9 @@ import (
 	"keel/internal/store"
 )
 
-// WithAuth requires token, in the X-Keel-Token header, on the privileged
-// routes (/api/ and /ws/, except /api/health). An empty token leaves them
-// open, as in tests.
+// WithAuth sets the token required, in the X-Keel-Token header, on the
+// privileged routes (/api/ and /ws/, except /api/health). There is no open
+// server: Handler refuses to build one without a token.
 func (s *Server) WithAuth(token string) *Server {
 	s.authToken = token
 	return s
@@ -36,12 +36,15 @@ func withLoopbackHost(next http.Handler) http.Handler {
 	})
 }
 
-func needsAuth(r *http.Request) bool {
-	p := r.URL.Path
-	if p == "/api/health" {
-		return false
-	}
+// apiPath reports whether p is under the API (/api/ or /ws/). Any other
+// path has no route and answers 404, with or without a token, an Origin or
+// an unlocked vault: the daemon serves nothing else.
+func apiPath(p string) bool {
 	return strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/ws/")
+}
+
+func needsAuth(r *http.Request) bool {
+	return apiPath(r.URL.Path) && r.URL.Path != "/api/health"
 }
 
 // WithMCPAuth sets keel mcp's token (authtoken.LoadOrCreateMCP). /api/mcp/
@@ -87,7 +90,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if s.authToken == "" || !needsAuth(r) {
+		if !needsAuth(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -142,7 +145,7 @@ func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
 // client can check the server holds the token before trusting it with it.
 func (s *Server) healthProof(r *http.Request) (string, bool) {
 	nonce := r.URL.Query().Get("nonce")
-	if s.authToken == "" || nonce == "" || len(nonce) > 128 {
+	if nonce == "" || len(nonce) > 128 {
 		return "", false
 	}
 	return authtoken.Proof(s.authToken, nonce), true

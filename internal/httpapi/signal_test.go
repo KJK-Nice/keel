@@ -23,7 +23,7 @@ func signalServer(t *testing.T) (*httptest.Server, *store.Store, *share.Hub) {
 	}
 	rt := runtime.New(st, nil)
 	hub := share.FromEnv(rt)
-	srv := httptest.NewServer(New(st, rt, hub).Handler())
+	srv := httptest.NewServer(New(st, rt, hub).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, st, hub
 }

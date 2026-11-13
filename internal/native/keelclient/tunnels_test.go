@@ -69,7 +69,7 @@ func TestRuntimeCallsAndTheAcceptedStop(t *testing.T) {
 	ctx := context.Background()
 	r.reply = `{"build":"9d62912abcde-0123","pid":42,"addr":"127.0.0.1:1","dataDir":"/d","sessions":2,"uptimeSec":125,"canStop":true,"signalURL":"https://s","signalSource":"settings","signalSaved":"https://s"}`
 	rt, err := r.c.Runtime(ctx)
-	if err != nil || rt.Build != "9d62912abcde-0123" || rt.Sessions != 2 || rt.UptimeSec != 125 || rt.CanStop == nil || !*rt.CanStop || rt.SignalSaved != "https://s" {
+	if err != nil || rt.Build != "9d62912abcde-0123" || rt.Sessions != 2 || rt.UptimeSec != 125 || !rt.CanStop || rt.SignalSaved != "https://s" {
 		t.Fatalf("runtime %+v %v", rt, err)
 	}
 	if got, _ := r.last(); got != "GET /api/runtime" {

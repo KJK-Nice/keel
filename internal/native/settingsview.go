@@ -426,7 +426,7 @@ func (w *workspace) runtimeSection(p *settingsPage) settingsSection {
 	}}
 	window := prefGroup{title: "Window", rows: []prefRow{{title: "Sessions keep running after the window closes",
 		desc: "Closing the window detaches; reopen Keel to attach. Closing a session tab ends that session.", ctl: alwaysOn}}}
-	canStop := rt.CanStop == nil || *rt.CanStop
+	canStop := p.rt == nil || rt.CanStop // enabled until keel serve says it cannot stop
 	stop := prefGroup{title: "Stop", rows: []prefRow{{title: "Stop the Keel runtime",
 		desc: "Ends every running session and port forward, then closes keel serve. Reopen Keel to start it again.",
 		ctl: func(c *ui.Context) {

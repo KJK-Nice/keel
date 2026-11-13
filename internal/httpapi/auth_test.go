@@ -34,6 +34,16 @@ func authServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
+// There is no open server: without a token Handler does not build one.
+func TestHandlerRefusesToBuildWithoutAToken(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("Handler built a server with no token: /api would be open")
+		}
+	}()
+	New(nil, nil, nil).Handler()
+}
+
 // noRedirect keeps the client from following a redirect, so a test can see that there is none.
 func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
@@ -228,7 +238,7 @@ func TestHealthReportsBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
-	srv := httptest.NewServer(New(st, rt, nil).WithBuild("abc123-def456").Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithBuild("abc123-def456").openHandler())
 	t.Cleanup(srv.Close)
 	var body struct {
 		Build string `json:"build"`
