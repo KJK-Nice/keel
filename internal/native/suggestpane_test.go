@@ -1,6 +1,7 @@
 package native
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -63,6 +64,10 @@ func (r *sugRig) noticed(t *testing.T) {
 		t.Fatalf("state %q, want a notice", r.state())
 	}
 }
+
+// The keys and their labels of this platform, as the product writes them (keyLabels, undoKey, the suggest key): the tests never
+// assume macOS's (issue #140: ⌘Z and ⌘Y are Ctrl+Shift+Z and Ctrl+Shift+Y elsewhere, ⇥ is "Tab").
+func platLabels() keyLabelSet { return keyLabels(runtime.GOOS == "darwin") }
 
 func card(options ...keelclient.SuggestOption) *keelclient.Suggestion {
 	return &keelclient.Suggestion{ID: "s_1", Options: options}
@@ -132,14 +137,14 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 	r.tt.Advance(sugReadEvery + time.Millisecond)
 	r.tt.Frame()
 	r.texts(t, "Inserted, not run", "back to your words")
-	if !r.key(ui.Cmd, ui.KeyZ) {
-		t.Fatal("⌘Z not taken right after an insert")
+	if !r.key(agentMods(), ui.KeyZ) {
+		t.Fatal("the undo key (⌘Z, Ctrl+Shift+Z) not taken right after an insert")
 	}
 	if got := r.c.restored; len(got) != 1 || got[0] != "# show the files here" {
 		t.Fatalf("restored %v", got)
 	}
-	if r.key(ui.Cmd, ui.KeyZ) {
-		t.Error("a second ⌘Z is taken")
+	if r.key(agentMods(), ui.KeyZ) {
+		t.Error("a second undo key is taken")
 	}
 	if r.c.wrote != 0 {
 		t.Error("the window wrote keystrokes itself")
@@ -149,13 +154,14 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPressed(t *testing.T) {
 	r := newSugRig(t)
 	r.carded(t, card(keelclient.SuggestOption{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true, Source: "generated"}))
-	r.texts(t, "Deletes files", "insert anyway", "Plain ⇥ never inserts a destructive command")
+	k := platLabels()
+	r.texts(t, "Deletes files", "insert anyway", "Plain "+k.Tab+" never inserts a destructive command")
 	if !r.has("suggestion card destructive") {
 		t.Error("no destructive card")
 	}
 	r.key(0, ui.KeyTab)
 	r.tt.Frame()
-	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press ⇧⇥ to insert this command.") {
+	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k, runtime.GOOS == "darwin")+" to insert this command.") {
 		t.Fatalf("plain ⇥ on a destructive command: inserts %v texts %v", r.c.sugInserts, r.tt.Texts())
 	}
 	r.key(ui.Shift, ui.KeyTab)
@@ -205,10 +211,10 @@ func TestNothingIsAskedOrTakenWhereAGuardApplies(t *testing.T) {
 		if len(r.c.detects) != 0 || len(r.c.asks) != 0 {
 			t.Errorf("%s: asked keel serve: %v %v", name, r.c.detects, r.c.asks)
 		}
-		if r.key(0, ui.KeyTab) || r.key(ui.Cmd, ui.KeyZ) {
+		if r.key(0, ui.KeyTab) || r.key(agentMods(), ui.KeyZ) {
 			t.Errorf("%s: a key was taken", name)
 		}
-		r.press(ui.Cmd, ui.KeyY) // the suggest key asks nothing where a guard applies either
+		r.press(agentMods(), ui.KeyY) // the suggest key asks nothing where a guard applies either
 		if len(r.c.asks) != 0 || r.state() != sugIdle {
 			t.Errorf("%s: the suggest key asked: %v", name, r.c.asks)
 		}
@@ -225,7 +231,7 @@ func TestTheSuggestKeyAsksForAPlainLineThatWasNeverSent(t *testing.T) {
 	if len(r.c.detects) != 0 || len(r.c.asks) != 0 {
 		t.Fatalf("a typed line was sent: %v %v", r.c.detects, r.c.asks)
 	}
-	r.press(ui.Cmd, ui.KeyY)
+	r.press(agentMods(), ui.KeyY)
 	if got := r.c.asks; len(got) != 1 || got[0].line != "show the files here" || len(r.c.detects) != 0 {
 		t.Fatalf("asks %v detects %v", got, r.c.detects)
 	}
@@ -248,7 +254,7 @@ func TestAutoNoticeNamesTheKeyAndLeavesTab(t *testing.T) {
 	r.w.noteSuggestSettings(autoSettings())
 	r.line = "sh-3.2$ show the files here"
 	r.noticed(t)
-	r.texts(t, "Looks like a request", "⌘", "Y", "suggest a command")
+	r.texts(t, append(append([]string{"Looks like a request"}, platLabels().Suggest...), "suggest a command")...)
 	if r.key(0, ui.KeyTab) {
 		t.Fatal("⇥ taken on a line noticed on its own")
 	}
@@ -282,7 +288,7 @@ func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	if len(r.c.detects) != n || len(r.c.asks) != 0 {
 		t.Fatalf("sent with suggestions off: %v %v", r.c.detects, r.c.asks)
 	}
-	r.press(ui.Cmd, ui.KeyY)
+	r.press(agentMods(), ui.KeyY)
 	r.texts(t, "Suggestions in panes are off. Turn them on in Settings · Agent.")
 	if len(r.c.asks) != 0 {
 		t.Fatal("asked while off")

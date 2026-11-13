@@ -194,6 +194,15 @@ func keyLabels(mac bool) keyLabelSet {
 	return keyLabelSet{"Tab", "Shift", "Esc", "Enter", "↑", "↓", []string{"Ctrl", "Shift", "Z"}, []string{"Ctrl", "Shift", "Y"}}
 }
 
+// shiftTab is ⇧⇥ written for the platform: the glyphs run together on macOS, the words are joined with + elsewhere ("Shift+Tab",
+// not "ShiftTab": a defect a Linux user saw in v0.2.0).
+func shiftTab(k keyLabelSet, mac bool) string {
+	if mac {
+		return k.Shift + k.Tab
+	}
+	return k.Shift + "+" + k.Tab
+}
+
 // suggestKeyLabel is the suggest key as the Keyboard page and the settings write it.
 func suggestKeyLabel(mac bool) string {
 	if mac {
@@ -459,7 +468,7 @@ func (m *sugMachine) doInsert(shift bool) {
 	opt := st.Sug.Options[st.Selected]
 	if ok, _ := insertGate(&opt, shift); !ok {
 		k := keyLabels(m.d.mac)
-		st.Note = "Press " + k.Shift + k.Tab + " to insert this command."
+		st.Note = "Press " + shiftTab(k, m.d.mac) + " to insert this command."
 		m.set(st)
 		return
 	}

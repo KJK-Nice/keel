@@ -3,6 +3,7 @@ package native
 import (
 	"io"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -191,7 +192,15 @@ func TestGateTakesKeysOnlyWhileTheWindowSaysSo(t *testing.T) {
 		{"Up", func() { tt.Key(0, ui.KeyUp) }, 0, ui.KeyUp, "\x1b[A"},
 		{"Down", func() { tt.Key(0, ui.KeyDown) }, 0, ui.KeyDown, "\x1b[B"},
 		{"1", func() { tt.TypeKey(0, ui.Key1, "1") }, 0, ui.Key1, "1"},
-		{"Cmd+Z", func() { tt.Key(ui.Cmd, ui.KeyZ) }, ui.Cmd, ui.KeyZ, ""}, // a Command key never reaches the program on macOS
+	}
+	if runtime.GOOS == "darwin" { // a Command key never reaches the program on macOS; ui.Cmd is Ctrl elsewhere, and Ctrl+Z is the shell's (^Z)
+		keys = append(keys, struct {
+			name  string
+			press func()
+			mods  ui.Modifiers
+			key   ui.Key
+			sent  string
+		}{"Cmd+Z", func() { tt.Key(ui.Cmd, ui.KeyZ) }, ui.Cmd, ui.KeyZ, ""})
 	}
 	for _, k := range keys {
 		seen = nil
@@ -251,7 +260,13 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 				row, text, ok := cursorRow(snap, rows)
 				m := snapCursor.FindStringSubmatch(snap[strings.Index(snap, "\x1b[H"):])
 				if !ok || m == nil {
-					t.Fatalf("%s: the cursor is not placed in %q", what, snap)
+					// Issue #140 diagnostics: a line that exactly fills the columns leaves the cursor on the next row (pending wrap),
+					// where there is no text line to read. The cell width the plugin used decides the columns: log it, with the
+					// widths this process measures for the family (a cell of 13.8 px at size 13 is not JetBrains Mono's 7.8).
+					gg := gridFor(termStack(fontJetBrains), size, sc)
+					t.Fatalf("%s: the cursor is not placed in %q (scale %v, size %v, %d cols x %d rows, row %d ok %v, cell %.2f x %.2f, \"MMMMMMMMMM\" is %.2f wide in the stack, %.2f in monospace)",
+						what, snap, sc, size, cols, rows, row, ok, gg.cw, gg.ch,
+						probeWidth("MMMMMMMMMM", size, termStack(fontJetBrains)), probeWidth("MMMMMMMMMM", size, "monospace"))
 				}
 				col, _ := strconv.Atoi(m[2])
 				g := gridFor(termStack(fontJetBrains), size, sc)

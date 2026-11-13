@@ -240,8 +240,8 @@ func TestWhatKeelTypesGoesToOnePaneEvenWithSyncOn(t *testing.T) {
 	r.line = "sh-3.2$ find . -type f"
 	r.tt.Advance(sugReadEvery + time.Millisecond)
 	r.tt.Frame()
-	if !r.key(ui.Cmd, ui.KeyZ) {
-		t.Fatal("⌘Z not taken")
+	if !r.key(agentMods(), ui.KeyZ) {
+		t.Fatal("the undo key not taken")
 	}
 	if got := r.fb.conns[0].restored; len(got) != 1 {
 		t.Fatalf("restored %v", got)
