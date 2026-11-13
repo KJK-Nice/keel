@@ -110,7 +110,7 @@ var (
 	// change: kept, it would hold a literal placeholder such as [secret:1]
 	// (a shell glob) that could be typed.
 	ErrSecretInCommand = errors.New("agent: a step command holds a secret or a secret-looking value, and Keel does not keep secrets in runbooks; read it from an environment variable set outside the runbook, or ask for it with a prompt such as read -s DB_PASS")
-	runbookStatusValid = map[string]bool{"open": true, "saved": true, "dismissed": true}
+	runbookStatusValid = map[string]bool{CardOpen: true, CardSaved: true, CardDismissed: true}
 )
 
 // RunbookStepView is a step as the Runbooks page shows it, with Keel's own
@@ -1405,7 +1405,7 @@ func (s *Service) runbookProposal(raw *rawRunbook, excerpts []agent.Excerpt, r *
 		c, _ := store.CleanLine(r.Text(t).String(), max+64)
 		return truncate(c, max)
 	}
-	rp := &RunbookProposal{ID: newID("rp_"), Name: clean(in.Name, store.MaxRunbookNameBytes), When: clean(in.When, store.MaxRunbookWhenBytes), Status: "open", ProposedAt: &now}
+	rp := &RunbookProposal{ID: newID("rp_"), Name: clean(in.Name, store.MaxRunbookNameBytes), When: clean(in.When, store.MaxRunbookWhenBytes), Status: CardOpen, ProposedAt: &now}
 	for _, st := range in.Steps {
 		title := clean(st.Title, store.MaxRunbookTitleBytes)
 		if title == "" {
@@ -1459,7 +1459,7 @@ func runbookProposalFromRecord(r store.AgentChatRunbookProposal) RunbookProposal
 	at := r.ProposedAt
 	st := r.Status
 	if !runbookStatusValid[st] {
-		st = "open"
+		st = CardOpen
 	}
 	return RunbookProposal{ID: r.ID, Name: r.Name, When: r.When, Steps: r.Steps, FromPane: r.FromPane, SeenIn: r.SeenIn, PanesRead: r.PanesRead, Status: st, RunbookID: r.RunbookID, ProposedAt: &at, Expired: true}
 }
@@ -1484,59 +1484,35 @@ func (c *conversation) recordBookPropLocked(id string) *store.AgentChatRunbookPr
 	return nil
 }
 
-func (s *Service) claimBookProp(convID, id string, ok func(*RunbookProposal) bool) (RunbookProposal, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c := s.convs[convID]
-	var rp *RunbookProposal
-	if c != nil {
-		rp = c.bookPropLocked(id)
-	}
-	if rp == nil {
-		if c != nil && c.recordBookPropLocked(id) != nil {
-			return RunbookProposal{}, ErrRunbookExpired
-		}
-		return RunbookProposal{}, ErrNotFound
-	}
-	if rp.busy || !ok(rp) {
-		return RunbookProposal{}, ErrRunbookClosed
-	}
-	rp.busy = true
-	out := *rp
-	out.Steps = append([]store.RunbookStep(nil), rp.Steps...)
-	return out, nil
+var bookCards = cardKind[RunbookProposal, RunbookProposal]{
+	find:  (*conversation).bookPropLocked,
+	saved: func(c *conversation, id string) bool { return c.recordBookPropLocked(id) != nil },
+	busy:  func(rp *RunbookProposal) *bool { return &rp.busy },
+	view: func(rp *RunbookProposal) RunbookProposal {
+		out := *rp
+		out.Steps = append([]store.RunbookStep(nil), rp.Steps...)
+		return out
+	},
+	expired: ErrRunbookExpired,
+	closed:  ErrRunbookClosed,
 }
 
-func (s *Service) setBookPropStatus(convID, id, status, runbookID string) *RunbookProposal {
-	s.mu.Lock()
-	c := s.convs[convID]
-	if c == nil {
-		s.mu.Unlock()
-		return nil
-	}
-	rp := c.bookPropLocked(id)
-	if rp == nil {
-		s.mu.Unlock()
-		return nil
-	}
-	rp.Status, rp.RunbookID, rp.busy = status, runbookID, false
-	if rec := c.recordBookPropLocked(id); rec != nil {
-		rec.Status, rec.RunbookID = status, runbookID
-	}
-	out := *rp
-	s.mu.Unlock()
-	s.persist(c)
-	return &out
-}
+func bookPropOpen(rp *RunbookProposal) bool { return rp.Status == CardOpen }
 
-func (s *Service) releaseBookProp(convID, id string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if c := s.convs[convID]; c != nil {
-		if rp := c.bookPropLocked(id); rp != nil {
-			rp.busy = false
+// setBookPropStatus sets a claimed proposal's state and frees it;
+// ErrNotFound when the conversation or the proposal is gone.
+func (s *Service) setBookPropStatus(c *conversation, rp *RunbookProposal, status, runbookID string) (*RunbookProposal, error) {
+	id := rp.ID
+	out, ok := bookCards.finish(s, c, id, rp, func() {
+		rp.Status, rp.RunbookID = status, runbookID
+		if rec := c.recordBookPropLocked(id); rec != nil {
+			rec.Status, rec.RunbookID = status, runbookID
 		}
+	})
+	if !ok {
+		return nil, ErrNotFound
 	}
+	return &out, nil
 }
 
 // SaveRunbookProposal saves a runbook the agent proposed, after the user
@@ -1547,20 +1523,20 @@ func (s *Service) SaveRunbookProposal(convID, id string) (SavedRunbook, error) {
 	if s.books == nil {
 		return SavedRunbook{}, ErrNoRunbooks
 	}
-	snap, err := s.claimBookProp(convID, id, func(rp *RunbookProposal) bool { return rp.Status == "open" })
+	c, rp, snap, err := bookCards.claim(s, convID, id, bookPropOpen)
 	if err != nil {
 		return SavedRunbook{}, err
 	}
 	in := RunbookInput{Name: snap.Name, When: snap.When, Steps: snap.Steps, Source: store.RunbookSourceUser}
 	b, rep, err := s.cleanRunbookText(in)
 	if err != nil {
-		s.releaseBookProp(convID, id)
+		bookCards.release(s, rp)
 		return SavedRunbook{}, err
 	}
 	b.Source, b.FromPane, b.AgentMayPick = store.RunbookSourceAgent, snap.FromPane || len(snap.PanesRead) > 0, false
 	saved, err := s.books.AddRunbook(b)
 	if err != nil {
-		s.releaseBookProp(convID, id)
+		bookCards.release(s, rp)
 		return SavedRunbook{}, runbookErr(err)
 	}
 	what := "runbook proposed by the agent saved by you"
@@ -1568,18 +1544,19 @@ func (s *Service) SaveRunbookProposal(convID, id string) (SavedRunbook, error) {
 		what = "runbook proposed by the agent after reading panes saved by you"
 	}
 	s.audit.RunbookEvent(fmt.Sprintf("%s (%d steps)", what, len(saved.Steps)), saved.ID, "", rep)
-	out := s.setBookPropStatus(convID, id, "saved", saved.ID)
+	out, _ := s.setBookPropStatus(c, rp, CardSaved, saved.ID)
 	return SavedRunbook{Runbook: runbookView(saved), Redacted: rep.Total(), Proposal: out}, nil
 }
 
 // DismissRunbookProposal closes a proposal without saving anything.
 func (s *Service) DismissRunbookProposal(convID, id string) (RunbookProposal, error) {
-	if _, err := s.claimBookProp(convID, id, func(rp *RunbookProposal) bool { return rp.Status == "open" }); err != nil {
+	c, rp, _, err := bookCards.claim(s, convID, id, bookPropOpen)
+	if err != nil {
 		return RunbookProposal{}, err
 	}
-	out := s.setBookPropStatus(convID, id, "dismissed", "")
-	if out == nil {
-		return RunbookProposal{}, ErrNotFound
+	out, err := s.setBookPropStatus(c, rp, CardDismissed, "")
+	if err != nil {
+		return RunbookProposal{}, err
 	}
 	return *out, nil
 }
@@ -1587,23 +1564,23 @@ func (s *Service) DismissRunbookProposal(convID, id string) (RunbookProposal, er
 // UndoRunbookProposal opens a saved or dismissed proposal again; a saved
 // one's runbook is deleted (logged).
 func (s *Service) UndoRunbookProposal(convID, id string) (RunbookProposal, error) {
-	snap, err := s.claimBookProp(convID, id, func(rp *RunbookProposal) bool { return rp.Status == "saved" || rp.Status == "dismissed" })
+	c, rp, snap, err := bookCards.claim(s, convID, id, func(rp *RunbookProposal) bool { return rp.Status == CardSaved || rp.Status == CardDismissed })
 	if err != nil {
 		return RunbookProposal{}, err
 	}
-	if snap.Status == "saved" && snap.RunbookID != "" && s.books != nil {
+	if snap.Status == CardSaved && snap.RunbookID != "" && s.books != nil {
 		b, err := s.books.DeleteRunbook(snap.RunbookID)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			s.releaseBookProp(convID, id)
+			bookCards.release(s, rp)
 			return RunbookProposal{}, err
 		}
 		if err == nil {
 			s.audit.RunbookEvent("runbook proposed by the agent deleted by you (undo)", b.ID, "", redact.Report{})
 		}
 	}
-	out := s.setBookPropStatus(convID, id, "open", "")
-	if out == nil {
-		return RunbookProposal{}, ErrNotFound
+	out, err := s.setBookPropStatus(c, rp, CardOpen, "")
+	if err != nil {
+		return RunbookProposal{}, err
 	}
 	return *out, nil
 }

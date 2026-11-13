@@ -79,8 +79,19 @@ var (
 	ErrNoteNotReadable = errors.New("agent: Agent can read is off for this host; turn it on to save a note for it")
 	ErrNoteExpired     = errors.New("agent: this note proposal expired; add the note yourself in Edit host or Settings · Agent")
 	errNoteTooLong     = fmt.Errorf("%w: a note is 1 to %d bytes", ErrBadRequest, store.MaxAgentNoteBytes)
-	noteStatusValid    = map[string]bool{"open": true, "saved": true, "dismissed": true}
+	noteStatusValid    = map[string]bool{CardOpen: true, CardSaved: true, CardDismissed: true}
 )
+
+var noteCards = cardKind[NoteProposal, NoteProposal]{
+	find:    (*conversation).noteLocked,
+	saved:   func(c *conversation, id string) bool { return c.recordNoteLocked(id) != nil },
+	busy:    func(np *NoteProposal) *bool { return &np.busy },
+	view:    func(np *NoteProposal) NoteProposal { return *np },
+	expired: ErrNoteExpired,
+	closed:  ErrNoteClosed,
+}
+
+func noteOpen(np *NoteProposal) bool { return np.Status == CardOpen }
 
 // NoteProposal is a note the agent proposed, as the panel shows it.
 type NoteProposal struct {
@@ -324,7 +335,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 		}
 	}
 	for _, rn := range raws {
-		np := &NoteProposal{ID: newID("np_"), Text: r.Text(rn.Text).String(), From: rn.From, Status: "open", ProposedAt: &now, PanesRead: read}
+		np := &NoteProposal{ID: newID("np_"), Text: r.Text(rn.Text).String(), From: rn.From, Status: CardOpen, ProposedAt: &now, PanesRead: read}
 		if t, ok := store.CleanAgentNote(np.Text); ok {
 			np.Text = t
 		} else {
@@ -434,7 +445,7 @@ func noteFromRecord(n store.AgentChatNote) NoteProposal {
 	at := n.ProposedAt
 	st := n.Status
 	if !noteStatusValid[st] {
-		st = "open"
+		st = CardOpen
 	}
 	return NoteProposal{ID: n.ID, For: n.For, HostID: n.HostID, Host: n.Host, Text: n.Text, FromPane: n.FromPane, SeenIn: n.SeenIn, PanesRead: n.PanesRead, Status: st, NoteID: n.NoteID, ProposedAt: &at, Expired: true}
 }
@@ -644,11 +655,11 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 	// Claim the proposal under mu: a second Save (or Save anyway, or an
 	// Undo) while this one runs gets ErrNoteClosed, so one proposal never
 	// becomes two notes.
-	snap, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "open" })
+	c, np, snap, err := noteCards.claim(s, convID, id, noteOpen)
 	if err != nil {
 		return SavedNote{}, err
 	}
-	release := func() { s.releaseNote(convID, id) }
+	release := func() { noteCards.release(s, np) }
 	edited := strings.TrimSpace(text) != "" && strings.Join(strings.Fields(text), " ") != snap.Text
 	if !edited {
 		text = snap.Text
@@ -687,52 +698,19 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 		what += " after an edit"
 	}
 	s.audit.NoteChanged(what, snap.HostID, snap.Host, rep)
-	out := s.setNoteStatus(convID, id, "saved", n.ID)
+	out, _ := s.setNoteStatus(c, np, CardSaved, n.ID)
 	return SavedNote{Note: n, Redacted: rep.Total(), Proposal: out}, nil
-}
-
-// claimNote marks a proposal busy if ok(it) holds, under mu, and returns a
-// copy. A busy or closed proposal gives ErrNoteClosed; one keel serve no
-// longer holds gives ErrNoteExpired or ErrNotFound.
-func (s *Service) claimNote(convID, id string, ok func(*NoteProposal) bool) (NoteProposal, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c := s.convs[convID]
-	var np *NoteProposal
-	if c != nil {
-		np = c.noteLocked(id)
-	}
-	if np == nil {
-		if c != nil && c.recordNoteLocked(id) != nil {
-			return NoteProposal{}, ErrNoteExpired
-		}
-		return NoteProposal{}, ErrNotFound
-	}
-	if np.busy || !ok(np) {
-		return NoteProposal{}, ErrNoteClosed
-	}
-	np.busy = true
-	return *np, nil
-}
-
-func (s *Service) releaseNote(convID, id string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if c := s.convs[convID]; c != nil {
-		if np := c.noteLocked(id); np != nil {
-			np.busy = false
-		}
-	}
 }
 
 // DismissNoteProposal closes a proposal without saving anything.
 func (s *Service) DismissNoteProposal(convID, id string) (NoteProposal, error) {
-	if _, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "open" }); err != nil {
+	c, np, _, err := noteCards.claim(s, convID, id, noteOpen)
+	if err != nil {
 		return NoteProposal{}, err
 	}
-	out := s.setNoteStatus(convID, id, "dismissed", "")
-	if out == nil {
-		return NoteProposal{}, ErrNotFound
+	out, err := s.setNoteStatus(c, np, CardDismissed, "")
+	if err != nil {
+		return NoteProposal{}, err
 	}
 	return *out, nil
 }
@@ -740,47 +718,39 @@ func (s *Service) DismissNoteProposal(convID, id string) (NoteProposal, error) {
 // UndoNoteProposal opens a saved or dismissed proposal again; a saved one's
 // note is deleted (logged).
 func (s *Service) UndoNoteProposal(convID, id string) (NoteProposal, error) {
-	snap, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "saved" || np.Status == "dismissed" })
+	c, np, snap, err := noteCards.claim(s, convID, id, func(np *NoteProposal) bool { return np.Status == CardSaved || np.Status == CardDismissed })
 	if err != nil {
 		return NoteProposal{}, err
 	}
-	if snap.Status == "saved" && snap.NoteID != "" && s.notesSt != nil {
+	if snap.Status == CardSaved && snap.NoteID != "" && s.notesSt != nil {
 		n, err := s.notesSt.DeleteAgentNote(snap.NoteID)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			s.releaseNote(convID, id)
+			noteCards.release(s, np)
 			return NoteProposal{}, err
 		}
 		if err == nil {
 			s.audit.NoteChanged("note proposed by the agent deleted by you (undo)", n.HostID, s.hostName(n.HostID), redact.Report{})
 		}
 	}
-	out := s.setNoteStatus(convID, id, "open", "")
-	if out == nil {
-		return NoteProposal{}, ErrNotFound
+	out, err := s.setNoteStatus(c, np, CardOpen, "")
+	if err != nil {
+		return NoteProposal{}, err
 	}
 	return *out, nil
 }
 
-// setNoteStatus sets a proposal's state and frees it; nil when the
-// conversation or the proposal is gone (deleted meanwhile).
-func (s *Service) setNoteStatus(convID, id, status, noteID string) *NoteProposal {
-	s.mu.Lock()
-	c := s.convs[convID]
-	if c == nil {
-		s.mu.Unlock()
-		return nil
+// setNoteStatus sets a claimed proposal's state and frees it; ErrNotFound
+// when the conversation or the proposal is gone (deleted meanwhile).
+func (s *Service) setNoteStatus(c *conversation, np *NoteProposal, status, noteID string) (*NoteProposal, error) {
+	id := np.ID
+	out, ok := noteCards.finish(s, c, id, np, func() {
+		np.Status, np.NoteID = status, noteID
+		if rec := c.recordNoteLocked(id); rec != nil {
+			rec.Status, rec.NoteID = status, noteID
+		}
+	})
+	if !ok {
+		return nil, ErrNotFound
 	}
-	np := c.noteLocked(id)
-	if np == nil {
-		s.mu.Unlock()
-		return nil
-	}
-	np.Status, np.NoteID, np.busy = status, noteID, false
-	if rec := c.recordNoteLocked(id); rec != nil {
-		rec.Status, rec.NoteID = status, noteID
-	}
-	out := *np
-	s.mu.Unlock()
-	s.persist(c)
-	return &out
+	return &out, nil
 }
