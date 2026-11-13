@@ -33,13 +33,21 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 	offer, offerErr := p.offer()
 	q := strings.TrimSpace(p.query)
 	page := ui.Scroll(c).Grow(1).FillHeight().Background(w.ground(stage)).Label("start page")
-	// ⌥1 to ⌥6 open a card, also while the input has the keyboard, where a Mac's ⌥1 types "¡": the page sees
-	// the key as it is pressed (the webview matches the key's code for the same reason).
+	// ⌥1 to ⌥6 open a card. The window shortcut in view.go does it with nothing focused; a focused input takes the
+	// key as text before any window shortcut (found in a real window), so the page sees the key as it is pressed. A
+	// Mac also types "¡" for ⌥1 into the input: the page notes the cards and the text as the key found them, openCard
+	// uses those cards, and the input puts the text back.
 	page.ObserveInput(func(ev ui.InputEvent) {
-		if ev.Kind == ui.InputKeyDown && ev.Mods == ui.Alt {
-			if i := slices.Index(altDigits, ev.Key); i >= 0 {
-				w.act(func() { w.openCard(t, i) })
-			}
+		if ev.Kind != ui.InputKeyDown || ev.Mods != ui.Alt {
+			return
+		}
+		i := slices.Index(altDigits, ev.Key)
+		if i < 0 {
+			i = slices.Index(altDigits, ev.PhysicalKey)
+		}
+		if i >= 0 {
+			p.alt = altPress{cards: cards, query: p.query, at: time.Now()}
+			w.act(func() { w.openCard(t, i) })
 		}
 	})
 	page.Children(func() {
@@ -106,6 +114,11 @@ func (w *workspace) startHead(c *ui.Context, t *tab) {
 			in := ui.TextInputBase(c, &p.query).Label("Host to connect to").
 				Placeholder("saved host, user@host:port, or paste an ssh command").PlaceholderColor(inkFaint).
 				TextColor(ink).FontSize(titleSize).Font(monoStack).Grow(1).MinWidth(0).MaxLength(maxInput).Bind(&p.input)
+			in.OnChange(func() {
+				if p.alt.fresh() && p.query != p.alt.query {
+					p.query = p.alt.query // the character of ⌥1 to ⌥6 is not text
+				}
+			})
 			in.OnTextKey(func(k ui.TextKey) bool {
 				if k.Mods != 0 {
 					return false

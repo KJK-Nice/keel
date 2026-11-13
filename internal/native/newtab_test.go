@@ -266,6 +266,37 @@ func TestAltNumberOpensThatCardsHost(t *testing.T) {
 	}
 }
 
+// A Mac types "™" for ⌥2 into the focused input before the shortcut runs. The card is the one the number stood for when
+// the key went down, the character does not stay, and one press opens one card (found in a real window, plan 036).
+func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
+	r := startRig(t)
+	r.w.recentIDs = []string{"h3", "h1"}
+	r.tt.Frame()
+	r.tt.KeyDown(ui.Key2) // as the surface sends it: no modifier release between
+	r.tt.Frame()
+	r.tt.KeyUp(ui.Key2)
+	r.tt.Frame()
+	if len(r.fb.spawned) != 0 {
+		t.Fatalf("a bare 2 opened %v", r.fb.spawned)
+	}
+	r.tt.Type("ab")
+	r.tt.Frame()
+	r.tt.Key(ui.Alt, ui.Key6)
+	r.tt.Type("º")
+	r.tt.Frame()
+	if len(r.fb.spawned) != 0 || r.w.tab().page.query != "ab" {
+		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.tab().page.query)
+	}
+	r.w.tab().page.query = ""
+	r.tt.Frame()
+	r.tt.Key(ui.Alt, ui.Key2)
+	r.tt.Type("™")
+	r.tt.Frame()
+	if !slices.Equal(r.fb.spawned, []string{"h3"}) {
+		t.Fatalf("⌥2 spawned %v, want the second card", r.fb.spawned)
+	}
+}
+
 func TestTypingFiltersTheCardsAndEnterOpensTheHighlightedOne(t *testing.T) {
 	r := startRig(t)
 	r.tt.Type("srv-")
