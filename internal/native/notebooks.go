@@ -163,20 +163,13 @@ func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 
 // reloadNotebooks reads the list again, and lets the open panes follow it.
 func (w *workspace) reloadNotebooks() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		nbs, err := w.be.Notebooks(c)
-		w.post(func() {
-			switch {
-			case w.closed:
-			case err != nil:
-				w.fail("notebooks", err)
-			default:
-				w.notebooks = nbs
-				w.followNotebooks()
-			}
-		})
+	call(w, w.be.Notebooks, func(nbs []keelclient.Notebook, err error) {
+		if err != nil {
+			w.fail("notebooks", err)
+			return
+		}
+		w.notebooks = nbs
+		w.followNotebooks()
 	})
 }
 
@@ -317,49 +310,39 @@ func (w *workspace) nbPump(p *pane) {
 	n.saving = true
 	in, id := n.payload(), n.id
 	name := in.Name
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var res keelclient.SavedNotebook
-		var err error
+	call(w, func(c context.Context) (res keelclient.SavedNotebook, err error) {
 		if id == "" {
-			var rec keelclient.Notebook
-			rec, err = w.be.CreateNotebook(c, in)
-			res.Notebook = rec
-		} else {
-			res, err = w.be.SaveNotebook(c, id, in)
+			res.Notebook, err = w.be.CreateNotebook(c, in)
+			return res, err
 		}
-		w.post(func() {
-			n.saving = false
-			again := n.auto.end()
-			if w.closed {
-				return
-			}
-			if err != nil {
-				n.failed = true
-				w.warn(nbErr(err, "Could not save notebook"))
-				w.nbSettle(p)
-				return
-			}
-			n.failed = false
-			n.id, n.rev, n.pinned = res.ID, res.Rev, res.Pinned
-			if len(res.Cells) > 0 {
-				n.cellID = res.Cells[0].ID
-			}
-			if strings.TrimSpace(n.title) == name { // not typed over since: the name keel serve kept
-				n.title = res.Name
-				n.titleSeen = n.title
-			}
-			w.rememberNotebook(res.Notebook)
-			if res.ReplacedAgentEdit {
-				w.say(msgOverAgent)
-			}
-			if again {
-				w.nbPump(p)
-				return
-			}
+		return w.be.SaveNotebook(c, id, in)
+	}, func(res keelclient.SavedNotebook, err error) {
+		n.saving = false
+		again := n.auto.end()
+		if err != nil {
+			n.failed = true
+			w.warn(nbErr(err, "Could not save notebook"))
 			w.nbSettle(p)
-		})
+			return
+		}
+		n.failed = false
+		n.id, n.rev, n.pinned = res.ID, res.Rev, res.Pinned
+		if len(res.Cells) > 0 {
+			n.cellID = res.Cells[0].ID
+		}
+		if strings.TrimSpace(n.title) == name { // not typed over since: the name keel serve kept
+			n.title = res.Name
+			n.titleSeen = n.title
+		}
+		w.rememberNotebook(res.Notebook)
+		if res.ReplacedAgentEdit {
+			w.say(msgOverAgent)
+		}
+		if again {
+			w.nbPump(p)
+			return
+		}
+		w.nbSettle(p)
 	})
 }
 
@@ -470,21 +453,15 @@ func (w *workspace) renameNotebook(id, name string) {
 		name = "Notebook"
 	}
 	w.nbFlushID(id, func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			rec, err := w.be.PatchNotebook(c, id, &name, nil) // the name only: a window with an old copy never writes old text back
-			w.post(func() {
-				if w.closed {
-					return
-				}
-				if err != nil {
-					w.warn(nbErr(err, "Could not rename notebook"))
-					return
-				}
-				w.applyNotebook(rec)
-				w.nbDlg = nil
-			})
+		call(w, func(c context.Context) (keelclient.Notebook, error) {
+			return w.be.PatchNotebook(c, id, &name, nil) // the name only: a window with an old copy never writes old text back
+		}, func(rec keelclient.Notebook, err error) {
+			if err != nil {
+				w.warn(nbErr(err, "Could not rename notebook"))
+				return
+			}
+			w.applyNotebook(rec)
+			w.nbDlg = nil
 		})
 	})
 }
@@ -496,20 +473,12 @@ func (w *workspace) toggleNotebookPin(id string) {
 	}
 	pin := !rec.Pinned
 	w.nbFlushID(id, func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			saved, err := w.be.PatchNotebook(c, id, nil, &pin)
-			w.post(func() {
-				if w.closed {
-					return
-				}
-				if err != nil {
-					w.warn(nbErr(err, "Could not pin notebook"))
-					return
-				}
-				w.applyNotebook(saved)
-			})
+		call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.PatchNotebook(c, id, nil, &pin) }, func(saved keelclient.Notebook, err error) {
+			if err != nil {
+				w.warn(nbErr(err, "Could not pin notebook"))
+				return
+			}
+			w.applyNotebook(saved)
 		})
 	})
 }
@@ -520,25 +489,17 @@ func (w *workspace) toggleNotebookPrivate(id string) {
 		return
 	}
 	next := !rec.Private
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.PutNotebookPrivacy(c, id, next)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(nbErr(err, "Could not change Private"))
-				return
-			}
-			w.noteMarks(saved)
-			if next {
-				w.say("Private: the agent cannot see, read or change this notebook.")
-			} else {
-				w.say("The agent may read and change this notebook again.")
-			}
-		})
+	call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.PutNotebookPrivacy(c, id, next) }, func(saved keelclient.Notebook, err error) {
+		if err != nil {
+			w.warn(nbErr(err, "Could not change Private"))
+			return
+		}
+		w.noteMarks(saved)
+		if next {
+			w.say("Private: the agent cannot see, read or change this notebook.")
+		} else {
+			w.say("The agent may read and change this notebook again.")
+		}
 	})
 }
 
@@ -554,20 +515,12 @@ func (w *workspace) noteMarks(rec keelclient.Notebook) {
 }
 
 func (w *workspace) markNotebookReviewed(id string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.MarkNotebookReviewed(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(nbErr(err, "Could not mark the notebook reviewed"))
-				return
-			}
-			w.noteMarks(saved)
-		})
+	call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.MarkNotebookReviewed(c, id) }, func(saved keelclient.Notebook, err error) {
+		if err != nil {
+			w.warn(nbErr(err, "Could not mark the notebook reviewed"))
+			return
+		}
+		w.noteMarks(saved)
 	})
 }
 
@@ -584,25 +537,17 @@ func (w *workspace) askDeleteNotebook(id string) {
 func (w *workspace) deleteNotebook(id string, permanent bool) {
 	rec, _ := w.notebook(id)
 	w.nbFlushID(id, func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			err := w.be.DeleteNotebook(c, id, permanent)
-			w.post(func() {
-				if w.closed {
-					return
-				}
-				switch {
-				case err == nil:
-					w.removeNotebook(id)
-				case !permanent && keelclient.IsHistoryRefusal(err):
-					w.askConfirm(&hostConfirm{title: "Delete permanently", action: "Delete permanently",
-						message: "Keel cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
-						run:     func() { w.deleteNotebook(id, true) }})
-				default:
-					w.warn(nbErr(err, "Could not delete notebook"))
-				}
-			})
+		callErr(w, func(c context.Context) error { return w.be.DeleteNotebook(c, id, permanent) }, func(err error) {
+			switch {
+			case err == nil:
+				w.removeNotebook(id)
+			case !permanent && keelclient.IsHistoryRefusal(err):
+				w.askConfirm(&hostConfirm{title: "Delete permanently", action: "Delete permanently",
+					message: "Keel cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
+					run:     func() { w.deleteNotebook(id, true) }})
+			default:
+				w.warn(nbErr(err, "Could not delete notebook"))
+			}
 		})
 	})
 }
