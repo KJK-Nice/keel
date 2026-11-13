@@ -136,23 +136,13 @@ func (w *workspace) groupPaneIDs() (out []string) {
 // a fill or a Type is out, and never while the approve dialog is open (grouprun.js tick).
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
-	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.polling || p.typing || p.busy > 0 || w.approve != nil {
+	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.typing || p.busy > 0 || w.approve != nil {
 		return
 	}
-	p.polling = true
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.ProposeGroupStep(c, id, panes)
-		w.post(func() {
-			p.polling = false
-			if w.closed || w.groupRunPageState() != p || p.id != id || p.calls != seq { // a press since: its answer is newer
-				return
-			}
-			w.groupRunAnswered(p, run, err)
-		})
-	})
+	callOnce(w, &p.polling, func() bool { return w.groupRunPageState() == p && p.id == id && p.calls == seq }, // a press since: its answer is newer
+		func(c context.Context) (keelclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
+		func(run keelclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
 }
 
 // groupRunAnswered takes keel serve's answer to any call about the run.

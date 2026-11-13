@@ -230,22 +230,14 @@ func (w *workspace) runTick() {
 	}
 	u.pollForce = false
 	u.pollLeft--
-	u.polling = true
 	conv := a.conv
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.RunbookState(c, conv)
-		w.post(func() {
-			u.polling = false
-			if w.closed || a.conv != conv || err != nil { // a locked vault or a restart: the next change tries again
-				return
-			}
-			if res.Runbook != nil {
+	callOnce(w, &u.polling, func() bool { return a.conv == conv },
+		func(c context.Context) (keelclient.RunState, error) { return w.be.RunbookState(c, conv) },
+		func(res keelclient.RunState, err error) {
+			if err == nil && res.Runbook != nil { // a locked vault or a restart: the next change tries again
 				w.setRun(res.Runbook, nil)
 			}
 		})
-	})
 }
 
 // scopeRbPanes are the panes in scope as a runbook's offer sees them.
