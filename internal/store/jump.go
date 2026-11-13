@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
-	"unicode/utf8"
+
+	"keel/internal/limits"
 )
 
 // Jump hosts (ProxyJump, docs/ui-redesign.md §5.8).
@@ -21,7 +21,7 @@ import (
 var ErrHostField = errors.New("invalid host")
 
 // MaxStartupCommand is the longest startup command, in bytes.
-const MaxStartupCommand = 1024
+const MaxStartupCommand = limits.MaxStartupCommand
 
 type hostFieldError struct{ msg string }
 
@@ -48,19 +48,8 @@ func (s *Store) checkHostFieldsLocked(h Host) error {
 // carriage return, tab or other control character, at most
 // MaxStartupCommand bytes. Keel adds the Enter itself.
 func ValidateStartupCommand(cmd string) error {
-	if cmd == "" {
-		return nil
-	}
-	if len(cmd) > MaxStartupCommand {
-		return fieldErr("startup command is longer than %d bytes", MaxStartupCommand)
-	}
-	if !utf8.ValidString(cmd) {
-		return fieldErr("startup command is not valid text")
-	}
-	for _, r := range cmd {
-		if unicode.IsControl(r) || r == ' ' || r == ' ' {
-			return fieldErr("startup command must be one line with no control characters")
-		}
+	if p := limits.StartupCommandProblem(cmd); p != "" {
+		return fieldErr("%s", p)
 	}
 	return nil
 }

@@ -110,7 +110,7 @@ func (w *workspace) addNote(e *notesEditor) {
 	if !ok {
 		e.err = ""
 		if tooLong {
-			e.err = "A note is at most 1000 bytes."
+			e.err = noteTooLong
 		}
 		e.focusInput = true
 		return
@@ -165,7 +165,7 @@ func (w *workspace) saveNoteEdit(e *notesEditor) {
 	if !ok {
 		e.err = "A note needs some text. Delete it instead."
 		if tooLong {
-			e.err = "A note is at most 1000 bytes."
+			e.err = noteTooLong
 		}
 		return
 	}

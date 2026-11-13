@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -174,8 +175,8 @@ func (w *workspace) agentVal() keelclient.AgentSettings {
 		return *w.agent.settings
 	}
 	var s keelclient.AgentSettings // before the first read: the defaults (store.DefaultAgentSettings)
-	s.Settings.Provider, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = "gemini", detectionHashOnly, "on", "on"
-	s.Settings.DefaultScope, s.Settings.ScrollbackLines, s.Settings.HistoryDays = "focused", linesDefault, 30
+	s.Settings.Provider, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = limits.DefaultAgentProvider, limits.DetectionHashOnly, limits.SuggestionsOn, limits.SuggestionsOn
+	s.Settings.DefaultScope, s.Settings.ScrollbackLines, s.Settings.HistoryDays = limits.ScopeFocused, limits.DefaultScrollbackLines, limits.DefaultHistoryDays
 	s.Settings.Redact.Secrets = true
 	return s
 }

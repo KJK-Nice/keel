@@ -13,6 +13,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
 	"keel/internal/cmdrule"
+	"keel/internal/limits"
 	"keel/internal/runvars"
 	"keel/internal/store"
 )
@@ -68,7 +69,7 @@ const (
 	NotebookDeleteFence = "keel-notebook-delete"
 
 	// maxNotebooksPerAsk bounds the notebooks attached to one question.
-	maxNotebooksPerAsk = 2
+	maxNotebooksPerAsk = limits.MaxAttachedNotebooks
 	// maxNotebookIndex bounds the titles sent with a question.
 	maxNotebookIndex = 30
 	// Reads the model asks for, per ask.

@@ -10,11 +10,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/sshparse"
 )
@@ -94,17 +93,14 @@ const (
 	hostDialogWidth = 760 // .modal--host
 	hostColsMax     = 620 // .k-host-cols max-height
 	defaultColor    = "var(--ansi-10)"
-	maxStartup      = 1024 // store.MaxStartupCommand
-	maxPort         = 65535
-	maxKeepAlive    = 600
-	defaultKeep     = 30
+	maxStartup      = limits.MaxStartupCommand
+	maxPort         = limits.MaxPort
+	maxKeepAlive    = limits.MaxKeepAliveSec
+	defaultKeep     = limits.DefaultKeepAliveSec
 )
 
-// hostColors is store.HostColors, in picker order.
-var hostColors = []struct{ name, value string }{
-	{"Green", "var(--ansi-10)"}, {"Blue", "var(--ansi-12)"}, {"Magenta", "var(--ansi-13)"},
-	{"Yellow", "var(--ansi-11)"}, {"Red", "var(--ansi-9)"}, {"Cyan", "var(--ansi-14)"},
-}
+// hostColors is the palette keel serve offers (limits.HostColors), in picker order.
+var hostColors = limits.HostColors
 
 // authKinds is the Authentication control's options, in the webview's order.
 var authKinds = []struct{ value, label string }{
@@ -325,23 +321,8 @@ func (f hostForm) validate() string {
 	return validStartup(strings.TrimSpace(f.startup))
 }
 
-// validStartup is store.ValidateStartupCommand: one line of printable text, at most 1024 bytes.
-func validStartup(cmd string) string {
-	switch {
-	case cmd == "":
-		return ""
-	case len(cmd) > maxStartup:
-		return fmt.Sprintf("startup command is longer than %d bytes", maxStartup)
-	case !utf8.ValidString(cmd):
-		return "startup command is not valid text"
-	}
-	for _, r := range cmd {
-		if unicode.IsControl(r) || r == ' ' || r == ' ' {
-			return "startup command must be one line with no control characters"
-		}
-	}
-	return ""
-}
+// validStartup is the server's rule for a startup command (limits.StartupCommandProblem).
+func validStartup(cmd string) string { return limits.StartupCommandProblem(cmd) }
 
 // ---- Save, Delete ----
 

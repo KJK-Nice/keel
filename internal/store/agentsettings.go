@@ -4,30 +4,32 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"keel/internal/limits"
 )
 
 // Agent settings choices. The settings live in keel.json and hold no
 // secret: provider keys are vault secrets (agentkeys.go).
 const (
-	DetectionAuto     = "auto"      // a classifier notices plain language: opt in, each typing pause sends the line to Jev
-	DetectionHashOnly = "hash-only" // only lines starting with #, or the user's own request (the default)
+	DetectionAuto     = limits.DetectionAuto     // a classifier notices plain language: opt in, each typing pause sends the line to Jev
+	DetectionHashOnly = limits.DetectionHashOnly // only lines starting with #, or the user's own request (the default)
 
-	SuggestionsOn  = "on"  // plain-language suggestions in panes (§5.5)
-	SuggestionsOff = "off" // no notice, no hint, no detection call
+	SuggestionsOn  = limits.SuggestionsOn  // plain-language suggestions in panes (§5.5)
+	SuggestionsOff = limits.SuggestionsOff // no notice, no hint, no detection call
 
-	ScopeFocused = "focused" // the focused pane only
-	ScopePick    = "pick"    // pick panes each conversation
-	ScopeTab     = "tab"     // every pane in the tab
+	ScopeFocused = limits.ScopeFocused // the focused pane only
+	ScopePick    = limits.ScopePick    // pick panes each conversation
+	ScopeTab     = limits.ScopeTab     // every pane in the tab
 
-	MinScrollbackLines     = 50
-	MaxScrollbackLines     = 1000
-	DefaultScrollbackLines = 200
+	MinScrollbackLines     = limits.MinScrollbackLines
+	MaxScrollbackLines     = limits.MaxScrollbackLines
+	DefaultScrollbackLines = limits.DefaultScrollbackLines
 
 	// HistoryDays 0 keeps a conversation only while it is open.
 	MaxHistoryDays     = 365
-	DefaultHistoryDays = 30
+	DefaultHistoryDays = limits.DefaultHistoryDays
 
-	DefaultAgentProvider = "gemini"
+	DefaultAgentProvider = limits.DefaultAgentProvider
 	DefaultAgentModel    = "gemini-3.8-flash"
 	// retiredDefaultModel was the default before Google closed the 2.5
 	// family to new keys; settings saved with it move to the new default.
@@ -134,14 +136,7 @@ func (a AgentSettings) Normalize() (AgentSettings, error) {
 	default:
 		return AgentSettings{}, fmt.Errorf("%w: defaultScope must be focused, pick or tab", ErrAgentSettings)
 	}
-	switch {
-	case a.ScrollbackLines == 0:
-		a.ScrollbackLines = def.ScrollbackLines
-	case a.ScrollbackLines < MinScrollbackLines:
-		a.ScrollbackLines = MinScrollbackLines
-	case a.ScrollbackLines > MaxScrollbackLines:
-		a.ScrollbackLines = MaxScrollbackLines
-	}
+	a.ScrollbackLines = limits.ClampScrollbackLines(a.ScrollbackLines)
 	if a.HistoryDays < 0 {
 		a.HistoryDays = 0
 	}

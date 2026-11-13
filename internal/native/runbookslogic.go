@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -14,7 +15,7 @@ import (
 // by test/runbooks.test.mjs and here by runbookslogic_test.go, without the parts that belong to group runs (§17: roles,
 // "one host only", captures) and to notebooks. Nothing here talks to keel serve, draws or types.
 
-const maxRunbookSteps = 30 // MAX_STEPS
+const maxRunbookSteps = limits.MaxRunbookSteps
 
 type rbSource struct{ label, long string }
 
@@ -306,21 +307,8 @@ func checkRunbookInput(in keelclient.RunbookInput) string {
 	return checkCaptures(in.Steps)
 }
 
-// validRole is /^[a-z0-9][a-z0-9_.-]{0,31}$/.
-func validRole(r string) bool {
-	if r == "" || len(r) > 32 {
-		return false
-	}
-	for i, c := range r {
-		switch {
-		case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
-		case i > 0 && (c == '_' || c == '.' || c == '-'):
-		default:
-			return false
-		}
-	}
-	return true
-}
+// validRole is one role word as keel serve keeps it (limits.ValidRole).
+func validRole(r string) bool { return limits.ValidRole(r) }
 
 // addHost adds a folder or tag chip (no duplicates, any case).
 func addHost(hosts []string, text string) []string {

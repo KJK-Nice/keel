@@ -6,6 +6,7 @@ import (
 
 	"keel/internal/agent/redact"
 	"keel/internal/applog"
+	"keel/internal/limits"
 )
 
 // Notebooks (docs/ui-redesign.md §18, §6 rule 12). The agent sees the
@@ -21,7 +22,7 @@ import (
 // longer notebook is cut at a line and ends with a marker.
 const MaxNotebookBytes = 32 * 1024
 
-const maxNotebookNameBytes = 120
+const maxNotebookNameBytes = limits.MaxNotebookNameBytes
 
 // NotebookExcerpt is one notebook, redacted and framed for one request.
 // Bytes is the size of the notebook text sent (after redaction and the

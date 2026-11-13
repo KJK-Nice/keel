@@ -17,6 +17,7 @@ import (
 
 	"filippo.io/age"
 
+	"keel/internal/limits"
 	"keel/internal/wire"
 )
 
@@ -145,14 +146,14 @@ type Group struct {
 
 // MaxGroupDepth is the Termius-like nest cap (6–8). Moves/creates that would
 // exceed it return ErrGroupDepth. Upsert also rejects parent cycles.
-const MaxGroupDepth = 8
+const MaxGroupDepth = limits.MaxGroupDepth
 
 var (
-	ErrGroupCycle = errors.New("group cannot nest under itself")
-	ErrGroupDepth = errors.New("group nest is deeper than 8")
+	ErrGroupCycle = errors.New(limits.MsgGroupCycle)
+	ErrGroupDepth = errors.New(limits.MsgGroupDepth)
 )
 
-const defaultKeepAlive = 30 * time.Second
+const defaultKeepAlive = limits.DefaultKeepAliveSec * time.Second
 
 // KeepAlive is the SSH keepalive interval. Local shells: off. keepAliveSec 0 → 30s. -1 → off.
 func (h Host) KeepAlive() time.Duration {

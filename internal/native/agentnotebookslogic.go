@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -15,12 +16,13 @@ import (
 // decides everything; nothing here talks to it, draws or types.
 
 // maxAttached is how many notebooks one question may carry (lib/notebooks.js MAX_ATTACHED; keel serve refuses more).
-const maxAttached = 2
+const maxAttached = limits.MaxAttachedNotebooks
+
+var attachLimit = fmt.Sprintf("Attach at most %d notebooks to a question", maxAttached)
 
 // Texts of the app (lib/notebooks.js).
 const (
 	privateRefused = "This notebook is private: the agent cannot read it. Turn Private off on the notebook first."
-	attachLimit    = "Attach at most 2 notebooks to a question"
 	// saveFirst is what "Ask the agent about this notebook" says for a notebook that is not saved (term.js).
 	saveFirst = "Save the notebook first, then ask the agent about it"
 )

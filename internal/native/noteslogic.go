@@ -7,6 +7,7 @@ import (
 	"unicode"
 	"unicode/utf16"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -14,7 +15,9 @@ import (
 // cmd/keel/web/js/lib/notes.js, pinned there by test/notes.test.mjs and here by noteslogic_test.go. Nothing here talks to
 // keel serve, draws or types.
 
-const maxNoteBytes = 1000 // MAX_NOTE_BYTES: keel serve's own limit
+const maxNoteBytes = limits.MaxAgentNoteBytes
+
+var noteTooLong = fmt.Sprintf("A note is at most %d bytes.", maxNoteBytes)
 
 // dayLabel is "Oct 12" for a timestamp, "" for none.
 func dayLabel(t time.Time) string {

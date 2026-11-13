@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -15,13 +16,12 @@ import (
 // deleteGroup, assignHostsGroup and the drop handlers). Every walk up a parent chain stops at a cycle, so bad data cannot
 // hang the window. Nothing here talks to a session.
 
-// maxGroupDepth is store.MaxGroupDepth (term.js MAX_GROUP_DEPTH): how many folders may nest.
-const maxGroupDepth = 8
-
-// The refusals of a folder that would nest wrongly (store.ErrGroupCycle, ErrGroupDepth; term.js drop handler).
+// maxGroupDepth is how many folders may nest, and the two refusals of a folder that would nest wrongly: keel serve's
+// own (internal/limits).
 const (
-	msgGroupCycle = "group cannot nest under itself"
-	msgGroupDepth = "group nest is deeper than 8"
+	maxGroupDepth = limits.MaxGroupDepth
+	msgGroupCycle = limits.MsgGroupCycle
+	msgGroupDepth = limits.MsgGroupDepth
 )
 
 func groupByID(groups []keelclient.Group, id string) (keelclient.Group, bool) {

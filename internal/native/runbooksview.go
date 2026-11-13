@@ -7,7 +7,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/runvars"
 )
 
 // The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes, drawn as
@@ -238,7 +240,7 @@ func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 	ui.Column(c).FillWidth().Gap(space4).Label("Runbook").Children(func() {
 		ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
 			ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-				inputBox(c, "Runbook name", &e.name, "Name this runbook", &e.nameH, false, false, 120, nil)
+				inputBox(c, "Runbook name", &e.name, "Name this runbook", &e.nameH, false, false, limits.MaxRunbookNameBytes, nil)
 			})
 			if saved {
 				if textBtn(c, "Use in agent", btnDefault) {
@@ -297,7 +299,7 @@ func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 		ui.Row(c).FillWidth().Gap(space6).Wrap().AlignItems(ui.Start).Children(func() {
 			ui.Column(c).Grow(1).Basis(sizeList).MinWidth(0).Gap(space3).Children(func() {
 				labeled(c, "Use when", &e.whenH, func() {
-					inputBox(c, "Use when", &e.when, "A Patroni replica is behind or its WAL stream keeps restarting.", &e.whenH, false, false, 300, nil)
+					inputBox(c, "Use when", &e.when, "A Patroni replica is behind or its WAL stream keeps restarting.", &e.whenH, false, false, limits.MaxRunbookWhenBytes, nil)
 					help(c, "The agent compares this line with the question and the panes in scope to decide whether the runbook fits.")
 				})
 				menuLabel(c, "Steps")
@@ -339,7 +341,7 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1_5).Children(func() {
 			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
 				ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, 200, nil)
+					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, limits.MaxRunbookTitleBytes, nil)
 				})
 				if s.command != "" || s.risk != "" {
 					label, kind := runbookStepKind(s.command, s.risk)
@@ -355,12 +357,12 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 					w.act(func() { e.steps = append(e.steps[:i:i], e.steps[i+1:]...) })
 				}
 			})
-			inputBox(c, "Step "+n+" description", &s.description, "Why, and what to look for", &s.descH, false, false, 1000, nil)
+			inputBox(c, "Step "+n+" description", &s.description, "Why, and what to look for", &s.descH, false, false, limits.MaxRunbookTextBytes, nil)
 			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
 				ui.TextAreaBase(c, &s.command).Label("Step "+n+" command").Placeholder("Command (optional: a step without one is a check you mark done)").PlaceholderColor(inkFaint).
 					TextColor(ink).FontSize(captionSize).Font(monoStack).Lines(2, 8).FillWidth().Bind(&s.cmdH)
 			})
-			inputBox(c, "Step "+n+" expected result", &s.expect, "Expected result (optional)", &s.expH, false, false, 300, nil)
+			inputBox(c, "Step "+n+" expected result", &s.expect, "Expected result (optional)", &s.expH, false, false, limits.MaxRunbookExpectBytes, nil)
 			w.runbookStepTarget(c, s, n)
 		})
 	})
@@ -371,7 +373,7 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-			inputBox(c, "Step "+n+" role", &s.role, "Role in a group run (empty: every host)", &s.roleH, false, false, 32, nil)
+			inputBox(c, "Step "+n+" role", &s.role, "Role in a group run (empty: every host)", &s.roleH, false, false, limits.MaxRoleBytes, nil)
 		})
 		ui.Row(c).Gap(space2).AlignItems(ui.Center).Shrink(0).Children(func() {
 			if checkBox(c, "Step "+n+" on one host only", boolCheck(s.oneHost), false) {
@@ -386,7 +388,7 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	for k := range s.captures {
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Key(k).Label("capture " + strconv.Itoa(k+1)).Children(func() {
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" name", &s.captures[k].Name, "join_token", &s.capH[k][0], true, false, 32, nil)
+				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" name", &s.captures[k].Name, "join_token", &s.capH[k][0], true, false, runvars.MaxNameBytes, nil)
 			})
 			ui.Row(c).Grow(2).Basis(0).MinWidth(0).Children(func() {
 				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" pattern", &s.captures[k].Pattern, `--token\s+(\S+)`, &s.capH[k][1], true, false, maxPattern, nil)

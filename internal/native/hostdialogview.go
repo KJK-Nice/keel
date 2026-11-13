@@ -201,14 +201,14 @@ func (w *workspace) hostLeft(c *ui.Context, d *hostDialog, local bool) {
 	labeled(c, "Color", nil, func() {
 		ui.Row(c).Gap(space1_5).Wrap().Label("color").Children(func() {
 			for _, sw := range hostColors {
-				r := ui.Box(c).Size(14, 14).Radius(radiusFull).Background(hostTint(sw.value)).Label("color " + sw.name).Tooltip(sw.name).Cursor(ui.CursorPointer)
-				if f.color == sw.value {
+				r := ui.Box(c).Size(14, 14).Radius(radiusFull).Background(hostTint(sw.Value)).Label("color " + sw.Name).Tooltip(sw.Name).Cursor(ui.CursorPointer)
+				if f.color == sw.Value {
 					r.Shadow(0, 0, 0, 2, ink).Checked(true)
 				} else {
 					r.Border(1, lineStrong)
 				}
 				if r.Clicked() {
-					v := sw.value
+					v := sw.Value
 					w.act(func() { f.color = v })
 				}
 			}

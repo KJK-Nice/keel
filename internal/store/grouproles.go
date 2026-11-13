@@ -3,10 +3,11 @@ package store
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"keel/internal/limits"
 )
 
 // Host roles in a group (docs/ui-redesign.md §17, board GroupRoles): what
@@ -23,27 +24,18 @@ import (
 
 const (
 	// MaxGroupRoles bounds the distinct roles of one group.
-	MaxGroupRoles = 16
+	MaxGroupRoles = limits.MaxGroupRoles
 	// MaxRoleBytes is the longest role name.
-	MaxRoleBytes = 32
+	MaxRoleBytes = limits.MaxRoleBytes
 )
 
-var (
-	// ErrRole is a role name that is not one lower-case word (letters,
-	// digits, "-", "_" or "."), or a host that is not in the group.
-	ErrRole = errors.New("invalid role")
-	roleRe  = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,31}$`)
-)
+// ErrRole is a role name that is not one lower-case word (letters,
+// digits, "-", "_" or "."), or a host that is not in the group.
+var ErrRole = errors.New("invalid role")
 
 // CleanRole lower-cases and trims a role name and reports whether it is
 // valid. Empty is valid: no role.
-func CleanRole(r string) (string, bool) {
-	r = strings.ToLower(strings.TrimSpace(r))
-	if r == "" {
-		return "", true
-	}
-	return r, roleRe.MatchString(r)
-}
+func CleanRole(r string) (string, bool) { return limits.CleanRole(r) }
 
 // groupSubtreeLocked is id and every group below it.
 func (s *Store) groupSubtreeLocked(id string) map[string]bool {
