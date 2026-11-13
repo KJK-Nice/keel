@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -76,105 +77,76 @@ func (s *Store) GetIdentity(id string) (Identity, error) {
 	return s.identityFullLocked(id)
 }
 
+// identityViewLocked is an identity for a list: SavedSecret where it holds
+// a secret.
 func (s *Store) identityViewLocked(p persistIdentity) Identity {
+	return s.identityOfLocked(p).Redacted()
+}
+
+// Redacted is in with SavedSecret in place of each secret it holds.
+func (in Identity) Redacted() Identity {
+	in.Password, in.PrivateKey, in.Passphrase = savedMark(in.Password), savedMark(in.PrivateKey), savedMark(in.Passphrase)
+	return in
+}
+
+func (s *Store) identityOfLocked(p persistIdentity) Identity {
 	out := Identity{
 		ID: p.ID, Name: p.Name, Kind: p.Kind, Username: p.Username,
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 	if sec, ok := s.secrets[identitySecretID(p.ID)]; ok {
-		if sec.Password != "" {
-			out.Password = "x"
-		}
-		if sec.PrivateKey != "" {
-			out.PrivateKey = "x"
-		}
-		if sec.Passphrase != "" {
-			out.Passphrase = "x"
-		}
+		out.Password = sec.Password
+		out.PrivateKey = sec.PrivateKey
+		out.Passphrase = sec.Passphrase
 	}
 	return out
 }
 
 func (s *Store) identityFullLocked(id string) (Identity, error) {
 	for _, p := range s.data.Identities {
-		if p.ID != id {
-			continue
+		if p.ID == id {
+			return s.identityOfLocked(p), nil
 		}
-		out := Identity{
-			ID: p.ID, Name: p.Name, Kind: p.Kind, Username: p.Username,
-			CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
-		}
-		if sec, ok := s.secrets[identitySecretID(p.ID)]; ok {
-			out.Password = sec.Password
-			out.PrivateKey = sec.PrivateKey
-			out.Passphrase = sec.Passphrase
-		}
-		return out, nil
 	}
 	return Identity{}, ErrNotFound
 }
 
+// UpsertIdentity creates (in.ID "", or an id no identity has) or updates
+// an identity. It wants a name and a kind; a blank secret, or SavedSecret,
+// keeps the saved one on an update.
 func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
 		return Identity{}, ErrLocked
 	}
+	if strings.TrimSpace(in.Name) == "" {
+		return Identity{}, &fieldError{of: ErrIdentityField, msg: "name is required"}
+	}
+	if err := ValidateIdentityKind(in.Kind); err != nil {
+		return Identity{}, &fieldError{of: ErrIdentityField, msg: err.Error()}
+	}
 	now := time.Now().UTC()
-	sid := identitySecretID(in.ID)
-	if in.ID == "" {
-		in.ID = newID()
+	at := -1
+	if in.ID != "" {
+		at = slices.IndexFunc(s.data.Identities, func(p persistIdentity) bool { return p.ID == in.ID })
+	}
+	var prev hostSecret
+	if at < 0 {
+		if in.ID == "" {
+			in.ID = newID()
+		}
 		in.CreatedAt = now
-		in.UpdatedAt = now
-		s.data.Identities = append(s.data.Identities, persistIdentityFrom(in))
-		s.putSecretLocked(identitySecretID(in.ID), hostSecret{
-			Password:   cleanSecret(in.Password),
-			PrivateKey: cleanSecret(in.PrivateKey),
-			Passphrase: cleanSecret(in.Passphrase),
-		}, hostSecret{})
-		out, err := s.identityFullLocked(in.ID)
-		if err != nil {
-			return Identity{}, err
-		}
-		if err := s.saveLocked(); err != nil {
-			return Identity{}, err
-		}
-		return out, nil
+		s.data.Identities = append(s.data.Identities, persistIdentity{})
+		at = len(s.data.Identities) - 1
+	} else {
+		in.CreatedAt = s.data.Identities[at].CreatedAt
+		prev = s.secrets[identitySecretID(in.ID)]
 	}
-	for i, existing := range s.data.Identities {
-		if existing.ID != in.ID {
-			continue
-		}
-		in.CreatedAt = existing.CreatedAt
-		in.UpdatedAt = now
-		prev := s.secrets[sid]
-		s.data.Identities[i] = persistIdentityFrom(in)
-		s.putSecretLocked(sid, hostSecret{
-			Password:   in.Password,
-			PrivateKey: in.PrivateKey,
-			Passphrase: in.Passphrase,
-		}, prev)
-		out, err := s.identityFullLocked(in.ID)
-		if err != nil {
-			return Identity{}, err
-		}
-		if err := s.saveLocked(); err != nil {
-			return Identity{}, err
-		}
-		return out, nil
-	}
-	in.CreatedAt = now
 	in.UpdatedAt = now
-	s.data.Identities = append(s.data.Identities, persistIdentityFrom(in))
-	s.putSecretLocked(sid, hostSecret{
-		Password:   cleanSecret(in.Password),
-		PrivateKey: cleanSecret(in.PrivateKey),
-		Passphrase: cleanSecret(in.Passphrase),
-	}, hostSecret{})
-	out, err := s.identityFullLocked(in.ID)
-	if err != nil {
-		return Identity{}, err
-	}
+	s.data.Identities[at] = persistIdentityFrom(in)
+	s.putSecretLocked(identitySecretID(in.ID), hostSecret{Password: in.Password, PrivateKey: in.PrivateKey, Passphrase: in.Passphrase}, prev)
+	out := s.identityOfLocked(s.data.Identities[at])
 	if err := s.saveLocked(); err != nil {
 		return Identity{}, err
 	}

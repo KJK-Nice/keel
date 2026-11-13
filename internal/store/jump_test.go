@@ -72,7 +72,7 @@ func TestHostForConnectResolvesJump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bastion := mustHost(t, st, Host{Name: "bastion", Address: "10.0.0.1", AuthType: "identity", IdentityID: ident.ID, Username: " "})
+	bastion := mustHost(t, st, Host{Name: "bastion", Address: "10.0.0.1", AuthType: "identity", IdentityID: ident.ID})
 	db := mustHost(t, st, Host{Name: "db", Address: "10.0.4.21", JumpHost: bastion.ID, Password: "db-pw"})
 	h, err := st.HostForConnect(db.ID)
 	if err != nil {

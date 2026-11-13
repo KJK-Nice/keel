@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,21 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+
+// ErrLocalDuplicate refuses to duplicate the seeded local shell host.
+var ErrLocalDuplicate = errors.New("the local shell host cannot be duplicated")
+
+// AuthLocal is the AuthType of the local shell host: a shell on this
+// machine, no SSH.
+const AuthLocal = "local"
+
+// IsLocal reports whether h is the local shell and not an SSH host.
+func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
+
+// SavedSecret stands for a secret the vault holds wherever a host or an
+// identity is shown to a client: the API never sends the secret itself, and
+// a client that sends this back keeps the saved one.
+const SavedSecret = "__saved__"
 
 // UnknownHostError is returned the first time a host presents a key.
 type UnknownHostError struct {
@@ -156,7 +172,7 @@ const defaultKeepAlive = 30 * time.Second
 
 // KeepAlive is the SSH keepalive interval. Local shells: off. keepAliveSec 0 → 30s. -1 → off.
 func (h Host) KeepAlive() time.Duration {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return 0
 	}
 	if h.KeepAliveSec < 0 {
@@ -170,7 +186,7 @@ func (h Host) KeepAlive() time.Duration {
 
 // AutoReconnect is on for SSH hosts unless noAutoReconnect is set.
 func (h Host) AutoReconnect() bool {
-	return h.AuthType != "local" && !h.NoAutoReconnect
+	return !h.IsLocal() && !h.NoAutoReconnect
 }
 
 const (
@@ -573,7 +589,7 @@ func seed() persistData {
 			Address:   "localhost",
 			Port:      0,
 			Username:  os.Getenv("USER"),
-			AuthType:  "local",
+			AuthType:  AuthLocal,
 			Color:     DefaultHostColor,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -784,32 +800,23 @@ func (s *Store) GetHost(id string) (Host, error) {
 	return Host{}, ErrNotFound
 }
 
+// viewLocked is a host for a list: SavedSecret where it holds a secret.
 func (s *Store) viewLocked(h persistHost) Host {
-	out := Host{
-		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
-		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID, Color: hostColor(h.Color),
-		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:     append([]string(nil), h.Tags...),
-		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
-		AgentReadable: boolPtr(!h.AgentOff),
-		Production:    boolPtr(h.Production),
-		AgentNotes:    boolPtr(!h.AgentNotesOff),
-		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
+	return s.fullLocked(h).Redacted()
+}
+
+// savedMark is SavedSecret for a secret that is held and "" for none.
+func savedMark(secret string) string {
+	if secret == "" {
+		return ""
 	}
-	out = s.hydrateGroupLocked(out, h.Group)
-	if sec, ok := s.secrets[h.ID]; ok {
-		if sec.Password != "" {
-			out.Password = "x"
-		}
-		if sec.PrivateKey != "" {
-			out.PrivateKey = "x"
-		}
-		if sec.Passphrase != "" {
-			out.Passphrase = "x"
-		}
-	}
-	return out
+	return SavedSecret
+}
+
+// Redacted is h with SavedSecret in place of each secret it holds.
+func (h Host) Redacted() Host {
+	h.Password, h.PrivateKey, h.Passphrase = savedMark(h.Password), savedMark(h.PrivateKey), savedMark(h.Passphrase)
+	return h
 }
 
 func (s *Store) fullLocked(h persistHost) Host {
@@ -851,7 +858,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	}
 	now := time.Now().UTC()
 	h.Tags = NormalizeTags(h.Tags)
-	if h.Port == 0 && h.AuthType != "local" {
+	if h.Port == 0 && !h.IsLocal() {
 		h.Port = 22
 	}
 	s.migrateGroupsLocked()
@@ -864,52 +871,30 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if err := s.checkHostFieldsLocked(h); err != nil {
 		return Host{}, err
 	}
-	if h.ID == "" {
+	at := -1
+	if h.ID != "" {
+		at = slices.IndexFunc(s.data.Hosts, func(x persistHost) bool { return x.ID == h.ID })
+	}
+	// A new host, with or without an id of the caller's, starts with no
+	// secret; an update keeps the saved ones it does not replace.
+	var prev hostSecret
+	if at < 0 {
 		s.applyCreateDefaultsLocked(&h)
-		h.ID = newID()
+		if h.ID == "" {
+			h.ID = newID()
+		}
 		h.CreatedAt = now
-		h.UpdatedAt = now
-		s.data.Hosts = append(s.data.Hosts, persistFrom(h))
-		s.putSecretLocked(h.ID, hostSecret{
-			Password:   cleanSecret(h.Password),
-			PrivateKey: cleanSecret(h.PrivateKey),
-			Passphrase: cleanSecret(h.Passphrase),
-		}, hostSecret{})
-		out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
-		if err := s.saveLocked(); err != nil {
-			return Host{}, err
-		}
-		return out, nil
+		s.data.Hosts = append(s.data.Hosts, persistHost{})
+		at = len(s.data.Hosts) - 1
+	} else {
+		s.applyUpdateDefaultsLocked(&h, s.data.Hosts[at])
+		h.CreatedAt = s.data.Hosts[at].CreatedAt
+		prev = s.secrets[h.ID]
 	}
-	for i, existing := range s.data.Hosts {
-		if existing.ID == h.ID {
-			s.applyUpdateDefaultsLocked(&h, existing)
-			h.CreatedAt = existing.CreatedAt
-			h.UpdatedAt = now
-			prev := s.secrets[h.ID]
-			s.data.Hosts[i] = persistFrom(h)
-			s.putSecretLocked(h.ID, hostSecret{
-				Password:   h.Password,
-				PrivateKey: h.PrivateKey,
-				Passphrase: h.Passphrase,
-			}, prev)
-			out := s.fullLocked(s.data.Hosts[i])
-			if err := s.saveLocked(); err != nil {
-				return Host{}, err
-			}
-			return out, nil
-		}
-	}
-	s.applyCreateDefaultsLocked(&h)
-	h.CreatedAt = now
 	h.UpdatedAt = now
-	s.data.Hosts = append(s.data.Hosts, persistFrom(h))
-	s.putSecretLocked(h.ID, hostSecret{
-		Password:   cleanSecret(h.Password),
-		PrivateKey: cleanSecret(h.PrivateKey),
-		Passphrase: cleanSecret(h.Passphrase),
-	}, hostSecret{})
-	out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
+	s.data.Hosts[at] = persistFrom(h)
+	s.putSecretLocked(h.ID, hostSecret{Password: h.Password, PrivateKey: h.PrivateKey, Passphrase: h.Passphrase}, prev)
+	out := s.fullLocked(s.data.Hosts[at])
 	if err := s.saveLocked(); err != nil {
 		return Host{}, err
 	}
@@ -944,8 +929,8 @@ func (s *Store) DuplicateHost(id string) (Host, error) {
 	if err != nil {
 		return Host{}, err
 	}
-	if src.AuthType == "local" {
-		return Host{}, errors.New("the local shell host cannot be duplicated")
+	if src.IsLocal() {
+		return Host{}, ErrLocalDuplicate
 	}
 	hosts, err := s.ListHosts()
 	if err != nil {
@@ -984,18 +969,18 @@ func persistFrom(h Host) persistHost {
 func boolPtr(v bool) *bool { return &v }
 
 func cleanSecret(v string) string {
-	if v == "__saved__" {
+	if v == SavedSecret {
 		return ""
 	}
 	return v
 }
 
+// putSecretLocked saves next over prev: a blank secret, or SavedSecret,
+// keeps prev's.
 func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 	sec := prev
 	if v := cleanSecret(next.Password); v != "" {
 		sec.Password = v
-	} else if next.Password == "" || next.Password == "__saved__" {
-		// keep prev
 	}
 	if v := cleanSecret(next.PrivateKey); v != "" {
 		sec.PrivateKey = v

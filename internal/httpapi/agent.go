@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -47,7 +46,7 @@ func (s *Server) agentKeyStates() (map[string]agentKeyState, error) {
 func (s *Server) writeAgentSettings(w http.ResponseWriter, status int, set store.AgentSettings) {
 	keys, err := s.agentKeyStates()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, status, agentSettingsResp{Settings: set, Keys: keys})
@@ -56,7 +55,7 @@ func (s *Server) writeAgentSettings(w http.ResponseWriter, status int, set store
 func (s *Server) getAgentSettings(w http.ResponseWriter, _ *http.Request) {
 	set, err := s.store.AgentSettings()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.writeAgentSettings(w, http.StatusOK, set)
@@ -67,10 +66,10 @@ func (s *Server) getAgentSettings(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 	cur, err := s.store.AgentSettings()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxAgentBody))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyAgent))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid settings payload")
 		return
@@ -93,11 +92,7 @@ func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.SetAgentSettings(cur)
 	if err != nil {
-		if errors.Is(err, store.ErrAgentSettings) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.note("agent", "agent settings saved", "", "", "")
@@ -114,7 +109,7 @@ func (s *Server) listAgentProviders(w http.ResponseWriter, _ *http.Request) {
 	for _, d := range provider.Descriptors() {
 		ok, err := s.store.AgentKeyConfigured(d.ID)
 		if err != nil {
-			writeStoreErr(w, err)
+			writeErr(w, err)
 			return
 		}
 		out = append(out, agentProviderResp{Descriptor: d, Configured: ok})
@@ -133,16 +128,12 @@ func (s *Server) putAgentKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Key string `json:"key"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxAgentBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAgent, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid key payload")
 		return
 	}
 	if err := s.store.SetAgentKey(d.ID, req.Key); err != nil {
-		if errors.Is(err, store.ErrAgentKey) {
-			writeError(w, http.StatusBadRequest, "the key is empty, too long, or has spaces")
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.note("agent", "agent key saved for "+d.Name, "", "", "")
@@ -156,7 +147,7 @@ func (s *Server) deleteAgentKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.ClearAgentKey(d.ID); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.note("agent", "agent key removed for "+d.Name, "", "", "")

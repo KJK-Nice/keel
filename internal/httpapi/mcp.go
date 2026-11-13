@@ -1,14 +1,10 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 
 	"keel/internal/agent"
 	"keel/internal/agent/service"
-	"keel/internal/store"
 )
 
 // keel mcp's routes (docs/agent.md, Claude Code): the bridge that lets
@@ -31,52 +27,40 @@ import (
 const maxMCPBody = 16 * 1024
 
 func (s *Server) mcpPanes(w http.ResponseWriter, _ *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "the agent needs keel.log to record what it reads")
-		return
-	}
 	list, err := s.agent.ExternalPanes()
 	if err != nil {
-		writeMCPErr(w, err)
+		writeErr(w, mcpWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
 }
 
 func (s *Server) mcpRead(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "the agent needs keel.log to record what it reads")
-		return
-	}
 	var req struct {
 		PaneID string `json:"paneId"`
 		Lines  int    `json:"lines"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxMCPBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAgent, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid read payload")
 		return
 	}
 	ex, err := s.agent.ExternalRead(req.PaneID, req.Lines)
 	if err != nil {
-		writeMCPErr(w, err)
+		writeErr(w, mcpWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, ex)
 }
 
 func (s *Server) mcpPropose(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "the agent needs keel.log to record what it reads")
-		return
-	}
 	var req service.ExternalProposeRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxMCPBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAgent, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid proposal payload")
 		return
 	}
 	p, err := s.agent.ExternalPropose(req)
 	if err != nil {
-		writeMCPErr(w, err)
+		writeErr(w, mcpWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -92,35 +76,17 @@ func (s *Server) mcpPropose(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) mcpProposal(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "the agent needs keel.log to record what it reads")
-		return
-	}
 	st, err := s.agent.ExternalProposal(r.PathValue("id"))
 	if err != nil {
-		writeMCPErr(w, err)
+		writeErr(w, mcpWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, st)
 }
 
-// writeMCPErr maps the agent service's errors for keel mcp, which passes
-// the message on to Claude Code.
-func writeMCPErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, agent.ErrNotReadable):
-		writeError(w, http.StatusForbidden, "the agent may not read this pane: turn on \"Agent can read\" for its host in Keel")
-	case errors.Is(err, service.ErrNotFound):
-		writeError(w, http.StatusNotFound, "no such pane or proposal (list_panes gives the open panes)")
-	case errors.Is(err, service.ErrBadRequest):
-		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, service.ErrBusy):
-		writeError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, service.ErrNoPaneList):
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-	case errors.Is(err, store.ErrLocked):
-		writeError(w, http.StatusLocked, "the Keel vault is locked: unlock it in Keel")
-	default:
-		writeStoreErr(w, err)
-	}
+// mcpWords are the words keel mcp passes on to Claude Code for a pane it
+// may not read and for one that is gone.
+func mcpWords(err error) error {
+	err = worded(err, agent.ErrNotReadable, "the agent may not read this pane: turn on \"Agent can read\" for its host in Keel")
+	return worded(err, service.ErrNotFound, "no such pane or proposal (list_panes gives the open panes)")
 }

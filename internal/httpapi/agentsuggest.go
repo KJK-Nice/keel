@@ -226,9 +226,11 @@ func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, ms
 	})
 }
 
-// Close ends the agent's work for keel serve's shutdown: the detection
-// summaries still open are written to keel.log.
+// Close ends the agent's work for keel serve's shutdown: the retention
+// timer stops, and the detection summaries still open are written to
+// keel.log. It may be called more than once.
 func (s *Server) Close() {
+	s.closeOnce.Do(func() { close(s.closed) })
 	if s.agent != nil {
 		s.agent.Close()
 	}

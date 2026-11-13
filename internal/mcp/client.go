@@ -135,6 +135,11 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 			c.forget()
 		}
 		msg := strings.TrimSpace(e.Error)
+		if res.StatusCode == http.StatusLocked {
+			// keel serve says "vault locked" to every client; Claude Code
+			// is told what to do about it.
+			msg = "the Keel vault is locked: unlock it in Keel"
+		}
 		if msg == "" {
 			msg = http.StatusText(res.StatusCode)
 		}

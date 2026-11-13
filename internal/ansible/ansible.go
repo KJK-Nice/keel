@@ -32,6 +32,10 @@ type Host struct {
 	Jump       *Jump // nil = direct
 }
 
+// IsLocal reports whether h is the local shell (store.Host.IsLocal: this
+// package imports nothing of Keel's, so the word is repeated here once).
+func (h Host) IsLocal() bool { return h.Auth == "local" }
+
 // Jump is the jump host a Host connects through.
 type Jump struct {
 	Name    string
@@ -277,7 +281,7 @@ func hostHints(inv Inventory, h Host, name string) []string {
 	if h.Production {
 		out = append(out, name+": production")
 	}
-	if h.Auth != "local" && h.Jump != nil && jumpArg(inv, h) == "" {
+	if !h.IsLocal() && h.Jump != nil && jumpArg(inv, h) == "" {
 		jn := strings.TrimSpace(oneLine(h.Jump.Name))
 		if jn == "" {
 			jn = "a jump host"
@@ -331,7 +335,7 @@ func INI(inv Inventory) string {
 		name := n.Hosts[i]
 		notes := hostHints(inv, h, name)
 		line := name
-		if h.Auth == "local" {
+		if h.IsLocal() {
 			line += " ansible_connection=local"
 		} else {
 			if h.Address != "" {
@@ -419,7 +423,7 @@ func YAML(inv Inventory) string {
 				comment(&b, "        ", c)
 			}
 			var kv []string
-			if h.Auth == "local" {
+			if h.IsLocal() {
 				kv = append(kv, "ansible_connection: "+yq("local"))
 			} else {
 				if h.Address != "" {

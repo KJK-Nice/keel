@@ -112,7 +112,7 @@ func planJump(h sshconfig.Host, byAlias map[string]sshconfig.Host, saved []store
 	out.via = user + "@" + net.JoinHostPort(addr, strconv.Itoa(port))
 	var matches []store.Host
 	for _, sh := range saved {
-		if sh.AuthType == "local" || strings.TrimSpace(sh.JumpHost) != "" {
+		if sh.IsLocal() || strings.TrimSpace(sh.JumpHost) != "" {
 			continue
 		}
 		p := sh.Port
@@ -184,7 +184,7 @@ func buildPreview(st *store.Store, opts sshconfig.Options) (Preview, sshconfig.R
 
 func alreadySaved(saved []store.Host, h sshconfig.Host) bool {
 	for _, s := range saved {
-		if s.AuthType == "local" {
+		if s.IsLocal() {
 			continue
 		}
 		port := s.Port
@@ -407,7 +407,10 @@ func Import(st *store.Store, opts sshconfig.Options, req Request) (Result, error
 			}
 			saved, err := st.UpsertHost(in)
 			if err != nil {
-				if behind && errors.Is(err, store.ErrHostField) {
+				// The store's checks are the API's: a host it refuses
+				// (no user to sign in as, a jump host rule) is reported
+				// and the rest of the import goes on.
+				if errors.Is(err, store.ErrHostField) {
 					out.Failed = append(out.Failed, Failure{h.Alias, err.Error()})
 					continue
 				}

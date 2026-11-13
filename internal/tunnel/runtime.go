@@ -141,7 +141,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	if host.AuthType == "local" {
+	if host.IsLocal() {
 		return Info{}, fmt.Errorf("port forwarding needs an SSH host")
 	}
 	if tn.Kind == "dynamic" && !store.IsLoopbackAddr(tn.BindAddr) {

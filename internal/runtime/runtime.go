@@ -1033,7 +1033,7 @@ func (s *Session) runLoop() {
 // want in keel.log. This is a user setting, not agent output (§6.1).
 func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
 	cmd := host.StartupCommand
-	if cmd == "" || host.AuthType == "local" || store.ValidateStartupCommand(cmd) != nil {
+	if cmd == "" || host.IsLocal() || store.ValidateStartupCommand(cmd) != nil {
 		return
 	}
 	s.mu.Lock()
@@ -1213,7 +1213,7 @@ func sanitizeName(name string) string {
 }
 
 func subtitle(h store.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return localSubtitle()
 	}
 	port := ""

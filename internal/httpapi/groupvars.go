@@ -1,16 +1,12 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"keel/internal/agent"
-	"keel/internal/agent/service"
 	"keel/internal/ansible"
 	"keel/internal/store"
 )
@@ -28,14 +24,10 @@ import (
 // machine or logged with a value. The session socket's Type fills again
 // and compares (AuthorizeType), so the dialog shows the exact bytes.
 func (s *Server) agentFillGroupRun(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	var req struct {
 		ProposalIDs []string `json:"proposalIds"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 64*1024)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
@@ -45,7 +37,7 @@ func (s *Server) agentFillGroupRun(w http.ResponseWriter, r *http.Request) {
 	}
 	fills, err := s.agent.FillGroupProposals(r.PathValue("id"), req.ProposalIDs)
 	if err != nil {
-		writeGroupRunErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"fills": fills})
@@ -56,28 +48,17 @@ func (s *Server) agentFillGroupRun(w http.ResponseWriter, r *http.Request) {
 // a secret or holds a vault value: group variables are config, shown,
 // filled into commands and exported. Logged with the group id only.
 func (s *Server) setGroupVar(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	var req struct {
 		Name  string `json:"name"`
 		Value string `json:"value"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyLine, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid variable payload")
 		return
 	}
 	g, err := s.agent.SetGroupVar(r.PathValue("id"), req.Name, req.Value)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrGroupVarSecret):
-			writeError(w, http.StatusBadRequest, strings.TrimPrefix(err.Error(), "agent: "))
-		case errors.Is(err, store.ErrLocked):
-			writeStoreErr(w, err)
-		default:
-			writeRunbookErr(w, err)
-		}
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, g)
@@ -108,12 +89,12 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	g, members, err := s.store.GroupMembers(r.PathValue("id"))
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	hosts, err := s.store.ListHosts()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	byID := map[string]store.Host{}
@@ -156,7 +137,7 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 	if runbookID != "" {
 		b, err := s.store.GetRunbook(runbookID)
 		if err != nil {
-			writeStoreErr(w, err)
+			writeErr(w, err)
 			return
 		}
 		mode := q.Get("mode")

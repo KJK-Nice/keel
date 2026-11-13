@@ -77,7 +77,7 @@ func TestHostRoundTrip(t *testing.T) {
 			view = h
 		}
 	}
-	if view.Password != "x" {
+	if view.Password != SavedSecret {
 		t.Fatalf("list should not expose the real password, got %q", view.Password)
 	}
 
@@ -316,7 +316,7 @@ func TestIdentityConnectAndTunnelPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if listed[0].Password != "x" {
+	if listed[0].Password != SavedSecret {
 		t.Fatalf("list leaked password %q", listed[0].Password)
 	}
 	host, err := st.UpsertHost(Host{

@@ -1,11 +1,9 @@
 package httpapi
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -80,14 +78,33 @@ func (a agentPanes) CommandOutput(id string, c shellmark.Command) ([]byte, bool)
 	return a.rt.CommandOutput(id, c)
 }
 
+// initAgent builds the agent service. Without it (no keel.log to record
+// what it reads, or a service that could not be made) the reason is logged
+// once here and every route that needs the agent answers with it.
 func (s *Server) initAgent() {
 	if s.logs == nil || s.rt == nil || s.store == nil {
+		s.agentOff = "the agent needs keel.log to record what it reads"
 		return
 	}
 	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, SuggestTimeout: s.agentSuggestTimeout, Chats: s.store, Notes: s.store, Runbooks: s.store, Notebooks: s.store})
-	if err == nil {
-		s.agent = svc
-		go s.agentRetention()
+	if err != nil {
+		s.agentOff = err.Error()
+		log.Printf("agent unavailable: %v", err)
+		return
+	}
+	s.agent = svc
+	go s.agentRetention()
+}
+
+// withAgent answers 503 with the reason when there is no agent service,
+// so no handler behind it checks for one.
+func (s *Server) withAgent(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.agent == nil {
+			writeError(w, http.StatusServiceUnavailable, "agent unavailable: "+s.agentOff)
+			return
+		}
+		next(w, r)
 	}
 }
 
@@ -96,12 +113,18 @@ func (s *Server) initAgent() {
 // on every session list.
 const agentRetentionEvery = time.Hour
 
+// agentRetention prunes until Close.
 func (s *Server) agentRetention() {
 	s.pruneAgentChats()
 	t := time.NewTicker(agentRetentionEvery)
 	defer t.Stop()
-	for range t.C {
-		s.pruneAgentChats()
+	for {
+		select {
+		case <-t.C:
+			s.pruneAgentChats()
+		case <-s.closed:
+			return
+		}
 	}
 }
 
@@ -115,38 +138,30 @@ func (s *Server) pruneAgentChats() {
 }
 
 func (s *Server) agentAsk(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "the agent needs keel.log to record what it reads")
-		return
-	}
 	var req service.AskRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxAskBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAsk, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ask payload")
 		return
 	}
 	resp, err := s.agent.Ask(r.Context(), req)
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) agentEditProposal(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	var req struct {
 		Command string `json:"command"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxAskBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAsk, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid proposal payload")
 		return
 	}
 	p, err := s.agent.EditProposal(r.PathValue("id"), r.PathValue("pid"), req.Command)
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, p)
@@ -160,7 +175,7 @@ func (s *Server) agentSessions(w http.ResponseWriter, _ *http.Request) {
 	}
 	out, err := s.agent.ListSessions()
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -175,27 +190,23 @@ func (s *Server) agentTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := s.agent.Transcript(r.PathValue("id"))
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
 }
 
 func (s *Server) agentRename(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	var req struct {
 		Title string `json:"title"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxAskBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAsk, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid rename payload")
 		return
 	}
 	title, err := s.agent.Rename(r.PathValue("id"), req.Title)
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"id": r.PathValue("id"), "title": title})
@@ -205,13 +216,9 @@ func (s *Server) agentRename(w http.ResponseWriter, r *http.Request) {
 // new proposal is typed, if at all, through the session socket's
 // approve-before-type path like any other.
 func (s *Server) agentProposeAgain(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	p, err := s.agent.ProposeAgain(r.PathValue("id"), r.PathValue("pid"))
 	if err != nil {
-		writeAgentErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, p)
@@ -221,7 +228,7 @@ func (s *Server) agentProposeAgain(w http.ResponseWriter, r *http.Request) {
 func (s *Server) agentReset(w http.ResponseWriter, r *http.Request) {
 	if s.agent != nil {
 		if err := s.agent.Delete(r.PathValue("id")); err != nil {
-			writeAgentErr(w, err)
+			writeErr(w, err)
 			return
 		}
 	}
@@ -236,7 +243,7 @@ func (s *Server) agentResetAll(w http.ResponseWriter, _ *http.Request) {
 	if s.agent != nil {
 		var err error
 		if n, err = s.agent.DeleteAll(); err != nil {
-			writeAgentErr(w, err)
+			writeErr(w, err)
 			return
 		}
 	}
@@ -249,29 +256,6 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
-}
-
-func writeAgentErr(w http.ResponseWriter, err error) {
-	var pe *service.ProviderError
-	switch {
-	case errors.Is(err, service.ErrNoKey):
-		writeJSON(w, http.StatusPreconditionFailed, map[string]string{"error": err.Error(), "reason": "no-key"})
-	case errors.Is(err, service.ErrBadRequest), errors.Is(err, service.ErrNotProvider):
-		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, service.ErrBusy):
-		writeError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, service.ErrNotFound):
-		writeError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, context.Canceled):
-		// The panel stopped waiting; nobody reads this.
-		writeError(w, http.StatusRequestTimeout, "ask cancelled")
-	case errors.As(err, &pe):
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": pe.Msg, "reason": "provider"})
-	case errors.Is(err, store.ErrLocked), errors.Is(err, store.ErrNotFound):
-		writeStoreErr(w, err)
-	default:
-		writeError(w, http.StatusInternalServerError, err.Error())
-	}
 }
 
 // authorizeAgentType runs service.AuthorizeType for a client of sess and
