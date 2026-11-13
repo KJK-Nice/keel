@@ -89,7 +89,7 @@ func runbookReviewText(rb keelclient.Runbook) string {
 	}
 	var changes []string
 	for i, s := range rb.Steps {
-		if s.Risk != "" && s.Risk != "readonly" {
+		if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
 			changes = append(changes, fmt.Sprint(i+1))
 		}
 	}
@@ -126,7 +126,7 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 	for _, s := range rb.Steps {
 		if s.Command != "" {
 			commands++
-			if s.Risk != "" && s.Risk != "readonly" {
+			if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
 				changes++
 			}
 		}
@@ -149,9 +149,9 @@ func runbookStepKind(command, risk string) (label, kind string) {
 	switch {
 	case command == "":
 		return "Check", ""
-	case risk == "readonly":
+	case risk == keelclient.RiskReadOnly:
 		return "Read-only", "tide"
-	case risk == "destructive":
+	case risk == keelclient.RiskDestructive:
 		return "Destructive", "flare"
 	}
 	return "Changes", "signal"

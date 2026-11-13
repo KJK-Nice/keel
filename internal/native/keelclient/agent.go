@@ -118,14 +118,12 @@ type TraceStep struct {
 	Runbook    string         `json:"runbook"`
 	// Notebook steps: the name (redacted) and id of a notebook sent or read, its size after redaction, whether keel serve
 	// cut it, whether the agent asked for it, and how many titles a "notebook-index" step sent.
-	Notebook string `json:"notebook"`
-	// NotebookID has no tag on purpose: encoding/json matches the server's key to it without regard to case, and the guard
-	// (guard_test.go) keeps that key, quoted, out of every file but the ones that may name it. A trace step is only ever read.
-	NotebookID string
-	Bytes      int  `json:"bytes"`
-	Truncated  bool `json:"truncated"`
-	Asked      bool `json:"asked"`
-	Count      int  `json:"count"`
+	Notebook   string `json:"notebook"`
+	NotebookID string `json:"notebookId"`
+	Bytes      int    `json:"bytes"`
+	Truncated  bool   `json:"truncated"`
+	Asked      bool   `json:"asked"`
+	Count      int    `json:"count"`
 }
 
 // Proposal is a command the agent suggests, as the card shows it. Bytes is exactly what Type sends (Ctrl-U, the

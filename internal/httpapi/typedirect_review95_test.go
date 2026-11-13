@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +11,8 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/service"
+	"keel/internal/runtime"
+	"keel/internal/wire"
 )
 
 // The third review of #95, end to end over the session socket: the lines
@@ -96,28 +100,67 @@ func directAnswerWithin(t *testing.T, conn *websocket.Conn, command string, dire
 }
 
 // A pane a share peer drives is refused on the server too, not only in
-// the page: rule 13 says joined panes never take a direct type.
+// the window: rule 13 says joined panes never take a direct type. A joined
+// peer is one that came in over a share's data channel: the WebSocket makes
+// no joined client, whatever kind it is asked for; the session issues a
+// joined driver no inject nonce; and the direct type's own check refuses a
+// pane a joined peer drives. (That the data channel refuses every inject
+// frame is internal/sessionsock's and internal/share's test.)
 func TestDirectTypeRefusesAJoinedDriver(t *testing.T) {
 	f := newAskFixture(t, true)
 	web := f.open(t, f.webID, "$ ")
 	owner := dialSession(t, f.srv.URL, web.ID, "me", "web")
 	defer owner.Close()
 	waitJSON(t, owner, "ready")
-	peer := dialSession(t, f.srv.URL, web.ID, "peer", "webrtc")
-	defer peer.Close()
-	ready := waitJSON(t, peer, "ready")
-	target := uint64(ready["you"].(map[string]any)["id"].(float64))
-	if err := owner.WriteJSON(map[string]any{"type": "grant-control", "targetId": target}); err != nil {
+	// kind=webrtc on the WebSocket is still the window.
+	claimed := dialSession(t, f.srv.URL, web.ID, "claims", wire.KindJoined)
+	if you := waitJSON(t, claimed, "ready")["you"].(map[string]any); you["kind"] != wire.KindWindow {
+		t.Fatalf("a WebSocket client asked to be %q and is %v", wire.KindJoined, you)
+	}
+	claimed.Close()
+
+	sess, err := f.rt.Get(web.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	waitJSON(t, peer, "control")
+	peer, _, _ := sess.Subscribe(runtime.Join{Name: "peer", Kind: wire.KindJoined})
+	defer sess.Unsubscribe(peer.ID)
+	if err := owner.WriteJSON(map[string]any{"type": "grant-control", "targetId": peer.ID}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for sess.Role(peer.ID) != runtime.RoleDriver && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !sess.DrivenByJoined() {
+		t.Fatal("the joined peer was not handed control")
+	}
 	_, resp := f.ask(t, map[string]any{"conversationId": askConv, "question": "check", "panes": []string{web.ID}})
 	id := proposalsOf(t, resp)[0]["id"].(string)
 	got := readPTY(f.bridge(t, f.webID))
-	if r := directOverSocket(t, peer, "echo keel-agent-ok", agentDirect(), convPart(id)); r["ok"] != false || r["dialog"] == true || !strings.Contains(r["message"].(string), "joined") {
-		t.Fatalf("a joined driver → %v", r)
+	const cmd = "echo keel-agent-ok"
+	if nonce, err := sess.IssueInjectTicket(peer.ID, cmd); !errors.Is(err, runtime.ErrNotLocal) || nonce != "" {
+		t.Fatalf("a joined driver's nonce → %q, %v", nonce, err)
 	}
-	nothingWritten(t, got, "a direct type from a share peer")
+	if err := sess.InjectTicket(peer.ID, cmd, ""); err == nil {
+		t.Fatal("a joined driver's inject with no nonce was written")
+	}
+	_, err = f.server.directCheck(context.Background(), sess, peer.ID, cmd, &wire.DirectType{Ref: "r1", Kind: wire.DirectAgent}, &wire.AgentType{ConversationID: askConv, ProposalID: id})
+	if !errors.Is(err, errJoined) {
+		t.Fatalf("a joined driver → %v", err)
+	}
+	if _, dialog := service.NeedsDialog(err); dialog {
+		t.Fatal("a joined driver was offered the dialog")
+	}
+	// The owner no longer drives: it gets no nonce, and its direct type is
+	// refused as a follower's.
+	if err := owner.WriteJSON(map[string]any{"type": "inject", "command": cmd, "nonce": "", "direct": agentDirect(), "agent": convPart(id)}); err != nil {
+		t.Fatal(err)
+	}
+	if r := waitJSON(t, owner, "type-direct"); r["ok"] != false || r["dialog"] == true || !strings.Contains(r["message"].(string), "follow") {
+		t.Fatalf("the owner, while a joined peer drives → %v", r)
+	}
+	nothingWritten(t, got, "a direct type into a pane a share peer drives")
 }
 
 // A direct type whose write fails (a spent nonce) is not logged as typed.

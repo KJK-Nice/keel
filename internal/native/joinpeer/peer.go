@@ -13,6 +13,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // STUN is the one ICE server the app uses (joinpeer.js STUN). A peer dials the signal server named in the link and
@@ -102,20 +103,9 @@ func (p *Peer) ICEServers() []webrtc.ICEServer { return p.ice }
 // SignalURL is the signal server's socket this peer dialled. It holds the room and the name, never the key.
 func (p *Peer) SignalURL() string { return p.sigURL }
 
-// signal is a message of keel-signal (joinpeer.js).
-type signal struct {
-	Type      string `json:"type"`
-	Name      string `json:"name,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	SDP       string `json:"sdp,omitempty"`
-	Mac       string `json:"mac,omitempty"`
-	Candidate string `json:"candidate,omitempty"`
-	SDPMid    string `json:"sdpMid,omitempty"`
-	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
-}
-
-func (p *Peer) send(m signal) {
-	m.Type = "signal"
+// send sends the host a message through keel-signal (wire.Signal).
+func (p *Peer) send(m wire.Signal) {
+	m.Type = wire.SignalMessage
 	p.wmu.Lock()
 	defer p.wmu.Unlock()
 	_ = p.ws.WriteJSON(m)
@@ -129,7 +119,7 @@ func (p *Peer) run(key string) {
 			return
 		}
 		init := c.ToJSON()
-		m := signal{Kind: "ice", Candidate: init.Candidate}
+		m := wire.Signal{Kind: wire.SignalICE, Candidate: init.Candidate}
 		if init.SDPMid != nil {
 			m.SDPMid = *init.SDPMid
 		}
@@ -146,7 +136,7 @@ func (p *Peer) run(key string) {
 	})
 	p.pc.OnDataChannel(p.attach)
 	for {
-		var m signal
+		var m wire.Signal
 		if err := p.ws.ReadJSON(&m); err != nil {
 			p.mu.Lock()
 			quiet := p.failed || p.closed || p.open || p.pc.ConnectionState() == webrtc.PeerConnectionStateConnected
@@ -157,21 +147,21 @@ func (p *Peer) run(key string) {
 			return
 		}
 		switch m.Type {
-		case "leave":
+		case wire.SignalLeave:
 			_ = p.pc.Close()
 			p.notice(keelclient.EventNotice, msgHostLeft)
-		case "signal":
+		case wire.SignalMessage:
 			p.onSignal(m, key, ice)
 		}
 	}
 }
 
-func (p *Peer) onSignal(m signal, key string, ice *iceQueue) {
+func (p *Peer) onSignal(m wire.Signal, key string, ice *iceQueue) {
 	switch m.Kind {
-	case "pending": // the host was asked to let us in: the state stays as it is, and the window says "waiting"
-	case "denied":
+	case wire.SignalPending: // the host was asked to let us in: the state stays as it is, and the window says "waiting"
+	case wire.SignalDenied:
 		p.fail(msgDeclined, true)
-	case "offer":
+	case wire.SignalOffer:
 		if m.SDP == "" {
 			return
 		}
@@ -180,8 +170,8 @@ func (p *Peer) onSignal(m signal, key string, ice *iceQueue) {
 			p.fail(err.Error(), true)
 			return
 		}
-		p.send(signal{Kind: "answer", SDP: a.SDP, Mac: a.MAC})
-	case "ice":
+		p.send(wire.Signal{Kind: wire.SignalAnswer, SDP: a.SDP, Mac: a.MAC})
+	case wire.SignalICE:
 		if m.Candidate == "" {
 			return
 		}
@@ -207,7 +197,7 @@ func (p *Peer) attach(dc *webrtc.DataChannel) {
 		p.mu.Lock()
 		p.open = true
 		p.mu.Unlock()
-		p.frames.Mark("ready", "")
+		p.frames.Mark(string(wire.StatusReady), "")
 	})
 	dc.OnClose(func() {
 		p.mu.Lock()
@@ -259,7 +249,7 @@ func (p *Peer) fail(msg string, toast bool) {
 	p.queue = nil
 	p.cond.Broadcast()
 	p.mu.Unlock()
-	p.frames.Mark("error", msg)
+	p.frames.Mark(string(wire.StatusError), msg)
 	if toast {
 		p.notice(keelclient.EventNoticeError, msg)
 	}
@@ -286,11 +276,11 @@ func (p *Peer) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Write sends the window's keystrokes to the host. A client that does not drive sends nothing: the keystrokes are
-// counted (State.Blocked, for the notice "Typing is off while you follow") and the host would drop them as well.
+// Write sends the window's keystrokes to the host, by the rule a local pane has (keelclient.Conn.KeysGo): only while the
+// host says this client drives, as the host writes only the driver's keys; a follower's are counted (State.Blocked, for
+// the notice "Typing is off while you follow").
 func (p *Peer) Write(b []byte) (int, error) {
-	if p.frames.Snapshot().Role != "driver" { // until the host says this client drives, it follows
-		p.frames.NoteBlocked()
+	if !p.frames.KeysGo() {
 		return len(b), nil
 	}
 	if dc := p.channel(); dc != nil {
@@ -311,8 +301,10 @@ func (p *Peer) channel() *webrtc.DataChannel {
 	return nil
 }
 
-func (p *Peer) control(v any) error {
-	b, _ := json.Marshal(v)
+// control is the one way a text frame leaves a joined pane: a wire.Control whose type is a resize or one of the three
+// control frames. The host refuses every other kind from a joined peer, and this file names none (guard_test.go).
+func (p *Peer) control(ctl wire.Control) error {
+	b, _ := json.Marshal(ctl)
 	if dc := p.channel(); dc != nil {
 		return dc.SendText(string(b))
 	}
@@ -321,7 +313,7 @@ func (p *Peer) control(v any) error {
 
 // Resize tells the host the terminal's size.
 func (p *Peer) Resize(cols, rows int) error {
-	return p.control(map[string]any{"type": "resize", "cols": cols, "rows": rows})
+	return p.control(wire.Control{Type: wire.TypeResize, Cols: cols, Rows: rows})
 }
 
 // Close leaves the share: the peer and the signal socket close. The host's session is not touched.
@@ -353,10 +345,10 @@ func (p *Peer) Events() []keelclient.Event { return p.frames.Events() }
 func (p *Peer) OnChange(fn func()) { p.frames.OnChange(fn) }
 
 // TakeControl, RequestControl and GrantControl send the same control messages as the app's joined tab.
-func (p *Peer) TakeControl() error    { return p.control(map[string]any{"type": "take-control"}) }
-func (p *Peer) RequestControl() error { return p.control(map[string]any{"type": "request-control"}) }
+func (p *Peer) TakeControl() error    { return p.control(wire.Control{Type: wire.TypeTakeControl}) }
+func (p *Peer) RequestControl() error { return p.control(wire.Control{Type: wire.TypeRequestControl}) }
 func (p *Peer) GrantControl(id uint64) error {
-	return p.control(map[string]any{"type": "grant-control", "targetId": id})
+	return p.control(wire.Control{Type: wire.TypeGrantControl, TargetID: id})
 }
 
 // ErrNoApprovedInject: a joined pane takes no snippet (Approve before type is for a local session; a later plan).

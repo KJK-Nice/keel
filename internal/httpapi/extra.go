@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 func redactIdentity(in store.Identity) store.Identity {
@@ -198,12 +199,7 @@ func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
 	// Only a key a connect was just refused for can be trusted: the
 	// request names that refusal's offer (token) and must repeat its exact
 	// address:port and fingerprint. The key type comes from the offer.
-	var req struct {
-		Token       string `json:"token"`
-		Hostname    string `json:"hostname"`
-		Fingerprint string `json:"fingerprint"`
-		Replace     bool   `json:"replace"`
-	}
+	var req wire.TrustHostKey
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
@@ -233,31 +229,15 @@ func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "hostname": key.Hostname, "fingerprint": key.Fingerprint, "keyType": key.KeyType})
 }
 
+// writeHostKeyErr answers 409 with the refused host key when err is one,
+// and reports whether it did.
 func writeHostKeyErr(w http.ResponseWriter, err error) bool {
-	var unk *store.UnknownHostError
-	if errors.As(err, &unk) {
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":       err.Error(),
-			"errorKind":   "unknown-host",
-			"hostname":    unk.Host,
-			"fingerprint": unk.Fingerprint,
-			"keyType":     unk.KeyType,
-			"trustToken":  unk.Token,
-		})
-		return true
+	key, ok := store.RefusedHostKey(err)
+	if ok {
+		writeJSON(w, http.StatusConflict, struct {
+			Error string `json:"error"`
+			wire.HostKey
+		}{err.Error(), key})
 	}
-	var mm *store.HostKeyMismatchError
-	if errors.As(err, &mm) {
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":       err.Error(),
-			"errorKind":   "host-key-mismatch",
-			"hostname":    mm.Host,
-			"fingerprint": mm.Got,
-			"expected":    mm.Expected,
-			"keyType":     mm.KeyType,
-			"trustToken":  mm.Token,
-		})
-		return true
-	}
-	return false
+	return ok
 }

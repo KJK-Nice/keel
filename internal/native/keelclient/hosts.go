@@ -114,7 +114,7 @@ func (r TestResult) GoString() string { return "keelclient.TestResult" + r.Strin
 // offered. ok is false when the result offers nothing to trust. Only the user's click on the trust button may
 // send it.
 func (r TestResult) HostKeyOffer() (k HostKey, ok bool) {
-	if (r.Kind != "unknown-host" && r.Kind != "host-key-mismatch") || r.Fingerprint == "" || r.TrustToken == "" {
+	if (r.Kind != HostKeyUnknown && r.Kind != HostKeyMismatch) || r.Fingerprint == "" || r.TrustToken == "" {
 		return HostKey{}, false
 	}
 	return HostKey{Kind: r.Kind, Hostname: r.Hostname, Fingerprint: r.Fingerprint, Expected: r.Expected, KeyType: r.KeyType, Token: r.TrustToken}, true

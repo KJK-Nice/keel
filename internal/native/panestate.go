@@ -272,7 +272,7 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 // reports that the dialog went away; onTrust runs when Trust and connect was clicked, and only then.
 func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed bool) {
 	open := true
-	mismatch := k.Kind == "host-key-mismatch"
+	mismatch := k.Kind == keelclient.HostKeyMismatch
 	title, hint := "Unknown host key", "Trust this key once to connect. Keel will reject a different key later."
 	trust := btnPrimary
 	if mismatch {

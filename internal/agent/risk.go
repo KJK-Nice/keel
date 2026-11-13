@@ -4,34 +4,25 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"keel/internal/wire"
 )
 
 // Risk is how much a command can change on the host it runs on. It is the
 // label shown on every proposal (§5.4) and the input to the ⇧ gate
 // (§6.5). Phase 6b rates commands with the code rule below; a model's
 // judgment (6c) may only make a rating stricter, never looser.
-type Risk string
+type Risk = wire.Risk
 
 const (
-	RiskReadOnly    Risk = "readonly"    // reads state only
-	RiskChanges     Risk = "changes"     // changes state (files, services, packages, config)
-	RiskDestructive Risk = "destructive" // deletes data or takes a host or service down
+	RiskReadOnly    = wire.RiskReadOnly
+	RiskChanges     = wire.RiskChanges
+	RiskDestructive = wire.RiskDestructive
 )
-
-func (r Risk) rank() int {
-	switch r {
-	case RiskReadOnly:
-		return 0
-	case RiskDestructive:
-		return 2
-	default:
-		return 1
-	}
-}
 
 // Stricter returns the stricter of a and b.
 func Stricter(a, b Risk) Risk {
-	if b.rank() > a.rank() {
+	if b.Rank() > a.Rank() {
 		return b
 	}
 	if a == "" {

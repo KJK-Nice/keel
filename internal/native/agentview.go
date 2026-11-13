@@ -530,7 +530,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 		bg, fg = flareSoft, flare
 	}
 	border := line
-	if p.Risk == "destructive" {
+	if p.Risk == keelclient.RiskDestructive {
 		border = flare
 	}
 	card := ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposal")

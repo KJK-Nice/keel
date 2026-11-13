@@ -53,7 +53,7 @@ func (jr *joinRig) join(t *testing.T, link string) {
 
 func following() *keelclient.State {
 	return &keelclient.State{Status: "ready", Role: "follower", Title: "Local Shell", YouID: 2, DriverID: 1, OwnerID: 1,
-		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "webrtc", Role: "follower"}}}
+		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: "webrtc", Role: "follower"}}}
 }
 
 func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
@@ -150,7 +150,7 @@ func TestJoiningOpensAFollowingTabWithTheAppsBannerAndNothingElse(t *testing.T) 
 	jr.click(t, "tab Local Shell · joined")
 	// After a hand-over: driving.
 	jr.conns[0].st = &keelclient.State{Status: "ready", Role: "driver", Title: "Local Shell", YouID: 2, DriverID: 2, OwnerID: 1,
-		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: "web"}, {ID: 2, Name: "me", Kind: "webrtc"}}}
+		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: keelclient.KindWindow}, {ID: 2, Name: "me", Kind: "webrtc"}}}
 	jr.tt.Frame()
 	if !jr.has("banner Driving Ann's session on Local Shell · you have control") || jr.has("Ask for control") || jr.has("role You follow") || !jr.has("role Driving") {
 		t.Errorf("driving: %q", jr.tt.Texts())

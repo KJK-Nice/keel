@@ -71,15 +71,13 @@ func roleOf(id, ownerID, driverID uint64) string {
 	return "follower"
 }
 
-// kindLabel is lib/share.js KIND_LABEL: how a client came.
+// kindLabel says how a client came.
 func kindLabel(kind string) string {
 	switch kind {
-	case "webrtc":
+	case keelclient.KindJoined:
 		return "joined by link"
-	case "web":
+	case keelclient.KindWindow:
 		return "Keel window"
-	case "tui":
-		return "terminal"
 	}
 	return ""
 }
@@ -139,7 +137,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 		if name == "" {
 			name = "guest"
 		}
-		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == "webrtc", at: at}
+		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == keelclient.KindJoined, at: at}
 		if isYou {
 			row.name = "You"
 		}
@@ -166,7 +164,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 // watchingCount is how many people watch through a share link.
 func watchingCount(attached []keelclient.Peer) (n int) {
 	for _, c := range attached {
-		if c.Kind == "webrtc" {
+		if c.Kind == keelclient.KindJoined {
 			n++
 		}
 	}

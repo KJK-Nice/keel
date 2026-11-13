@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"keel/internal/wire"
 )
 
 const (
@@ -44,20 +46,6 @@ const (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: allowSignalOrigin,
-}
-
-type envelope struct {
-	Type      string `json:"type"`
-	PeerID    string `json:"peerId,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	SDP       string `json:"sdp,omitempty"`
-	Candidate string `json:"candidate,omitempty"`
-	SDPMid    string `json:"sdpMid,omitempty"`
-	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
-	// Mac binds an offer or answer to the secret in the join link's
-	// #fragment, which this server never sees (see internal/share/verify.go).
-	Mac string `json:"mac,omitempty"`
 }
 
 type peer struct {
@@ -188,7 +176,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	role := r.URL.Query().Get("role")
 	name := r.URL.Query().Get("name")
-	if roomID == "" || (role != "host" && role != "join") {
+	if roomID == "" || (role != wire.SignalRoleHost && role != wire.SignalRoleJoin) {
 		http.Error(w, "room and role=host|join required", http.StatusBadRequest)
 		return
 	}
@@ -197,11 +185,11 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "room not found", http.StatusNotFound)
 		return
 	}
-	if role == "host" && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("key")), []byte(rm.hostKey)) != 1 {
+	if role == wire.SignalRoleHost && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("key")), []byte(rm.hostKey)) != 1 {
 		http.Error(w, "host key required", http.StatusForbidden)
 		return
 	}
-	if role == "join" {
+	if role == wire.SignalRoleJoin {
 		rm.mu.Lock()
 		full := len(rm.joiners) >= maxJoiners
 		rm.mu.Unlock()
@@ -217,7 +205,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(maxMessage)
 	p := &peer{id: newID(), name: name, role: role, conn: conn}
-	if role == "host" {
+	if role == wire.SignalRoleHost {
 		rm.mu.Lock()
 		if rm.host != nil {
 			rm.mu.Unlock()
@@ -257,14 +245,14 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close()
 			return
 		}
-		_ = host.send(envelope{Type: "peer", PeerID: p.id, Name: name})
+		_ = host.send(wire.Signal{Type: wire.SignalPeer, PeerID: p.id, Name: name})
 	}
 	defer func() {
 		_ = conn.Close()
 		rm.mu.Lock()
-		if role == "host" {
+		if role == wire.SignalRoleHost {
 			for _, j := range rm.joiners {
-				_ = j.send(envelope{Type: "leave"})
+				_ = j.send(wire.Signal{Type: wire.SignalLeave})
 				_ = j.conn.Close()
 			}
 			rm.host = nil
@@ -276,7 +264,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		host := rm.host
 		rm.mu.Unlock()
 		if host != nil {
-			_ = host.send(envelope{Type: "leave", PeerID: p.id})
+			_ = host.send(wire.Signal{Type: wire.SignalLeave, PeerID: p.id})
 		}
 	}()
 
@@ -311,16 +299,16 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	for {
-		var msg envelope
+		var msg wire.Signal
 		if err := conn.ReadJSON(&msg); err != nil {
 			return
 		}
 		_ = conn.SetReadDeadline(readDeadline())
-		if msg.Type != "signal" {
+		if msg.Type != wire.SignalMessage {
 			continue
 		}
 		rm.mu.Lock()
-		if role == "host" {
+		if role == wire.SignalRoleHost {
 			j := rm.joiners[msg.PeerID]
 			rm.mu.Unlock()
 			if j != nil {

@@ -78,7 +78,7 @@ func markColor(state string) ui.Color {
 func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	changes := 0
 	for _, s := range run.Steps {
-		if s.Risk != "" && s.Risk != "readonly" {
+		if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
 			changes++
 		}
 	}

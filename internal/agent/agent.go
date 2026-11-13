@@ -19,6 +19,7 @@ import (
 
 	"keel/internal/agent/redact"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Log event kinds in keel.log.
@@ -31,14 +32,14 @@ const (
 	EventRunbook = "agent.runbook" // a runbook sent with a question, offered, used, changed, or a step's result
 )
 
-// Role is the client's role in a session. The values match
-// runtime.Role (checked by a test) without importing the runtime.
-type Role string
+// Role is the client's role in a session: the session socket's own
+// (internal/wire), the same type the runtime answers with.
+type Role = wire.Role
 
 const (
-	RoleOwner    Role = "owner"
-	RoleDriver   Role = "driver"
-	RoleFollower Role = "follower"
+	RoleOwner    = wire.RoleOwner
+	RoleDriver   = wire.RoleDriver
+	RoleFollower = wire.RoleFollower
 )
 
 // Pane is one terminal pane as the agent sees it.

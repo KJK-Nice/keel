@@ -13,6 +13,8 @@ import (
 	"keel/internal/agent/service"
 	"keel/internal/applog"
 	"keel/internal/runtime"
+	"keel/internal/sessionsock"
+	"keel/internal/wire"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
@@ -28,27 +30,9 @@ import (
 // any check is not met the answer is dialog:true and nothing is written:
 // the page then opens the approve dialog, the path that was there before.
 
-// directTypeMsg is the "direct" part of an inject.
-type directTypeMsg struct {
-	// Ref is the page's id for this request, sent back with the answer.
-	Ref string `json:"ref"`
-	// Kind says where the command comes from: an agent proposal ("agent",
-	// with the message's "agent" part), a snippet or a notebook's block.
-	Kind       string `json:"kind"`
-	SnippetID  string `json:"snippetId,omitempty"`
-	NotebookID string `json:"notebookId,omitempty"`
-	// What the page's terminal shows: whether xterm.js is on its
-	// alternate screen, and the line the cursor is on. keel serve ORs
-	// them with its own view of the output: they can only add a dialog.
-	AltScreen  bool   `json:"altScreen,omitempty"`
-	PromptLine string `json:"promptLine,omitempty"`
-}
-
-const (
-	directAgent    = "agent"
-	directSnippet  = "snippet"
-	directNotebook = "notebook"
-)
+// The "direct" part of an inject is wire.DirectType: where the command
+// comes from (an agent proposal, with the frame's "agent" part, a snippet
+// or a notebook's block) and what the window's terminal shows.
 
 // Why a direct type goes to the dialog, beyond the agent service's own.
 const (
@@ -75,7 +59,7 @@ func looksLikeInput(line string) bool {
 // shell's prompt: with OSC 133 marks, at a prompt with no command open;
 // in any case, not on a line that asks for input (keel serve's view of the
 // output tail, or the page's xterm line).
-func promptCheck(sess *runtime.Session, d *directTypeMsg) error {
+func promptCheck(sess *runtime.Session, d *wire.DirectType) error {
 	marks, atPrompt, last := sess.PromptState()
 	if marks && !atPrompt {
 		return &service.DialogError{Reason: reasonNotPrompt}
@@ -186,18 +170,16 @@ var errJoined = errors.New("this pane is joined from another Keel: type into it 
 // client of sess. A *service.DialogError sends it to the dialog; another
 // error refuses it. An agent proposal's agent.type is logged (and a group
 // run's host claimed) as the step before the write.
-func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientID uint64, command string, d *directTypeMsg, am *agentTypeMsg) (service.DirectGrant, error) {
+func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientID uint64, command string, d *wire.DirectType, am *wire.AgentType) (service.DirectGrant, error) {
 	var none service.DirectGrant
 	info := sess.Info()
-	if clientID != info.DriverID {
+	if info.Role(clientID) != runtime.RoleDriver {
 		return none, errFollowing
 	}
 	// A joined pane (the driver is a share peer) is refused here too, not
-	// only in the page.
-	for _, c := range info.Attached {
-		if c.ID == info.DriverID && c.Kind == "webrtc" { // runtime.isRemoteJoin
-			return none, errJoined
-		}
+	// only in the window.
+	if sess.DrivenByJoined() {
+		return none, errJoined
 	}
 	if sess.AltScreen() || d.AltScreen {
 		return none, &service.DialogError{Reason: reasonAltScreen}
@@ -206,7 +188,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 		return none, err
 	}
 	switch d.Kind {
-	case directAgent:
+	case wire.DirectAgent:
 		if am == nil || s.agent == nil {
 			return none, &service.DialogError{Reason: reasonUnknown}
 		}
@@ -215,10 +197,10 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 			GroupRunID:     am.GroupRunID,
 			ProposalID:     am.ProposalID,
 			SessionID:      info.ID,
-			Role:           clientRole(sess, clientID),
+			Role:           sess.Role(clientID),
 			Bytes:          command,
 		}, true)
-	case directSnippet:
+	case wire.DirectSnippet:
 		// A snippet is the user's own text: one with a placeholder goes
 		// to the dialog, as before, rather than being refused.
 		if !service.DirectLine(command) || service.HasPlaceholder(command) {
@@ -240,7 +222,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 			return none, s.agent.DirectRating(ctx, info.ID, command, sn.AgentUsable)
 		}
 		return none, &service.DialogError{Reason: service.ReasonBytes}
-	case directNotebook:
+	case wire.DirectNotebook:
 		// A placeholder is a shell glob, never the value (rule 9).
 		if service.HasPlaceholder(command) {
 			return none, service.ErrPlaceholder
@@ -272,31 +254,23 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 	return none, &service.DialogError{Reason: reasonUnknown}
 }
 
-// directAnswer fills an answer's ok, dialog, reason and message from err.
-func directAnswer(out map[string]any, err error) {
-	if reason, ok := service.NeedsDialog(err); ok {
-		out["ok"], out["dialog"], out["reason"] = false, true, reason
-		return
-	}
-	if err != nil {
-		out["ok"], out["message"] = false, err.Error()
-		return
-	}
-	out["ok"] = true
-}
-
-// typeDirect is an inject with "direct": the checks again, then the
-// write of the command alone with the server nonce, and the log entry.
-func (s *Server) typeDirect(ctx context.Context, ws *wsConn, sess *runtime.Session, clientID uint64, command, nonce string, d *directTypeMsg, am *agentTypeMsg) {
-	out := map[string]any{"type": "type-direct", "ref": d.Ref}
+// typeDirect is an inject with "direct": the checks, then the write of
+// the command alone with the server nonce, and the log entry.
+func (s *Server) typeDirect(ctx context.Context, c *sessionsock.Conn, command, nonce string, d *wire.DirectType, am *wire.AgentType) {
+	out := wire.TypeResult{Type: wire.TypeTypeDirect, Ref: d.Ref}
+	sess, clientID := c.Session(), c.ClientID()
 	info := sess.Info()
 	grant, err := s.directCheck(ctx, sess, clientID, command, d, am)
 	if err != nil {
-		directAnswer(out, err)
-		_ = ws.writeJSON(out)
+		if reason, ok := service.NeedsDialog(err); ok {
+			out.Dialog, out.Reason = true, reason
+		} else {
+			out.Message = err.Error()
+		}
+		c.Send(out)
 		return
 	}
-	group := d.Kind == directAgent && am.GroupRunID != ""
+	group := d.Kind == wire.DirectAgent && am.GroupRunID != ""
 	// Never a newline: the command waits on the prompt line.
 	command = strings.TrimRight(command, "\r\n")
 	mark := sess.StreamMark()
@@ -306,11 +280,11 @@ func (s *Server) typeDirect(ctx context.Context, ws *wsConn, sess *runtime.Sessi
 			s.agent.GroupTypeFailed(am.GroupRunID, am.ProposalID)
 		}
 		s.note(logKind(d.Kind), "a command was not typed: "+err.Error(), info.HostID, info.ID, "")
-		out["ok"], out["message"] = false, "the type expired; press Type again"
+		out.Message = "the type expired; press Type again"
 		if errors.Is(err, runtime.ErrNotReady) {
-			out["message"] = notReadyTypeMessage
+			out.Message = notReadyTypeMessage
 		}
-		_ = ws.writeJSON(out)
+		c.Send(out)
 		return
 	}
 	switch {
@@ -318,14 +292,14 @@ func (s *Server) typeDirect(ctx context.Context, ws *wsConn, sess *runtime.Sessi
 		// agent.type (Source "direct") only now that the bytes are written.
 		s.agent.DirectTyped(grant)
 		s.agent.GroupTypeDoneAt(am.GroupRunID, am.ProposalID, mark)
-	case d.Kind == directAgent:
+	case d.Kind == wire.DirectAgent:
 		s.agent.DirectTyped(grant)
 		s.agent.TypeDoneAt(am.ConversationID, am.ProposalID, mark)
 	default:
 		// A snippet or a notebook block: its id and counts, never its text.
 		if s.logs != nil {
 			id := d.SnippetID
-			if d.Kind == directNotebook {
+			if d.Kind == wire.DirectNotebook {
 				id = d.NotebookID
 			}
 			s.logs.Append(applog.Entry{
@@ -339,12 +313,12 @@ func (s *Server) typeDirect(ctx context.Context, ws *wsConn, sess *runtime.Sessi
 			})
 		}
 	}
-	out["ok"] = true
-	_ = ws.writeJSON(out)
+	out.OK = true
+	c.Send(out)
 }
 
 func logKind(kind string) string {
-	if kind == directAgent {
+	if kind == wire.DirectAgent {
 		return "agent"
 	}
 	return kind

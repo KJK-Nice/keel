@@ -28,7 +28,7 @@ func sugBadge(c *ui.Context, o keelclient.SuggestOption) {
 		fg, bg = signal, signalSoft
 	}
 	ui.Row(c).Height(sizeControlSm-6).Padding(0, space1_5).Gap(space1).Radius(radiusFull).AlignItems(ui.Center).Shrink(0).Background(bg).Label("badge " + riskWords(o)).Children(func() {
-		if o.Risk == "destructive" {
+		if o.Risk == keelclient.RiskDestructive {
 			icon(c, "alert", fg)
 		}
 		label(c, riskWords(o), fg)
@@ -127,7 +127,7 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 	if v.Sug != nil && len(v.Sug.Options) > 0 {
 		opt = &v.Sug.Options[min(max(v.Selected, 0), len(v.Sug.Options)-1)]
 	}
-	danger := opt != nil && opt.Risk == "destructive"
+	danger := opt != nil && opt.Risk == keelclient.RiskDestructive
 	name := "suggestion card"
 	switch {
 	case v.State == sugLoading:

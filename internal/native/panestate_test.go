@@ -243,7 +243,7 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 // lib/share.js roleChipHTML: a role chip has a glyph before its words, steering for who drives and the owner, an eye for a
 // follower. The glyph is 0.923rem, before the words, inside the pill.
 func TestARoleChipHasItsGlyph(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
+	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		label, glyph string
 		st           keelclient.State
@@ -266,7 +266,7 @@ func TestARoleChipHasItsGlyph(t *testing.T) {
 }
 
 func TestRoleChipAndFollowerBannerOnlyWhenShared(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
+	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		name      string
 		st        keelclient.State

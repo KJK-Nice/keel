@@ -14,6 +14,7 @@ import (
 	"keel/internal/runtime"
 	"keel/internal/shellmark"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // The agent panel's routes (phase 6b). POST /api/agent/ask is the only
@@ -273,36 +274,20 @@ func writeAgentErr(w http.ResponseWriter, err error) {
 	}
 }
 
-// agentTypeMsg is the "agent" part of a session socket "inject" message:
-// the user pressed Type into pane on a proposal (and approved the bytes).
-type agentTypeMsg struct {
-	ConversationID string `json:"conversationId"`
-	// GroupRunID names a group run's proposal instead (§17).
-	GroupRunID string `json:"groupRunId,omitempty"`
-	ProposalID string `json:"proposalId"`
-	Shift      bool   `json:"shift"`
-}
-
-// authorizeAgentType runs service.AuthorizeType for a client of sess. The
-// role comes from the session as it is now, never from the client.
-func (s *Server) authorizeAgentType(sess *runtime.Session, clientID uint64, msg *agentTypeMsg, bytes string) error {
+// authorizeAgentType runs service.AuthorizeType for a client of sess and
+// the "agent" part of its inject (wire.AgentType): the user pressed Type
+// into pane on a proposal and approved the bytes. The role comes from the
+// session as it is now, never from the client.
+func (s *Server) authorizeAgentType(sess *runtime.Session, clientID uint64, msg *wire.AgentType, bytes string) error {
 	if s.agent == nil {
 		return errors.New("agent unavailable")
-	}
-	info := sess.Info()
-	role := agent.RoleFollower
-	switch clientID {
-	case info.DriverID:
-		role = agent.RoleDriver
-	case info.OwnerID:
-		role = agent.RoleOwner
 	}
 	return s.agent.AuthorizeType(service.TypeRequest{
 		ConversationID: msg.ConversationID,
 		GroupRunID:     msg.GroupRunID,
 		ProposalID:     msg.ProposalID,
-		SessionID:      info.ID,
-		Role:           role,
+		SessionID:      sess.Info().ID,
+		Role:           sess.Role(clientID),
 		Bytes:          bytes,
 		Shift:          msg.Shift,
 	})

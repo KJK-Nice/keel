@@ -17,6 +17,7 @@ import (
 
 	"keel/internal/authtoken"
 	"keel/internal/paths"
+	"keel/internal/wire"
 )
 
 // Client talks to one keel serve.
@@ -149,20 +150,15 @@ func (e *StatusError) Error() string { return fmt.Sprintf("%s %s: %s", e.Method,
 func statusError(method, path string, resp *http.Response) error {
 	e := &StatusError{Method: method, Path: path, Status: resp.Status, Code: resp.StatusCode}
 	var body struct {
-		Error     string `json:"error"`
-		ErrorKind string `json:"errorKind"`
-		Key       string `json:"key"`
-		Reason    string `json:"reason"`
-		Hostname  string `json:"hostname"`
-		Finger    string `json:"fingerprint"`
-		Expected  string `json:"expected"`
-		KeyType   string `json:"keyType"`
-		Token     string `json:"trustToken"`
+		Error  string `json:"error"`
+		Key    string `json:"key"`
+		Reason string `json:"reason"`
+		wire.HostKey
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && len(body.Error) <= 300 {
-		e.Msg, e.ErrorKind, e.Key, e.Reason = body.Error, body.ErrorKind, body.Key, body.Reason
-		if k := body.ErrorKind; k == "unknown-host" || k == "host-key-mismatch" {
-			e.Offer = HostKey{k, body.Hostname, body.Finger, body.Expected, body.KeyType, body.Token}
+		e.Msg, e.ErrorKind, e.Key, e.Reason = body.Error, body.Kind, body.Key, body.Reason
+		if k := body.Kind; k == wire.HostKeyUnknown || k == wire.HostKeyMismatch {
+			e.Offer = body.HostKey
 		}
 	}
 	return e
@@ -223,9 +219,8 @@ func (c *Client) Reconnect(ctx context.Context, id string) error {
 // exactly what the server offered (k). replace is true only for a changed key. Call it only from the
 // user's click in the host key dialog.
 func (c *Client) TrustHostKey(ctx context.Context, k HostKey, replace bool) error {
-	return c.do(ctx, http.MethodPost, "/api/known-hosts", map[string]any{
-		"token": k.Token, "hostname": k.Hostname, "fingerprint": k.Fingerprint, "replace": replace,
-	}, nil)
+	return c.do(ctx, http.MethodPost, "/api/known-hosts",
+		wire.TrustHostKey{Token: k.Token, Hostname: k.Hostname, Fingerprint: k.Fingerprint, Replace: replace}, nil)
 }
 
 // Spawn starts a session on a host and attaches to it.
@@ -251,7 +246,6 @@ func name() string {
 func (c *Client) dial(q url.Values, cols, rows int) (*Conn, error) {
 	q.Set("cols", strconv.Itoa(cols))
 	q.Set("rows", strconv.Itoa(rows))
-	q.Set("name", name())
-	q.Set("kind", "web")
+	q.Set("name", name()) // no kind: a WebSocket is the window (wire.KindWindow), keel serve says
 	return dialWS("ws://"+c.addr+"/ws/session?"+q.Encode(), c.token)
 }

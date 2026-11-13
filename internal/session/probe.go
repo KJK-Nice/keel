@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // ProbeTimeout bounds a Test connection run.
@@ -18,8 +19,8 @@ const ProbeTimeout = 10 * time.Second
 const (
 	ProbeOK        = "ok"
 	ProbeAuth      = "auth"
-	ProbeUnknown   = "unknown-host"
-	ProbeMismatch  = "host-key-mismatch"
+	ProbeUnknown   = wire.HostKeyUnknown
+	ProbeMismatch  = wire.HostKeyMismatch
 	ProbeTimedOut  = "timeout"
 	ProbeDNS       = "dns"
 	ProbeRefused   = "refused"
@@ -72,17 +73,13 @@ func ClassifyProbe(ctx context.Context, err error) ProbeResult {
 		out.HopName = hop.Name
 		out.Message = hop.Err.Error()
 	}
-	var unk *store.UnknownHostError
-	var mm *store.HostKeyMismatchError
 	var dns *net.DNSError
 	var ne net.Error
+	key, refused := store.RefusedHostKey(err)
 	switch {
-	case errors.As(err, &unk):
-		out.Kind = ProbeUnknown
-		out.Hostname, out.Fingerprint, out.KeyType, out.TrustToken = unk.Host, unk.Fingerprint, unk.KeyType, unk.Token
-	case errors.As(err, &mm):
-		out.Kind = ProbeMismatch
-		out.Hostname, out.Fingerprint, out.KeyType, out.Expected, out.TrustToken = mm.Host, mm.Got, mm.KeyType, mm.Expected, mm.Token
+	case refused:
+		out.Kind = key.Kind
+		out.Hostname, out.Fingerprint, out.KeyType, out.Expected, out.TrustToken = key.Hostname, key.Fingerprint, key.KeyType, key.Expected, key.Token
 	case errors.Is(err, context.Canceled) || (ctx != nil && errors.Is(ctx.Err(), context.Canceled)):
 		out.Kind = ProbeCancelled
 	case errors.Is(err, context.DeadlineExceeded) || (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)):

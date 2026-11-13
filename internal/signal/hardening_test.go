@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"keel/internal/wire"
 )
 
 type roomResp struct {
@@ -243,7 +245,7 @@ func TestJoinerCapHoldsForJoinersWaitingOnHost(t *testing.T) {
 	peers := 0
 	_ = host.SetReadDeadline(time.Now().Add(1500 * time.Millisecond))
 	for {
-		var msg envelope
+		var msg wire.Signal
 		if err := host.ReadJSON(&msg); err != nil {
 			break
 		}

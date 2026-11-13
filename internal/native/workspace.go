@@ -769,7 +769,7 @@ func (w *workspace) trustHostKey(p *pane, k keelclient.HostKey) {
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
-		err := w.be.TrustHostKey(c, k, k.Kind == "host-key-mismatch")
+		err := w.be.TrustHostKey(c, k, k.Kind == keelclient.HostKeyMismatch)
 		if err == nil && sid != "" {
 			err = w.be.Reconnect(c, sid)
 		}

@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"keel/internal/wire"
 )
 
 // Link is a parsed join link. Key is the share's secret: String, GoString and Format leave it out.
@@ -72,6 +74,6 @@ func signalURL(origin, room, name string) string {
 		name = "guest"
 	}
 	u.Path, u.Fragment = "/ws", ""
-	u.RawQuery = url.Values{"role": {"join"}, "room": {room}, "name": {name}}.Encode()
+	u.RawQuery = url.Values{"role": {wire.SignalRoleJoin}, "room": {room}, "name": {name}}.Encode()
 	return u.String()
 }

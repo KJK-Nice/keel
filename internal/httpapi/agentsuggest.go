@@ -10,6 +10,8 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/runtime"
+	"keel/internal/sessionsock"
+	"keel/internal/wire"
 )
 
 // In-pane suggestions (docs/ui-redesign.md §5.5, phase 6c) ride on the
@@ -44,26 +46,6 @@ func (s *Server) WithAgentJudge(f service.JudgeFactory) *Server {
 	return s
 }
 
-// agentInsertMsg is the "suggestion" part of an inject: the user pressed
-// ⇥ (or ⇧⇥) on a suggestion card.
-type agentInsertMsg struct {
-	SuggestionID string `json:"suggestionId"`
-	Option       int    `json:"option"`
-	Shift        bool   `json:"shift"`
-}
-
-// clientRole is a client's role in sess now, never what the client says.
-func clientRole(sess *runtime.Session, clientID uint64) agent.Role {
-	info := sess.Info()
-	switch clientID {
-	case info.DriverID:
-		return agent.RoleDriver
-	case info.OwnerID:
-		return agent.RoleOwner
-	}
-	return agent.RoleFollower
-}
-
 // Per-socket rate limits. The client asks at most once per typing pause
 // (350 ms) and once per ⇥, so anything faster is a misbehaving or hostile
 // page: a detect inside the interval is dropped without an answer, a
@@ -81,9 +63,7 @@ var suggestNow = time.Now
 // cancels the older one: only the latest prompt line matters.
 type suggestConn struct {
 	srv  *Server
-	ws   *wsConn
-	sess *runtime.Session
-	cl   uint64
+	conn *sessionsock.Conn
 
 	mu      sync.Mutex
 	ctx     context.Context
@@ -103,8 +83,15 @@ func (c *suggestConn) allow(kind string, min time.Duration) bool {
 	return true
 }
 
-func newSuggestConn(ctx context.Context, srv *Server, ws *wsConn, sess *runtime.Session, clientID uint64) *suggestConn {
-	return &suggestConn{srv: srv, ws: ws, sess: sess, cl: clientID, ctx: ctx, cancels: map[string]context.CancelFunc{}, last: map[string]time.Time{}}
+func newSuggestConn(ctx context.Context, srv *Server, conn *sessionsock.Conn) *suggestConn {
+	return &suggestConn{srv: srv, conn: conn, ctx: ctx, cancels: map[string]context.CancelFunc{}, last: map[string]time.Time{}}
+}
+
+// who is the session and, as it is now, the role of the socket's client in
+// it: never what the client says.
+func (c *suggestConn) who() (sessionID string, role agent.Role) {
+	sess := c.conn.Session()
+	return sess.Info().ID, sess.Role(c.conn.ClientID())
 }
 
 func (c *suggestConn) begin(kind string) context.Context {
@@ -124,54 +111,73 @@ func (c *suggestConn) detect(seq int, line string) {
 	}
 	ctx := c.begin("detect")
 	c.srv.goSocket(func() {
-		out := map[string]any{"type": "agent-detect", "seq": seq, "plain": false, "source": service.DetectOff}
+		out := wire.Detect{Type: wire.TypeAgentDetect, Seq: seq, Source: service.DetectOff}
 		if c.srv.agent != nil {
-			info := c.sess.Info()
-			res, err := c.srv.agent.Detect(ctx, service.DetectRequest{SessionID: info.ID, Role: clientRole(c.sess, c.cl), Line: line})
+			sid, role := c.who()
+			res, err := c.srv.agent.Detect(ctx, service.DetectRequest{SessionID: sid, Role: role, Line: line})
 			if err == nil {
-				out["plain"], out["source"] = res.Plain, res.Source
+				out.Plain, out.Source = res.Plain, res.Source
 			}
 		}
 		if ctx.Err() != nil {
 			return
 		}
-		_ = c.ws.writeJSON(out)
+		c.conn.Send(out)
 	})
 }
 
 func (c *suggestConn) suggest(seq int, line string) {
+	out := wire.Suggest{Type: wire.TypeAgentSuggest, Seq: seq}
 	if !c.allow("suggest", suggestMinInterval) {
-		_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": "Too fast. Press ⇥ again.", "reason": "busy"})
+		out.Message, out.Reason = "Too fast. Press ⇥ again.", wire.ReasonBusy
+		c.conn.Send(out)
 		return
 	}
 	ctx := c.begin("suggest")
 	c.srv.goSocket(func() {
 		if c.srv.agent == nil {
-			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": "the agent needs keel.log to record what it reads", "reason": "unavailable"})
+			out.Message, out.Reason = "the agent needs keel.log to record what it reads", wire.ReasonUnavailable
+			c.conn.Send(out)
 			return
 		}
-		info := c.sess.Info()
-		sug, check, err := c.srv.agent.Suggest(ctx, service.SuggestRequest{SessionID: info.ID, Role: clientRole(c.sess, c.cl), Line: line})
+		sid, role := c.who()
+		sug, check, err := c.srv.agent.Suggest(ctx, service.SuggestRequest{SessionID: sid, Role: role, Line: line})
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			msg, reason := suggestErr(err)
-			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": false, "message": msg, "reason": reason})
+			out.Message, out.Reason = suggestErr(err)
+			c.conn.Send(out)
 			return
 		}
 		// The card first; Jev after. Run even when this call was
 		// superseded: it keeps the stricter rating and logs agent.suggest.
 		if ctx.Err() == nil {
-			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest", "seq": seq, "ok": true, "suggestion": sug})
+			out.OK, out.Suggestion = true, suggestionCard(sug)
+			c.conn.Send(out)
 		}
 		upd, took := check.Run(ctx)
 		log.Printf("debug: agent suggest: source=%s pick_ms=%d model=%s thinking=%s model_ms=%d jev_ms=%d jev_asked=%v stricter=%v",
 			took.Source, took.PickMs, took.Model, orDefault(took.Thinking), took.ModelMs, took.JevMs, took.JevAsked, upd.Stricter)
 		if upd.Stricter && ctx.Err() == nil {
-			_ = c.ws.writeJSON(map[string]any{"type": "agent-suggest-risk", "suggestionId": upd.SuggestionID, "options": upd.Options})
+			risk := wire.SuggestRisk{Type: wire.TypeAgentSuggestRisk, SuggestionID: upd.SuggestionID}
+			for _, o := range upd.Options {
+				risk.Options = append(risk.Options, wire.OptionRisk{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged})
+			}
+			c.conn.Send(risk)
 		}
 	})
+}
+
+// suggestionCard is a suggestion as the socket carries it: its id and its
+// options, with the bytes ⇥ inserts.
+func suggestionCard(s service.Suggestion) *wire.Suggestion {
+	out := &wire.Suggestion{ID: s.ID}
+	for _, o := range s.Options {
+		out.Options = append(out.Options, wire.SuggestOption{Command: o.Command, Bytes: o.Bytes, Why: o.Why, Risk: o.Risk,
+			NeedsShift: o.NeedsShift, Placeholders: o.Placeholders, Source: o.Source, Judged: o.Judged})
+	}
+	return out
 }
 
 func orDefault(s string) string {
@@ -186,25 +192,27 @@ func suggestErr(err error) (string, string) {
 	var pe *service.ProviderError
 	switch {
 	case errors.Is(err, agent.ErrFollower), errors.Is(err, agent.ErrNotDriving):
-		return "You follow this pane. Suggestions are for the driver.", "following"
+		return "You follow this pane. Suggestions are for the driver.", wire.ReasonFollowing
 	case errors.Is(err, service.ErrNoKey):
-		return "Connect a model provider in the agent panel to get suggestions.", "no-key"
+		return "Connect a model provider in the agent panel to get suggestions.", wire.ReasonNoKey
 	case errors.Is(err, service.ErrSuggestOff):
-		return "Suggestions in panes are off.", "off"
+		return "Suggestions in panes are off.", wire.ReasonOff
 	case errors.Is(err, agent.ErrNotReadable):
-		return "The agent can't read this host. Turn on \"Agent can read\" for it first.", "not-readable"
+		return "The agent can't read this host. Turn on \"Agent can read\" for it first.", wire.ReasonNotReadable
 	case errors.Is(err, service.ErrNoSuggestion):
-		return "No command came back for these words. Try other words.", "empty"
+		return "No command came back for these words. Try other words.", wire.ReasonEmpty
 	case errors.As(err, &pe):
-		return pe.Msg, "provider"
+		return pe.Msg, wire.ReasonProvider
 	case errors.Is(err, service.ErrBadRequest), errors.Is(err, service.ErrEmptyLine):
-		return err.Error(), "bad-request"
+		return err.Error(), wire.ReasonBadRequest
 	}
-	return "The suggestion failed: " + err.Error(), "error"
+	return "The suggestion failed: " + err.Error(), wire.ReasonError
 }
 
-// authorizeAgentInsert runs service.AuthorizeInsert for a client of sess.
-func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, msg *agentInsertMsg, bytes string) (service.InsertGrant, error) {
+// authorizeAgentInsert runs service.AuthorizeInsert for a client of sess
+// and the "suggestion" part of its inject (wire.AgentInsert): the user
+// pressed ⇥ (or ⇧⇥) on a suggestion card.
+func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, msg *wire.AgentInsert, bytes string) (service.InsertGrant, error) {
 	if s.agent == nil {
 		return service.InsertGrant{}, errors.New("agent unavailable")
 	}
@@ -212,7 +220,7 @@ func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, ms
 		SuggestionID: msg.SuggestionID,
 		Option:       msg.Option,
 		SessionID:    sess.Info().ID,
-		Role:         clientRole(sess, clientID),
+		Role:         sess.Role(clientID),
 		Bytes:        bytes,
 		Shift:        msg.Shift,
 	})

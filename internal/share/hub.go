@@ -19,6 +19,8 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"keel/internal/runtime"
+	"keel/internal/sessionsock"
+	"keel/internal/wire"
 )
 
 type Hub struct {
@@ -362,25 +364,12 @@ func createRoom(base string) (id, hostKey string, err error) {
 	return body.ID, body.HostKey, nil
 }
 
-type sigMsg struct {
-	Type      string `json:"type"`
-	PeerID    string `json:"peerId,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	SDP       string `json:"sdp,omitempty"`
-	Candidate string `json:"candidate,omitempty"`
-	SDPMid    string `json:"sdpMid,omitempty"`
-	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
-	// Mac vouches for the SDP's DTLS fingerprints with the link secret.
-	Mac string `json:"mac,omitempty"`
-}
-
 func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	// However the loop ends (Stop, signaling server gone, network), the
 	// session no longer has a share: drop the entry so the next Share makes
 	// a fresh room instead of handing out a dead link.
 	defer h.end(live)
-	wsURL := wsBase(live.signal) + "/ws?role=host&room=" + url.QueryEscape(live.roomID) +
+	wsURL := wsBase(live.signal) + "/ws?role=" + wire.SignalRoleHost + "&room=" + url.QueryEscape(live.roomID) +
 		"&key=" + url.QueryEscape(live.hostKey)
 	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = 8 * time.Second // DefaultDialer allows 45s
@@ -411,11 +400,11 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	}
 	// Everything below runs on this goroutine: the signaling reader, the
 	// host's admit answers and request timeouts all feed this select.
-	msgs := make(chan sigMsg)
+	msgs := make(chan wire.Signal)
 	go func() {
 		defer close(msgs)
 		for {
-			var msg sigMsg
+			var msg wire.Signal
 			if err := conn.ReadJSON(&msg); err != nil {
 				return
 			}
@@ -434,8 +423,8 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	peers := map[string]*peerConn{}
 	pending := map[string]*pendingPeer{}
 	expired := make(chan string)
-	signal := func(peerID string, out sigMsg) {
-		out.Type = "signal"
+	signal := func(peerID string, out wire.Signal) {
+		out.Type = wire.SignalMessage
 		out.PeerID = peerID
 		_ = write(out)
 	}
@@ -446,7 +435,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 		}
 		p.timer.Stop()
 		delete(pending, peerID)
-		sess.Announce(runtime.Event{Kind: "join-resolved", Peer: peerID, Message: outcome})
+		sess.Announce(runtime.Event{Kind: wire.TypeJoinResolved, Peer: peerID, Message: outcome})
 		return p
 	}
 	defer func() {
@@ -464,7 +453,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 			return
 		case peerID := <-expired:
 			if resolve(peerID, "expired") != nil {
-				signal(peerID, sigMsg{Kind: "denied"})
+				signal(peerID, wire.Signal{Kind: wire.SignalDenied})
 			}
 		case req := <-live.admit:
 			p := resolve(req.peerID, map[bool]string{true: "allowed", false: "denied"}[req.allow])
@@ -474,15 +463,15 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 			}
 			req.done <- nil
 			if !req.allow {
-				signal(req.peerID, sigMsg{Kind: "denied"})
+				signal(req.peerID, wire.Signal{Kind: wire.SignalDenied})
 				continue
 			}
 			peerID := req.peerID
-			pc, err := h.acceptPeer(live, sess, p.name, func(out sigMsg) { signal(peerID, out) })
+			pc, err := h.acceptPeer(live, sess, p.name, func(out wire.Signal) { signal(peerID, out) })
 			if err != nil {
 				log.Printf("share peer: %v", err)
-				signal(peerID, sigMsg{Kind: "denied"})
-				sess.Announce(runtime.Event{Kind: "join-failed", Peer: peerID, Message: p.name + " could not be connected: " + err.Error()})
+				signal(peerID, wire.Signal{Kind: wire.SignalDenied})
+				sess.Announce(runtime.Event{Kind: wire.TypeJoinFailed, Peer: peerID, Message: p.name + " could not be connected: " + err.Error()})
 				continue
 			}
 			peers[peerID] = pc
@@ -491,14 +480,14 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 				return
 			}
 			switch msg.Type {
-			case "peer":
+			case wire.SignalPeer:
 				peerID := msg.PeerID
 				if peerID == "" || pending[peerID] != nil || peers[peerID] != nil {
 					continue
 				}
 				if len(peers)+len(pending) >= maxPeers || len(pending) >= maxPending {
 					log.Printf("share: too many viewers or requests, turning one away")
-					signal(peerID, sigMsg{Kind: "denied"})
+					signal(peerID, wire.Signal{Kind: wire.SignalDenied})
 					continue
 				}
 				pending[peerID] = &pendingPeer{
@@ -510,15 +499,15 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 						}
 					}),
 				}
-				signal(peerID, sigMsg{Kind: "pending"})
-				sess.Announce(runtime.Event{Kind: "join-request", Peer: peerID, Message: msg.Name})
-			case "leave":
+				signal(peerID, wire.Signal{Kind: wire.SignalPending})
+				sess.Announce(runtime.Event{Kind: wire.TypeJoinRequest, Peer: peerID, Message: msg.Name})
+			case wire.SignalLeave:
 				resolve(msg.PeerID, "left")
 				if p := peers[msg.PeerID]; p != nil {
 					p.close()
 					delete(peers, msg.PeerID)
 				}
-			case "signal":
+			case wire.SignalMessage:
 				p := peers[msg.PeerID]
 				if p == nil {
 					continue
@@ -527,12 +516,12 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 					log.Printf("share peer %s: %v", msg.PeerID, err)
 					p.close()
 					delete(peers, msg.PeerID)
-					signal(msg.PeerID, sigMsg{Kind: "denied"})
+					signal(msg.PeerID, wire.Signal{Kind: wire.SignalDenied})
 					why := err.Error()
 					if errors.Is(err, errBadMAC) {
 						why = "failed verification (wrong link, or the signal server tampered with the connection)"
 					}
-					sess.Announce(runtime.Event{Kind: "join-failed", Peer: msg.PeerID, Message: p.name + " was not connected: " + why})
+					sess.Announce(runtime.Event{Kind: wire.TypeJoinFailed, Peer: msg.PeerID, Message: p.name + " was not connected: " + why})
 				}
 			}
 		}
@@ -563,9 +552,9 @@ func (p *peerConn) close() {
 // middle.
 var errBadMAC = errors.New("answer failed verification against the share link")
 
-func (p *peerConn) onSignal(msg sigMsg, secret string) error {
+func (p *peerConn) onSignal(msg wire.Signal, secret string) error {
 	switch msg.Kind {
-	case "answer":
+	case wire.SignalAnswer:
 		if p.answered {
 			return nil
 		}
@@ -580,7 +569,7 @@ func (p *peerConn) onSignal(msg sigMsg, secret string) error {
 			_ = p.pc.AddICECandidate(c)
 		}
 		p.early = nil
-	case "ice":
+	case wire.SignalICE:
 		var mid *string
 		if msg.SDPMid != "" {
 			m := msg.SDPMid
@@ -603,7 +592,7 @@ func (p *peerConn) onSignal(msg sigMsg, secret string) error {
 	return nil
 }
 
-func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, send func(sigMsg)) (*peerConn, error) {
+func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, send func(wire.Signal)) (*peerConn, error) {
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
 	})
@@ -618,13 +607,13 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 	// joiner gets them with no remote description and drops them.
 	var iceMu sync.Mutex
 	offered := false
-	var held []sigMsg
+	var held []wire.Signal
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
 		}
 		init := c.ToJSON()
-		msg := sigMsg{Kind: "ice", Candidate: init.Candidate}
+		msg := wire.Signal{Kind: wire.SignalICE, Candidate: init.Candidate}
 		if init.SDPMid != nil {
 			msg.SDPMid = *init.SDPMid
 		}
@@ -663,7 +652,7 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 		return nil, err
 	}
 	iceMu.Lock()
-	send(sigMsg{Kind: "offer", SDP: offer.SDP, Mac: sdpMAC(live.secret, roleHost, offer.SDP)})
+	send(wire.Signal{Kind: wire.SignalOffer, SDP: offer.SDP, Mac: sdpMAC(live.secret, roleHost, offer.SDP)})
 	offered = true
 	for _, m := range held {
 		send(m)
@@ -673,142 +662,74 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 	return p, nil
 }
 
+// dcTransport carries the session socket's frames (sessionsock.Transport)
+// over a viewer's data channel, pacing the output: see sendHigh.
+type dcTransport struct {
+	dc     *webrtc.DataChannel
+	low    chan struct{}
+	closed chan struct{}
+}
+
+func (t *dcTransport) SendJSON(v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return t.dc.SendText(string(b))
+}
+
+// SendBytes waits until the data channel is under sendHigh, then sends. It
+// fails when the channel closed, or stalled for sendStall.
+func (t *dcTransport) SendBytes(p []byte) error {
+	for t.dc.BufferedAmount() > sendHigh {
+		timer := time.NewTimer(sendStall)
+		select {
+		case <-t.low:
+			timer.Stop()
+		case <-t.closed:
+			timer.Stop()
+			return errors.New("share: the viewer's data channel closed")
+		case <-timer.C:
+			return errors.New("share: the viewer's data channel stalled")
+		}
+	}
+	return t.dc.Send(p)
+}
+
+// attachDataChannel attaches a joined peer to sess once its data channel
+// opens. The peer is a sessionsock.Joined client: it watches from mark on,
+// drives when the owner hands it control and passes control on. keel serve
+// never types for it and tells it nothing of the host.
 func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name string, mark uint64) {
 	dc.OnOpen(func() {
-		cl, events, snap := sess.SubscribeSince(runtime.Join{Name: name, Kind: "webrtc"}, mark)
-		if cl.Role == runtime.RoleDriver {
-			info := sess.Info()
-			_ = sess.Resize(cl.ID, info.Cols, info.Rows)
-		}
-		if len(snap) > 0 {
-			_ = dc.Send(snap)
-		}
-		info := sess.Info()
-		_ = dc.SendText(mustJSON(sessionPayload("ready", "attached", info, cl, 0, 0)))
-		low := make(chan struct{}, 1)
-		closed := make(chan struct{})
+		t := &dcTransport{dc: dc, low: make(chan struct{}, 1), closed: make(chan struct{})}
 		dc.SetBufferedAmountLowThreshold(sendLow)
 		dc.OnBufferedAmountLow(func() {
 			select {
-			case low <- struct{}{}:
+			case t.low <- struct{}{}:
 			default:
 			}
 		})
-		// drained waits until the data channel is under sendHigh. It reports
-		// false when the channel closed or stalled.
-		drained := func() bool {
-			for dc.BufferedAmount() > sendHigh {
-				t := time.NewTimer(sendStall)
-				select {
-				case <-low:
-					t.Stop()
-				case <-closed:
-					t.Stop()
-					return false
-				case <-t.C:
-					return false
-				}
-			}
-			return true
-		}
+		c := sessionsock.Attach(sess, t, sessionsock.Options{Name: name, Kind: wire.KindJoined, Caps: sessionsock.Joined, Since: &mark})
 		go func() {
-			for ev := range events {
-				if ev.Kind == "bytes" {
-					if !drained() {
-						sess.Unsubscribe(cl.ID)
-						_ = dc.Close()
-						return
-					}
-					if err := dc.Send(ev.Bytes); err != nil {
-						sess.Unsubscribe(cl.ID)
-						return
-					}
-					continue
-				}
-				msg := sessionPayload(ev.Kind, ev.Message, ev.Info, cl, ev.FromID, ev.TargetID)
-				if ev.Kind == "status" {
-					msg["status"] = ev.Status
-					msg["id"] = info.ID
-				}
-				if ev.Status == runtime.StatusError {
-					_ = dc.SendText(mustJSON(map[string]any{"type": "error", "message": ev.Message}))
-				}
-				_ = dc.SendText(mustJSON(msg))
+			if c.Forward() {
+				// The viewer is not reading: it is dropped.
+				c.Detach()
+				_ = dc.Close()
 			}
 		}()
 		dc.OnMessage(func(m webrtc.DataChannelMessage) {
 			if m.IsString {
-				var ctl struct {
-					Type     string `json:"type"`
-					Command  string `json:"command"`
-					Nonce    string `json:"nonce"`
-					Cols     int    `json:"cols"`
-					Rows     int    `json:"rows"`
-					TargetID uint64 `json:"targetId"`
-				}
-				if json.Unmarshal(m.Data, &ctl) != nil {
-					return
-				}
-				switch ctl.Type {
-				case "resize":
-					_ = sess.Resize(cl.ID, ctl.Cols, ctl.Rows)
-				case "request-control":
-					_ = sess.RequestControl(cl.ID)
-				case "grant-control":
-					_ = sess.GrantControl(cl.ID, ctl.TargetID)
-				case "take-control":
-					_ = sess.TakeControl(cl.ID)
-				case "inject-challenge":
-					nonce, err := sess.IssueInjectTicket(cl.ID, ctl.Command)
-					if err == nil {
-						_ = dc.SendText(mustJSON(map[string]any{"type": "inject-challenge", "nonce": nonce}))
-					}
-				case "inject":
-					_ = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
-				}
+				c.Control(m.Data)
 				return
 			}
-			if err := sess.Write(cl.ID, m.Data); err != nil && !errors.Is(err, runtime.ErrReadOnly) {
-				_ = dc.SendText(mustJSON(map[string]any{"type": "error", "message": err.Error()}))
-			}
+			_ = c.Keys(m.Data)
 		})
 		dc.OnClose(func() {
-			close(closed)
-			sess.Unsubscribe(cl.ID)
+			close(t.closed)
+			c.Detach()
 		})
 	})
-}
-
-func sessionPayload(kind, message string, info runtime.Info, you runtime.Client, fromID, targetID uint64) map[string]any {
-	you.Role = runtime.RoleFollower
-	if you.ID == info.DriverID {
-		you.Role = runtime.RoleDriver
-	} else if you.ID == info.OwnerID {
-		you.Role = runtime.RoleOwner
-	}
-	out := map[string]any{
-		"type":     kind,
-		"message":  message,
-		"id":       info.ID,
-		"title":    info.Title,
-		"status":   info.Status,
-		"attached": info.Attached,
-		"driverId": info.DriverID,
-		"ownerId":  info.OwnerID,
-		"you":      you,
-	}
-	if fromID != 0 {
-		out["fromId"] = fromID
-	}
-	if targetID != 0 {
-		out["targetId"] = targetID
-	}
-	return out
-}
-
-func mustJSON(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 func wsBase(httpBase string) string {

@@ -124,7 +124,7 @@ func TestStricterNeverLoosens(t *testing.T) {
 	for _, a := range all {
 		for _, b := range all {
 			got := Stricter(a, b)
-			if got.rank() < a.rank() || got.rank() < b.rank() {
+			if got.Rank() < a.Rank() || got.Rank() < b.Rank() {
 				t.Errorf("Stricter(%s, %s) = %s", a, b, got)
 			}
 		}

@@ -585,7 +585,7 @@ func TestConnectUnknownHostKey(t *testing.T) {
 	for time.Now().Before(deadline) {
 		got := sess.Info()
 		if got.Status == StatusError {
-			if got.ErrorKind != "unknown-host" || got.HostKeyHost != "box:22" || got.HostKeyFingerprint != "SHA256:abc" {
+			if got.HostKey.Kind != "unknown-host" || got.HostKey.Hostname != "box:22" || got.HostKey.Fingerprint != "SHA256:abc" {
 				t.Fatalf("info = %+v", got)
 			}
 			return

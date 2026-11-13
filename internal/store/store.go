@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+
+	"keel/internal/wire"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -48,6 +50,21 @@ type HostKeyMismatchError struct {
 
 func (e *HostKeyMismatchError) Error() string {
 	return fmt.Sprintf("host key mismatch for %s: expected %s, got %s", e.Host, e.Expected, e.Got)
+}
+
+// RefusedHostKey is the refused key in a connect error, in the one shape
+// the session socket, a 409 body and Test connection carry it in. ok is
+// false when err is no host-key refusal.
+func RefusedHostKey(err error) (k wire.HostKey, ok bool) {
+	var unk *UnknownHostError
+	var mm *HostKeyMismatchError
+	switch {
+	case errors.As(err, &unk):
+		return wire.HostKey{Kind: wire.HostKeyUnknown, Hostname: unk.Host, Fingerprint: unk.Fingerprint, KeyType: unk.KeyType, Token: unk.Token}, true
+	case errors.As(err, &mm):
+		return wire.HostKey{Kind: wire.HostKeyMismatch, Hostname: mm.Host, Fingerprint: mm.Got, Expected: mm.Expected, KeyType: mm.KeyType, Token: mm.Token}, true
+	}
+	return wire.HostKey{}, false
 }
 
 type Host struct {

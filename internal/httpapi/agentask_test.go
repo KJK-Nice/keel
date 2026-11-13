@@ -35,6 +35,7 @@ const (
 
 type askFixture struct {
 	srv     *httptest.Server
+	server  *Server
 	st      *store.Store
 	rt      *runtime.Runtime
 	logPath string
@@ -95,6 +96,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		return f.fake, nil
 	}
 	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
+	f.server = server
 	f.srv = httptest.NewServer(server.openHandler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {

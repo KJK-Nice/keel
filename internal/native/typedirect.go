@@ -128,7 +128,7 @@ func snippetBadge(command string) string {
 
 // proposalDirect: an agent proposal that keel serve should type without the dialog, as far as the window knows.
 func proposalDirect(p keelclient.Proposal) bool {
-	return p.Risk == "readonly" && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && directHint(p.Command)
+	return p.Risk == keelclient.RiskReadOnly && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && directHint(p.Command)
 }
 
 // typeWord adds the ellipsis when a dialog will follow the press.

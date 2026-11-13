@@ -115,9 +115,9 @@ type FillUsed struct {
 // GroupFill is keel serve's answer to the fill for one proposal: the exact bytes Type will send for that host, with the
 // values put in (the only place a value leaves keel serve), where each came from, or why none could be made. The window
 // shows these bytes in the group approve dialog and sends exactly them; it never builds or edits them.
-// ProposalRef is the proposal's id (the guard keeps the bare key for this package's inject.go).
+// ProposalRef is the proposal's id.
 type GroupFill struct {
-	ProposalRef string     `json:"proposalId,omitempty"`
+	ProposalRef string     `json:"proposalId"`
 	HostID      string     `json:"hostId"`
 	Host        string     `json:"host"`
 	Bytes       string     `json:"bytes"`

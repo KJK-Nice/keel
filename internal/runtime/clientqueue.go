@@ -79,14 +79,14 @@ func (c *clientConn) offer(ev Event) bool {
 		c.qmu.Unlock()
 		return true
 	}
-	if ev.Kind == "bytes" {
+	if ev.Kind == EventBytes {
 		if c.queued+len(ev.Bytes) > clientMaxQueuedBytes {
 			c.dropReason = fmt.Sprintf("more than %d MB of output unread", clientMaxQueuedBytes>>20)
 			c.qmu.Unlock()
 			return false
 		}
 		c.queued += len(ev.Bytes)
-		if n := len(c.queue); n > 0 && c.queue[n-1].ev.Kind == "bytes" &&
+		if n := len(c.queue); n > 0 && c.queue[n-1].ev.Kind == EventBytes &&
 			len(c.queue[n-1].ev.Bytes)+len(ev.Bytes) <= clientMergeBytes {
 			last := &c.queue[n-1]
 			if !last.owned {
@@ -193,7 +193,7 @@ func (c *clientConn) pump() {
 				if !c.send(q.ev) {
 					return
 				}
-				if q.ev.Kind == "bytes" {
+				if q.ev.Kind == EventBytes {
 					c.qmu.Lock()
 					c.queued = max(0, c.queued-len(q.ev.Bytes))
 					c.qmu.Unlock()

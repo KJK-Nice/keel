@@ -576,9 +576,9 @@ func testText(res keelclient.TestResult) (state, short, detail string) {
 		return "live", fmt.Sprintf("Connected in %d ms", res.LatencyMs), ""
 	case "auth":
 		return "dead", "Authentication failed", where + "the server refused the password or key. " + res.Message
-	case "unknown-host":
+	case keelclient.HostKeyUnknown:
 		return "connecting", "Host key unknown", where + res.Hostname + " presented a key Keel has not seen. Compare it with the server's own fingerprint before you trust it."
-	case "host-key-mismatch":
+	case keelclient.HostKeyMismatch:
 		return "dead", "Host key changed", where + res.Hostname + " presented a different key than the one saved. Only replace it if you know the server was reinstalled."
 	case "timeout":
 		return "dead", "Timed out", where + "no answer within 10 seconds. " + res.Message
@@ -684,7 +684,7 @@ func (w *workspace) trustTest() {
 	if !ok {
 		return
 	}
-	replace := offer.Kind == "host-key-mismatch"
+	replace := offer.Kind == keelclient.HostKeyMismatch
 	send := func() {
 		w.work(func() {
 			c, cancel := ctx()

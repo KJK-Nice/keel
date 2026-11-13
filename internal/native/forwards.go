@@ -279,7 +279,7 @@ func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
-		err := w.be.TrustHostKey(c, o.key, o.key.Kind == "host-key-mismatch")
+		err := w.be.TrustHostKey(c, o.key, o.key.Kind == keelclient.HostKeyMismatch)
 		if err == nil {
 			_, err = w.be.StartTunnel(c, o.tunnelID)
 		}

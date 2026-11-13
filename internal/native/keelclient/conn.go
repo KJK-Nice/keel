@@ -2,7 +2,6 @@ package keelclient
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"slices"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/authtoken"
+	"keel/internal/wire"
 )
 
 // Conn is an io.ReadWriteCloser over /ws/session: binary frames are PTY bytes,
@@ -47,20 +47,42 @@ type Conn struct {
 	insertFor    string
 }
 
-// Peer is a client attached to a session. Role is owner, driver or follower.
+// Peer is a client attached to a session, as the window shows it (the frame's own shape is wire.Client). Kind is KindWindow
+// or KindJoined; Role is owner, driver or follower.
 type Peer struct {
-	ID               uint64 `json:"id"`
+	ID               uint64
 	Name, Kind, Role string
-	AttachedAt       string `json:"attachedAt"` // RFC 3339; "" when the server did not say
+	AttachedAt       string // RFC 3339; "" when the server did not say
 }
 
-// HostKey is a host-key refusal. Kind is "unknown-host", "host-key-mismatch" or "" (none).
+// How a session's client came (Peer.Kind): the Keel window on the session's machine, or a share link.
+const (
+	KindWindow = wire.KindWindow
+	KindJoined = wire.KindJoined
+)
+
+func peers(in []wire.Client) []Peer {
+	if in == nil {
+		return nil
+	}
+	out := make([]Peer, len(in))
+	for i, c := range in {
+		out[i] = Peer{ID: c.ID, Name: c.Name, Kind: c.Kind, Role: string(c.Role)}
+		if !c.AttachedAt.IsZero() {
+			out[i].AttachedAt = c.AttachedAt.Format(time.RFC3339Nano)
+		}
+	}
+	return out
+}
+
+// HostKey is a host-key refusal (wire.HostKey). Kind is HostKeyUnknown, HostKeyMismatch or "" (none).
 // Token is a one-time capability: String leaves it out so that printing a HostKey never shows it.
-type HostKey struct{ Kind, Hostname, Fingerprint, Expected, KeyType, Token string }
+type HostKey = wire.HostKey
 
-func (k HostKey) String() string {
-	return fmt.Sprintf("{%s %s %s expected=%s %s}", k.Kind, k.Hostname, k.Fingerprint, k.Expected, k.KeyType)
-}
+const (
+	HostKeyUnknown  = wire.HostKeyUnknown
+	HostKeyMismatch = wire.HostKeyMismatch
+)
 
 // State is what the socket's control frames say about a session.
 type State struct {
@@ -109,41 +131,21 @@ func (c *Conn) Read(p []byte) (int, error) {
 // control applies a ready, status, presence, control or error frame, and queues the share hub's join frames as
 // Events; other types are ignored.
 func (c *Conn) control(data []byte) {
-	var m struct {
-		Type        string `json:"type"`
-		PeerID      string `json:"peerId"`
-		FromID      uint64 `json:"fromId"`
-		TargetID    uint64 `json:"targetId"`
-		ID          string `json:"id"`
-		Status      string `json:"status"`
-		Title       string `json:"title"`
-		Subtitle    string `json:"subtitle"`
-		Message     string `json:"message"`
-		Attached    []Peer `json:"attached"`
-		DriverID    uint64 `json:"driverId"`
-		OwnerID     uint64 `json:"ownerId"`
-		You         *Peer  `json:"you"`
-		ErrorKind   string `json:"errorKind"`
-		Hostname    string `json:"hostname"`
-		Fingerprint string `json:"fingerprint"`
-		Expected    string `json:"expected"`
-		KeyType     string `json:"keyType"`
-		TrustToken  string `json:"trustToken"`
-	}
+	var m wire.State
 	if json.Unmarshal(data, &m) != nil {
 		return
 	}
 	switch m.Type {
-	case "join-request", "join-resolved", "join-failed":
+	case wire.TypeJoinRequest, wire.TypeJoinResolved, wire.TypeJoinFailed:
 		c.push(Event{Kind: m.Type, PeerID: m.PeerID, Message: m.Message})
 		return
-	case "ready", "status", "presence", "control", "error":
+	case wire.TypeReady, wire.TypeStatus, wire.TypePresence, wire.TypeControl, wire.TypeError:
 	default:
 		return
 	}
-	if m.Type == "control" {
+	if m.Type == wire.TypeControl {
 		switch {
-		case m.FromID != 0 && m.TargetID == 0: // a request for control (lib/share.js isControlRequest)
+		case m.FromID != 0 && m.TargetID == 0: // a request for control: asked, not yet passed
 			c.push(Event{Kind: EventControlRequest, FromID: m.FromID, Message: m.Message})
 		case m.Message != "":
 			c.push(Event{Kind: EventControlNote, Message: m.Message})
@@ -158,35 +160,30 @@ func (c *Conn) control(data []byte) {
 			*dst = v
 		}
 	}
-	if m.Type == "ready" && m.ID != "" {
+	if m.Type == wire.TypeReady && m.ID != "" {
 		c.id = m.ID
 	}
-	status := m.Status
-	if status == "" && m.Type == "error" {
-		status = "error"
+	status := string(m.Status)
+	if status == "" && m.Type == wire.TypeError {
+		status = string(wire.StatusError)
 	}
 	s.recordLog(before.Status, status, m.Message)
-	set(&s.Status, m.Status)
+	set(&s.Status, string(m.Status))
 	set(&s.Title, m.Title)
-	set(&s.Subtitle, m.Subtitle)
-	if m.Type != "error" {
+	if m.Type != wire.TypeError {
 		if m.You != nil {
-			s.Role = m.You.Role
-			s.Attached, s.DriverID, s.OwnerID, s.YouID = m.Attached, m.DriverID, m.OwnerID, m.You.ID
+			s.Role = string(m.You.Role)
+			s.Attached, s.DriverID, s.OwnerID, s.YouID = peers(m.Attached), m.DriverID, m.OwnerID, m.You.ID
 		}
 	}
 	switch {
-	case m.Type == "error" || m.Status == "error" || m.Status == "exited":
+	case m.Type == wire.TypeError || m.Status == wire.StatusError || m.Status == wire.StatusExited:
 		set(&s.Message, m.Message)
-	case m.Status == "ready":
+	case m.Status == wire.StatusReady:
 		s.Message = ""
 		s.WasReady = true
 	}
-	if m.ErrorKind != "" {
-		s.HostKey = HostKey{m.ErrorKind, m.Hostname, m.Fingerprint, m.Expected, m.KeyType, m.TrustToken}
-	} else {
-		s.HostKey = HostKey{}
-	}
+	s.HostKey = m.HostKey // zero when the frame names none
 	changed := id != c.id || !sameState(before, *s)
 	fn := c.onChange
 	c.mu.Unlock()
@@ -207,11 +204,21 @@ func (c *Conn) write(typ int, b []byte) error {
 	return c.ws.WriteMessage(typ, b)
 }
 
-// Write sends keystrokes to the PTY. A client that is not driving sends nothing (keel serve would drop it as well):
-// the count of dropped keystrokes is State.Blocked, which the window turns into "Typing is off while you follow".
+// send is the one way a text frame leaves this client: a wire.Control and nothing else. Which of them may ask keel
+// serve to type is inject.go's alone (internal/native/guard_test.go).
+func (c *Conn) send(ctl wire.Control) error {
+	b, err := json.Marshal(ctl)
+	if err != nil {
+		return err
+	}
+	return c.write(websocket.TextMessage, b)
+}
+
+// Write sends keystrokes to the PTY. keel serve writes only the driver's keys, so a client that it has not said drives
+// sends nothing; once it has said this client follows, the dropped keystrokes are counted in State.Blocked, which the
+// window turns into "Typing is off while you follow".
 func (c *Conn) Write(p []byte) (int, error) {
-	if c.following() {
-		c.block()
+	if !c.KeysGo() {
 		return len(p), nil
 	}
 	if err := c.write(websocket.BinaryMessage, p); err != nil {
@@ -220,10 +227,38 @@ func (c *Conn) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// KeysGo is the one rule for keystrokes, for a local pane and a joined one (joinpeer): they are sent only while keel
+// serve says this client is the driver, as keel serve itself writes only the driver's. When it does not, the keystroke is
+// dropped, and counted as blocked if the client was told it follows (before the ready frame nothing is counted).
+func (c *Conn) KeysGo() bool {
+	c.mu.Lock()
+	role := wire.Role(c.state.Role)
+	c.mu.Unlock()
+	if role == wire.RoleDriver {
+		return true
+	}
+	if role != "" {
+		c.block()
+	}
+	return false
+}
+
+// typingReady is the one check before this client asks keel serve to type for it or asks a suggestion question: a ready
+// session that it drives.
+func (c *Conn) typingReady() error {
+	st := c.Snapshot()
+	switch {
+	case st.Status != string(wire.StatusReady):
+		return ErrNotReady
+	case st.Role != string(wire.RoleDriver):
+		return ErrNotDriver
+	}
+	return nil
+}
+
 // Resize tells the server the terminal's size.
 func (c *Conn) Resize(cols, rows int) error {
-	b, _ := json.Marshal(map[string]any{"type": "resize", "cols": cols, "rows": rows})
-	return c.write(websocket.TextMessage, b)
+	return c.send(wire.Control{Type: wire.TypeResize, Cols: cols, Rows: rows})
 }
 
 // Close detaches; the session keeps running on the server.
@@ -246,19 +281,14 @@ func (c *Conn) Snapshot() State {
 }
 
 // TakeControl asks the server to make this client the driver (it refuses unless this client owns the session).
-func (c *Conn) TakeControl() error {
-	return c.write(websocket.TextMessage, []byte(`{"type":"take-control"}`))
-}
+func (c *Conn) TakeControl() error { return c.send(wire.Control{Type: wire.TypeTakeControl}) }
 
 // RequestControl asks the driver to pass control to this client.
-func (c *Conn) RequestControl() error {
-	return c.write(websocket.TextMessage, []byte(`{"type":"request-control"}`))
-}
+func (c *Conn) RequestControl() error { return c.send(wire.Control{Type: wire.TypeRequestControl}) }
 
 // GrantControl makes the attached client peerID the driver (the driver or the owner may).
 func (c *Conn) GrantControl(peerID uint64) error {
-	b, _ := json.Marshal(map[string]any{"type": "grant-control", "targetId": peerID})
-	return c.write(websocket.TextMessage, b)
+	return c.send(wire.Control{Type: wire.TypeGrantControl, TargetID: peerID})
 }
 
 // OnChange sets fn, called (on the reader goroutine) when State changes or the id is learned.

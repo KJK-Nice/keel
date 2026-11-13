@@ -196,9 +196,9 @@ func bytesText(bytes string) string {
 // riskBadge is the card's kind: Read-only, Changes state or Destructive. An unknown kind is never shown as read-only.
 func riskBadge(risk string) (label, kind string) {
 	switch risk {
-	case "readonly":
+	case keelclient.RiskReadOnly:
 		return "Read-only", "tide"
-	case "destructive":
+	case keelclient.RiskDestructive:
 		return "Destructive", "flare"
 	}
 	return "Changes state", "signal"
@@ -321,7 +321,7 @@ func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reas
 
 // shiftReason says why a proposal needs ⇧.
 func shiftReason(p keelclient.Proposal) string {
-	if p.Risk == "destructive" {
+	if p.Risk == keelclient.RiskDestructive {
 		return "Destructive"
 	}
 	return "Changes state on a production host"

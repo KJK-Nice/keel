@@ -18,12 +18,13 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/applog"
-	"keel/internal/inject"
 	"keel/internal/runtime"
 	"keel/internal/session"
+	"keel/internal/sessionsock"
 	"keel/internal/share"
 	"keel/internal/store"
 	"keel/internal/tunnel"
+	"keel/internal/wire"
 )
 
 var upgrader = websocket.Upgrader{
@@ -911,13 +912,14 @@ const (
 	wsPongWait   = 60 * time.Second
 )
 
-func (w *wsConn) writeJSON(v any) error {
+// SendJSON and SendBytes make a wsConn a sessionsock.Transport.
+func (w *wsConn) SendJSON(v any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.conn.WriteJSON(v)
 }
 
-func (w *wsConn) writeBinary(p []byte) error {
+func (w *wsConn) SendBytes(p []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.conn.WriteMessage(websocket.BinaryMessage, p)
@@ -974,7 +976,6 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
 	name := r.URL.Query().Get("name")
-	kind := r.URL.Query().Get("kind")
 
 	if id == "" {
 		hostID := r.URL.Query().Get("hostId")
@@ -1003,70 +1004,26 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	ws := &wsConn{conn: conn}
 	defer conn.Close()
 	info := sess.Info()
-	_ = ws.writeJSON(map[string]any{
-		"type":    "status",
-		"message": "Attaching…",
-		"id":      info.ID,
-		"status":  info.Status,
+	_ = ws.SendJSON(wire.State{Type: wire.TypeStatus, Message: wire.MsgAttaching, ID: info.ID, Status: info.Status})
+	// What the socket starts off its read loop (suggestions, direct types)
+	// stops with the socket.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// A WebSocket is the window on this machine: the one client keel serve
+	// types for. The kind is the transport's, never the client's word.
+	c := sessionsock.Attach(sess, ws, sessionsock.Options{
+		Name: name, Kind: wire.KindWindow, Caps: sessionsock.Local, Cols: cols, Rows: rows,
+		Typist: func(c *sessionsock.Conn) sessionsock.Typist { return s.newTypist(ctx, c) },
 	})
-	cl, events, snap := sess.Subscribe(runtime.Join{Name: name, Kind: kind})
-	defer sess.Unsubscribe(cl.ID)
-	if cl.Role == runtime.RoleDriver {
-		_ = sess.Resize(cl.ID, cols, rows)
-	}
-	if len(snap) > 0 {
-		_ = ws.writeBinary(snap)
-	}
-	info = sess.Info()
-	_ = ws.writeJSON(sessionPayload("ready", "attached", info, cl, 0, 0))
+	defer c.Detach()
 
 	pingDone := make(chan struct{})
 	defer close(pingDone)
 	ws.startPings(pingDone)
-	// In-pane suggestions (agentsuggest.go) run off this loop and stop
-	// with the socket.
-	sugCtx, sugCancel := context.WithCancel(r.Context())
-	defer sugCancel()
-	sug := newSuggestConn(sugCtx, s, ws, sess, cl.ID)
-	// Direct types are bounded per socket (typedirect.go).
-	directLim := newDirectLimiter()
 
 	go func() {
 		defer conn.Close()
-		for ev := range events {
-			if ev.Kind == "bytes" {
-				if err := ws.writeBinary(ev.Bytes); err != nil {
-					return
-				}
-				continue
-			}
-			if ev.Kind == "join-request" || ev.Kind == "join-resolved" || ev.Kind == "join-failed" {
-				// From the share hub (Session.Announce): someone asked to
-				// watch, or that request was answered. No session state.
-				_ = ws.writeJSON(map[string]any{"type": ev.Kind, "id": info.ID, "peerId": ev.Peer, "message": ev.Message})
-				continue
-			}
-			msg := sessionPayload(ev.Kind, ev.Message, ev.Info, cl, ev.FromID, ev.TargetID)
-			if ev.Kind == "status" {
-				msg["status"] = ev.Status
-				msg["id"] = info.ID
-			}
-			if ev.Status == runtime.StatusError {
-				errMsg := map[string]any{"type": "error", "message": ev.Message}
-				if ev.Info.ErrorKind != "" {
-					errMsg["errorKind"] = ev.Info.ErrorKind
-					errMsg["hostname"] = ev.Info.HostKeyHost
-					errMsg["fingerprint"] = ev.Info.HostKeyFingerprint
-					errMsg["expected"] = ev.Info.HostKeyExpected
-					errMsg["keyType"] = ev.Info.HostKeyType
-					errMsg["trustToken"] = ev.Info.HostKeyToken
-					errMsg["hostId"] = ev.Info.HostID
-					errMsg["sessionId"] = ev.Info.ID
-				}
-				_ = ws.writeJSON(errMsg)
-			}
-			_ = ws.writeJSON(msg)
-		}
+		c.Forward()
 	}()
 
 	for {
@@ -1076,149 +1033,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 		if mt == websocket.TextMessage {
-			var ctl struct {
-				Type     string `json:"type"`
-				Command  string `json:"command"`
-				Nonce    string `json:"nonce"`
-				Cols     int    `json:"cols"`
-				Rows     int    `json:"rows"`
-				TargetID uint64 `json:"targetId"`
-				// Agent marks an inject as the user's Type into pane on an
-				// agent proposal (agentask.go).
-				Agent *agentTypeMsg `json:"agent"`
-				// Suggestion marks an inject as the user's ⇥ / ⇧⇥ on an
-				// in-pane suggestion (agentsuggest.go).
-				Suggestion *agentInsertMsg `json:"suggestion"`
-				// Notebook marks an inject as a notebook fence's Type
-				// (§13, §18): one holding a redaction placeholder such as
-				// [secret:1] is refused, as an agent proposal is.
-				Notebook bool   `json:"notebook"`
-				Seq      int    `json:"seq"`
-				Line     string `json:"line"`
-				// Direct marks a type without the approve dialog (§6 rule
-				// 13, typedirect.go).
-				Direct *directTypeMsg `json:"direct"`
-			}
-			if json.Unmarshal(msg, &ctl) != nil {
-				continue
-			}
-			var err error
-			switch ctl.Type {
-			case "resize":
-				err = sess.Resize(cl.ID, ctl.Cols, ctl.Rows)
-			case "request-control":
-				err = sess.RequestControl(cl.ID)
-			case "grant-control":
-				err = sess.GrantControl(cl.ID, ctl.TargetID)
-			case "take-control":
-				err = sess.TakeControl(cl.ID)
-			case "inject-challenge":
-				var nonce string
-				nonce, err = sess.IssueInjectTicket(cl.ID, ctl.Command)
-				if err == nil {
-					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
-				}
-			case "agent-detect":
-				sug.detect(ctl.Seq, ctl.Line)
-			case "agent-suggest":
-				sug.suggest(ctl.Seq, ctl.Line)
-			case "inject":
-				if ctl.Direct != nil && !directLim.allow("type") {
-					_ = ws.writeJSON(map[string]any{"type": "type-direct", "ref": ctl.Direct.Ref, "ok": false, "dialog": true, "reason": reasonBusy})
-					break
-				}
-				if ctl.Direct != nil {
-					// One click, no dialog, no Enter (§6 rule 13): keel
-					// serve checks again, off this loop (a snippet or a
-					// notebook block may be rated by Jev), then writes.
-					s.goSocket(func() { s.typeDirect(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })
-					break
-				}
-				if ctl.Suggestion != nil {
-					// ⇥ / ⇧⇥ on a suggestion: the agent service checks the
-					// suggestion, the bytes, the ⇧ rule and that this
-					// client drives, and logs agent.insert, before the
-					// ticket writes them (§6.1, §6.5, §6.6, §6.7). The
-					// bytes end without a newline: inserted, not run.
-					// agent.insert is logged only once the write happened.
-					id := ctl.Suggestion.SuggestionID
-					grant, aerr := s.authorizeAgentInsert(sess, cl.ID, ctl.Suggestion, ctl.Command)
-					if aerr != nil {
-						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": aerr.Error()})
-						break
-					}
-					ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
-					s.agent.InsertDone(grant, ierr)
-					if ierr != nil {
-						s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
-						reason := "the insert expired; press ⇥ again"
-						if errors.Is(ierr, runtime.ErrNotReady) {
-							reason = notReadyTypeMessage
-						}
-						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": reason})
-						break
-					}
-					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
-					break
-				}
-				if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
-					// A notebook fence (an agent's draft, or text pasted
-					// from an answer) that still holds a placeholder is a
-					// shell glob, never the value: not typed.
-					s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
-					_ = ws.writeJSON(map[string]any{"type": "error", "message": service.ErrPlaceholder.Error()})
-					break
-				}
-				if ctl.Agent == nil {
-					err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
-					break
-				}
-				// An agent proposal: the agent service checks the ⇧ rule,
-				// that this client drives the session and that the bytes
-				// are the proposal's, and logs agent.type, before the
-				// approved ticket writes them (§6.1, §6.5, §6.6, §6.7).
-				if aerr := s.authorizeAgentType(sess, cl.ID, ctl.Agent, ctl.Command); aerr != nil {
-					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": aerr.Error()})
-					break
-				}
-				// The stream offset before the write: a runbook step's
-				// result is the first command the shell reports after it.
-				mark := sess.StreamMark()
-				if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
-					if ctl.Agent.GroupRunID != "" {
-						// The host goes back to proposed: nothing was written.
-						s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
-					}
-					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
-					reason := "the approval expired; press Type again"
-					if errors.Is(ierr, runtime.ErrNotReady) {
-						reason = notReadyTypeMessage
-					}
-					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": reason})
-					break
-				}
-				if ctl.Agent.GroupRunID != "" {
-					s.agent.GroupTypeDoneAt(ctl.Agent.GroupRunID, ctl.Agent.ProposalID, mark)
-				} else {
-					s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
-				}
-				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
-			}
-			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrBadTicket) {
-				_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
-			}
+			c.Control(msg)
 			continue
 		}
-		// Live keystrokes stay on Write (ungated). Palette/chrome must not
-		// send binary here; they use type=inject → InjectTicket (server nonce).
-		if err := sess.Write(cl.ID, msg); err != nil {
-			// ErrNotReady: still connecting or reconnecting. The keystroke
-			// is dropped (not buffered, see ErrNotReady) and the socket
-			// stays open. Any other error still closes it.
-			if errors.Is(err, runtime.ErrReadOnly) || errors.Is(err, runtime.ErrNotReady) {
-				continue
-			}
-			_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
+		// Live keystrokes: written for the driver only, with no approval.
+		// Anything Keel types for the user is an inject frame instead.
+		if c.Keys(msg) != nil {
 			return
 		}
 	}
@@ -1228,40 +1048,115 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 // the session was still connecting or reconnecting: nothing was typed.
 const notReadyTypeMessage = "the session is not connected; nothing was typed"
 
-func sessionPayload(kind, message string, info runtime.Info, you runtime.Client, fromID, targetID uint64) map[string]any {
-	you.Role = runtime.RoleFollower
-	if you.ID == info.DriverID {
-		you.Role = runtime.RoleDriver
-	} else if you.ID == info.OwnerID {
-		you.Role = runtime.RoleOwner
+// socketTypist is how keel serve types for one window's socket and answers
+// its suggestion questions (sessionsock.Typist).
+type socketTypist struct {
+	srv *Server
+	ctx context.Context // ends with the socket
+	c   *sessionsock.Conn
+	// In-pane suggestions (agentsuggest.go) run off the read loop.
+	sug *suggestConn
+	// Direct types are bounded per socket (typedirect.go).
+	directLim *directLimiter
+}
+
+func (s *Server) newTypist(ctx context.Context, c *sessionsock.Conn) *socketTypist {
+	return &socketTypist{srv: s, ctx: ctx, c: c, sug: newSuggestConn(ctx, s, c), directLim: newDirectLimiter()}
+}
+
+func (t *socketTypist) Detect(seq int, line string)  { t.sug.detect(seq, line) }
+func (t *socketTypist) Suggest(seq int, line string) { t.sug.suggest(seq, line) }
+
+// Inject is an inject frame from the window: the bytes are written only by
+// Session.InjectTicket, with the nonce the session issued for them, after
+// the checks of whatever the frame says the bytes are.
+func (t *socketTypist) Inject(ctl wire.Control) error {
+	s, c := t.srv, t.c
+	sess, clientID := c.Session(), c.ClientID()
+	info := sess.Info()
+	if ctl.Direct != nil && !t.directLim.allow("type") {
+		c.Send(wire.TypeResult{Type: wire.TypeTypeDirect, Ref: ctl.Direct.Ref, Dialog: true, Reason: reasonBusy})
+		return nil
 	}
-	out := map[string]any{
-		"type":     kind,
-		"message":  message,
-		"id":       info.ID,
-		"hostId":   info.HostID,
-		"title":    info.Title,
-		"status":   info.Status,
-		"attached": info.Attached,
-		"driverId": info.DriverID,
-		"ownerId":  info.OwnerID,
-		"you":      you,
+	if ctl.Direct != nil {
+		// One click, no dialog, no Enter (§6 rule 13): keel serve checks
+		// again, off the read loop (a snippet or a notebook block may be
+		// rated by Jev), then writes.
+		s.goSocket(func() { s.typeDirect(t.ctx, c, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })
+		return nil
 	}
-	if info.ErrorKind != "" {
-		out["errorKind"] = info.ErrorKind
-		out["hostname"] = info.HostKeyHost
-		out["fingerprint"] = info.HostKeyFingerprint
-		out["expected"] = info.HostKeyExpected
-		out["keyType"] = info.HostKeyType
-		out["trustToken"] = info.HostKeyToken
+	if ctl.Suggestion != nil {
+		// ⇥ / ⇧⇥ on a suggestion: the agent service checks the suggestion,
+		// the bytes, the ⇧ rule and that this client drives, and logs
+		// agent.insert, before the ticket writes them (§6.1, §6.5, §6.6,
+		// §6.7). The bytes end without a newline: inserted, not run.
+		// agent.insert is logged only once the write happened.
+		out := wire.TypeResult{Type: wire.TypeAgentInsert, SuggestionID: ctl.Suggestion.SuggestionID}
+		grant, aerr := s.authorizeAgentInsert(sess, clientID, ctl.Suggestion, ctl.Command)
+		if aerr != nil {
+			out.Message = aerr.Error()
+			c.Send(out)
+			return nil
+		}
+		ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce)
+		s.agent.InsertDone(grant, ierr)
+		if ierr != nil {
+			s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
+			out.Message = wire.MsgInsertExpired
+			if errors.Is(ierr, runtime.ErrNotReady) {
+				out.Message = notReadyTypeMessage
+			}
+			c.Send(out)
+			return nil
+		}
+		out.OK = true
+		c.Send(out)
+		return nil
 	}
-	if fromID != 0 {
-		out["fromId"] = fromID
+	if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
+		// A notebook fence (an agent's draft, or text pasted from an
+		// answer) that still holds a placeholder is a shell glob, never
+		// the value: not typed.
+		s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
+		return service.ErrPlaceholder
 	}
-	if targetID != 0 {
-		out["targetId"] = targetID
+	if ctl.Agent == nil {
+		return sess.InjectTicket(clientID, ctl.Command, ctl.Nonce)
 	}
-	return out
+	// An agent proposal: the agent service checks the ⇧ rule, that this
+	// client drives the session and that the bytes are the proposal's, and
+	// logs agent.type, before the approved ticket writes them (§6.1, §6.5,
+	// §6.6, §6.7).
+	out := wire.TypeResult{Type: wire.TypeAgentType, ProposalID: ctl.Agent.ProposalID}
+	if aerr := s.authorizeAgentType(sess, clientID, ctl.Agent, ctl.Command); aerr != nil {
+		out.Message = aerr.Error()
+		c.Send(out)
+		return nil
+	}
+	// The stream offset before the write: a runbook step's result is the
+	// first command the shell reports after it.
+	mark := sess.StreamMark()
+	if ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce); ierr != nil {
+		if ctl.Agent.GroupRunID != "" {
+			// The host goes back to proposed: nothing was written.
+			s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
+		}
+		s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
+		out.Message = "the approval expired; press Type again"
+		if errors.Is(ierr, runtime.ErrNotReady) {
+			out.Message = notReadyTypeMessage
+		}
+		c.Send(out)
+		return nil
+	}
+	if ctl.Agent.GroupRunID != "" {
+		s.agent.GroupTypeDoneAt(ctl.Agent.GroupRunID, ctl.Agent.ProposalID, mark)
+	} else {
+		s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
+	}
+	out.OK = true
+	c.Send(out)
+	return nil
 }
 
 func validateHost(h store.Host) error {

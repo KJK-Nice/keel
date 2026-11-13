@@ -138,7 +138,7 @@ type RunStep struct {
 	Expect      string     `json:"expect"`
 	Risk        string     `json:"risk"`
 	State       string     `json:"state"`
-	ProposalRef string     `json:"proposalId,omitempty"` // the guard keeps the bare key for keelclient/inject.go
+	ProposalRef string     `json:"proposalId"` // the step's proposal, while it is proposed
 	SessionID   string     `json:"sessionId"`
 	HostID      string     `json:"hostId"`
 	Host        string     `json:"host"`

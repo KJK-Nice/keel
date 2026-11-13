@@ -50,21 +50,104 @@ func sourceFiles(t *testing.T) map[string]string {
 	return out
 }
 
+// wireSource is internal/wire/wire.go: the session socket's frame names and shapes, which both ends import. The guards
+// read it to know that the names they ban are still the frames' names.
+func wireSource(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "wire", "wire.go"))
+	if err != nil {
+		t.Fatalf("the guard cannot read the wire package: %v", err)
+	}
+	return string(b)
+}
+
+// jsonTag is a struct tag. A tagged struct is a body this client reads or posts over HTTP, never a frame: a text frame
+// leaves a connection only as a wire.Control (TestATextFrameLeavesOnlyAsAWireControl), so the guards that look for a
+// frame's keys take the tags out first.
+var jsonTag = regexp.MustCompile("`json:\"[^\"`]*\"`")
+
+// The frames that can lead to bytes in a PTY are an inject-challenge and an inject. Their names and the shapes of an
+// inject's parts are internal/wire's; of the files under internal/native only keelclient/inject.go may name them, by
+// their wire names or as strings.
 func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	frame := regexp.MustCompile(`"(inject|inject-challenge|type-check|direct)"|\\"(inject|inject-challenge|type-check|direct)\\"`)
-	for name, src := range sourceFiles(t) {
-		if name == "keelclient/inject.go" {
+	name := regexp.MustCompile(`\bTypeInject(Challenge)?\b|\bwire\.(DirectType|AgentType|AgentInsert)\b`)
+	for file, src := range sourceFiles(t) {
+		for _, line := range strings.Split(src, "\n") {
+			if l := strings.TrimSpace(line); strings.HasSuffix(l, `"keel/internal/wire"`) && l != `"keel/internal/wire"` && l != `import "keel/internal/wire"` {
+				t.Errorf("%s imports the wire package under another name (%s): the guards look for wire.…", file, l)
+			}
+		}
+		if file == "keelclient/inject.go" {
 			continue
 		}
 		if m := frame.FindString(src); m != "" {
-			t.Errorf("%s holds the frame type %s: only keelclient/inject.go may build an inject, an inject-challenge or a type-check", name, m)
+			t.Errorf("%s holds the frame type %s: only keelclient/inject.go may build an inject or an inject-challenge", file, m)
+		}
+		if m := name.FindString(src); m != "" {
+			t.Errorf("%s names %s: only keelclient/inject.go may build an inject, an inject-challenge or a part of one", file, m)
 		}
 	}
-	// And it holds them: the guard is looking for the right strings.
+	// And it names them, and they are the frames' names: the guard is looking for the right things.
 	src := sourceFiles(t)["keelclient/inject.go"]
-	for _, want := range []string{`"inject-challenge"`, `"inject"`, `"direct"`} {
+	for _, want := range []string{"wire.Control{Type: wire.TypeInjectChallenge, Command: command}", "wire.TypeInject, command, n", "wire.DirectType{", "wire.AgentType{", "wire.AgentInsert{"} {
 		if !strings.Contains(src, want) {
-			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
+			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+		}
+	}
+	w := wireSource(t)
+	for _, want := range []string{`TypeInjectChallenge\s+= "inject-challenge"`, `TypeInject\s+= "inject"`, "Direct\\s+\\*DirectType\\s+`json:\"direct,omitempty\"`",
+		"Agent\\s+\\*AgentType\\s+`json:\"agent,omitempty\"`", "Suggestion\\s+\\*AgentInsert\\s+`json:\"suggestion,omitempty\"`"} {
+		if !regexp.MustCompile(want).MatchString(w) {
+			t.Fatalf("internal/wire no longer holds %s; update the guard", want)
+		}
+	}
+	// Every inject goes out through one function, which asks for the nonce first: inject.go sends an inject frame once.
+	if n := strings.Count(src, "wire.TypeInject,"); n != 1 {
+		t.Fatalf("keelclient/inject.go names wire.TypeInject %d times, want once (in inject)", n)
+	}
+	if n := strings.Count(src, "wire.TypeInjectChallenge"); n != 3 { // the header comment, the request in inject, the answer in injectFrame
+		t.Fatalf("keelclient/inject.go names wire.TypeInjectChallenge %d times, want 3 (its comment, the request, the answer)", n)
+	}
+	var from []string
+	for _, c := range callSites(t, "keelclient/inject.go", src, "inject") {
+		from = append(from, c.in)
+	}
+	slices.Sort(from)
+	if want := []string{"ApprovedInject", "DirectType", "SuggestInsert"}; !slices.Equal(from, want) {
+		t.Fatalf("inject is called from %v, want %v", from, want)
+	}
+}
+
+// A text frame leaves a connection only as a wire.Control, through one function per transport: (*Conn).send for the
+// socket and (*Peer).control for a joined pane's data channel. So nothing can be put on the wire by marshalling a struct
+// or a map of its own, and a joined pane's file names no frame but resize and the three control frames.
+func TestATextFrameLeavesOnlyAsAWireControl(t *testing.T) {
+	src := sourceFiles(t)
+	text, sendText := 0, 0
+	for name, s := range src {
+		text += strings.Count(s, "websocket.TextMessage")
+		sendText += strings.Count(s, "SendText(")
+		if (strings.Contains(s, "websocket.TextMessage") && name != "keelclient/conn.go") || (strings.Contains(s, "SendText(") && name != "joinpeer/peer.go") {
+			t.Errorf("%s sends a text frame of its own", name)
+		}
+	}
+	if text != 1 || sendText != 1 {
+		t.Fatalf("%d socket and %d data-channel text senders, want one each", text, sendText)
+	}
+	for file, want := range map[string]string{
+		"keelclient/conn.go": "func (c *Conn) send(ctl wire.Control) error {\n\tb, err := json.Marshal(ctl)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn c.write(websocket.TextMessage, b)\n}",
+		"joinpeer/peer.go":   "func (p *Peer) control(ctl wire.Control) error {\n\tb, _ := json.Marshal(ctl)\n\tif dc := p.channel(); dc != nil {\n\t\treturn dc.SendText(string(b))\n\t}\n\treturn nil\n}",
+	} {
+		if !strings.Contains(src[file], want) {
+			t.Errorf("%s no longer sends a text frame as a wire.Control and nothing else; update the guard", file)
+		}
+	}
+	types := regexp.MustCompile(`wire\.Type\w+`)
+	allowed := map[string]bool{"wire.TypeResize": true, "wire.TypeTakeControl": true, "wire.TypeRequestControl": true, "wire.TypeGrantControl": true}
+	for _, m := range types.FindAllString(src["joinpeer/peer.go"], -1) {
+		if !allowed[m] {
+			t.Errorf("joinpeer/peer.go names %s: a joined pane sends a resize and the three control frames, nothing else", m)
 		}
 	}
 }
@@ -278,8 +361,11 @@ func TestAgentAndDirectReferencesAreBuiltOnlyWhereTheWritersAreCalled(t *testing
 	keys := regexp.MustCompile(`"(agent|conversationId)"\s*:|"(proposalId|shift)"|\\"(agent|proposalId|conversationId|shift)\\"`)
 	for name, src := range sourceFiles(t) {
 		if name != "keelclient/inject.go" {
-			if m := keys.FindString(src); m != "" {
+			if m := keys.FindString(jsonTag.ReplaceAllString(src, "")); m != "" {
 				t.Errorf("%s holds the key %s: only keelclient/inject.go builds the agent part of a frame", name, m)
+			}
+			if strings.Contains(src, "wire.AgentType") || strings.Contains(src, "wire.DirectType") {
+				t.Errorf("%s names the agent or direct part of a frame: only keelclient/inject.go builds one", name)
 			}
 		}
 		if name != "approve.go" && name != "typenow.go" && strings.Contains(src, "AgentRef{") && !strings.HasPrefix(name, "keelclient/") && !strings.HasPrefix(name, "joinpeer/") {
@@ -289,10 +375,17 @@ func TestAgentAndDirectReferencesAreBuiltOnlyWhereTheWritersAreCalled(t *testing
 			t.Errorf("%s builds a keelclient.DirectRef: only typeNow does", name)
 		}
 	}
+	// inject.go builds the agent part from the reference alone, and the keys the guard bans are that part's keys.
 	src := sourceFiles(t)["keelclient/inject.go"]
-	for _, want := range []string{`"agent"`, `"proposalId"`, `"conversationId"`, `"shift"`} {
+	for _, want := range []string{"wire.AgentType{GroupRunID: a.GroupRunID, ProposalID: a.ProposalID, Shift: a.Shift}", "wire.AgentType{ConversationID: a.ConversationID, ProposalID: a.ProposalID, Shift: a.Shift}",
+		"parts := wire.Control{Agent: agentPart(agent)}", "parts := wire.Control{Agent: agentPart(agent), Direct: &wire.DirectType{"} {
 		if !strings.Contains(src, want) {
-			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
+			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+		}
+	}
+	for _, want := range []string{`json:"agent,omitempty"`, `json:"proposalId"`, `json:"conversationId,omitempty"`, `json:"shift"`} {
+		if !strings.Contains(wireSource(t), want) {
+			t.Fatalf("internal/wire no longer names %s; update the guard", want)
 		}
 	}
 	if !strings.Contains(sourceFiles(t)["approve.go"], "AgentRef{") || !strings.Contains(sourceFiles(t)["typenow.go"], "AgentRef{") || !strings.Contains(sourceFiles(t)["typenow.go"], "DirectRef{") {
@@ -598,8 +691,9 @@ func TestGroupRunIDIsBuiltOnlyInInjectGoAndTheDialog(t *testing.T) {
 			t.Errorf("%s holds the key groupRunId: only keelclient/inject.go builds the agent part of a frame", name)
 		}
 	}
-	if !strings.Contains(sourceFiles(t)["keelclient/inject.go"], `"groupRunId"`) || !strings.Contains(sourceFiles(t)["approve.go"], "GroupRunID: g.runID") {
-		t.Fatal("inject.go or approve.go no longer names the run; update the guard")
+	if !strings.Contains(sourceFiles(t)["keelclient/inject.go"], "wire.AgentType{GroupRunID: a.GroupRunID,") || !strings.Contains(wireSource(t), `json:"groupRunId,omitempty"`) ||
+		!strings.Contains(sourceFiles(t)["approve.go"], "GroupRunID: g.runID") {
+		t.Fatal("inject.go, the wire package or approve.go no longer names the run; update the guard")
 	}
 }
 
@@ -765,18 +859,28 @@ func TestNotebookCodeHasNoWriterAndNoCallSiteOfItsOwn(t *testing.T) {
 // The notebook field of an inject frame is written in keelclient/inject.go and nowhere else.
 func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
 	key := regexp.MustCompile(`\["notebook"\]|"notebook"\s*:\s*true|"notebookId"`)
+	field := regexp.MustCompile(`\bNotebook:\s*true|\.Notebook\s*=\s*true`)
 	for name, src := range sourceFiles(t) {
-		if name == "keelclient/inject.go" || strings.HasSuffix(name, "notebooks.go") && strings.HasPrefix(name, "keelclient/") {
+		if name == "keelclient/inject.go" {
 			continue
 		}
-		if m := key.FindString(src); m != "" {
+		// A struct tag (a body read over HTTP) is not a frame; every other form of the key is banned in every other file.
+		if m := key.FindString(jsonTag.ReplaceAllString(src, "")); m != "" {
 			t.Errorf("%s holds %s: only keelclient/inject.go writes the notebook part of a frame", name, m)
+		}
+		if m := field.FindString(src); m != "" {
+			t.Errorf("%s sets %s: only keelclient/inject.go marks an inject as a notebook's", name, m)
 		}
 	}
 	s := sourceFiles(t)["keelclient/inject.go"]
-	for _, want := range []string{`"notebook"`, `"notebookId"`, "FromNotebook"} {
+	for _, want := range []string{"parts.Notebook = true", "NotebookID: ref.NotebookID", "FromNotebook"} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("keelclient/inject.go no longer names %s; update the guard", want)
+			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+		}
+	}
+	for _, want := range []string{`json:"notebook,omitempty"`, `json:"notebookId,omitempty"`} {
+		if !strings.Contains(wireSource(t), want) {
+			t.Fatalf("internal/wire no longer names %s; update the guard", want)
 		}
 	}
 	// typeNow is the one place a notebook's direct reference is made; approve.go passes the option and nothing else.

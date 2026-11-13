@@ -522,22 +522,34 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 	}
 }
 
-// The session socket's write paths, by source (the web page's own JS checks went with the webview; the native
-// client's are internal/native/guard_test.go and keelclient/noforgedapproval_test.go).
-func TestSessionWSKeepsWriteUngated(t *testing.T) {
-	src, err := os.ReadFile("httpapi.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(src)
-	if !strings.Contains(body, "sess.Write(cl.ID, msg)") {
-		t.Fatal("live websocket binary must call Session.Write")
-	}
-	if !strings.Contains(body, "sess.IssueInjectTicket(cl.ID") || !strings.Contains(body, "sess.InjectTicket(cl.ID") {
-		t.Fatal("palette/chrome inject JSON must issue and consume a server ticket")
-	}
-	if strings.Contains(body, "if ctl.Approved") || strings.Contains(body, "approved = inject.Approve()") {
-		t.Fatal("inject must not mint Approve from a client approved flag")
+// The window's injects, by source: every way the typist writes for the
+// window consumes a server ticket, and nothing mints an approval from what
+// the client sent. (The socket's own rules, live keys and the nonce
+// challenge, are checked where they now live: internal/sessionsock's
+// TestTheSocketsWritePathsBySource. The native client's are
+// internal/native/guard_test.go and keelclient/noforgedapproval_test.go.)
+func TestTheWindowsInjectsConsumeAServerTicket(t *testing.T) {
+	for file, min := range map[string]int{"httpapi.go": 3, "typedirect.go": 1} {
+		src, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(src)
+		if n := strings.Count(body, "sess.InjectTicket(clientID, "); n < min {
+			t.Fatalf("%s consumes a server ticket %d times, want at least %d", file, n, min)
+		}
+		for _, bad := range []string{"Approved", "inject.Approve()", "inject.Approval{", ".Inject(clientID", "sess.Write(", ".Keys("} {
+			if file == "httpapi.go" && bad == ".Keys(" {
+				// The read loop hands live keys to sessionsock, once.
+				if n := strings.Count(body, "c.Keys(msg)"); n != 1 || strings.Count(body, ".Keys(") != 1 {
+					t.Fatalf("httpapi.go hands live keys over %d times, want once, from the read loop", n)
+				}
+				continue
+			}
+			if strings.Contains(body, bad) {
+				t.Fatalf("%s holds %q: the window's bytes reach a PTY only through InjectTicket", file, bad)
+			}
+		}
 	}
 }
 
@@ -1013,7 +1025,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	if err := st.CheckHostKeyType("box:22", "ssh-ed25519", boxFP); !errors.As(err, &unk) {
 		t.Fatal(err)
 	}
-	body2 := `{"token":"` + unk.Token + `","hostname":"box:22","fingerprint":"` + boxFP + `"}`
+	body2 := `{"trustToken":"` + unk.Token + `","hostname":"box:22","fingerprint":"` + boxFP + `"}`
 	resKH, err := http.Post(srv2.URL+"/api/known-hosts", "application/json", strings.NewReader(body2))
 	if err != nil {
 		t.Fatal(err)

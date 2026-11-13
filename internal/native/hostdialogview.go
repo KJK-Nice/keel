@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"keel/internal/native/keelclient"
 )
 
 // The host dialog, drawn as hostDialog in internal/ui/dialogs.templ (760px, two columns: General and Connection;
@@ -358,7 +360,7 @@ func (w *workspace) hostTestView(c *ui.Context, d *hostDialog) {
 		}
 		if _, ok := t.res.HostKeyOffer(); ok {
 			name := "Trust and save"
-			if t.res.Kind == "host-key-mismatch" {
+			if t.res.Kind == keelclient.HostKeyMismatch {
 				name = "Replace saved key"
 			}
 			ui.Row(c).Children(func() {

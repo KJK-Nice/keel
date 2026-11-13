@@ -93,7 +93,7 @@ const (
 	sugAuto
 )
 
-var riskOrder = map[string]int{"readonly": 0, "changes": 1, "destructive": 2}
+var riskOrder = map[string]int{keelclient.RiskReadOnly: 0, keelclient.RiskChanges: 1, keelclient.RiskDestructive: 2}
 
 func riskRank(r string) int {
 	if n, ok := riskOrder[r]; ok {
@@ -215,7 +215,7 @@ func suggestKeyLabel(mac bool) string {
 var deletesRe = regexp.MustCompile(`(^|[\s;&|(])(sudo\s+(-\S+\s+)*)?(rm|rmdir|unlink|shred|find\b.*-delete|pg_archivecleanup)\b`)
 
 func riskWords(o keelclient.SuggestOption) string {
-	if o.Risk == "destructive" {
+	if o.Risk == keelclient.RiskDestructive {
 		if deletesRe.MatchString(o.Command) {
 			return "Deletes files"
 		}
@@ -680,7 +680,7 @@ func (m *sugMachine) OnSuggest(seq int, ok bool, sug *keelclient.Suggestion, mes
 		return
 	}
 	switch reason {
-	case "off", "no-key", "not-readable", "following":
+	case keelclient.ReasonOff, keelclient.ReasonNoKey, keelclient.ReasonNotReadable, keelclient.ReasonFollowing:
 		m.offUntil = m.d.now().Add(offBackoff)
 	}
 	if message == "" {
