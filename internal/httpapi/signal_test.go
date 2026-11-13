@@ -19,7 +19,7 @@ func signalServer(t *testing.T) (*httptest.Server, *store.Store, *share.Hub) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	hub := share.ForServe("", rt)
 	srv := httptest.NewServer(New(st, rt, hub).openHandler())
 	t.Cleanup(srv.Close)

@@ -86,7 +86,7 @@ func (s *Server) initAgent() {
 		s.agentOff = "the agent needs keel.log to record what it reads"
 		return
 	}
-	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, DetectLogWindow: s.agentDetectWindow, SuggestTimeout: s.agentSuggestTimeout, Chats: s.store, Notes: s.store, Runbooks: s.store, Notebooks: s.store})
+	svc, err := service.New(s.store, agentPanes{rt: s.rt}, s.logs, service.Options{Factory: s.agentFactory, Judge: s.agentJudge, TestProvider: s.agentTest, SuggestTimeout: s.agentSuggestTimeout, Chats: s.store, Notes: s.store, Runbooks: s.store, Notebooks: s.store})
 	if err != nil {
 		s.agentOff = err.Error()
 		log.Printf("agent unavailable: %v", err)

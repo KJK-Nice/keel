@@ -133,12 +133,17 @@ func (r *Runtime) note(kind, msg, hostID, sessionID string) {
 	}
 }
 
-func New(st *store.Store, opener Opener) *Runtime {
-	if opener == nil {
-		opener = func(host store.Host, cols, rows int) (session.Bridge, error) {
-			return session.Open(host, cols, rows, st.CheckHostKeyType)
-		}
+// DefaultOpener opens a real session: a local shell, or SSH with the host
+// key checked against the store.
+func DefaultOpener(st *store.Store) Opener {
+	return func(host store.Host, cols, rows int) (session.Bridge, error) {
+		return session.Open(host, cols, rows, st.CheckHostKeyType)
 	}
+}
+
+// New makes the sessions' runtime. opener opens a session's connection:
+// keel serve passes DefaultOpener, a test a fake.
+func New(st *store.Store, opener Opener) *Runtime {
 	return &Runtime{
 		store:  st,
 		opener: opener,

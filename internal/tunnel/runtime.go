@@ -106,17 +106,18 @@ func (r *Runtime) changed() {
 	}
 }
 
+// New makes the forwards' runtime. factory opens the SSH connection of a
+// forward: keel serve passes DefaultFactory, a test a fake.
 func New(st *store.Store, factory Factory) *Runtime {
-	if factory == nil {
-		factory = DefaultFactory(st)
-	}
 	return &Runtime{store: st, factory: factory, live: map[string]*live{}}
 }
 
-func (r *Runtime) List() []Info {
+// List is every saved forward with its status. A store that cannot be read
+// (a locked vault) is an error, not an empty list.
+func (r *Runtime) List() ([]Info, error) {
 	saved, err := r.store.ListTunnels()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -129,7 +130,7 @@ func (r *Runtime) List() []Info {
 			out[i].ListenAddr = lv.listenAddr
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (r *Runtime) Start(id string) (Info, error) {
@@ -360,12 +361,11 @@ func pipe(a, b net.Conn) {
 	<-done
 }
 
-var (
-	keepaliveInterval = 30 * time.Second
-	keepaliveTimeout  = 15 * time.Second
+const (
+	keepaliveInterval  = 30 * time.Second
+	keepaliveTimeout   = 15 * time.Second
+	keepaliveMaxMissed = 3
 )
-
-const keepaliveMaxMissed = 3
 
 // pinger is implemented by dialers that can probe their connection.
 type pinger interface {

@@ -48,7 +48,12 @@ func (s *Server) deleteIdentity(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listTunnels(w http.ResponseWriter, _ *http.Request) {
 	if s.tunnels != nil {
-		writeJSON(w, http.StatusOK, s.tunnels.List())
+		live, err := s.tunnels.List()
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, live)
 		return
 	}
 	saved, err := s.store.ListTunnels()

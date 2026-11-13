@@ -16,6 +16,7 @@ import (
 	"keel/internal/hostimport"
 	"keel/internal/runtime"
 	"keel/internal/store"
+	"keel/internal/tunnel"
 )
 
 // answerOf is what writeErr sends for err: the status and the decoded body.
@@ -106,7 +107,7 @@ func TestHandlersAnswerLockedWith423(t *testing.T) {
 	if !st.Locked() {
 		t.Fatal("expected a locked vault")
 	}
-	s := New(st, runtime.New(st, nil), nil)
+	s := New(st, runtime.New(st, runtime.DefaultOpener(st)), nil)
 	for _, c := range []struct {
 		name    string
 		handler http.HandlerFunc
@@ -135,6 +136,17 @@ func TestHandlersAnswerLockedWith423(t *testing.T) {
 		if rec.Code != http.StatusLocked || !strings.Contains(rec.Body.String(), `"vault locked"`) {
 			t.Errorf("%s with a locked vault: %d %s, want 423 vault locked", c.name, rec.Code, strings.TrimSpace(rec.Body.String()))
 		}
+	}
+	// The forwards' runtime reports a store it cannot read: the list was
+	// 200 with null.
+	tn := tunnel.New(st, tunnel.DefaultFactory(st))
+	if _, err := tn.List(); !errors.Is(err, store.ErrLocked) {
+		t.Fatalf("tunnel.Runtime.List with a locked vault = %v, want ErrLocked", err)
+	}
+	rec := httptest.NewRecorder()
+	New(st, runtime.New(st, runtime.DefaultOpener(st)), nil).WithTunnels(tn).listTunnels(rec, httptest.NewRequest("GET", "/api/tunnels", nil))
+	if rec.Code != http.StatusLocked {
+		t.Errorf("listTunnels with a locked vault: %d %s", rec.Code, strings.TrimSpace(rec.Body.String()))
 	}
 }
 
@@ -209,7 +221,7 @@ func TestLockedVaultExemptionsComeFromTheRouteTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(st, runtime.New(st, nil), nil)
+	s := New(st, runtime.New(st, runtime.DefaultOpener(st)), nil)
 	srv := httptest.NewServer(s.openHandler())
 	defer srv.Close()
 	want := map[string]bool{"/api/health": true, "/api/runtime/stop": true, "/api/vault/unlock": true, "/api/vault/setup": true, "/api/vault": true}
@@ -250,7 +262,7 @@ func TestCloseStopsRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(st, runtime.New(st, nil), nil).WithLogs(applog.New(dir + "/keel.log"))
+	s := New(st, runtime.New(st, runtime.DefaultOpener(st)), nil).WithLogs(applog.New(dir + "/keel.log"))
 	_ = s.openHandler()
 	if s.agent == nil {
 		t.Fatalf("no agent service: %s", s.agentOff)

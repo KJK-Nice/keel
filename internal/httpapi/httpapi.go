@@ -56,10 +56,12 @@ type Server struct {
 	agentFactory service.Factory
 	agentTest    bool
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
-	agentJudge        service.JudgeFactory
-	agentDetectWindow time.Duration
+	agentJudge service.JudgeFactory
 	// agentSuggestTimeout bounds the model call of one in-pane suggestion; 0 is the service's default.
 	agentSuggestTimeout time.Duration
+	// now is the clock of the session socket's rate limits: time.Now, set
+	// in New (a test of the limits freezes it).
+	now func() time.Time
 	// agentOff says why agent is nil, for the routes that need it.
 	agentOff string
 	// closed is closed by Close: the agent's retention timer stops on it.
@@ -77,7 +79,7 @@ type Server struct {
 }
 
 func New(st *store.Store, rt *runtime.Runtime, sh *share.Hub) *Server {
-	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev(), closed: make(chan struct{})}
+	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev(), closed: make(chan struct{}), now: time.Now}
 	if st != nil {
 		st.OnChange(s.vault.bump)
 	}

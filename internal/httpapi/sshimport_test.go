@@ -116,7 +116,7 @@ Host *.internal
 		t.Fatal(err)
 	}
 	f.st = st
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	f.srv = httptest.NewServer(New(st, rt, nil).WithSSHDir(sshDir).openHandler())
 	t.Cleanup(f.srv.Close)
 	return f
@@ -363,7 +363,7 @@ func TestVaultStateAndFirstRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	srv := httptest.NewServer(New(st, rt, nil).WithSSHDir(t.TempDir()).openHandler())
 	t.Cleanup(srv.Close)
 	f := importFixture{srv: srv, st: st}

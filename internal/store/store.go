@@ -387,7 +387,10 @@ type Store struct {
 	// set once, in New.
 	keyringOff bool
 	scryptWork int
-	recipient  age.Recipient
+	// now is the clock of host key offers: time.Now, set in New (a test of
+	// their expiry replaces it).
+	now       func() time.Time
+	recipient age.Recipient
 	// vaultSum and vaultRecipient describe what keel.vault last held, so a
 	// save that changes no secret skips re-encrypting it. In passphrase mode
 	// that encryption is a full scrypt run under s.mu, which stalled every
@@ -456,6 +459,7 @@ func New(path string, opts ...Option) (*Store, error) {
 		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
 		secrets:    map[string]hostSecret{},
 		keyringOff: os.Getenv(envKeyring) == "off",
+		now:        time.Now,
 	}
 	for _, o := range opts {
 		o(s)

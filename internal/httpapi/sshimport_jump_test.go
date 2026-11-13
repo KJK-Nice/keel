@@ -30,7 +30,7 @@ func jumpImportFixture(t *testing.T, cfg string) importFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(st, runtime.New(st, nil), nil).WithSSHDir(sshDir).openHandler())
+	srv := httptest.NewServer(New(st, runtime.New(st, runtime.DefaultOpener(st)), nil).WithSSHDir(sshDir).openHandler())
 	t.Cleanup(srv.Close)
 	return importFixture{srv: srv, st: st, sshDir: sshDir}
 }

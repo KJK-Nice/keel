@@ -30,6 +30,9 @@ type Hub struct {
 	rt                *runtime.Runtime
 	mu                sync.Mutex
 	bySess            map[string]*liveShare
+	// admitWait is admitTimeout, set once in New (a test of the expiry
+	// shortens it before it shares).
+	admitWait time.Duration
 }
 
 // Where the signal server in use comes from (Hub.Source).
@@ -93,8 +96,8 @@ const (
 )
 
 // admitTimeout is how long a join request waits for the host before it is
-// denied. A var so tests can shorten it.
-var admitTimeout = 2 * time.Minute
+// denied (Hub.admitWait).
+const admitTimeout = 2 * time.Minute
 
 // Admit errors.
 var (
@@ -112,9 +115,10 @@ var DefaultSignal string
 // New makes a hub on signalURL, which no saved setting overrides.
 func New(signalURL string, rt *runtime.Runtime) *Hub {
 	return &Hub{
-		env:    trimSignal(signalURL),
-		rt:     rt,
-		bySess: map[string]*liveShare{},
+		env:       trimSignal(signalURL),
+		rt:        rt,
+		bySess:    map[string]*liveShare{},
+		admitWait: admitTimeout,
 	}
 }
 
@@ -492,7 +496,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 				}
 				pending[peerID] = &pendingPeer{
 					name: msg.Name,
-					timer: time.AfterFunc(admitTimeout, func() {
+					timer: time.AfterFunc(h.admitWait, func() {
 						select {
 						case expired <- peerID:
 						case <-ctx.Done():

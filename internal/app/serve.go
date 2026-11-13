@@ -76,7 +76,7 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 	if err != nil {
 		return fmt.Errorf("mcp token: %w", err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	hub := share.ForServe(cfg.signal, rt)
 	// Settings · Sharing's server; KEEL_SIGNAL still wins for this run.
 	hub.SetSaved(st.SignalURL())

@@ -259,9 +259,8 @@ func TestTrustOfferedOnlyForTheRefusedKey(t *testing.T) {
 	if err := st.CheckHostKeyType("10.0.0.7:22", "ssh-ed25519", fp); !errors.As(err, &unk) {
 		t.Fatal(err)
 	}
-	defer func(f func() time.Time) { offerNow = f }(offerNow)
 	later := time.Now().Add(OfferTTL + time.Second)
-	offerNow = func() time.Time { return later }
+	st.now = func() time.Time { return later }
 	if _, err := st.TrustOffered(unk.Token, "10.0.0.7:22", fp, false); !errors.Is(err, ErrNoOffer) {
 		t.Fatalf("expired offer: %v", err)
 	}

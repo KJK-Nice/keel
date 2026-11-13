@@ -230,7 +230,7 @@ func TestRuntimeStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	stopped := make(chan struct{}, 1)
 	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).openHandler())
 	t.Cleanup(srv.Close)
@@ -272,7 +272,7 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 	if !st.Locked() {
 		t.Skip("OS keychain auto-unlocked the vault")
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/hosts")
@@ -1308,7 +1308,7 @@ func TestManualServe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	logs := applog.New(dir + "/keel.log")
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).openHandler()
@@ -1484,7 +1484,7 @@ func TestRuntimeInfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	api := New(st, rt, nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
 	srv := httptest.NewServer(api.openHandler())
 	t.Cleanup(srv.Close)
