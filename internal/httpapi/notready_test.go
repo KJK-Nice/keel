@@ -1,12 +1,10 @@
 package httpapi
 
 import (
-	"io/fs"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -34,8 +32,7 @@ func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeB
 		<-gate
 		return fb, nil
 	})
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv = httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	srv = httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(func() {
 		release()
 		srv.Close()

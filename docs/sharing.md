@@ -28,7 +28,7 @@ Order: `KEEL_SIGNAL` for the run, then the server saved in Settings, then the on
 
 1. Open a session, click **Share** in the titlebar. The Share popover shows the `/join?room=…#k=…` link (copied for you; **Copy** copies it again), who is in the session with their role, and **Stop sharing**. The link shares the focused pane's session only. Send the link.
 
-2. On the other machine, open Keel → **Join session** → paste the link. A browser can open the same link if they don't have Keel.
+2. On the other machine, open Keel → **Join session** → paste the link. There is no browser joiner: a link opened in a browser answers one plain line (`GET /join` returns "This is a Keel share link. Open Keel and choose Join session, then paste the link."), and the joiner must have Keel.
 
 3. On your side, Keel asks **Allow** or **Deny** for each person who opens the link (a request nobody answers is denied after two minutes). Allowed viewers see output from the moment you clicked Share, not what was on screen before; press Ctrl-L or redraw a full-screen program to fill their screen. They follow until you pass control, and never see hosts or keys. A joined tab shows a link icon and `· joined`, a banner "Following <owner>'s session on <host> · read-only" with **Ask for control** and **Leave**, and no Vault sidebar; typing while following shows "Typing is off while you follow" and sends nothing.
 
@@ -46,7 +46,7 @@ Order: `KEEL_SIGNAL` for the run, then the server saved in Settings, then the on
 
 ## Security
 
-The part after `#k=` is a secret that never reaches the signaling server (browsers don't send the `#fragment`). Both ends use it to check each other's WebRTC certificate, so a signaling server that tried to sit in the middle of the connection is refused. Keel's own joiner does this check in its own code; a browser joiner runs `join.js` served by the signaling server, so for the browser the check is only as trustworthy as that server.
+The part after `#k=` is a secret that never reaches the signaling server (browsers don't send the `#fragment`). Both ends use it to check each other's WebRTC certificate, so a signaling server that tried to sit in the middle of the connection is refused. Keel's own joiner does this check in its own code, so it does not depend on the signaling server being honest. The server serves no page or script (the old browser joiner, whose check was only as trustworthy as that server, is gone).
 
 Anyone with the full link can ask to watch, so share it like a password. The Allow prompt shows whatever name the joiner typed, and a hostile signaling server could swap one link holder for another, so Allow only when you're expecting someone; the prompt keeps strangers without the link out, not impostors who have it.
 
@@ -66,7 +66,7 @@ Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is 
 | `remote` | clients connect to `keel-signal` directly (no proxy) |
 | `xff:N` | behind N proxies that each append to `X-Forwarded-For`: the Nth entry from the right is the client |
 
-Pick N from what your platform actually sends (log the header once): too far left and clients choose their own key; too far right and every client shares one, so one client can block sharing for everyone. The join page serves xterm from the signal binary (no CDN). Desktop and the join page may open the signaling WebSocket; other websites cannot.
+Pick N from what your platform actually sends (log the header once): too far left and clients choose their own key; too far right and every client shares one, so one client can block sharing for everyone. The signaling WebSocket accepts only clients that send no `Origin` header (Keel's); a request from a web page, which always carries one, is refused. `GET /join` answers the plain line above, with `nosniff` and `no-store`; the link's secret is in the `#fragment` and never reaches the server.
 
 STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not bundled yet.
 
@@ -78,4 +78,4 @@ Two Keel windows on one Mac: the second instance needs its own port and data dir
 KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
 ```
 
-`open bin/Keel.app` does not pass those env vars.
+`open Keel.app` does not pass those env vars.

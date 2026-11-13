@@ -42,14 +42,7 @@ type Book struct {
 	path string
 	mu   sync.Mutex
 	buf  []Entry
-	// onAppend runs after each Append (OnAppend).
-	onAppend func()
 }
-
-// OnAppend sets fn to run after every Append, outside the book's lock. It
-// must not block: the UI stream only signals a channel. Set it before the
-// book is shared.
-func (b *Book) OnAppend(fn func()) { b.onAppend = fn }
 
 func New(path string) *Book {
 	b := &Book{path: path}
@@ -84,9 +77,6 @@ func (b *Book) load() {
 func (b *Book) Append(e Entry) {
 	if e.Time.IsZero() {
 		e.Time = time.Now().UTC()
-	}
-	if b.onAppend != nil {
-		defer b.onAppend()
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()

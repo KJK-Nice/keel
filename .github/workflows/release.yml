@@ -1,13 +1,20 @@
 name: release
 
 # Pushing a tag vX.Y.Z builds Keel for macOS (universal) and Linux (x86_64,
-# arm64), keel-signal for every OS, and publishes them as a GitHub Release
-# with SHA256SUMS and notes generated from the merged PRs. A tag with a
-# hyphen (v0.2.0-rc.1) is published as a pre-release.
+# arm64) with `mygo build` (scripts/release.sh), keel-signal for every OS,
+# and publishes them as a GitHub Release with SHA256SUMS and notes
+# generated from the merged PRs. A tag with a hyphen (v0.2.0-rc.1) is
+# published as a pre-release. "version" in mygo.json must equal the tag
+# (scripts/release.sh checks it before anything is published).
 #
 # A pull request that changes the release tooling runs the same builds as a
-# dry run (version v0.0.0-pr<N>, nothing published), and keeps the archives
-# as workflow artifacts for a few days.
+# dry run (version v0.0.0-pr<N>, nothing published), and keeps the files as
+# workflow artifacts for a few days.
+#
+# Signing and notarizing the macOS app are optional: with the secrets of
+# docs/release.md the app is signed with a Developer ID and the disk image
+# notarized; without them (a fork, a pull request, a repository that has not
+# added them) the app is signed ad hoc, as before, and the job log says so.
 
 on:
   push:
@@ -18,9 +25,9 @@ on:
       - .github/release-notes.md
       - scripts/release.sh
       - scripts/notices.sh
-      - scripts/go.sh
-      - scripts/go-tags.sh
       - Makefile
+      - mygo.json
+      - packaging/**
 
 permissions:
   contents: read
@@ -33,8 +40,8 @@ env:
   VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-pr{0}', github.event.number) }}
 
 jobs:
-  # The license of every Go module and JS package Keel ships, once for all
-  # archives (scripts/notices.sh).
+  # The license of every Go module and library Keel ships, once for all
+  # packages (scripts/notices.sh). mygo.json puts it in each of them.
   notices:
     name: third-party notices
     runs-on: ubuntu-24.04
@@ -45,10 +52,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
 
       - run: sh scripts/notices.sh THIRD_PARTY_NOTICES
 
@@ -73,15 +76,42 @@ jobs:
         with:
           name: notices
 
-      - run: sh scripts/release.sh "$VERSION" app
-
-      # The universal binary has both slices and runs here (arm64).
-      - name: Check the app
+      # The Developer ID certificate and the notary credentials go into a
+      # keychain that lives as long as the job (the guide of MyGo's
+      # docs/github-actions.md). Without the secrets, nothing happens here
+      # and scripts/release.sh signs ad hoc.
+      - name: Signing keychain
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          archs=$(lipo -archs bin/Keel.app/Contents/MacOS/keel)
-          echo "$archs" | grep -qw x86_64 && echo "$archs" | grep -qw arm64
-          bin/Keel.app/Contents/MacOS/keel version | grep -qx "keel $VERSION"
-          test "$(plutil -extract CFBundleShortVersionString raw bin/Keel.app/Contents/Info.plist)" = "${VERSION#v}"
+          if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_CERTIFICATE_PASSWORD" ] || [ -z "$MACOS_SIGNING_IDENTITY" ] ||
+             [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
+            echo "::notice::The signing secrets are not all set: Keel.app is signed ad hoc and not notarized."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          # The default keychain: mygo.json's notarize.keychainProfile "notary" is looked up there.
+          security list-keychains -d user -s "$keychain" login.keychain
+          security default-keychain -d user -s "$keychain"
+          xcrun notarytool store-credentials notary \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          echo "KEEL_SIGN_IDENTITY=$MACOS_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - run: sh scripts/release.sh "$VERSION" macos
 
       - uses: actions/upload-artifact@v4
         with:
@@ -89,24 +119,15 @@ jobs:
           path: dist/*
           retention-days: 5
 
+  # mygo build needs no cgo, so one runner builds both CPUs; the checks of
+  # scripts/release.sh read the archives, and run the binary of this CPU.
   linux:
-    name: Keel (Linux ${{ matrix.arch }})
+    name: Keel (Linux x86_64 and arm64)
     needs: notices
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-24.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install GTK4 and WebKitGTK 6 (Wails v3)
-        uses: ./.github/actions/gtk
 
       - uses: actions/setup-go@v5
         with:
@@ -116,14 +137,11 @@ jobs:
         with:
           name: notices
 
-      - run: sh scripts/release.sh "$VERSION" app
-
-      - name: Check the binary
-        run: bin/keel version | grep -qx "keel $VERSION"
+      - run: sh scripts/release.sh "$VERSION" linux
 
       - uses: actions/upload-artifact@v4
         with:
-          name: keel-linux-${{ matrix.arch }}
+          name: keel-linux
           path: dist/*
           retention-days: 5
 

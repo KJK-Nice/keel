@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -120,8 +118,7 @@ Host *.internal
 	}
 	f.st = st
 	rt := runtime.New(st, nil)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	f.srv = httptest.NewServer(New(st, rt, fs.FS(web), nil).WithSSHDir(sshDir).Handler())
+	f.srv = httptest.NewServer(New(st, rt, nil).WithSSHDir(sshDir).Handler())
 	t.Cleanup(f.srv.Close)
 	return f
 }
@@ -369,8 +366,7 @@ func TestVaultStateAndFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, nil)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithSSHDir(t.TempDir()).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithSSHDir(t.TempDir()).Handler())
 	t.Cleanup(srv.Close)
 	f := importFixture{srv: srv, st: st}
 

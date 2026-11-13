@@ -45,10 +45,10 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 ## Type
 
 - `sans` is the **system UI font** (SF Pro Text on macOS, Segoe UI Variable on Windows, the desktop's sans on Linux) so Keel reads like a native app. `display` is the same system family at display optical size (SF Pro Display) for dialog titles, page titles and empty states. `mono` (JetBrains Mono) for terminals, addresses, paths, flags and commands only.
-- Default UI size is 13px (`body` = 1rem). The user scales the UI from 11–16px, so in the app every size here is written in rem (px ÷ 13). Terminal text scales separately (10–22px, ⌘0 resets to 12).
+- Default UI size is 12px (`body` = 1rem). The user scales the UI from 11–16px, so in the app text and the components written in rem scale with it (the type styles are rem = px ÷ 13); the fixed chrome dimensions (`--size-*`) are px and do not scale. Terminal text scales separately (10–22px, ⌘0 resets to 12).
 - Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 12/16 semibold sans in sentence case, `kbd` 11/14.
 - `reading` is for long-form prose only (the notebook's reading column, `size-reading` 68ch wide). The interface stays on `body`.
-- `tokens.css` carries each style as a font shorthand, `--type-<name>` (weight, size/line height in rem, family). Use `font: var(--type-reading)`; add letter spacing and case in the rule.
+- `tokens.json` carries each style as weight, size, line height and family; sizes in the window scale with the UI size setting.
 - The UI font needs nothing shipped: it is the OS font. Ship only the terminal fonts as local woff2 (JetBrains Mono, and IBM Plex Mono because Settings offers it as a terminal font). Keel is a desktop app and must look right offline; do not load fonts from the network at runtime.
 
 ## Space, size and shape
@@ -83,10 +83,9 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 - A "None" choice is the first option, with an empty value. Label it with what it means ("No group", "No role", "None").
 - The text is the system font. Only an option that is code is mono: an address line (`user@host:port`) uses `.k-combobox-desc--mono`, and a picker whose values are code (roles) is `.k-combobox--mono`.
 - Never a native `<select>`, and never a menu used as a value picker: menus are for actions.
-- The value posts with its form through a hidden input; the text input has no name. The same markup comes from templ (`Combobox`, `internal/ui/combobox.templ`) and from term.js strings (`comboboxHTML`, `js/lib/combobox.js`), which wires every picker by delegation, so pickers a page repaints or a stream morphs in keep working. The popup is a top-layer popover, so it shows over a modal dialog and is not clipped by its scroll.
+- The popup is drawn above a modal dialog and is not clipped by its scroll.
 
 ## Building with it
 
-- Components are plain CSS classes (`k-` prefix) in `components/bundle.css`, so they work in templ (shadcn-templ components restyled through tokens) and in HTML strings rendered by `term.js`. `components/bundle.js` only provides the preview icon helper.
-- Map shadcn's variables onto these tokens once (`--background` → `stage`, `--card` → `surface`, `--popover` → `raised`, `--primary` → `brass`, `--primary-foreground` → `on-brass`, `--muted-foreground` → `ink-muted`, `--border` → `line`, `--input` → `line-strong`, `--ring` → `focus`, `--destructive` → `flare`). Keep no second token layer.
-- Theme switching sets `data-theme="dark|light"` on `<html>`; "system" resolves it from `prefers-color-scheme` in script so CSS only ever sees the two themes.
+- The window is native (`internal/native`). `tokens.json` is the one source; `internal/native/tokens.go` holds both themes and `TestTokensMatchJSON` keeps it equal. Values that are the window's own (not in `tokens.json`) are in `internal/native/nativeonly.go`, with the reason beside each. Keep no second token layer.
+- The earlier web implementation (CSS classes with a `k-` prefix, `tokens.css`, `components.css`, templ and shadcn variables) was removed with the webview; where this file says `k-*` or "the page", read the native counterpart described in `docs/native.md`.

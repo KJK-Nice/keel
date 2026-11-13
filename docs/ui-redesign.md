@@ -2,9 +2,10 @@
 
 Status: design approved for build · 2026-10-13
 
-- Tokens and components (source of truth in the repo): [`docs/design/`](design/)
-  - `tokens.json`: every token, both themes. `tokens.css`: the same as CSS custom properties.
-  - `components.css`: reference `k-*` component styles. `README.md`: usage rules (the brand book).
+> **Note (cutover stage 2, 2026-11-12).** This spec was written for the Wails webview (templ, Datastar, xterm.js, `cmd/keel/web`, `internal/ui`), which has been removed. [`native.md`](native.md) describes what is built in the native window; the screens, the agent invariants (§6) and the rationale below still hold, and the native code cites these section numbers. File names, CSS classes (`k-*`), `term.js` and the Datastar stream mentioned below are history. `tokens.css` and `components.css` no longer exist.
+
+- Tokens (source of truth in the repo): [`docs/design/`](design/)
+  - `tokens.json`: every token, both themes. `README.md`: usage rules (the brand book).
 - Design system (live, browsable): https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1
 - Screens (canvas, 17 boards): https://claude.ai/artifact/GJaVi8YQSrxoNiDVXoi2sW
 
@@ -36,7 +37,7 @@ Non-goals (this round)
 - **Selected tab**: a `raised` pill with `ink` text: no border, no underline.
 - **Split tabs**: only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines; the focused tile carries a soft ring (3px, `focus` at 30%) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring. No coloured rules or side bars to mark position anywhere.
 - Status: `tide` live/success · `signal` attention · `flare` failure/destructive · `haze` info/follower. Always with a word or icon.
-- Type: the system UI font (`sans`, `display` at display optical size for titles); JetBrains Mono only for code: `user@host:port`, IPs, paths, flags, commands, terminal output, the quick-connect input and key caps. Section labels are the `meta` style (sans 600 12/16, sentence case, no tracking). UI size 13px default = 1rem; only the terminal fonts ship, locally as woff2.
+- Type: the system UI font (`sans`, `display` at display optical size for titles); JetBrains Mono only for code: `user@host:port`, IPs, paths, flags, commands, terminal output, the quick-connect input and key caps. Section labels are the `meta` style (sans 600 12/16, sentence case, no tracking). UI size 12px default = 1rem (range 11–16px; scales text and rem-based components, not the px chrome dimensions); only the terminal fonts ship, locally as woff2.
 - Radii 3 / 5 / 8 / 12. Shadows only on things that float.
 - Terminal theme: `term-bg`, `term-fg`, `term-cursor`, `term-selection`, `ansi-0…15`. Host colours are `ansi-9…14`.
 - Components are plain `k-*` CSS classes so they work in templ and in `term.js` HTML strings.

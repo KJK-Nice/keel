@@ -1,45 +1,35 @@
 ---
 name: pr-screenshots
-description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Keel looks (tokens, CSS, templ, fonts) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
+description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Keel looks (tokens, fonts, views) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
 ---
 
 # PR screenshots
 
 `gh` cannot upload images to a PR (the `user-attachments` upload is web-only), so images live on an orphan branch, `pr-assets`, and the PR body links them. Never merge `pr-assets`.
 
-Needs `.agents/skills/verify-keel/SKILL.md` (read it first) and `tests/visual.e2e.ts`, which saves `<theme>-hosts|new-host|snippets|settings|terminal|palette|newtab|palette-groups|…` in dark and light. Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
+The shots are the native window's: `make native-e2e` writes one PNG per test to `.scratch-native/e2e/<Test>.png` (dark; `TestE2EThemeSwitch` also writes the `-light` shots). Read `.agents/skills/verify-keel/SKILL.md` first (scratch data only, `KEEL_KEYRING=off`). Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
 
 ## 1. Before (base ref, in a worktree)
 
-The base may lack the current test, so copy it in. Do not touch the main checkout.
+Do not touch the main checkout.
 
 ```bash
 git worktree add --detach $S/wt-before BASE
-cp tests/visual.e2e.ts tests/keel.ts $S/wt-before/tests/; cp e2e.config.ts $S/wt-before/
-(cd $S/wt-before && npm install && make build && \
-  npx e2e run tests/visual.e2e.ts --target webkit --output .e2e/proof/prN-before)
-cp -R $S/wt-before/.e2e/proof/prN-before .e2e/proof/
+(cd $S/wt-before && make native-e2e) && mkdir -p $S/prN-before && cp $S/wt-before/.scratch-native/e2e/*.png $S/prN-before/
 git worktree remove --force $S/wt-before
 ```
-
 
 ## 2. After (this branch)
 
 ```bash
-make build && npx e2e run tests/visual.e2e.ts --target webkit --output .e2e/proof/prN-after
+make native-e2e && mkdir -p $S/prN-after && cp .scratch-native/e2e/*.png $S/prN-after/
 ```
 
-Never stop the user's Keel on 127.0.0.1:47241; the runner uses its own port.
+Never stop the user's Keel on 127.0.0.1:47241; the e2e uses its own ports and data.
 
-## 3. Compose pairs
+## 3. Pick the screens
 
-One PNG per screen, before | after, labelled (uses `playwright-core` from `node_modules`, no installs):
-
-```bash
-node .agents/skills/pr-screenshots/compose.mjs .e2e/proof/prN-before .e2e/proof/prN-after $S/pr-N
-```
-
-Look at one or two outputs before publishing.
+Open the before and after PNG of each screen that changed (the image reader shows them) and keep only those. Copy each pair to `$S/pr-N/<screen>-before.png` and `<screen>-after.png`. Look at them before publishing: the shots hold made-up hosts, but check for real data.
 
 ## 4. Publish to `pr-assets` under `pr-N/`
 
@@ -64,8 +54,8 @@ URL form: `https://github.com/<owner>/<repo>/blob/pr-assets/pr-N/<file>.png?raw=
 
 ```bash
 gh pr view N --json body -q .body > $S/body.md
-# edit the Screenshots section: one `![alt](url)` per composite, a dark and a light group
+# edit the Screenshots section: a before image and an after image per screen
 gh pr edit N --body-file $S/body.md
 ```
 
-State that the shots are Playwright's WebKit build, not the system WKWebView. Re-running with the same file names overwrites images; push again, the links stay valid.
+Re-running with the same file names overwrites images; push again, the links stay valid. These shots come from MyGo's in-memory renderer, not a real display: the translucent window and blur are person-only checks.

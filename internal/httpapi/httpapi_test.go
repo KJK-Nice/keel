@@ -5,19 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -69,8 +62,7 @@ func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store,
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return fb, nil
 	})
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(srv.Close)
 	return srv, rt, st, fb
 }
@@ -124,7 +116,7 @@ func TestCrossSiteOriginRejected(t *testing.T) {
 		t.Fatalf("status = %d", res.StatusCode)
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/session?id=x"
 	hdr := http.Header{}
 	hdr.Set("Origin", "https://evil.example")
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, hdr)
@@ -138,7 +130,7 @@ func TestCrossSiteOriginRejected(t *testing.T) {
 }
 
 func TestLoopbackOriginAllowed(t *testing.T) {
-	srv, _, _, _ := testServer(t)
+	srv, _, st, _ := testServer(t)
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/hosts", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -153,14 +145,15 @@ func TestLoopbackOriginAllowed(t *testing.T) {
 		t.Fatalf("status = %d", res.StatusCode)
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
+	info := spawn(t, srv.URL, firstHost(t, st).ID)
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/session?id=" + info.ID + "&name=alice&kind=web"
 	hdr := http.Header{}
 	hdr.Set("Origin", srv.URL)
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, hdr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn.Close()
+	t.Cleanup(func() { _ = conn.Close() })
 }
 
 func TestHealthUnlocked(t *testing.T) {
@@ -217,27 +210,6 @@ func TestHostTagsAPI(t *testing.T) {
 	if !found {
 		t.Fatal("created host missing from list")
 	}
-
-	// The sidebar tree has no tag chips; typing a tag into its filter
-	// finds the host.
-	uiRes, err := http.Get(srv.URL + "/ui/hosts?datastar=" + url.QueryEscape(`{"query":"gpu"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer uiRes.Body.Close()
-	frag, _ := io.ReadAll(uiRes.Body)
-	if !strings.Contains(string(frag), `data-connect="`+saved.ID+`"`) {
-		t.Fatalf("host list filtered by tag misses the host: %s", frag)
-	}
-	missRes, err := http.Get(srv.URL + "/ui/hosts?datastar=" + url.QueryEscape(`{"query":"no-such-tag"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer missRes.Body.Close()
-	miss, _ := io.ReadAll(missRes.Body)
-	if strings.Contains(string(miss), `data-connect="`+saved.ID+`"`) {
-		t.Fatal("host list filter must drop hosts whose tags do not match")
-	}
 }
 
 func TestRuntimeStop(t *testing.T) {
@@ -248,9 +220,8 @@ func TestRuntimeStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, nil)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
 	stopped := make(chan struct{}, 1)
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithStop(func() { stopped <- struct{}{} }).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Post(srv.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -266,7 +237,7 @@ func TestRuntimeStop(t *testing.T) {
 		t.Fatal("onStop was not called")
 	}
 
-	bare := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	bare := httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(bare.Close)
 	res2, err := http.Post(bare.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -292,8 +263,7 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 		t.Skip("OS keychain auto-unlocked the vault")
 	}
 	rt := runtime.New(st, nil)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/hosts")
 	if err != nil {
@@ -327,7 +297,6 @@ func TestSessionControlAndFanout(t *testing.T) {
 	srv, _, st, fb := testServer(t)
 	host := firstHost(t, st)
 	info := spawn(t, srv.URL, host.ID)
-
 	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
 	defer alice.Close()
 	// The server subscribes after the WebSocket upgrade, so wait until alice
@@ -640,6 +609,8 @@ func TestChromeWSFocusAndNoUnapprovedInject(t *testing.T) {
 	}
 }
 
+// The session socket's write paths, by source (the web page's own JS checks went with the webview; the native
+// client's are internal/native/guard_test.go and keelclient/noforgedapproval_test.go).
 func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	src, err := os.ReadFile("httpapi.go")
 	if err != nil {
@@ -660,635 +631,6 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	}
 	if strings.Contains(body, "if ctl.Approved") || strings.Contains(body, "approved = inject.Approve()") {
 		t.Fatal("inject must not mint Approve from a client approved flag")
-	}
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-	// The writes live in pty.js; term.js keeps same-named wrappers.
-	pty := readPtyJS(t)
-	inj := sliceJSFunc(pty, "async function sendApprovedInject")
-	if inj == "" {
-		t.Fatal("missing sendApprovedInject")
-	}
-	if strings.Contains(inj, "sendSessionBytes") {
-		t.Fatal("palette inject must not send live websocket binary")
-	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
-		t.Fatal("palette inject must send a server nonce, not client approved:true")
-	}
-	if !strings.Contains(pty, `type: "inject-challenge"`) {
-		t.Fatal("palette inject must request a server inject-challenge")
-	}
-	if strings.Count(term, "function ptyWritesBlocked") != 1 {
-		t.Fatal("ptyWritesBlocked must be a single merged implementation")
-	}
-	if !strings.Contains(term, "sidebarFocused() || state.openModal || ptyInjectWaiter") ||
-		!strings.Contains(term, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("ptyWritesBlocked must OR vault sidebar keyboard focus with palette/inject chrome holds")
-	}
-	if !strings.Contains(term, `els.ptyInjectModal?.open || sidebarFocused()`) {
-		t.Fatal("vault sidebar focus must SetFocus SurfaceChrome; term focus restores SurfaceTerm while the sidebar stays open")
-	}
-	if !strings.Contains(term, "if (ptyWritesBlocked()) return") {
-		t.Fatal("xterm onData must not Write while the session rail or inject chrome owns focus")
-	}
-	paint := term[strings.Index(term, "function paintSidebar"):]
-	if i := strings.Index(paint[1:], "\n  function "); i > 0 {
-		paint = paint[:i]
-	}
-	if strings.Contains(paint, `type: "inject"`) || strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") {
-		t.Fatal("vault sidebar chrome must not Inject or write a live PTY")
-	}
-}
-
-// TestOpenSidebarKeepsTermKeys: the Vault sidebar (which replaced the right
-// session rail in phase 2) is chrome only while keyboard focus is inside
-// it. Open beside a focused terminal, keys still reach the PTY.
-func TestOpenSidebarKeepsTermKeys(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-
-	focused := sliceJSFunc(term, "function sidebarFocused")
-	if focused == "" {
-		t.Fatal("missing sidebarFocused")
-	}
-	if !strings.Contains(focused, `"vault-sidebar"`) || !strings.Contains(focused, "contains") || !strings.Contains(focused, "activeElement") {
-		t.Fatal("sidebarFocused must be DOM focus inside #vault-sidebar, not sidebar visibility")
-	}
-
-	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
-	if blocked == "" {
-		t.Fatal("missing ptyWritesBlocked")
-	}
-	if strings.Contains(blocked, "sidebarOpen()") {
-		t.Fatal("ptyWritesBlocked must not OR sidebar-open alone; that eats term keys while the sidebar stays visible")
-	}
-	if !strings.Contains(blocked, "sidebarFocused()") || !strings.Contains(blocked, "state.openModal") ||
-		!strings.Contains(blocked, "ptyInjectWaiter") || !strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") {
-		t.Fatal("only sidebar/chrome focus (plus palette/inject/notebook/CLI holds) may block silent Writes")
-	}
-
-	wire := sliceJSFunc(term, "function wirePaneTerminal")
-	if !strings.Contains(wire, "if (ptyWritesBlocked()) return") || !strings.Contains(wire, "sendSessionBytes") {
-		t.Fatal("sidebar open + term focused must still reach sendSessionBytes; chrome never silent-Writes")
-	}
-
-	setSide := sliceJSFunc(term, "function setSidebar")
-	restore := sliceJSFunc(term, "function restoreTermKeyboard")
-	release := sliceJSFunc(term, "function releaseSidebarFocus")
-	if setSide == "" || restore == "" || release == "" {
-		t.Fatal("missing setSidebar / restoreTermKeyboard / releaseSidebarFocus")
-	}
-	if strings.Contains(setSide, `getElementById("vault-sidebar")?.focus`) || strings.Contains(setSide, `setSessionSurface("chrome")`) {
-		t.Fatal("toggling the sidebar must not steal term focus or permanently pin SurfaceChrome")
-	}
-	if !strings.Contains(setSide, "restoreTermKeyboard") || !strings.Contains(restore, "term?.focus") {
-		t.Fatal("toggling the sidebar must restore terminal keyboard so keys reach the PTY")
-	}
-
-	mark := sliceJSFunc(term, "function markFocusedPane")
-	if !strings.Contains(mark, "releaseSidebarFocus") || !strings.Contains(mark, "syncSessionSurface") ||
-		!strings.Contains(mark, "term?.focus") {
-		t.Fatal("click/focus back on the term must drop sidebar focus and sync SurfaceTerm while the sidebar stays open")
-	}
-
-	sync := sliceJSFunc(term, "function syncSessionSurface")
-	if strings.Contains(sync, "sidebarOpen()") {
-		t.Fatal("syncSessionSurface must not send SurfaceChrome just because the sidebar is visible")
-	}
-	if !strings.Contains(sync, "sidebarFocused()") || !strings.Contains(sync, `setSessionSurface("chrome")`) ||
-		!strings.Contains(sync, `setSessionSurface("term")`) {
-		t.Fatal("focus follows the active surface: sidebar/chrome focus → SurfaceChrome, else SurfaceTerm")
-	}
-	if strings.Contains(term, "sidebarOpen() || isNotebookPane") {
-		t.Fatal("WS focus handshake must use sidebar focus, not sidebar visibility")
-	}
-
-	paint := sliceJSFunc(term, "function paintSidebar")
-	if strings.Contains(paint, "sendSessionBytes") || strings.Contains(paint, "sendSessionJSON") || strings.Contains(paint, `type: "inject"`) {
-		t.Fatal("vault sidebar chrome must not Write or Inject a live PTY")
-	}
-}
-
-func TestSnippetRunCannotSilentWritePTY(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-
-	if strings.Contains(term, "approved: true") {
-		t.Fatal("client must not forge approved:true; #45 nonce is the only Inject grant")
-	}
-
-	run := sliceJSFunc(term, "async function paletteRunSnippet")
-	if run == "" {
-		t.Fatal("missing paletteRunSnippet")
-	}
-	approveAt := strings.Index(run, "await approveBeforeType")
-	injAt := strings.Index(run, "sendApprovedInject")
-	if approveAt < 0 || injAt < 0 || approveAt > injAt {
-		t.Fatal("snippet run must await approveBeforeType before nonce Inject")
-	}
-	if !strings.Contains(run, "if (!ok) return") {
-		t.Fatal("snippet run must abort when Confirm is cancelled")
-	}
-	if strings.Contains(run, "sendSessionBytes") || strings.Contains(run, "sendSnippet") {
-		t.Fatal("paletteRunSnippet must not silent-Write or recurse through sendSnippet")
-	}
-
-	pty := readPtyJS(t)
-	inj := sliceJSFunc(pty, "async function sendApprovedInject")
-	if inj == "" || strings.Contains(inj, "sendSessionBytes") {
-		t.Fatal("approved inject must not send live websocket binary")
-	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") {
-		t.Fatal("approved inject must use a server nonce, not client approved:true")
-	}
-	if !strings.Contains(pty, `type: "inject-challenge"`) {
-		t.Fatal("snippet inject must request a server inject-challenge")
-	}
-
-	hit := strings.Index(term, `closest("[data-run]")`)
-	if hit < 0 {
-		t.Fatal("missing vault [data-run] snippet click handler")
-	}
-	chunk := term[hit:]
-	if i := strings.Index(chunk, "const editSn"); i > 0 {
-		chunk = chunk[:i]
-	}
-	if strings.Contains(chunk, "sendSessionBytes") {
-		t.Fatal("[data-run] must not silent-Write")
-	}
-	if !strings.Contains(chunk, "paletteRunSnippet") {
-		t.Fatal("[data-run] must go through paletteRunSnippet Confirm → nonce Inject")
-	}
-
-	rail := strings.Index(term, `closest("[data-snippet-run]")`)
-	if rail < 0 {
-		t.Fatal("missing sidebar [data-snippet-run] handler")
-	}
-	railChunk := term[rail:]
-	if i := strings.Index(railChunk, "});"); i > 0 {
-		railChunk = railChunk[:i]
-	}
-	if strings.Contains(railChunk, "sendSessionBytes") || strings.Contains(railChunk, "sendSnippet") {
-		t.Fatal("sidebar snippet Run must not silent-Write")
-	}
-	if !strings.Contains(railChunk, "paletteRunSnippet") {
-		t.Fatal("sidebar snippet Run must go through paletteRunSnippet")
-	}
-}
-
-// cssRulesMatching returns every "selectors { body }" rule in css whose
-// selector list contains sel.
-func cssRulesMatching(css, sel string) []string {
-	var out []string
-	for _, chunk := range strings.Split(css, "}") {
-		open := strings.Index(chunk, "{")
-		if open < 0 {
-			continue
-		}
-		if strings.Contains(chunk[:open], sel) {
-			out = append(out, strings.TrimSpace(chunk)+" }")
-		}
-	}
-	return out
-}
-
-// readPtyJS is cmd/keel/web/js/pty.js, the page's one way to write to a
-// session (the approve-before-type writes moved there from term.js).
-func readPtyJS(t *testing.T) string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "pty.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
-func sliceJSFunc(src, sig string) string {
-	start := strings.Index(src, sig)
-	if start < 0 {
-		return ""
-	}
-	rest := src[start+1:]
-	nextFn := strings.Index(rest, "\n  function ")
-	nextAsync := strings.Index(rest, "\n  async function ")
-	end := len(src)
-	if nextFn >= 0 {
-		end = start + 1 + nextFn
-	}
-	if nextAsync >= 0 && start+1+nextAsync < end {
-		end = start + 1 + nextAsync
-	}
-	return src[start:end]
-}
-
-func TestNotebookCannotSilentWritePTY(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-	cssb, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "css", "keel.css"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	css := string(cssb)
-
-	if !strings.Contains(css, ".notebook-pane") || !strings.Contains(term, `kind: "notebook"`) {
-		t.Fatal("notebook panes must exist in the split layout")
-	}
-	if !strings.Contains(term, `title: "Split notebook"`) || !strings.Contains(term, `run: () => splitNotebook("h")`) {
-		t.Fatal("command palette must offer Split notebook")
-	}
-
-	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
-	if blocked == "" {
-		t.Fatal("missing ptyWritesBlocked")
-	}
-	if !strings.Contains(blocked, "sidebarFocused() ||") ||
-		strings.Contains(blocked, "sidebarOpen()") ||
-		!strings.Contains(blocked, "state.openModal") ||
-		!strings.Contains(blocked, "ptyInjectWaiter") ||
-		!strings.Contains(blocked, "Date.now() < ptyChromeHoldUntil") ||
-		!strings.Contains(blocked, "isNotebookPane(focusedPane())") ||
-		!strings.Contains(blocked, "termInputOpen()") {
-		t.Fatal("ptyWritesBlocked must OR notebook focus and CLI input buffer with palette/sidebar-focus/inject chrome holds")
-	}
-
-	create := sliceJSFunc(term, "function createNotebookPane")
-	split := sliceJSFunc(term, "function splitNotebook")
-	if create == "" || split == "" {
-		t.Fatal("missing createNotebookPane or splitNotebook")
-	}
-	for _, fn := range []string{create, split} {
-		if strings.Contains(fn, "spawnHost") || strings.Contains(fn, "connectSessionWS") || strings.Contains(fn, "createTerminal") {
-			t.Fatal("splitting a notebook must not spawn a PTY or attach xterm")
-		}
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
-			t.Fatal("creating a notebook must not write the shell")
-		}
-	}
-
-	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
-		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
-	}
-	if strings.Contains(term, "data-notebook-add") || strings.Contains(term, "notebook-cell-body") || strings.Contains(term, "Add cell") {
-		t.Fatal("notebook pane must be a markdown document, not cell-run chrome")
-	}
-	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "KeelMarkdownEditor") {
-		t.Fatal("notebook pane must mount a rich markdown editor")
-	}
-	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
-	show := sliceJSFunc(term, "function showTermInput")
-	if insert == "" || show == "" {
-		t.Fatal("missing insert-into-input helpers")
-	}
-	for _, fn := range []string{insert, show} {
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) || strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, "approveBeforeType") {
-			t.Fatal("insert-into-input must not write the PTY or Inject")
-		}
-	}
-
-	confirm := sliceJSFunc(term, "function confirmTermInput")
-	if confirm == "" {
-		t.Fatal("missing confirmTermInput")
-	}
-	approveAt := strings.Index(confirm, "await approveBeforeType")
-	sendAt := strings.Index(confirm, "sendApprovedInject")
-	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
-		t.Fatal("confirm path must await approveBeforeType before Inject")
-	}
-	if !strings.Contains(confirm, "if (!ok) return") {
-		t.Fatal("confirm path must abort when approve-before-type is cancelled")
-	}
-	if strings.Contains(confirm, "sendSessionBytes") || strings.Contains(confirm, "sendSnippet") {
-		t.Fatal("confirm path must not call sendSnippet or raw session bytes")
-	}
-
-	pty := readPtyJS(t)
-	bytesFn := sliceJSFunc(pty, "function sendSessionBytes")
-	if bytesFn == "" || !strings.Contains(bytesFn, "if (!isTermPane(pane) || !pane?.runtimeId) return") {
-		t.Fatal("sendSessionBytes must refuse non-term panes")
-	}
-
-	inj := sliceJSFunc(pty, "async function sendApprovedInject")
-	if inj == "" || !strings.Contains(inj, "termTarget") {
-		t.Fatal("approved inject must resolve a term pane, never a notebook")
-	}
-	if strings.Contains(inj, "sendSessionBytes") {
-		t.Fatal("approved inject must not send live websocket binary")
-	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
-		t.Fatal("approved inject must use a server nonce, not client approved:true")
-	}
-
-	catStart := strings.Index(term, "function paletteCatalog()")
-	catEndRel := strings.Index(term[catStart:], "\n  const paletteList = createPaletteList(")
-	if catStart < 0 || catEndRel < 0 {
-		t.Fatal("term.js missing palette catalog")
-	}
-	catalog := term[catStart : catStart+catEndRel]
-	if !strings.Contains(catalog, `"split-notebook"`) {
-		t.Fatal("palette catalog must include Split notebook")
-	}
-	if strings.Contains(catalog, "sendSessionBytes") || strings.Contains(catalog, "sendSnippet") {
-		t.Fatal("palette catalog must not write a PTY")
-	}
-
-	cancel := sliceJSFunc(term, "function closeTermInput")
-	cancelOpen := sliceJSFunc(term, "function closeOpenTermInput")
-	if cancel == "" || cancelOpen == "" {
-		t.Fatal("missing CLI input cancel helpers")
-	}
-	for _, fn := range []string{cancel, cancelOpen} {
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) || strings.Contains(fn, "sendApprovedInject") {
-			t.Fatal("cancel / close CLI input must not write the PTY")
-		}
-	}
-
-	persist := sliceJSFunc(term, "function persistNotebook")
-	open := sliceJSFunc(term, "function openNotebook")
-	paint := sliceJSFunc(term, "function paintSidebar")
-	pin := sliceJSFunc(term, "function toggleNotebookPin")
-	rename := sliceJSFunc(term, "function renameNotebook")
-	saveRename := sliceJSFunc(term, "async function saveNotebookRename")
-	paintNb := sliceJSFunc(term, "function paintNotebook")
-	mount := sliceJSFunc(term, "function mountNotebookEditor")
-	runFn := sliceJSFunc(term, "function runNotebookFence")
-	copyFn := sliceJSFunc(term, "function copyNotebookFence")
-	for _, fn := range []string{persist, open, paint, pin, rename, saveRename, create, split, insert, show, paintNb, mount, copyFn} {
-		if fn == "" {
-			t.Fatal("missing notebook persist/open/pin/rename helpers")
-		}
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") || strings.Contains(fn, `type: "inject"`) {
-			t.Fatal("notebook persist/open/sidebar must not write the shell")
-		}
-	}
-	if strings.Contains(persist, "output") || strings.Contains(persist, "stdout") {
-		t.Fatal("notebook persist must not store cell outputs")
-	}
-	if !strings.Contains(mount, "target: notebookTarget(pane)") || !strings.Contains(term, "viewOf(pane).mdEditor?.setTarget") || !strings.Contains(css, ".term-input") {
-		t.Fatal("shell fences must name the pane they type into (Type into <pane>) and fill a CLI input buffer beside the terminal")
-	}
-	if !strings.Contains(term, "function runNotebookFence") || !strings.Contains(term, "function copyNotebookFence") {
-		t.Fatal("fenced blocks must offer Copy and Run in terminal")
-	}
-	if runFn == "" || copyFn == "" {
-		t.Fatal("missing run/copy fence helpers")
-	}
-	if strings.Contains(runFn, "sendSessionBytes") || strings.Contains(runFn, `type: "inject"`) || strings.Contains(runFn, "sendApprovedInject") {
-		t.Fatal("Run in terminal must not Write or Inject itself; Confirm owns the nonce path")
-	}
-	if !strings.Contains(runFn, "insertNotebookIntoInput") || !strings.Contains(runFn, "confirmTermInput") {
-		t.Fatal("Run in terminal must fill CLI input then Confirm (approve + nonce)")
-	}
-	if strings.Contains(copyFn, "sendSessionBytes") || strings.Contains(copyFn, "sendApprovedInject") || strings.Contains(copyFn, `type: "inject"`) {
-		t.Fatal("Copy must not Write or Inject the PTY")
-	}
-	if !strings.Contains(css, ".notebook-doc") || !strings.Contains(css, ".notebook-fence") || !strings.Contains(css, ".notebook-fence-lang") {
-		t.Fatal("notebook pane must style a rendered markdown document, shell fences, and a language selector")
-	}
-	if !strings.Contains(css, "list-style-type: disc") || !strings.Contains(css, "list-style-type: decimal") {
-		t.Fatal("notebook markdown lists must show bullet and numbered markers")
-	}
-	if strings.Contains(term, "data-notebook-pin-pane") || strings.Contains(term, "notebook-lede") || strings.Contains(term, `title="Split notebook">Note`) {
-		t.Fatal("notebook pane must not show pin, description, or a Note button in the title bar")
-	}
-	if !strings.Contains(term, "M9.99219 11H13.4922") {
-		t.Fatal("notebook tabs must use NotebookPenIcon, not the terminal glyph")
-	}
-	if !strings.Contains(persist, "/api/notebooks") {
-		t.Fatal("notebook persist must use the vault notebooks API")
-	}
-	if !strings.Contains(open, "createNotebookPane") || strings.Contains(open, "spawnHost") {
-		t.Fatal("opening a notebook must hydrate a notebook pane, not spawn a PTY")
-	}
-	if strings.Contains(open, `toast("Open a session first")`) || !strings.Contains(open, "createNotebookTab") {
-		t.Fatal("opening a notebook must work with no live session")
-	}
-	// The Snippets segment is templ, pushed by the stream (SidebarSnippets).
-	sideTempl, _ := os.ReadFile("../ui/sidebarlists.templ")
-	if side := string(sideTempl); !strings.Contains(side, "data-notebook-open") || !strings.Contains(side, "data-notebook-pin") || !strings.Contains(side, "New notebook") || !strings.Contains(paint, "filterSidePanel") {
-		t.Fatal("vault sidebar (Snippets segment) must pin and open notebooks")
-	}
-	if !strings.Contains(saveRename, `[name="id"]`) || !strings.Contains(saveRename, "/api/notebooks/") {
-		t.Fatal("vault card Rename must persist the title through PUT /api/notebooks")
-	}
-	if !strings.Contains(string(sideTempl), "data-snippet-run") || !strings.Contains(term, "data-sidebar-seg") {
-		t.Fatal("vault sidebar must offer Snippets (with notebooks) as a segment")
-	}
-	if strings.Contains(paint, "No session") {
-		t.Fatal("vault sidebar must not show session info")
-	}
-	if strings.Contains(paint, "inject") {
-		t.Fatal("vault sidebar notebook chrome must not mention inject")
-	}
-
-	ser := readWebLib(t, "lib/savedworkspace.js")
-	ser = ser[strings.Index(ser, "export function savedLeaf"):]
-	ser = ser[:strings.Index(ser, "\n}\n")]
-	prune := readWebLib(t, "lib/layout.js")
-	prune = prune[strings.Index(prune, "export function pruneLayout"):]
-	restore := sliceJSFunc(term, "function restoreSavedTab")
-	if !strings.Contains(ser, `kind: "notebook"`) || !strings.Contains(ser, "notebookId") {
-		t.Fatal("workspace layout must persist notebook leaves")
-	}
-	if !strings.Contains(prune, `kind === "notebook"`) {
-		t.Fatal("workspace restore must keep notebook leaves")
-	}
-	if !strings.Contains(restore, "createNotebookPane") || strings.Contains(restore, "sendSessionBytes") {
-		t.Fatal("workspace restore must reopen notebooks without writing the PTY")
-	}
-	if !strings.Contains(restore, "createNotebookTab") {
-		t.Fatal("workspace restore must reopen notebook-only tabs without a live session")
-	}
-	if !strings.Contains(term, `api("/api/notebooks")`) {
-		t.Fatal("boot must load notebooks with the rest of the vault")
-	}
-	if !strings.Contains(catalog, "Open notebook") || !strings.Contains(catalog, "openNotebook") {
-		t.Fatal("palette catalog must offer Open notebook without writing a PTY")
-	}
-}
-
-// TestNotebookCannotSilentlyWritePTY is the Warp-path gate expected as a new +func in the #46 diff:
-// insert into CLI input never Write/Injects; Confirm is approve + #45 nonce Inject only;
-// Cancel / client-forged approved:true never hits the PTY.
-func TestNotebookCannotSilentlyWritePTY(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-
-	if strings.Contains(term, "function runNotebookCell") || strings.Contains(term, "Type into terminal") {
-		t.Fatal("notebook cells must insert into CLI input, not type into the PTY immediately")
-	}
-	if strings.Contains(term, "data-notebook-add") || strings.Contains(term, "notebook-cell-body") {
-		t.Fatal("notebook pane must be a markdown document, not cell-run chrome")
-	}
-	if strings.Contains(term, "approved: true") {
-		t.Fatal("client must not send approved:true; #45 nonce is the only Inject grant")
-	}
-
-	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
-	show := sliceJSFunc(term, "function showTermInput")
-	cancel := sliceJSFunc(term, "function closeTermInput")
-	cancelOpen := sliceJSFunc(term, "function closeOpenTermInput")
-	confirm := sliceJSFunc(term, "function confirmTermInput")
-	blocked := sliceJSFunc(term, "function ptyWritesBlocked")
-	inj := sliceJSFunc(readPtyJS(t), "async function sendApprovedInject")
-	runFn := sliceJSFunc(term, "function runNotebookFence")
-	copyFn := sliceJSFunc(term, "function copyNotebookFence")
-	if insert == "" || show == "" || cancel == "" || cancelOpen == "" || confirm == "" || blocked == "" || inj == "" || runFn == "" || copyFn == "" {
-		t.Fatal("missing Warp insert/confirm/cancel or Inject helpers")
-	}
-	for _, fn := range []string{insert, show, cancel, cancelOpen, copyFn} {
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
-			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) ||
-			strings.Contains(fn, "approveBeforeType") {
-			t.Fatal("insert into input / cancel must not Write or Inject the PTY")
-		}
-	}
-	if strings.Contains(runFn, "sendSessionBytes") || strings.Contains(runFn, `type: "inject"`) || strings.Contains(runFn, "sendApprovedInject") {
-		t.Fatal("Run in terminal must not Write or Inject itself")
-	}
-	if !strings.Contains(runFn, "confirmTermInput") {
-		t.Fatal("Run in terminal must go through Confirm")
-	}
-
-	approveAt := strings.Index(confirm, "await approveBeforeType")
-	sendAt := strings.Index(confirm, "sendApprovedInject")
-	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
-		t.Fatal("confirmTermInput must await approveBeforeType before nonce Inject")
-	}
-	if !strings.Contains(confirm, "if (!ok) return") {
-		t.Fatal("confirmTermInput must abort when approve-before-type is cancelled")
-	}
-	if strings.Contains(confirm, "sendSessionBytes") || strings.Contains(confirm, "sendSnippet") {
-		t.Fatal("confirmTermInput must not bypass nonce Inject")
-	}
-	if !strings.Contains(inj, `type: "inject"`) || !strings.Contains(inj, "nonce") || strings.Contains(inj, "approved: true") {
-		t.Fatal("approved inject must use a server nonce, not client approved:true")
-	}
-	if strings.Contains(inj, "sendSessionBytes") {
-		t.Fatal("approved inject must not send live websocket binary")
-	}
-	if !strings.Contains(blocked, "termInputOpen()") || !strings.Contains(blocked, "isNotebookPane(focusedPane())") {
-		t.Fatal("ptyWritesBlocked must cover CLI input + notebook focus")
-	}
-
-	cancelClick := strings.Index(term, `closest("[data-term-input-cancel]")`)
-	if cancelClick < 0 {
-		t.Fatal("missing Cancel click handler for CLI input")
-	}
-	cancelSrc := term[cancelClick:]
-	if i := strings.Index(cancelSrc, "return;"); i >= 0 {
-		cancelSrc = cancelSrc[:i]
-	}
-	if !strings.Contains(cancelSrc, "closeTermInput") || strings.Contains(cancelSrc, "confirmTermInput") ||
-		strings.Contains(cancelSrc, "sendApprovedInject") || strings.Contains(cancelSrc, `type: "inject"`) {
-		t.Fatal("Cancel must close the CLI input without Inject")
-	}
-
-	assertInjectNonceOneShotReplay(t)
-}
-
-func TestNotebookOpensWithoutSession(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-	open := sliceJSFunc(term, "function openNotebook")
-	createTab := sliceJSFunc(term, "function createNotebookTab")
-	createPane := sliceJSFunc(term, "function createNotebookPane")
-	split := sliceJSFunc(term, "function splitNotebook")
-	fresh := sliceJSFunc(term, "function newNotebook")
-	insert := sliceJSFunc(term, "function insertNotebookIntoInput")
-	rename := sliceJSFunc(term, "function renameNotebook")
-	saveRename := sliceJSFunc(term, "async function saveNotebookRename")
-	if open == "" || createTab == "" || createPane == "" || split == "" || fresh == "" || insert == "" || rename == "" || saveRename == "" {
-		t.Fatal("missing notebook open/create helpers")
-	}
-	for _, fn := range []string{open, createTab, createPane, split, fresh, rename, saveRename} {
-		if strings.Contains(fn, `toast("Open a session first")`) {
-			t.Fatal("notebook open/new must not require an active session")
-		}
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
-			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) {
-			t.Fatal("opening or creating a notebook must not Write or Inject the PTY")
-		}
-		if strings.Contains(fn, "spawnHost") {
-			t.Fatal("opening a notebook must not spawn a session")
-		}
-	}
-	if !strings.Contains(open, "createNotebookTab") || !strings.Contains(fresh, "createNotebookTab") {
-		t.Fatal("vault/open with no session must create a standalone notebook tab")
-	}
-	if !strings.Contains(insert, "termTarget") || !strings.Contains(insert, "Split a terminal beside this notebook first") {
-		t.Fatal("Insert must refuse when no terminal target exists")
-	}
-	if !strings.Contains(term, "function mountNotebookEditor") || !strings.Contains(term, "onRunFence") ||
-		!strings.Contains(term, "function runNotebookFence") {
-		t.Fatal("shell send must be an explicit fence affordance on the markdown document")
-	}
-
-	srv, _, _, _ := testServer(t)
-	res, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), `id="page-notebooks"`) || !strings.Contains(string(body), `data-open-page="notebooks"`) ||
-		!strings.Contains(string(body), `id="notebook-list"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) {
-		t.Fatal("notebooks must be a tab page reachable from the vault sidebar")
-	}
-	if !strings.Contains(string(body), "/vendor/notebook/editor.js") {
-		t.Fatal("index must load the notebook markdown editor")
-	}
-	edBody, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "vendor", "notebook", "editor.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(edBody), "KeelMarkdownEditor") || !strings.Contains(string(edBody), "notebook-fence") {
-		t.Fatal("notebook markdown editor must be vendored")
-	}
-	if !strings.Contains(string(edBody), "Type into ") || !strings.Contains(string(edBody), "notebook-callout") || !strings.Contains(string(edBody), "setTarget") {
-		t.Fatal("the editor bundle must name the fence's target pane and render blockquotes as callouts (rebuild with make notebook-editor)")
-	}
-	if !strings.Contains(string(body), `<h1 class="k-page-title">Notebooks</h1>`) {
-		t.Fatal("the Notebooks tab page has a page head like the other tab pages")
-	}
-
-	if !strings.Contains(string(body), `id="notebook-list"`) {
-		t.Fatal("the page renders the notebook list")
-	}
-
-	created, err := http.Post(srv.URL+"/api/notebooks", "application/json", strings.NewReader(`{"name":"ops","cells":[{"body":"ls"}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer created.Body.Close()
-	if created.StatusCode != http.StatusCreated {
-		b, _ := io.ReadAll(created.Body)
-		t.Fatalf("create %d %s", created.StatusCode, b)
-	}
-	// The list is templ, on the page and pushed over /ui/stream.
-	listBody := listSection(t, srv.URL, "notebook-list")
-	if !strings.Contains(string(listBody), `data-notebook-open`) || !strings.Contains(string(listBody), "ops") {
-		t.Fatal("vault notebook cards must be openable without a session")
-	}
-	if !strings.Contains(string(listBody), `data-notebook-rename`) || !strings.Contains(string(listBody), "Rename") {
-		t.Fatal("vault notebook cards must offer Rename")
 	}
 }
 
@@ -1443,8 +785,7 @@ func TestSessionReconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -1598,8 +939,7 @@ func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).Handler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -1729,33 +1069,6 @@ func TestSessionWSClosesWhenClientDropped(t *testing.T) {
 	}
 }
 
-func TestHerdWS(t *testing.T) {
-	srv, _, st, _ := testServer(t)
-	u := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
-	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	var snap map[string]any
-	if err := conn.ReadJSON(&snap); err != nil {
-		t.Fatal(err)
-	}
-	if snap["type"] != "snapshot" {
-		t.Fatalf("first = %#v", snap)
-	}
-	host := firstHost(t, st)
-	spawn(t, srv.URL, host.ID)
-	var ev map[string]any
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
-	if err := conn.ReadJSON(&ev); err != nil {
-		t.Fatal(err)
-	}
-	if ev["type"] != "spawn" {
-		t.Fatalf("herd ev = %#v", ev)
-	}
-}
-
 func TestIdentityTunnelLogsAPI(t *testing.T) {
 	srv, _, st, _ := testServer(t)
 	logs := applog.New(t.TempDir() + "/keel.log")
@@ -1764,11 +1077,10 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	})
 	// rebuild server with extras
 	srv.Close()
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return newFakeBridge(), nil
 	})
-	srv2 := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithTunnels(tnRT).WithLogs(logs).Handler())
+	srv2 := httptest.NewServer(New(st, rt, nil).WithTunnels(tnRT).WithLogs(logs).Handler())
 	t.Cleanup(srv2.Close)
 
 	body := `{"name":"deploy","kind":"password","username":"ubuntu","password":"pw"}`
@@ -1915,66 +1227,47 @@ func TestDuplicateHostAPI(t *testing.T) {
 	}
 }
 
+// The host list the native client shows is GET /api/hosts: a duplicated host is listed beside its source, with the
+// secret redacted.
 func TestHostListDuplicateAction(t *testing.T) {
-	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.UpsertHost(store.Host{
+	srv, _, st, _ := testServer(t)
+	saved, err := st.UpsertHost(store.Host{
 		Name: "api", Address: "10.0.0.8", Username: "ubuntu", AuthType: "password", Password: "secret",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return newFakeBridge(), nil
 	})
-	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
-	t.Cleanup(srv.Close)
-
-	frag, err := http.Get(srv.URL + "/ui/hosts")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer frag.Body.Close()
-	fragBody, _ := io.ReadAll(frag.Body)
-	if frag.StatusCode != http.StatusOK {
-		t.Fatalf("ui hosts %d", frag.StatusCode)
-	}
-	if !strings.Contains(string(fragBody), `data-duplicate="`) {
-		t.Fatal("host cards should offer Duplicate")
-	}
-
-	js, err := http.Get(srv.URL + "/js/term.js")
+	dup, err := http.Post(srv.URL+"/api/hosts/"+saved.ID+"/duplicate", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer js.Body.Close()
-	jsBody, _ := io.ReadAll(js.Body)
-	term := string(jsBody)
-	if !strings.Contains(term, "/duplicate") {
-		t.Fatal("term.js must duplicate hosts through the vault API")
+	defer dup.Body.Close()
+	if dup.StatusCode != http.StatusCreated {
+		t.Fatalf("duplicate %d", dup.StatusCode)
 	}
-	if strings.Contains(term, "ptyWritesBlocked") && !strings.Contains(term, "sidebarFocused() || state.openModal || ptyInjectWaiter") {
-		t.Fatal("duplicate-host must not replace ptyWritesBlocked")
+	res, err := http.Get(srv.URL + "/api/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var hosts []store.Host
+	if err := json.NewDecoder(res.Body).Decode(&hosts); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, h := range hosts {
+		names[h.Name] = true
+		if h.Password == "secret" {
+			t.Fatalf("host %q lists its password", h.Name)
+		}
+	}
+	if !names["api"] || !names["api (copy)"] {
+		t.Fatalf("host list = %v", names)
 	}
 }
 
 func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
-	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return newFakeBridge(), nil
-	})
-	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
-	t.Cleanup(srv.Close)
+	srv, _, _, _ := testServer(t)
 
 	create := func(body string) store.Group {
 		t.Helper()
@@ -2050,29 +1343,6 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 		t.Fatalf("nested child missing from list: %+v", groups)
 	}
 
-	frag, err := http.Get(srv.URL + "/ui/hosts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer frag.Body.Close()
-	body, _ := io.ReadAll(frag.Body)
-	html := string(body)
-	if !strings.Contains(html, `data-group-id="`+root.ID+`"`) || !strings.Contains(html, `data-group-id="`+child.ID+`"`) {
-		t.Fatalf("vault tree missing nested group ids: %s", html)
-	}
-	if !strings.Contains(html, `data-group-toggle`) || !strings.Contains(html, `data-group-new="`+child.ID+`"`) ||
-		!strings.Contains(html, `data-group-rename="`+child.ID+`"`) || !strings.Contains(html, `data-drag-group`) {
-		t.Fatal("vault tree missing expand/create/rename/drag hooks")
-	}
-	if !strings.Contains(html, `data-connect="`+host.ID+`"`) {
-		t.Fatal("a nested host must show in its group in the sidebar tree")
-	}
-	childAt := strings.Index(html, `data-group-id="`+child.ID+`"`)
-	hostAt := strings.Index(html, `data-connect="`+host.ID+`"`)
-	if childAt < 0 || hostAt < childAt {
-		t.Fatal("the sidebar tree must nest a host inside its group")
-	}
-
 	other, err := http.Post(srv.URL+"/api/hosts", "application/json", strings.NewReader(`{"name":"db","address":"10.0.0.9","username":"ubuntu","authType":"password","password":"x"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -2092,992 +1362,32 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 		t.Fatalf("move %d %s", move.StatusCode, b)
 	}
 
-	js, err := http.Get(srv.URL + "/js/term.js")
+	// The tree the native client draws is these two lists: both hosts now sit in the root group.
+	hostsRes, err := http.Get(srv.URL + "/api/hosts")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer js.Body.Close()
-	jsBody, _ := io.ReadAll(js.Body)
-	term := string(jsBody)
-	for _, want := range []string{
-		"const MAX_GROUP_DEPTH = 8",
-		"function assignHostsGroup",
-		"data-group-rename",
-		"data-drag-group",
-		"/api/groups",
-		"/api/hosts/move",
-		"parentId",
-		"host-parent-group",
-		"kind: \"hosts\"",
-	} {
-		if !strings.Contains(term, want) {
-			t.Fatalf("term.js missing %q", want)
+	defer hostsRes.Body.Close()
+	var hosts []store.Host
+	if err := json.NewDecoder(hostsRes.Body).Decode(&hosts); err != nil {
+		t.Fatal(err)
+	}
+	moved := 0
+	for _, h := range hosts {
+		if (h.ID == host.ID || h.ID == db.ID) && h.GroupID == root.ID {
+			moved++
 		}
 	}
-	for _, fn := range []string{"async function assignHostsGroup", "function afterFormSaved"} {
-		i := strings.Index(term, fn)
-		if i < 0 {
-			t.Fatalf("missing %s", fn)
-		}
-		chunk := term[i:]
-		if n := 900; len(chunk) > n {
-			chunk = chunk[:n]
-		}
-		if strings.Contains(chunk, "inject") || strings.Contains(chunk, "sendSnippet") || strings.Contains(chunk, "ptyWritesBlocked") {
-			t.Fatalf("%s must not touch PTY/Inject", fn)
-		}
+	if moved != 2 {
+		t.Fatalf("hosts after move = %+v", hosts)
 	}
 }
 
-func TestIndexServesVault(t *testing.T) {
-	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return newFakeBridge(), nil
-	})
-	logs := applog.New(t.TempDir() + "/keel.log")
-	logs.Append(applog.Entry{Time: time.Now(), Kind: "info", Message: "vault ready"})
-	srv := httptest.NewServer(New(st, rt, web, nil).WithLogs(logs).Handler())
-	t.Cleanup(srv.Close)
-	res, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
-	// Phase 2 IA (docs/ui-redesign.md §4): the Vault is a collapsible left
-	// sidebar on every tab, not a pinned tab; the right session rail is gone.
-	if !strings.Contains(string(body), `id="vault-sidebar"`) || !strings.Contains(string(body), `data-open-page="settings"`) || !strings.Contains(string(body), "hostkey-modal") {
-		t.Fatalf("index missing vault chrome: %s", string(body[:min(len(body), 400)]))
-	}
-	if !strings.Contains(string(body), `id="btn-sidebar"`) || !strings.Contains(string(body), `aria-label="Toggle vault sidebar"`) || !strings.Contains(string(body), `class="workspace"`) {
-		t.Fatal("index missing the collapsible vault sidebar and its titlebar toggle")
-	}
-	if !strings.Contains(string(body), `id="vault-sidebar" aria-label="Vault" tabindex="-1"`) {
-		t.Fatal("vault sidebar must be focusable so SurfaceChrome can own the keyboard")
-	}
-	for _, seg := range []string{"hosts", "snippets", "forwards"} {
-		if !strings.Contains(string(body), `data-sidebar-seg="`+seg+`"`) || !strings.Contains(string(body), `data-sidebar-panel="`+seg+`"`) {
-			t.Fatalf("vault sidebar missing the %s segment", seg)
-		}
-	}
-	for _, page := range []string{"keychain", "logs", "settings"} {
-		if !strings.Contains(string(body), `data-open-page="`+page+`"`) {
-			t.Fatalf("vault sidebar footer missing %s", page)
-		}
-	}
-	if strings.Contains(string(body), `id="session-rail"`) || strings.Contains(string(body), `data-rail-tab=`) || strings.Contains(string(body), "vault-rail") {
-		t.Fatal("the right session rail and the vault tab rail are gone")
-	}
-	if strings.Contains(string(body), `id="btn-settings"`) {
-		t.Fatal("index should have no titlebar settings button")
-	}
-	if !strings.Contains(string(body), `data-hugeicons="icon"`) || strings.Contains(string(body), `data-lucide="icon"`) {
-		t.Fatal("index should render Hugeicons, not Lucide")
-	}
-	if !strings.Contains(string(body), `id="set-theme"`) || !strings.Contains(string(body), `class="tab-strip"`) || !strings.Contains(string(body), `id="tab-ctx-trigger"`) || !strings.Contains(string(body), "tabs-scroller") {
-		t.Fatal("index missing settings theme select or tab strip")
-	}
-	if !strings.Contains(string(body), `data-tab-action="rename"`) ||
-		!strings.Contains(string(body), "Close others") ||
-		!strings.Contains(string(body), "Close to the right") {
-		t.Fatal("index missing tab context menu")
-	}
-	if !strings.Contains(string(body), `id="set-ui-size-out"`) || !strings.Contains(string(body), `id="set-smooth"`) {
-		t.Fatal("index missing UI size or font smoothing settings")
-	}
-	if !strings.Contains(string(body), `<dialog class="modal modal--host" id="host-modal"`) || !strings.Contains(string(body), `id="modal-scrim"`) {
-		t.Fatal("index missing native host dialog or modal scrim")
-	}
-	if strings.Contains(string(body), `<template data-tui-dialog-portal`) && !strings.Contains(string(body), `data-slot="alert-dialog-content"`) {
-		t.Fatal("unexpected dialog portal without confirm alert dialog")
-	}
-	if !strings.Contains(string(body), `data-slot="switch"`) || !strings.Contains(string(body), `role="combobox"`) || !strings.Contains(string(body), `data-combobox`) {
-		t.Fatal("index missing settings switch or combobox")
-	}
-	if strings.Contains(string(body), `data-tui-select-trigger`) || strings.Contains(string(body), `<select`) {
-		t.Fatal("index should pick values with k-combobox or k-seg, not a select")
-	}
-	if strings.Contains(string(body), `class="ui-select`) {
-		t.Fatal("index should not keep native ui-select")
-	}
-	if !strings.Contains(string(body), `id="host-identity"`) || !strings.Contains(string(body), `id="tunnel-host"`) || !strings.Contains(string(body), `id="host-auth-type"`) {
-		t.Fatal("index missing host or tunnel form selects")
-	}
-	if !strings.Contains(string(body), `id="host-name"`) || !strings.Contains(string(body), `for="host-name"`) {
-		t.Fatal("index missing labeled host name input")
-	}
-	if !strings.Contains(string(body), `id="host-tags"`) || !strings.Contains(string(body), `name="tags"`) {
-		t.Fatal("host form missing tags field")
-	}
-	if !strings.Contains(string(body), `data-tui-slider`) || !strings.Contains(string(body), `k-page--settings`) {
-		t.Fatal("index missing settings slider or the Settings tab page")
-	}
-	// Every menu is a k-menu (docs/design/components.css): it sizes to its
-	// content, never to the trigger's width.
-	if !strings.Contains(string(body), `data-slot="dropdown-menu-content"`) || !strings.Contains(string(body), "k-menu ") {
-		t.Fatal("host action dropdown must be a k-menu sized to content, not the trigger")
-	}
-	if !strings.Contains(string(body), `class="k-menu-item`) || !strings.Contains(string(body), `id="pane-menu-trigger"`) {
-		t.Fatal("index missing k-menu items or the pane menu")
-	}
-	// The sidebar filter is the host search (Enter still connects or parses
-	// user@host); its controls are k-* components sized by tokens.
-	if !strings.Contains(string(body), `id="search"`) || !strings.Contains(string(body), `aria-label="Search hosts"`) {
-		t.Fatal("vault sidebar missing the host filter")
-	}
-	for _, id := range []string{`id="btn-new-host"`, `id="btn-welcome-local"`, `id="btn-quick"`, `id="btn-join"`} {
-		if !strings.Contains(string(body), id) {
-			t.Fatalf("vault sidebar missing %s", id)
-		}
-	}
-	if strings.Contains(string(body), `id="live-section"`) || strings.Contains(string(body), `id="herd-list"`) {
-		t.Fatal("index should not keep a Live/herd list on Hosts")
-	}
-	if !strings.Contains(string(body), `data-slot="aspect-ratio"`) {
-		t.Fatal("index missing the terminal preview aspect ratio")
-	}
-	// The vault gate (Unlock, First run) is k-* markup (internal/ui/gate.templ).
-	for _, id := range []string{`id="gate"`, `id="unlock-form"`, `id="onb-vault"`, `id="onb-import"`} {
-		if !strings.Contains(string(body), id) {
-			t.Fatalf("index missing %s", id)
-		}
-	}
-	if !strings.Contains(string(body), `data-slot="kbd"`) || !strings.Contains(string(body), `data-tui-tooltip-trigger`) {
-		t.Fatal("index missing kbd or tooltip")
-	}
-	if !strings.Contains(string(body), `data-tui-checkbox`) || !strings.Contains(string(body), `data-slot="radio-group"`) {
-		t.Fatal("index missing host form checkbox or color radio group")
-	}
-	if !strings.Contains(string(body), `data-tui-toaster`) {
-		t.Fatal("index missing shadcn toaster")
-	}
-	if strings.Contains(string(body), `id="toast"`) {
-		t.Fatal("index should not keep the old #toast fallback")
-	}
-	if !strings.Contains(string(body), `window.__keelApplyTheme`) {
-		t.Fatal("index missing theme apply helper")
-	}
-	if !strings.Contains(string(body), `q.get("chrome") === "titlebar"`) {
-		t.Fatal("index missing titlebar chrome bootstrap")
-	}
-	if !strings.Contains(string(body), `q.get("native") === "1"`) {
-		t.Fatal("index missing native window bootstrap")
-	}
-	if !strings.Contains(string(body), "colorScheme") {
-		t.Fatal("index missing color-scheme sync for native vibrancy")
-	}
-	// #59: the native window takes the theme as its appearance (macOS), or
-	// the page drops translucency when the theme differs from the OS.
-	if !strings.Contains(string(body), `postNative("keel:appearance:" + t)`) ||
-		!strings.Contains(string(body), `q.get("appearance") === "native"`) ||
-		!strings.Contains(string(body), `dataset.vibrancy`) {
-		t.Fatal("index missing native appearance / vibrancy bootstrap")
-	}
-	// Full screen comes from the native window (desktop chromeJS), not a
-	// window-size guess that also fires for a screen-sized window.
-	if strings.Contains(string(body), "syncFullscreen") || strings.Contains(string(body), "screen.width") {
-		t.Fatal("index must not guess full screen from the window size")
-	}
-	css, err := http.Get(srv.URL + "/css/keel.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer css.Body.Close()
-	cssBody, _ := io.ReadAll(css.Body)
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .workspace-bar`) ||
-		!strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab-strip`) ||
-		!strings.Contains(string(cssBody), "--wails-draggable") {
-		t.Fatal("keel.css missing titlebar tab overlay")
-	}
-	if !strings.Contains(string(cssBody), `html[data-vibrancy]`) ||
-		!strings.Contains(string(cssBody), "background: transparent") {
-		t.Fatal("keel.css missing native translucent chrome")
-	}
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] #tab-ctx-trigger`) ||
-		!strings.Contains(string(cssBody), "-webkit-app-region: no-drag") {
-		t.Fatal("keel.css titlebar tabs must be no-drag so WKWebView delivers right-click")
-	}
-	if !strings.Contains(string(cssBody), `.k-menu-item:not(:disabled)`) ||
-		!strings.Contains(string(cssBody), "{ background: var(--hover); color: var(--ink); outline: none; }") {
-		t.Fatal("menu items (k-menu-item) must highlight on hover and focus")
-	}
-	// The titlebar is the size-titlebar token (38px), not a 42px literal.
-	if !strings.Contains(string(cssBody), "height: var(--size-titlebar)") || strings.Contains(string(cssBody), "min-height: 42px") {
-		t.Fatal("keel.css titlebar overlay must use the size-titlebar token")
-	}
-	// Full screen: tabs go to the left edge (the traffic lights leave the
-	// window) and the page moves below the menu bar + titlebar overlay
-	// while macOS shows it, by the measured --titlebar-overlay.
-	if !strings.Contains(string(cssBody), "html[data-chrome=\"titlebar\"][data-fullscreen] .workspace-bar {\n  padding-left: var(--space-2);") {
-		t.Fatal("keel.css missing fullscreen tab shift to the left edge")
-	}
-	if !strings.Contains(string(cssBody), "html[data-chrome=\"titlebar\"][data-fullscreen][data-titlebar-revealed] .app {\n  top: var(--titlebar-overlay, 0);") {
-		t.Fatal("keel.css must move the page below the revealed full-screen titlebar")
-	}
-	if !strings.Contains(string(cssBody), "transition: top var(--duration-base) ease-out;") {
-		t.Fatal("keel.css overlay move must animate with the duration token")
-	}
-	if strings.Contains(string(cssBody), "padding-left: 8px") {
-		t.Fatal("keel.css fullscreen inset must use the space token")
-	}
-	if !strings.Contains(string(cssBody), "--ui-size") || !strings.Contains(string(cssBody), `html[data-smooth="subpixel"]`) {
-		t.Fatal("keel.css missing UI size token or font smoothing")
-	}
-	tw, err := http.Get(srv.URL + "/css/output.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tw.Body.Close()
-	twBody, _ := io.ReadAll(tw.Body)
-	if !strings.Contains(string(twBody), "--text-sm:1rem") {
-		t.Fatal("output.css --text-sm must be 1rem so shadcn controls match --ui-size")
-	}
-	// Tabs are the size-tab token (28px) in every chrome. The selected tab
-	// is a raised pill with ink text: no border, no underline, no brass.
-	if !strings.Contains(string(cssBody), "height: var(--size-tab)") ||
-		!strings.Contains(string(cssBody), ".tab.is-active {\n  background: var(--raised);\n  color: var(--ink);\n}") ||
-		strings.Contains(string(cssBody), ".tab.is-active::after") ||
-		strings.Contains(string(cssBody), ".tab.is-active .tab-icon { color: var(--brass-ink); }") {
-		t.Fatal("the selected tab must be a raised pill with ink text and no keel line or brass")
-	}
-	if !strings.Contains(string(cssBody), ".tab-new:focus") || !strings.Contains(string(cssBody), "html.is-window-dragging") {
-		t.Fatal("new-tab must not show a focus ring; window drag must keep the default cursor")
-	}
-	if !strings.Contains(string(cssBody), ".tab { cursor: pointer") {
-		t.Fatal("tabs must use a pointer cursor, not grab")
-	}
-	if !strings.Contains(string(cssBody), ".tabs::-webkit-scrollbar") ||
-		!strings.Contains(string(cssBody), "scrollbar-width: none") ||
-		!strings.Contains(string(cssBody), "data-overflow-left") {
-		t.Fatal("keel.css missing hidden tab-strip scrollbar or overflow fades")
-	}
-	if !strings.Contains(string(cssBody), ".term-wrap.is-focused") ||
-		!strings.Contains(string(cssBody), ".pane-drop") ||
-		!strings.Contains(string(cssBody), ".pane-actions") ||
-		!strings.Contains(string(cssBody), ".xterm-scrollable-element > .scrollbar > .slider") {
-		t.Fatal("keel.css missing focused pane tile, drop overlay, or xterm overlay scrollbar")
-	}
-	if !strings.Contains(string(cssBody), ".term-body .xterm") ||
-		strings.Contains(string(cssBody), "padding: 12px 14px 14px") ||
-		strings.Contains(string(cssBody), "padding: 8px 10px 10px") {
-		t.Fatal("split panes must not inset the terminal; the canvas should fill the pane")
-	}
-	if !strings.Contains(string(cssBody), ".term-host") ||
-		!strings.Contains(string(cssBody), `html[data-vibrancy] .term-host`) ||
-		!strings.Contains(string(cssBody), `var(--term-bg) var(--vibrancy-term)`) ||
-		strings.Contains(string(cssBody), `html[data-vibrancy] .term-tab.is-split .term-host`) ||
-		!strings.Contains(string(cssBody), `.term-host {
-  flex: 1 1 0%;`) {
-		t.Fatal("terminal panes must fill the pane; under native vibrancy every pane, solo or split, keeps glass")
-	}
-	if !strings.Contains(string(cssBody), ".scrollbar.vertical") ||
-		!strings.Contains(string(cssBody), "width: 6px !important") {
-		t.Fatal("xterm overlay scrollbar should be thin, not the 14px overview ruler default")
-	}
-	// A single-pane tab is full-bleed: no radius, gap or ring, and no keel
-	// line under any pane bar. Only a split tab (two or more panes) turns its
-	// panes into radius-md tiles on the chrome ground, space-1.5 apart (the
-	// gap is laid out by term.js stageRects, not a hairline sash), with pane
-	// bars on surface, a soft focus ring on the focused tile and the other
-	// terminals dimmed.
-	if !strings.Contains(string(cssBody), ".term-tab.is-split { padding: 0;") ||
-		strings.Contains(string(cssBody), ".pane-bar::after") ||
-		strings.Contains(string(cssBody), "flex: 0 0 1px") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split > .term-stage { background: var(--chrome); }") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap { border-radius: var(--radius-md);") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split .pane-bar { background: var(--surface); }") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split .term-wrap.is-focused { box-shadow: var(--shadow-tile-focus); }") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-split:has(.term-wrap.is-focused) .term-wrap:not(.is-focused) .term-host > .xterm { opacity: .7; }") ||
-		!strings.Contains(string(cssBody), ".split-sash {\n  background: transparent;") {
-		t.Fatal("only split tabs may be tiles (chrome ground, radius-md, surface pane bars, focus ring, dimmed others); single panes stay full-bleed with no keel line")
-	}
-	// Under native vibrancy the stage is clear and the chrome ground is one
-	// .tile-ground element that term.js clips to the stage minus the tiles'
-	// rounded rects: gaps, crossings and corner wedges, never under a tile.
-	if !strings.Contains(string(cssBody), "html[data-vibrancy] .term-tab.is-split > .term-stage { background: transparent; }") ||
-		!strings.Contains(string(cssBody), "html[data-vibrancy] .tile-ground { background: color-mix(in srgb, var(--chrome) var(--vibrancy-tint), transparent); }") ||
-		!strings.Contains(string(cssBody), ".tile-ground { position: absolute; inset: 0; pointer-events: none;") ||
-		strings.Contains(string(cssBody), "var(--tile-ground)") {
-		t.Fatal("split tiles under vibrancy must paint the chrome ground only outside the tiles")
-	}
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(js), `getPropertyValue("--space-1.5")`) ||
-		!strings.Contains(string(js), "const gap = leafCount(tab.layout) > 1 ? tileGapPx() : 0;") ||
-		!strings.Contains(string(js), "ground.style.clipPath = `path(evenodd, ") ||
-		strings.Contains(string(js), "SASH_PX") {
-		t.Fatal("term.js must lay split tiles out with the space-1.5 gap and keep single panes full-bleed")
-	}
-	if strings.Contains(string(cssBody), ".snippet-bar") || strings.Contains(string(body), "active-snippets") {
-		t.Fatal("session snippet footer must be removed")
-	}
-	if !strings.Contains(string(cssBody), "var(--chrome)") {
-		t.Fatal("keel.css missing chrome token")
-	}
-	if !strings.Contains(string(cssBody), ".k-sidebar {") ||
-		!strings.Contains(string(cssBody), `html[data-sidebar="closed"] .k-sidebar`) ||
-		!strings.Contains(string(cssBody), "width: var(--size-sidebar)") {
-		t.Fatal("keel.css must lay out the collapsible vault sidebar at the size-sidebar token")
-	}
-	res2, err := http.Get(srv.URL + "/api/identities")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res2.Body.Close()
-	if res2.StatusCode != http.StatusOK {
-		t.Fatalf("identities %d", res2.StatusCode)
-	}
-	if !strings.Contains(string(body), "/js/datastar.js") || !strings.Contains(string(body), "data-signals") {
-		t.Fatal("index missing Datastar")
-	}
-	termJS, err := http.Get(srv.URL + "/js/term.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer termJS.Body.Close()
-	termBody, _ := io.ReadAll(termJS.Body)
-	if !strings.Contains(string(termBody), "showModal") || strings.Contains(string(termBody), "tui.dialog.open") {
-		t.Fatal("term.js should open native <dialog> with showModal")
-	}
-	if !strings.Contains(string(termBody), "tui.toast.add") || strings.Contains(string(termBody), `getElementById("toast")`) {
-		t.Fatal("term.js should raise toasts through tui.toast.add")
-	}
-	tabMenuJS, err := http.Get(srv.URL + "/js/ui/tabmenu.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tabMenuJS.Body.Close()
-	tabMenuBody, _ := io.ReadAll(tabMenuJS.Body)
-	tabRenameJS, err := http.Get(srv.URL + "/js/ui/tabrename.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tabRenameJS.Body.Close()
-	tabRenameBody, _ := io.ReadAll(tabRenameJS.Body)
-	if !strings.Contains(string(termBody), "createTabMenu") || !strings.Contains(string(termBody), "createTabRename") ||
-		tabMenuJS.StatusCode != http.StatusOK || !strings.Contains(string(tabMenuBody), "data-tab-action") {
-		t.Fatal("term.js missing tab context menu handlers")
-	}
-	if tabRenameJS.StatusCode != http.StatusOK || !strings.Contains(string(tabRenameBody), "input.size = 1") ||
-		!strings.Contains(string(tabRenameBody), "setRangeText") ||
-		!strings.Contains(string(cssBody), "field-sizing: content") {
-		t.Fatal("tab rename must size to text, keep spaces, and not use a focus ring")
-	}
-	if !strings.Contains(string(cssBody), ".tab-rename:focus") || !strings.Contains(string(cssBody), "outline: none") {
-		t.Fatal("tab rename input must not show a border or focus ring")
-	}
-	if !strings.Contains(string(cssBody), `html[data-chrome="titlebar"] .tab:has(.tab-rename)`) {
-		t.Fatal("titlebar tab rename must drop vertical padding so the input matches tab height")
-	}
-	if !strings.Contains(string(cssBody), `.tab:has(.tab-rename) .tab-icon`) || !strings.Contains(string(cssBody), "align-self: center") {
-		t.Fatal("tab rename must keep the tab icon vertically centered")
-	}
-	if !strings.Contains(string(cssBody), `.tab .tab-icon svg { display: block; width: 16px; height: 16px; }`) ||
-		!strings.Contains(string(cssBody), `.tab .close svg { display: block; width: 16px; height: 16px; }`) {
-		t.Fatal("keel.css tab icons should stay 16px")
-	}
-	if strings.Contains(string(termBody), `viewBox="0 0 16 16"`) ||
-		!strings.Contains(string(termBody), `M18 6L6.00081 17.9992`) ||
-		!strings.Contains(string(termBody), `M7.5 7.5L8.72654 8.55719`) ||
-		!strings.Contains(string(termBody), `class="${PANE_BTN} pane-close" data-pane-close="${paneId}" title="Close pane">${closeGlyph()}`) {
-		t.Fatal("session tab and pane close glyphs must use Hugeicons computer-terminal-01 and cancel-01")
-	}
-	if !strings.Contains(string(tabMenuBody), `ev.button !== 2`) || !strings.Contains(string(tabMenuBody), `getElementById("tab-ctx")`) {
-		t.Fatal("term.js must synthesize tab contextmenu when the titlebar swallows right-click")
-	}
-	// The xterm palette is read from the --term-* and --ansi-* tokens; under
-	// native vibrancy xterm paints a clear --term-bg (NATIVE_TERM_ALPHA) with
-	// allowTransparency, and keel.css tints the pane once (#75).
-	if !strings.Contains(string(termBody), "allowTransparency") || !strings.Contains(string(termBody), "NATIVE_TERM_ALPHA") ||
-		!strings.Contains(string(termBody), `get("--term-bg")`) || !strings.Contains(string(termBody), "`--ansi-${i}`") ||
-		strings.Contains(string(termBody), "#0a0a0a") || strings.Contains(string(termBody), "#fbfbfa") {
-		t.Fatal("term.js must build the xterm theme from the Keel tokens and glass the native background per theme")
-	}
-	if !strings.Contains(string(termBody), "connectFromSearch") {
-		t.Fatal("term.js must connect from the sidebar host filter")
-	}
-	// No tag chips in the sidebar tree: the filter matches tags (and group
-	// names) instead. The host dialog's tags are split server-side
-	// (formTags, TestUIFormHost).
-	if !strings.Contains(readWebLib(t, "lib/groups.js"), "h.tags.join") {
-		t.Fatal("the host filter must match host tags")
-	}
-	if !strings.Contains(string(termBody), "dockTabIntoPane") || !strings.Contains(string(termBody), "togglePaneZoom") ||
-		!strings.Contains(string(termBody), "movePaneTo") || !strings.Contains(string(termBody), "data-pane-split") {
-		t.Fatal("term.js missing pane rearrange, focus view, or tile split/sync actions")
-	}
-	if !strings.Contains(string(termBody), "function closeActivePaneOrTab") ||
-		!strings.Contains(string(termBody), "closeActivePaneOrTab()") {
-		t.Fatal("term.js must close the focused pane with ⌘W before closing the last session tab")
-	}
-	if !strings.Contains(string(termBody), `className = "term-host"`) ||
-		!strings.Contains(string(termBody), "ensurePaneTerm") ||
-		!strings.Contains(string(termBody), ".open(viewOf(pane).host)") ||
-		!strings.Contains(string(termBody), "overviewRuler: { width: 0 }") {
-		t.Fatal("term.js must disable the xterm overview ruler strip beside the scrollbar")
-	}
-	if !strings.Contains(string(termBody), "attachWebgl") || !strings.Contains(string(body), "addon-webgl.js") {
-		t.Fatal("term.js must use the xterm webgl renderer so block glyphs fill the cell")
-	}
-	// Split panes keep WebGL in the native window too (#80): the renderer
-	// choice is per pane (lib/webglguard.js), not by how many panes show.
-	wantsFn := sliceJSFunc(string(termBody), "function paneWantsWebgl")
-	if wantsFn == "" || strings.Contains(wantsFn, "visiblePanes") || strings.Contains(wantsFn, "isNativeWindow") {
-		t.Fatal("paneWantsWebgl must keep WebGL on split panes in the native window too")
-	}
-	if strings.Contains(sliceJSFunc(string(termBody), "function paintLayout"), "dropWebgl") {
-		t.Fatal("paintLayout must not drop WebGL when a tab splits")
-	}
-	// xterm's link layer is a canvas above the WebGL canvas: any background
-	// on `.xterm-screen canvas` covers the terminal text (#80).
-	for _, rule := range cssRulesMatching(string(cssBody), "xterm-screen canvas") {
-		if !strings.Contains(rule, "background: transparent") || strings.Count(rule, "background") != 1 {
-			t.Fatalf("keel.css must keep xterm canvases clear; a background there hides WebGL text: %s", rule)
-		}
-	}
-	if !strings.Contains(string(termBody), "ensureTabStage") ||
-		!strings.Contains(string(termBody), "layoutTabPanes") ||
-		!strings.Contains(string(termBody), `className = "term-stage"`) {
-		t.Fatal("split layout must position pane wraps in a stable stage so WebGL canvases are not remounted")
-	}
-	if strings.Contains(string(termBody), "function attachWebgl(term) {\n    if (isNativeWindow()) return;") {
-		t.Fatal("native window must still load WebGL so block glyphs fill the cell")
-	}
-	writeFn := sliceJSFunc(string(termBody), "function writePaneBytes")
-	invFn := sliceJSFunc(string(termBody), "function invalidatePaneRender")
-	schedFn := sliceJSFunc(string(termBody), "function schedulePaneInvalidate")
-	refreshFn := sliceJSFunc(string(termBody), "function refreshPaneRender")
-	if writeFn == "" || invFn == "" || schedFn == "" || refreshFn == "" {
-		t.Fatal("PTY write must share the native Relayout/Invalidate kick used on resize")
-	}
-	if !strings.Contains(writeFn, "schedulePaneInvalidate") {
-		t.Fatal("writePaneBytes must schedule the same native invalidate as window resize")
-	}
-	if strings.Contains(writeFn, "sendResize") || strings.Contains(invFn, "sendResize") || strings.Contains(schedFn, "sendResize") {
-		t.Fatal("write/invalidate must not sendResize; Relayout is local to the canvas")
-	}
-	if strings.Contains(invFn, "cols - 1") || strings.Contains(invFn, "term.resize") {
-		t.Fatal("invalidatePaneRender must not dummy-resize; cols±1 blinks the frame on every type")
-	}
-	if !strings.Contains(invFn, "viewOf(pane).term.refresh") || !strings.Contains(invFn, "kickNativeCanvasCompositor") {
-		t.Fatal("write invalidate must refresh then kick the WKWebView canvas compositor")
-	}
-	kickFn := sliceJSFunc(string(termBody), "function kickNativeCanvasCompositor")
-	if kickFn == "" || strings.Contains(kickFn, "term.resize") || strings.Contains(kickFn, "sendResize") {
-		t.Fatal("canvas compositor kick must not resize the PTY or xterm grid")
-	}
-	if !strings.Contains(kickFn, `querySelectorAll("canvas")`) || !strings.Contains(kickFn, "translateZ") {
-		t.Fatal("compositor kick must nudge WebGL/canvas layers without a dummy grid resize")
-	}
-	if !strings.Contains(invFn, "isNativeWindow()") {
-		t.Fatal("compositor invalidate is a WKWebView kick, not a browser-fit")
-	}
-	if !strings.Contains(refreshFn, "invalidatePaneRender") || !strings.Contains(refreshFn, "reflowPane") {
-		t.Fatal("resize observer path must still reflow then invalidate")
-	}
-	// The per-frame coalescing lives in ui/framethrottle.js (unit-tested in
-	// framethrottle.test.mjs); schedulePaneInvalidate must go through it.
-	if !strings.Contains(schedFn, "createFrameThrottle") {
-		t.Fatal("PTY writes must coalesce invalidates per frame")
-	}
-	throttleJS, err := http.Get(srv.URL + "/js/ui/framethrottle.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer throttleJS.Body.Close()
-	throttleBody, _ := io.ReadAll(throttleJS.Body)
-	if throttleJS.StatusCode != http.StatusOK || !strings.Contains(string(throttleBody), "requestAnimationFrame") {
-		t.Fatal("framethrottle.js must run the coalesced invalidate on an animation frame")
-	}
-	if !strings.Contains(string(termBody), "else writePaneBytes(pane, ev.data)") {
-		t.Fatal("remote PTY bytes must go through writePaneBytes so they invalidate too")
-	}
-	if !strings.Contains(string(cssBody), ".term-stage") ||
-		!strings.Contains(string(cssBody), ".term-tab.is-active { visibility: visible") {
-		t.Fatal("keel.css must keep inactive terminals visible to the compositor so WebGL contexts survive")
-	}
-	if strings.Contains(string(body), `id="terminals" hidden`) {
-		t.Fatal("#terminals must not use the hidden attribute; it is display:none and blocks every session tab")
-	}
-	if !strings.Contains(string(termBody), "els.terminals.hidden = false") {
-		t.Fatal("term.js must clear #terminals.hidden when showing a session")
-	}
-	if !strings.Contains(string(cssBody), ".terminals[hidden] { display: block !important; }") {
-		t.Fatal("keel.css must override HTML hidden on #terminals so display:none cannot blank every session")
-	}
-	if !strings.Contains(string(cssBody), ".term-tab:not(.is-split):not(.is-zoomed) .term-stage > .term-wrap:not(.is-parked)") {
-		t.Fatal("keel.css must fill a solo pane across the stage if JS layout has not sized it yet")
-	}
-	if !strings.Contains(string(body), "addon-search.js") ||
-		!strings.Contains(string(body), "addon-web-links.js") ||
-		!strings.Contains(string(body), "addon-unicode-graphemes.js") ||
-		!strings.Contains(string(body), "addon-progress.js") {
-		t.Fatal("index must load search, web-links, unicode graphemes, and progress addons")
-	}
-	if !strings.Contains(string(termBody), "SearchAddon") ||
-		!strings.Contains(string(termBody), "find-term") ||
-		!strings.Contains(string(termBody), "function openFind") ||
-		!strings.Contains(string(termBody), "UnicodeGraphemesAddon") ||
-		!strings.Contains(string(termBody), "WebLinksAddon") ||
-		!strings.Contains(string(termBody), "ProgressAddon") ||
-		!strings.Contains(string(termBody), "openTermLink") {
-		t.Fatal("term.js must wire search, web links, unicode graphemes, and progress")
-	}
-	if !strings.Contains(string(cssBody), ".term-find") || !strings.Contains(string(cssBody), ".pane-progress") {
-		t.Fatal("keel.css missing terminal find overlay or OSC progress bar")
-	}
-	xtermJS, err := http.Get(srv.URL + "/vendor/xterm/xterm.min.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer xtermJS.Body.Close()
-	xtermBody, _ := io.ReadAll(xtermJS.Body)
-	fitJS, err := http.Get(srv.URL + "/vendor/xterm/addon-fit.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fitJS.Body.Close()
-	fitBody, _ := io.ReadAll(fitJS.Body)
-	webglJS, err := http.Get(srv.URL + "/vendor/xterm/addon-webgl.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer webglJS.Body.Close()
-	webglBody, _ := io.ReadAll(webglJS.Body)
-	searchJS, err := http.Get(srv.URL + "/vendor/xterm/addon-search.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer searchJS.Body.Close()
-	searchBody, _ := io.ReadAll(searchJS.Body)
-	linksJS, err := http.Get(srv.URL + "/vendor/xterm/addon-web-links.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer linksJS.Body.Close()
-	linksBody, _ := io.ReadAll(linksJS.Body)
-	graphemesJS, err := http.Get(srv.URL + "/vendor/xterm/addon-unicode-graphemes.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer graphemesJS.Body.Close()
-	graphemesBody, _ := io.ReadAll(graphemesJS.Body)
-	progressJS, err := http.Get(srv.URL + "/vendor/xterm/addon-progress.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer progressJS.Body.Close()
-	progressBody, _ := io.ReadAll(progressJS.Body)
-	if !strings.Contains(string(xtermBody), "@xterm/xterm@6.0.0") ||
-		!strings.Contains(string(fitBody), "@xterm/addon-fit@0.11.0") ||
-		!strings.Contains(string(webglBody), "@xterm/addon-webgl@0.19.0") ||
-		!strings.Contains(string(searchBody), "@xterm/addon-search@0.16.0") ||
-		!strings.Contains(string(linksBody), "@xterm/addon-web-links@0.12.0") ||
-		!strings.Contains(string(graphemesBody), "@xterm/addon-unicode-graphemes@0.4.0") ||
-		!strings.Contains(string(progressBody), "@xterm/addon-progress@0.2.0") {
-		t.Fatal("desktop UI must vendor xterm 6.0.0 with matching fit, webgl, search, web-links, unicode, and progress addons")
-	}
-	if !bytes.Contains(searchBody, []byte("window.SearchAddon=i")) ||
-		!bytes.Contains(linksBody, []byte("window.WebLinksAddon=i")) ||
-		!bytes.Contains(graphemesBody, []byte("window.UnicodeGraphemesAddon=i")) ||
-		!bytes.Contains(progressBody, []byte("window.ProgressAddon=i")) {
-		t.Fatal("addon UMD must assign constructors onto window, not only module.exports")
-	}
-	if !strings.Contains(string(termBody), "function createTerminal") ||
-		!strings.Contains(string(termBody), "window.Terminal") {
-		t.Fatal("term.js must construct xterm from window.Terminal so WKWebView can find it")
-	}
-	if !bytes.Contains(xtermBody, []byte(`typeof window=="object"?window:globalThis`)) ||
-		!bytes.Contains(xtermBody, []byte("window[s]=i[s]")) {
-		t.Fatal("xterm UMD must assign Terminal onto window, not only module.exports")
-	}
-	fsMark := bytes.Index(xtermBody, []byte(`e.FS="`))
-	usMark := bytes.Index(xtermBody, []byte(`e.US=`))
-	if fsMark < 0 || usMark <= fsMark || bytes.Contains(xtermBody[fsMark:usMark], []byte("\n")) ||
-		!bytes.Contains(xtermBody[fsMark:usMark], []byte{0x1c}) {
-		t.Fatal("xterm C0 File/Group/Record separators must stay inside the minified string literals")
-	}
-	if !strings.Contains(string(cssBody), ".xterm-char-measure-element") ||
-		!strings.Contains(string(cssBody), "letter-spacing: 0 !important") {
-		t.Fatal("xterm measure element must not inherit UI letter-spacing or line-height")
-	}
-	if !strings.Contains(string(body), "/vendor/notebook/editor.js") ||
-		!strings.Contains(string(body), "/vendor/notebook/prosemirror.css") {
-		t.Fatal("index must load the notebook markdown editor")
-	}
-	nbJS, err := http.Get(srv.URL + "/vendor/notebook/editor.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer nbJS.Body.Close()
-	nbBody, _ := io.ReadAll(nbJS.Body)
-	if nbJS.StatusCode != http.StatusOK || !strings.Contains(string(nbBody), "KeelMarkdownEditor") ||
-		!strings.Contains(string(nbBody), "notebook-fence") {
-		t.Fatal("FileServer must serve the notebook markdown editor")
-	}
-	if strings.Contains(string(termBody), "active-snippets") || strings.Contains(string(termBody), "activeSnippets") {
-		t.Fatal("term.js must not drive a session snippet footer")
-	}
-	if !strings.Contains(string(cssBody), "html[data-vibrancy] .term-body {") {
-		t.Fatal("keel.css missing native terminal glass")
-	}
-	if strings.Contains(string(cssBody), `#live-section[hidden]`) {
-		t.Fatal("keel.css should not keep the live section")
-	}
-	if !strings.Contains(string(termBody), "killRuntimeIfOwned") || !strings.Contains(string(termBody), "restoreOpenSessions") {
-		t.Fatal("term.js must kill on tab close and restore sessions on boot")
-	}
-	if !strings.Contains(readWebLib(t, "lib/savedworkspace.js"), `WORKSPACE_KEY = "keel-workspace"`) ||
-		!strings.Contains(string(termBody), "function persistWorkspace") ||
-		!strings.Contains(string(termBody), "function restoreSavedTab") ||
-		!strings.Contains(string(termBody), "pruneLayout(") ||
-		!strings.Contains(readWebLib(t, "lib/layout.js"), "export function pruneLayout") ||
-		!strings.Contains(string(termBody), "workspaceReady") {
-		t.Fatal("term.js must persist split pane layout and restore it onto the same tab")
-	}
-	if !strings.Contains(string(termBody), "freshTab") || !strings.Contains(string(termBody), "remapLayout") {
-		t.Fatal("workspace restore must rebuild split trees instead of spreading panes onto tabs")
-	}
-	bootFn := termBody[bytes.Index(termBody, []byte("async function boot()")):]
-	bootFn = bootFn[:bytes.Index(bootFn, []byte("function bindChrome"))]
-	if bytes.Index(bootFn, []byte("restoreOpenSessions()")) > bytes.Index(bootFn, []byte("if (info) attachRuntime(info)")) &&
-		bytes.Contains(bootFn, []byte("if (info) attachRuntime(info)")) {
-		t.Fatal("boot must restore split workspace before attaching a pending session as its own tab")
-	}
-	if !strings.Contains(string(termBody), "Runtime stopped — this session ended") || !strings.Contains(string(termBody), "state.runtimeStopping") {
-		t.Fatal("term.js must not claim a session is still running after the runtime stops")
-	}
-	if strings.Contains(string(termBody), "Reopen Keel to attach") {
-		t.Fatal("lost connection must reconnect in-place instead of asking to reopen the app")
-	}
-	if !strings.Contains(string(termBody), "function connectSessionWS") ||
-		!strings.Contains(string(termBody), "function reconnectPane") ||
-		!strings.Contains(string(termBody), "function replaySessionSnapshot") {
-		t.Fatal("term.js must reattach the session websocket when the user clicks Reconnect")
-	}
-	recStart := strings.Index(string(termBody), "function reconnectPane")
-	if recStart < 0 {
-		t.Fatal("missing reconnectPane")
-	}
-	rec := string(termBody)[recStart:]
-	if i := strings.Index(rec[1:], "\n  function "); i > 0 {
-		rec = rec[:i]
-	}
-	if strings.Contains(rec, "skipSnapshot: true") {
-		t.Fatal("reconnectPane must replay the server scrollback snapshot instead of skipping it")
-	}
-	if !strings.Contains(rec, "replaySessionSnapshot(pane)") || !strings.Contains(rec, "connectSessionWS(pane)") {
-		t.Fatal("reconnectPane must reset the local xterm and replay Subscribe snapshot bytes")
-	}
-	if !strings.Contains(string(termBody), "pane-fail") ||
-		!strings.Contains(string(termBody), "Reconnect") ||
-		!strings.Contains(string(termBody), "Copy logs") ||
-		!strings.Contains(string(termBody), "data-pane-edit-host") ||
-		!strings.Contains(string(termBody), "function syncPaneFail") {
-		t.Fatal("term.js must show a connection banner with Reconnect")
-	}
-	if !strings.Contains(string(cssBody), ".pane-fail") ||
-		!strings.Contains(string(cssBody), ".pane-fail-start") ||
-		!strings.Contains(string(cssBody), ".pane-fail-log") {
-		t.Fatal("keel.css missing connection transition page")
-	}
-	if strings.Contains(string(termBody), "function renderHerd") {
-		t.Fatal("term.js should not render a Hosts Live list")
-	}
-	// shadcn's --radius maps to the radius-md token in globals.css; keel.css
-	// keeps no second radius scale.
-	if strings.Contains(string(cssBody), "--radius:") {
-		t.Fatal("keel.css must not override shadcn --radius")
-	}
-	if !strings.Contains(string(cssBody), `button:not([data-slot])`) {
-		t.Fatal("button reset must skip every shadcn data-slot, including select-trigger")
-	}
-	if strings.Contains(string(cssBody), `button:not([data-slot="button"])`) {
-		t.Fatal("button reset must not target only data-slot=button (select triggers need a border)")
-	}
-	if !strings.Contains(string(cssBody), `.k-combobox > .k-input.k-combobox-input`) || !strings.Contains(string(cssBody), `.k-menu.k-combobox-pop`) {
-		t.Fatal("keel.css missing the k-combobox field and its k-menu popup")
-	}
-	if strings.Contains(string(cssBody), "button {\n  cursor: pointer;\n  background-color: transparent") {
-		t.Fatal("unlayered button reset must not paint every button transparent")
-	}
-	if !strings.Contains(string(termBody), `chromeFocus.closest?.(".workspace-bar")`) {
-		t.Fatal("boot must blur titlebar chrome so the new-tab button has no launch focus ring")
-	}
-	bundle, err := http.Get(srv.URL + "/components/shadcn-templ.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer bundle.Body.Close()
-	bundleBody, _ := io.ReadAll(bundle.Body)
-	if bundle.StatusCode != http.StatusOK || len(bundleBody) < 100 {
-		t.Fatalf("component scripts %d (%d bytes)", bundle.StatusCode, len(bundleBody))
-	}
-	if !strings.Contains(string(bundleBody), "data-tui-contextmenu-trigger") {
-		t.Fatal("component scripts missing context menu")
-	}
-	frag, err := http.Get(srv.URL + "/ui/hosts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer frag.Body.Close()
-	fragBody, _ := io.ReadAll(frag.Body)
-	if frag.StatusCode != http.StatusOK || !strings.Contains(string(fragBody), `id="host-list"`) {
-		t.Fatalf("ui hosts %d: %s", frag.StatusCode, fragBody[:min(len(fragBody), 200)])
-	}
-	if !strings.Contains(string(fragBody), `class="k-tree-host"`) || !strings.Contains(string(fragBody), `data-connect`) {
-		t.Fatal("ui hosts fragment should render the sidebar host tree")
-	}
-	// Tab pages carry the boards' page heads (Port forwarding, Logs,
-	// Notebooks) or list titles (Keychain, Snippets).
-	for _, head := range []string{
-		`<h1 class="k-page-title">Port forwarding</h1>`,
-		`<h1 class="k-page-title">Logs</h1>`,
-		`<h1 class="k-split-title">Keychain</h1>`,
-		`<h1 class="k-split-title">Snippets</h1>`,
-	} {
-		if !strings.Contains(string(body), head) {
-			t.Fatalf("tab pages missing %s", head)
-		}
-	}
-	if !strings.Contains(string(body), `<h1 class="k-page-title">Appearance</h1>`) || strings.Contains(string(body), `data-settings-back`) {
-		t.Fatal("settings is a tab page: section rail and heading, no Back button")
-	}
-	if !strings.Contains(string(body), `id="btn-new-identity"`) || !strings.Contains(string(body), `id="btn-new-tunnel"`) ||
-		!strings.Contains(string(body), `id="btn-new-snippet"`) || !strings.Contains(string(body), `id="btn-new-notebook"`) ||
-		!strings.Contains(string(body), `id="btn-refresh-logs"`) {
-		t.Fatal("index missing vault action buttons")
-	}
-	if !strings.Contains(string(body), `id="group-modal"`) || !strings.Contains(string(body), `id="host-parent-group"`) ||
-		!strings.Contains(string(body), `id="btn-new-group"`) {
-		t.Fatal("index missing Parent Group dialogs")
-	}
-	if !strings.Contains(listSection(t, srv.URL, "snippet-list"), `data-snippet-select`) {
-		t.Fatal("the page should render the snippet list")
-	}
-	if !strings.Contains(listSection(t, srv.URL, "identity-list"), `data-slot="empty"`) {
-		t.Fatal("the page should render the empty identity list")
-	}
-	for _, gone := range []string{"/ui/snippets", "/ui/identities", "/ui/tunnels", "/ui/notebooks"} {
-		res, err := http.Get(srv.URL + gone)
-		if err != nil {
-			t.Fatal(err)
-		}
-		res.Body.Close()
-		if res.StatusCode == http.StatusOK {
-			t.Fatalf("%s should be gone: the lists come from the stream (D4)", gone)
-		}
-	}
-	logsFrag, err := http.Get(srv.URL + "/ui/logs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer logsFrag.Body.Close()
-	logsBody, _ := io.ReadAll(logsFrag.Body)
-	if logsFrag.StatusCode != http.StatusOK || !strings.Contains(string(logsBody), `id="log-list"`) {
-		t.Fatal("ui logs fragment missing log-list")
-	}
-	if !strings.Contains(string(cssBody), ".k-page {") ||
-		!strings.Contains(string(cssBody), ".k-split {") ||
-		!strings.Contains(string(cssBody), ".k-table {") {
-		t.Fatal("keel.css must lay out the tab pages")
-	}
-	// D4: the lists are templ only; vaultview.js keeps the Keychain detail
-	// and the snippet preview, not list renderers.
-	if vv := readWebLib(t, "lib/vaultview.js"); !strings.Contains(vv, "export function identityDetailHTML") || strings.Contains(vv, "export function hostsHTML") {
-		t.Fatal("vaultview.js keeps the detail painters and drops the list renderers")
-	}
-	if term := readWebLib(t, "term.js"); strings.Contains(term, "function paintList") || strings.Contains(term, "function datastarQS") {
-		t.Fatal("term.js must not fetch and swap lists itself (D4)")
-	}
-	if strings.Contains(string(body), `data-vault-view-btn`) {
-		t.Fatal("the card/list view toggle left with the Hosts page")
-	}
-	settingsStart := strings.Index(string(body), `id="page-settings"`)
-	if settingsStart < 0 {
-		t.Fatal("index missing settings page")
-	}
-	if strings.Contains(string(body)[settingsStart:], `data-vault-view-btn`) {
-		t.Fatal("settings should not include the vault view selector")
-	}
-	logsStart := strings.Index(string(body), `id="page-logs"`)
-	if logsStart < 0 || logsStart >= settingsStart {
-		t.Fatal("index missing logs page before settings")
-	}
-	if strings.Contains(string(body)[logsStart:settingsStart], `data-vault-view-btn`) {
-		t.Fatal("logs should not include the vault view selector")
-	}
-	if !strings.Contains(string(termBody), "function toggleSidebar") ||
-		!strings.Contains(string(termBody), "function paintSidebar") ||
-		!strings.Contains(string(termBody), "function setSessionSurface") ||
-		!strings.Contains(string(termBody), `els.ptyInjectModal?.open || sidebarFocused()`) ||
-		!strings.Contains(string(termBody), `sidebarFocused() || state.openModal || ptyInjectWaiter`) ||
-		!strings.Contains(readShortcutsJS(t), `key === "b"`) {
-		t.Fatal("term.js must open and close the vault sidebar")
-	}
-	// Tab pages are tabs: one instance each (page:<name>), and with no tab
-	// left the window shows a New tab, not a Vault tab.
-	if !strings.Contains(string(termBody), "function openPage") || !strings.Contains(string(termBody), `const PAGE_PREFIX = "page:"`) ||
-		strings.Contains(string(termBody), "VAULT") {
-		t.Fatal("term.js must open tab pages as tabs and keep no Vault tab")
-	}
-	paint := termBody[bytes.Index(termBody, []byte("function paintSidebar")):]
-	if i := bytes.Index(paint[1:], []byte("\n  function ")); i > 0 {
-		paint = paint[:i]
-	}
-	if bytes.Contains(paint, []byte("sendSessionBytes")) || bytes.Contains(paint, []byte("sendSessionJSON")) {
-		t.Fatal("session sidebar must not write into a live PTY")
-	}
-	if !strings.Contains(string(logsBody), `<tbody id="log-list">`) || !strings.Contains(string(logsBody), `data-log-kind=`) {
-		t.Fatal("ui logs fragment should render table rows the kind chips can filter")
-	}
-}
-
-func TestIndexServesCommandPalette(t *testing.T) {
-	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return newFakeBridge(), nil
-	})
-	srv := httptest.NewServer(New(st, rt, web, nil).Handler())
-	t.Cleanup(srv.Close)
-
-	res, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
-	html := string(body)
-	if !strings.Contains(html, `id="cmd-palette"`) || !strings.Contains(html, `id="cmd-palette-input"`) {
-		t.Fatal("index missing command palette dialog")
-	}
-	if !strings.Contains(html, `id="pty-inject-modal"`) || !strings.Contains(html, `id="pty-inject-preview"`) {
-		t.Fatal("index missing approve-before-type dialog")
-	}
-	if !strings.Contains(html, "Nothing is typed until you approve") || !strings.Contains(html, `id="pty-inject-ok"`) {
-		t.Fatal("approve-before-type dialog must explain the gate and have a Type button")
-	}
-
-	cssRes, err := http.Get(srv.URL + "/css/keel.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cssRes.Body.Close()
-	cssBody, _ := io.ReadAll(cssRes.Body)
-	css := string(cssBody)
-	if !strings.Contains(css, ".cmd-palette") || !strings.Contains(css, "var(--surface)") || !strings.Contains(css, "var(--chrome)") {
-		t.Fatal("keel.css missing command palette chrome tokens")
-	}
-
-	jsRes, err := http.Get(srv.URL + "/js/term.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer jsRes.Body.Close()
-	jsBody, _ := io.ReadAll(jsRes.Body)
-	js := string(jsBody)
-	// Keys map to actions in lib/shortcuts.js; term.js runs them.
-	keyTable := readShortcutsJS(t)
-	if !strings.Contains(js, `name === "palette"`) || !strings.Contains(js, "run: runShortcut") ||
-		!strings.Contains(readWebLib(t, "ui/keyrouter.js"), "else run(action.name)") {
-		t.Fatal("term.js must open the command palette through runShortcut")
-	}
-	kIdx := strings.Index(keyTable, `if (key === "k" && !ev.shiftKey)`)
-	if kIdx < 0 {
-		t.Fatal("shortcut table missing ⌘K")
-	}
-	kLine := keyTable[kIdx:]
-	if nl := strings.Index(kLine, "\n"); nl >= 0 {
-		kLine = kLine[:nl]
-	}
-	if !strings.Contains(kLine, `name: "palette"`) {
-		t.Fatal("⌘K must open the command palette")
-	}
-	if strings.Contains(kLine, `name: "search"`) {
-		t.Fatal("⌘K must not focus host search")
-	}
-	if !strings.Contains(keyTable, `if (key === "p" && ev.shiftKey) return { name: "palette" }`) {
-		t.Fatal("shortcut table missing ⌘⇧P palette shortcut")
-	}
-
-	catStart := strings.Index(js, "function paletteCatalog()")
-	catEndRel := strings.Index(js[catStart:], "\n  const paletteList = createPaletteList(")
-	if catStart < 0 || catEndRel < 0 {
-		t.Fatal("term.js missing palette catalog")
-	}
-	catalog := js[catStart : catStart+catEndRel]
-	if strings.Contains(catalog, "sendSnippet") || strings.Contains(catalog, "sendSessionBytes") {
-		t.Fatal("palette catalog must not write a PTY; snippet runs must go through paletteRunSnippet")
-	}
-	if !strings.Contains(catalog, "paletteRunSnippet") || !strings.Contains(catalog, "New session on ") || !strings.Contains(catalog, `group: "Open now"`) {
-		t.Fatal("palette catalog must include open tabs, host sessions and gated snippet actions")
-	}
-
-	fnStart := strings.Index(js, "async function paletteRunSnippet")
-	if fnStart < 0 {
-		t.Fatal("term.js missing paletteRunSnippet")
-	}
-	fnEndRel := strings.Index(js[fnStart+1:], "\n  async function ")
-	fnAlt := strings.Index(js[fnStart+1:], "\n  function ")
-	fnEnd := len(js)
-	if fnEndRel >= 0 {
-		fnEnd = fnStart + 1 + fnEndRel
-	}
-	if fnAlt >= 0 && fnStart+1+fnAlt < fnEnd {
-		fnEnd = fnStart + 1 + fnAlt
-	}
-	fn := js[fnStart:fnEnd]
-	approveAt := strings.Index(fn, "await approveBeforeType")
-	sendAt := strings.Index(fn, "sendApprovedInject")
-	if approveAt < 0 || sendAt < 0 || approveAt > sendAt {
-		t.Fatal("palette snippet inject must await approveBeforeType before Inject")
-	}
-	if !strings.Contains(fn, "if (!ok) return") {
-		t.Fatal("palette snippet inject must abort when approve-before-type is cancelled")
-	}
-	if strings.Contains(fn, "sendSnippet") || strings.Contains(fn, "sendSessionBytes") {
-		t.Fatal("palette inject must not call sendSnippet or raw session bytes")
-	}
-	if pty := readPtyJS(t); !strings.Contains(pty, `type: "inject"`) || !strings.Contains(pty, `type: "inject-challenge"`) ||
-		strings.Contains(pty, "approved: true") || strings.Contains(js, "approved: true") {
-		t.Fatal("palette inject must send WS inject with a server nonce")
-	}
-	if !strings.Contains(js, `type: "focus", surface`) && !strings.Contains(js, `type: "focus", surface:`) {
-		t.Fatal("palette must set session focus surface")
-	}
-	if !strings.Contains(js, `setSessionSurface("palette")`) || !strings.Contains(js, `setSessionSurface("term")`) {
-		t.Fatal("palette open must set SurfacePalette and close must restore SurfaceTerm")
-	}
-	if !strings.Contains(fn, `"\u0015" + command`) {
-		t.Fatal("palette inject must clear the line then send the snippet through Inject")
-	}
-	if !strings.Contains(js, "function approveBeforeType") {
-		t.Fatal("term.js missing approveBeforeType")
-	}
-	if !strings.Contains(js, "if (ptyWritesBlocked()) return") {
-		t.Fatal("xterm onData must consult ptyWritesBlocked")
-	}
-}
-
+// TestManualServe binds the API on a fixed address for poking at it by hand (the native client attaches to it).
 func TestManualServe(t *testing.T) {
 	if os.Getenv("KEEL_SERVE") != "1" {
 		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
 	}
-	web := os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web"))
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
@@ -3088,12 +1398,12 @@ func TestManualServe(t *testing.T) {
 	rt := runtime.New(st, nil)
 	logs := applog.New(dir + "/keel.log")
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
-	h := New(st, rt, web, nil).WithTunnels(tn).WithLogs(logs).Handler()
+	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).Handler()
 	addr := "127.0.0.1:47241"
 	if v := os.Getenv("KEEL_SERVE_ADDR"); v != "" {
 		addr = v
 	}
-	t.Log("keel ui http://" + addr)
+	t.Log("keel api http://" + addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
 		t.Fatal(err)
 	}
@@ -3238,356 +1548,6 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 	return out
 }
 
-func TestCmdTSingleTabAndNotebookEditorDispose(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-	ed, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "vendor", "notebook", "editor.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := string(ed)
-
-	if !strings.Contains(term, "if (window.__keelTermBound) return") || !strings.Contains(term, "window.__keelTermBound = true") {
-		t.Fatal("term.js IIFE must refuse a second mount")
-	}
-	bind := sliceJSFunc(term, "function bindChrome")
-	if bind == "" || !strings.Contains(bind, "if (window.__keelChromeBound) return") {
-		t.Fatal("bindChrome must register window keydown once")
-	}
-	// ui/keyrouter.js runs the chords; runShortcut in term.js is what each does.
-	router := readWebLib(t, "ui/keyrouter.js")
-	handle := sliceJSFunc(router, "function handle(ev)")
-	if handle == "" || !strings.Contains(term, "keyRouter.handle(ev)") {
-		t.Fatal("missing the key router's handle")
-	}
-	if strings.Contains(handle, "nativeMenuOwnsShortcut") {
-		t.Fatal("the key router's handle must run chrome keys in JS; deferring to the File menu leaves most shortcuts dead when the accelerator does not fire")
-	}
-	// The key -> action table lives in lib/shortcuts.js (behaviour tests in
-	// cmd/keel/web/js/test/shortcuts.test.mjs); ui/keyrouter.js runs it.
-	shortcutsSrc, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	shortcuts := string(shortcutsSrc)
-	if !strings.Contains(handle, "classifyShortcut(ev") || !strings.Contains(handle, "run(action.name)") {
-		t.Fatal("the key router's handle must classify keys with classifyShortcut and run the action in JS")
-	}
-	if !strings.Contains(shortcuts, `key === "w" && !ev.shiftKey`) {
-		t.Fatal("Cmd+W closes a pane or tab; Cmd+Shift+W must still reach Close Window")
-	}
-	created := sliceJSFunc(term, "function newTab")
-	if created == "" || !strings.Contains(created, "newTabLockUntil") || !strings.Contains(created, "createStartTab") {
-		t.Fatal("newTab must coalesce duplicate gestures into one createStartTab")
-	}
-	if strings.Count(created, "createStartTab") != 1 {
-		t.Fatal("newTab must create exactly one start tab per call")
-	}
-	run := sliceJSFunc(term, "function runShortcut")
-	// Two presses are two actions: no time-based de-duplication. A native
-	// menu echo of a chord the keyboard ran is dropped by source and
-	// sequence (lib/chordguard.js), in window.__keelShortcut.
-	if run == "" || strings.Contains(run, "lastShortcutAt") {
-		t.Fatal("runShortcut must not de-duplicate by time")
-	}
-	if !strings.Contains(router, "if (!guard.menu(name))") || !strings.Contains(handle, "guard.keyboard(name)") ||
-		!strings.Contains(term, "window.__keelShortcut = keyRouter.menu") {
-		t.Fatal("the menu path must drop an echo of a chord the keyboard ran (chordGuard)")
-	}
-	for _, name := range []string{
-		"new-tab", "close-tab", "reopen-tab", "new-host", "quick-connect", "join",
-		"find-term", "toggle-sidebar", "split-right", "split-down", "focus-pane",
-		"zoom-in", "zoom-out", "zoom-reset", "palette", "settings",
-	} {
-		if !strings.Contains(shortcuts, `name: "`+name+`"`) {
-			t.Fatalf("classifyShortcut must map a key to %s", name)
-		}
-	}
-
-	disposeEd := sliceJSFunc(term, "function disposeNotebookEditor")
-	disposePane := sliceJSFunc(term, "function disposePane")
-	paint := sliceJSFunc(term, "function paintNotebook")
-	mount := sliceJSFunc(term, "function mountNotebookEditor")
-	if disposeEd == "" || disposePane == "" || paint == "" || mount == "" {
-		t.Fatal("missing notebook editor lifecycle helpers")
-	}
-	if !strings.Contains(disposePane, "disposeNotebookEditor(pane)") {
-		t.Fatal("closing a pane must tear down the markdown editor")
-	}
-	if !strings.Contains(disposeEd, "connOf(pane)._autosave?.flush()") || !strings.Contains(disposeEd, "mdEditor?.destroy") {
-		t.Fatal("disposeNotebookEditor must destroy ProseMirror and save a pending edit, not drop it")
-	}
-	if !strings.Contains(paint, "viewOf(pane).mdEditor && viewOf(pane)._docEl") || !strings.Contains(paint, "disposeNotebookEditor(pane)") {
-		t.Fatal("paintNotebook must keep a live editor and destroy before remount")
-	}
-	if !strings.Contains(mount, "connOf(pane).closing || !viewOf(pane).mdEditor") {
-		t.Fatal("onChange after close must not reschedule saves")
-	}
-	if !strings.Contains(src, "t.replaceChildren()") {
-		t.Fatal("KeelMarkdownEditor.destroy must empty the host so views cannot leak")
-	}
-
-	for _, fn := range []string{created, handle, disposeEd, disposePane, paint, mount} {
-		if strings.Contains(fn, "sendSessionBytes") || strings.Contains(fn, "sendSnippet") ||
-			strings.Contains(fn, "sendApprovedInject") || strings.Contains(fn, `type: "inject"`) ||
-			strings.Contains(fn, "approved: true") {
-			t.Fatal("tab create / notebook dispose must not Write or Inject the PTY")
-		}
-	}
-}
-
-func nodeBin(t *testing.T) string {
-	t.Helper()
-	if p, err := exec.LookPath("node"); err == nil {
-		return p
-	}
-	if _, err := os.Stat("/exec-daemon/node"); err == nil {
-		return "/exec-daemon/node"
-	}
-	t.Fatal("node is required to eval tabCycleDelta")
-	return ""
-}
-
-func TestCmdAngleCycleTabs(t *testing.T) {
-	js, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "term.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	term := string(js)
-	if !strings.Contains(term, `import { tabCycleTarget, tabIndexTarget } from "./lib/keys.js";`) ||
-		!strings.Contains(term, `import { chromeChordName, isAppMod } from "./lib/shortcuts.js";`) ||
-		!strings.Contains(readWebLib(t, "ui/keyrouter.js"), `import { chromeChordName, classifyShortcut, menuShortcutAllowed } from "../lib/shortcuts.js";`) {
-		t.Fatal("term.js must take tab cycling from lib/keys.js, and term.js and ui/keyrouter.js the shortcut table from lib/shortcuts.js")
-	}
-	keys, err := filepath.Abs(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "keys.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	keysPath := filepath.ToSlash(keys)
-	if !strings.HasPrefix(keysPath, "/") {
-		keysPath = "/" + keysPath // Windows drive path
-	}
-	keysURL := (&url.URL{Scheme: "file", Path: keysPath}).String()
-	script := filepath.Join(t.TempDir(), "tabcycle.mjs")
-	harness := "import { tabCycleDelta, tabCycleTarget } from " + strconv.Quote(keysURL) + ";" + `
-function eq(name, got, want) {
-  if (got !== want) throw new Error(name + ": got " + JSON.stringify(got) + " want " + JSON.stringify(want));
-}
-const cases = [
-  [{ key: "<", code: "Comma", shiftKey: true }, -1, "us shift comma"],
-  [{ key: ",", code: "Comma", shiftKey: true }, -1, "us shift comma key comma"],
-  [{ key: ">", code: "Period", shiftKey: true }, 1, "us shift period"],
-  [{ key: ".", code: "Period", shiftKey: true }, 1, "us shift period key dot"],
-  [{ key: "<", code: "IntlBackslash", shiftKey: false }, -1, "iso less-than"],
-  [{ key: ">", code: "IntlBackslash", shiftKey: true }, 1, "iso greater-than"],
-  [{ key: "{", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left"],
-  [{ key: "[", code: "BracketLeft", shiftKey: true }, -1, "mac shift bracket left key"],
-  [{ key: "}", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right"],
-  [{ key: "]", code: "BracketRight", shiftKey: true }, 1, "mac shift bracket right key"],
-  [{ key: ",", code: "Comma", shiftKey: false }, 0, "settings comma"],
-  [{ key: "[", code: "BracketLeft", shiftKey: false }, 0, "unshifted bracket is not back"],
-  [{ key: "\\", code: "IntlBackslash", shiftKey: false }, 0, "uk backslash is not prev tab"],
-  [{ key: "+", code: "Equal", shiftKey: true }, 0, "zoom in"],
-  [{ key: "t", code: "KeyT", shiftKey: false }, 0, "new tab"],
-];
-for (const [ev, want, name] of cases) eq(name, tabCycleDelta(ev), want);
-eq("wrap prev from first", tabCycleTarget(["vault", "a", "b"], "vault", -1), "b");
-eq("wrap next from last", tabCycleTarget(["vault", "a", "b"], "b", 1), "vault");
-eq("prev from middle", tabCycleTarget(["vault", "a", "b"], "a", -1), "vault");
-eq("next from middle", tabCycleTarget(["vault", "a", "b"], "a", 1), "b");
-eq("missing id starts at 0", tabCycleTarget(["vault", "a", "b"], "gone", 1), "a");
-eq("single tab wraps to self", tabCycleTarget(["vault"], "vault", 1), "vault");
-eq("empty list", tabCycleTarget([], "vault", 1), "");
-eq("zero delta", tabCycleTarget(["vault", "a"], "a", 0), "");
-console.log("ok");
-`
-	if err := os.WriteFile(script, []byte(harness), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out, err := exec.Command(nodeBin(t), script).CombinedOutput()
-	if err != nil {
-		t.Fatalf("tab cycle eval: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "ok") {
-		t.Fatalf("tab cycle eval missing ok: %s", out)
-	}
-
-	handle := sliceJSFunc(readWebLib(t, "ui/keyrouter.js"), "function handle(ev)")
-	run := sliceJSFunc(term, "function runShortcut")
-	if handle == "" || run == "" {
-		t.Fatal("missing shortcut helpers")
-	}
-	shortcutsSrc, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	shortcuts := string(shortcutsSrc)
-	if !strings.Contains(handle, "classifyShortcut(ev") {
-		t.Fatal("the key router's handle must classify keys with classifyShortcut")
-	}
-	if !strings.Contains(shortcuts, "tabCycleDelta(ev)") {
-		t.Fatal("classifyShortcut must classify Cmd+< / Cmd+> through tabCycleDelta")
-	}
-	idxCycle := strings.Index(shortcuts, "tabCycleDelta(ev)")
-	idxSettings := strings.Index(shortcuts, `key === "," && !ev.shiftKey`)
-	if idxCycle < 0 || idxSettings < 0 || idxCycle > idxSettings {
-		t.Fatal("tab cycle must run before the Cmd+, settings match")
-	}
-	if !strings.Contains(run, `name === "prev-tab"`) || !strings.Contains(run, `name === "next-tab"`) {
-		t.Fatal("runShortcut must activate prev-tab and next-tab")
-	}
-	if !strings.Contains(run, "activateTabDelta") {
-		t.Fatal("runShortcut must move the chrome tab via activateTabDelta")
-	}
-	if strings.Contains(handle, "_keelTabCycle") {
-		t.Fatal("window capture must own the keydown; do not stamp the event to hide a second listener")
-	}
-	if !strings.Contains(shortcuts, `new Set(["prev-tab", "next-tab"`) || !strings.Contains(shortcuts, "ev.repeat && !REPEATS.has(action.name)") {
-		t.Fatal("hold-to-repeat must keep cycling tabs and run no other chord twice (REPEATS in lib/shortcuts.js)")
-	}
-	bind := sliceJSFunc(term, "function bindChrome")
-	if !strings.Contains(bind, "if (keyRouter.handle(ev)) ev.stopPropagation()") {
-		t.Fatal("bindChrome must stop the keydown after JS handles it so xterm does not run it again")
-	}
-
-	cat := sliceJSFunc(term, "function paletteCatalog")
-	if !strings.Contains(cat, `id: "prev-tab"`) || !strings.Contains(cat, `id: "next-tab"`) {
-		t.Fatal("command palette must list previous and next tab")
-	}
-}
-
-// readShortcutsJS returns lib/shortcuts.js, where term.js's key -> action
-// table lives (behaviour tests: cmd/keel/web/js/test/shortcuts.test.mjs).
-// readWebLib reads a module under cmd/keel/web/js (e.g. "lib/layout.js").
-func readWebLib(t *testing.T, rel string) string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", filepath.FromSlash(rel)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
-func readShortcutsJS(t *testing.T) string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "cmd", "keel", "web", "js", "lib", "shortcuts.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
-// Phase 0 of docs/ui-redesign.md: colors come only from the Keel tokens
-// (tokens.css, generated from docs/design/tokens.json), keel.css keeps no
-// palette of its own, and fonts ship locally.
-func TestStylesUseKeelTokensOnly(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return newFakeBridge(), nil
-	})
-	srv := httptest.NewServer(New(st, rt, os.DirFS(filepath.Join("..", "..", "cmd", "keel", "web")), nil).Handler())
-	t.Cleanup(srv.Close)
-	get := func(path string) string {
-		t.Helper()
-		res, err := http.Get(srv.URL + path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("GET %s: %d", path, res.StatusCode)
-		}
-		b, _ := io.ReadAll(res.Body)
-		return string(b)
-	}
-	page := get("/")
-	for _, href := range []string{"/fonts/fonts.css", "/css/tokens.css", "/css/output.css", "/css/keel.css"} {
-		if !strings.Contains(page, `href="`+href+`"`) {
-			t.Errorf("page does not link %s", href)
-		}
-	}
-	if strings.Contains(page, "app.css") {
-		t.Error("page still links app.css")
-	}
-
-	tokens := get("/css/tokens.css")
-	for _, want := range []string{":root,[data-theme=dark]{", "[data-theme=light]{", "--brass:", "--font-sans:"} {
-		if !strings.Contains(tokens, want) {
-			t.Errorf("tokens.css missing %q", want)
-		}
-	}
-
-	keel := get("/css/keel.css")
-	if regexp.MustCompile(`--keel-|var\(--(bg|panel|text|muted|elevated|danger|warn|success|backdrop|border-strong|primary-fg|radius-control)\)`).MatchString(keel) {
-		t.Error("keel.css still uses the old --keel-* palette or its aliases")
-	}
-	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(`).FindString(keel); m != "" {
-		t.Errorf("keel.css declares a color literal %q; use a token", m)
-	}
-
-	fonts := get("/fonts/fonts.css")
-	// Section labels (rail, menus, palette groups, table headers, agent
-	// "You"/"Agent") are the meta style, sans 600 12/16 in sentence case:
-	// no uppercase, no tracking. Tab labels and pane bar hosts are sans;
-	// only code (addresses, commands, key caps) is mono.
-	for _, sel := range []string{".k-menu-label", ".k-rail-label", ".k-side-label", ".k-table th", ".k-split-label", ".settings-group-title", ".k-agent-who", ".k-start-section-head", ".k-sug-head"} {
-		rules := regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(sel)+` \{[^}]*\}`).FindAllString(keel, -1)
-		meta := false
-		for _, r := range rules {
-			meta = meta || strings.Contains(r, "font: var(--type-meta); letter-spacing: 0;")
-			if strings.Contains(r, "uppercase") {
-				t.Errorf("%s must be sentence case, got %q", sel, r)
-			}
-		}
-		if !meta {
-			t.Errorf("%s must use the meta style, got %q", sel, rules)
-		}
-	}
-	if !strings.Contains(get("/css/tokens.css"), "--type-meta:600 0.923rem/1.231rem var(--font-sans);") {
-		t.Error("--type-meta must be sans 600 12/16")
-	}
-	for _, rule := range []string{"font: 400 1rem/1 var(--font-sans);\n  letter-spacing: 0;\n  user-select: none;", "font: 500 1rem/1 var(--font-sans);\n  letter-spacing: 0;\n  color: var(--ink-muted);\n}\n/* user@address truncates first. */"} {
-		if !strings.Contains(keel, rule) {
-			t.Errorf("tab labels and pane bar hosts must be sans: missing %q", rule)
-		}
-	}
-	// The UI is the system font; only terminal fonts ship (JetBrains Mono,
-	// and IBM Plex Mono for Settings · Terminal font).
-	for _, family := range []string{"JetBrains Mono", "IBM Plex Mono"} {
-		if !strings.Contains(fonts, "font-family: '"+family+"'") {
-			t.Errorf("fonts.css missing %s", family)
-		}
-	}
-	for _, family := range []string{"IBM Plex Sans'", "IBM Plex Sans Condensed'"} {
-		if strings.Contains(fonts, "font-family: '"+family) {
-			t.Errorf("fonts.css still loads %s; the UI uses the system font", strings.TrimSuffix(family, "'"))
-		}
-	}
-	tokens = get("/css/tokens.css")
-	if !strings.Contains(tokens, `--font-sans:-apple-system, BlinkMacSystemFont, "SF Pro Text"`) ||
-		!strings.Contains(tokens, `--font-display:-apple-system, BlinkMacSystemFont, "SF Pro Display"`) ||
-		!strings.Contains(tokens, `--font-mono:"JetBrains Mono"`) ||
-		strings.Contains(tokens, "IBM Plex Sans") {
-		t.Error("tokens.css must set the UI in the system font and the terminal in JetBrains Mono")
-	}
-	for _, css := range []string{page, keel, fonts, get("/css/output.css")} {
-		if strings.Contains(css, "fonts.googleapis") || strings.Contains(css, "fonts.gstatic") {
-			t.Error("UI loads fonts from the network")
-		}
-	}
-	if get("/fonts/jetbrains-mono-latin-400-normal.woff2") == "" {
-		t.Error("empty woff2")
-	}
-}
-
 func TestRuntimeInfo(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	t.Setenv("KEEL_VAULT_FAST", "1")
@@ -3596,8 +1556,7 @@ func TestRuntimeInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, nil)
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	api := New(st, rt, fs.FS(web), nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
+	api := New(st, rt, nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/runtime")
@@ -3624,26 +1583,4 @@ func TestRuntimeInfo(t *testing.T) {
 	if got.Build != "abc-123" || got.Addr != "127.0.0.1:9" || got.DataDir != "/data/keel" || !got.CanStop || got.Sessions != 0 || got.UptimeSec < 0 || got.StartedAt == "" || got.SignalURL != "" {
 		t.Fatalf("runtime info = %+v", got)
 	}
-}
-
-// listSection returns the page's markup from the element with id up to the
-// next list (at most 8 KB), for checks on one server-rendered list.
-func listSection(t *testing.T, srvURL, id string) string {
-	t.Helper()
-	res, err := http.Get(srvURL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	b, _ := io.ReadAll(res.Body)
-	page := string(b)
-	i := strings.Index(page, `id="`+id+`"`)
-	if i < 0 {
-		t.Fatalf("page has no #%s", id)
-	}
-	sec := page[i:]
-	if len(sec) > 8192 {
-		sec = sec[:8192]
-	}
-	return sec
 }

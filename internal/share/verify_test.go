@@ -19,8 +19,8 @@ func TestSDPFingerprints(t *testing.T) {
 	}
 }
 
-// Fixed vector shared with cmd/keel/web/js/test/sharemac.test.mjs, so the
-// Go host and both JS joiners agree byte for byte.
+// Fixed vector (it was shared with the JS joiners' test before they were removed), so the Go host and the
+// joiner agree byte for byte.
 const vectorSecret = "00112233445566778899aabbccddeeff"
 const vectorHostMAC = "bfbfbdb60dc9081a69052a881a101013c4e0d64a153a6cecee59689822f0df5a"
 

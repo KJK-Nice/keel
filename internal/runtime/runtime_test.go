@@ -715,58 +715,6 @@ func TestOnlyDriverResizes(t *testing.T) {
 	t.Fatalf("resize not applied: %+v", fb)
 }
 
-func TestHerdEvents(t *testing.T) {
-	st := testStore(t)
-	host := firstHost(t, st)
-	fb := newFakeBridge()
-	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
-		return fb, nil
-	})
-	hid, ch, snap := rt.SubscribeHerd()
-	if len(snap) != 0 {
-		t.Fatalf("empty herd, got %d", len(snap))
-	}
-	info, err := rt.Spawn(host.ID, 80, 24)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ev := waitHerd(t, ch, "spawn")
-	if ev.ID != info.ID {
-		t.Fatalf("spawn id %s", ev.ID)
-	}
-	sess, _ := rt.Get(info.ID)
-	waitReady(t, sess)
-	cl, _, _ := sess.Subscribe(Join{Name: "alice"})
-	waitHerd(t, ch, "update")
-	sess.Unsubscribe(cl.ID)
-	if err := rt.Kill(info.ID); err != nil {
-		t.Fatal(err)
-	}
-	kill := waitHerd(t, ch, "kill")
-	if kill.ID != info.ID {
-		t.Fatalf("kill id %s", kill.ID)
-	}
-	rt.UnsubscribeHerd(hid)
-}
-
-func waitHerd(t *testing.T, ch <-chan HerdEvent, kind string) HerdEvent {
-	t.Helper()
-	deadline := time.After(time.Second)
-	for {
-		select {
-		case ev, ok := <-ch:
-			if !ok {
-				t.Fatal("herd closed")
-			}
-			if ev.Type == kind {
-				return ev
-			}
-		case <-deadline:
-			t.Fatalf("timeout waiting for herd %s", kind)
-		}
-	}
-}
-
 func waitReady(t *testing.T, s *Session) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

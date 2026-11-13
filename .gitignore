@@ -1,7 +1,7 @@
 /bin/
 /dist/
+/build/
 /THIRD_PARTY_NOTICES
-/build/bin/
 /data/*.json
 /data/*.pid
 /data/*.log
@@ -9,25 +9,7 @@
 .DS_Store
 .idea/
 .vscode/
-node_modules/
-.e2e/results/
-.e2e/cache/
-.e2e/sessions/
-.e2e/report.json
-.e2e/ai-trace.json
-.e2e/junit.xml
-.e2e/summary.md
-.e2e/logs/
-.e2e/videos/
-.e2e/keel-data*/
-.e2e/bugbash/
-.e2e/bugbash-data/
-.e2e/proof/
 .claude/worktrees/
 .claude/settings.local.json
-.e2e/ssh-home/
-.e2e/first-run-data/
 /perf-results.txt
-# Scratch KEEL_E2E_DATA dirs and test leftovers (use .e2e/keel-data-<name>).
-.e2e/gx-*/
-.e2e/gx-marker-*
+.scratch-native/

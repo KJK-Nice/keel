@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,20 +114,22 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /rooms", s.createRoom)
 	mux.HandleFunc("GET /ws", s.ws)
-	mux.Handle("GET /join", http.HandlerFunc(s.joinPage))
-	mux.Handle("GET /join.js", http.HandlerFunc(s.script("join.js")))
-	mux.Handle("GET /sharemac.js", http.HandlerFunc(s.script("sharemac.js")))
-	mux.Handle("GET /joinpeer.js", http.HandlerFunc(s.script("joinpeer.js")))
-	web, err := fsSub()
-	if err == nil {
-		mux.Handle("GET /vendor/", http.FileServer(http.FS(web)))
-	}
+	mux.HandleFunc("GET /join", joinNote)
 	mux.Handle("GET /healthz", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	}))
-	mux.Handle("GET /{$}", http.HandlerFunc(s.joinPage))
 	return mux
+}
+
+// joinNote answers a share link opened in a browser: there is no browser guest any more, a share is joined from
+// Keel. The link's secret is in its #fragment, which never reaches this server; nothing of the request is read or logged.
+func joinNote(w http.ResponseWriter, _ *http.Request) {
+	h := w.Header()
+	h.Set("Content-Type", "text/plain; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte("This is a Keel share link. Open Keel and choose Join session, then paste the link.\n"))
 }
 
 func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
@@ -337,38 +338,11 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// allowSignalOrigin lets the join page (same origin) and the Keel desktop
-// (loopback Origin, or no Origin from the Go dialer) use signaling. Other
-// websites cannot open a WebSocket to the relay.
+// allowSignalOrigin lets Keel use signaling: its Go dialers (the host's and the joiner's) send no Origin. The relay
+// serves no page of its own, so a request that carries an Origin is a browser page's, and no website may open a
+// WebSocket to the relay.
 func allowSignalOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	u, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return false
-	}
-	host := u.Hostname()
-	if isLoopbackHost(host) {
-		return true
-	}
-	reqHost, _, err := net.SplitHostPort(r.Host)
-	if err != nil {
-		reqHost = r.Host
-	}
-	return strings.EqualFold(host, reqHost)
-}
-
-func isLoopbackHost(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return r.Header.Get("Origin") == ""
 }
 
 // SetClientIP chooses where the client address for per-address rate

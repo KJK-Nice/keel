@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/components"
 	"keel/internal/agent/service"
 	"keel/internal/applog"
 	"keel/internal/inject"
@@ -39,7 +37,6 @@ var upgrader = websocket.Upgrader{
 type Server struct {
 	store   *store.Store
 	rt      *runtime.Runtime
-	web     fs.FS
 	share   *share.Hub
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
@@ -62,18 +59,18 @@ type Server struct {
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
 	agentJudge        service.JudgeFactory
 	agentDetectWindow time.Duration
-	// streams are the open /ui/stream connections (uistream.go).
-	streams *uiStreams
+	// vault counts store and tunnel changes: GET /api/vault reports it as "rev" (vaultrev.go).
+	vault *vaultRev
 	// sockets counts the open session sockets and the work they start
 	// off their read loop (suggestions, type-checks, direct types), which
 	// can still be logging after the socket closes (waitSockets).
 	sockets sync.WaitGroup
 }
 
-func New(st *store.Store, rt *runtime.Runtime, web fs.FS, sh *share.Hub) *Server {
-	s := &Server{store: st, rt: rt, web: web, share: sh, started: time.Now(), streams: newUIStreams()}
+func New(st *store.Store, rt *runtime.Runtime, sh *share.Hub) *Server {
+	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev()}
 	if st != nil {
-		st.OnChange(s.streams.kickAll)
+		st.OnChange(s.vault.bump)
 	}
 	return s
 }
@@ -89,16 +86,13 @@ func (s *Server) WithRuntimeInfo(addr, dataDir string) *Server {
 func (s *Server) WithTunnels(t *tunnel.Runtime) *Server {
 	s.tunnels = t
 	if t != nil {
-		t.OnChange(s.streams.kickAll)
+		t.OnChange(s.vault.bump)
 	}
 	return s
 }
 
 func (s *Server) WithLogs(l *applog.Book) *Server {
 	s.logs = l
-	if l != nil {
-		l.OnAppend(s.streams.kickLogs)
-	}
 	if s.rt != nil {
 		s.rt.SetNotify(func(kind, msg, hostID, sessionID string) {
 			s.note(kind, msg, hostID, sessionID, "")
@@ -239,31 +233,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
-	mux.HandleFunc("GET /ws/herd", s.herdWS)
-	mux.HandleFunc("GET /{$}", s.page)
-	mux.HandleFunc("GET /ui/stream", s.uiStream)
-	mux.HandleFunc("POST /ui/forms/{kind}", s.uiForm)
-	mux.HandleFunc("GET /ui/hosts", s.uiHosts)
-	mux.HandleFunc("GET /ui/logs", s.uiLogs)
-	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
-	mux.Handle("/", newStaticHandler(s.web))
-	return withLogging(withImagePolicy(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux))))))
-}
-
-// imagePolicy is the Content-Security-Policy every response carries. It
-// restricts images only: a page loads images from keel serve itself or
-// from data: and blob: URLs, never from the network. A markdown image in a
-// notebook (an agent's draft, text pasted from anywhere) would otherwise
-// make the webview fetch a URL of the author's choosing, which could carry
-// what the page shows (docs/ui-redesign.md §18). Scripts and styles are not
-// restricted here: Datastar evaluates its expressions.
-const imagePolicy = "img-src 'self' data: blob:"
-
-func withImagePolicy(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy", imagePolicy)
-		next.ServeHTTP(w, r)
-	})
+	return withLogging(withLoopbackHost(withLocalOrigin(s.withAuth(s.withVault(mux)))))
 }
 
 // allowLocalOrigin blocks cross-site use of the privileged loopback API.
@@ -325,7 +295,7 @@ func requestHostPort(r *http.Request) string {
 
 func withLocalOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") || strings.HasPrefix(r.URL.Path, "/ui/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
 			if !allowLocalOrigin(r) {
 				writeError(w, http.StatusForbidden, "origin not allowed")
 				return
@@ -341,7 +311,7 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") && !strings.HasPrefix(r.URL.Path, "/ui/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1044,50 +1014,6 @@ func (w *wsConn) startPings(done <-chan struct{}) {
 			}
 		}
 	}()
-}
-
-func (s *Server) herdWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("ws upgrade: %v", err)
-		return
-	}
-	defer conn.Close()
-	ws := &wsConn{conn: conn}
-	id, events, snap := s.rt.SubscribeHerd()
-	defer s.rt.UnsubscribeHerd(id)
-	if err := ws.writeJSON(map[string]any{
-		"type":     "snapshot",
-		"sessions": snap,
-	}); err != nil {
-		return
-	}
-	pingDone := make(chan struct{})
-	defer close(pingDone)
-	ws.startPings(pingDone)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-			_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
-		}
-	}()
-	for {
-		select {
-		case <-done:
-			return
-		case ev, ok := <-events:
-			if !ok {
-				return
-			}
-			if err := ws.writeJSON(ev); err != nil {
-				return
-			}
-		}
-	}
 }
 
 // goSocket runs a session socket's work off its read loop, counted in

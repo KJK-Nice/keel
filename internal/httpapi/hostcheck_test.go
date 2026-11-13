@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"testing/fstest"
 
 	"keel/internal/applog"
 	"keel/internal/runtime"
@@ -33,8 +31,7 @@ func hostCheckServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
 	logPath := filepath.Join(dir, "keel.log")
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithLogs(applog.New(logPath)).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithLogs(applog.New(logPath)).Handler())
 	t.Cleanup(srv.Close)
 	return srv, st, logPath
 }

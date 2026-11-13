@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -83,8 +81,7 @@ func TestMCPRoutesTakeOnlyTheirOwnToken(t *testing.T) {
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
 	logs := applog.New(filepath.Join(dir, "keel.log"))
-	web := fstest.MapFS{"index.html": {Data: []byte("ok")}}
-	srv := httptest.NewServer(New(st, rt, fs.FS(web), nil).WithLogs(logs).WithAuth(testToken).WithMCPAuth(askMCPToken).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithLogs(logs).WithAuth(testToken).WithMCPAuth(askMCPToken).Handler())
 	t.Cleanup(srv.Close)
 	allowClaudeCode(t, st)
 

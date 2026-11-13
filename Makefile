@@ -1,30 +1,11 @@
-.PHONY: app build test test-js e2e notebook-editor signal macos-app macos-icon ui lint fmt vet staticcheck vulncheck check-generated
+.PHONY: app build package native-e2e native-automation native-automation-build test test-nonwindow signal macos-icon lint fmt vet staticcheck vulncheck
 
 ADDR ?= 127.0.0.1:47241
-GO := sh scripts/go.sh
-GO_TAGS := $(shell ./scripts/go-tags.sh)
-UNAME_S := $(shell uname -s)
-TEMPL := go tool templ
-UNAME_M := $(shell uname -m)
-# Pinned so every machine and CI builds the same output.css. The standalone
-# binary is downloaded into bin/ on first use; override TAILWIND to use your own.
-TAILWIND_VERSION := v4.1.17
-ifeq ($(UNAME_S),Darwin)
-TAILWIND_OS := macos
-else
-TAILWIND_OS := linux
-endif
-ifneq ($(filter arm64 aarch64,$(UNAME_M)),)
-TAILWIND_ARCH := arm64
-else
-TAILWIND_ARCH := x64
-endif
-TAILWIND_BIN := bin/tailwindcss-$(TAILWIND_VERSION)
-TAILWIND ?= $(TAILWIND_BIN)
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
-# Release builds stamp the version (keel version, Keel.app's Info.plist):
-#   make build KEEL_VERSION=v0.1.0
+# Release builds stamp the version into `keel version`:
+#   make package KEEL_VERSION=v0.2.0
+# (the packages carry the version of mygo.json; scripts/release.sh checks the two agree)
 KEEL_VERSION ?= dev
 KEEL_X := -X main.version=$(KEEL_VERSION)
 # Finder-launched Keel.app has no shell env. Bake the public signal URL:
@@ -33,89 +14,80 @@ ifneq ($(strip $(KEEL_SIGNAL)),)
 KEEL_X += -X keel/internal/share.DefaultSignal=$(KEEL_SIGNAL)
 endif
 KEEL_LDFLAGS := -ldflags "$(KEEL_X)"
-# A THIRD_PARTY_NOTICES file to put in Keel.app (scripts/notices.sh makes it).
-KEEL_NOTICES ?=
+# Keel is pure Go (the native window is MyGo, purego): no cgo, so a build needs no C toolchain and carries no
+# macOS deployment target of its own.
+# make app opens the native window.
+app:
+	CGO_ENABLED=0 KEEL_ADDR=$(ADDR) go run $(KEEL_LDFLAGS) ./cmd/keel app
 
-$(TAILWIND_BIN):
-	mkdir -p bin
-	curl -fsSL -o $@.tmp https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(TAILWIND_OS)-$(TAILWIND_ARCH)
-	chmod +x $@.tmp
-	mv $@.tmp $@
-
-ui: $(if $(filter $(TAILWIND_BIN),$(TAILWIND)),$(TAILWIND_BIN))
-	go run ./internal/design/tokensgen docs/design/tokens.json docs/design/tokens.css cmd/keel/web/css/tokens.css
-	$(TEMPL) generate
-	$(TAILWIND) -i ./assets/css/globals.css -o ./cmd/keel/web/css/output.css --minify
-
-app: ui
-	KEEL_ADDR=$(ADDR) $(GO) run $(GO_TAGS) $(KEEL_LDFLAGS) ./cmd/keel app
-
-build: ui
-	$(GO) build $(GO_TAGS) $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
+# bin/keel is the plain binary for development (no bundle: libghostty-vt downloads into the user cache on first run).
+# make package builds the shipped app next to it.
+build:
+	rm -f bin/keel
+	CGO_ENABLED=0 go build $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
-ifeq ($(UNAME_S),Darwin)
-	$(MAKE) macos-app
-endif
+	$(MAKE) package
 
-macos-app:
-	rm -rf bin/Keel.app
-	mkdir -p bin/Keel.app/Contents/MacOS bin/Keel.app/Contents/Resources
-	cp bin/keel bin/Keel.app/Contents/MacOS/keel
-	cp internal/desktop/macos/Info.plist bin/Keel.app/Contents/Info.plist
-ifneq ($(KEEL_VERSION),dev)
-	plutil -replace CFBundleShortVersionString -string $(patsubst v%,%,$(KEEL_VERSION)) bin/Keel.app/Contents/Info.plist
-endif
-	if [ -f LICENSE ]; then cp LICENSE bin/Keel.app/Contents/Resources/LICENSE; fi
-	if [ -n "$(KEEL_NOTICES)" ]; then cp "$(KEEL_NOTICES)" bin/Keel.app/Contents/Resources/THIRD_PARTY_NOTICES; fi
-	cp internal/desktop/macos/Keel.icns bin/Keel.app/Contents/Resources/Keel.icns
-	rm -rf bin/Keel.app/Contents/Resources/Keel.icon
-	cp -R internal/desktop/macos/Keel.icon bin/Keel.app/Contents/Resources/Keel.icon
-	if [ -f internal/desktop/macos/Assets.car ]; then cp internal/desktop/macos/Assets.car bin/Keel.app/Contents/Resources/Assets.car; fi
-	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app/Contents/MacOS/keel
-	codesign --force --sign - --identifier app.keel.desktop --entitlements internal/desktop/macos/entitlements.plist bin/Keel.app
+# THIRD_PARTY_NOTICES goes into every package (mygo.json resources). It needs the network, so it is made once;
+# delete it to make it again.
+THIRD_PARTY_NOTICES:
+	sh scripts/notices.sh $@
+
+# The shipped app, made by mygo build (docs/native.md "Packaging"): build/<os>-<arch>/ holds Keel.app and its disk
+# image on macOS, the binary, tar.gz and .deb on Linux. PLATFORM is mygo's -platform list (default: this machine's;
+# darwin/universal, linux/amd64, linux/arm64 are the release ones, scripts/release.sh). Signed ad hoc and not
+# notarized unless KEEL_SIGN names a Developer ID identity. The bundle id stays app.keel.desktop (mygo.json): the
+# Keychain items and the user defaults of Keel are tied to it.
+PLATFORM ?=
+KEEL_SIGN ?=
+package: THIRD_PARTY_NOTICES
+	MYGO_LDFLAGS="$(KEEL_X)" go tool mygo build $(if $(PLATFORM),-platform $(PLATFORM)) $(if $(KEEL_SIGN),-sign "$(KEEL_SIGN)",-skip-notarize)
 
 macos-icon:
-	cd internal/desktop/macos && go run genicon.go
+	cd packaging/macos && go run genicon.go
 
 signal:
 	go run ./cmd/keel-signal
 
-test: ui test-js
-	$(GO) test $(GO_TAGS) ./...
+# The native client end to end: the real view and terminal under MyGo's
+# ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
+native-e2e:
+	rm -f bin/keel
+	CGO_ENABLED=0 go build -o bin/keel ./cmd/keel
+	go build -o bin/keel-sshtest ./cmd/keel-sshtest
+	go build -o bin/keel-signal ./cmd/keel-signal
+	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
-# Regenerate the vendored notebook editor bundle from js/notebook-editor.mjs.
-notebook-editor:
-	sh cmd/keel/web/js/notebook-editor.build.sh
+native-automation-build:
+	rm -f bin/keel-e2e
+	CGO_ENABLED=0 go build -tags keelautomation -o bin/keel-e2e ./cmd/keel
 
-# Pure frontend modules (cmd/keel/web/js/lib) with node's built-in runner.
-test-js:
-	node --test 'cmd/keel/web/js/test/*.test.mjs'
+# Drives the built app from outside through MyGo's automation socket (plan 029). Opens real windows briefly.
+# Scratch data only; not part of make test or make native-e2e.
+native-automation: native-automation-build
+	go test -tags nativeautomation -count=1 -timeout 10m ./tests/native-automation/
 
-# The e2e suite (tests/*.e2e.ts) in WebKit against a scratch keel serve
-# (e2e.config.ts), as CI runs it. Build first: the UI is embedded in
-# bin/keel. readme.e2e.ts only makes the docs screenshots, so it is left
-# out. The tests press ⌘ (Meta), so run it on macOS.
-E2E_TESTS := $(filter-out tests/readme.e2e.ts,$(wildcard tests/*.e2e.ts))
-e2e:
-	npx e2e run --target webkit --reporter list --trace retain-on-failure $(E2E_TESTS)
+test:
+	go test ./...
 
-# Fails when the committed templ output or output.css differs from what the
-# pinned tools generate.
-check-generated: ui
-	@sh scripts/check-generated.sh
+# Every package except the window (keel/internal/native itself; its sub-packages keelclient, joinpeer, layout and sshparse
+# stay). CI's Linux leg runs this because the window's tests are not green on Linux yet (docs/native.md "Linux"); make test
+# on a Linux machine still runs everything, so the gap stays visible there.
+test-nonwindow:
+	go test $$(go list ./... | grep -v '^keel/internal/native$$')
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \
 	if [ -n "$$out" ]; then echo "gofmt needed:" >&2; echo "$$out" >&2; exit 1; fi
 
 vet:
-	$(GO) vet $(GO_TAGS) ./...
+	go vet ./...
 
 staticcheck:
-	$(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) $(GO_TAGS) ./...
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
 vulncheck:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) $(GO_TAGS) ./...
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 lint: fmt vet staticcheck vulncheck

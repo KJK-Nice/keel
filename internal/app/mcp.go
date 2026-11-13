@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,9 +14,9 @@ import (
 // (claude mcp add keel -- keel mcp). It talks to the keel serve on addr and
 // never starts one: the vault must be unlocked in the app first. It ends
 // when stdin closes.
-func RunMCP(web fs.FS, addr, dataDir string) error {
+func RunMCP(addr, dataDir string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv := mcp.New(mcp.NewClient(addr, dataDir), buildid.Of(web))
+	srv := mcp.New(mcp.NewClient(addr, dataDir), buildid.Of())
 	return srv.Serve(ctx, os.Stdin, os.Stdout)
 }

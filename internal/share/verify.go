@@ -16,9 +16,8 @@ import (
 // HMAC-SHA256(secret, role + "\n" + its DTLS fingerprints) and checks the
 // other side's. A signal server that swaps the SDP to sit in the middle
 // would have to swap the fingerprints too, and can't produce the matching
-// MAC without the secret. The same functions exist in
-// cmd/keel/web/js/lib/sharemac.js (desktop joiner) and
-// internal/signal/web/sharemac.js (browser join page).
+// MAC without the secret. The joiner's side is
+// internal/native/joinpeer (the browser joiners that once mirrored it were removed).
 
 const (
 	roleHost = "host"
