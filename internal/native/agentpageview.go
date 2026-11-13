@@ -25,7 +25,10 @@ func (w *workspace) agentPageView(c *ui.Context, p *agentPage) {
 		w.say("Copied")
 	}
 	layout := pageLayout(p.width)
-	root := ui.Row(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Label("agent page")
+	// MinWidth(0): the page takes the room the window leaves beside the panel, whatever its content would like. Without it the
+	// page was 975 px wide in a 1028 px space beside the 380 px panel on Ubuntu (a wider UI font), pushing the panel 327 px out of
+	// the window, and it never chose the narrower layouts (issue #140, plan 037 round 2).
+	root := ui.Row(c).Grow(1).FillWidth().FillHeight().MinWidth(0).Background(w.ground(surface)).Label("agent page")
 	p.width = root.Bounds().W
 	root.Children(func() {
 		switch layout {

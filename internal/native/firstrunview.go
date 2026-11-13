@@ -578,7 +578,7 @@ func (w *workspace) keyPassKey(st *keyState) func(ui.TextKey) bool {
 // ---- step 3 ----
 
 func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
-	head(c, false, "An agent that suggests, never types", "Ask it about a session, or type plain language at a prompt and press ⇥. It is optional, and you can set it up later in Settings.")
+	head(c, false, "An agent that suggests, never types", "Ask it about a session, or start a line with # at a prompt and press ⇥ (or press "+suggestKeyHere()+" on any line) to get a command. It is optional, and you can set it up later in Settings.")
 	ui.Column(c).FillWidth().Gap(space3).Label("What the agent promises").Children(func() {
 		for _, p := range []struct {
 			glyph  string
@@ -676,11 +676,11 @@ func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
 			})
 		}
 		ui.Row(c).FillWidth().Gap(space3).Children(func() {
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { body(c, "Suggest commands when I type plain language", ink).MaxLines(0) })
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { body(c, "Suggest commands for # lines and when I ask", ink).MaxLines(0) })
 			on := !f.agentOff
-			ui.Switch(c, &on).Label("Suggest commands when I type plain language switch").Shrink(0)
+			ui.Switch(c, &on).Label("Suggest commands for # lines and when I ask switch").Shrink(0)
 			f.agentOff = !on
 		})
-		help(c, "Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or press ⇥.")
+		help(c, "Nothing is sent anywhere while you set up. A key is stored in the vault and used only when you ask the agent or ask for a suggestion.")
 	})
 }

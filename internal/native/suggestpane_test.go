@@ -1,6 +1,7 @@
 package native
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func newSugRig(t *testing.T) *sugRig {
 	t.Helper()
 	r := &sugRig{rig: snippetRig(t, snippetBackend())}
 	r.p, r.c = r.w.focusedPane(), r.fb.conns[0]
-	r.line = "sh-3.2$ show the files here"
+	r.line = "sh-3.2$ # show the files here" // a # line: its notice takes ⇥ (plan 036)
 	r.p.sg.cursor = func() (int, string, bool) { return 2, r.line, !r.alt }
 	r.tt.Frame()
 	return r
@@ -64,6 +65,10 @@ func (r *sugRig) noticed(t *testing.T) {
 	}
 }
 
+// The keys and their labels of this platform, as the product writes them (keyLabels, undoKey, the suggest key): the tests never
+// assume macOS's (issue #140: ⌘Z and ⌘Y are Ctrl+Shift+Z and Ctrl+Shift+Y elsewhere, ⇥ is "Tab").
+func platLabels() keyLabelSet { return keyLabels(runtime.GOOS == "darwin") }
+
 func card(options ...keelclient.SuggestOption) *keelclient.Suggestion {
 	return &keelclient.Suggestion{ID: "s_1", Options: options}
 }
@@ -88,7 +93,7 @@ func (r *sugRig) carded(t *testing.T, sug *keelclient.Suggestion) {
 func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 	r := newSugRig(t)
 	r.noticed(t)
-	if got := r.c.detects; len(got) != 1 || got[0].line != "show the files here" {
+	if got := r.c.detects; len(got) != 1 || got[0].line != "# show the files here" {
 		t.Fatalf("detects %v: only the words the user typed leave the client", got)
 	}
 	r.texts(t, "Looks like a request", "suggest a command")
@@ -99,7 +104,7 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 	if !r.key(0, ui.KeyTab) {
 		t.Fatal("⇥ not taken")
 	}
-	if got := r.c.asks; len(got) != 1 || got[0].line != "show the files here" {
+	if got := r.c.asks; len(got) != 1 || got[0].line != "# show the files here" {
 		t.Fatalf("asks %v", got)
 	}
 	r.texts(t, "Suggesting a command…", "keep my words")
@@ -132,14 +137,14 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 	r.tt.Advance(sugReadEvery + time.Millisecond)
 	r.tt.Frame()
 	r.texts(t, "Inserted, not run", "back to your words")
-	if !r.key(ui.Cmd, ui.KeyZ) {
-		t.Fatal("⌘Z not taken right after an insert")
+	if !r.key(agentMods(), ui.KeyZ) {
+		t.Fatal("the undo key (⌘Z, Ctrl+Shift+Z) not taken right after an insert")
 	}
-	if got := r.c.restored; len(got) != 1 || got[0] != "show the files here" {
+	if got := r.c.restored; len(got) != 1 || got[0] != "# show the files here" {
 		t.Fatalf("restored %v", got)
 	}
-	if r.key(ui.Cmd, ui.KeyZ) {
-		t.Error("a second ⌘Z is taken")
+	if r.key(agentMods(), ui.KeyZ) {
+		t.Error("a second undo key is taken")
 	}
 	if r.c.wrote != 0 {
 		t.Error("the window wrote keystrokes itself")
@@ -149,13 +154,14 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPressed(t *testing.T) {
 	r := newSugRig(t)
 	r.carded(t, card(keelclient.SuggestOption{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true, Source: "generated"}))
-	r.texts(t, "Deletes files", "insert anyway", "Plain ⇥ never inserts a destructive command")
+	k := platLabels()
+	r.texts(t, "Deletes files", "insert anyway", "Plain "+k.Tab+" never inserts a destructive command")
 	if !r.has("suggestion card destructive") {
 		t.Error("no destructive card")
 	}
 	r.key(0, ui.KeyTab)
 	r.tt.Frame()
-	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press ⇧⇥ to insert this command.") {
+	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k, runtime.GOOS == "darwin")+" to insert this command.") {
 		t.Fatalf("plain ⇥ on a destructive command: inserts %v texts %v", r.c.sugInserts, r.tt.Texts())
 	}
 	r.key(ui.Shift, ui.KeyTab)
@@ -205,11 +211,91 @@ func TestNothingIsAskedOrTakenWhereAGuardApplies(t *testing.T) {
 		if len(r.c.detects) != 0 || len(r.c.asks) != 0 {
 			t.Errorf("%s: asked keel serve: %v %v", name, r.c.detects, r.c.asks)
 		}
-		if r.key(0, ui.KeyTab) || r.key(ui.Cmd, ui.KeyZ) {
+		if r.key(0, ui.KeyTab) || r.key(agentMods(), ui.KeyZ) {
 			t.Errorf("%s: a key was taken", name)
+		}
+		r.press(agentMods(), ui.KeyY) // the suggest key asks nothing where a guard applies either
+		if len(r.c.asks) != 0 || r.state() != sugIdle {
+			t.Errorf("%s: the suggest key asked: %v", name, r.c.asks)
 		}
 	}
 }
+
+// Plan 036. With the default ("Only lines starting with #") a typed line without # reaches nobody; ⌘Y asks for it, once,
+// and writes nothing; the card's ⇥ is what inserts.
+func TestTheSuggestKeyAsksForAPlainLineThatWasNeverSent(t *testing.T) {
+	r := newSugRig(t)
+	r.line = "sh-3.2$ show the files here"
+	r.key(0, ui.KeyX)
+	r.pause()
+	if len(r.c.detects) != 0 || len(r.c.asks) != 0 {
+		t.Fatalf("a typed line was sent: %v %v", r.c.detects, r.c.asks)
+	}
+	r.press(agentMods(), ui.KeyY)
+	if got := r.c.asks; len(got) != 1 || got[0].line != "show the files here" || len(r.c.detects) != 0 {
+		t.Fatalf("asks %v detects %v", got, r.c.detects)
+	}
+	if r.c.wrote != 0 || len(r.c.sugInserts) != 0 || len(r.c.injected) != 0 || len(r.c.directs) != 0 || len(r.c.restored) != 0 {
+		t.Fatal("asking wrote to the session")
+	}
+	r.texts(t, "Suggesting a command…")
+	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: r.c.asks[0].seq, OK: true, Suggestion: card(ro("ls -la"))})
+	if r.state() != sugCard {
+		t.Fatalf("state %q", r.state())
+	}
+	if !r.key(0, ui.KeyTab) || len(r.c.sugInserts) != 1 {
+		t.Fatalf("⇥ on the card: inserts %v", r.c.sugInserts)
+	}
+}
+
+// Plan 036, Notice automatically: the notice names the key, leaves ⇥ to the shell, and sends only after the pause.
+func TestAutoNoticeNamesTheKeyAndLeavesTab(t *testing.T) {
+	r := newSugRig(t)
+	r.w.noteSuggestSettings(autoSettings())
+	r.line = "sh-3.2$ show the files here"
+	r.noticed(t)
+	r.texts(t, append(append([]string{"Looks like a request"}, platLabels().Suggest...), "suggest a command")...)
+	if r.key(0, ui.KeyTab) {
+		t.Fatal("⇥ taken on a line noticed on its own")
+	}
+	if len(r.c.asks) != 0 {
+		t.Fatalf("⇥ asked: %v", r.c.asks)
+	}
+}
+
+func autoSettings() (s keelclient.AgentSettings) {
+	s.Settings.Suggestions, s.Settings.Detection = "on", detectionAuto
+	return s
+}
+
+// Plan 036, off means off at once: saving the switch in Settings · Agent drops the notice and the card, nothing is sent
+// from then on, and ⌘Y says why. The save does not wait for keel serve's answer.
+func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
+	r := newSugRig(t)
+	r.w.noteSuggestSettings(autoSettings())
+	r.line = "sh-3.2$ show the files here"
+	r.noticed(t)
+	cur := r.w.agentVal()
+	r.w.agent.settings = &cur
+	r.w.putAgent(keelclient.AgentSettingsPatch{Suggestions: ptr("off")}, nil)
+	r.tt.Frame()
+	if r.state() != sugIdle || r.has("suggestion notice") {
+		t.Fatalf("state %q after off", r.state())
+	}
+	n := len(r.c.detects)
+	r.key(0, ui.KeyX)
+	r.pause()
+	if len(r.c.detects) != n || len(r.c.asks) != 0 {
+		t.Fatalf("sent with suggestions off: %v %v", r.c.detects, r.c.asks)
+	}
+	r.press(agentMods(), ui.KeyY)
+	r.texts(t, "Suggestions in panes are off. Turn them on in Settings · Agent.")
+	if len(r.c.asks) != 0 {
+		t.Fatal("asked while off")
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestAPaneInTheBackgroundOrALeftNoticeGetsNothing(t *testing.T) {
 	r := newSugRig(t)
@@ -228,7 +314,7 @@ func TestAPaneInTheBackgroundOrALeftNoticeGetsNothing(t *testing.T) {
 func TestInsertIsDroppedWhenTheWordsChangedUnderTheCard(t *testing.T) {
 	r := newSugRig(t)
 	r.carded(t, card(ro("ls")))
-	r.line = "sh-3.2$ show the files here and more"
+	r.line = "sh-3.2$ # show the files here and more"
 	r.key(0, ui.KeyTab)
 	if len(r.c.sugInserts) != 0 || r.state() != sugIdle {
 		t.Fatalf("inserts %v state %q: nothing may be written for words the suggestion was not for", r.c.sugInserts, r.state())
@@ -315,7 +401,7 @@ func TestTheNoticeMovesWithTheTerminalsCells(t *testing.T) {
 		t.Fatal("no notice")
 	}
 	g := gridFor(r.p.fontFamily, r.p.fontSize, 1)
-	if w := float32(len([]rune("show the files here"))) * g.cw; m.W < w-0.5 || m.W > w+0.5 || m.H < g.ch-0.5 || m.H > g.ch+0.5 {
+	if w := float32(len([]rune("# show the files here"))) * g.cw; m.W < w-0.5 || m.W > w+0.5 || m.H < g.ch-0.5 || m.H > g.ch+0.5 {
 		t.Errorf("the mark is %v wide and %v high, want %v by %v (the words' cells)", m.W, m.H, w, g.ch)
 	}
 	if strings.Contains(strings.Join(r.tt.Texts(), "|"), "sh-3.2") {

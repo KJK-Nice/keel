@@ -89,6 +89,10 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 		}
 	}
 	if strings.HasPrefix(last, SuggestPrefix) {
+		if strings.Contains(strings.ToLower(last), "never answer") { // a provider that hangs: the caller's timeout ends it
+			<-ctx.Done()
+			return provider.Response{}, ctx.Err()
+		}
 		return suggestReply(strings.ToLower(strings.TrimPrefix(last, SuggestPrefix))), nil
 	}
 	panes := strings.Count(last, "--- pane ")

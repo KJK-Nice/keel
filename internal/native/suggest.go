@@ -20,6 +20,10 @@ const (
 	offBackoff    = 15 * time.Second       // OFF_BACKOFF_MS: after "off", wait before asking again
 	suggestMaxLen = 300                    // MAX_LINE
 	insertedSeen  = 3 * time.Second        // how long an inserted command may stay unseen on the line
+	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
+	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
+	// request it accepted, so this is for an answer that was lost.
+	suggestWait = 37 * time.Second
 )
 
 type sugState string
@@ -67,6 +71,27 @@ func worthDetecting(input string) bool {
 	}
 	return len(strings.Fields(s)) >= 2
 }
+
+// hashLine is a line the user marked as a request by starting it with #.
+func hashLine(input string) bool { return strings.HasPrefix(strings.TrimSpace(input), "#") }
+
+// askable is a line the user's own request (the suggest key) may send: some words, within suggestMaxLen, with no
+// control characters. Unlike worthDetecting, one word is enough: the user asked.
+func askable(input string) bool {
+	s := strings.TrimSpace(input)
+	return s != "" && len(s) <= suggestMaxLen && strings.IndexFunc(s, isControl) < 0
+}
+
+// sugMode is what the settings let the pane do on its own: nothing (suggestions off), notice only lines the user starts
+// with # (Only lines starting with #), or also have keel serve check each line after a typing pause (Notice
+// automatically). The suggest key asks in the last two; off says so.
+type sugMode int
+
+const (
+	sugOff sugMode = iota
+	sugHash
+	sugAuto
+)
 
 var riskOrder = map[string]int{"readonly": 0, "changes": 1, "destructive": 2}
 
@@ -159,14 +184,31 @@ func isModifier(k sugKey) bool {
 // keyLabels are the glyphs on macOS and words elsewhere.
 type keyLabelSet struct {
 	Tab, Shift, Esc, Enter, Up, Down string
-	Undo                             []string
+	Undo, Suggest                    []string
 }
 
 func keyLabels(mac bool) keyLabelSet {
 	if mac {
-		return keyLabelSet{"⇥", "⇧", "esc", "↵", "↑", "↓", []string{"⌘", "Z"}}
+		return keyLabelSet{"⇥", "⇧", "esc", "↵", "↑", "↓", []string{"⌘", "Z"}, []string{"⌘", "Y"}}
 	}
-	return keyLabelSet{"Tab", "Shift", "Esc", "Enter", "↑", "↓", []string{"Ctrl", "Shift", "Z"}}
+	return keyLabelSet{"Tab", "Shift", "Esc", "Enter", "↑", "↓", []string{"Ctrl", "Shift", "Z"}, []string{"Ctrl", "Shift", "Y"}}
+}
+
+// shiftTab is ⇧⇥ written for the platform: the glyphs run together on macOS, the words are joined with + elsewhere ("Shift+Tab",
+// not "ShiftTab": a defect a Linux user saw in v0.2.0).
+func shiftTab(k keyLabelSet, mac bool) string {
+	if mac {
+		return k.Shift + k.Tab
+	}
+	return k.Shift + "+" + k.Tab
+}
+
+// suggestKeyLabel is the suggest key as the Keyboard page and the settings write it.
+func suggestKeyLabel(mac bool) string {
+	if mac {
+		return "⌘Y"
+	}
+	return "Ctrl+Shift+Y"
 }
 
 // riskWords is the badge text; destructive says what it does when the command makes it plain.
@@ -211,6 +253,7 @@ type sugView struct {
 	Message  string
 	Command  string // the inserted command
 	Seen     bool
+	Hash     bool // a notice for a # line: ⇥ is taken there; a line noticed without # leaves ⇥ to the shell
 	Seq      int
 	at       time.Time
 }
@@ -219,6 +262,7 @@ type sugView struct {
 type sugDeps struct {
 	readLine    func() *promptLine
 	canSuggest  func() bool
+	mode        func() sugMode // nil: sugAuto
 	sendDetect  func(seq int, line string)
 	sendSuggest func(seq int, line string)
 	insert      func(sug *keelclient.Suggestion, index int, shift bool, words string, done func(insertResult))
@@ -241,6 +285,7 @@ type sugMachine struct {
 	pendSeq   int // the detect in flight, 0 for none
 	pendInput string
 	dueAt     time.Time // when the typing pause ends; zero for none
+	loadDue   time.Time // when a loading request gives up
 	offUntil  time.Time
 	dismissed string
 	cache     map[string]detectHit
@@ -272,6 +317,64 @@ func (m *sugMachine) idle() {
 
 func (m *sugMachine) can() bool { return m.d.canSuggest != nil && m.d.canSuggest() }
 
+func (m *sugMachine) mode() sugMode {
+	if m.d.mode == nil {
+		return sugAuto
+	}
+	return m.d.mode()
+}
+
+// live is can, and suggestions on: the machine follows a line only then. The one thing shown while they are off is the
+// request's answer, "off in Settings · Agent".
+func (m *sugMachine) live() bool {
+	return m.can() && (m.mode() != sugOff || m.st.State == sugError)
+}
+
+// offMessage is what the suggest key says while suggestions are off.
+const offMessage = "Suggestions in panes are off. Turn them on in Settings · Agent."
+
+// ModeChanged follows a change of the settings: nothing asked before counts any more. The cache of plain lines, a
+// detection in flight, the typing pause and the backoff go; a notice goes (it was for the old rule); with suggestions
+// off a loading request or a card goes too, since keel serve would refuse it.
+func (m *sugMachine) ModeChanged() {
+	m.cache, m.cacheKeys = map[string]detectHit{}, nil
+	m.dueAt, m.pendSeq, m.offUntil = time.Time{}, 0, time.Time{}
+	switch m.st.State {
+	case sugNotice:
+		m.idle()
+	case sugLoading, sugCard, sugInserting, sugInserted:
+		if m.mode() == sugOff {
+			m.idle()
+		}
+	}
+}
+
+// Request is the user's own ask, the suggest key: a suggestion for the words on the prompt line now, any words, no #
+// needed. It sends the one question startSuggest sends and writes nothing; the card's ⇥ is the only way a command is inserted.
+func (m *sugMachine) Request() {
+	if !m.can() {
+		return
+	}
+	switch m.st.State {
+	case sugLoading, sugInserting, sugCard:
+		return
+	}
+	line := m.line()
+	if line == nil { // not at a prompt, or a full-screen program
+		return
+	}
+	m.dueAt, m.dismissed = time.Time{}, ""
+	switch {
+	case m.mode() == sugOff:
+		m.set(sugView{State: sugError, Words: line.Input, Message: offMessage})
+	case !askable(line.Input):
+		m.set(sugView{State: sugError, Words: line.Input, Message: "Type what you want to do first, then ask again."})
+	default:
+		m.st = sugView{State: sugIdle, Words: line.Input}
+		m.startSuggest()
+	}
+}
+
 func (m *sugMachine) line() *promptLine {
 	if m.d.readLine == nil {
 		return nil
@@ -288,12 +391,22 @@ func (m *sugMachine) restore() {
 	}
 }
 
-// Due reports when the typing pause ends, and whether one is waiting.
-func (m *sugMachine) Due() (time.Time, bool) { return m.dueAt, !m.dueAt.IsZero() }
+// Due reports when the next timer ends (the typing pause, or a loading request giving up), and whether one is waiting.
+func (m *sugMachine) Due() (time.Time, bool) {
+	due := m.dueAt
+	if m.st.State == sugLoading && (due.IsZero() || m.loadDue.Before(due)) {
+		due = m.loadDue
+	}
+	return due, !due.IsZero()
+}
 
-// Tick runs the detection when the typing pause has passed (the page's timer).
+// Tick runs the detection when the typing pause has passed, and ends a request that has waited too long (the page's timer).
 func (m *sugMachine) Tick() {
-	if m.dueAt.IsZero() || m.d.now().Before(m.dueAt) {
+	now := m.d.now()
+	if m.st.State == sugLoading && !now.Before(m.loadDue) {
+		m.OnSuggest(m.st.Seq, false, nil, "", "timeout")
+	}
+	if m.dueAt.IsZero() || now.Before(m.dueAt) {
 		return
 	}
 	m.detectNow()
@@ -305,12 +418,18 @@ func (m *sugMachine) detectNow() {
 		m.idle()
 		return
 	}
+	if m.mode() == sugOff { // off is known here: nothing is asked
+		if m.st.State == sugNotice {
+			m.idle()
+		}
+		return
+	}
 	if m.st.State != sugIdle && m.st.State != sugNotice {
 		return
 	}
 	line := m.line()
-	if line == nil || !worthDetecting(line.Input) {
-		m.idle()
+	if line == nil || !worthDetecting(line.Input) || m.mode() == sugHash && !hashLine(line.Input) {
+		m.idle() // in "Only lines starting with #" a line without # is never sent: it is the user's until they ask
 		return
 	}
 	input := line.Input
@@ -320,7 +439,7 @@ func (m *sugMachine) detectNow() {
 	}
 	if hit, ok := m.cache[input]; ok && now.Sub(hit.at) < detectCache {
 		if hit.plain {
-			m.set(sugView{State: sugNotice, Words: input})
+			m.set(sugView{State: sugNotice, Words: input, Hash: hashLine(input)})
 		}
 		return
 	}
@@ -334,6 +453,7 @@ func (m *sugMachine) detectNow() {
 func (m *sugMachine) startSuggest() {
 	m.seq++
 	m.pendSeq = 0
+	m.loadDue = m.d.now().Add(suggestWait)
 	m.set(sugView{State: sugLoading, Words: m.st.Words, Seq: m.seq})
 	if m.d.sendSuggest != nil {
 		m.d.sendSuggest(m.seq, m.st.Words)
@@ -348,7 +468,7 @@ func (m *sugMachine) doInsert(shift bool) {
 	opt := st.Sug.Options[st.Selected]
 	if ok, _ := insertGate(&opt, shift); !ok {
 		k := keyLabels(m.d.mac)
-		st.Note = "Press " + k.Shift + k.Tab + " to insert this command."
+		st.Note = "Press " + shiftTab(k, m.d.mac) + " to insert this command."
 		m.set(st)
 		return
 	}
@@ -400,7 +520,7 @@ func (m *sugMachine) OnRender() {
 	if m.st.State == sugIdle {
 		return
 	}
-	if !m.can() {
+	if !m.live() {
 		m.idle()
 		return
 	}
@@ -436,13 +556,13 @@ func (m *sugMachine) OnKey(k sugKey) bool {
 	if m.st.State == sugIdle {
 		return false
 	}
-	if !m.can() {
+	if !m.live() {
 		m.idle()
 		return false
 	}
 	switch m.st.State {
 	case sugNotice:
-		if isTab(k) {
+		if isTab(k) && m.st.Hash { // a # line is a request: ⇥ asks. A line noticed on its own leaves ⇥ to the shell
 			m.startSuggest()
 			return true
 		}
@@ -542,11 +662,11 @@ func (m *sugMachine) OnDetect(seq int, plain bool, source string) {
 			m.cacheKeys = m.cacheKeys[1:]
 		}
 	}
-	if !plain || m.st.State != sugIdle || !m.can() {
+	if !plain || m.st.State != sugIdle || !m.can() || m.mode() == sugOff {
 		return
 	}
 	if line := m.line(); line != nil && line.Input == input {
-		m.set(sugView{State: sugNotice, Words: input})
+		m.set(sugView{State: sugNotice, Words: input, Hash: hashLine(input)})
 	}
 }
 

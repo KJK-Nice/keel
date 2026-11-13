@@ -217,6 +217,7 @@ type pane struct {
 	conn session
 	sid  string // session id when known before the ready frame (an attached session)
 
+	regain bool // the pane had the keyboard while its session was not ready: it takes it back when the view returns (view.go)
 	// Set by workspace.mkBody: a live terminal, or a placeholder in tests.
 	view    func(c *ui.Context) ui.Element
 	size    func() (cols, rows int)
@@ -352,12 +353,7 @@ type workspace struct {
 	term           termPrefs                         // Copy on select, Right-click in the terminal, the display name
 	translucentWin bool                              // the window was created Transparent: only then can opacity change live
 	blurHook       func(radius int)                  // sets the window's blur; nil in tests
-	shadowHook     func()                            // has the window server cut the shadow again (translucent windows); nil in tests
-	shadowSetHook  func(on bool)                     // gives the window its shadow or takes it away (macOS); nil in tests
-	shadowTimer    *time.Timer                       // fires shadowFire once the frames stop (shadowSoon)
-	shadowGen      int                               // counts the frames that ran a user action: what may change the window's alpha shape
-	shadowSeen     shadowShape                       // the shape the shadow was last cut for
-	shadowDue      bool                              // the shape changed and the shadow is not yet cut again
+	cornerR        float32                           // the window's corner radius, for its border line (windowborder.go); 0: none (tests, off macOS)
 	saveDialog     func(name string) (string, error) // the system's save dialog for a file name: the path, "" when cancelled; nil in tests that set none
 	appearanceHook func(choice string)               // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
 	dark, osDark   bool                              // the theme in use, and whether the OS appearance is dark (theme.go)
@@ -384,6 +380,9 @@ type workspace struct {
 	first          *firstRun   // the First run screens (or the palette's host import), over the whole window
 	closed         bool
 	sugNow         time.Time // the frame's time, the suggestion machines' clock
+	sugMode        sugMode   // what the settings let a pane do on its own, as the machines last heard it
+	sugModeSeen    bool
+	sugSet         sugSettings // the agent settings the machines follow
 
 	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool          // a poll is in flight
@@ -600,6 +599,7 @@ func (w *workspace) start() {
 				w.fail("attach", failed)
 			}
 			w.live = true
+			w.refreshSuggestSettings()
 			w.settle() // an empty window shows a New tab
 			w.saved.ready = true
 		})

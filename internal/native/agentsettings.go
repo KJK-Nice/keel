@@ -93,6 +93,7 @@ func (w *workspace) takeAgentSettings(s keelclient.AgentSettings) {
 	a.keyConfigured = &k
 	d := s.Settings.HistoryDays
 	a.list.historyDays = &d
+	w.noteSuggestSettings(s)
 }
 
 // applyPatch is what a patch changes, shown at once while keel serve answers.
@@ -143,6 +144,7 @@ func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
 	cp := *a.settings
 	applyPatch(&cp, p)
 	a.settings = &cp // shown at once; keel serve's answer replaces it
+	w.noteSuggestSettings(cp)
 	w.work(func() {
 		c, cancel := ctx()
 		defer cancel()
@@ -172,7 +174,7 @@ func (w *workspace) agentVal() keelclient.AgentSettings {
 		return *w.agent.settings
 	}
 	var s keelclient.AgentSettings // before the first read: the defaults (store.DefaultAgentSettings)
-	s.Settings.Provider, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = "gemini", detectionAuto, "on", "on"
+	s.Settings.Provider, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = "gemini", detectionHashOnly, "on", "on"
 	s.Settings.DefaultScope, s.Settings.ScrollbackLines, s.Settings.HistoryDays = "focused", linesDefault, 30
 	s.Settings.Redact.Secrets = true
 	return s

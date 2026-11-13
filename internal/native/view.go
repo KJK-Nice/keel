@@ -66,6 +66,7 @@ func (w *workspace) view(c *ui.Context) {
 		})
 		w.statusbar(c)
 	})
+	w.windowBorder(c)      // above the grounds, under the toasts and dialogs
 	useControls(1, w.dark) // toasts, dialogs, the palette and their controls are never translucent (nativeonly.go)
 	windowTheme(c, w.dark) // MyGo's controls read the theme as they are built: the opaque fills from here on
 	if w.alpha < 1 {       // setting the theme gives the window its ground back
@@ -121,7 +122,6 @@ func (w *workspace) view(c *ui.Context) {
 	w.folderRenameFocus(c)
 	w.runLater(c)
 	w.persist()
-	w.shadowSoon(c)
 }
 
 // runLater runs what the view queued, now that the frame is built.
@@ -129,7 +129,6 @@ func (w *workspace) runLater(c *ui.Context) {
 	if len(w.later) > 0 {
 		run := w.later
 		w.later = nil
-		w.shadowGen++ // a user action ran: the next frames may have another shape (shadowSoon)
 		for _, fn := range run {
 			fn()
 		}
@@ -170,6 +169,8 @@ func (w *workspace) shortcuts(c *ui.Context) {
 		agentMods |= ui.Shift
 	}
 	c.OnWindowShortcut(agentMods, ui.KeyI, func() { w.act(w.toggleAgent) })
+	// ⌘Y asks for a command for the words on the prompt line (Ctrl+⇧Y elsewhere: Ctrl+Y is the shell's yank). It types nothing.
+	c.OnWindowShortcut(agentMods, ui.KeyY, func() { w.act(w.suggestRequest) })
 	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(w.toggleSidebar) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
 	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
@@ -800,6 +801,22 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		})
 		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
 		pane.Children(func() {
+			// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139,
+			// plan 037 part A): its last picture is not readable through the overlay and no caret blinks; the pane shows its
+			// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
+			// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
+			// and the pane takes the keyboard again if it had it.
+			if st.Status != "ready" && !p.remote {
+				if t.focused == p.id {
+					p.regain = true
+				}
+				w.connectLogView(c, p, st)
+				return
+			}
+			if p.regain {
+				p.regain = false
+				w.wantFocus = p.id
+			}
 			tv := p.view(c).Bind(&p.handle)
 			if multi && !focused { // the terminal's text dims, the body keeps its ground (keel.css:942 dims .xterm only)
 				tv.Opacity(dimAlpha)

@@ -73,7 +73,7 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 	r := agentSettingsRig(t)
 	r.texts(t, "The agent reads only the panes you allow and suggests commands. It never types into a pane on its own.",
 		"Provider", "Model", "Used by the agent panel. Suggestions in panes use the provider's small, fast model.",
-		"Suggestions in panes", "Suggest a command when I type plain language", "Press ⇥ to see it. Nothing is inserted until you accept, and nothing runs until you press ↵.",
+		"Suggestions in panes", "Suggest commands in panes", "Start a line with # and press ⇥, or press "+suggestKeyHere()+" on any line. Nothing is inserted until you accept, and nothing runs until you press ↵.",
 		"Suggest from this pane's scrollback", "How to notice plain language",
 		"Agent panel", "Default panes per conversation", "Which panes the agent may read when you start a conversation.",
 		"Scrollback lines per pane", "50–1000. How much of each pane the agent reads. Default 200.",

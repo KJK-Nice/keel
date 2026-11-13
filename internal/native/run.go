@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,13 @@ var fontFiles embed.FS
 // registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ holds the
 // eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
+	if runtime.GOOS == "linux" {
+		// Not on Linux (issue #140, plan 037 round 2): on Ubuntu a registered family measured about 1.8 times too wide (29
+		// characters of JetBrains Mono at 13 px came out 399 px, the system monospace 232 and the font's own advance gives
+		// about 226), which made the terminal's cells about twice as wide as its glyphs, and JetBrains Mono and IBM Plex Mono
+		// rendered alike. The stacks fall back to the system monospace until MyGo's Linux registration is understood.
+		return
+	}
 	files, _ := fontFiles.ReadDir("fonts")
 	for _, f := range files {
 		family := monoFamily
@@ -163,14 +171,12 @@ func RunWith(o Options) error {
 		w.saveDialog = func(name string) (string, error) {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name, CreateDirectories: true})
 		}
-		w.shadowSetHook = func(on bool) { setWindowHasShadow(win, on) }
-		if pr.NoShadow {
-			win.OnShow(func() { w.post(w.applyShadow) })
-		}
+		w.cornerR = windowCornerRadius()
+		// The window has no shadow (plan 037 part C).
+		win.OnShow(func() { setWindowHasShadow(win, false) })
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
 			blur := func(radius int) { blurOnce(win, radius)() }
 			w.blurHook = blur
-			w.shadowHook = func() { invalidateWindowShadow(win) }
 			win.OnShow(func() { w.post(w.applyBlur) })
 		}
 		win.OnClosed(w.closeWindow)

@@ -48,8 +48,6 @@ const (
 	// already shown by then (RiskCheck runs after it); past the timeout
 	// the code rating stands alone.
 	riskTimeout = 2 * time.Second
-	// suggestTimeout bounds the model provider call for a suggestion.
-	suggestTimeout = 30 * time.Second
 
 	// detectLogWindow: detection reads of one pane are summarised into
 	// one agent.read entry per window (the first is logged at once).
@@ -63,6 +61,17 @@ const (
 	maxSuggestions  = 64
 	maxAlternatives = 2
 )
+
+// suggestTimeout bounds the model provider call for a suggestion. The window waits this long, the history pick and a
+// margin (internal/native suggestWait) before it gives up on an answer; a var only so a test can shorten it.
+var suggestTimeout = 30 * time.Second
+
+// SetSuggestTimeoutForTest shortens the model call's bound and returns the call that puts it back.
+func SetSuggestTimeoutForTest(d time.Duration) (restore func()) {
+	old := suggestTimeout
+	suggestTimeout = d
+	return func() { suggestTimeout = old }
+}
 
 // History first (phase 6c+): before the model writes a command, code
 // gathers commands the user already ran in the pane (its scrollback) or

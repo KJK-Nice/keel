@@ -57,6 +57,37 @@ func (r *rig) backdrop(margin ...int) {
 // just below the window than a little further down: the window's shadow. The capture goes to .scratch-native/automation/.
 func (r *rig) shadowEdge(name string, margin int) int {
 	r.t.Helper()
+	img, b, m := r.captureAround(name, margin)
+	scale := float64(img.Bounds().Dx()) / (b.Width + 2*m)
+	x := int((m + b.Width/2) * scale)
+	below := int((m + b.Height) * scale) // the window's bottom edge
+	lum := func(y int) int { r, g, bl, _ := img.At(x, y).RGBA(); return int(r>>8 + g>>8 + bl>>8) }
+	return lum(below+int(40*scale)) - lum(below+int(6*scale))
+}
+
+type bounds struct{ X, Y, Width, Height float64 }
+
+// requireBackdrop skips the test unless a screen capture shows the test's own backdrop window in the margin around the app's
+// window. A capture without the screen-recording permission is the wallpaper only (no window of another process is in it), and
+// a window on another display is outside the rectangle; neither can be judged, and neither is a failure of the app.
+func (r *rig) requireBackdrop(margin int) {
+	r.t.Helper()
+	img, b, m := r.captureAround("backdrop-check", margin)
+	scale := float64(img.Bounds().Dx()) / (b.Width + 2*m)
+	p := int(m / 2 * scale) // a point of the margin, half way in from the corner
+	r0, g0, b0, _ := img.At(img.Bounds().Min.X+p, img.Bounds().Min.Y+p).RGBA()
+	got := [3]int{int(r0 >> 8), int(g0 >> 8), int(b0 >> 8)}
+	want := [3]int{140, 153, 128} // backdrop.swift's 0.55, 0.6, 0.5
+	for i := range got {
+		if d := got[i] - want[i]; d > 30 || d < -30 {
+			r.t.Skipf("the screen capture does not show the test's backdrop window (pixel %v, want about %v): no screen-recording permission, or the window is on another display (see .scratch-native/automation/backdrop-check.png)", got, want)
+		}
+	}
+}
+
+// captureAround photographs the window with margin points around it and returns the picture, the window's bounds and the margin.
+func (r *rig) captureAround(name string, margin int) (image.Image, bounds, float64) {
+	r.t.Helper()
 	r.settle()
 	time.Sleep(700 * time.Millisecond)
 	var ws struct {
@@ -79,11 +110,7 @@ func (r *rig) shadowEdge(name string, margin int) int {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	scale := float64(img.Bounds().Dx()) / (b.Width + 2*m)
-	x := int((m + b.Width/2) * scale)
-	below := int((m + b.Height) * scale) // the window's bottom edge
-	lum := func(y int) int { r, g, bl, _ := img.At(x, y).RGBA(); return int(r>>8 + g>>8 + bl>>8) }
-	return lum(below+int(40*scale)) - lum(below+int(6*scale))
+	return img, b, m
 }
 
 // line types a command as text (there is no key for every character) and presses Enter.
@@ -124,9 +151,9 @@ func flatness(img image.Image, rect image.Rectangle) int {
 	return worst
 }
 
-// TestWindowShadowSwitch (plan 032 section 10): the shadow is there by default, Settings · Appearance · Window shadow takes it
-// away at once and gives it back, and with it off the pane at opacity 30 is flat (no ghost, because no shadow).
-func TestWindowShadowSwitch(t *testing.T) {
+// TestWindowHasNoShadow (plan 037 part C): the window never has a shadow. The backdrop is no lighter 40 pt below the window
+// than 6 pt below it, by the method TestWindowShadowSwitch used to find the shadow that is gone.
+func TestWindowHasNoShadow(t *testing.T) {
 	const margin = 60
 	r := newRig(t)
 	r.ghostCfg(30, 0, "dark")
@@ -134,31 +161,12 @@ func TestWindowShadowSwitch(t *testing.T) {
 	r.startApp()
 	openShell(r)
 	r.backdrop(margin)
+	r.requireBackdrop(margin)
 	r.line("clear")
-	on := r.shadowEdge("shadow-1-default", margin)
-	t.Logf("default: the backdrop is %d lighter 40 pt below the window than 6 pt below it", on)
-	if on < 15 {
-		t.Fatalf("the window has no shadow by default (%d)", on)
-	}
-	r.press("Settings")
-	r.waitFor("Settings", has("settings nav Appearance"))
-	r.press("Window shadow switch")
-	off := r.shadowEdge("shadow-2-off", margin)
-	t.Logf("switched off: %d", off)
-	if off > 5 {
-		t.Errorf("the shadow is still there after turning it off (%d)", off)
-	}
-	r.press("tab Local Shell")
-	r.line("clear")
-	r.settle()
-	img := readPNG(t, r.screenPicture("shadow-3-off-shell"))
-	if d := flatness(img, image.Rect(700, 300, 2300, 1300)); d > ghostFlatMax {
-		t.Errorf("with the shadow off the pane is not flat (%d)", d)
-	}
-	r.press("tab Settings")
-	r.press("Window shadow switch")
-	if back := r.shadowEdge("shadow-4-on-again", margin); back < 15 {
-		t.Errorf("the shadow did not come back (%d)", back)
+	if edge := r.shadowEdge("noshadow-1", margin); edge > 5 {
+		t.Errorf("the window has a shadow (%d)", edge)
+	} else {
+		t.Logf("the backdrop is %d lighter 40 pt below the window than 6 pt below it", edge)
 	}
 	r.quit()
 }
@@ -241,7 +249,8 @@ func TestNoGhostUnderLowOpacity(t *testing.T) {
 			r.startServe()
 			r.startApp()
 			openShell(r)
-			r.backdrop()
+			r.backdrop(20)
+			r.requireBackdrop(20)
 			r.line("clear")
 			check := func(step string) {
 				t.Helper()

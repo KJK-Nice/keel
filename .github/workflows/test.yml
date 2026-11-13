@@ -28,17 +28,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # macOS runs every package. Linux runs every package except the window (keel/internal/native itself; its
-      # sub-packages keelclient, joinpeer, layout and sshparse still run): the window's tests were written and run only
-      # on macOS, and on Linux seven fail and one panics, which aborts the rest of the package. Follow-up: find the
-      # Linux causes (docs/native.md "Linux"), fix them, then run make test on both legs again.
+      # Both legs run every package, the window's (keel/internal/native) included: its tests are green on Ubuntu since
+      # issue #140 (docs/native.md "Linux"). The Linux window itself has still not been run by a person.
       - name: make test
-        if: runner.os == 'macOS'
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
-
-      - name: make test-nonwindow (the window's tests are not green on Linux yet)
-        if: runner.os == 'Linux'
-        run: sh scripts/ci-run.sh "make test-nonwindow (${{ matrix.os }})" make test-nonwindow
 
   # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
   # Nobody has seen a headless macOS runner run it (it needs the window server), so a failure does not fail the

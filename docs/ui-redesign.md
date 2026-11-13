@@ -111,7 +111,7 @@ Board names refer to the canvas.
 - Tests: `tests/agent-page.e2e.ts` (open from the panel and the palette, list, search, host filter, resume, Type through the approve dialog, ask from the page, rename and delete in step with the panel, Expired card with Copy and Propose again only), and the `agent page` shots in `tests/visual.e2e.ts`.
 
 ### 5.5 Plain language → command in a pane (`Suggest`)
-1. **Notice**: when the prompt line looks like plain language, it is highlighted (`haze-soft` + underline) and a hint shows "⇥ suggest a command". Detection is automatic (see §7).
+1. **Notice**: when the prompt line starts with `#` (or, with Notice automatically on, looks like plain language), it is highlighted (`haze-soft` + underline) and a hint shows "⇥ suggest a command" (for a line noticed on its own, the suggest key instead of ⇥). The suggest key asks without a notice (see §7).
 2. **Suggest**: ⇥ opens a card under the line: command, Read-only badge, one-line reason, up to 2 alternatives (2, 3 or ↑↓), ⇥ insert · esc keep my words.
 3. **Inserted**: the command replaces the line, highlighted `brass-soft`, **not run**. ↵ runs it; ⌘Z restores the original words.
 4. **Destructive**: red edge + "Deletes files" (or similar) badge. Plain ⇥ never inserts; ⇧⇥ inserts anyway.
@@ -195,8 +195,8 @@ Board names refer to the canvas.
 
 ## 7. Plain-language detection
 
-- Default: automatic. A classifier decides "plain language vs command" for the current prompt line; it never blocks typing and never changes what ↵ sends.
-- Fallback setting: only lines starting with `#` (safe if ↵ is pressed by mistake, because the shell treats it as a comment).
+- Default (plan 036): suggestions start only when the user asks. A line starting with `#` is a request, and the "Suggest a command for this line" key (⌘Y) asks for any line. Nothing else is sent while the user types. Safe if ↵ is pressed by mistake, because the shell treats a `#` line as a comment.
+- Opt-in, "Notice automatically": a classifier decides "plain language vs command" for the current prompt line after a typing pause; it never blocks typing and never changes what ↵ sends. Its notice names the suggest key and leaves ⇥ to the shell.
 - Candidate for the classifier and the command/risk judgment: Jev (TypeSafe). To evaluate: latency budget (< 150 ms for the Notice hint), offline behaviour, cost per keystroke burst (debounce on pause, not per key).
 - Risk label (Read-only / Changes state / Destructive) comes from the same judgment and is shown on every suggestion.
 - **Speed after ⇥.** Suggestions use the provider's own suggestion model (Gemini: `gemini-3.5-flash-lite`, thinking level `minimal`); the agent panel keeps the settings model with its default thinking. The card is shown as soon as the model answers, rated by code (the denylist, made stricter by the model's own rating). Jev rates it afterwards (up to 2 s); when Jev is stricter, keel serve updates the kept suggestion and pushes `agent-suggest-risk`, and the card's badge, edge and ⇥ / ⇧⇥ hint follow. Jev can only make a rating stricter, never looser.

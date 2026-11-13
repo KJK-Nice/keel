@@ -122,6 +122,7 @@ type harness struct {
 	now      time.Time
 	line     *promptLine
 	driving  bool
+	mode     sugMode
 	finish   func(insertResult) // the insert in flight
 	auto     *insertResult      // when set, an insert completes at once with it
 }
@@ -140,12 +141,13 @@ type insertCall struct {
 }
 
 func newHarness(t *testing.T) *harness {
-	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, line: &promptLine{Input: "show the files here", Start: 8}}
+	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥ (plan 036)
 	ok := insertResult{OK: true}
 	h.auto = &ok
 	h.m = newSugMachine(sugDeps{
 		readLine:    func() *promptLine { return h.line },
 		canSuggest:  func() bool { return h.driving },
+		mode:        func() sugMode { return h.mode },
 		sendDetect:  func(seq int, l string) { h.sent = append(h.sent, sentFrame{"detect", seq, l}) },
 		sendSuggest: func(seq int, l string) { h.sent = append(h.sent, sentFrame{"suggest", seq, l}) },
 		insert: func(s *keelclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
@@ -197,7 +199,7 @@ func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
 		t.Fatal("a frame per key")
 	}
 	h.fire()
-	if len(h.sent) != 1 || h.sent[0] != (sentFrame{"detect", 1, "show the files here"}) {
+	if len(h.sent) != 1 || h.sent[0] != (sentFrame{"detect", 1, "# show the files here"}) {
 		t.Fatalf("sent %v", h.sent)
 	}
 	h.m.OnDetect(1, true, "jev")
@@ -233,7 +235,7 @@ func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
 	if !h.m.OnKey(sugKey{Name: "z", Meta: true}) { // ⌘Z restores the words
 		t.Fatal("⌘Z not taken")
 	}
-	if len(h.restores) != 1 || h.restores[0] != "show the files here" {
+	if len(h.restores) != 1 || h.restores[0] != "# show the files here" {
 		t.Fatalf("restores %v", h.restores)
 	}
 	h.state(sugIdle)
@@ -402,7 +404,7 @@ func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) { // JS 14
 	h.m.OnKey(kd("Tab"))
 	h.m.OnSuggest(h.sent[1].seq, true, opts("ls"), "", "")
 	h.m.OnKey(kd("Tab"))
-	if len(h.inserts) != 1 || h.inserts[0].words != "show the files here" {
+	if len(h.inserts) != 1 || h.inserts[0].words != "# show the files here" {
 		t.Fatalf("insert gets the words to re-check: %+v", h.inserts)
 	}
 	h.state(sugIdle)
@@ -440,6 +442,169 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // J
 	if len(h.inserts) != 1 {
 		t.Fatal("⇧⇥ did not insert")
 	}
+}
+
+// Plan 036, "Only lines starting with #": a typed line without # is never sent anywhere; a # line is, and its notice
+// takes ⇥. Nothing is asked while suggestions are off, and nothing is asked again after a pause for a line that was.
+func TestPrivacyOnlyHashLinesAreSentInHashMode(t *testing.T) {
+	h := newHarness(t)
+	h.mode = sugHash
+	h.setLine("show the files here and more")
+	h.m.OnInput("x")
+	h.fire()
+	if len(h.sent) != 0 {
+		t.Fatalf("a typed line without # was sent: %v", h.sent)
+	}
+	h.state(sugIdle)
+	h.setLine("#list the files")
+	h.m.OnInput("x")
+	h.fire()
+	if len(h.sent) != 1 || h.sent[0].kind != "detect" {
+		t.Fatalf("sent %v", h.sent)
+	}
+	h.m.OnDetect(1, true, "hash")
+	h.state(sugNotice)
+	if !h.m.OnKey(kd("Tab")) {
+		t.Fatal("⇥ not taken on a # line")
+	}
+	h.state(sugLoading)
+
+	h = newHarness(t)
+	h.mode = sugOff
+	h.m.OnInput("x")
+	h.fire()
+	if len(h.sent) != 0 {
+		t.Fatalf("a line was sent with suggestions off: %v", h.sent)
+	}
+}
+
+// A line the detector noticed on its own (Notice automatically) leaves ⇥ to the shell; the suggest key asks.
+func TestAutoNoticeLeavesTabToTheShellAndTheKeyAsks(t *testing.T) {
+	h := newHarness(t)
+	h.setLine("show the files here")
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "jev")
+	h.state(sugNotice)
+	if h.m.OnKey(kd("Tab")) {
+		t.Fatal("⇥ taken on a line noticed on its own")
+	}
+	h.m.OnInput("\t") // the shell completes: the pane tells the machine, and the notice goes
+	h.state(sugIdle)
+	h.m.Request()
+	h.state(sugLoading)
+	if got := h.sent[len(h.sent)-1]; got.kind != "suggest" || got.line != "show the files here" {
+		t.Fatalf("sent %v", h.sent)
+	}
+	h.m.OnSuggest(got(h).seq, true, opts("ls"), "", "")
+	h.state(sugCard)
+	if !h.m.OnKey(kd("Tab")) || len(h.inserts) != 1 { // inserting stays the card's ⇥
+		t.Fatalf("inserts %v", h.inserts)
+	}
+}
+
+func got(h *harness) sentFrame { return h.sent[len(h.sent)-1] }
+
+// The suggest key asks for any words, one word too, and needs no #; it asks nothing with an empty line and says so.
+func TestRequestAsksForAnyWordsAndSaysWhenItCannot(t *testing.T) {
+	h := newHarness(t)
+	h.mode = sugHash
+	h.setLine("untar")
+	h.m.Request()
+	h.state(sugLoading)
+	if g := got(h); g.kind != "suggest" || g.line != "untar" {
+		t.Fatalf("sent %v", h.sent)
+	}
+	h = newHarness(t)
+	h.setLine("")
+	h.m.Request()
+	h.state(sugError)
+	if len(h.sent) != 0 || !strings.Contains(h.m.View().Message, "Type what you want") {
+		t.Fatalf("an empty line: sent %v, %q", h.sent, h.m.View().Message)
+	}
+	h = newHarness(t)
+	h.driving = false
+	h.m.Request()
+	if len(h.sent) != 0 || h.m.State() != sugIdle {
+		t.Fatal("a follower asked")
+	}
+}
+
+// Off means off at once: the cache, the pending detection, the notice and a loading request go; the key says so.
+func TestOffAtOnceDropsEverythingAndTheKeySaysSo(t *testing.T) {
+	h := newHarness(t)
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "jev") // cached as plain
+	h.state(sugNotice)
+	h.m.OnInput("x") // a key: the notice goes, a new pause is waiting
+	h.mode = sugOff
+	h.m.ModeChanged()
+	if _, waiting := h.m.Due(); waiting || len(h.m.cache) != 0 {
+		t.Fatal("a pause or a cached answer survived")
+	}
+	h.fire()
+	h.state(sugIdle)
+	n := len(h.sent)
+	h.m.OnInput("x")
+	h.fire()
+	if len(h.sent) != n {
+		t.Fatal("asked with suggestions off, where a 15 s backoff used to ask again")
+	}
+	h.m.Request()
+	h.state(sugError)
+	if h.m.View().Message != offMessage || len(h.sent) != n {
+		t.Fatalf("the key with suggestions off: %q, sent %v", h.m.View().Message, h.sent)
+	}
+	h.m.OnRender() // the message stays while suggestions are off
+	h.state(sugError)
+	h.m.OnKey(kd("a"))
+	h.state(sugIdle)
+
+	// A notice and a loading request go when suggestions are turned off.
+	h = newHarness(t)
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "hash")
+	h.m.OnKey(kd("Tab"))
+	h.state(sugLoading)
+	h.mode = sugOff
+	h.m.ModeChanged()
+	h.state(sugIdle)
+	h.m.OnSuggest(h.sent[1].seq, true, opts("ls"), "", "") // the answer comes after off: nothing shows
+	h.state(sugIdle)
+}
+
+// A request whose answer is lost does not stay loading: past suggestWait the card shows the error, ⇥ dismisses it, and a
+// late answer for it shows nothing (plan 036; before, nothing but a key ended the wait).
+func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
+	h := newHarness(t)
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "jev")
+	h.m.OnKey(kd("Tab"))
+	h.state(sugLoading)
+	if due, ok := h.m.Due(); !ok || !due.Equal(h.now.Add(suggestWait)) {
+		t.Fatalf("due %v %v", due, ok)
+	}
+	h.tick(suggestWait - time.Second)
+	h.m.Tick()
+	h.state(sugLoading)
+	h.tick(time.Second)
+	h.m.Tick()
+	h.state(sugError)
+	if got := h.m.View().Message; got != "No suggestion came back." {
+		t.Fatalf("message %q", got)
+	}
+	if _, ok := h.m.Due(); ok {
+		t.Fatal("a timer is still waiting after the error")
+	}
+	h.m.OnSuggest(h.sent[1].seq, true, opts("ls"), "", "") // the answer that was lost arrives
+	h.state(sugError)
+	if !h.m.OnKey(kd("Tab")) {
+		t.Fatal("⇥ on the error was not taken")
+	}
+	h.state(sugIdle)
 }
 
 // Beyond the JS cases: the pieces the page has in other files.

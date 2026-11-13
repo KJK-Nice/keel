@@ -107,6 +107,7 @@ func startRig(t *testing.T) *rig {
 		hosts = append(hosts, keelclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("srv-%d", i), Address: fmt.Sprintf("10.0.0.%d", i), Username: "ops", AuthType: "key", Group: "fleet"})
 	}
 	r := newRig(t, &fakeBackend{hosts: hosts})
+	diagWindow(t, r) // issue #140: on a failure, what differs from macOS (linuxdiag_test.go)
 	r.tt.Frame()
 	return r
 }
@@ -263,6 +264,37 @@ func TestAltNumberOpensThatCardsHost(t *testing.T) {
 	r.press(ui.Alt, ui.Key1)
 	if len(r.fb.spawned) != 1 {
 		t.Errorf("⌥1 outside the page spawned %v", r.fb.spawned)
+	}
+}
+
+// A Mac types "™" for ⌥2 into the focused input before the shortcut runs. The card is the one the number stood for when
+// the key went down, the character does not stay, and one press opens one card (found in a real window, plan 036).
+func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
+	r := startRig(t)
+	r.w.recentIDs = []string{"h3", "h1"}
+	r.tt.Frame()
+	r.tt.KeyDown(ui.Key2) // as the surface sends it: no modifier release between
+	r.tt.Frame()
+	r.tt.KeyUp(ui.Key2)
+	r.tt.Frame()
+	if len(r.fb.spawned) != 0 {
+		t.Fatalf("a bare 2 opened %v", r.fb.spawned)
+	}
+	r.tt.Type("ab")
+	r.tt.Frame()
+	r.tt.Key(ui.Alt, ui.Key6)
+	r.tt.Type("º")
+	r.tt.Frame()
+	if len(r.fb.spawned) != 0 || r.w.tab().page.query != "ab" {
+		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.tab().page.query)
+	}
+	r.w.tab().page.query = ""
+	r.tt.Frame()
+	r.tt.Key(ui.Alt, ui.Key2)
+	r.tt.Type("™")
+	r.tt.Frame()
+	if !slices.Equal(r.fb.spawned, []string{"h3"}) {
+		t.Fatalf("⌥2 spawned %v, want the second card", r.fb.spawned)
 	}
 }
 

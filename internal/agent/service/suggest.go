@@ -503,8 +503,12 @@ func (s *Service) runModel(ctx context.Context, sg Suggester, in SuggestInput, s
 	defer cancel()
 	c, err := sg.Suggest(cctx, in)
 	if err != nil {
-		if errors.Is(cctx.Err(), context.DeadlineExceeded) || ctx.Err() != nil {
-			return nil, 0, s.providerErr(ctx, cctx, err)
+		if ctx.Err() != nil {
+			return nil, 0, context.Canceled
+		}
+		if errors.Is(cctx.Err(), context.DeadlineExceeded) {
+			// Not providerErr: its message names the ask timeout (s.timeout), not this one.
+			return nil, 0, &ProviderError{Msg: fmt.Sprintf("The model did not answer within %s.", suggestTimeout)}
 		}
 		var pe *ProviderError
 		if errors.As(err, &pe) {

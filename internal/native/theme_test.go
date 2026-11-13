@@ -41,7 +41,9 @@ func TestChoosingATheme_RepaintsTheTitleBarSidebarTileAndDialog(t *testing.T) {
 		if !ok {
 			t.Fatal("no palette dialog")
 		}
-		r.wantPix(t, th.choice+" dialog", d.X+d.W-90, d.Y+paletteSearch/2, th.p.raised)
+		// In the search row's right padding (16 px), which is the dialog's own ground: 90 px in from the edge lay inside the row's
+		// content, whose extent depends on the font (on Ubuntu the sample was [24 24 27], the surface of an input, not [39 39 42]).
+		r.wantPix(t, th.choice+" dialog", d.X+d.W-8, d.Y+paletteSearch/2, th.p.raised)
 		r.w.closePalette()
 		r.tt.Frame()
 	}

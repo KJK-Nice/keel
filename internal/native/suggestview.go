@@ -81,7 +81,13 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 			hint(r, "suggestion hint", func() {
 				icon(c, "ai-magic", accentInk)
 				caption(c, lead, inkFaint)
-				kbd(c, k.Tab)
+				if v.Hash { // a # line is a request: ⇥ asks. A line noticed on its own leaves ⇥ to the shell and names the key
+					kbd(c, k.Tab)
+				} else {
+					for _, s := range k.Suggest {
+						kbd(c, s)
+					}
+				}
 				caption(c, tail, inkFaint)
 			})
 		}

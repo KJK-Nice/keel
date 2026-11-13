@@ -3,6 +3,7 @@ package native
 import (
 	"io"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,7 +80,7 @@ func gateTerm(t *testing.T, echo bool, onKey func(ui.Modifiers, ui.Key) bool, w,
 	registerFonts()
 	conn := newGateConn(echo)
 	term, err := terminal.New(terminal.Options{
-		Conn: conn, Font: terminal.Font{Family: termStack(fontJetBrains), Size: 13}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, OnKey: onKey,
+		Conn: conn, Font: terminal.Font{Family: gateStack(), Size: 13}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, OnKey: onKey,
 	})
 	if err != nil {
 		t.Fatal("the terminal library is missing, so the gate cannot be held:", err) // never a skip: a skipped gate proves nothing
@@ -191,7 +192,15 @@ func TestGateTakesKeysOnlyWhileTheWindowSaysSo(t *testing.T) {
 		{"Up", func() { tt.Key(0, ui.KeyUp) }, 0, ui.KeyUp, "\x1b[A"},
 		{"Down", func() { tt.Key(0, ui.KeyDown) }, 0, ui.KeyDown, "\x1b[B"},
 		{"1", func() { tt.TypeKey(0, ui.Key1, "1") }, 0, ui.Key1, "1"},
-		{"Cmd+Z", func() { tt.Key(ui.Cmd, ui.KeyZ) }, ui.Cmd, ui.KeyZ, ""}, // a Command key never reaches the program on macOS
+	}
+	if runtime.GOOS == "darwin" { // a Command key never reaches the program on macOS; ui.Cmd is Ctrl elsewhere, and Ctrl+Z is the shell's (^Z)
+		keys = append(keys, struct {
+			name  string
+			press func()
+			mods  ui.Modifiers
+			key   ui.Key
+			sent  string
+		}{"Cmd+Z", func() { tt.Key(ui.Cmd, ui.KeyZ) }, ui.Cmd, ui.KeyZ, ""})
 	}
 	for _, k := range keys {
 		seen = nil
@@ -230,6 +239,17 @@ func caretCell(t *testing.T, tt *ui.Tester) ui.Rect {
 	return r
 }
 
+// gateStack is the terminal's family list in the gate tests: Keel's default (JetBrains Mono) on macOS, where the app registers
+// it; the system mono elsewhere. On Linux the app registers no bundled font (registerFonts), but the fontconfig of a test
+// process holds the shipped woff2 files its font tests registered, under their own family names too, and those measure about
+// 1.9 times too wide (issue #140): the gate must not depend on which tests ran before it.
+func gateStack() string {
+	if runtime.GOOS == "darwin" {
+		return termStack(fontJetBrains)
+	}
+	return termStack("system")
+}
+
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 0.01 }
 
 // Gate 3: a cell's rect, measured from the font, is the plugin's own: the caret's rect is the cursor's cell, and the same
@@ -239,7 +259,7 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 		for _, size := range []float32{13, 17, 10} {
 			term, conn, tt := gateTerm(t, false, nil, 700, 260)
 			tt.SetScale(sc)
-			term.SetFont(terminal.Font{Family: termStack(fontJetBrains), Size: size})
+			term.SetFont(terminal.Font{Family: gateStack(), Size: size})
 			tt.Frame()
 			conn.out <- []byte("a\r\nsh-3.2$ show me the biggest files")
 			waitRow(t, term, "sh-3.2$ show me the biggest files")
@@ -251,10 +271,16 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 				row, text, ok := cursorRow(snap, rows)
 				m := snapCursor.FindStringSubmatch(snap[strings.Index(snap, "\x1b[H"):])
 				if !ok || m == nil {
-					t.Fatalf("%s: the cursor is not placed in %q", what, snap)
+					// Issue #140 diagnostics: a line that exactly fills the columns leaves the cursor on the next row (pending wrap),
+					// where there is no text line to read. The cell width the plugin used decides the columns: log it, with the
+					// widths this process measures for the family (a cell of 13.8 px at size 13 is not JetBrains Mono's 7.8).
+					gg := gridFor(gateStack(), size, sc)
+					t.Fatalf("%s: the cursor is not placed in %q (scale %v, size %v, %d cols x %d rows, row %d ok %v, cell %.2f x %.2f, \"MMMMMMMMMM\" is %.2f wide in the stack, %.2f in monospace)",
+						what, snap, sc, size, cols, rows, row, ok, gg.cw, gg.ch,
+						probeWidth("MMMMMMMMMM", size, gateStack()), probeWidth("MMMMMMMMMM", size, "monospace"))
 				}
 				col, _ := strconv.Atoi(m[2])
-				g := gridFor(termStack(fontJetBrains), size, sc)
+				g := gridFor(gateStack(), size, sc)
 				want, got := g.at(row, col-1, 1), caretCell(t, tt)
 				if !near(want.X, got.X) || !near(want.Y, got.Y) || !near(want.W, got.W) || !near(want.H, got.H) {
 					t.Errorf("%s (scale %v, size %v, %d cols x %d rows, %q): measured %v, the plugin's caret %v", what, sc, size, cols, rows, text, want, got)
@@ -264,7 +290,7 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 			tt.SetSize(520, 330) // a resize
 			tt.Frame()
 			check("after a resize")
-			term.SetFont(terminal.Font{Family: termStack(fontJetBrains), Size: size + 3}) // a text size change
+			term.SetFont(terminal.Font{Family: gateStack(), Size: size + 3}) // a text size change
 			size += 3
 			tt.Frame()
 			tt.Frame() // the font is laid out when the view is next painted

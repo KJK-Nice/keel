@@ -251,7 +251,7 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	r.typeKeys("show the files here")
 	r.waitFor("the notice", has("suggestion notice"))
 	r.shot("suggest-01-notice")
-	r.key("Tab")
+	r.key("Cmd+Y") // a line noticed on its own leaves Tab to the shell; the suggest key asks (plan 036)
 	r.waitFor("the card", has("suggested command"))
 	r.shot("suggest-02-card")
 	r.key("Escape")
@@ -272,11 +272,46 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	time.Sleep(900 * time.Millisecond)
 	r.typeKeys(" please") // typing is never held back; a new pause, a new notice
 	r.waitFor("a notice for the longer line", has("suggestion notice"))
-	r.key("Tab")
+	r.key("Cmd+Y")
 	r.waitFor("a card", has("suggested command"))
 	r.key("Escape")
 	r.waitFor("the card gone", lacks("suggested command"))
 	r.shot("suggest-04-second-esc")
+	r.quit()
+}
+
+// Plan 036 in a real window, with the default settings ("Only lines starting with #"): a typed plain line is not noticed
+// and is sent nowhere, ⌘Y asks for it and the card follows, and ⇥ is the shell's while nothing shows.
+func TestSuggestKeyAsksInARealWindow(t *testing.T) {
+	r := newRig(t)
+	r.startServe()
+	for _, p := range []struct {
+		path string
+		body map[string]string
+	}{
+		{"/api/agent/keys/gemini", map[string]string{"key": "fake-key-for-tests-only-0000"}},
+		{"/api/agent/keys/jev", map[string]string{"key": "fake-jev-key-for-tests-only-0000"}},
+		{"/api/agent/settings", map[string]string{"suggestions": "on"}},
+	} {
+		if code := r.put(p.path, p.body); code != 200 {
+			t.Fatalf("PUT %s: %d", p.path, code)
+		}
+	}
+	r.startApp()
+	openShell(r)
+	r.waitFor("the prompt", func([]node) bool { return strings.HasSuffix(strings.TrimSpace(r.scrollback()), "$") })
+
+	r.typeKeys("show the files here")
+	time.Sleep(1200 * time.Millisecond) // past the typing pause: nothing may come of it
+	r.settle()
+	if find(r.tree(), "suggestion notice") != nil || find(r.tree(), "suggested command") != nil {
+		t.Fatal("a plain line was noticed with the default settings")
+	}
+	r.key("Cmd+Y")
+	r.waitFor("the card", has("suggested command"))
+	r.shot("suggest-05-asked")
+	r.key("Escape")
+	r.waitFor("the card gone", lacks("suggested command"))
 	r.quit()
 }
 

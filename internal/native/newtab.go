@@ -33,7 +33,21 @@ type startPage struct {
 	connecting string // the host id being opened in this tab
 	focus      bool   // give the input the keyboard
 	input      ui.Handle
+	alt        altPress
 }
+
+// altPress is the page as ⌥1 to ⌥6 found it: on a Mac the key's character ("™" for ⌥2) reaches the input before the
+// shortcut runs, and would filter the cards the number stands for.
+type altPress struct {
+	cards []keelclient.Host
+	query string
+	at    time.Time
+	done  bool // a card was opened for this press
+}
+
+const altPressFor = 500 * time.Millisecond
+
+func (a altPress) fresh() bool { return !a.at.IsZero() && time.Since(a.at) < altPressFor }
 
 func newStartTab() *tab { return &tab{panes: map[string]*pane{}, page: &startPage{focus: true}} }
 
@@ -286,7 +300,14 @@ func (w *workspace) openCard(t *tab, n int) {
 	if t.page == nil { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
 		return
 	}
-	if cards := w.cards(t.page); n >= 0 && n < len(cards) {
+	cards := w.cards(t.page)
+	if a := &t.page.alt; a.fresh() { // the page saw this key too: one press opens one card, whichever path comes second
+		if a.done {
+			return
+		}
+		a.done, cards = true, a.cards
+	}
+	if n >= 0 && n < len(cards) {
 		w.openFrom(t, cards[n])
 	}
 }

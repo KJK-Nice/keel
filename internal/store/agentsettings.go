@@ -9,8 +9,8 @@ import (
 // Agent settings choices. The settings live in keel.json and hold no
 // secret: provider keys are vault secrets (agentkeys.go).
 const (
-	DetectionAuto     = "auto"      // a classifier notices plain language
-	DetectionHashOnly = "hash-only" // only lines starting with #
+	DetectionAuto     = "auto"      // a classifier notices plain language: opt in, each typing pause sends the line to Jev
+	DetectionHashOnly = "hash-only" // only lines starting with #, or the user's own request (the default)
 
 	SuggestionsOn  = "on"  // plain-language suggestions in panes (§5.5)
 	SuggestionsOff = "off" // no notice, no hint, no detection call
@@ -75,7 +75,7 @@ func DefaultAgentSettings() AgentSettings {
 	return AgentSettings{
 		Provider:           DefaultAgentProvider,
 		Model:              DefaultAgentModel,
-		Detection:          DetectionAuto,
+		Detection:          DetectionHashOnly,
 		Suggestions:        SuggestionsOn,
 		HistorySuggestions: SuggestionsOn,
 		DefaultScope:       ScopeFocused,

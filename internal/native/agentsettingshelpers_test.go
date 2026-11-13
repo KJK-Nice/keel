@@ -31,10 +31,10 @@ func TestDetectionNoteAutoNeedsJevHashLinesNever(t *testing.T) {
 	if n := detectionNote("on", "auto", false); !strings.Contains(n, "Jev is not connected") || !strings.Contains(n, "only lines that start with #") {
 		t.Errorf("auto without Jev: %q", n)
 	}
-	if n := detectionNote("on", "auto", true); n != "" {
+	if n := detectionNote("on", "auto", true); !strings.Contains(n, "⇥ stays the shell's") || !strings.Contains(n, suggestKeyHere()) {
 		t.Errorf("auto with Jev: %q", n)
 	}
-	if n := detectionNote("on", "hash-only", false); !strings.Contains(n, "comment") {
+	if n := detectionNote("on", "hash-only", false); !strings.Contains(n, "comment") || !strings.Contains(n, "Nothing you type is sent") {
 		t.Errorf("hash-only: %q", n)
 	}
 	if n := detectionNote("off", "auto", false); n != "" {

@@ -5,6 +5,9 @@ package native
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ebitengine/purego"
@@ -15,20 +18,23 @@ import (
 // blurTimeout bounds the wait for the main thread to run the call.
 const blurTimeout = 2 * time.Second
 
-// invalidateWindowShadow makes the window server work the window's shadow out again from what the window shows now. A
-// Transparent window's shadow is cut from its content's alpha and shows through the translucent grounds; it is made once
-// and never again (MyGo calls invalidateShadow only when it makes the window), so the shadow of the first page stays
-// under every later one: a ghost of it. Call it off the main thread (a goroutine).
-func invalidateWindowShadow(win *mygo.Window) {
-	go mygo.RunOnMain(func() {
-		defer func() { recover() }() // a failure only leaves the old shadow
-		if h := win.NativeHandle(); h != 0 {
-			objc.ID(h).Send(objc.RegisterName("invalidateShadow"))
-		}
-	})
+// windowCornerRadius is the radius macOS cuts a titled window to, which the window border follows: 10 pt up to macOS 15, and
+// 16 pt from macOS 26 (Liquid Glass rounds windows without a toolbar more). Not read from the window: AppKit has no call for it.
+func windowCornerRadius() float32 {
+	v, err := syscall.Sysctl("kern.osproductversion")
+	if err != nil {
+		return 10
+	}
+	major, _, _ := strings.Cut(v, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 26 {
+		return 16
+	}
+	return 10
 }
 
-// setWindowHasShadow gives the window its shadow or takes it away (Settings · Appearance · Window shadow), on the main thread.
+// setWindowHasShadow gives the window its shadow or takes it away, on the main thread. Keel's window has none: a
+// Transparent window's shadow is cut from its content's alpha once and shows through the translucent grounds as a ghost
+// of the first page, so run.go takes it away when the window shows (plan 037 part C).
 func setWindowHasShadow(win *mygo.Window, on bool) {
 	go mygo.RunOnMain(func() {
 		defer func() { recover() }()

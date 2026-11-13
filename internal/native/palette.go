@@ -259,6 +259,7 @@ func (w *workspace) paletteItems() []palItem {
 	add("Tabs", "Last tab", "⌘9", "", func() { w.selectTab(len(w.tabs) - 1) })
 	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
 	add("Agent", "Toggle agent panel", "⌘I", "ai-magic", w.toggleAgent)
+	add("Agent", "Suggest a command for this line", suggestKeyLabel(runtime.GOOS == "darwin"), "ai-magic", w.suggestRequest)
 	add("Agent", "Agent conversations", "", "ai-magic", w.openAgentPage)
 	add("Agent", "Runbooks", "", "ai-magic", w.openRunbooksPage)
 	// A folder's roles, notes and runs (§17).

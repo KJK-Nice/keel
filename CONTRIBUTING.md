@@ -19,8 +19,7 @@ macOS needs the Xcode Command Line Tools for `codesign` (`xcode-select --install
 The same ones CI runs on every PR:
 
 ```bash
-make test              # go test ./...
-make test-nonwindow    # the same without the window package (CI's Linux leg: the window's tests are not green on Linux, docs/native.md)
+make test              # go test ./... (both CI legs, Ubuntu and macOS, run it, the window's package included)
 make lint              # gofmt, go vet, staticcheck, govulncheck
 make native-e2e        # the window end to end (macOS); PNGs in .scratch-native/e2e/
 ```
@@ -37,7 +36,7 @@ git tag v0.2.0 && git push origin v0.2.0
 
 The workflow runs `scripts/release.sh` for each target, which calls `go tool mygo build`. The script fails, before anything is published, when the tag and `mygo.json` disagree. It makes `keel-<version>.dmg` (macOS, universal: arm64 + x86_64, `Keel.app` inside), `keel-<version>-linux-{amd64,arm64}.tar.gz` and `keel_<version>_{amd64,arm64}.deb` (one Ubuntu runner builds both) and `keel-signal-<version>-<os>-<cpu>` for macOS, Linux and Windows (plain `go build`). `LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each; `SHA256SUMS` lists them all. The release is published with the install notes in `.github/release-notes.md` and notes generated from the merged PRs. A tag with a hyphen (`v0.2.0-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`. The macOS app is signed ad hoc and not notarized unless the repository has the signing secrets of [docs/release.md](docs/release.md).
 
-A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh v0.2.0 macos|linux|signal` builds into `dist/` (the version of `mygo.json` is 0.2.0); it never uploads. The packages keep MyGo's file names. The "What's new" section of `.github/release-notes.md` is the release's own: rewrite it for each tag.
+A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh v0.2.1 macos|linux|signal` builds into `dist/` (the version of `mygo.json` is 0.2.1); it never uploads. The packages keep MyGo's file names. The "What's new" section of `.github/release-notes.md` is the release's own: rewrite it for each tag.
 
 ## UI work
 
