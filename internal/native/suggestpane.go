@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -150,15 +151,10 @@ func (w *workspace) suggestSettingsChanged() {
 
 // refreshSuggestSettings reads the agent settings again, for the machines (the window's start, an unlock, a changed rev).
 func (w *workspace) refreshSuggestSettings() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		w.post(func() {
-			if !w.closed && err == nil {
-				w.noteSuggestSettings(s)
-			}
-		})
+	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+		if err == nil {
+			w.noteSuggestSettings(s)
+		}
 	})
 }
 
@@ -274,20 +270,12 @@ func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int
 // thread: keel serve answers within 4 s.
 func (w *workspace) insertSuggestion(p *pane, ref keelclient.SuggestionRef, done func(insertResult)) {
 	conn := p.conn
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := conn.SuggestInsert(c, ref)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				done(insertResult{Message: err.Error()})
-				return
-			}
-			done(insertResult{OK: true})
-		})
+	callErr(w, func(c context.Context) error { return conn.SuggestInsert(c, ref) }, func(err error) {
+		if err != nil {
+			done(insertResult{Message: err.Error()})
+			return
+		}
+		done(insertResult{OK: true})
 	})
 }
 

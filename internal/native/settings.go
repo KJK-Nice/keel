@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"math"
 	"os"
 	"strings"
@@ -74,30 +75,33 @@ func newSettingsPage() *settingsPage {
 // loadSettings reads what Sharing, Vault & security, Runtime and About show (settingspages.js refresh). Neither call
 // holds a secret.
 func (w *workspace) loadSettings() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rt, rerr := w.be.Runtime(c)
-		v, verr := w.be.Vault(c)
-		w.post(func() {
-			t := w.pageTab("settings")
-			if t == nil || w.closed {
-				return
-			}
-			p := t.pg.settings
-			if rerr == nil {
-				p.rt = &rt
-			}
-			if verr == nil {
-				p.vault = &v
-			}
-			p.loaded = true
-			if rerr != nil || verr != nil {
-				p.loadFail = "Could not read keel serve"
-			} else {
-				p.loadFail = ""
-			}
-		})
+	type read struct {
+		rt         keelclient.Runtime
+		v          keelclient.Vault
+		rerr, verr error
+	}
+	call(w, func(c context.Context) (r read, _ error) {
+		r.rt, r.rerr = w.be.Runtime(c)
+		r.v, r.verr = w.be.Vault(c)
+		return r, nil
+	}, func(r read, _ error) {
+		t := w.pageTab("settings")
+		if t == nil {
+			return
+		}
+		p := t.pg.settings
+		if r.rerr == nil {
+			p.rt = &r.rt
+		}
+		if r.verr == nil {
+			p.vault = &r.v
+		}
+		p.loaded = true
+		if r.rerr != nil || r.verr != nil {
+			p.loadFail = "Could not read keel serve"
+		} else {
+			p.loadFail = ""
+		}
 	})
 }
 
@@ -227,26 +231,21 @@ func (w *workspace) commitSignal(p *settingsPage) {
 		return
 	}
 	p.signalSaving = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		info, err := w.be.SetSignal(c, url)
-		w.post(func() {
-			p.signalSaving = false
-			if err != nil {
-				w.warn(errText("Could not save the signal server", err))
-				return
-			}
-			if p.rt != nil {
-				p.rt.SignalURL, p.rt.SignalSource, p.rt.SignalSaved = info.SignalURL, info.SignalSource, info.SignalSaved
-			}
-			p.signalSeen = false // the field takes the saved value again
-			if url == "" {
-				w.say("Signal server removed")
-			} else {
-				w.say("Signal server saved")
-			}
-		})
+	call(w, func(c context.Context) (keelclient.Runtime, error) { return w.be.SetSignal(c, url) }, func(info keelclient.Runtime, err error) {
+		p.signalSaving = false
+		if err != nil {
+			w.warn(errText("Could not save the signal server", err))
+			return
+		}
+		if p.rt != nil {
+			p.rt.SignalURL, p.rt.SignalSource, p.rt.SignalSaved = info.SignalURL, info.SignalSource, info.SignalSaved
+		}
+		p.signalSeen = false // the field takes the saved value again
+		if url == "" {
+			w.say("Signal server removed")
+		} else {
+			w.say("Signal server saved")
+		}
 	})
 }
 
@@ -274,30 +273,21 @@ func (w *workspace) checkRuntimeBuild() {
 	if w.appBuild == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rt, err := w.be.Runtime(c)
-		if err != nil || !runtimeIsStale(w.appBuild, rt.Build) {
-			return
+	call(w, w.be.Runtime, func(rt keelclient.Runtime, err error) {
+		if err == nil && runtimeIsStale(w.appBuild, rt.Build) {
+			w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime)
 		}
-		w.post(func() { w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime) })
 	})
 }
 
 // stopRuntime is the confirm's action: POST /api/runtime/stop. keel serve ends every session and exits.
 func (w *workspace) stopRuntime() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.StopRuntime(c)
-		w.post(func() {
-			if err != nil {
-				w.warn(errText("stop runtime", err))
-				return
-			}
-			w.say("Keel runtime stopped")
-		})
+	callErr(w, w.be.StopRuntime, func(err error) {
+		if err != nil {
+			w.warn(errText("stop runtime", err))
+			return
+		}
+		w.say("Keel runtime stopped")
 	})
 }
 

@@ -723,11 +723,14 @@ func (w *workspace) reconnect(p *pane) {
 	if sid == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		if err := w.be.Reconnect(c, sid); err != nil {
-			w.post(func() { w.fail("reconnect", err) })
+	w.failed("reconnect", func(c context.Context) error { return w.be.Reconnect(c, sid) })
+}
+
+// failed runs a request whose only visible result is a toast when it fails.
+func (w *workspace) failed(what string, do func(context.Context) error) {
+	callErr(w, do, func(err error) {
+		if err != nil {
+			w.fail(what, err)
 		}
 	})
 }
@@ -737,27 +740,17 @@ func (w *workspace) reconnect(p *pane) {
 func (w *workspace) trustHostKey(p *pane, k keelclient.HostKey) {
 	p.declined = k // the dialog closes now; a new offer opens it again
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	w.failed("trust host key", func(c context.Context) error {
 		err := w.be.TrustHostKey(c, k, k.Kind == keelclient.HostKeyMismatch)
 		if err == nil && sid != "" {
 			err = w.be.Reconnect(c, sid)
 		}
-		if err != nil {
-			w.post(func() { w.fail("trust host key", err) })
-		}
+		return err
 	})
 }
 
 func (w *workspace) kill(sid string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		if err := w.be.Kill(c, sid); err != nil {
-			w.post(func() { w.fail("close pane", err) })
-		}
-	})
+	w.failed("close pane", func(c context.Context) error { return w.be.Kill(c, sid) })
 }
 
 // killWhenNamed ends a session that was closed before the server's ready frame named it: it kills the

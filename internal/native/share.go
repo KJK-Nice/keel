@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -264,33 +265,28 @@ func (w *workspace) startShare(s *sharePop) {
 	s.seq++
 	seq, p := s.seq, s.p
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		url, err := w.be.Share(c, sid)
-		w.post(func() {
-			current := w.share == s && s.seq == seq && s.open
-			switch {
-			case err != nil:
-				if current {
-					s.status, s.err = "error", errText("share", err)
-				} else {
-					w.fail("share", err)
-				}
-			case url == "":
-				if current {
-					s.status, s.err = "error", "The share started but returned no link."
-				}
-			default:
-				if w.shareLinks == nil {
-					w.shareLinks = map[string]shareLink{}
-				}
-				w.shareLinks[sid] = shareLink{url}
-				if current {
-					s.status, s.link, s.err, s.wantCopy = "ready", shareLink{url}, "", true
-				}
+	call(w, func(c context.Context) (string, error) { return w.be.Share(c, sid) }, func(url string, err error) {
+		current := w.share == s && s.seq == seq && s.open
+		switch {
+		case err != nil:
+			if current {
+				s.status, s.err = "error", errText("share", err)
+			} else {
+				w.fail("share", err)
 			}
-		})
+		case url == "":
+			if current {
+				s.status, s.err = "error", "The share started but returned no link."
+			}
+		default:
+			if w.shareLinks == nil {
+				w.shareLinks = map[string]shareLink{}
+			}
+			w.shareLinks[sid] = shareLink{url}
+			if current {
+				s.status, s.link, s.err, s.wantCopy = "ready", shareLink{url}, "", true
+			}
+		}
 	})
 }
 
@@ -323,20 +319,15 @@ func (w *workspace) stopShare() {
 		return
 	}
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.StopShare(c, sid)
-		w.post(func() {
-			if err != nil {
-				w.fail("stop sharing", err)
-				return
-			}
-			delete(w.shareLinks, sid)
-			w.forgetPrompts(p)
-			w.closeShare()
-			w.say("Sharing stopped. The join link no longer works.")
-		})
+	callErr(w, func(c context.Context) error { return w.be.StopShare(c, sid) }, func(err error) {
+		if err != nil {
+			w.fail("stop sharing", err)
+			return
+		}
+		delete(w.shareLinks, sid)
+		w.forgetPrompts(p)
+		w.closeShare()
+		w.say("Sharing stopped. The join link no longer works.")
 	})
 }
 
@@ -425,16 +416,11 @@ func (w *workspace) answerJoin(s *sharePrompt, allow bool) {
 	}
 	s.busy = true
 	sid := s.p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.AdmitShare(c, sid, s.peerID, allow)
-		w.post(func() {
-			w.dropPrompt(s.p, s.key())
-			if err != nil {
-				w.fail("answer the request", err)
-			}
-		})
+	callErr(w, func(c context.Context) error { return w.be.AdmitShare(c, sid, s.peerID, allow) }, func(err error) {
+		w.dropPrompt(s.p, s.key())
+		if err != nil {
+			w.fail("answer the request", err)
+		}
 	})
 }
 

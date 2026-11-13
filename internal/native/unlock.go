@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -104,22 +105,20 @@ func (w *workspace) submitUnlock() {
 	}
 	pass := g.pass
 	g.pass, g.err, g.busy = "", "", true // the field is empty from here on: the passphrase is only in this request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	callErr(w, func(c context.Context) error {
 		err := w.be.Unlock(c, pass)
 		pass = ""
-		w.post(func() {
-			g.busy = false
-			switch {
-			case err == nil:
-				w.unlocked(g)
-			case errors.Is(err, keelclient.ErrPassphrase):
-				g.err, g.focus = "That passphrase doesn't open the vault.", true
-			default:
-				g.err, g.focus = err.Error(), true
-			}
-		})
+		return err
+	}, func(err error) {
+		g.busy = false
+		switch {
+		case err == nil:
+			w.unlocked(g)
+		case errors.Is(err, keelclient.ErrPassphrase):
+			g.err, g.focus = "That passphrase doesn't open the vault.", true
+		default:
+			g.err, g.focus = err.Error(), true
+		}
 	})
 }
 
