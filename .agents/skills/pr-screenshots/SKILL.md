@@ -7,7 +7,7 @@ description: Put before/after UI screenshots in a GitHub pull request body. Use 
 
 `gh` cannot upload images to a PR (the `user-attachments` upload is web-only), so images live on an orphan branch, `pr-assets`, and the PR body links them. Never merge `pr-assets`.
 
-The shots are the native window's: `make native-e2e` writes one PNG per test to `.scratch-native/e2e/<Test>.png` (dark; `TestE2EThemeSwitch` also writes the `-light` shots). Read `.agents/skills/verify-keel/SKILL.md` first (scratch data only, `KEEL_KEYRING=off`). Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
+The shots are the native window's: `make native-e2e` writes PNGs to `.scratch-native/e2e/<name>.png`, named by the test that calls `shot(name)` (usually dark; `TestE2EThemeSwitch-light*` are light). Read `.agents/skills/verify-keel/SKILL.md` first (scratch data only, `KEEL_KEYRING=off`). Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
 
 ## 1. Before (base ref, in a worktree)
 

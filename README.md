@@ -7,7 +7,7 @@
 **A local SSH workspace with an encrypted vault, live session sharing, and an agent that asks before it types.**
 
 [![CI](https://github.com/KJK-Nice/keel/actions/workflows/test.yml/badge.svg)](https://github.com/KJK-Nice/keel/actions/workflows/test.yml)
-![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-555)
 ![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/keel)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -26,7 +26,7 @@
 - **Share a session over the internet** with WebRTC. Joiners see one terminal, never your hosts or keys, and follow read-only until you hand over control. [More →](docs/sharing.md)
 - **Port forwarding**: local, remote and SOCKS5, on and off per forward.
 - **Snippets and notebooks**, with approve-before-type: nothing is written to a terminal until you see the bytes and click **Type**.
-- **Command marks** for bash, zsh and fish (OSC 133): exit status in the gutter, jump between commands. [More →](docs/shell-integration.md)
+- **Command marks** for bash, zsh and fish (OSC 133): `keel serve` follows them, so the agent reads a pane's last command and its exit status. [More →](docs/shell-integration.md)
 - **Agent (in progress).** Ask about your panes; it reads redacted output, proposes commands, never types on its own, never sees the vault, and logs every read. Claude Code can join in through `keel mcp`, under the same rules, once you allow it in Settings · Agent. [More →](docs/agent.md)
 
 <p align="center">
@@ -38,15 +38,17 @@
 
 Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/releases/latest)**.
 
-**macOS 13+** (Apple Silicon and Intel): open `keel-<version>.dmg` and drag **Keel.app** to Applications. Unless the release says it is notarized, macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`. The `keel` command of the app (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
+What each release holds (file names, platforms, signing) is in [docs/release.md](docs/release.md).
+
+**macOS 13+** (Apple Silicon and Intel): open the `.dmg` and drag **Keel.app** to Applications. Unless the release says it is notarized, macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`. The `keel` command of the app (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
 
 **Linux**, x86_64 (`amd64`) or arm64 (the window is Keel's own, so there is no WebKit to install; it needs GTK 3, and the package carries libghostty-vt beside the binary):
 
 ```bash
 # Debian, Ubuntu: installs /opt/keel, the `keel` command and a menu entry
-sudo apt install ./keel_<version>_amd64.deb        # or _arm64.deb
-# any distribution: unpack the archive into a folder of its own and run keel there
-mkdir keel && tar -xzf keel-<version>-linux-amd64.tar.gz -C keel && ./keel/keel   # or -arm64
+sudo apt install ./keel_*_amd64.deb                # or the arm64 one
+# any distribution: unpack the .tar.gz into a folder of its own and run keel there
+mkdir keel && tar -xzf keel-*-linux-amd64.tar.gz -C keel && ./keel/keel   # or the arm64 one
 ```
 
 The Linux window has not been run by the maintainer yet (`docs/native.md`). Windows is not supported yet. Each release lists its files' checksums in `SHA256SUMS`; `keel version` prints the version you run.
