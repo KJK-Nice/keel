@@ -5,7 +5,7 @@
 - **Turning suggestions off takes effect at once** in every open pane, also when it is changed in another window; ⌘Y then says they are off.
 - **⌥1–⌥6 on the New tab page** open the card with the caret in the input too, without typing the Option character.
 - **A disconnected pane** no longer shows the terminal and a blinking caret behind its overlay; the terminal comes back when the session does.
-- **Linux fixes** found by running the window's tests on Ubuntu: the hint after a plain Tab on a destructive suggestion reads "Shift+Tab" (it read "ShiftTab"); the Agent page no longer pushes the Agent panel out of the window beside it; the narrowest sidebar is a little wider so its four labels fit; and the bundled JetBrains Mono and IBM Plex Mono are not used on Linux for now (they measured about 1.8 times too wide there), the system monospace is.
+- **Linux fixes** found by running the window's tests on Ubuntu: the hint after a plain Tab on a destructive suggestion reads "Shift+Tab" (it read "ShiftTab"); the Agent page no longer pushes the Agent panel out of the window beside it; the narrowest sidebar is a little wider so its four labels fit; and the bundled JetBrains Mono and IBM Plex Mono are not used on Linux for now (when registered on Ubuntu an M measured 15 px at size 13 where the font's own width is 7.8; cause not yet found), the system monospace is.
 - **No window shadow.** The Window shadow setting is gone; the window has a thin border instead (macOS).
 
 ## Install
