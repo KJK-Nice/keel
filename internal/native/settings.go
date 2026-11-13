@@ -212,8 +212,12 @@ func (w *workspace) setDisplayName(v string) {
 	w.savePref(nameKey, v)
 }
 
-// defaultName is the name used when no custom one is set: KEEL_NAME, else the user name (cmd/keel parseName).
+// defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else
+// KEEL_NAME, else the user name (cmd/keel parseName).
 func defaultName() string {
+	if launchName != "" {
+		return launchName
+	}
 	for _, k := range []string{"KEEL_NAME", "USER"} {
 		if v := os.Getenv(k); v != "" {
 			return v
