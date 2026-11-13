@@ -86,10 +86,14 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		return p.sg.m
 	}
 	p.sg.m = newSugMachine(sugDeps{
-		readLine:    p.promptLine,
-		canSuggest:  func() bool { return w.canSuggest(p) },
-		sendDetect:  func(seq int, line string) { _ = p.conn.SuggestDetect(seq, line) },
-		sendSuggest: func(seq int, line string) { _ = p.conn.SuggestAsk(seq, line) },
+		readLine:   p.promptLine,
+		canSuggest: func() bool { return w.canSuggest(p) },
+		sendDetect: func(seq int, line string) { _ = p.conn.SuggestDetect(seq, line) },
+		sendSuggest: func(seq int, line string) {
+			if err := p.conn.SuggestAsk(seq, line); err != nil { // not asked: never leave the card loading
+				p.sg.m.OnSuggest(seq, false, nil, "Keel could not ask for a suggestion.", "send")
+			}
+		},
 		insert: func(sug *keelclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
 			w.suggestInsert(p, sug, i, shift, words, done)
 		},

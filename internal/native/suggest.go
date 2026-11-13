@@ -20,6 +20,10 @@ const (
 	offBackoff    = 15 * time.Second       // OFF_BACKOFF_MS: after "off", wait before asking again
 	suggestMaxLen = 300                    // MAX_LINE
 	insertedSeen  = 3 * time.Second        // how long an inserted command may stay unseen on the line
+	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
+	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
+	// request it accepted, so this is for an answer that was lost.
+	suggestWait = 37 * time.Second
 )
 
 type sugState string
@@ -241,6 +245,7 @@ type sugMachine struct {
 	pendSeq   int // the detect in flight, 0 for none
 	pendInput string
 	dueAt     time.Time // when the typing pause ends; zero for none
+	loadDue   time.Time // when a loading request gives up
 	offUntil  time.Time
 	dismissed string
 	cache     map[string]detectHit
@@ -288,12 +293,22 @@ func (m *sugMachine) restore() {
 	}
 }
 
-// Due reports when the typing pause ends, and whether one is waiting.
-func (m *sugMachine) Due() (time.Time, bool) { return m.dueAt, !m.dueAt.IsZero() }
+// Due reports when the next timer ends (the typing pause, or a loading request giving up), and whether one is waiting.
+func (m *sugMachine) Due() (time.Time, bool) {
+	due := m.dueAt
+	if m.st.State == sugLoading && (due.IsZero() || m.loadDue.Before(due)) {
+		due = m.loadDue
+	}
+	return due, !due.IsZero()
+}
 
-// Tick runs the detection when the typing pause has passed (the page's timer).
+// Tick runs the detection when the typing pause has passed, and ends a request that has waited too long (the page's timer).
 func (m *sugMachine) Tick() {
-	if m.dueAt.IsZero() || m.d.now().Before(m.dueAt) {
+	now := m.d.now()
+	if m.st.State == sugLoading && !now.Before(m.loadDue) {
+		m.OnSuggest(m.st.Seq, false, nil, "", "timeout")
+	}
+	if m.dueAt.IsZero() || now.Before(m.dueAt) {
 		return
 	}
 	m.detectNow()
@@ -334,6 +349,7 @@ func (m *sugMachine) detectNow() {
 func (m *sugMachine) startSuggest() {
 	m.seq++
 	m.pendSeq = 0
+	m.loadDue = m.d.now().Add(suggestWait)
 	m.set(sugView{State: sugLoading, Words: m.st.Words, Seq: m.seq})
 	if m.d.sendSuggest != nil {
 		m.d.sendSuggest(m.seq, m.st.Words)

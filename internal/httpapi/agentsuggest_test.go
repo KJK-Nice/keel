@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/agent"
+	"keel/internal/agent/service"
 	"keel/internal/applog"
 )
 
@@ -284,6 +285,22 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 	}
 	if got := len(f.fake.Requests()) - m; got != 1 {
 		t.Fatalf("a burst of 2 suggests reached the model %d times, want 1", got)
+	}
+}
+
+// A provider that never answers still gets an answer: keel serve ends the call at its own bound and sends the card's
+// error, so the window is never left loading (plan 036).
+func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
+	defer service.SetSuggestTimeoutForTest(300 * time.Millisecond)()
+	f := newAskFixture(t, true)
+	web := f.open(t, f.webID, "ready\n")
+	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
+	defer driver.Close()
+	waitJSON(t, driver, "ready")
+	sendJSON(t, driver, map[string]any{"type": "agent-suggest", "seq": 7, "line": "this one will never answer"})
+	r := waitJSON(t, driver, "agent-suggest")
+	if r["seq"] != float64(7) || r["ok"] != false || r["reason"] != "provider" || !strings.Contains(r["message"].(string), "did not answer") {
+		t.Fatalf("a hanging model → %v", r)
 	}
 }
 

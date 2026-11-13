@@ -442,6 +442,38 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // J
 	}
 }
 
+// A request whose answer is lost does not stay loading: past suggestWait the card shows the error, ⇥ dismisses it, and a
+// late answer for it shows nothing (plan 036; before, nothing but a key ended the wait).
+func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
+	h := newHarness(t)
+	h.m.OnInput("x")
+	h.fire()
+	h.m.OnDetect(1, true, "jev")
+	h.m.OnKey(kd("Tab"))
+	h.state(sugLoading)
+	if due, ok := h.m.Due(); !ok || !due.Equal(h.now.Add(suggestWait)) {
+		t.Fatalf("due %v %v", due, ok)
+	}
+	h.tick(suggestWait - time.Second)
+	h.m.Tick()
+	h.state(sugLoading)
+	h.tick(time.Second)
+	h.m.Tick()
+	h.state(sugError)
+	if got := h.m.View().Message; got != "No suggestion came back." {
+		t.Fatalf("message %q", got)
+	}
+	if _, ok := h.m.Due(); ok {
+		t.Fatal("a timer is still waiting after the error")
+	}
+	h.m.OnSuggest(h.sent[1].seq, true, opts("ls"), "", "") // the answer that was lost arrives
+	h.state(sugError)
+	if !h.m.OnKey(kd("Tab")) {
+		t.Fatal("⇥ on the error was not taken")
+	}
+	h.state(sugIdle)
+}
+
 // Beyond the JS cases: the pieces the page has in other files.
 func TestStaleSuggestAnswerAndTypingWhileLoading(t *testing.T) {
 	h := newHarness(t)
