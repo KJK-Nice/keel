@@ -1,12 +1,11 @@
-## What's new in v0.2.0
+## What's new in v0.2.1
 
-- **The window is native.** Keel's window is drawn by [MyGo](https://github.com/egoist/mygo) with libghostty terminals; the webview is gone, and so is `keel app --webview` (a leftover `--webview` argument or `KEEL_UI=webview` prints one line saying so). The daemon serves no web page.
-- **Building needs no GTK or WebKit** (nor cgo, Node or a C toolchain): `make build` is pure Go. On Linux the window needs GTK 3 at run time.
-- **Packages.** macOS: one universal `.dmg` (Apple Silicon and Intel). Linux: a `.tar.gz` and a `.deb` for x86_64 (`amd64`) and arm64. Each carries libghostty-vt, so Keel never downloads it.
-- **Sharing.** The browser join page is gone: a shared session is joined from Keel, with **Join session** and the link. A link opened in a browser answers one line saying so.
-- **The local API** accepts only the `X-Keel-Token` header (no cookie, no query parameter).
-- **Known gaps** compared with the old window: the find bar has no Match case, there is no Previous / Next command, and the terminal's right-click menu is the plugin's own (Copy, Paste, Select all, Clear), without Find, Split or Close pane. `docs/native.md` lists what is missing.
-- **Linux** packages are built but the Linux window has not been run by the maintainer.
+- **Suggestions in panes start only when you ask.** A line you start with `#` (press ⇥ on its notice) or **Suggest a command for this line**, ⌘Y (Ctrl+⇧Y off macOS), also in the palette and on the Keyboard page. Nothing else you type is sent anywhere, and ⇥ stays the shell's. **Notice automatically** is now opt-in in Settings · Agent and, when on, its notice names ⌘Y instead of taking ⇥. Installs that stored the old default are moved once to "Only lines starting with #".
+- **A suggestion request can no longer hang.** It ends with the card or an error ("No suggestion came back." after 37 s at the latest).
+- **Turning suggestions off takes effect at once** in every open pane, also when it is changed in another window; ⌘Y then says they are off.
+- **⌥1–⌥6 on the New tab page** open the card with the caret in the input too, without typing the Option character.
+- **A disconnected pane** no longer shows the terminal and a blinking caret behind its overlay; the terminal comes back when the session does.
+- **No window shadow.** The Window shadow setting is gone; the window has a thin border instead (macOS).
 
 ## Install
 
