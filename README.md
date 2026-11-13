@@ -11,10 +11,7 @@
 ![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/keel)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.png">
-  <img src="docs/images/hero-dark.png" alt="Keel: the Vault sidebar with grouped hosts beside a split terminal tab">
-</picture>
+<img src="docs/images/hero-light.png" alt="Keel: the Vault sidebar with hosts beside a terminal tab" width="80%">
 
 </div>
 
@@ -30,8 +27,7 @@
 - **Agent (in progress).** Ask about your panes; it reads redacted output, proposes commands, never types on its own, never sees the vault, and logs every read. Claude Code can join in through `keel mcp`, under the same rules, once you allow it in Settings · Agent. [More →](docs/agent.md)
 
 <p align="center">
-  <img src="docs/images/palette-dark.png" width="49%" alt="The command palette">
-  <img src="docs/images/newtab-dark.png" width="49%" alt="The New tab page">
+  <img src="docs/images/newtab-dark.png" width="80%" alt="The New tab page, dark theme">
 </p>
 
 ## Install
