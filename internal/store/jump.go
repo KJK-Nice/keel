@@ -16,32 +16,80 @@ import (
 // address, checked like any other connect. Only one hop is supported: a
 // jump host cannot itself use a jump host, which also rules out cycles.
 
-// ErrHostField wraps every jump host and startup command validation error,
-// so the API can answer 400 with the message.
-var ErrHostField = errors.New("invalid host")
+// ErrHostField wraps every validation error of a host a caller saves (its
+// name, how it signs in, its jump host and startup command), and
+// ErrIdentityField every one of an identity, so the API can answer 400
+// with the message.
+var (
+	ErrHostField     = errors.New("invalid host")
+	ErrIdentityField = errors.New("invalid identity")
+)
 
 // MaxStartupCommand is the longest startup command, in bytes.
 const MaxStartupCommand = limits.MaxStartupCommand
 
-type hostFieldError struct{ msg string }
-
-func (e *hostFieldError) Error() string { return e.msg }
-func (e *hostFieldError) Unwrap() error { return ErrHostField }
-
-func fieldErr(format string, args ...any) error {
-	return &hostFieldError{msg: fmt.Sprintf(format, args...)}
+// fieldError is a validation error: msg for the user, of for errors.Is.
+type fieldError struct {
+	of  error
+	msg string
 }
 
-// checkHostFieldsLocked validates the startup command and jump host of h
-// against the saved hosts. h.ID is empty for a new host.
+func (e *fieldError) Error() string { return e.msg }
+func (e *fieldError) Unwrap() error { return e.of }
+
+func fieldErr(format string, args ...any) error {
+	return &fieldError{of: ErrHostField, msg: fmt.Sprintf(format, args...)}
+}
+
+// checkHostFieldsLocked validates h for every save, whoever asks (the API,
+// the ssh config import, a duplicate): its name and sign-in, then the
+// startup command and jump host against the saved hosts. h.ID is empty for
+// a new host.
 func (s *Store) checkHostFieldsLocked(h Host) error {
+	if err := CheckHostSignIn(h); err != nil {
+		return err
+	}
+	if h.AuthType == "identity" && strings.TrimSpace(h.Username) == "" {
+		// A connect takes the identity's user then (withIdentityLocked).
+		if ident, err := s.identityFullLocked(h.IdentityID); err != nil || strings.TrimSpace(ident.Username) == "" {
+			return fieldErr("username is required")
+		}
+	}
 	if err := ValidateStartupCommand(h.StartupCommand); err != nil {
 		return err
 	}
-	if h.StartupCommand != "" && h.AuthType == "local" {
+	if h.StartupCommand != "" && h.IsLocal() {
 		return fieldErr("the local shell has no startup command")
 	}
 	return s.checkJumpLocked(h)
+}
+
+// CheckHostSignIn wants a name, a known AuthType and, for an SSH host, an
+// address and a user. A host that signs in with an identity names it, and
+// may leave the user to it (a save then checks the identity has one).
+// Every save runs it; Test connection runs it on a host that is not saved.
+func CheckHostSignIn(h Host) error {
+	if strings.TrimSpace(h.Name) == "" {
+		return fieldErr("name is required")
+	}
+	switch h.AuthType {
+	case AuthLocal:
+		return nil
+	case "identity":
+		if strings.TrimSpace(h.IdentityID) == "" {
+			return fieldErr("identity is required")
+		}
+	case "password", "key":
+	default:
+		return fieldErr("authType must be local, password, key, or identity")
+	}
+	if strings.TrimSpace(h.Address) == "" {
+		return fieldErr("address is required")
+	}
+	if strings.TrimSpace(h.Username) == "" && h.AuthType != "identity" {
+		return fieldErr("username is required")
+	}
+	return nil
 }
 
 // ValidateStartupCommand accepts one line of printable text: no newline,
@@ -73,7 +121,7 @@ func (s *Store) checkJumpLocked(h Host) error {
 			if jid != "" {
 				return fieldErr("%s uses this host as its jump host, so it cannot use one itself (one hop only)", o.Name)
 			}
-			if h.AuthType == "local" {
+			if h.IsLocal() {
 				return fieldErr("%s uses this host as its jump host, so it cannot be a local shell", o.Name)
 			}
 		}
@@ -81,7 +129,7 @@ func (s *Store) checkJumpLocked(h Host) error {
 	if jid == "" {
 		return nil
 	}
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return fieldErr("the local shell cannot use a jump host")
 	}
 	if h.ID != "" && jid == h.ID {
@@ -91,7 +139,7 @@ func (s *Store) checkJumpLocked(h Host) error {
 	if !ok {
 		return fieldErr("jump host not found")
 	}
-	if j.AuthType == "local" {
+	if j.AuthType == AuthLocal {
 		return fieldErr("the local shell cannot be a jump host")
 	}
 	if j.JumpHost != "" {
@@ -116,7 +164,7 @@ func (s *Store) attachJumpLocked(host *Host) error {
 	if !ok {
 		return fieldErr("jump host not found; edit %s and pick another", host.Name)
 	}
-	if j.AuthType == "local" {
+	if j.AuthType == AuthLocal {
 		return fieldErr("the local shell cannot be a jump host")
 	}
 	if j.JumpHost != "" {

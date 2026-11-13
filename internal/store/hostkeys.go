@@ -91,11 +91,8 @@ type hostKeyOffer struct {
 	expires     time.Time
 }
 
-// offerNow is the clock for offers (tests replace it).
-var offerNow = time.Now
-
 func (s *Store) offerLocked(o hostKeyOffer) string {
-	now := offerNow()
+	now := s.now()
 	if s.offers == nil {
 		s.offers = map[string]hostKeyOffer{}
 	}
@@ -134,7 +131,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 		return KnownHostKey{}, ErrLocked
 	}
 	o, ok := s.offers[token]
-	if !ok || token == "" || offerNow().After(o.expires) || o.hostname != hostname || o.fingerprint != fingerprint {
+	if !ok || token == "" || s.now().After(o.expires) || o.hostname != hostname || o.fingerprint != fingerprint {
 		return KnownHostKey{}, ErrNoOffer
 	}
 	if o.mismatch != replace {

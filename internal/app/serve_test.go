@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"keel/internal/agent/service"
 	"keel/internal/authtoken"
 	"keel/internal/paths"
+	"keel/internal/store"
 )
 
 func TestProbeHealth(t *testing.T) {
@@ -68,8 +70,6 @@ func TestWriteReadRemovePid(t *testing.T) {
 
 func TestRunServeHealthAndStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	t.Setenv("KEEL_SIGNAL", "")
 	dir := t.TempDir()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -79,7 +79,8 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	ln.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- RunServe(addr, dir) }()
+	cfg := serveConfig{agentFactory: service.Real, agentJudge: service.RealJudge, storeOpts: []store.Option{store.TestVault()}}
+	go func() { done <- runServe(addr, dir, cfg) }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
@@ -133,10 +134,6 @@ func TestRunServeHealthAndStop(t *testing.T) {
 }
 
 func TestStopServeFailsIfStillHealthy(t *testing.T) {
-	prev := stopWait
-	stopWait = 80 * time.Millisecond
-	t.Cleanup(func() { stopWait = prev })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/health":
@@ -152,7 +149,7 @@ func TestStopServeFailsIfStillHealthy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = StopServe(u.Host, t.TempDir())
+	err = stopServe(u.Host, t.TempDir(), 80*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "did not stop") {
 		t.Fatalf("err = %v", err)
 	}

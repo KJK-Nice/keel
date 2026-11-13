@@ -21,8 +21,7 @@ func TestLegacyHexHostColorReadsAsToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

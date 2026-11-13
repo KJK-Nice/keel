@@ -80,7 +80,6 @@ type importFixture struct {
 func newImportFixture(t *testing.T) importFixture {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("USER", "tester")
 	root := t.TempDir()
@@ -112,12 +111,12 @@ Host *.internal
 	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	st, err := store.New(filepath.Join(f.dataDir, "keel.json"))
+	st, err := store.New(filepath.Join(f.dataDir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.st = st
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	f.srv = httptest.NewServer(New(st, rt, nil).WithSSHDir(sshDir).openHandler())
 	t.Cleanup(f.srv.Close)
 	return f
@@ -358,14 +357,13 @@ func TestSSHConfigMissing(t *testing.T) {
 func TestVaultStateAndFirstRun(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	t.Setenv("KEEL_KEYRING", "off")
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "keel.json"))
+	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	srv := httptest.NewServer(New(st, rt, nil).WithSSHDir(t.TempDir()).openHandler())
 	t.Cleanup(srv.Close)
 	f := importFixture{srv: srv, st: st}
@@ -403,7 +401,7 @@ func TestVaultStateAndFirstRun(t *testing.T) {
 	}
 
 	// Restart: the passphrase vault is locked, not first run, and unlocks.
-	st2, err := store.New(filepath.Join(dir, "keel.json"))
+	st2, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

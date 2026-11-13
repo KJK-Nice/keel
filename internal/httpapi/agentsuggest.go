@@ -40,7 +40,8 @@ import (
 // code rating (whose denylist is final for destructive commands).
 
 // WithAgentJudge sets how the agent builds its detector (TypeSafe Jev).
-// keel serve passes service.FromEnv's; tests pass a fake.
+// keel serve passes the one that goes with its provider (WithAgentProvider);
+// tests pass a fake.
 func (s *Server) WithAgentJudge(f service.JudgeFactory) *Server {
 	s.agentJudge = f
 	return s
@@ -54,9 +55,6 @@ const (
 	detectMinInterval  = 200 * time.Millisecond
 	suggestMinInterval = 500 * time.Millisecond
 )
-
-// suggestNow is the rate limits' clock (tests freeze it).
-var suggestNow = time.Now
 
 // suggestConn runs one socket's detect and suggest calls off the read
 // loop, so typing never waits on a provider. A newer call of a kind
@@ -75,7 +73,7 @@ type suggestConn struct {
 func (c *suggestConn) allow(kind string, min time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	now := suggestNow()
+	now := c.srv.now()
 	if t, ok := c.last[kind]; ok && now.Sub(t) < min {
 		return false
 	}
@@ -226,9 +224,11 @@ func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, ms
 	})
 }
 
-// Close ends the agent's work for keel serve's shutdown: the detection
-// summaries still open are written to keel.log.
+// Close ends the agent's work for keel serve's shutdown: the retention
+// timer stops, and the detection summaries still open are written to
+// keel.log. It may be called more than once.
 func (s *Server) Close() {
+	s.closeOnce.Do(func() { close(s.closed) })
 	if s.agent != nil {
 		s.agent.Close()
 	}

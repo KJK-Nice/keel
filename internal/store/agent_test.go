@@ -14,9 +14,8 @@ func agentStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	path := filepath.Join(t.TempDir(), "keel.json")
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +24,7 @@ func agentStore(t *testing.T) (*Store, string) {
 
 func reopen(t *testing.T, path string) *Store {
 	t.Helper()
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

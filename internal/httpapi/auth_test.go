@@ -21,8 +21,7 @@ const testToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc
 func authServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +203,7 @@ func TestHealthProof(t *testing.T) {
 func TestLoopbackHostRequired(t *testing.T) {
 	srv := authServer(t)
 	u, _ := url.Parse(srv.URL)
-	for _, host := range []string{"attacker.example:" + u.Port(), "attacker.example", "192.168.1.5:" + u.Port()} {
+	for _, host := range []string{"attacker.example:" + u.Port(), "attacker.example", "192.168.1.5:" + u.Port(), "[[::1]]", "[[::1]]:" + u.Port()} {
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/health", nil)
 		req.Host = host
 		res, err := srv.Client().Do(req)
@@ -232,8 +231,7 @@ func TestLoopbackHostRequired(t *testing.T) {
 
 func TestHealthReportsBuild(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -36,8 +36,7 @@ type shareRig struct {
 func newShareRig(t *testing.T) *shareRig {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,10 +342,8 @@ func TestShareDeny(t *testing.T) {
 }
 
 func TestShareRequestExpires(t *testing.T) {
-	old := admitTimeout
-	admitTimeout = 100 * time.Millisecond
-	t.Cleanup(func() { admitTimeout = old })
 	r := newShareRig(t)
+	r.hub.admitWait = 100 * time.Millisecond
 	link, err := r.hub.Share(r.id)
 	if err != nil {
 		t.Fatal(err)

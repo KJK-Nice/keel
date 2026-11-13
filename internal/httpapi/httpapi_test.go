@@ -53,8 +53,7 @@ func (f *fakeBridge) Close() error {
 func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,12 +226,11 @@ func TestHostTagsAPI(t *testing.T) {
 
 func TestRuntimeStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	stopped := make(chan struct{}, 1)
 	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).openHandler())
 	t.Cleanup(srv.Close)
@@ -267,15 +265,14 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
 	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !st.Locked() {
 		t.Skip("OS keychain auto-unlocked the vault")
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/hosts")
@@ -690,8 +687,7 @@ func TestNotebookAPI(t *testing.T) {
 
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,8 +840,7 @@ func TestReadScrollbackAPINotFound(t *testing.T) {
 
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1308,13 +1303,12 @@ func TestManualServe(t *testing.T) {
 		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(dir + "/keel.json")
+	st, err := store.New(dir+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	logs := applog.New(dir + "/keel.log")
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
 	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).openHandler()
@@ -1486,12 +1480,11 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 
 func TestRuntimeInfo(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	api := New(st, rt, nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
 	srv := httptest.NewServer(api.openHandler())
 	t.Cleanup(srv.Close)

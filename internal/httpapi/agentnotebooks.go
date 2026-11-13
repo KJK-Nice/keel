@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -23,13 +22,9 @@ import (
 // path.
 
 func (s *Server) agentNotebookAction(w http.ResponseWriter, r *http.Request, act func(conv, id string) (service.NotebookAction, error)) {
-	if s.agent == nil {
-		writeError(w, http.StatusServiceUnavailable, "agent unavailable")
-		return
-	}
 	out, err := act(r.PathValue("id"), r.PathValue("nid"))
 	if err != nil {
-		writeNotebookErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -58,25 +53,6 @@ func (s *Server) agentRestoreNotebookChange(w http.ResponseWriter, r *http.Reque
 	s.agentNotebookAction(w, r, func(c, id string) (service.NotebookAction, error) { return s.agent.RestoreNotebookChange(c, id) })
 }
 
-func writeNotebookErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, service.ErrNotebookClosed):
-		writeError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, store.ErrNotebookConflict):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "The notebook changed since then. Open History on the notebook to restore an earlier version.", "reason": "conflict"})
-	case errors.Is(err, store.ErrNotebookPrivate):
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "This notebook is private now. Keel did not change it.", "reason": "private"})
-	case errors.Is(err, service.ErrNotebookExpired):
-		writeError(w, http.StatusGone, err.Error())
-	case errors.Is(err, store.ErrHistoryUnavailable):
-		writeError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, service.ErrNoNotebooks):
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-	default:
-		writeAgentErr(w, err)
-	}
-}
-
 // --- the user's own notebook routes ---
 
 // savedNotebook is a save's answer: the notebook, and whether the save
@@ -94,13 +70,13 @@ func (s *Server) setNotebookPrivate(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Private bool `json:"private"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&in); err != nil {
+	if err := decode(w, r, bodySwitch, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	nb, err := s.store.SetNotebookPrivate(r.PathValue("id"), in.Private)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
@@ -115,28 +91,23 @@ func (s *Server) setNotebookPrivate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) markNotebookReviewed(w http.ResponseWriter, r *http.Request) {
 	nb, err := s.store.MarkNotebookReviewed(r.PathValue("id"))
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
 }
 
-func writeHistoryErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, store.ErrHistoryUnavailable):
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-	case errors.Is(err, store.ErrNotebookConflict):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "The notebook changed meanwhile. Look at History again before you restore.", "reason": "conflict"})
-	default:
-		writeStoreErr(w, err)
-	}
+// historyWords are History's own words for a notebook that changed while
+// the user looked at an older version.
+func historyWords(err error) error {
+	return worded(err, store.ErrNotebookConflict, "The notebook changed meanwhile. Look at History again before you restore.")
 }
 
 // notebookHistory lists a notebook's kept versions, newest first.
 func (s *Server) notebookHistory(w http.ResponseWriter, r *http.Request) {
 	vs, err := s.store.NotebookHistory(r.PathValue("id"))
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"versions": vs})
@@ -146,7 +117,7 @@ func (s *Server) notebookHistory(w http.ResponseWriter, r *http.Request) {
 func (s *Server) notebookVersion(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.NotebookVersionByID(r.PathValue("id"), r.PathValue("vid"))
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -158,7 +129,7 @@ func (s *Server) restoreNotebookVersion(w http.ResponseWriter, r *http.Request) 
 	in := struct {
 		Rev *int `json:"rev"`
 	}{}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+	if err := decode(w, r, bodySwitch, &in); err != nil && !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
@@ -168,7 +139,7 @@ func (s *Server) restoreNotebookVersion(w http.ResponseWriter, r *http.Request) 
 	}
 	nb, err := s.store.RestoreNotebookVersion(r.PathValue("id"), r.PathValue("vid"), rev)
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
@@ -179,7 +150,7 @@ func (s *Server) restoreNotebookVersion(w http.ResponseWriter, r *http.Request) 
 func (s *Server) deletedNotebooks(w http.ResponseWriter, _ *http.Request) {
 	vs, err := s.store.DeletedNotebooks()
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"versions": vs})
@@ -188,7 +159,7 @@ func (s *Server) deletedNotebooks(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) restoreDeletedNotebook(w http.ResponseWriter, r *http.Request) {
 	nb, err := s.store.RestoreDeletedNotebook(r.PathValue("vid"))
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
@@ -202,17 +173,13 @@ func (s *Server) patchNotebook(w http.ResponseWriter, r *http.Request) {
 		Name   *string `json:"name"`
 		Pinned *bool   `json:"pinned"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
+	if err := decode(w, r, bodyLine, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	nb, err := s.store.UpdateNotebookMeta(r.PathValue("id"), in.Name, in.Pinned)
-	if errors.Is(err, store.ErrNotebookName) {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
@@ -222,7 +189,7 @@ func (s *Server) patchNotebook(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deletedNotebook(w http.ResponseWriter, r *http.Request) {
 	v, err := s.store.DeletedNotebookByID(r.PathValue("vid"))
 	if err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -231,7 +198,7 @@ func (s *Server) deletedNotebook(w http.ResponseWriter, r *http.Request) {
 // purgeDeletedNotebook is Delete forever in Recently deleted.
 func (s *Server) purgeDeletedNotebook(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.PurgeNotebookVersion("", r.PathValue("vid")); err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -241,7 +208,7 @@ func (s *Server) purgeDeletedNotebook(w http.ResponseWriter, r *http.Request) {
 // purgeNotebookVersion is Delete this version in History.
 func (s *Server) purgeNotebookVersion(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.PurgeNotebookVersion(r.PathValue("id"), r.PathValue("vid")); err != nil {
-		writeHistoryErr(w, err)
+		writeErr(w, historyWords(err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

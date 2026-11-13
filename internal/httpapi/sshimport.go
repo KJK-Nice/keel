@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -46,7 +44,7 @@ func (s *Server) sshConfigPreview(w http.ResponseWriter, _ *http.Request) {
 	opts, _ := s.sshOptions()
 	out, err := hostimport.BuildPreview(s.store, opts)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -54,44 +52,23 @@ func (s *Server) sshConfigPreview(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) sshConfigImport(w http.ResponseWriter, r *http.Request) {
 	var req hostimport.Request
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyBulk, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid import payload")
 		return
 	}
 	opts, _ := s.sshOptions()
 	res, err := hostimport.Import(s.store, opts, req)
-	var reqErr *hostimport.RequestError
-	var jumpErr *hostimport.JumpError
-	var keyErr *hostimport.KeyError
-	switch {
-	case errors.As(err, &reqErr):
-		writeError(w, http.StatusBadRequest, reqErr.Msg)
-		return
-	case errors.As(err, &jumpErr):
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":     jumpErr.Error(),
-			"errorKind": "jump",
-			"hosts":     jumpErr.Hosts,
-		})
-		return
-	case errors.As(err, &keyErr):
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error":     keyErr.Msg,
-			"errorKind": keyErr.Kind,
-			"key":       keyErr.Path,
-		})
-		return
-	case err != nil:
-		writeStoreErr(w, err)
+	if err != nil {
+		writeErr(w, err)
 		return
 	}
 	hosts := make([]store.Host, len(res.Hosts))
 	for i, h := range res.Hosts {
-		hosts[i] = redactHost(h)
+		hosts[i] = h.Redacted()
 	}
 	ids := make([]store.Identity, len(res.Identities))
 	for i, id := range res.Identities {
-		ids[i] = redactIdentity(id)
+		ids[i] = id.Redacted()
 	}
 	for _, f := range res.Failed {
 		s.note("vault", "host import: "+f.Alias+" not added: "+f.Error, "", "", "")
@@ -144,7 +121,7 @@ func homeShort(path string) string {
 
 func (s *Server) finishFirstRun(w http.ResponseWriter, _ *http.Request) {
 	if err := s.store.FinishFirstRun(); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

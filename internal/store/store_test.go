@@ -14,8 +14,7 @@ import (
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := New(filepath.Join(t.TempDir(), "keel.json"))
+	st, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +77,7 @@ func TestHostRoundTrip(t *testing.T) {
 			view = h
 		}
 	}
-	if view.Password != "x" {
+	if view.Password != SavedSecret {
 		t.Fatalf("list should not expose the real password, got %q", view.Password)
 	}
 
@@ -104,7 +103,7 @@ func TestHostRoundTrip(t *testing.T) {
 		t.Fatalf("expected not found, got %v", err)
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +168,7 @@ func TestHostTagsPersistAndNormalize(t *testing.T) {
 		t.Fatalf("keel.json missing tags: %s", raw)
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,8 +250,7 @@ func TestMigratePlaintextSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +275,7 @@ func TestLockedUntilSetup(t *testing.T) {
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
 	t.Setenv("KEEL_KEYRING", "off")
-	st, err := New(filepath.Join(t.TempDir(), "keel.json"))
+	st, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +316,7 @@ func TestIdentityConnectAndTunnelPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if listed[0].Password != "x" {
+	if listed[0].Password != SavedSecret {
 		t.Fatalf("list leaked password %q", listed[0].Password)
 	}
 	host, err := st.UpsertHost(Host{
@@ -343,7 +341,7 @@ func TestIdentityConnectAndTunnelPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +405,7 @@ func TestKeepAliveSecRoundTrip(t *testing.T) {
 	if got.KeepAliveSec != -1 || !got.NoAutoReconnect {
 		t.Fatalf("got keepalive=%d noReconnect=%v", got.KeepAliveSec, got.NoAutoReconnect)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +522,7 @@ func TestNotebookRoundTripAndPin(t *testing.T) {
 		t.Fatalf("list = %+v", listed)
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -594,7 +592,7 @@ func TestSetupRefusesExistingVault(t *testing.T) {
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
 	t.Setenv("KEEL_KEYRING", "off")
-	reopened, err := New(st.path)
+	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,12 +621,17 @@ func TestSetupRefusesExistingVault(t *testing.T) {
 	}
 }
 
-func TestKeyringOffInTests(t *testing.T) {
+func TestTestVaultKeepsTheKeychainOff(t *testing.T) {
 	t.Setenv(envKeyring, "")
-	if !KeyringOff() {
-		t.Fatal("a test binary must never reach the OS keychain")
+	t.Setenv(EnvPassphrase, "")
+	st, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := keyringIdentity(); !errors.Is(err, errKeyringOff) {
+	if !st.VaultState().KeyringOff {
+		t.Fatal("a test's store must never reach the OS keychain")
+	}
+	if _, err := st.keyringIdentity(); !errors.Is(err, errKeyringOff) {
 		t.Fatalf("keyringIdentity = %v, want errKeyringOff", err)
 	}
 }

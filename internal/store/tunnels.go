@@ -128,6 +128,10 @@ func IsLoopbackAddr(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
+	// One bracket pair only: "[[::1]]" is not an address any client sends.
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }

@@ -63,8 +63,7 @@ func newNbFixture(t *testing.T, reply string) *nbFixture {
 	t.Helper()
 	f := newFixture(t, reply)
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(filepath.Join(t.TempDir(), "keel.json"))
+	st, err := store.New(filepath.Join(t.TempDir(), "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

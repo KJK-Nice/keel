@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/applog"
+	"keel/internal/authtoken"
 	"keel/internal/cmdrule"
 	"keel/internal/runtime"
 	"keel/internal/session"
@@ -57,10 +57,20 @@ type Server struct {
 	agentFactory service.Factory
 	agentTest    bool
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
-	agentJudge        service.JudgeFactory
-	agentDetectWindow time.Duration
+	agentJudge service.JudgeFactory
 	// agentSuggestTimeout bounds the model call of one in-pane suggestion; 0 is the service's default.
 	agentSuggestTimeout time.Duration
+	// now is the clock of the session socket's rate limits: time.Now, set
+	// in New (a test of the limits freezes it).
+	now func() time.Time
+	// agentOff says why agent is nil, for the routes that need it.
+	agentOff string
+	// closed is closed by Close: the agent's retention timer stops on it.
+	closed    chan struct{}
+	closeOnce sync.Once
+	// anytime holds the paths that answer while the vault is locked, as
+	// Handler registered them.
+	anytime map[string]bool
 	// vault counts store and tunnel changes: GET /api/vault reports it as "rev" (vaultrev.go).
 	vault *vaultRev
 	// sockets counts the open session sockets and the work they start
@@ -70,7 +80,7 @@ type Server struct {
 }
 
 func New(st *store.Store, rt *runtime.Runtime, sh *share.Hub) *Server {
-	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev()}
+	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev(), closed: make(chan struct{}), now: time.Now}
 	if st != nil {
 		st.OnChange(s.vault.bump)
 	}
@@ -122,12 +132,22 @@ func (s *Server) Handler() http.Handler {
 	}
 	s.initAgent()
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.health)
+	// anytime registers a route that answers while the vault is locked;
+	// withVault refuses every other one then. agentRoute registers one that
+	// needs the agent service and answers 503 with the reason without it.
+	s.anytime = map[string]bool{}
+	anytime := func(pattern string, h http.HandlerFunc) {
+		_, path, _ := strings.Cut(pattern, " ")
+		s.anytime[path] = true
+		mux.HandleFunc(pattern, h)
+	}
+	agentRoute := func(pattern string, h http.HandlerFunc) { mux.HandleFunc(pattern, s.withAgent(h)) }
+	anytime("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/runtime", s.runtimeInfo)
-	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
-	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
-	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
-	mux.HandleFunc("GET /api/vault", s.vaultState)
+	anytime("POST /api/runtime/stop", s.stopRuntime)
+	anytime("POST /api/vault/unlock", s.vaultUnlock)
+	anytime("POST /api/vault/setup", s.vaultSetup)
+	anytime("GET /api/vault", s.vaultState)
 	mux.HandleFunc("POST /api/first-run/done", s.finishFirstRun)
 	mux.HandleFunc("GET /api/ssh-config/preview", s.sshConfigPreview)
 	mux.HandleFunc("POST /api/ssh-config/import", s.sshConfigImport)
@@ -137,7 +157,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/share/{id}/admit", s.admitShare)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
-	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
+	mux.HandleFunc("PUT /api/hosts/{id}", s.upsertHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
 	mux.HandleFunc("PUT /api/hosts/{id}/agent-readable", s.setHostAgentReadable)
 	mux.HandleFunc("POST /api/hosts/move", s.moveHosts)
@@ -147,15 +167,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
 	mux.HandleFunc("GET /api/groups", s.listGroups)
 	mux.HandleFunc("POST /api/groups", s.upsertGroup)
-	mux.HandleFunc("PUT /api/groups/{id}", s.updateGroup)
+	mux.HandleFunc("PUT /api/groups/{id}", s.upsertGroup)
 	mux.HandleFunc("DELETE /api/groups/{id}", s.deleteGroup)
 	mux.HandleFunc("GET /api/groups/{id}/members", s.groupMembers)
 	mux.HandleFunc("PUT /api/groups/{id}/roles", s.setGroupRole)
-	mux.HandleFunc("PUT /api/groups/{id}/vars", s.setGroupVar)
+	agentRoute("PUT /api/groups/{id}/vars", s.setGroupVar)
 	mux.HandleFunc("GET /api/groups/{id}/ansible", s.groupAnsible)
 	mux.HandleFunc("GET /api/snippets", s.listSnippets)
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
-	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
+	mux.HandleFunc("PUT /api/snippets/{id}", s.upsertSnippet)
 	mux.HandleFunc("DELETE /api/snippets/{id}", s.deleteSnippet)
 	mux.HandleFunc("GET /api/notebooks", s.listNotebooks)
 	mux.HandleFunc("POST /api/notebooks", s.upsertNotebook)
@@ -174,11 +194,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/notebook-trash/{vid}/restore", s.restoreDeletedNotebook)
 	mux.HandleFunc("GET /api/identities", s.listIdentities)
 	mux.HandleFunc("POST /api/identities", s.upsertIdentity)
-	mux.HandleFunc("PUT /api/identities/{id}", s.updateIdentity)
+	mux.HandleFunc("PUT /api/identities/{id}", s.upsertIdentity)
 	mux.HandleFunc("DELETE /api/identities/{id}", s.deleteIdentity)
 	mux.HandleFunc("GET /api/tunnels", s.listTunnels)
 	mux.HandleFunc("POST /api/tunnels", s.upsertTunnel)
-	mux.HandleFunc("PUT /api/tunnels/{id}", s.updateTunnel)
+	mux.HandleFunc("PUT /api/tunnels/{id}", s.upsertTunnel)
 	mux.HandleFunc("DELETE /api/tunnels/{id}", s.deleteTunnel)
 	mux.HandleFunc("POST /api/tunnels/{id}/start", s.startTunnel)
 	mux.HandleFunc("POST /api/tunnels/{id}/stop", s.stopTunnel)
@@ -188,50 +208,50 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/agent/providers", s.listAgentProviders)
 	mux.HandleFunc("PUT /api/agent/keys/{provider}", s.putAgentKey)
 	mux.HandleFunc("DELETE /api/agent/keys/{provider}", s.deleteAgentKey)
-	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
-	mux.HandleFunc("GET /api/mcp/panes", s.mcpPanes)
-	mux.HandleFunc("POST /api/mcp/read", s.mcpRead)
-	mux.HandleFunc("POST /api/mcp/propose", s.mcpPropose)
-	mux.HandleFunc("GET /api/mcp/proposals/{id}", s.mcpProposal)
-	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
+	agentRoute("POST /api/agent/ask", s.agentAsk)
+	agentRoute("GET /api/mcp/panes", s.mcpPanes)
+	agentRoute("POST /api/mcp/read", s.mcpRead)
+	agentRoute("POST /api/mcp/propose", s.mcpPropose)
+	agentRoute("GET /api/mcp/proposals/{id}", s.mcpProposal)
+	agentRoute("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
 	mux.HandleFunc("GET /api/agent/conversations", s.agentSessions)
 	mux.HandleFunc("GET /api/agent/conversations/{id}", s.agentTranscript)
-	mux.HandleFunc("PATCH /api/agent/conversations/{id}", s.agentRename)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/proposals/{pid}/again", s.agentProposeAgain)
+	agentRoute("PATCH /api/agent/conversations/{id}", s.agentRename)
+	agentRoute("POST /api/agent/conversations/{id}/proposals/{pid}/again", s.agentProposeAgain)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}", s.agentReset)
 	mux.HandleFunc("DELETE /api/agent/conversations", s.agentResetAll)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notes/{nid}", s.agentSaveNoteProposal)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notes/{nid}", s.agentDismissNoteProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notes/{nid}/undo", s.agentUndoNoteProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notes/{nid}", s.agentSaveNoteProposal)
+	agentRoute("DELETE /api/agent/conversations/{id}/notes/{nid}", s.agentDismissNoteProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notes/{nid}/undo", s.agentUndoNoteProposal)
 	mux.HandleFunc("GET /api/agent/notes", s.agentNotes)
-	mux.HandleFunc("POST /api/agent/notes", s.agentAddNote)
-	mux.HandleFunc("PUT /api/agent/notes/{id}", s.agentEditNote)
-	mux.HandleFunc("DELETE /api/agent/notes/{id}", s.agentDeleteNote)
-	mux.HandleFunc("DELETE /api/agent/notes", s.agentDeleteAllNotes)
+	agentRoute("POST /api/agent/notes", s.agentAddNote)
+	agentRoute("PUT /api/agent/notes/{id}", s.agentEditNote)
+	agentRoute("DELETE /api/agent/notes/{id}", s.agentDeleteNote)
+	agentRoute("DELETE /api/agent/notes", s.agentDeleteAllNotes)
 	mux.HandleFunc("GET /api/agent/runbooks", s.agentRunbooks)
-	mux.HandleFunc("POST /api/agent/runbooks", s.agentAddRunbook)
-	mux.HandleFunc("POST /api/agent/runbooks/draft", s.agentRunbookDraft)
-	mux.HandleFunc("PUT /api/agent/runbooks/{id}", s.agentUpdateRunbook)
-	mux.HandleFunc("PUT /api/agent/runbooks/{id}/pick", s.agentRunbookPick)
-	mux.HandleFunc("DELETE /api/agent/runbooks/{id}", s.agentDeleteRunbook)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookChange)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/delete", s.agentConfirmNotebookDelete)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/restore", s.agentRestoreNotebookChange)
+	agentRoute("POST /api/agent/runbooks", s.agentAddRunbook)
+	agentRoute("POST /api/agent/runbooks/draft", s.agentRunbookDraft)
+	agentRoute("PUT /api/agent/runbooks/{id}", s.agentUpdateRunbook)
+	agentRoute("PUT /api/agent/runbooks/{id}/pick", s.agentRunbookPick)
+	agentRoute("DELETE /api/agent/runbooks/{id}", s.agentDeleteRunbook)
+	agentRoute("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
+	agentRoute("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookChange)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/delete", s.agentConfirmNotebookDelete)
+	agentRoute("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/restore", s.agentRestoreNotebookChange)
 	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
-	mux.HandleFunc("POST /api/agent/groupruns", s.agentStartGroupRun)
-	mux.HandleFunc("GET /api/agent/groupruns/{id}", s.agentGroupRun)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/fill", s.agentFillGroupRun)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/steps/{sid}", s.agentGroupHostAction)
-	mux.HandleFunc("PUT /api/agent/groupruns/{id}/mode", s.agentGroupRunMode)
-	mux.HandleFunc("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
+	agentRoute("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
+	agentRoute("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
+	agentRoute("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
+	agentRoute("POST /api/agent/groupruns", s.agentStartGroupRun)
+	agentRoute("GET /api/agent/groupruns/{id}", s.agentGroupRun)
+	agentRoute("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
+	agentRoute("POST /api/agent/groupruns/{id}/fill", s.agentFillGroupRun)
+	agentRoute("POST /api/agent/groupruns/{id}/steps/{sid}", s.agentGroupHostAction)
+	agentRoute("PUT /api/agent/groupruns/{id}/mode", s.agentGroupRunMode)
+	agentRoute("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("GET /api/sessions/{id}/scrollback", s.readScrollback)
@@ -258,18 +278,10 @@ func allowLocalOrigin(r *http.Request) bool {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-	if !isLoopbackHost(u.Hostname()) {
+	if !store.IsLoopbackAddr(u.Hostname()) {
 		return false
 	}
 	return originHostPort(u) == requestHostPort(r)
-}
-
-func isLoopbackHost(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 func originHostPort(u *url.URL) string {
@@ -310,12 +322,8 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/api/vault" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if apiPath(r.URL.Path) && s.store.Locked() {
-			writeError(w, http.StatusLocked, "vault locked")
+		if !s.anytime[r.URL.Path] && apiPath(r.URL.Path) && s.store.Locked() {
+			writeErr(w, store.ErrLocked)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -328,10 +336,10 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		out["build"] = s.build
 	}
 	if proof, ok := s.healthProof(r); ok {
-		out["proof"] = proof
+		out[authtoken.WindowChallenge.Field] = proof
 	}
 	if proof, ok := s.mcpHealthProof(r); ok {
-		out["mcpProof"] = proof
+		out[authtoken.MCPChallenge.Field] = proof
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -378,7 +386,7 @@ func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL string `json:"url"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyNote, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
@@ -388,7 +396,7 @@ func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetSignalURL(u); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.share.SetSaved(u)
@@ -413,16 +421,12 @@ func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	if err := s.store.Unlock(req.Passphrase); err != nil {
-		if errors.Is(err, store.ErrPassphrase) {
-			writeError(w, http.StatusForbidden, "incorrect passphrase")
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
 	s.note("vault", "vault unlocked", "", "", "")
@@ -433,16 +437,12 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	if err := s.store.Setup(req.Passphrase); err != nil {
-		if errors.Is(err, store.ErrVaultExists) {
-			writeError(w, http.StatusConflict, err.Error())
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
 	s.note("vault", "vault created", "", "", "")
@@ -457,17 +457,13 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SessionID string `json:"sessionId"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "sessionId is required")
 		return
 	}
 	join, err := s.share.Share(req.SessionID)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusBadGateway, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadGateway))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
@@ -480,7 +476,7 @@ func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
 		PeerID string `json:"peerId"`
 		Allow  bool   `json:"allow"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.PeerID == "" {
 		writeError(w, http.StatusBadRequest, "peerId is required")
 		return
 	}
@@ -489,14 +485,8 @@ func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.share.Admit(r.PathValue("id"), req.PeerID, req.Allow); err != nil {
-		status := http.StatusConflict // the request expired or was already answered
-		switch {
-		case errors.Is(err, share.ErrNotShared):
-			status = http.StatusNotFound
-		case errors.Is(err, share.ErrNotResponding):
-			status = http.StatusServiceUnavailable
-		}
-		writeError(w, status, err.Error())
+		// Anything else: the request expired or was already answered.
+		writeErr(w, otherwise(err, http.StatusConflict))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -514,61 +504,43 @@ func (s *Server) stopShare(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
 	hosts, err := s.store.ListHosts()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	out := make([]store.Host, len(hosts))
 	for i, h := range hosts {
-		out[i] = redactHost(h)
+		out[i] = h.Redacted()
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
+// The saves of hosts, groups, snippets, identities and forwards have one
+// handler each for POST (create: the id in the body is ignored, 201) and
+// PUT /{id} (update: the id is the path's, 200). savedStatus picks the
+// status.
+
 func (s *Server) upsertHost(w http.ResponseWriter, r *http.Request) {
 	var h store.Host
-	if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid host payload")
-		return
-	}
-	h.ID = ""
-	saved, err := s.saveHost(h)
-	if err != nil {
-		writeSaveErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, redactHost(saved))
-}
-
-func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
-	var h store.Host
-	if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
+	if err := decode(w, r, bodyHost, &h); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid host payload")
 		return
 	}
 	h.ID = r.PathValue("id")
 	saved, err := s.saveHost(h)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, redactHost(saved))
+	writeJSON(w, savedStatus(r.PathValue("id")), saved.Redacted())
 }
 
 func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 	saved, err := s.store.DuplicateHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		if strings.Contains(err.Error(), "cannot be duplicated") {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
-	writeJSON(w, http.StatusCreated, redactHost(saved))
+	writeJSON(w, http.StatusCreated, saved.Redacted())
 	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
 }
 
@@ -579,24 +551,20 @@ func (s *Server) setHostAgentReadable(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Readable *bool `json:"readable"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Readable == nil {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.Readable == nil {
 		writeError(w, http.StatusBadRequest, "readable is required")
 		return
 	}
 	h, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
 	v := *req.Readable
 	h.AgentReadable = &v
 	saved, err := s.store.UpsertHost(h)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	state := "off"
@@ -604,7 +572,7 @@ func (s *Server) setHostAgentReadable(w http.ResponseWriter, r *http.Request) {
 		state = "on"
 	}
 	s.note("host", "agent can read "+state+": "+saved.Name, saved.ID, "", "")
-	writeJSON(w, http.StatusOK, redactHost(saved))
+	writeJSON(w, http.StatusOK, saved.Redacted())
 }
 
 type moveHostsReq struct {
@@ -614,12 +582,12 @@ type moveHostsReq struct {
 
 func (s *Server) moveHosts(w http.ResponseWriter, r *http.Request) {
 	var req moveHostsReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid move payload")
 		return
 	}
 	if err := s.store.AssignHostsGroup(req.IDs, req.GroupID); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -629,7 +597,7 @@ func (s *Server) moveHosts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
 	groups, err := s.store.ListGroups()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, groups)
@@ -637,27 +605,7 @@ func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) upsertGroup(w http.ResponseWriter, r *http.Request) {
 	var g store.Group
-	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid group payload")
-		return
-	}
-	g.ID = ""
-	if strings.TrimSpace(g.Name) == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	saved, err := s.store.UpsertGroup(g)
-	if err != nil {
-		writeStoreErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, saved)
-	s.note("group", "group created: "+saved.Name, "", "", "")
-}
-
-func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
-	var g store.Group
-	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
+	if err := decode(w, r, bodyForm, &g); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid group payload")
 		return
 	}
@@ -668,16 +616,20 @@ func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.UpsertGroup(g)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, saved)
-	s.note("group", "group updated: "+saved.Name, "", "", "")
+	writeJSON(w, savedStatus(r.PathValue("id")), saved)
+	if r.PathValue("id") == "" {
+		s.note("group", "group created: "+saved.Name, "", "", "")
+	} else {
+		s.note("group", "group updated: "+saved.Name, "", "", "")
+	}
 }
 
 func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteGroup(r.PathValue("id")); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -687,23 +639,15 @@ func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 	host, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
-	if host.AuthType == "local" {
-		writeError(w, http.StatusBadRequest, "the local shell host cannot be removed")
+	if host.IsLocal() {
+		writeErr(w, badInput("the local shell host cannot be removed"))
 		return
 	}
 	if err := s.store.DeleteHost(r.PathValue("id")); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -713,7 +657,7 @@ func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
 	snips, err := s.store.ListSnippets()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, snips)
@@ -743,39 +687,21 @@ func (s *Server) noteSnippetFlag(name string, before, after bool) {
 
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
 	var p snippetPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid snippet payload")
-		return
-	}
-	saved, err := s.saveSnippet("", p.Name, p.Command, p.AgentUsable)
-	if err != nil {
-		writeSaveErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, saved)
-}
-
-func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
-	var p snippetPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+	if err := decode(w, r, bodyForm, &p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
 	saved, err := s.saveSnippet(r.PathValue("id"), p.Name, p.Command, p.AgentUsable)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, saved)
+	writeJSON(w, savedStatus(r.PathValue("id")), saved)
 }
 
 func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteSnippet(r.PathValue("id")); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "snippet not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "snippet not found"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -785,7 +711,7 @@ func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
 	nbs, err := s.store.ListNotebooks()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, nbs)
@@ -793,14 +719,14 @@ func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) upsertNotebook(w http.ResponseWriter, r *http.Request) {
 	var nb store.Notebook
-	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+	if err := decode(w, r, bodyBulk, &nb); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid notebook payload")
 		return
 	}
 	nb.ID = ""
 	saved, err := s.store.UpsertNotebook(nb)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
@@ -809,7 +735,7 @@ func (s *Server) upsertNotebook(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	var nb store.Notebook
-	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+	if err := decode(w, r, bodyBulk, &nb); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid notebook payload")
 		return
 	}
@@ -819,11 +745,7 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	// version in History (store.SaveUserNotebook).
 	saved, replaced, err := s.store.SaveUserNotebook(nb)
 	if err != nil {
-		if errors.Is(err, store.ErrHistoryUnavailable) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page.", "reason": "history"})
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page."))
 		return
 	}
 	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
@@ -833,15 +755,8 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 	permanent := r.URL.Query().Get("permanent") == "1"
 	if err := s.store.DeleteNotebook(r.PathValue("id"), permanent); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "notebook not found")
-			return
-		}
-		if errors.Is(err, store.ErrHistoryUnavailable) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?", "reason": "history"})
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		err = worded(err, store.ErrNotFound, "notebook not found")
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -859,11 +774,7 @@ func (s *Server) readScrollback(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	text, err := s.rt.ReadScrollback(id)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -877,11 +788,7 @@ func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	info, err := s.rt.Reconnect(id)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	s.note("session", "session reconnect: "+info.Title, info.HostID, info.ID, "")
@@ -891,11 +798,7 @@ func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
 func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.rt.Kill(id); err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	if s.share != nil {
@@ -1162,50 +1065,6 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 	return nil
 }
 
-func validateHost(h store.Host) error {
-	if strings.TrimSpace(h.Name) == "" {
-		return errors.New("name is required")
-	}
-	switch h.AuthType {
-	case "local":
-		return nil
-	case "identity":
-		if strings.TrimSpace(h.IdentityID) == "" {
-			return errors.New("identity is required")
-		}
-		if strings.TrimSpace(h.Address) == "" {
-			return errors.New("address is required")
-		}
-		if strings.TrimSpace(h.Username) == "" {
-			return errors.New("username is required")
-		}
-		return nil
-	case "password", "key":
-		if strings.TrimSpace(h.Address) == "" {
-			return errors.New("address is required")
-		}
-		if strings.TrimSpace(h.Username) == "" {
-			return errors.New("username is required")
-		}
-		return nil
-	default:
-		return errors.New("authType must be local, password, key, or identity")
-	}
-}
-
-func redactHost(h store.Host) store.Host {
-	if h.Password != "" {
-		h.Password = "__saved__"
-	}
-	if h.PrivateKey != "" {
-		h.PrivateKey = "__saved__"
-	}
-	if h.Passphrase != "" {
-		h.Passphrase = "__saved__"
-	}
-	return h
-}
-
 func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 	if s.logs == nil {
 		return
@@ -1217,22 +1076,6 @@ func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 		SessionID: sessionID,
 		TunnelID:  tunnelID,
 	})
-}
-
-func writeStoreErr(w http.ResponseWriter, err error) {
-	if errors.Is(err, store.ErrLocked) {
-		writeError(w, http.StatusLocked, "vault locked")
-		return
-	}
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not found")
-		return
-	}
-	if errors.Is(err, store.ErrGroupCycle) || errors.Is(err, store.ErrGroupDepth) || errors.Is(err, store.ErrHostField) {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

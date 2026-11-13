@@ -68,7 +68,7 @@ func TestGroupRolesSetAndKept(t *testing.T) {
 	if _, err := st.UpsertGroup(Group{ID: k8s.ID, Name: "k8s", Roles: map[string]string{cp.ID: "evil"}}); err != nil {
 		t.Fatal(err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

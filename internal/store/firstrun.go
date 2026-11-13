@@ -24,7 +24,7 @@ func (s *Store) VaultState() VaultState {
 		Locked:     s.locked.Load(),
 		NeedsSetup: s.locked.Load() && s.needSetup,
 		FirstRun:   s.data.FirstRun && !s.fromEnv,
-		KeyringOff: KeyringOff(),
+		KeyringOff: s.keyringOff,
 		Path:       s.vaultPath,
 	}
 	if !st.NeedsSetup {

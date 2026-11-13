@@ -33,7 +33,7 @@ func TestGroupVarsSetAndKept(t *testing.T) {
 	if err != nil || n.Vars != nil {
 		t.Fatalf("new folder %+v %v", n, err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

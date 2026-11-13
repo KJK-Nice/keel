@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"errors"
 	"net"
 	"net/http"
 	"strings"
@@ -26,9 +25,9 @@ func withLoopbackHost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
-			host = strings.TrimSuffix(strings.TrimPrefix(r.Host, "["), "]")
+			host = r.Host // no port; IsLoopbackAddr takes a bracketed IPv6 address
 		}
-		if !isLoopbackHost(host) {
+		if !store.IsLoopbackAddr(host) {
 			writeError(w, http.StatusForbidden, "host not allowed")
 			return
 		}
@@ -112,12 +111,8 @@ const errClaudeCodeOff = `Claude Code is off in Keel: turn on "Allow Claude Code
 // locked (the setting cannot be read, so it counts as off).
 func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
 	set, err := s.store.AgentSettings()
-	if errors.Is(err, store.ErrLocked) {
-		writeError(w, http.StatusLocked, "the Keel vault is locked: unlock it in Keel")
-		return false
-	}
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return false
 	}
 	if !set.ClaudeCodeEnabled() {
@@ -134,7 +129,7 @@ func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
 // "Claude Code is off" refusal from /api/mcp/ instead of "the server did
 // not prove it".
 func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
-	nonce := r.URL.Query().Get("mcpNonce")
+	nonce := r.URL.Query().Get(authtoken.MCPChallenge.Param)
 	if s.mcpToken == "" || nonce == "" || len(nonce) > 128 {
 		return "", false
 	}
@@ -144,7 +139,7 @@ func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
 // healthProof answers ?nonce= on /api/health with HMAC(token, nonce), so a
 // client can check the server holds the token before trusting it with it.
 func (s *Server) healthProof(r *http.Request) (string, bool) {
-	nonce := r.URL.Query().Get("nonce")
+	nonce := r.URL.Query().Get(authtoken.WindowChallenge.Param)
 	if nonce == "" || len(nonce) > 128 {
 		return "", false
 	}

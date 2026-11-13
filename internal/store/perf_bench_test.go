@@ -15,8 +15,7 @@ import (
 func benchStore(b *testing.B) (*Store, Notebook) {
 	b.Helper()
 	b.Setenv("KEEL_VAULT_PASSPHRASE", "bench-vault-pass")
-	b.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := New(filepath.Join(b.TempDir(), "keel.json"))
+	st, err := New(filepath.Join(b.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		b.Fatal(err)
 	}

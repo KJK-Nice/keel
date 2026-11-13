@@ -25,6 +25,9 @@ type Client struct {
 	addr, token string
 	http        *http.Client
 	slow        *http.Client // no timeout of its own: Ask (agent.go)
+	// Name is who this client says it is on a session socket; "" is KEEL_NAME, else the user name. Set it before
+	// the first Spawn or Attach.
+	Name string
 }
 
 // New reads the address (paths.Addr) and the token (authtoken.Read). It does
@@ -37,9 +40,12 @@ func New() (*Client, error) {
 	return NewAt(paths.Addr(), tok), nil
 }
 
-// NewAt is New with explicit values, for tests.
+// NewAt is New with explicit values, for tests. Neither HTTP client follows a redirect: it would carry the token
+// header to wherever it points.
 func NewAt(addr, token string) *Client {
-	return &Client{addr: addr, token: token, http: &http.Client{Timeout: 15 * time.Second}, slow: &http.Client{}}
+	return &Client{addr: addr, token: token,
+		http: &http.Client{Timeout: 15 * time.Second, CheckRedirect: authtoken.NoRedirect},
+		slow: &http.Client{CheckRedirect: authtoken.NoRedirect}}
 }
 
 // Vault is GET /api/vault. Rev changes with every vault or tunnel change (the webview's stream carries it too).
@@ -233,8 +239,11 @@ func (c *Client) Attach(sessionID string, cols, rows int) (*Conn, error) {
 	return c.dial(url.Values{"id": {sessionID}}, cols, rows)
 }
 
-// name is who this client says it is, in the order cmd/keel parseName uses.
-func name() string {
+// name is who this client says it is: Name, else in the order cmd/keel parseName uses.
+func (c *Client) name() string {
+	if c.Name != "" {
+		return c.Name
+	}
 	for _, k := range []string{"KEEL_NAME", "USER"} {
 		if v := os.Getenv(k); v != "" {
 			return v
@@ -246,6 +255,6 @@ func name() string {
 func (c *Client) dial(q url.Values, cols, rows int) (*Conn, error) {
 	q.Set("cols", strconv.Itoa(cols))
 	q.Set("rows", strconv.Itoa(rows))
-	q.Set("name", name()) // no kind: a WebSocket is the window (wire.KindWindow), keel serve says
+	q.Set("name", c.name()) // no kind: a WebSocket is the window (wire.KindWindow), keel serve says
 	return dialWS("ws://"+c.addr+"/ws/session?"+q.Encode(), c.token)
 }

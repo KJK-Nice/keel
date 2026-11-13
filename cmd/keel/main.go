@@ -33,9 +33,8 @@ func main() {
 
 	switch cmd {
 	case "app":
-		// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
-		os.Setenv("KEEL_NAME", parseName(args))
-		if err := app.RunNative(addr, dataDir); err != nil {
+		// The window's display name for sharing (Settings · Sharing's own name comes first).
+		if err := app.RunNative(addr, dataDir, parseName(args)); err != nil {
 			log.Fatal(err)
 		}
 	case "serve":

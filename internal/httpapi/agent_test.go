@@ -29,9 +29,8 @@ func newAgentFixture(t *testing.T, token string) agentFixture {
 	t.Helper()
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "keel.json"))
+	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +245,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 	}
 	// Reopen the same data dir with no passphrase and no keychain: locked.
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	st, err := store.New(filepath.Join(f.dir, "keel.json"))
+	st, err := store.New(filepath.Join(f.dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

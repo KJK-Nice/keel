@@ -21,8 +21,8 @@ make native-e2e                          # the real view, terminal (libghostty) 
 make native-automation                   # the built app driven from outside through MyGo's automation socket (opens real windows briefly)
 ```
 
-- `make native-e2e` builds `bin/keel`, `bin/keel-sshtest` and `bin/keel-signal`, then runs `go test -tags nativee2e -run TestE2E ./internal/native/`. It writes one PNG per test to `.scratch-native/e2e/<Test>.png` and the daemon log to `.scratch-native/e2e/<Test>/serve.log`. Look at the PNGs, in both themes, before you claim a visual change works. Run it twice when a change touches timing.
-- `make native-automation` builds `bin/keel-e2e` (the build tag `keelautomation`, which no release path passes) and runs `tests/native-automation/`: the menu bar, close and reopen, real keys, both themes. See "Driving the built app from outside" in `docs/native.md`. It is not part of `make test`.
+- `make native-e2e` builds `bin/keel` (the build tag `keelfake`: only such a build has the fake provider, and any other refuses to start `keel serve` with `KEEL_AGENT_PROVIDER=fake`), `bin/keel-sshtest` and `bin/keel-signal`, then runs `go test -tags nativee2e -run TestE2E ./internal/native/`. It writes one PNG per test to `.scratch-native/e2e/<Test>.png` and the daemon log to `.scratch-native/e2e/<Test>/serve.log`. Look at the PNGs, in both themes, before you claim a visual change works. Run it twice when a change touches timing.
+- `make native-automation` builds `bin/keel-e2e` (the build tags `keelautomation` and `keelfake`, which no release path passes) and runs `tests/native-automation/`: the menu bar, close and reopen, real keys, both themes. See "Driving the built app from outside" in `docs/native.md`. It is not part of `make test`.
 - A change to `keel serve` (the httpapi) is also covered by `go test ./internal/httpapi/`; the window and the daemon agree through `internal/native/keelclient`.
 
 ## Doctor

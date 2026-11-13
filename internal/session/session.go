@@ -30,7 +30,7 @@ func BridgeExit(br Bridge) ExitKind {
 }
 
 func Open(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
-	if host.AuthType == "local" {
+	if host.IsLocal() {
 		return openLocal(cols, rows)
 	}
 	return openSSH(host, cols, rows, checkKey)
@@ -49,7 +49,7 @@ func ParseSize(colsQ, rowsQ string) (int, int) {
 }
 
 func ConnectingMessage(h store.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return "Opening local shell…"
 	}
 	return fmt.Sprintf("Connecting to %s@%s…", h.Username, h.Address)
