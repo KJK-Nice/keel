@@ -1,16 +1,16 @@
-# Agent (in progress)
+# Agent
 
-The agent is being built in phases (`docs/ui-redesign.md` §6, §10). Its rules: the agent never writes to a PTY, never sees vault contents, and every read or insert is logged.
+Its rules (`docs/ui-redesign.md` §6): the agent never writes to a PTY, never sees vault contents, and every read or insert is logged.
 
 ## The agent panel
 
-Phase 6b adds the **agent panel** (right side, **⌘I** on macOS, **Ctrl+Shift+I** on Windows/Linux, the titlebar **Agent** button, or View › Toggle Agent Panel).
+The **agent panel** (right side, **⌘I** on macOS, **Ctrl+Shift+I** on Windows/Linux, the titlebar **Agent** button, or View › Toggle Agent Panel).
 
 You ask about the panes in its scope (the chip "Reads N of M panes"); keel serve reads their last lines (or, when the shell reports its commands with OSC 133, the last command, its output and its exit status; see [Shell integration](shell-integration.md)), redacts them, and sends that and your question to the model provider you chose (Google Gemini or Anthropic Claude), only when you press send.
 
 The answer can carry command proposals: Keel shows the exact bytes and a Read-only / Changes state / Destructive badge, and nothing is typed until you press **Type into pane** and approve the bytes (destructive commands, and state changes on a production host, need **⇧** as well).
 
-The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are kept in memory only, until New conversation or `keel serve stop`.
+The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are saved encrypted in the vault and kept for the period set in Settings · Agent · Keep conversations (7, 30 or 90 days, 1 year, or "Only while open", which saves nothing).
 
 `KEEL_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `keel serve` refuses to start with the variable set to `fake`.
 
@@ -68,4 +68,5 @@ There is no tool that types: Claude Code cannot run anything in a pane. Proposal
 - Each host has **Agent can read** (`agentReadable`, on by default) and **Treat as production** (`production`, off by default; turned on when a host is created in or moved into a group named `production`). Older clients that do not send the fields keep the saved values.
 - Agent settings (provider, model, detection, default scope, scrollback lines 50–1000, IP/hostname redaction, history) are in `keel.json` and at `GET`/`PUT /api/agent/settings`. Secret redaction is always on.
 - Provider keys (Gemini, Anthropic, Jev) are vault secrets, set with `PUT /api/agent/keys/{provider}` and removed with `DELETE`. No response ever returns a key, only `configured: true/false`.
-- Agent reads and inserts are written to `keel.log` as `agent.read`, `agent.suggest`, `agent.insert` and `agent.type`, with line counts and redaction counts, never the text.
+- Agent reads and inserts are written to `keel.log` as `agent.read`, `agent.suggest`, `agent.insert` and `agent.type`, with line counts and redaction counts, never the text. Every Ask writes one `agent.read` entry for the request, also when no pane is in scope.
+- **The log gates the agent.** While `keel.log` cannot be written (a full disk, a bad file), keel serve refuses the agent's reads, its sends to a provider and any approved Type, with the error "agent: keel.log cannot be written, so the agent reads, sends and types nothing; check the disk and the log file"; entries for things that already happened (a suggestion made, a note saved) are kept in memory, up to 256, and written first once the file can be written again.

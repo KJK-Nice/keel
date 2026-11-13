@@ -1,6 +1,6 @@
 # Shell integration (command marks)
 
-When a shell reports its prompts and commands with OSC 133 escape sequences, Keel marks each finished command in the terminal's left inset (a green dot for exit 0, a red one otherwise, with an `exit N` chip at the end of a failed command's prompt line), the palette's **Previous command** / **Next command** scroll between prompts, and the agent reads the last command, its output and its exit status instead of the pane's last lines (`docs/ui-redesign.md` §14).
+When a shell reports its prompts and commands with OSC 133 escape sequences, `keel serve` follows each prompt and command in a pane (command records are kept in memory only), and the agent reads the last command, its output and its exit status instead of the pane's last lines; a runbook step's result also comes from the exit status (`docs/ui-redesign.md` §14). The window does not draw the marks and has no Previous / Next command action yet: the terminal plugin does not expose the marks (`docs/native.md`, "What the window does not do").
 
 Keel never edits a remote host's shell files, and does not change how the Local Shell starts. fish 4.0 and later already send the marks; for bash and zsh, and fish 3, add one of these snippets yourself, on each host where you want it (the Local Shell reads your local files). It only prints escape sequences around your prompt; it does not change what commands do.
 

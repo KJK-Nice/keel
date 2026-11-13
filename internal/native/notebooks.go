@@ -19,7 +19,7 @@ import (
 
 // Notebooks (docs/ui-redesign.md §18; cmd/keel/web/js/term.js openNotebook, persistNotebook, notebookChanged and the
 // rest around them). A notebook is one Markdown document kept by keel serve. The pane shows it rendered and, on Edit, as
-// plain Markdown in a text area: the stored text is never passed through a rich text model (docs/native-notebook-spike.md).
+// plain Markdown in a text area: the stored text is never passed through a rich text model (docs/native.md "Read and edit").
 //
 // What this file does and does not do:
 //   - The list of notebooks and the text of every open pane live in memory; the workspace file keeps a notebook pane's id

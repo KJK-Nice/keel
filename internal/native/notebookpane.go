@@ -15,7 +15,7 @@ import (
 // A notebook pane (term.js makeNotebookShell, paintNotebook, syncNotebookMeta, syncNotebookReview): the pane bar, the
 // review banner of an agent edit, the title, the meta line, a rule and the document. The document is shown rendered; Edit
 // (or a double click on it) shows the Markdown as plain text in a text area, and Done, Escape or ⌘↵ shows it rendered
-// again. The text is stored as typed: it never passes through a rich text model (docs/native-notebook-spike.md).
+// again. The text is stored as typed: it never passes through a rich text model (docs/native.md "Read and edit").
 
 const nbFenceBar = sizeControlSm // the bar over a code block
 
