@@ -38,7 +38,7 @@ func NewClient(addr, dataDir string) *Client {
 	return &Client{addr: addr, dataDir: dataDir, http: &http.Client{
 		Timeout: 30 * time.Second,
 		// A redirect would carry X-Keel-MCP-Token to wherever it points.
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		CheckRedirect: authtoken.NoRedirect,
 	}}
 }
 
@@ -81,27 +81,12 @@ func (c *Client) forget() {
 
 // verify asks /api/health for HMAC(token, nonce), sending the nonce only.
 func (c *Client) verify(ctx context.Context, token string) error {
-	nonce, err := authtoken.NewNonce()
-	if err != nil {
-		return err
+	err := authtoken.VerifyServer(ctx, c.http, c.addr, authtoken.MCPChallenge, token)
+	if errors.Is(err, authtoken.ErrUnproven) {
+		return fmt.Errorf("the server on %s did not prove it is this user's keel serve (an older Keel without keel mcp, or another program on that port)", c.addr)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base()+"/api/health?mcpNonce="+url.QueryEscape(nonce), nil)
-	if err != nil {
-		return err
-	}
-	res, err := c.http.Do(req)
 	if err != nil {
 		return errNotRunning
-	}
-	defer res.Body.Close()
-	var body struct {
-		MCPProof string `json:"mcpProof"`
-	}
-	if res.StatusCode == http.StatusOK {
-		_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body)
-	}
-	if !authtoken.CheckProof(token, nonce, body.MCPProof) {
-		return fmt.Errorf("the server on %s did not prove it is this user's keel serve (an older Keel without keel mcp, or another program on that port)", c.addr)
 	}
 	return nil
 }

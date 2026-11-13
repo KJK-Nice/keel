@@ -18,6 +18,7 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/applog"
+	"keel/internal/authtoken"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/sessionsock"
@@ -327,10 +328,10 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		out["build"] = s.build
 	}
 	if proof, ok := s.healthProof(r); ok {
-		out["proof"] = proof
+		out[authtoken.WindowChallenge.Field] = proof
 	}
 	if proof, ok := s.mcpHealthProof(r); ok {
-		out["mcpProof"] = proof
+		out[authtoken.MCPChallenge.Field] = proof
 	}
 	writeJSON(w, http.StatusOK, out)
 }

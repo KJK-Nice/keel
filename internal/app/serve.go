@@ -1,13 +1,14 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -261,27 +262,13 @@ func healthURL(addr string) string {
 // and expects HMAC(token, nonce) back: another program that grabbed the
 // port first cannot answer.
 func VerifyServe(addr, token string) error {
-	nonce, err := authtoken.NewNonce()
-	if err != nil {
-		return err
-	}
-	client := &http.Client{Timeout: 2 * time.Second}
-	res, err := client.Get(healthURL(addr) + "?nonce=" + url.QueryEscape(nonce))
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	var body struct {
-		Proof string `json:"proof"`
-	}
-	if res.StatusCode == http.StatusOK {
-		_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body)
-	}
-	if !authtoken.CheckProof(token, nonce, body.Proof) {
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
+	err := authtoken.VerifyServer(context.Background(), client, addr, authtoken.WindowChallenge, token)
+	if errors.Is(err, authtoken.ErrUnproven) {
 		return fmt.Errorf("the server on %s did not prove it is this user's keel serve "+
 			"(an older keel serve, or another program on that port); run `keel serve stop` and try again", addr)
 	}
-	return nil
+	return err
 }
 
 func postRuntimeStop(addr, token string) error {

@@ -134,7 +134,7 @@ func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
 // "Claude Code is off" refusal from /api/mcp/ instead of "the server did
 // not prove it".
 func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
-	nonce := r.URL.Query().Get("mcpNonce")
+	nonce := r.URL.Query().Get(authtoken.MCPChallenge.Param)
 	if s.mcpToken == "" || nonce == "" || len(nonce) > 128 {
 		return "", false
 	}
@@ -144,7 +144,7 @@ func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {
 // healthProof answers ?nonce= on /api/health with HMAC(token, nonce), so a
 // client can check the server holds the token before trusting it with it.
 func (s *Server) healthProof(r *http.Request) (string, bool) {
-	nonce := r.URL.Query().Get("nonce")
+	nonce := r.URL.Query().Get(authtoken.WindowChallenge.Param)
 	if nonce == "" || len(nonce) > 128 {
 		return "", false
 	}

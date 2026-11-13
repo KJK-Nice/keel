@@ -37,9 +37,12 @@ func New() (*Client, error) {
 	return NewAt(paths.Addr(), tok), nil
 }
 
-// NewAt is New with explicit values, for tests.
+// NewAt is New with explicit values, for tests. Neither HTTP client follows a redirect: it would carry the token
+// header to wherever it points.
 func NewAt(addr, token string) *Client {
-	return &Client{addr: addr, token: token, http: &http.Client{Timeout: 15 * time.Second}, slow: &http.Client{}}
+	return &Client{addr: addr, token: token,
+		http: &http.Client{Timeout: 15 * time.Second, CheckRedirect: authtoken.NoRedirect},
+		slow: &http.Client{CheckRedirect: authtoken.NoRedirect}}
 }
 
 // Vault is GET /api/vault. Rev changes with every vault or tunnel change (the webview's stream carries it too).
