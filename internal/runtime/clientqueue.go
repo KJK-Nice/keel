@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"keel/internal/inject"
 )
 
 // Each attached client gets its events through a queue measured in bytes,
@@ -42,9 +40,8 @@ type queuedEvent struct {
 }
 
 type clientConn struct {
-	Client  Client
-	ch      chan Event
-	focused inject.Surface
+	Client Client
+	ch     chan Event
 
 	qmu   sync.Mutex
 	queue []queuedEvent
@@ -62,14 +59,13 @@ type clientConn struct {
 	finOnce    sync.Once
 }
 
-func newClientConn(cl Client, focused inject.Surface) *clientConn {
+func newClientConn(cl Client) *clientConn {
 	c := &clientConn{
-		Client:  cl,
-		ch:      make(chan Event, clientChanCap),
-		focused: focused,
-		wake:    make(chan struct{}, 1),
-		done:    make(chan struct{}),
-		fin:     make(chan struct{}),
+		Client: cl,
+		ch:     make(chan Event, clientChanCap),
+		wake:   make(chan struct{}, 1),
+		done:   make(chan struct{}),
+		fin:    make(chan struct{}),
 	}
 	go c.pump()
 	return c

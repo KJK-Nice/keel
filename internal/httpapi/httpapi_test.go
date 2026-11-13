@@ -16,7 +16,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/applog"
-	"keel/internal/inject"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/store"
@@ -356,7 +355,7 @@ func TestSessionControlAndFanout(t *testing.T) {
 	}
 }
 
-func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
+func TestLiveKeysAndApprovedInjectOverTheSocket(t *testing.T) {
 	srv, _, st, fb := testServer(t)
 	host := firstHost(t, st)
 	info := spawn(t, srv.URL, host.ID)
@@ -373,9 +372,6 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		}()
 	}
 
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "palette"}); err != nil {
-		t.Fatal(err)
-	}
 	readPTY()
 	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
 		t.Fatal(err)
@@ -383,10 +379,10 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	select {
 	case hit := <-got:
 		if hit != "live" {
-			t.Fatalf("live WS Write while palette focused got %q", hit)
+			t.Fatalf("live WS Write got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("live websocket binary must still use ungated Session.Write")
+		t.Fatal("the driver's live websocket binary must reach Session.Write")
 	}
 
 	readPTY()
@@ -428,9 +424,6 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		t.Fatal("timeout waiting for ticket inject")
 	}
 
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
-		t.Fatal(err)
-	}
 	readPTY()
 	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
 		t.Fatal(err)
@@ -438,10 +431,10 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	select {
 	case hit := <-got:
 		if hit != "x" {
-			t.Fatalf("restored live WS got %q", hit)
+			t.Fatalf("live WS after an inject got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
+		t.Fatal("timeout waiting for live Write after an inject")
 	}
 }
 
@@ -515,100 +508,6 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 	}
 }
 
-func TestChromeWSFocusAndNoUnapprovedInject(t *testing.T) {
-	srv, rt, st, fb := testServer(t)
-	host := firstHost(t, st)
-	info := spawn(t, srv.URL, host.ID)
-	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
-	defer alice.Close()
-	ready := waitJSON(t, alice, "ready")
-	waitBridgeReady(t, alice, ready)
-	aliceID := uint64(ready["you"].(map[string]any)["id"].(float64))
-	sess, err := rt.Get(info.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitFocus := func(want inject.Surface) {
-		t.Helper()
-		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) {
-			if sess.Focus(aliceID) == want {
-				return
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		t.Fatalf("focus = %q want %q", sess.Focus(aliceID), want)
-	}
-
-	got := make(chan string, 1)
-	readPTY := func() {
-		go func() {
-			buf := make([]byte, 32)
-			n, _ := fb.inR.Read(buf)
-			got <- string(buf[:n])
-		}()
-	}
-
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "chrome"}); err != nil {
-		t.Fatal(err)
-	}
-	waitFocus(inject.SurfaceChrome)
-	if err := sess.Keystroke(aliceID, []byte("i"), sess.Focus(aliceID)); !errors.Is(err, inject.ErrNotTerminalFocus) {
-		t.Fatalf("chrome keystroke err = %v", err)
-	}
-	readPTY()
-	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "live" {
-			t.Fatalf("live WS Write while chrome focused got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("live websocket binary must still use ungated Session.Write")
-	}
-
-	readPTY()
-	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "rm\n", "approved": false}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case leak := <-got:
-		t.Fatalf("PTY received unapproved inject %q", leak)
-	case <-time.After(80 * time.Millisecond):
-	}
-
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
-		t.Fatal(err)
-	}
-	waitFocus(inject.SurfaceTerm)
-	if err := sess.Keystroke(aliceID, []byte("k"), sess.Focus(aliceID)); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "k" {
-			t.Fatalf("restored Keystroke got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for Keystroke after SurfaceTerm restore")
-	}
-
-	readPTY()
-	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "x" {
-			t.Fatalf("restored live WS got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
-	}
-}
-
 // The session socket's write paths, by source (the web page's own JS checks went with the webview; the native
 // client's are internal/native/guard_test.go and keelclient/noforgedapproval_test.go).
 func TestSessionWSKeepsWriteUngated(t *testing.T) {
@@ -619,12 +518,6 @@ func TestSessionWSKeepsWriteUngated(t *testing.T) {
 	body := string(src)
 	if !strings.Contains(body, "sess.Write(cl.ID, msg)") {
 		t.Fatal("live websocket binary must call Session.Write")
-	}
-	if strings.Contains(body, "sess.Keystroke(cl.ID, msg") {
-		t.Fatal("live websocket binary must not be routed through Keystroke")
-	}
-	if !strings.Contains(body, "sess.SetFocus(cl.ID") {
-		t.Fatal("focus JSON must call Session.SetFocus")
 	}
 	if !strings.Contains(body, "sess.IssueInjectTicket(cl.ID") || !strings.Contains(body, "sess.InjectTicket(cl.ID") {
 		t.Fatal("palette/chrome inject JSON must issue and consume a server ticket")

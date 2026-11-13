@@ -393,7 +393,7 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 		}
 	}
 	cl.Role = s.roleLocked(id)
-	c := newClientConn(cl, inject.SurfaceTerm)
+	c := newClientConn(cl)
 	s.clients[id] = c
 	ch := c.ch
 	snap := s.buf.Bytes()
@@ -472,38 +472,6 @@ func (s *Session) Write(clientID uint64, p []byte) error {
 	return err
 }
 
-// SetFocus records which UI surface owns this client's keyboard. Palette
-// and chrome must not leave SurfaceTerm in place or Keystroke will type.
-func (s *Session) SetFocus(clientID uint64, focused inject.Surface) error {
-	switch focused {
-	case inject.SurfaceTerm, inject.SurfacePalette, inject.SurfaceChrome:
-	case "":
-		focused = inject.SurfaceTerm
-	default:
-		focused = inject.SurfaceChrome
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.clients[clientID]
-	if !ok {
-		return ErrNoClient
-	}
-	c.focused = focused
-	return nil
-}
-
-// Focus is the surface last set for this client. Empty/unknown clients
-// report SurfaceTerm so live typing keeps working until palette or chrome opens.
-func (s *Session) Focus(clientID uint64) inject.Surface {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.clients[clientID]
-	if !ok || c.focused == "" {
-		return inject.SurfaceTerm
-	}
-	return c.focused
-}
-
 // Inject writes p to the PTY only after an explicit approve. Live typing
 // still uses Write. Palette/snippet inject must not call Write directly.
 func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) error {
@@ -541,15 +509,6 @@ func (s *Session) InjectTicket(clientID uint64, command, nonce string) error {
 		return err
 	}
 	return s.Inject(clientID, []byte(command), approved)
-}
-
-// Keystroke is live typing. Palette and other chrome must not call this
-// unless the terminal owns focus; they inject through Inject after approve.
-func (s *Session) Keystroke(clientID uint64, p []byte, focused inject.Surface) error {
-	if err := inject.CanType(focused); err != nil {
-		return err
-	}
-	return s.Write(clientID, p)
 }
 
 // ReadScrollback returns PTY history for inspection. Secrets are redacted

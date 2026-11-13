@@ -1146,10 +1146,8 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		if mt == websocket.TextMessage {
 			var ctl struct {
 				Type     string `json:"type"`
-				Surface  string `json:"surface"`
 				Command  string `json:"command"`
 				Nonce    string `json:"nonce"`
-				Approved bool   `json:"approved"`
 				Cols     int    `json:"cols"`
 				Rows     int    `json:"rows"`
 				TargetID uint64 `json:"targetId"`
@@ -1182,8 +1180,6 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				err = sess.GrantControl(cl.ID, ctl.TargetID)
 			case "take-control":
 				err = sess.TakeControl(cl.ID)
-			case "focus":
-				err = sess.SetFocus(cl.ID, inject.Surface(ctl.Surface))
 			case "inject-challenge":
 				var nonce string
 				nonce, err = sess.IssueInjectTicket(cl.ID, ctl.Command)
@@ -1285,7 +1281,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 				}
 				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
 			}
-			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {
+			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrBadTicket) {
 				_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
 			}
 			continue

@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"keel/internal/inject"
 )
 
 // A burst of many small output chunks (yes | head over SSH) must not drop a
@@ -140,7 +138,7 @@ func TestOfferDropReason(t *testing.T) {
 		{Event{Kind: "presence"}, "events unread"},
 	}
 	for _, tc := range cases {
-		c := newClientConn(Client{}, inject.SurfaceTerm)
+		c := newClientConn(Client{})
 		refused := false
 		for i := 0; i < 2*clientMaxQueuedEvents+clientChanCap+1; i++ {
 			if !c.offer(tc.ev) {
