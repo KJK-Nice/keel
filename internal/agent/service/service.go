@@ -758,7 +758,7 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	// Build the Redactor first: the edit is kept redacted, and without one
 	// the edit is refused rather than shown in the panel and saved
 	// differently (or as typed).
-	r, err := s.commandRedactor()
+	r, err := s.redactorFor(forKeptCommand)
 	if err != nil {
 		return Proposal{}, err
 	}

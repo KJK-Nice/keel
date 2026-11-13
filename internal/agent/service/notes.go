@@ -19,7 +19,7 @@ import (
 // (store, keel.memory). The service is their only way in and out:
 //
 //   - The user adds, edits and deletes them (AddNote, EditNote, DeleteNote).
-//     Every text is redacted for secrets before it is kept (saveRedactor:
+//     Every text is redacted for secrets before it is kept (forSave:
 //     vault values and secret-looking values, never IPs or hostnames, so a
 //     note still says what it means), and every change is logged as
 //     agent.note without the text.
@@ -461,25 +461,6 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 	return nil
 }
 
-// saveRedactor redacts what is kept in a note: secrets always (vault
-// values as exact matches, secret-looking values), never IPs or hostnames,
-// which a note may need and which the request's Redactor replaces anyway
-// when it is sent with the user's settings.
-//
-// Captured values and group variables' values are kept as {{name}}
-// (groupvars.go); saveCommandRedactor, for runbook step commands, leaves
-// group variables as written.
-func (s *Service) saveRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(true)...)
-}
-
-// saveCommandRedactor is saveRedactor without the group variables: a step
-// command that holds a variable's value (10.20.0.10) is the user's to
-// type, not a secret, and is kept as written.
-func (s *Service) saveCommandRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(false)...)
-}
-
 func (s *Service) noteHost(hostID string) (agent.Host, error) {
 	hosts, err := s.st.ListHosts()
 	if err != nil {
@@ -502,7 +483,7 @@ func (s *Service) cleanNote(text string) (string, redact.Report, error) {
 	if len(text) > 4*store.MaxAgentNoteBytes {
 		return "", redact.Report{}, errNoteTooLong
 	}
-	r, err := s.saveRedactor()
+	r, err := s.redactorFor(forSave)
 	if err != nil {
 		return "", redact.Report{}, err
 	}

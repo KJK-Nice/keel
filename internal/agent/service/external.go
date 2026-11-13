@@ -211,7 +211,7 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	if err != nil {
 		return Proposal{}, err
 	}
-	r, err := s.commandRedactor()
+	r, err := s.redactorFor(forKeptCommand)
 	if err != nil {
 		return Proposal{}, err
 	}

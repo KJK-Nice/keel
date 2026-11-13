@@ -322,7 +322,7 @@ func (s *Service) hydrate(id string) error {
 	// The saved text was redacted when it was sent; it goes through a
 	// Redactor again (a second pass leaves placeholders as they are) so
 	// that only redact.Safe values ever reach a provider request.
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return err
 	}
@@ -344,38 +344,6 @@ func (s *Service) hydrate(id string) error {
 		s.convs[id] = c
 	}
 	return nil
-}
-
-// redactor builds a Redactor with the current settings and hosts, for
-// text the service keeps rather than sends.
-//
-// Like every Redactor the service builds it replaces captured values and
-// group variables' values with {{name}} (groupvars.go), except
-// commandRedactor's.
-func (s *Service) redactor() (*redact.Redactor, error) {
-	return s.keptRedactor(true)
-}
-
-// commandRedactor is redactor for a command the user will type (an edited
-// proposal): captured values are withheld, group variables are not. A
-// group variable is config, not a secret, and a command the user wrote
-// with its value (an address, a version) must stay typeable; the model
-// never sees such a command's text but through a request Redactor, which
-// replaces it.
-func (s *Service) commandRedactor() (*redact.Redactor, error) {
-	return s.keptRedactor(false)
-}
-
-func (s *Service) keptRedactor(withVars bool) (*redact.Redactor, error) {
-	set, err := s.st.AgentSettings()
-	if err != nil {
-		return nil, err
-	}
-	hosts, err := s.st.ListHosts()
-	if err != nil {
-		return nil, err
-	}
-	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts), s.namedValues(withVars)...)
 }
 
 // snapshotLocked copies the conversation's record for saving. Call with
@@ -540,7 +508,7 @@ func (s *Service) Rename(id, title string) (string, error) {
 	if !convIDRe.MatchString(id) {
 		return "", ErrNotFound
 	}
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return "", err
 	}
@@ -612,7 +580,7 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 			host = &h
 		}
 	}
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return Proposal{}, err
 	}

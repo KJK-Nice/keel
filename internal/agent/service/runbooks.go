@@ -25,7 +25,7 @@ import (
 //   - The user adds, edits and deletes them (AddRunbook, UpdateRunbook,
 //     DeleteRunbook), also from a draft made from a notebook or a saved
 //     conversation (RunbookDraft). Every text is redacted for secrets
-//     before it is kept (saveRedactor, as for notes); every change is logged
+//     before it is kept (forSave, as for notes); every change is logged
 //     as agent.runbook without the text.
 //   - The agent never writes one. Ask may only propose a runbook (a
 //     ```keel-runbook block); nothing is kept until the user saves it
@@ -292,13 +292,13 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 	if len(in.Steps) > store.MaxRunbookSteps {
 		return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("at most %d steps", store.MaxRunbookSteps))
 	}
-	r, err := s.saveRedactor()
+	r, err := s.redactorFor(forSave)
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
 	// Commands are checked without the group variables (a command may
 	// hold a variable's value as the user wrote it).
-	cr, err := s.saveCommandRedactor()
+	cr, err := s.redactorFor(forSaveCommand)
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
@@ -521,11 +521,11 @@ func (s *Service) RunbookDraft(req DraftRequest) (RunbookInput, error) {
 	// A command that holds a secret (or a placeholder from an earlier
 	// redaction) is left out of the draft, with a note: the save would
 	// refuse it.
-	sr, err := s.saveRedactor()
+	sr, err := s.redactorFor(forSave)
 	if err != nil {
 		return RunbookInput{}, err
 	}
-	cr, err := s.saveCommandRedactor()
+	cr, err := s.redactorFor(forSaveCommand)
 	if err != nil {
 		return RunbookInput{}, err
 	}

@@ -183,11 +183,13 @@ func TestAgentCallsNoWriteMethods(t *testing.T) {
 // agent service, in providerFor (the model provider's key, which goes only
 // into the x-goog-api-key header) and in judgeFor (the detector's key,
 // which goes only into Jev's Authorization header), never into a request
-// body.
+// body. NewRedactor itself is called once, in the service's
+// buildRedactor, which also puts in the values Keel withholds (§6 rule
+// 11): no call site can build a Redactor that forgets either.
 func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	secretFields := map[string]bool{"Password": true, "PrivateKey": true, "Passphrase": true, "Token": true}
 	secretCalls := map[string]bool{"GetHost": true, "HostForConnect": true, "GetIdentity": true, "ListIdentities": true, "DuplicateHost": true}
-	known, keys := 0, 0
+	known, keys, redactors := 0, 0, 0
 	for _, f := range parseModule(t) {
 		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) {
 			continue
@@ -221,12 +223,21 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 						t.Errorf("%s: KnownSecretValues used in %q, only NewRedactor may", f.rel, fn)
 					}
 				}
+				if name == "NewRedactor" {
+					redactors++
+					if f.pkg != module+"/internal/agent/service" || fn != "buildRedactor" {
+						t.Errorf("%s: a Redactor is built in %q, only service.buildRedactor may", f.rel, fn)
+					}
+				}
 				return true
 			})
 		}
 	}
 	if known != 1 {
 		t.Errorf("KnownSecretValues used %d times in the agent tree, want exactly 1 (NewRedactor)", known)
+	}
+	if redactors != 1 {
+		t.Errorf("NewRedactor called %d times in the agent tree, want exactly 1 (service.buildRedactor)", redactors)
 	}
 	if keys != 2 {
 		t.Errorf("AgentKey used %d times in the agent tree, want exactly 2 (service.providerFor, service.judgeFor)", keys)

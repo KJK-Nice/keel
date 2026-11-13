@@ -113,7 +113,7 @@ func (s *Service) SetGroupVar(groupID, name, value string) (store.Group, error) 
 		return store.Group{}, ErrNotFound
 	}
 	if strings.TrimSpace(value) != "" {
-		r, err := agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil)
+		r, err := s.redactorFor(forVaultCheck)
 		if err != nil {
 			return store.Group{}, err
 		}
@@ -138,7 +138,7 @@ func (s *Service) SetGroupVar(groupID, name, value string) (store.Group, error) 
 // holdsVaultValue reports whether any text holds a value from the vault.
 // It uses a Redactor (the one way the agent tree reads vault values).
 func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
-	r, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	r, err := s.redactorFor(forVaultCheck)
 	if err != nil {
 		return false, err
 	}
@@ -155,7 +155,7 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 // is as much a secret as the whole. Exported for the Ansible export too
 // (HoldsVaultValue).
 func (s *Service) overlapsVault(v string) (bool, error) {
-	r, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	r, err := s.redactorFor(forVaultCheck)
 	if err != nil {
 		return false, err
 	}
@@ -168,13 +168,6 @@ func (s *Service) overlapsVault(v string) (bool, error) {
 func (s *Service) HoldsVaultValue(v string) bool {
 	bad, err := s.overlapsVault(v)
 	return err != nil || bad
-}
-
-// requestRedactor is the Redactor of one agent request: agent.NewRedactor
-// with every captured value and every group variable's value replaced by
-// its {{name}}.
-func (s *Service) requestRedactor(opts store.AgentRedaction, hosts []agent.Host) (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, opts, hosts, s.namedValues(true)...)
 }
 
 // maxWithheld bounds the redact-only set of captured values. When it is
@@ -203,36 +196,6 @@ func (s *Service) withholdLocked(name, value string) bool {
 	}
 	s.withheld[value] = name
 	return true
-}
-
-// namedValues lists the values the model must never see: every value a
-// group run captured since keel serve started (the redact-only set, which
-// outlives the runs), and (withVars) every group variable's value.
-func (s *Service) namedValues(withVars bool) []redact.Named {
-	var out []redact.Named
-	s.mu.Lock()
-	for value, name := range s.withheld {
-		out = append(out, redact.Named{Name: name, Value: value, Kind: redact.KindCaptured})
-	}
-	s.mu.Unlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Value < out[j].Value })
-	if withVars {
-		if vs, ok := s.st.(GroupVarStore); ok {
-			if all, err := vs.AllGroupVars(); err == nil {
-				ids := make([]string, 0, len(all))
-				for id := range all {
-					ids = append(ids, id)
-				}
-				sort.Strings(ids)
-				for _, id := range ids {
-					for _, v := range all[id] {
-						out = append(out, redact.Named{Name: v.Name, Value: v.Value, Kind: redact.KindVariable})
-					}
-				}
-			}
-		}
-	}
-	return out
 }
 
 // pruneCapturesLocked drops values older than captureTTL and marks them
@@ -455,7 +418,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		groupVars = all[groupID]
 	}
 	// Only its vault matches are used (HoldsKnown, InsideKnown).
-	vault, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	vault, err := s.redactorFor(forVaultCheck)
 	if err != nil {
 		return f, err
 	}
