@@ -2,7 +2,6 @@ package native
 
 import (
 	"math"
-	"runtime"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -20,7 +19,7 @@ const sidebarLabelsMin = 246
 // macOS's, and the labels were short by 0.8 to 1.7 px each at UI size 12 in the narrowest sidebar (issue #140; the four labels
 // together are about 6 px short, which is all the room the narrowest sidebar had over the default 252).
 func sidebarFontSlack() float32 {
-	if runtime.GOOS == "darwin" {
+	if isMac() {
 		return 0
 	}
 	return 6

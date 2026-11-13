@@ -3,7 +3,6 @@ package native
 import (
 	"context"
 	"errors"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -159,19 +158,14 @@ const (
 
 // shiftWord is how the app names the key in its sentences.
 func shiftWord() string {
-	if runtime.GOOS == "darwin" {
+	if isMac() {
 		return "⇧"
 	}
 	return "Shift"
 }
 
-// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+⇧I elsewhere (Ctrl+I is Tab in a terminal).
-func agentKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘I"
-	}
-	return "Ctrl+⇧I"
-}
+// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+Shift+I elsewhere (Ctrl+I is Tab in a terminal).
+func agentKeys() string { return commandKeyLabel("agent.toggle") }
 
 // The panel's width (ui/agentpanel.js "width"): at least --size-agent and at most half the window, kept as agentWidth in
 // keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).

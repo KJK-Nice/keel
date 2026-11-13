@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -131,10 +130,8 @@ func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {
 }
 
 func agentMods() ui.Modifiers {
-	if runtime.GOOS == "darwin" {
-		return ui.Cmd
-	}
-	return ui.Cmd | ui.Shift
+	mods, _ := shortcutOf("agent.toggle")
+	return mods
 }
 
 func (r *rig) ask(t *testing.T, q string) {

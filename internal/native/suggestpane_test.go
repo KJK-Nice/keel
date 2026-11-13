@@ -1,7 +1,6 @@
 package native
 
 import (
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +66,7 @@ func (r *sugRig) noticed(t *testing.T) {
 
 // The keys and their labels of this platform, as the product writes them (keyLabels, undoKey, the suggest key): the tests never
 // assume macOS's (issue #140: ⌘Z and ⌘Y are Ctrl+Shift+Z and Ctrl+Shift+Y elsewhere, ⇥ is "Tab").
-func platLabels() keyLabelSet { return keyLabels(runtime.GOOS == "darwin") }
+func platLabels() keyLabelSet { return keyLabels() }
 
 func card(options ...keelclient.SuggestOption) *keelclient.Suggestion {
 	return &keelclient.Suggestion{ID: "s_1", Options: options}
@@ -161,7 +160,7 @@ func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPresse
 	}
 	r.key(0, ui.KeyTab)
 	r.tt.Frame()
-	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k, runtime.GOOS == "darwin")+" to insert this command.") {
+	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k)+" to insert this command.") {
 		t.Fatalf("plain ⇥ on a destructive command: inserts %v texts %v", r.c.sugInserts, r.tt.Texts())
 	}
 	r.key(ui.Shift, ui.KeyTab)

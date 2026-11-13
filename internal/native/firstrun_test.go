@@ -52,7 +52,7 @@ func (r *rig) texts(t *testing.T, want ...string) {
 func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	fb := setupBackend()
 	r := firstRunRig(t, fb)
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	r.texts(t, "Vault", "Hosts", "Agent", "Welcome to Keel",
 		"Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
 		"Unlock with "+kc, "Recommended",
@@ -80,7 +80,7 @@ func TestFirstRunKeychainCardIsNotChoosableWhenSettingUp(t *testing.T) {
 	if f := r.w.first; f.usesKeychain() {
 		t.Fatal("a vault that needs setup uses the keychain")
 	}
-	r.click(t, "Unlock with "+keychainName(goosForTest))
+	r.click(t, "Unlock with "+keychainName())
 	if r.w.first.vault.NeedsSetup != true || len(r.fb.setups) != 0 {
 		t.Error("the disabled keychain card did something")
 	}
@@ -156,7 +156,7 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
 	r := firstRunRig(t, fb)
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	r.texts(t, "Welcome to Keel", "The vault key lives in your login keychain. Keel opens without asking.",
 		"Keel already made this vault with "+kc+". It does not re-key a vault here.",
 		"age, with the wrapping key in your keychain", "Continue")

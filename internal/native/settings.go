@@ -3,7 +3,6 @@ package native
 import (
 	"math"
 	"os"
-	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -323,7 +322,7 @@ func (w *workspace) syncSliders(p *settingsPage) {
 }
 
 // hasBlur reports a window that has the blur row (macOS only, as data-blur-only).
-func hasBlur() bool { return runtime.GOOS == "darwin" }
+func hasBlur() bool { return isMac() }
 
 // initSliders gives the sliders the current values when the page is made.
 func (w *workspace) initSliders(p *settingsPage) {

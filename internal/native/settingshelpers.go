@@ -102,38 +102,10 @@ func stopMessage(sessions int) string {
 	return "This ends " + what + " and every port forward, then closes keel serve. Reopen Keel to start it again."
 }
 
-// shortcut is a row of lib/shortcutmap.js SHORTCUTS, with the macOS label. later names the phase that gives this client
-// the key; "" means it has it now, and only those are listed on the Keyboard page.
-type shortcut struct{ group, title, keys, later string }
+// shortcut is a row of the Keyboard page: made from the command table, with the key cap text of this platform.
+type shortcut struct{ group, title, keys string }
 
 var shortcutGroupNames = []string{"General", "Tabs", "Vault", "Panes", "Terminal", "Agent"}
-
-var shortcuts = []shortcut{
-	{"Tabs", "New tab", "⌘T", ""},
-	{"Tabs", "Close pane or tab", "⌘W", ""},
-	{"Tabs", "Reopen last tab", "⌘⇧T", ""},
-	{"Tabs", "Previous tab", "⌘<", ""},
-	{"Tabs", "Next tab", "⌘>", ""},
-	{"Tabs", "First tab", "⌘1", ""},
-	{"Tabs", "Last tab", "⌘9", ""},
-	{"General", "Command palette", "⌘K", ""},
-	{"Vault", "Toggle vault sidebar", "⌘B", ""},
-	{"Vault", "New host", "⌘N", ""},
-	{"Vault", "Quick connect", "⌘⇧O", ""},
-	{"Vault", "Join session", "⌘J", ""},
-	{"Vault", "Settings", "⌘,", ""},
-	{"Panes", "Split right", "⌘⇧D", ""},
-	{"Panes", "Split down", "⌘⇧E", ""},
-	{"Panes", "Focus view (zoom pane)", "⌘⇧↵", ""},
-	{"Panes", "Find in terminal", "⌘F", ""},
-	{"Terminal", "Larger text", "⌘+", ""},
-	{"Terminal", "Smaller text", "⌘-", ""},
-	{"Terminal", "Reset text size", "⌘0", ""},
-	{"Agent", "Toggle agent panel", "⌘I", ""},
-	{"Agent", "Ask the agent (from the palette)", "⌘↵", ""},
-	{"Agent", "Suggest a command for the prompt line", "⌘Y", ""},
-	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", ""},
-}
 
 // shortcutGroup is a group of the Keyboard page.
 type shortcutGroup struct {
@@ -141,14 +113,14 @@ type shortcutGroup struct {
 	items []shortcut
 }
 
-// shortcutGroups is shortcutmap.js shortcutGroups for the keys this client has, in group order; a group with none (Agent
-// for now) is left out.
+// shortcutGroups are the commands that have a row on the Keyboard page, in group order and the table's order inside a
+// group; a group with none is left out.
 func shortcutGroups() (out []shortcutGroup) {
 	for _, g := range shortcutGroupNames {
 		var items []shortcut
-		for _, s := range shortcuts {
-			if s.group == g && s.later == "" {
-				items = append(items, s)
+		for i := range commands {
+			if h := commands[i].help; h != nil && h.group == g {
+				items = append(items, shortcut{g, h.title, commands[i].keyLabel()})
 			}
 		}
 		if len(items) > 0 {

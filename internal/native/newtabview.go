@@ -41,9 +41,9 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 		if ev.Kind != ui.InputKeyDown || ev.Mods != ui.Alt {
 			return
 		}
-		i := slices.Index(altDigits, ev.Key)
+		i := slices.Index(digitKeys[:6], ev.Key)
 		if i < 0 {
-			i = slices.Index(altDigits, ev.PhysicalKey)
+			i = slices.Index(digitKeys[:6], ev.PhysicalKey)
 		}
 		if i >= 0 {
 			p.alt = altPress{cards: cards, query: p.query, at: time.Now()}

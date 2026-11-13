@@ -1,8 +1,6 @@
 package native
 
 import (
-	"runtime"
-
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
@@ -30,7 +28,7 @@ func validTheme(s string) string {
 // followsNatively reports whether the window takes the theme as its own appearance (the macOS chrome, as
 // internal/desktop/appearance.go does for the webview). Elsewhere a theme that differs from the OS's keeps the window
 // opaque, because the backdrop would show the OS's tint (page.templ applyTheme).
-func followsNatively() bool { return runtime.GOOS == "darwin" }
+func followsNatively() bool { return isMac() }
 
 // resolveTheme runs first in every frame: it reads the OS appearance, works out the theme in use and sets the colour
 // variables. A change gives every terminal its colours and the window its appearance.

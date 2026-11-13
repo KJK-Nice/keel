@@ -144,11 +144,11 @@ type sugKey struct {
 }
 
 // undoKey is the "back to your words" key: ⌘Z on macOS; Ctrl+Shift+Z elsewhere, since Ctrl+Z suspends the job.
-func undoKey(k sugKey, mac bool) bool {
+func undoKey(k sugKey) bool {
 	if k.Alt || strings.ToLower(k.Name) != "z" {
 		return false
 	}
-	if mac {
+	if isMac() {
 		return k.Meta && !k.Ctrl && !k.Shift
 	}
 	return k.Ctrl && k.Shift && !k.Meta
@@ -187,28 +187,21 @@ type keyLabelSet struct {
 	Undo, Suggest                    []string
 }
 
-func keyLabels(mac bool) keyLabelSet {
-	if mac {
-		return keyLabelSet{"⇥", "⇧", "esc", "↵", "↑", "↓", []string{"⌘", "Z"}, []string{"⌘", "Y"}}
+func keyLabels() keyLabelSet {
+	undo, suggest := splitKeyCaps(commandKeyLabel("agent.undo")), splitKeyCaps(commandKeyLabel("agent.suggest"))
+	if isMac() {
+		return keyLabelSet{"⇥", "⇧", "esc", "↵", "↑", "↓", undo, suggest}
 	}
-	return keyLabelSet{"Tab", "Shift", "Esc", "Enter", "↑", "↓", []string{"Ctrl", "Shift", "Z"}, []string{"Ctrl", "Shift", "Y"}}
+	return keyLabelSet{"Tab", "Shift", "Esc", "Enter", "↑", "↓", undo, suggest}
 }
 
 // shiftTab is ⇧⇥ written for the platform: the glyphs run together on macOS, the words are joined with + elsewhere ("Shift+Tab",
 // not "ShiftTab": a defect a Linux user saw in v0.2.0).
-func shiftTab(k keyLabelSet, mac bool) string {
-	if mac {
+func shiftTab(k keyLabelSet) string {
+	if isMac() {
 		return k.Shift + k.Tab
 	}
 	return k.Shift + "+" + k.Tab
-}
-
-// suggestKeyLabel is the suggest key as the Keyboard page and the settings write it.
-func suggestKeyLabel(mac bool) string {
-	if mac {
-		return "⌘Y"
-	}
-	return "Ctrl+Shift+Y"
 }
 
 // riskWords is the badge text; destructive says what it does when the command makes it plain.
@@ -269,7 +262,6 @@ type sugDeps struct {
 	restore     func(words string)
 	render      func(sugView)
 	now         func() time.Time
-	mac         bool
 }
 
 type detectHit struct {
@@ -467,8 +459,7 @@ func (m *sugMachine) doInsert(shift bool) {
 	}
 	opt := st.Sug.Options[st.Selected]
 	if ok, _ := insertGate(&opt, shift); !ok {
-		k := keyLabels(m.d.mac)
-		st.Note = "Press " + shiftTab(k, m.d.mac) + " to insert this command."
+		st.Note = "Press " + shiftTab(keyLabels()) + " to insert this command."
 		m.set(st)
 		return
 	}
@@ -615,7 +606,7 @@ func (m *sugMachine) OnKey(k sugKey) bool {
 		m.idle()
 		return false
 	case sugInserted:
-		if undoKey(k, m.d.mac) {
+		if undoKey(k) {
 			m.restore()
 			return true
 		}
