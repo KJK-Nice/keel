@@ -21,7 +21,7 @@ func sidebarSegmentsFit(t *testing.T, narrow bool) {
 			r := splitRig(t) // two panes, so Panes shows
 			setUISize(size)
 			if narrow {
-				r.w.prefs.SidebarWidth =sidebarMin()
+				r.w.prefs.SidebarWidth = sidebarMin()
 			}
 			r.w.setTheme(map[bool]string{true: themeDark, false: themeLight}[dark])
 			widths := map[string]float32{}

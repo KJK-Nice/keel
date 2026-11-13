@@ -42,7 +42,7 @@ func bytesView(c *ui.Context, bytes string) {
 // ---- the panel ----
 
 // agentShown is whether the panel is on screen: open, and not in a joined tab (§5.7: no panel there).
-func (w *workspace) agentShown() bool { return w.prefs.AgentPanel &&!w.joinedActive() }
+func (w *workspace) agentShown() bool { return w.prefs.AgentPanel && !w.joinedActive() }
 
 func (w *workspace) agentView(c *ui.Context) {
 	a := w.agent

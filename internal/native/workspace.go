@@ -397,7 +397,7 @@ type workspace struct {
 	appBuild string // the build id of the app that opened the window (Options.AppBuild); "" never warns of an older runtime
 	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
 
-	renaming  *tab          // the tab whose name is being edited
+	renaming   *tab // the tab whose name is being edited
 	renameText string
 	renameSeen bool // the rename field has had the keyboard
 	renameH    ui.Handle
@@ -410,8 +410,8 @@ type workspace struct {
 
 	saved saveState
 
-	pal       *palette // the open command palette
-	palH      ui.Handle
+	pal  *palette // the open command palette
+	palH ui.Handle
 
 	live            bool      // the first listing has been read: the window keeps a tab from now on
 	newTabLockUntil time.Time // ⌘T repeats inside this are ignored

@@ -1267,7 +1267,7 @@ func TestE2ENewTabPage(t *testing.T) {
 	if cards := e.w.cards(e.w.tab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
 		t.Fatalf("cards %v recents %v", cards, e.w.prefs.RecentHosts)
 	}
-	e.pump(func() bool { return slices.Equal(loadPrefs(dir).RecentHosts,[]string{local.ID}) }, "the recent hosts in keel-native.json")
+	e.pump(func() bool { return slices.Equal(loadPrefs(dir).RecentHosts, []string{local.ID}) }, "the recent hosts in keel-native.json")
 
 	// ⌥1 opens the first card in this tab: a second session.
 	e.key(ui.Alt, ui.Key1)

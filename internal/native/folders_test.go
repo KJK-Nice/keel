@@ -237,11 +237,11 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	}
 	r.click(t, "folder Infra")
 	r.click(t, "folder Apps")
-	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 2|| !got["infra"] || !got["apps"] {
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 2 || !got["infra"] || !got["apps"] {
 		t.Fatalf("kept %v", got)
 	}
 	r.click(t, "folder Apps") // opened again: no longer kept
-	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 1|| !got["infra"] {
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 1 || !got["infra"] {
 		t.Fatalf("kept after opening Apps: %v", got)
 	}
 	if b, _ := os.ReadFile(filepath.Join(r.w.dataDir, "keel-native.json")); !strings.Contains(string(b), `"termSize": 14`) {
