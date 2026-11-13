@@ -1,4 +1,4 @@
-.PHONY: app build package native-e2e native-automation native-automation-build test test-nonwindow signal macos-icon lint fmt vet staticcheck vulncheck
+.PHONY: app build package native-e2e native-automation native-automation-build test signal macos-icon lint fmt vet staticcheck vulncheck
 
 ADDR ?= 127.0.0.1:47241
 STATICCHECK_VERSION := v0.8.2
@@ -70,12 +70,6 @@ native-automation: native-automation-build
 
 test:
 	go test ./...
-
-# Every package except the window (keel/internal/native itself; its sub-packages keelclient, joinpeer, layout and sshparse
-# stay). CI's Linux leg runs this because the window's tests are not green on Linux yet (docs/native.md "Linux"); make test
-# on a Linux machine still runs everything, so the gap stays visible there.
-test-nonwindow:
-	go test $$(go list ./... | grep -v '^keel/internal/native$$')
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \
