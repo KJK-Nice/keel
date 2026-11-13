@@ -48,6 +48,9 @@ type askFixture struct {
 	offID   string
 }
 
+// askSuggestTimeout is the suggestion model bound the next newAskFixture gives its server (0: the default).
+var askSuggestTimeout time.Duration
+
 func bp(b bool) *bool { return &b }
 
 func newAskFixture(t *testing.T, withKey bool) *askFixture {
@@ -95,6 +98,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		return f.fake, nil
 	}
 	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
+	server.agentSuggestTimeout = askSuggestTimeout
 	f.srv = httptest.NewServer(server.Handler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {

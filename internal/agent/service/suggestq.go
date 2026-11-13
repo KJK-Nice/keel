@@ -62,16 +62,9 @@ const (
 	maxAlternatives = 2
 )
 
-// suggestTimeout bounds the model provider call for a suggestion. The window waits this long, the history pick and a
-// margin (internal/native suggestWait) before it gives up on an answer; a var only so a test can shorten it.
-var suggestTimeout = 30 * time.Second
-
-// SetSuggestTimeoutForTest shortens the model call's bound and returns the call that puts it back.
-func SetSuggestTimeoutForTest(d time.Duration) (restore func()) {
-	old := suggestTimeout
-	suggestTimeout = d
-	return func() { suggestTimeout = old }
-}
+// defaultSuggestTimeout bounds the model provider call for a suggestion (Options.SuggestTimeout). The window waits
+// this long, the history pick and a margin (internal/native suggestWait) before it gives up on an answer.
+const defaultSuggestTimeout = 30 * time.Second
 
 // History first (phase 6c+): before the model writes a command, code
 // gathers commands the user already ran in the pane (its scrollback) or

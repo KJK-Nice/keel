@@ -514,7 +514,7 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 // runModel runs the model suggester with its own budget (suggestTimeout),
 // whatever the history step took, and turns its errors into the card's.
 func (s *Service) runModel(ctx context.Context, sg Suggester, in SuggestInput, start time.Time) ([]Candidate, time.Duration, error) {
-	cctx, cancel := context.WithTimeout(ctx, suggestTimeout)
+	cctx, cancel := context.WithTimeout(ctx, s.suggestTimeout)
 	defer cancel()
 	c, err := sg.Suggest(cctx, in)
 	if err != nil {
@@ -526,7 +526,7 @@ func (s *Service) runModel(ctx context.Context, sg Suggester, in SuggestInput, s
 		}
 		if errors.Is(cctx.Err(), context.DeadlineExceeded) {
 			// Not providerErr: its message names the ask timeout (s.timeout), not this one.
-			return nil, 0, &ProviderError{Msg: fmt.Sprintf("The model did not answer within %s.", suggestTimeout)}
+			return nil, 0, &ProviderError{Msg: fmt.Sprintf("The model did not answer within %s.", s.suggestTimeout)}
 		}
 		var pe *ProviderError
 		if errors.As(err, &pe) {

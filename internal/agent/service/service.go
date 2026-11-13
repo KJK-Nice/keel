@@ -91,7 +91,9 @@ type Options struct {
 	Judge        JudgeFactory
 	TestProvider bool
 	Timeout      time.Duration
-	Now          func() time.Time
+	// SuggestTimeout bounds the model call of one in-pane suggestion.
+	SuggestTimeout time.Duration
+	Now            func() time.Time
 	// DetectLogWindow is how long detection reads of one pane are
 	// summarised into one keel.log entry (tests shorten it).
 	DetectLogWindow time.Duration
@@ -149,8 +151,9 @@ type Service struct {
 	// saveErr is why the last save failed, "" when it worked (under mu).
 	saveErr string
 
-	sug          suggestState
-	detectWindow time.Duration
+	sug            suggestState
+	detectWindow   time.Duration
+	suggestTimeout time.Duration
 }
 
 const (
@@ -179,6 +182,9 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	}
 	if s.detectWindow <= 0 {
 		s.detectWindow = detectLogWindow
+	}
+	if s.suggestTimeout = opts.SuggestTimeout; s.suggestTimeout <= 0 {
+		s.suggestTimeout = defaultSuggestTimeout
 	}
 	s.sug.suggestions = map[string]*Suggestion{}
 	s.sug.detectLogs = map[string]*detectLog{}
