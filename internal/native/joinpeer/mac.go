@@ -1,58 +1,16 @@
 package joinpeer
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"io"
-	"sort"
-	"strings"
 
 	"github.com/pion/webrtc/v4"
+
+	"keel/internal/sharelink"
+	"keel/internal/wire"
 )
 
-// The end-to-end check of a share's WebRTC peer, independent of the signal server: lib/sharemac.js, which mirrors
-// internal/share/verify.go. Each side sends HMAC-SHA256(key, role + "\n" + its DTLS fingerprints) with its SDP and checks
-// the other side's, so a signal server that swaps fingerprints to sit in the middle is detected. The JS writes SHA-256
-// by hand because crypto.subtle needs a secure context; Go has crypto/sha256 and crypto/hmac.
-
-// Fingerprints returns the SDP's a=fingerprint values, normalized (lower case, single spaces), sorted and
-// de-duplicated.
-func Fingerprints(sdp string) []string {
-	seen := map[string]bool{}
-	out := []string{}
-	for _, line := range strings.Split(sdp, "\n") {
-		v, ok := strings.CutPrefix(strings.TrimSpace(line), "a=fingerprint:")
-		if !ok {
-			continue
-		}
-		v = strings.ToLower(strings.Join(strings.Fields(v), " "))
-		if v != "" && !seen[v] {
-			seen[v] = true
-			out = append(out, v)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// MAC is the MAC a peer in role ("host" or "join") sends with sdp; "" when there is no key or no fingerprint to vouch
-// for.
-func MAC(key, role, sdp string) string {
-	fps := Fingerprints(sdp)
-	if key == "" || len(fps) == 0 {
-		return ""
-	}
-	return hmacHex(key, role+"\n"+strings.Join(fps, "\n"))
-}
-
-// CheckMAC reports whether mac vouches for sdp from a peer in role. The comparison takes the same time whatever
-// the input.
-func CheckMAC(key, role, sdp, mac string) bool {
-	want := MAC(key, role, sdp)
-	return want != "" && hmac.Equal([]byte(want), []byte(mac))
-}
+// The joiner's half of the end-to-end check of a share's WebRTC peer (the MAC itself is internal/sharelink's, shared
+// with the host): the offer must carry a MAC the link's key vouches for before the peer is touched.
 
 // iceAdder is what the ICE queue needs of a peer connection.
 type iceAdder interface {
@@ -107,7 +65,7 @@ type answer struct{ SDP, MAC string }
 // server in the middle) before it touches the peer, then answers and returns the answer to send, MAC included
 // (lib/sharemac.js answerOffer).
 func answerOffer(pc answerer, key string, o offer, ice *iceQueue) (answer, error) {
-	if !CheckMAC(key, "host", o.SDP, o.MAC) {
+	if !sharelink.CheckMAC(key, wire.SignalRoleHost, o.SDP, o.MAC) {
 		return answer{}, ErrUnverified
 	}
 	if err := pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: o.SDP}); err != nil {
@@ -127,12 +85,5 @@ func answerOffer(pc answerer, key string, o offer, ice *iceQueue) (answer, error
 	if ld := pc.LocalDescription(); ld != nil && ld.SDP != "" {
 		sdp = ld.SDP
 	}
-	return answer{SDP: sdp, MAC: MAC(key, "join", sdp)}, nil
-}
-
-// hmacHex is HMAC-SHA256(key, message) as hex (lib/sharemac.js hmacSha256Hex); MAC is built on it.
-func hmacHex(key, message string) string {
-	m := hmac.New(sha256.New, []byte(key))
-	io.WriteString(m, message)
-	return hex.EncodeToString(m.Sum(nil))
+	return answer{SDP: sdp, MAC: sharelink.MAC(key, wire.SignalRoleJoin, sdp)}, nil
 }

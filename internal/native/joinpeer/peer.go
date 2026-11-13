@@ -13,12 +13,13 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/sharelink"
 	"keel/internal/wire"
 )
 
 // STUN is the one ICE server the app uses (joinpeer.js STUN). A peer dials the signal server named in the link and
 // this server, and nothing else; tests pass WithICEServers(nil).
-var STUN = []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}}
+var STUN = []webrtc.ICEServer{{URLs: []string{sharelink.STUN}}}
 
 // The app's words (term.js joinRemote and joinpeer.js).
 const (

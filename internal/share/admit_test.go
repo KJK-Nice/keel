@@ -15,6 +15,7 @@ import (
 
 	"keel/internal/runtime"
 	"keel/internal/session"
+	"keel/internal/sharelink"
 	"keel/internal/signal"
 	"keel/internal/store"
 	"keel/internal/wire"
@@ -249,7 +250,7 @@ func (j *joiner) next(kind string) wire.Signal {
 // with the joiner MAC computed by mac.
 func (j *joiner) answer(offer wire.Signal, mac func(sdp string) string) {
 	j.t.Helper()
-	if !checkSDPMAC(j.key, roleHost, offer.SDP, offer.Mac) {
+	if !sharelink.CheckMAC(j.key, wire.SignalRoleHost, offer.SDP, offer.Mac) {
 		j.t.Fatal("offer MAC does not verify against the link secret")
 	}
 	if err := j.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: offer.SDP}); err != nil {
@@ -298,7 +299,7 @@ func TestShareAdmitVerifyAndNoHistory(t *testing.T) {
 	if ev := r.event("join-resolved"); ev.Peer != req.Peer || ev.Message != "allowed" {
 		t.Fatalf("join-resolved %+v", ev)
 	}
-	j.answer(j.next("offer"), func(sdp string) string { return sdpMAC(j.key, roleJoin, sdp) })
+	j.answer(j.next("offer"), func(sdp string) string { return sharelink.MAC(j.key, wire.SignalRoleJoin, sdp) })
 	select {
 	case <-j.opened:
 	case <-time.After(8 * time.Second):
@@ -373,7 +374,7 @@ func TestShareRejectsUnverifiedAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrong := "ffeeddccbbaa99887766554433221100"
-	j.answer(j.next("offer"), func(sdp string) string { return sdpMAC(wrong, roleJoin, sdp) })
+	j.answer(j.next("offer"), func(sdp string) string { return sharelink.MAC(wrong, wire.SignalRoleJoin, sdp) })
 	j.next("denied")
 	if ev := r.event("join-failed"); !strings.Contains(ev.Message, "failed verification") {
 		t.Fatalf("join-failed %+v", ev)
@@ -400,7 +401,7 @@ func TestAJoinedPeerCannotInjectOverTheDataChannel(t *testing.T) {
 	if err := r.hub.Admit(r.id, r.event("join-request").Peer, true); err != nil {
 		t.Fatal(err)
 	}
-	j.answer(j.next("offer"), func(sdp string) string { return sdpMAC(j.key, roleJoin, sdp) })
+	j.answer(j.next("offer"), func(sdp string) string { return sharelink.MAC(j.key, wire.SignalRoleJoin, sdp) })
 	select {
 	case <-j.opened:
 	case <-time.After(8 * time.Second):

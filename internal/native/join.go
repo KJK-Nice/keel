@@ -8,6 +8,7 @@ import (
 	"keel/internal/native/joinpeer"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/sharelink"
 )
 
 // Join a session (docs/ui-redesign.md §5.7), as the app has it: features/share.md. The dialog is joinDialog in
@@ -53,7 +54,7 @@ func (w *workspace) submitJoin() {
 	if d == nil {
 		return
 	}
-	link, err := joinpeer.ParseLink(d.link)
+	link, err := sharelink.ParseLink(d.link)
 	if err != nil {
 		w.warn(err.Error())
 		return

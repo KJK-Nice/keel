@@ -20,6 +20,7 @@ import (
 
 	"keel/internal/runtime"
 	"keel/internal/sessionsock"
+	"keel/internal/sharelink"
 	"keel/internal/wire"
 )
 
@@ -222,7 +223,7 @@ func (h *Hub) Share(sessionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	secret, err := newShareSecret()
+	secret, err := sharelink.NewKey()
 	if err != nil {
 		return "", err
 	}
@@ -251,7 +252,7 @@ func (h *Hub) Share(sessionID string) (string, error) {
 		return "", err
 	}
 	live.roomID, live.hostKey = roomID, hostKey
-	go h.hostLoop(ctx, live, signal+"/join?room="+url.QueryEscape(roomID)+"#k="+secret)
+	go h.hostLoop(ctx, live, sharelink.JoinURL(signal, roomID, secret))
 	return h.await(live, true)
 }
 
@@ -369,8 +370,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 	// session no longer has a share: drop the entry so the next Share makes
 	// a fresh room instead of handing out a dead link.
 	defer h.end(live)
-	wsURL := wsBase(live.signal) + "/ws?role=" + wire.SignalRoleHost + "&room=" + url.QueryEscape(live.roomID) +
-		"&key=" + url.QueryEscape(live.hostKey)
+	wsURL := sharelink.SocketURL(live.signal, url.Values{"role": {wire.SignalRoleHost}, "room": {live.roomID}, "key": {live.hostKey}})
 	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = 8 * time.Second // DefaultDialer allows 45s
 	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
@@ -558,7 +558,7 @@ func (p *peerConn) onSignal(msg wire.Signal, secret string) error {
 		if p.answered {
 			return nil
 		}
-		if !checkSDPMAC(secret, roleJoin, msg.SDP, msg.Mac) {
+		if !sharelink.CheckMAC(secret, wire.SignalRoleJoin, msg.SDP, msg.Mac) {
 			return errBadMAC
 		}
 		if err := p.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: msg.SDP}); err != nil {
@@ -594,7 +594,7 @@ func (p *peerConn) onSignal(msg wire.Signal, secret string) error {
 
 func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, send func(wire.Signal)) (*peerConn, error) {
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
+		ICEServers: []webrtc.ICEServer{{URLs: []string{sharelink.STUN}}},
 	})
 	if err != nil {
 		return nil, err
@@ -652,7 +652,7 @@ func (h *Hub) acceptPeer(live *liveShare, sess *runtime.Session, name string, se
 		return nil, err
 	}
 	iceMu.Lock()
-	send(wire.Signal{Kind: wire.SignalOffer, SDP: offer.SDP, Mac: sdpMAC(live.secret, roleHost, offer.SDP)})
+	send(wire.Signal{Kind: wire.SignalOffer, SDP: offer.SDP, Mac: sharelink.MAC(live.secret, wire.SignalRoleHost, offer.SDP)})
 	offered = true
 	for _, m := range held {
 		send(m)
@@ -730,18 +730,4 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 			c.Detach()
 		})
 	})
-}
-
-func wsBase(httpBase string) string {
-	u, err := url.Parse(httpBase)
-	if err != nil {
-		return strings.Replace(httpBase, "http", "ws", 1)
-	}
-	switch u.Scheme {
-	case "https":
-		u.Scheme = "wss"
-	default:
-		u.Scheme = "ws"
-	}
-	return strings.TrimRight(u.String(), "/")
 }
