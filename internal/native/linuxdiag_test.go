@@ -2,6 +2,7 @@ package native
 
 import (
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -69,6 +70,24 @@ func TestDiagRegisteredFontMetrics(t *testing.T) {
 			t.Logf("linux-diag: family %q monospaced %v registered %v", ff.Name, ff.Monospaced, ff.Registered)
 		}
 	}
+	// Round 3: is the registered face a monospace face at some size, and does its width scale with the size? A real 600-unit mono
+	// gives the same advance to every glyph (7.8 px at 13) and doubles when the size does; ten Ms at 15 px each and a text that is
+	// not 15 px a character would be a proportional face, or the family resolved to a different font than the file's.
+	fam := "keel-diag-jetbrains-mono-latin-400-normal"
+	for _, size := range []float32{6.5, 13, 26} {
+		var sb strings.Builder
+		for _, g := range []string{"M", "i", "W", "l", ".", "0", " "} {
+			sb.WriteString(g + "=" + strconv.FormatFloat(float64(probeWidth(strings.Repeat(g, 10), size, fam))/10, 'f', 2, 32) + " ")
+		}
+		t.Logf("linux-diag: %s at %v px, advance of one glyph: %s| system monospace M=%.2f", fam, size, sb.String(), probeWidth("MMMMMMMMMM", size, "monospace")/10)
+	}
+	var names []string
+	for _, ff := range ui.FontFamilies() {
+		if ff.Registered || strings.Contains(strings.ToLower(ff.Name), "mono") {
+			names = append(names, ff.Name+"(mono="+strconv.FormatBool(ff.Monospaced)+",reg="+strconv.FormatBool(ff.Registered)+")")
+		}
+	}
+	t.Logf("linux-diag: families that are registered or called mono: %s", strings.Join(names, ", "))
 }
 
 // diagFonts logs the text facts: the measured width of a fixed string in the default, the bundled and a missing family, at

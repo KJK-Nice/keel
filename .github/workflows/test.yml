@@ -59,6 +59,12 @@ jobs:
             fc-match sans
             fc-match monospace
             fc-match system-ui
+            echo "fc-match for the names Keel asks the terminal for:"
+            for n in "JetBrains Mono" "IBM Plex Mono" SFMono-Regular Menlo Consolas; do fc-match -s "$n" | head -2 | sed "s/^/  $n -> /"; done
+            echo "mono and fixed-width fonts (family, spacing, file):"
+            fc-list :spacing=mono family spacing file | sort | head -40
+            echo "all font files:"
+            fc-list : file | sort | head -80
           else
             echo "no fc-list"
           fi
