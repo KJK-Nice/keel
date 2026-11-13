@@ -572,27 +572,27 @@ func TestClosedListRules(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		w.recordClosed(mk(fmt.Sprint("h", i)), "tab")
 	}
-	if len(w.recent) != 10 || w.recent[0].hostID != "h11" {
-		t.Fatalf("%d entries, newest %q", len(w.recent), w.recent[0].hostID)
+	if len(w.prefs.ClosedTabs) != 10 || w.prefs.ClosedTabs[0].hostID != "h11" {
+		t.Fatalf("%d entries, newest %q", len(w.prefs.ClosedTabs), w.prefs.ClosedTabs[0].hostID)
 	}
 	w.recordClosed(mk("h5"), "tab")
 	w.recordClosed(mk("h5"), "pane")
-	if w.recent[0].kind != "pane" || w.recent[1].kind != "tab" || w.recent[1].hostID != "h5" || len(w.recent) != 10 {
-		t.Errorf("replacement: %+v", w.recent[:3])
+	if w.prefs.ClosedTabs[0].kind != "pane" || w.prefs.ClosedTabs[1].kind != "tab" || w.prefs.ClosedTabs[1].hostID != "h5" || len(w.prefs.ClosedTabs) != 10 {
+		t.Errorf("replacement: %+v", w.prefs.ClosedTabs[:3])
 	}
 	w.recordClosed(mk(""), "tab")
-	if w.recent[0].hostID == "" {
+	if w.prefs.ClosedTabs[0].hostID == "" {
 		t.Error("an entry without a host was kept")
 	}
 
 	r := splitRig(t)
 	r.w.closeFocused()
-	if r.w.recent[0].kind != "pane" {
-		t.Errorf("a pane of a split tab is recorded as %q", r.w.recent[0].kind)
+	if r.w.prefs.ClosedTabs[0].kind != "pane" {
+		t.Errorf("a pane of a split tab is recorded as %q", r.w.prefs.ClosedTabs[0].kind)
 	}
 	r.w.closeFocused()
-	if r.w.recent[0].kind != "tab" {
-		t.Errorf("the last pane is recorded as %q", r.w.recent[0].kind)
+	if r.w.prefs.ClosedTabs[0].kind != "tab" {
+		t.Errorf("the last pane is recorded as %q", r.w.prefs.ClosedTabs[0].kind)
 	}
 }
 
@@ -601,7 +601,7 @@ func TestClosingAWindowRemembersNothing(t *testing.T) {
 	r.w.closeFocused()
 	r.w.closeWindow()
 	r2 := newRig(t, okBackend())
-	if len(r2.w.recent) != 0 {
-		t.Errorf("a new window remembers %d closed tabs", len(r2.w.recent))
+	if len(r2.w.prefs.ClosedTabs) != 0 {
+		t.Errorf("a new window remembers %d closed tabs", len(r2.w.prefs.ClosedTabs))
 	}
 }

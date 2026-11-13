@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strings"
 	"unicode"
@@ -34,13 +33,8 @@ func (w *workspace) searchHosts() {
 	w.sidebar, w.sideSeg, w.focusHosts, w.wantFocus = true, "hosts", true, ""
 }
 
-// askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS (lib/shortcutmap.js ask-agent).
-func askKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘↵"
-	}
-	return "Ctrl+↵"
-}
+// askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS.
+func askKeys() string { return commandKeyLabel("agent.ask") }
 
 // askRow is lib/palette.js askRow: the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
 func (w *workspace) askRow(query string) palItem {
@@ -246,54 +240,21 @@ func hostSubtitle(h keelclient.Host) string {
 // paletteItems is the palette's list as the workspace is now: Open now, Hosts and Actions.
 func (w *workspace) paletteItems() []palItem {
 	var items []palItem
-	add := func(section, title, keys, icon string, run func()) {
-		items = append(items, palItem{group: "Actions", title: title, hint: section, keys: keys, icon: icon, run: func(bool) { run() }})
-	}
-	add("Tabs", "New tab", "⌘T", "add-01", w.newTab)
-	add("Tabs", "New Local Shell", "", "", w.newLocalTab)
-	add("Tabs", "Close pane or tab", "⌘W", "", w.closeFocused)
-	add("Tabs", "Reopen last tab", "⌘⇧T", "reopen", w.reopenClosed)
-	add("Tabs", "Previous tab", "⌘<", "", func() { w.cycleTab(-1) })
-	add("Tabs", "Next tab", "⌘>", "", func() { w.cycleTab(1) })
-	add("Tabs", "First tab", "⌘1", "", func() { w.selectTab(0) })
-	add("Tabs", "Last tab", "⌘9", "", func() { w.selectTab(len(w.tabs) - 1) })
-	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
-	add("Agent", "Toggle agent panel", "⌘I", "ai-magic", w.toggleAgent)
-	add("Agent", "Suggest a command for this line", suggestKeyLabel(runtime.GOOS == "darwin"), "ai-magic", w.suggestRequest)
-	add("Agent", "Agent conversations", "", "ai-magic", w.openAgentPage)
-	add("Agent", "Runbooks", "", "ai-magic", w.openRunbooksPage)
-	// A folder's roles, notes and runs (§17).
-	for _, g := range w.folders {
-		id := g.ID
-		add("Vault", "Group "+g.Name+" · roles and runbooks", "", "", func() { w.openGroupPage(id, false) })
-	}
-	add("Vault", "Search hosts", "", "", w.searchHosts)
-	add("Vault", "New host", "⌘N", "add-01", w.newHost)
-	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
-	add("Vault", "Join session", "⌘J", "link", w.openJoin)
-	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
-	for _, name := range pageNames { // Keychain, Port forwarding, Snippets, Logs, Settings (Notebooks sit before Logs in the webview)
-		keys := ""
-		if name == "settings" {
-			keys = "⌘,"
+	for i := range commands { // the actions are the table's, in its order
+		c, p := &commands[i], commands[i].pal
+		switch {
+		case p == nil:
+		case p.many != nil:
+			items = append(items, p.many(w)...)
+		case p.hide && c.enabled != nil && !c.enabled(w):
+		default:
+			run := c.invoke
+			if p.run != nil {
+				run = p.run
+			}
+			items = append(items, palItem{group: "Actions", title: p.title, hint: p.section, keys: c.keyLabel(), icon: p.icon, run: func(bool) { run(w) }})
 		}
-		add("Vault", pageDefs[name].title, keys, "", func() { w.openPage(name) })
 	}
-	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
-	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
-	add("Panes", "Split notebook", "", "", w.splitNotebook)
-	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)
-	add("Panes", "Find in terminal", "⌘F", "", func() { w.openFind(w.focusedPane()) })
-	if w.tab().canSync() { // not in a joined tab, nor in a tab with no terminal
-		add("Panes", "Toggle sync input", "", "", func() { w.toggleSync(w.tab()) })
-	}
-	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
-	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
-	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })
-	add("Terminal", "Share session (join link)", "", "", w.openShare)
-	add("Terminal", "Stop sharing this session", "", "", w.stopShare)
-	// The webview stops the runtime from here at once; this client asks first, as Settings · Runtime does.
-	add("Terminal", "Stop Keel runtime", "", "", w.askStopRuntime)
 
 	// Open now: every tab, and the panes of tabs with more than one. Picking one focuses it; it never starts
 	// a second session.
@@ -302,9 +263,9 @@ func (w *workspace) paletteItems() []palItem {
 		keys := ""
 		switch {
 		case i < 8:
-			keys = fmt.Sprintf("⌘%d", n)
+			keys = tabKeyLabel(n)
 		case i == len(w.tabs)-1:
-			keys = "⌘9"
+			keys = tabKeyLabel(9)
 		}
 		focusTab := func() { w.selectTab(i) }
 		if t.isNew() {

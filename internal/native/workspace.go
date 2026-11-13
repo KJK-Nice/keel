@@ -349,8 +349,7 @@ type workspace struct {
 	tunReading     bool                              // the 2 s read of them is in flight
 	fwdQuery       string                            // the sidebar's Forwards filter
 	paneQuery      string                            // the sidebar's Panes filter
-	win            prefs                             // Window opacity and blur as saved (settings.go)
-	term           termPrefs                         // Copy on select, Right-click in the terminal, the display name
+	prefs          prefsDoc                          // keel-native.json, loaded once (prefs.go); its setters write it back
 	translucentWin bool                              // the window was created Transparent: only then can opacity change live
 	blurHook       func(radius int)                  // sets the window's blur; nil in tests
 	cornerR        float32                           // the window's corner radius, for its border line (windowborder.go); 0: none (tests, off macOS)
@@ -370,8 +369,6 @@ type workspace struct {
 	active         int
 	filter         string
 	sidebar        bool
-	collapsed      map[string]bool
-	sideWidth      float32     // the sidebar's width as kept; 0 is sidebarWidth() (sidebarresize.js)
 	sideSash       sashState   // the sidebar's resize handle
 	sideListH      ui.Handle   // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
 	queued         []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
@@ -399,10 +396,8 @@ type workspace struct {
 
 	appBuild string // the build id of the app that opened the window (Options.AppBuild); "" never warns of an older runtime
 	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
-	termSize int    // the terminal font size of every pane, termSizeMin–termSizeMax
 
-	recent     []closedEntry // recently closed tabs and panes, newest first (⌘⇧T)
-	renaming   *tab          // the tab whose name is being edited
+	renaming   *tab // the tab whose name is being edited
 	renameText string
 	renameSeen bool // the rename field has had the keyboard
 	renameH    ui.Handle
@@ -415,9 +410,8 @@ type workspace struct {
 
 	saved saveState
 
-	pal       *palette // the open command palette
-	palH      ui.Handle
-	recentIDs []string // host ids, newest first: the New tab page's recent hosts (keel-native.json)
+	pal  *palette // the open command palette
+	palH ui.Handle
 
 	live            bool      // the first listing has been read: the window keeps a tab from now on
 	newTabLockUntil time.Time // ⌘T repeats inside this are ignored
@@ -458,8 +452,7 @@ func (w *workspace) termGround() ui.Color {
 
 func newWorkspace(be backend) *workspace {
 	return &workspace{
-		be: be, agent: newAgentPanel(), alpha: 1, themeNative: followsNatively(), sidebar: true, collapsed: map[string]bool{}, termSize: termSizeDefault,
-		win: prefs{Opacity: opacityMax, Blur: blurDefault, TermSize: termSizeDefault, Theme: themeDark, UISize: uiSizeDefault, TermFont: fontJetBrains}, term: termPrefs{CopyOnSelect: true, RightClick: rightMenu},
+		be: be, agent: newAgentPanel(), alpha: 1, themeNative: followsNatively(), sidebar: true, prefs: defaultPrefs(),
 		splits: map[*layout.Node]*ui.Handle{},
 		work:   func(fn func()) { go fn() },
 		joiner: func(l joinpeer.Link, name string) (session, error) { return joinpeer.Open(l, name) },
@@ -500,14 +493,6 @@ func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
 // start asks keel serve what exists. The vault answers first: a locked vault stops here.
 func (w *workspace) start() {
-	if w.dataDir != "" && loadAgentOpen(w.dataDir) { // the panel stays as it was left
-		w.agent.open = true
-	}
-	if w.dataDir != "" {
-		w.agent.width = loadAgentWidth(w.dataDir)
-		w.sideWidth = loadSidebarWidth(w.dataDir)
-		w.collapsed = loadCollapsed(w.dataDir)
-	}
 	w.checkRuntimeBuild()
 	w.work(func() {
 		c, cancel := ctx()
@@ -563,12 +548,6 @@ func (w *workspace) start() {
 			live = append(live, attached{h, conn, s.ID})
 		}
 		doc := loadSaved(w.dataDir)
-		var recent []string
-		var closedBefore []closedEntry
-		if w.dataDir != "" {
-			recent = loadRecentHosts(w.dataDir)
-			closedBefore = loadClosedTabs(w.dataDir)
-		}
 		w.post(func() {
 			if w.closed {
 				for _, a := range live {
@@ -585,8 +564,6 @@ func (w *workspace) start() {
 				w.fail("snippets", snipErr)
 			}
 			w.rev = v.Rev
-			w.recentIDs = recent
-			w.recent = closedBefore // the recently closed list comes back with the window (localStorage in the app)
 			panes := make([]*pane, len(live))
 			for i, a := range live {
 				panes[i] = w.newPane(a.host, a.conn)
@@ -606,12 +583,12 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.termSize), fontFamily: termStack(w.win.TermFont), copyOnSelect: w.term.CopyOnSelect, rightClick: w.term.RightClick}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), fontFamily: termStack(w.prefs.TermFont), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)
 		} else {
-			w.setTermSize(w.termSize + steps)
+			w.setTermSize(w.prefs.TermSize + steps)
 		}
 	}
 	p.keyHook = func(mods ui.Modifiers, key ui.Key) bool { return w.suggestKey(p, mods, key) }

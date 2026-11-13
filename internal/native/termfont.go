@@ -45,11 +45,11 @@ func termStack(v string) string {
 // setTermFont is the Font row: every terminal takes the family at once and the choice is kept.
 func (w *workspace) setTermFont(v string) {
 	v = validTermFont(v)
-	if v == w.win.TermFont {
+	if v == w.prefs.TermFont {
 		return
 	}
-	w.win.TermFont = v
-	w.savePref("termFont", v)
+	w.prefs.TermFont = v
+	w.savePref(keyTermFont, keyTermFont, v)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.fontFamily = termStack(v)

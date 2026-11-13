@@ -20,7 +20,7 @@ func newRigIn(t *testing.T, fb *fakeBackend, dir string) *rig {
 	t.Helper()
 	r := &rig{fb: fb}
 	r.w = newWorkspace(fb)
-	r.w.dataDir = dir
+	r.w.dataDir, r.w.prefs = dir, loadPrefs(dir) // what RunWith does
 	r.w.work = func(fn func()) { fn() }
 	r.w.post = func(fn func()) { fn() }
 	r.w.mkBody = placeholder(&r.released)

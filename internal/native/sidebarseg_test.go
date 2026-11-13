@@ -21,7 +21,7 @@ func sidebarSegmentsFit(t *testing.T, narrow bool) {
 			r := splitRig(t) // two panes, so Panes shows
 			setUISize(size)
 			if narrow {
-				r.w.sideWidth = sidebarMin()
+				r.w.prefs.SidebarWidth = sidebarMin()
 			}
 			r.w.setTheme(map[bool]string{true: themeDark, false: themeLight}[dark])
 			widths := map[string]float32{}
@@ -33,7 +33,7 @@ func sidebarSegmentsFit(t *testing.T, narrow bool) {
 				}
 			}, 1280, 720)
 			setUISize(size)
-			r.w.win.UISize = size
+			r.w.prefs.UISize = size
 			r.tt.Frame()
 			r.tt.Frame()
 			for _, c := range []struct{ seg, word string }{{"Hosts", "Hosts"}, {"Panes 2", "Panes"}, {"Snippets", "Snippets"}, {"Forwards", "Forwards"}} {

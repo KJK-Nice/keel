@@ -1,8 +1,6 @@
 package native
 
 import (
-	"runtime"
-
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
@@ -30,12 +28,12 @@ func validTheme(s string) string {
 // followsNatively reports whether the window takes the theme as its own appearance (the macOS chrome, as
 // internal/desktop/appearance.go does for the webview). Elsewhere a theme that differs from the OS's keeps the window
 // opaque, because the backdrop would show the OS's tint (page.templ applyTheme).
-func followsNatively() bool { return runtime.GOOS == "darwin" }
+func followsNatively() bool { return isMac() }
 
 // resolveTheme runs first in every frame: it reads the OS appearance, works out the theme in use and sets the colour
 // variables. A change gives every terminal its colours and the window its appearance.
 func (w *workspace) resolveTheme(c *ui.Context) {
-	choice := validTheme(w.win.Theme)
+	choice := validTheme(w.prefs.Theme)
 	osDark := c.Theme().Dark
 	if w.themeNative && w.themeSeen && choice != themeSystem {
 		osDark = w.osDark // the window's own appearance is the choice now: the OS's was read before it
@@ -49,7 +47,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 		changed, w.termAccent = true, accent
 	}
 	if w.translucentWin { // the grounds' alpha: the opacity, unless the theme cannot match the backdrop
-		w.alpha = alphaFor(w.win.Opacity)
+		w.alpha = alphaFor(w.prefs.Opacity)
 		if w.opaqueForTheme() {
 			w.alpha = 1
 		}
@@ -198,11 +196,11 @@ func (w *workspace) opaqueForTheme() bool {
 // setTheme is term.js setTheme: it keeps the choice and gives the window its appearance.
 func (w *workspace) setTheme(choice string) {
 	choice = validTheme(choice)
-	if choice == w.win.Theme {
+	if choice == w.prefs.Theme {
 		return
 	}
-	w.win.Theme = choice
-	w.savePref("theme", choice)
+	w.prefs.Theme = choice
+	w.savePref(keyTheme, keyTheme, choice)
 	if w.appearanceHook != nil {
 		w.appearanceHook(choice)
 	}

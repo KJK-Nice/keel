@@ -42,7 +42,7 @@ func bytesView(c *ui.Context, bytes string) {
 // ---- the panel ----
 
 // agentShown is whether the panel is on screen: open, and not in a joined tab (§5.7: no panel there).
-func (w *workspace) agentShown() bool { return w.agent.open && !w.joinedActive() }
+func (w *workspace) agentShown() bool { return w.prefs.AgentPanel && !w.joinedActive() }
 
 func (w *workspace) agentView(c *ui.Context) {
 	a := w.agent
@@ -60,7 +60,7 @@ func (w *workspace) agentView(c *ui.Context) {
 		w.say("Copied")
 	}
 	winW, _ := c.Size()
-	hairline(ui.Column(c).Width(clampAgentWidth(a.width, winW)).Shrink(0).FillHeight().Background(w.ground(surface)).Label("agent panel"), 0, 0, 0, 1).Children(func() {
+	hairline(ui.Column(c).Width(clampAgentWidth(w.prefs.AgentWidth, winW)).Shrink(0).FillHeight().Background(w.ground(surface)).Label("agent panel"), 0, 0, 0, 1).Children(func() {
 		w.agentSash(c, winW)
 		w.agentHead(c)
 		w.agentSub(c)
@@ -833,10 +833,10 @@ func (w *workspace) agentComposer(c *ui.Context) {
 func (w *workspace) agentSash(c *ui.Context, winW float32) {
 	a := w.agent
 	w.widthSash(c, &a.sash, sashSpec{
-		label: "Resize agent panel", cur: clampAgentWidth(a.width, winW), step: sizeAgentStep, // the panel is on the right: ← widens it
+		label: "Resize agent panel", cur: clampAgentWidth(w.prefs.AgentWidth, winW), step: sizeAgentStep, // the panel is on the right: ← widens it
 		clamp: func(v float32) float32 { return clampAgentWidth(v, winW) },
 		home:  0, end: winW, // Home is the narrowest, size-agent; End is clamped to half the window
-		live: func(v float32) { a.width = v }, keep: w.setAgentWidth,
+		live: func(v float32) { w.prefs.AgentWidth = v }, keep: w.setAgentWidth,
 	})
 }
 

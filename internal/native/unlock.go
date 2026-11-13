@@ -3,7 +3,6 @@ package native
 import (
 	"errors"
 	"fmt"
-	"runtime"
 
 	"github.com/egoist/mygo/ui"
 
@@ -44,8 +43,8 @@ const (
 )
 
 // keychainName is internal/ui.KeychainName: what this OS calls the keychain.
-func keychainName(goos string) string {
-	switch goos {
+func keychainName() string {
+	switch platform {
 	case "darwin":
 		return "macOS Keychain"
 	case "windows":
@@ -67,7 +66,7 @@ func unlockLead(n int) string {
 
 // unlockBanner is the banner text and whether the vault's key is in the keychain (then a passphrase cannot open it).
 func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
-	kc := keychainName(runtime.GOOS)
+	kc := keychainName()
 	switch {
 	case v.Mode == "keychain":
 		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Keel in " + kc + ", then run keel serve stop and open Keel again.", true
@@ -211,7 +210,7 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 		}
 	})
 	if !g.vault.KeyringOff {
-		caption(c, "Keel always asks "+keychainName(runtime.GOOS)+" first when keel serve starts.", inkMuted)
+		caption(c, "Keel always asks "+keychainName()+" first when keel serve starts.", inkMuted)
 	}
 	if capButton(c, "Unlock", "↵", false).FillWidth().Clicked() {
 		w.act(w.submitUnlock)

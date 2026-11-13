@@ -4,10 +4,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
@@ -15,7 +13,6 @@ import (
 
 	"keel/internal/authtoken"
 	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
 	"keel/internal/paths"
 )
 
@@ -30,7 +27,7 @@ var fontFiles embed.FS
 // registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ holds the
 // eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
-	if runtime.GOOS == "linux" {
+	if platform == "linux" {
 		// Not on Linux (issue #140, plan 037 round 2): on Ubuntu a registered family measured about 1.8 times too wide (29
 		// characters of JetBrains Mono at 13 px came out 399 px, the system monospace 232 and the font's own advance gives
 		// about 226), which made the terminal's cells about twice as wide as its glyphs, and JetBrains Mono and IBM Plex Mono
@@ -134,15 +131,11 @@ func RunWith(o Options) error {
 		return fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
 	}
 	cl := keelclient.NewAt(o.Addr, tok)
-	pr, err := loadPrefs(o.DataDir).withEnv()
-	if err != nil {
-		return err
-	}
+	pr := loadPrefs(o.DataDir)
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
 	w.appBuild = o.AppBuild
-	w.dataDir, w.termSize = o.DataDir, pr.TermSize
-	w.win, w.term = pr, loadTermPrefs(o.DataDir)
+	w.dataDir, w.prefs = o.DataDir, pr
 	// Transparent cannot change on an open window: Window opacity applies live only when it starts below 100
 	// (settings.go).
 	translucent := pr.Opacity < opacityMax
@@ -183,9 +176,6 @@ func RunWith(o Options) error {
 		(&shell{w: w, win: win}).start()
 		w.start()
 		w.startPoll(pollEvery)
-		if path := os.Getenv("KEEL_NATIVE_CAPTURE"); path != "" {
-			capture(win, w, path)
-		}
 	})
 	return mygo.App.Run()
 }
@@ -201,34 +191,4 @@ func blurOnce(win *mygo.Window, radius int) func() {
 			}
 		}()
 	}
-}
-
-// capture is for looking at the screen: it opens a local host split to the right, waits, writes
-// a PNG of the page to path and quits.
-func capture(win *mygo.Window, w *workspace, path string) {
-	var once sync.Once
-	win.OnShow(func() {
-		once.Do(func() {
-			time.AfterFunc(2*time.Second, func() {
-				win.Update(func() {
-					if len(w.tabs) == 0 {
-						w.newTab()
-					}
-				})
-				time.AfterFunc(3*time.Second, func() {
-					win.Update(func() { w.splitFocused(layout.Row) })
-					time.AfterFunc(4*time.Second, func() {
-						png, err := win.CapturePage()
-						if err == nil {
-							err = os.WriteFile(path, png, 0o644)
-						}
-						if err != nil {
-							fmt.Fprintln(os.Stderr, "capture:", err)
-						}
-						mygo.App.Quit()
-					})
-				})
-			})
-		})
-	})
 }

@@ -193,7 +193,7 @@ func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, hei
 		be = wrap(be)
 	}
 	e.w = newWorkspace(be)
-	e.w.dataDir, e.w.termSize = dataDir, loadPrefs(dataDir).TermSize
+	e.w.dataDir, e.w.prefs = dataDir, loadPrefs(dataDir)
 	e.w.mkBody = func(p *pane) { liveBodyT(p, false) }
 	e.w.work = func(fn func()) { go fn() }
 	e.w.post = func(fn func()) { e.posts <- fn }
@@ -1264,10 +1264,10 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.key(ui.Cmd, ui.KeyT)
 	e.pump(func() bool { return len(e.w.tabs) == 2 && e.w.tabs[1].isNew() && e.onStartPage() }, "a New tab")
 	local, _ := e.w.localHost()
-	if cards := e.w.cards(e.w.tab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.recentIDs) == 0 || e.w.recentIDs[0] != local.ID {
-		t.Fatalf("cards %v recents %v", cards, e.w.recentIDs)
+	if cards := e.w.cards(e.w.tab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
+		t.Fatalf("cards %v recents %v", cards, e.w.prefs.RecentHosts)
 	}
-	e.pump(func() bool { return slices.Equal(loadRecentHosts(dir), []string{local.ID}) }, "the recent hosts in keel-native.json")
+	e.pump(func() bool { return slices.Equal(loadPrefs(dir).RecentHosts, []string{local.ID}) }, "the recent hosts in keel-native.json")
 
 	// ⌥1 opens the first card in this tab: a second session.
 	e.key(ui.Alt, ui.Key1)
@@ -1502,7 +1502,7 @@ func TestE2EPalette(t *testing.T) {
 	e.step()
 	e.key(ui.Cmd, ui.KeyEnter)
 	// No key is stored in this daemon, so the panel shows its Connect card and the words wait in the composer's state.
-	e.pump(func() bool { return e.w.pal == nil && e.w.agent.open && e.hasLabel("agent panel") }, "the agent panel")
+	e.pump(func() bool { return e.w.pal == nil && e.w.prefs.AgentPanel && e.hasLabel("agent panel") }, "the agent panel")
 	if e.w.agent.input != "qzxvkw" {
 		t.Errorf("the composer holds %q", e.w.agent.input)
 	}

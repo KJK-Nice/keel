@@ -363,7 +363,7 @@ func (w *workspace) useRunbook(id, name string) {
 		return
 	}
 	a.runs.choosing, a.runs.err = false, ""
-	if !a.open {
+	if !w.prefs.AgentPanel {
 		w.setAgentOpen(true)
 	}
 	ask := func() {

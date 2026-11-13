@@ -74,7 +74,7 @@ func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
 
 // folderNodeView is treeGroup: the heading, and while it is open the folder's hosts and then its subfolders.
 func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
-	open := !w.collapsed[n.g.ID]
+	open := !w.prefs.Collapsed[n.g.ID]
 	node := ui.Column(c).FillWidth().Key(n.g.ID).Label("folder node " + n.g.Name)
 	node.Children(func() {
 		indent := float32(n.depth-1) * space3

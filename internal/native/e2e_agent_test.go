@@ -53,7 +53,7 @@ func (e *win) openAgent() {
 	e.t.Helper()
 	e.key(agentMods(), ui.KeyI)
 	e.pump(func() bool {
-		return e.w.agent.open && e.w.agent.keyConfigured != nil && e.hasLabel("Message the agent")
+		return e.w.prefs.AgentPanel && e.w.agent.keyConfigured != nil && e.hasLabel("Message the agent")
 	}, "the agent panel with its settings")
 }
 
@@ -430,7 +430,7 @@ func TestE2EAgentFollowerHasNoType(t *testing.T) {
 	pumpAll(t, both, func() bool { return len(b.w.tabs) == 1 && b.snap().Role == "follower" && b.paneSID("1") == sid }, "B following A's session")
 	b.key(agentMods(), ui.KeyI)
 	pumpAll(t, both, func() bool {
-		return b.w.agent.open && b.w.agent.keyConfigured != nil && b.hasLabel("Message the agent")
+		return b.w.prefs.AgentPanel && b.w.agent.keyConfigured != nil && b.hasLabel("Message the agent")
 	}, "B's agent panel")
 	b.agentAsk("what should I run?")
 	pumpAll(t, both, func() bool { return b.cards() >= 1 }, "a proposal card in B")
@@ -476,10 +476,10 @@ func TestE2EAgentPanelSashWidthIsKept(t *testing.T) {
 	e.tt.Move(x-120, y)
 	e.step()
 	e.tt.Release(x-120, y)
-	e.pump(func() bool { return panel() > sizeAgent+100 && loadAgentWidth(dir) > sizeAgent+100 }, "the panel to be wider and its width kept")
+	e.pump(func() bool { return panel() > sizeAgent+100 && loadPrefs(dir).AgentWidth > sizeAgent+100 }, "the panel to be wider and its width kept")
 	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on keel serve")
 	e.shot("TestE2EAgentPanelSash")
-	kept := loadAgentWidth(dir)
+	kept := loadPrefs(dir).AgentWidth
 	e.w.closeWindow()
 
 	e2 := newWin(t, addr, dir, nil)

@@ -62,8 +62,9 @@ func (w *workspace) paletteView(c *ui.Context) {
 	rows := p.visible()
 	_, winH := c.Size()
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		c.OnWindowShortcut(ui.Cmd, ui.KeyK, func() { w.act(w.closePalette) })
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyP, func() { w.act(w.closePalette) })
+		for _, k := range commandByID("palette").chords() { // the keys that open it close it
+			c.OnWindowShortcut(k.mods, k.key, func() { w.act(w.closePalette) })
+		}
 		backdrop.Background(scrim).Justify(ui.Start).Padding(winH*paletteTop, 0, 0, 0)
 		panel.Width(paletteWidth).MaxHeight(sizeSidebar*2).Background(raised).Border(1, line).Radius(radiusLg).Clip().
 			Shadow(0, 24, 64, 0, shadowModal).Label("dialog Command palette")

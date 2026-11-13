@@ -1,7 +1,6 @@
 package native
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -101,13 +100,12 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		restore: func(words string) { w.restoreWords(p, words) },
 		render:  func(v sugView) { p.sg.v = v; w.redraw() },
 		now:     w.sugClock,
-		mac:     runtime.GOOS == "darwin",
 	})
 	return p.sg.m
 }
 
 // suggestKeyHere is the suggest key as this platform writes it (⌘Y, Ctrl+Shift+Y).
-func suggestKeyHere() string { return suggestKeyLabel(runtime.GOOS == "darwin") }
+func suggestKeyHere() string { return commandKeyLabel("agent.suggest") }
 
 // sugSettings are the two agent settings the machines follow, as last read or saved. They are kept apart from the
 // Settings page's copy so that reading them for the panes never overwrites what that page or the panel shows.
@@ -188,7 +186,7 @@ func keyName(k ui.Key) string {
 	case ui.KeyZ:
 		return "z"
 	}
-	for i, d := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
+	for i, d := range digitKeys {
 		if k == d {
 			return string(rune('1' + i))
 		}

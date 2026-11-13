@@ -27,15 +27,15 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 			w.act(func() { w.pickPane(t, p.id) })
 		}
 		if !p.remote { // splits need a pane of this window, not a joined one (lib/termmenu.js paneMenuItems)
-			if menuItem(m, "Split right").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
+			if menuItem(m, "Split right").Shortcut(shortcutOf("pane.splitr")).Chosen() {
 				w.act(func() { w.split(t, p.id, layout.Row) })
 			}
-			if menuItem(m, "Split down").Shortcut(ui.Cmd|ui.Shift, ui.KeyE).Chosen() {
+			if menuItem(m, "Split down").Shortcut(shortcutOf("pane.splitd")).Chosen() {
 				w.act(func() { w.split(t, p.id, layout.Col) })
 			}
 		}
 		if !row && (len(t.panes) > 1 || t.zoomed != "") {
-			if menuItem(m, "Focus view").Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter).Chosen() {
+			if menuItem(m, "Focus view").Shortcut(shortcutOf("pane.zoom")).Chosen() {
 				w.act(func() { w.toggleZoom(t, p.id) })
 			}
 		}
@@ -48,7 +48,7 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 			}
 		}
 		m.Separator()
-		if menuItem(m, "Close pane").Shortcut(ui.Cmd, ui.KeyW).Chosen() {
+		if menuItem(m, "Close pane").Shortcut(shortcutOf("tab.close")).Chosen() {
 			w.act(func() { w.closePane(t, p.id) })
 		}
 	}

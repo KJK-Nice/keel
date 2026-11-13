@@ -17,8 +17,8 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 		p.uiV = float64(size)
 		r.tt.Frame()
 		r.tt.Frame()
-		if r.w.win.UISize != size {
-			t.Fatalf("UI size %d after moving the slider to %d", r.w.win.UISize, size)
+		if r.w.prefs.UISize != size {
+			t.Fatalf("UI size %d after moving the slider to %d", r.w.prefs.UISize, size)
 		}
 		tab, _ := r.tt.Find("tab Settings")
 		nh, _ := r.tt.Find("More host actions") // the last control of the sidebar's head, 8 px from its edge
@@ -106,8 +106,8 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.win.TermFont != fontPlex || len(sizes) != 1 || !strings.HasPrefix(fams[0], plexFamily) {
-		t.Fatalf("font %q, pane calls %v %v", r.w.win.TermFont, sizes, fams)
+	if r.w.prefs.TermFont != fontPlex || len(sizes) != 1 || !strings.HasPrefix(fams[0], plexFamily) {
+		t.Fatalf("font %q, pane calls %v %v", r.w.prefs.TermFont, sizes, fams)
 	}
 	if string(r.prefsFile(t)["termFont"]) != `"ibmplex"` || loadPrefs(r.w.dataDir).TermFont != fontPlex {
 		t.Errorf("file %v", r.prefsFile(t))

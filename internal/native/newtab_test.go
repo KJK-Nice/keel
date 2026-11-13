@@ -136,7 +136,7 @@ func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 		for size := uiSizeMin; size <= uiSizeMax; size++ {
 			r := newRig(t, &fakeBackend{hosts: []keelclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", AuthType: "local"}, long}})
 			setUISize(size)
-			r.w.win.UISize = size
+			r.w.prefs.UISize = size
 			r.tt.SetSize(width, 720)
 			r.w.tab().page.query = "production" // the card of a host that is not a recent one
 			r.tt.Frame()
@@ -232,7 +232,7 @@ func TestCardsForZeroThreeAndEightRecents(t *testing.T) {
 	if got := cardNames(r); !slices.Equal(got, []string{"Local Shell"}) {
 		t.Fatalf("no recents: %q", got)
 	}
-	r.w.recentIDs = []string{"h3", "h1", "h2"}
+	r.w.prefs.RecentHosts = []string{"h3", "h1", "h2"}
 	r.tt.Frame()
 	if got := cardNames(r); !slices.Equal(got, []string{"Local Shell", "srv-3", "srv-1", "srv-2"}) {
 		t.Fatalf("three recents: %q", got)
@@ -242,7 +242,7 @@ func TestCardsForZeroThreeAndEightRecents(t *testing.T) {
 			t.Errorf("no %q on the cards", s)
 		}
 	}
-	r.w.recentIDs = []string{"h8", "h7", "h6", "h5", "h4", "h3", "h2", "h1"}
+	r.w.prefs.RecentHosts = []string{"h8", "h7", "h6", "h5", "h4", "h3", "h2", "h1"}
 	r.tt.Frame()
 	if got := cardNames(r); !slices.Equal(got, []string{"Local Shell", "srv-8", "srv-7", "srv-6", "srv-5", "srv-4"}) {
 		t.Fatalf("eight recents: %q", got)
@@ -254,7 +254,7 @@ func TestCardsForZeroThreeAndEightRecents(t *testing.T) {
 
 func TestAltNumberOpensThatCardsHost(t *testing.T) {
 	r := startRig(t)
-	r.w.recentIDs = []string{"h3", "h1"}
+	r.w.prefs.RecentHosts = []string{"h3", "h1"}
 	r.tt.Frame()
 	r.press(ui.Alt, ui.Key2) // the second card: Local Shell is first
 	if !slices.Equal(r.fb.spawned, []string{"h3"}) || len(r.w.tabs) != 1 || r.w.tab().isNew() {
@@ -271,7 +271,7 @@ func TestAltNumberOpensThatCardsHost(t *testing.T) {
 // the key went down, the character does not stay, and one press opens one card (found in a real window, plan 036).
 func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
 	r := startRig(t)
-	r.w.recentIDs = []string{"h3", "h1"}
+	r.w.prefs.RecentHosts = []string{"h3", "h1"}
 	r.tt.Frame()
 	r.tt.KeyDown(ui.Key2) // as the surface sends it: no modifier release between
 	r.tt.Frame()
@@ -516,7 +516,7 @@ func TestRecentHostsSurviveAPrefsRoundTripAndHoldOnlyIDs(t *testing.T) {
 	for _, id := range []string{"h1", "h2", "h3", "h1"} {
 		r.w.rememberRecent(id)
 	}
-	if got := loadRecentHosts(dir); !slices.Equal(got, []string{"h1", "h3", "h2"}) {
+	if got := loadPrefs(dir).RecentHosts; !slices.Equal(got, []string{"h1", "h3", "h2"}) {
 		t.Fatalf("recent %v", got)
 	}
 	var f map[string]json.RawMessage
@@ -533,14 +533,14 @@ func TestRecentHostsSurviveAPrefsRoundTripAndHoldOnlyIDs(t *testing.T) {
 	}
 	// A second window reads them; only strings count, and at most recentMax.
 	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"recentHosts":["a",3,"","b",null,{"id":"x"}]}`), 0o600)
-	if got := loadRecentHosts(dir); !slices.Equal(got, []string{"a", "b"}) {
+	if got := loadPrefs(dir).RecentHosts; !slices.Equal(got, []string{"a", "b"}) {
 		t.Errorf("read %v", got)
 	}
 	for i := 0; i < 20; i++ {
 		r.w.rememberRecent(fmt.Sprintf("id%d", i))
 	}
-	if len(r.w.recentIDs) != recentMax || len(loadRecentHosts(dir)) != recentMax {
-		t.Errorf("recent list has %d", len(r.w.recentIDs))
+	if len(r.w.prefs.RecentHosts) != recentMax || len(loadPrefs(dir).RecentHosts) != recentMax {
+		t.Errorf("recent list has %d", len(r.w.prefs.RecentHosts))
 	}
 }
 
@@ -561,7 +561,7 @@ func TestRecentlyClosedSurvivesClosingTheWindow(t *testing.T) {
 		t.Fatalf("after a restart the list is %+v", got)
 	}
 	r2.w.reopenClosed() // opens it and takes it off the list, in the file too
-	if got := loadClosedTabs(dir); len(got) != 0 {
+	if got := loadPrefs(dir).ClosedTabs; len(got) != 0 {
 		t.Errorf("a reopened entry stays in the file: %+v", got)
 	}
 }
@@ -570,7 +570,7 @@ func TestLoadClosedTabsReadsOnlyWhatNormalizeClosedKeeps(t *testing.T) {
 	dir := t.TempDir()
 	long := strings.Repeat("é", 150)
 	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"closedTabs":[{"hostId":"a","title":"`+long+`","kind":"pane","at":5000},{"hostId":"","title":"x"},{"title":"y"},{"hostId":"b","kind":"weird","at":"no"},7,null]}`), 0o600)
-	got := loadClosedTabs(dir)
+	got := loadPrefs(dir).ClosedTabs
 	if len(got) != 2 || got[0].hostID != "a" || got[0].kind != "pane" || len([]rune(got[0].title)) != 120 || got[0].at.UnixMilli() != 5000 || got[1].hostID != "b" || got[1].kind != "tab" {
 		t.Errorf("read %+v", got)
 	}
@@ -579,10 +579,10 @@ func TestLoadClosedTabsReadsOnlyWhatNormalizeClosedKeeps(t *testing.T) {
 		many = append(many, fmt.Sprintf(`{"hostId":"h%d"}`, i))
 	}
 	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"closedTabs":[`+strings.Join(many, ",")+`]}`), 0o600)
-	if got := loadClosedTabs(dir); len(got) != closedMax {
+	if got := loadPrefs(dir).ClosedTabs; len(got) != closedMax {
 		t.Errorf("%d entries, want %d", len(got), closedMax)
 	}
-	if got := loadClosedTabs(t.TempDir()); got != nil {
+	if got := loadPrefs(t.TempDir()).ClosedTabs; got != nil {
 		t.Errorf("no file: %+v", got)
 	}
 }
@@ -591,7 +591,7 @@ func TestOpeningAHostRemembersIt(t *testing.T) {
 	r := startRig(t)
 	r.click(t, "start card Local Shell")
 	r.press(ui.Cmd, ui.KeyT)
-	if got := cardNames(r); got[0] != "Local Shell" || !slices.Contains(r.w.recentIDs, "h-local") {
-		t.Fatalf("cards %q recents %v", got, r.w.recentIDs)
+	if got := cardNames(r); got[0] != "Local Shell" || !slices.Contains(r.w.prefs.RecentHosts, "h-local") {
+		t.Fatalf("cards %q recents %v", got, r.w.prefs.RecentHosts)
 	}
 }

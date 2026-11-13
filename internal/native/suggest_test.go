@@ -76,7 +76,12 @@ func TestUndoKey(t *testing.T) { // JS 4
 		{sugKey{Name: "Z", Ctrl: true, Shift: true}, false, true},
 		{sugKey{Name: "z", Meta: true, Shift: true}, true, false},
 	} {
-		if got := undoKey(c.k, c.mac); got != c.want {
+		goos := "linux"
+		if c.mac {
+			goos = "darwin"
+		}
+		usePlatform(t, goos)
+		if got := undoKey(c.k); got != c.want {
 			t.Errorf("undoKey(%+v, mac=%v) = %v", c.k, c.mac, got)
 		}
 	}
@@ -97,7 +102,8 @@ func TestCardWordsAndRiskRules(t *testing.T) { // the logic of JS 6 (the card's 
 			t.Errorf("sourceLabel(%q) = %q", src, got)
 		}
 	}
-	k := keyLabels(false)
+	usePlatform(t, "linux")
+	k := keyLabels()
 	if k.Tab != "Tab" || k.Shift != "Shift" || len(k.Undo) != 3 {
 		t.Errorf("labels off macOS: %+v", k)
 	}
@@ -141,6 +147,8 @@ type insertCall struct {
 }
 
 func newHarness(t *testing.T) *harness {
+	// The machine's tests are written with ⌘.
+	usePlatform(t, "darwin")
 	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥ (plan 036)
 	ok := insertResult{OK: true}
 	h.auto = &ok
@@ -160,7 +168,6 @@ func newHarness(t *testing.T) *harness {
 		},
 		restore: func(w string) { h.restores = append(h.restores, w) },
 		now:     func() time.Time { return h.now },
-		mac:     true,
 	})
 	return h
 }

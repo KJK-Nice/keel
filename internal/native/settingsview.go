@@ -244,9 +244,9 @@ func (w *workspace) settingsSections(p *settingsPage) []settingsSection {
 func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	opacity := prefRow{title: "Window opacity", desc: "How much of the desktop the window covers. 30–100; 100 is opaque.",
 		ctl: func(c *ui.Context) {
-			sliderCtl(c, "Window opacity", &p.opacityV, opacityMin, opacityMax, w.win.Opacity)(c)
+			sliderCtl(c, "Window opacity", &p.opacityV, opacityMin, opacityMax, w.prefs.Opacity)(c)
 		}}
-	if !w.translucentWin && w.win.Opacity < opacityMax {
+	if !w.translucentWin && w.prefs.Opacity < opacityMax {
 		opacity.desc += " The window turns see-through the next time Keel starts."
 	}
 	if !w.themeNative { // .pref-desc-os is hidden where the window takes the theme as its appearance
@@ -254,15 +254,15 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	}
 	theme := prefRow{title: "Theme", desc: "Light, dark, or follow the system.", ctl: func(c *ui.Context) {
 		ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
-			segControl(c, "Color theme", validTheme(w.win.Theme), themeChoices, func(v string) { w.act(func() { w.setTheme(v) }) })
+			segControl(c, "Color theme", validTheme(w.prefs.Theme), themeChoices, func(v string) { w.act(func() { w.setTheme(v) }) })
 		})
 	}}
 	uiSizeRow := prefRow{title: "UI size", desc: "Tabs, settings, and chrome. 11–16px. Terminal size is separate.",
-		ctl: func(c *ui.Context) { sliderCtl(c, "UI size", &p.uiV, uiSizeMin, uiSizeMax, w.win.UISize)(c) }}
+		ctl: func(c *ui.Context) { sliderCtl(c, "UI size", &p.uiV, uiSizeMin, uiSizeMax, w.prefs.UISize)(c) }}
 	rows := []prefRow{theme, opacity}
 	if hasBlur() {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
-			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.win.Blur)(c) }})
+			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.prefs.Blur)(c) }})
 	}
 	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, UI size
 	return settingsSection{id: "appearance", title: "Appearance", groups: []prefGroup{{title: "Display", rows: rows}}}
@@ -276,23 +276,23 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 				entries[i] = pickEntry{value: f.value, label: f.label, desc: f.desc}
 			}
 			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
-				picker(c, "Terminal font", validTermFont(w.win.TermFont), entries, func(v string) { w.act(func() { w.setTermFont(v) }) })
+				picker(c, "Terminal font", validTermFont(w.prefs.TermFont), entries, func(v string) { w.act(func() { w.setTermFont(v) }) })
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.termSize, func() { w.keyCap(c, "+ − 0") })(c) // the app's hint shows only while ⌘ is held
+			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.prefs.TermSize, func() { w.keyCap(c, "+ − 0") })(c) // the app's hint shows only while ⌘ is held
 		}},
 		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
 			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
-				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.termSize)).Font(termStack(w.win.TermFont))
+				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.prefs.TermSize)).Font(termStack(w.prefs.TermFont))
 			})
 		}},
 	}}}
 	input := prefGroup{title: "Input", rows: []prefRow{
 		{title: "Copy on select", desc: "Copy terminal selection to the clipboard.", ctl: func(c *ui.Context) {
-			on := w.term.CopyOnSelect
+			on := w.prefs.CopyOnSelect
 			ui.Switch(c, &on).Label("Copy on select switch").Shrink(0)
-			if on != w.term.CopyOnSelect {
+			if on != w.prefs.CopyOnSelect {
 				w.act(func() { w.setCopyOnSelect(on) })
 			}
 		}},
@@ -300,7 +300,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			desc: "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
 			ctl: func(c *ui.Context) {
 				ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
-					segControl(c, "Right-click in the terminal", w.term.RightClick, rightClickModes, func(v string) { w.act(func() { w.setRightClick(v) }) })
+					segControl(c, "Right-click in the terminal", w.prefs.RightClick, rightClickModes, func(v string) { w.act(func() { w.setRightClick(v) }) })
 				})
 			}},
 	}}
@@ -333,7 +333,7 @@ func (w *workspace) sharingSection(p *settingsPage) settingsSection {
 		desc: "Shown to people in sessions you share and join. Empty uses the default.",
 		ctl: func(c *ui.Context) {
 			if !p.nameSeen { // the field holds the saved name until the user is in it
-				p.name, p.nameSeen = w.term.Name, true
+				p.name, p.nameSeen = w.prefs.Name, true
 			}
 			ui.Row(c).Width(prefInputWidth).Shrink(1).Children(func() {
 				inputBox(c, "Display name input", &p.name, fallback, &p.nameH, false, false, nameMax, func(k ui.TextKey) bool {

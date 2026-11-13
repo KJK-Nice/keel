@@ -240,8 +240,8 @@ func TestAskTheAgentAboutThisNotebookFromTheRowMenuAttachesOneAndSendsNothing(t 
 		t.Fatal(err)
 	}
 	r.frames(2)
-	if !r.w.agent.open || !slices.Equal(r.w.agent.attached, []string{"nb2"}) || len(r.fb.agent.asks) != 0 {
-		t.Fatalf("open %v attached %v asks %d: the panel opens with the notebook attached and nothing is asked", r.w.agent.open, r.w.agent.attached, len(r.fb.agent.asks))
+	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agent.attached, []string{"nb2"}) || len(r.fb.agent.asks) != 0 {
+		t.Fatalf("open %v attached %v asks %d: the panel opens with the notebook attached and nothing is asked", r.w.prefs.AgentPanel, r.w.agent.attached, len(r.fb.agent.asks))
 	}
 	// A private notebook is never offered to the agent.
 	r.tt.RightClick("notebook Keys")
@@ -256,8 +256,8 @@ func TestTheNotebookPaneBarAsksTheAgentOnlyForASavedNotebookThatIsNotPrivate(t *
 	r.w.setAgentOpen(false)
 	r.openNB(t, "nb1")
 	r.click(t, "Ask the agent about this notebook")
-	if !r.w.agent.open || !slices.Equal(r.w.agent.attached, []string{"nb1"}) {
-		t.Fatalf("open %v attached %v", r.w.agent.open, r.w.agent.attached)
+	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agent.attached, []string{"nb1"}) {
+		t.Fatalf("open %v attached %v", r.w.prefs.AgentPanel, r.w.agent.attached)
 	}
 
 	// Not saved yet: the app's sentence, nothing attached.

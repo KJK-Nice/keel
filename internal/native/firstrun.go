@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -252,7 +251,7 @@ func nextLabel(f *firstRun) string {
 	return "Continue"
 }
 
-func firstRunKeychain() string { return keychainName(runtime.GOOS) }
+func firstRunKeychain() string { return keychainName() }
 
 // ---- step 2 ----
 

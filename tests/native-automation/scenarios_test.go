@@ -35,27 +35,27 @@ func TestStartsAndShowsFirstRun(t *testing.T) {
 
 // 2. Every File and View item of shell.go is at its path, and the ones that change the window do.
 func TestMenuBar(t *testing.T) {
+	// The menu bar is made from the command table (commands.go): each item is a menuSpec{section, title, position}.
+	table, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "native", "commands.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file, view []string
+	for _, m := range regexp.MustCompile(`menuSpec\{"(File|View)", "([^"]+)"`).FindAllStringSubmatch(string(table), -1) {
+		if m[1] == "File" {
+			file = append(file, m[2])
+		} else {
+			view = append(view, m[2])
+		}
+	}
+	if len(file) < 9 || len(view) < 7 {
+		t.Fatalf("read %d File and %d View items from commands.go", len(file), len(view))
+	}
 	src, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "native", "shell.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(src)
-	at := strings.Index(s, "func viewMenu")
-	end := strings.Index(s, "// toggleSidebar")
-	if at < 0 || end < at {
-		t.Fatal("shell.go no longer has viewMenu before toggleSidebar")
-	}
-	entry := regexp.MustCompile(`\{"([^"]+)", `)
-	labels := func(part string) (out []string) {
-		for _, m := range entry.FindAllStringSubmatch(part, -1) {
-			out = append(out, m[1])
-		}
-		return
-	}
-	file, view := labels(s[:at]), labels(s[at:end])
-	if len(file) < 10 || len(view) < 7 {
-		t.Fatalf("read %d File and %d View items from shell.go", len(file), len(view))
-	}
 
 	r := newRig(t)
 	r.startServe()

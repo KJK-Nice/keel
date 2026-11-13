@@ -139,13 +139,13 @@ func TestTextSizeKeysClampAndSave(t *testing.T) {
 		r.tt.Key(mods, k)
 		r.tt.Frame()
 	}
-	if r.w.termSize != 12 {
-		t.Fatalf("default size %d, want 12", r.w.termSize)
+	if r.w.prefs.TermSize != 12 {
+		t.Fatalf("default size %d, want 12", r.w.prefs.TermSize)
 	}
 	press(ui.Cmd, ui.KeyEqual)
 	press(ui.Cmd|ui.Shift, ui.KeyEqual) // ⌘+
-	if r.w.termSize != 14 {
-		t.Errorf("after two ⌘+: %d", r.w.termSize)
+	if r.w.prefs.TermSize != 14 {
+		t.Errorf("after two ⌘+: %d", r.w.prefs.TermSize)
 	}
 	for _, p := range r.w.tab().panes {
 		if p.fontSize != 14 {
@@ -153,24 +153,24 @@ func TestTextSizeKeysClampAndSave(t *testing.T) {
 		}
 	}
 	press(ui.Cmd, ui.KeyMinus)
-	if r.w.termSize != 13 {
-		t.Errorf("⌘-: %d", r.w.termSize)
+	if r.w.prefs.TermSize != 13 {
+		t.Errorf("⌘-: %d", r.w.prefs.TermSize)
 	}
 	press(ui.Cmd, ui.Key0)
-	if r.w.termSize != 12 {
-		t.Errorf("⌘0: %d", r.w.termSize)
+	if r.w.prefs.TermSize != 12 {
+		t.Errorf("⌘0: %d", r.w.prefs.TermSize)
 	}
 	for i := 0; i < 20; i++ {
 		press(ui.Cmd, ui.KeyEqual)
 	}
-	if r.w.termSize != 22 {
-		t.Errorf("clamped high: %d", r.w.termSize)
+	if r.w.prefs.TermSize != 22 {
+		t.Errorf("clamped high: %d", r.w.prefs.TermSize)
 	}
 	for i := 0; i < 20; i++ {
 		press(ui.Cmd, ui.KeyMinus)
 	}
-	if r.w.termSize != 10 {
-		t.Errorf("clamped low: %d", r.w.termSize)
+	if r.w.prefs.TermSize != 10 {
+		t.Errorf("clamped low: %d", r.w.prefs.TermSize)
 	}
 	if len(fs.fonts) == 0 {
 		t.Error("no pane was given a new font")

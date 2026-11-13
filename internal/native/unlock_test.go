@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -46,7 +45,7 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 }
 
 func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	for _, c := range []struct {
 		v          keelclient.Vault
 		banner     string
@@ -173,9 +172,6 @@ func TestNoShortcutActsOnTheUnlockScreen(t *testing.T) {
 		t.Error("a window shortcut acted over the Unlock screen")
 	}
 }
-
-// goosForTest is the OS the banner words are checked for: the running one, as the screen uses.
-var goosForTest = runtime.GOOS
 
 func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}

@@ -84,6 +84,7 @@ func TestControlFillOnTheGlass(t *testing.T) {
 	for _, a := range []float32{0.7, 1} {
 		r := newRig(t, okBackend())
 		r.w.alpha = a
+		r.w.prefs.Theme = themeDark // the default is System, which is light under the tester
 		r.tt = ui.NewTester(r.w.view, 1280, 720)
 		r.tt.Frame()
 		if controlAlpha != 1 {

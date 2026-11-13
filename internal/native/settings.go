@@ -3,7 +3,6 @@ package native
 import (
 	"math"
 	"os"
-	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -104,19 +103,6 @@ func (w *workspace) loadSettings() {
 
 // ---- the window and terminal preferences ----
 
-// savePref keeps one preference in keel-native.json, leaving every other field as it is.
-func (w *workspace) savePref(key string, v any) {
-	dir := w.dataDir
-	if dir == "" {
-		return
-	}
-	w.work(func() {
-		if err := savePrefs(dir, map[string]any{key: v}); err != nil {
-			w.post(func() { w.fail("save "+key, err) })
-		}
-	})
-}
-
 // alphaFor is the ground alpha of an opacity: 1 at 100.
 func alphaFor(opacity int) float32 {
 	if opacity >= opacityMax {
@@ -129,11 +115,11 @@ func alphaFor(opacity int) float32 {
 // the new alpha and sets the blur again.
 func (w *workspace) setOpacity(n int) {
 	n = min(max(n, opacityMin), opacityMax)
-	if n == w.win.Opacity {
+	if n == w.prefs.Opacity {
 		return
 	}
-	w.win.Opacity = n
-	w.savePref("opacity", n)
+	w.prefs.Opacity = n
+	w.savePref(keyOpacity, keyOpacity, n)
 	if w.translucentWin {
 		w.alpha = alphaFor(n)
 	}
@@ -143,21 +129,21 @@ func (w *workspace) setOpacity(n int) {
 // setUIPref is term.js setUiSize: the size is kept and every view draws at it from the next frame (setUISize).
 func (w *workspace) setUIPref(n int) {
 	n = min(max(n, uiSizeMin), uiSizeMax)
-	if n == w.win.UISize {
+	if n == w.prefs.UISize {
 		return
 	}
-	w.win.UISize = n
-	w.savePref("uiSize", n)
+	w.prefs.UISize = n
+	w.savePref(keyUISize, keyUISize, n)
 }
 
 // setBlur is term.js setBlur.
 func (w *workspace) setBlur(n int) {
 	n = min(max(n, blurMin), blurMax)
-	if n == w.win.Blur {
+	if n == w.prefs.Blur {
 		return
 	}
-	w.win.Blur = n
-	w.savePref("blur", n)
+	w.prefs.Blur = n
+	w.savePref(keyBlur, keyBlur, n)
 	w.applyBlur()
 }
 
@@ -166,8 +152,8 @@ func (w *workspace) applyBlur() {
 	if w.blurHook == nil {
 		return
 	}
-	r := w.win.Blur
-	if !w.translucentWin || w.win.Opacity >= opacityMax {
+	r := w.prefs.Blur
+	if !w.translucentWin || w.prefs.Opacity >= opacityMax {
 		r = 0
 	}
 	w.blurHook(r)
@@ -175,11 +161,11 @@ func (w *workspace) applyBlur() {
 
 // setCopyOnSelect is the Copy on select switch: every terminal takes it at once.
 func (w *workspace) setCopyOnSelect(on bool) {
-	if on == w.term.CopyOnSelect {
+	if on == w.prefs.CopyOnSelect {
 		return
 	}
-	w.term.CopyOnSelect = on
-	w.savePref("copyOnSelect", on)
+	w.prefs.CopyOnSelect = on
+	w.savePref(keyCopyOnSelect, keyCopyOnSelect, on)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.copyOnSelect = on
@@ -192,11 +178,11 @@ func (w *workspace) setCopyOnSelect(on bool) {
 
 // setRightClick is the Right-click in the terminal row. The plugin takes it when a terminal is made.
 func (w *workspace) setRightClick(mode string) {
-	if mode == w.term.RightClick {
+	if mode == w.prefs.RightClick {
 		return
 	}
-	w.term.RightClick = mode
-	w.savePref("rightClick", mode)
+	w.prefs.RightClick = mode
+	w.savePref(keyRightClick, keyRightClick, mode)
 }
 
 // setDisplayName is term.js setDisplayName: trimmed and cut to 40 characters; empty uses the default.
@@ -205,11 +191,11 @@ func (w *workspace) setDisplayName(v string) {
 	if utf8.RuneCountInString(v) > nameMax {
 		v = string([]rune(v)[:nameMax])
 	}
-	if v == w.term.Name {
+	if v == w.prefs.Name {
 		return
 	}
-	w.term.Name = v
-	w.savePref(nameKey, v)
+	w.prefs.Name = v
+	w.savePref(keyDisplayName, keyDisplayName, v)
 }
 
 // defaultName is the name used when no custom one is set: KEEL_NAME, else the user name (cmd/keel parseName).
@@ -329,19 +315,19 @@ func (w *workspace) syncSliders(p *settingsPage) {
 			*applied, *v = current, float64(current)
 		}
 	}
-	step(&p.opacityV, &p.opacityApplied, w.win.Opacity, w.setOpacity)
-	step(&p.blurV, &p.blurApplied, w.win.Blur, w.setBlur)
-	step(&p.sizeV, &p.sizeApplied, w.termSize, w.setTermSize)
-	step(&p.uiV, &p.uiApplied, w.win.UISize, w.setUIPref)
+	step(&p.opacityV, &p.opacityApplied, w.prefs.Opacity, w.setOpacity)
+	step(&p.blurV, &p.blurApplied, w.prefs.Blur, w.setBlur)
+	step(&p.sizeV, &p.sizeApplied, w.prefs.TermSize, w.setTermSize)
+	step(&p.uiV, &p.uiApplied, w.prefs.UISize, w.setUIPref)
 }
 
 // hasBlur reports a window that has the blur row (macOS only, as data-blur-only).
-func hasBlur() bool { return runtime.GOOS == "darwin" }
+func hasBlur() bool { return isMac() }
 
 // initSliders gives the sliders the current values when the page is made.
 func (w *workspace) initSliders(p *settingsPage) {
-	p.opacityV, p.opacityApplied = float64(w.win.Opacity), w.win.Opacity
-	p.blurV, p.blurApplied = float64(w.win.Blur), w.win.Blur
-	p.sizeV, p.sizeApplied = float64(w.termSize), w.termSize
-	p.uiV, p.uiApplied = float64(w.win.UISize), w.win.UISize
+	p.opacityV, p.opacityApplied = float64(w.prefs.Opacity), w.prefs.Opacity
+	p.blurV, p.blurApplied = float64(w.prefs.Blur), w.prefs.Blur
+	p.sizeV, p.sizeApplied = float64(w.prefs.TermSize), w.prefs.TermSize
+	p.uiV, p.uiApplied = float64(w.prefs.UISize), w.prefs.UISize
 }

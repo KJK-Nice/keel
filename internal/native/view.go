@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"unicode/utf8"
@@ -17,7 +16,7 @@ import (
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
 	w.resolveTheme(c)
-	setUISize(w.win.UISize)
+	setUISize(w.prefs.UISize)
 	windowTheme(c, w.dark)
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
@@ -137,64 +136,22 @@ func (w *workspace) runLater(c *ui.Context) {
 	}
 }
 
-// shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken
-// before the terminal sees the key.
-// altDigits are the keys of the New tab page's cards, ⌥1 to ⌥6.
-var altDigits = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6}
-
+// shortcuts declares the window shortcuts: the commands' keys (commands.go), the New tab page's cards and the find bar's. A
+// window shortcut is taken before the terminal sees the key. Shortcuts built here wait while a dialog shows, so while the
+// palette is open no other window key acts.
 func (w *workspace) shortcuts(c *ui.Context) {
-	// ⌘K and ⌘⇧P open the palette (the palette's own dialog closes it again). Shortcuts built here wait
-	// while a dialog shows, so while the palette is open no other window key acts.
-	c.OnWindowShortcut(ui.Cmd, ui.KeyK, func() { w.act(w.togglePalette) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyP, func() { w.act(w.togglePalette) })
-	digits := [...]ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8}
-	for i, k := range digits {
-		c.OnWindowShortcut(ui.Cmd, k, func() { w.act(func() { w.selectTab(i) }) })
-	}
-	c.OnWindowShortcut(ui.Cmd, ui.Key9, func() { w.act(func() { w.selectTab(len(w.tabs) - 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyJ, func() { w.act(w.openJoin) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() { w.act(func() { w.openPage("settings") }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newItem) }) // New host, or the page's own New (docs/shortcuts.md)
-	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
-		for i, k := range altDigits {
+	w.commandShortcuts(c)
+	if t := w.tab(); t != nil && t.isNew() { // ⌥1 to ⌥6 open the nth card of the New tab page
+		for i, k := range digitKeys[:6] {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
 		}
 	}
-	// ⌘I toggles the agent panel; elsewhere Ctrl+⇧I, because Ctrl+I is Tab in a terminal (lib/shortcutmap.js).
-	agentMods := ui.Cmd
-	if runtime.GOOS != "darwin" {
-		agentMods |= ui.Shift
-	}
-	c.OnWindowShortcut(agentMods, ui.KeyI, func() { w.act(w.toggleAgent) })
-	// ⌘Y asks for a command for the words on the prompt line (Ctrl+⇧Y elsewhere: Ctrl+Y is the shell's yank). It types nothing.
-	c.OnWindowShortcut(agentMods, ui.KeyY, func() { w.act(w.suggestRequest) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(w.toggleSidebar) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEnter, func() { w.act(w.zoomFocused) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyT, func() { w.act(w.reopenClosed) })
-	// ⌘< and ⌘> are ⌘⇧, and ⌘⇧. on a US keyboard: both spellings are taken (docs/shortcuts.md).
-	for _, k := range []ui.Key{ui.KeyBracketLeft, ui.KeyComma} {
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(-1) }) })
-	}
-	for _, k := range []ui.Key{ui.KeyBracketRight, ui.KeyPeriod} {
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(1) }) })
-	}
-	c.OnWindowShortcut(ui.Cmd, ui.KeyF, func() { w.act(func() { w.openFind(w.focusedPane()) }) })
 	if w.findPane != nil {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
 		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
 		// Escape closes the bar from anywhere in the window, as in the webview (term.js closeOpenFind).
 		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
 	}
-	// Terminal text size: ⌘+ is ⌘= with or without ⇧.
-	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { w.act(func() { w.setTermSize(w.termSize - 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.Key0, func() { w.act(func() { w.setTermSize(termSizeDefault) }) })
 }
 
 func (w *workspace) titlebar(c *ui.Context) {
@@ -206,8 +163,8 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if !w.joinedActive() && w.capBtn(c, "B", "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no toggle in a joined tab
-			w.act(func() { w.sidebar = !w.sidebar })
+		if !w.joinedActive() && w.capBtn(c, "B", "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no button in a joined tab
+			w.act(func() { w.runCommand("sidebar") })
 		}
 		for i, t := range w.tabs {
 			w.tabPill(c, i, t)
@@ -484,11 +441,11 @@ func (w *workspace) sidebarView(c *ui.Context) {
 // hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect, Join session, New
 // group and Local terminal.
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
-	if menuItem(m, "Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
-		w.act(func() { w.openQuick("", nil) })
+	if menuItem(m, "Quick connect").Shortcut(shortcutOf("host.quick")).Chosen() {
+		w.act(func() { w.runCommand("host.quick") })
 	}
-	if menuItem(m, "Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
-		w.act(w.openJoin)
+	if menuItem(m, "Join session").Shortcut(shortcutOf("host.join")).Chosen() {
+		w.act(func() { w.runCommand("host.join") })
 	}
 	if menuItem(m, "New group").Chosen() {
 		w.act(func() { w.newFolder("") })
@@ -520,7 +477,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 }
 
 func (w *workspace) group(c *ui.Context, g hostGroup) {
-	open := !w.collapsed[g.name]
+	open := !w.prefs.Collapsed[g.name]
 	ui.Column(c).FillWidth().Key(g.name).Children(func() {
 		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Label("group " + g.name).Tooltip(g.name).Cursor(ui.CursorPointer)
 		h.Children(func() {
@@ -893,7 +850,7 @@ func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.agent.open) // one cap, as the app's #btn-agent-kbd
+	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel) // one cap, as the app's #btn-agent-kbd
 	if b.Clicked() {
 		w.act(w.toggleAgent)
 	}

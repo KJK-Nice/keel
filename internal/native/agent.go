@@ -2,11 +2,7 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -79,7 +75,6 @@ type agentTurn struct {
 }
 
 type agentPanel struct {
-	open bool // saved in keel-native.json
 	conv string
 	// title is the conversation's name from keel serve; "" is "New conversation".
 	title string
@@ -140,8 +135,7 @@ type agentPanel struct {
 	scroll ui.ScrollState
 	stick  bool // scroll to the end in the next frame
 
-	width float32 // the panel's width as kept; 0 is size-agent (clampAgentWidth)
-	sash  sashState
+	sash sashState
 }
 
 func newAgentPanel() *agentPanel {
@@ -154,7 +148,6 @@ const (
 	msgAgentFollowing  = "You follow this pane. The agent cannot type into it."
 	titleNewConv       = "New conversation"
 	savedInVault       = "Saved in the vault"
-	agentPanelFileKey  = "agentPanel"
 	agentEmptyTitle    = "Ask about your sessions"
 	agentInputHint     = "Ask about these sessions…"
 	agentComposerHint  = "@ add a pane · ↵ send"
@@ -165,23 +158,17 @@ const (
 
 // shiftWord is how the app names the key in its sentences.
 func shiftWord() string {
-	if runtime.GOOS == "darwin" {
+	if isMac() {
 		return "⇧"
 	}
 	return "Shift"
 }
 
-// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+⇧I elsewhere (Ctrl+I is Tab in a terminal).
-func agentKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘I"
-	}
-	return "Ctrl+⇧I"
-}
+// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+Shift+I elsewhere (Ctrl+I is Tab in a terminal).
+func agentKeys() string { return commandKeyLabel("agent.toggle") }
 
 // The panel's width (ui/agentpanel.js "width"): at least --size-agent and at most half the window, kept as agentWidth in
 // keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).
-const agentWidthFileKey = "agentWidth"
 
 // clampAgentWidth is applyWidth: a width of 0 is the default, else between size-agent and half the window (never below
 // size-agent, whatever the window).
@@ -193,41 +180,10 @@ func clampAgentWidth(width, windowW float32) float32 {
 	return min(hi, max(sizeAgent, float32(int(width+0.5))))
 }
 
-// loadAgentWidth reads the width the panel was left at: 0 (the default) when absent.
-func loadAgentWidth(dataDir string) float32 {
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return 0
-	}
-	var f struct {
-		AgentWidth float32 `json:"agentWidth"`
-	}
-	if json.Unmarshal(b, &f) != nil || f.AgentWidth < 0 {
-		return 0
-	}
-	return f.AgentWidth
-}
-
 // setAgentWidth keeps a new width (0 puts the default back) in keel-native.json.
 func (w *workspace) setAgentWidth(width float32) {
-	w.agent.width = width
-	if w.dataDir != "" {
-		if err := savePrefs(w.dataDir, map[string]any{agentWidthFileKey: width}); err != nil {
-			w.fail("save the agent panel width", err)
-		}
-	}
-}
-
-// loadAgentOpen reads whether the panel was left open: keel-native.json's agentPanel, closed when absent.
-func loadAgentOpen(dataDir string) bool {
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return false
-	}
-	var f struct {
-		AgentPanel bool `json:"agentPanel"`
-	}
-	return json.Unmarshal(b, &f) == nil && f.AgentPanel
+	w.prefs.AgentWidth = width
+	w.savePref("the agent panel width", keyAgentWidth, width)
 }
 
 // ---- the panes in scope ----
@@ -305,18 +261,14 @@ func (w *workspace) toggleAgent() {
 		w.say(msgAgentJoined)
 		return
 	}
-	w.setAgentOpen(!w.agent.open)
+	w.setAgentOpen(!w.prefs.AgentPanel)
 }
 
 // setAgentOpen shows or hides the panel and keeps the choice in keel-native.json.
 func (w *workspace) setAgentOpen(open bool) {
 	a := w.agent
-	a.open = open
-	if w.dataDir != "" {
-		if err := savePrefs(w.dataDir, map[string]any{agentPanelFileKey: open}); err != nil {
-			w.fail("save the agent panel", err)
-		}
-	}
+	w.prefs.AgentPanel = open
+	w.savePref("the agent panel", keyAgentPanel, open)
 	if open {
 		a.focusInput = true
 		w.loadAgent()

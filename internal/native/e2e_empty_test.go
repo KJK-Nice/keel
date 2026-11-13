@@ -63,6 +63,6 @@ func TestE2EEmptyStates(t *testing.T) {
 		e.openAgent()
 		shot("agent-panel")
 		e.key(agentMods(), ui.KeyI)
-		e.pump(func() bool { return !e.w.agent.open }, "the agent panel to close")
+		e.pump(func() bool { return !e.w.prefs.AgentPanel }, "the agent panel to close")
 	}
 }

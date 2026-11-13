@@ -1,10 +1,6 @@
 package native
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -192,44 +188,15 @@ func (w *workspace) deleteFolder(id string) {
 
 // The folders the tree shows closed are kept across a restart as groupCollapsed (ids and flat group names) in keel-native.json:
 // the app keeps them in localStorage under keel-group-collapsed (term.js saveCollapsedGroups).
-const collapsedFileKey = "groupCollapsed"
 
-// setCollapsed opens (on false) or closes a tree group and keeps the closed ones, sorted so the file is stable.
+// setCollapsed opens (on false) or closes a tree group and keeps the closed ones.
 func (w *workspace) setCollapsed(key string, on bool) {
 	if on {
-		w.collapsed[key] = true
+		w.prefs.Collapsed[key] = true
 	} else {
-		delete(w.collapsed, key)
+		delete(w.prefs.Collapsed, key)
 	}
-	if w.dataDir == "" {
-		return
-	}
-	ids := []string{}
-	for k := range w.collapsed {
-		ids = append(ids, k)
-	}
-	slices.Sort(ids)
-	if err := savePrefs(w.dataDir, map[string]any{collapsedFileKey: ids}); err != nil {
-		w.fail("save the closed folders", err)
-	}
-}
-
-// loadCollapsed reads the closed folders back: none when the file has no such field.
-func loadCollapsed(dataDir string) map[string]bool {
-	out := map[string]bool{}
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return out
-	}
-	var f struct {
-		Collapsed []string `json:"groupCollapsed"`
-	}
-	if json.Unmarshal(b, &f) == nil {
-		for _, id := range f.Collapsed {
-			out[id] = true
-		}
-	}
-	return out
+	w.savePref("the closed folders", keyCollapsed, w.prefs.collapsedList())
 }
 
 // ---- host and folder drops ----

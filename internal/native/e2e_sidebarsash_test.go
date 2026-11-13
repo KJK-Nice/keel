@@ -76,7 +76,7 @@ func TestE2ESidebarWidthIsKept(t *testing.T) {
 	e.tt.Move(x+120, y)
 	e.step()
 	e.tt.Release(x+120, y)
-	e.pump(func() bool { return loadSidebarWidth(dir) > sidebarWidth()+100 }, "the width kept")
+	e.pump(func() bool { return loadPrefs(dir).SidebarWidth > sidebarWidth()+100 }, "the width kept")
 	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on keel serve")
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2ESidebarWidth-dark")
@@ -84,7 +84,7 @@ func TestE2ESidebarWidthIsKept(t *testing.T) {
 	e.pump(func() bool { return !e.w.dark }, "the light theme")
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2ESidebarWidth-light")
-	kept := loadSidebarWidth(dir)
+	kept := loadPrefs(dir).SidebarWidth
 	e.w.closeWindow()
 
 	e2 := newWin(t, addr, dir, nil)

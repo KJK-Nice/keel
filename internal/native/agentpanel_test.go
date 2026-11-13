@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -29,7 +28,7 @@ func agentRig(t *testing.T) *rig {
 	}{"gemini": {true}}
 	r.tt.Key(agentMods(), ui.KeyI)
 	r.tt.Frame()
-	if !r.w.agent.open {
+	if !r.w.prefs.AgentPanel {
 		t.Fatal("the shortcut did not open the panel")
 	}
 	return r
@@ -67,7 +66,7 @@ func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	if got := width(); !near(got, sizeAgent+60) {
 		t.Fatalf("after a drag 60 px left the panel is %v wide, want %v", got, float32(sizeAgent+60))
 	}
-	if got := loadAgentWidth(r.w.dataDir); !near(got, sizeAgent+60) {
+	if got := loadPrefs(r.w.dataDir).AgentWidth; !near(got, sizeAgent+60) {
 		t.Errorf("keel-native.json holds %v", got)
 	}
 	// Dragged far left it stops at half the window; dragged far right, at size-agent.
@@ -105,8 +104,8 @@ func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	}
 	r.tt.Key(0, ui.KeyHome)
 	r.tt.Frame()
-	if got := width(); !near(got, sizeAgent) || loadAgentWidth(r.w.dataDir) != 0 {
-		t.Errorf("Home gives %v, kept %v", got, loadAgentWidth(r.w.dataDir))
+	if got := width(); !near(got, sizeAgent) || loadPrefs(r.w.dataDir).AgentWidth != 0 {
+		t.Errorf("Home gives %v, kept %v", got, loadPrefs(r.w.dataDir).AgentWidth)
 	}
 	// A double click puts the default back.
 	r.w.setAgentWidth(500)
@@ -122,18 +121,17 @@ func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {
 	r.w.setAgentWidth(520)
 	w2 := newWorkspace(r.fb)
 	w2.dataDir = r.w.dataDir
+	w2.prefs = loadPrefs(w2.dataDir) // what RunWith does
 	w2.work, w2.post, w2.mkBody = func(fn func()) { fn() }, func(fn func()) { fn() }, placeholder(&r.released)
 	w2.start()
-	if !near(w2.agent.width, 520) || !w2.agent.open {
-		t.Errorf("a new window has width %v, open %v", w2.agent.width, w2.agent.open)
+	if !near(w2.prefs.AgentWidth, 520) || !w2.prefs.AgentPanel {
+		t.Errorf("a new window has width %v, open %v", w2.prefs.AgentWidth, w2.prefs.AgentPanel)
 	}
 }
 
 func agentMods() ui.Modifiers {
-	if runtime.GOOS == "darwin" {
-		return ui.Cmd
-	}
-	return ui.Cmd | ui.Shift
+	mods, _ := shortcutOf("agent.toggle")
+	return mods
 }
 
 func (r *rig) ask(t *testing.T, q string) {
@@ -164,7 +162,7 @@ func TestTheShortcutTheButtonAndThePaletteToggleThePanelAndItIsRemembered(t *tes
 	r := approveRig(t)
 	dir := t.TempDir()
 	r.w.useDataDir(t, dir)
-	if r.w.agent.open || r.tt.HasText("Reads ") {
+	if r.w.prefs.AgentPanel || r.tt.HasText("Reads ") {
 		t.Fatal("the panel starts closed")
 	}
 	for _, e := range []string{"Agent"} {
@@ -180,20 +178,20 @@ func TestTheShortcutTheButtonAndThePaletteToggleThePanelAndItIsRemembered(t *tes
 	}
 	r.tt.Key(agentMods(), ui.KeyI)
 	r.tt.Frame()
-	if !r.w.agent.open || !r.tt.HasText("Reads 1 of 1 pane") || !saved() || !r.tt.Focused("Message the agent") {
-		t.Fatalf("open %v saved %v: the panel is not open with the keyboard in the composer", r.w.agent.open, saved())
+	if !r.w.prefs.AgentPanel || !r.tt.HasText("Reads 1 of 1 pane") || !saved() || !r.tt.Focused("Message the agent") {
+		t.Fatalf("open %v saved %v: the panel is not open with the keyboard in the composer", r.w.prefs.AgentPanel, saved())
 	}
 	r.tt.Key(agentMods(), ui.KeyI)
 	r.tt.Frame()
-	if r.w.agent.open || r.tt.HasText("Reads ") || saved() {
+	if r.w.prefs.AgentPanel || r.tt.HasText("Reads ") || saved() {
 		t.Fatal("the shortcut did not close it and save that")
 	}
 	r.click(t, "Agent") // the button
-	if !r.w.agent.open {
+	if !r.w.prefs.AgentPanel {
 		t.Fatal("the Agent button does not open it")
 	}
 	r.click(t, "Close agent")
-	if r.w.agent.open || saved() {
+	if r.w.prefs.AgentPanel || saved() {
 		t.Fatal("Close agent does not close and save")
 	}
 	r.tt.Key(ui.Cmd, ui.KeyK)
@@ -202,13 +200,13 @@ func TestTheShortcutTheButtonAndThePaletteToggleThePanelAndItIsRemembered(t *tes
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if !r.w.agent.open {
+	if !r.w.prefs.AgentPanel {
 		t.Fatal("the palette's Toggle agent panel does not open it")
 	}
 	// A new window reads it back.
 	w2 := newWorkspace(r.fb)
 	w2.dataDir = dir
-	if !loadAgentOpen(dir) {
+	if !loadPrefs(dir).AgentPanel {
 		t.Fatal("keel-native.json does not say the panel is open")
 	}
 	_ = w2
@@ -222,16 +220,16 @@ func TestAWindowOpensWithThePanelAsItWasLeft(t *testing.T) {
 		}
 		fb := okBackend()
 		w := newWorkspace(fb)
-		w.dataDir = dir
+		w.dataDir, w.prefs = dir, loadPrefs(dir) // what RunWith does
 		w.work, w.post = func(fn func()) { fn() }, func(fn func()) { fn() }
 		w.mkBody = placeholder(new(int))
 		w.start()
-		if w.agent.open != open {
-			t.Errorf("saved %v: the window opened with the panel %v", open, w.agent.open)
+		if w.prefs.AgentPanel != open {
+			t.Errorf("saved %v: the window opened with the panel %v", open, w.prefs.AgentPanel)
 		}
 	}
 	// A file that is not there, or says nothing, is closed.
-	if loadAgentOpen(t.TempDir()) {
+	if loadPrefs(t.TempDir()).AgentPanel {
 		t.Error("no file: the panel is open")
 	}
 }
@@ -241,7 +239,7 @@ func TestAJoinedTabHasNoPanelNoButtonAndTheShortcutSaysWhy(t *testing.T) {
 	jr.w.useDataDir(t, t.TempDir())
 	jr.tt.Key(agentMods(), ui.KeyI)
 	jr.tt.Frame()
-	if !jr.w.agent.open {
+	if !jr.w.prefs.AgentPanel {
 		t.Fatal("setup: the panel is not open")
 	}
 	jr.join(t, joinTestLink)
@@ -256,7 +254,7 @@ func TestAJoinedTabHasNoPanelNoButtonAndTheShortcutSaysWhy(t *testing.T) {
 	if !jr.tt.HasText(msgAgentJoined) || msgAgentJoined != "The agent is off in joined sessions" {
 		t.Errorf("the shortcut did not say why: %v", jr.tt.Texts())
 	}
-	if !jr.w.agent.open {
+	if !jr.w.prefs.AgentPanel {
 		t.Error("the shortcut changed the panel instead of saying why")
 	}
 }

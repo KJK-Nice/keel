@@ -103,20 +103,22 @@ func TestSettingsThemeRowChoosesTheTheme(t *testing.T) {
 		}
 	}
 	r.click(t, "Light")
-	if r.w.win.Theme != themeLight || r.w.dark {
-		t.Errorf("after Light: choice %q, dark %v", r.w.win.Theme, r.w.dark)
+	if r.w.prefs.Theme != themeLight || r.w.dark {
+		t.Errorf("after Light: choice %q, dark %v", r.w.prefs.Theme, r.w.dark)
 	}
 	r.wantPix(t, "settings page", 700, 400, lightHex.surface)
 	r.click(t, "Dark")
 	r.wantPix(t, "settings page", 700, 400, darkHex.surface)
 	r.click(t, "System")
-	if r.w.win.Theme != themeSystem {
-		t.Errorf("choice %q", r.w.win.Theme)
+	if r.w.prefs.Theme != themeSystem {
+		t.Errorf("choice %q", r.w.prefs.Theme)
 	}
 }
 
 func TestEveryOpenTerminalGetsTheThemesColours(t *testing.T) {
 	r := themeRig(t)
+	r.w.setTheme(themeDark) // the default is System, which is light under the tester
+	r.tt.Frame()
 	r.click(t, "Split right")
 	n := map[string]int{}
 	for id, p := range r.w.tab().panes {
@@ -157,7 +159,7 @@ func TestTranslucentGroundsFollowTheThemeAndItsOpaqueRule(t *testing.T) {
 	for _, native := range []bool{true, false} {
 		r := themeRig(t)
 		r.w.translucentWin, r.w.themeNative = true, native
-		r.w.win.Opacity, r.w.alpha = 50, 0.5
+		r.w.prefs.Opacity, r.w.alpha = 50, 0.5
 		r.w.setTheme(themeSystem)
 		r.tt.SetDark(true)
 		r.tt.Frame()
@@ -207,14 +209,14 @@ func TestUnlockAndFirstRunScreensFollowTheTheme(t *testing.T) {
 		}
 		choice := map[bool]string{true: themeLight, false: themeDark}[light]
 		r := newRig(t, lockedBackend())
-		r.w.win.Theme = choice
+		r.w.prefs.Theme = choice
 		r.tt.Frame()
 		// The page's ground is the stage; the field's ground is the stage too, with a strong line.
 		r.wantPix(t, choice+" Unlock ground", 100, 100, p.stage)
 		r.w.gate = nil
 
 		r2 := firstRunRig(t, setupBackend())
-		r2.w.win.Theme = choice
+		r2.w.prefs.Theme = choice
 		r2.tt.Frame()
 		r2.wantPix(t, choice+" First run ground", 640, 700, p.stage)
 	}
