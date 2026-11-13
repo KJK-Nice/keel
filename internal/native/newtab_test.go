@@ -107,6 +107,7 @@ func startRig(t *testing.T) *rig {
 		hosts = append(hosts, keelclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("srv-%d", i), Address: fmt.Sprintf("10.0.0.%d", i), Username: "ops", AuthType: "key", Group: "fleet"})
 	}
 	r := newRig(t, &fakeBackend{hosts: hosts})
+	diagWindow(t, r) // issue #140: on a failure, what differs from macOS (linuxdiag_test.go)
 	r.tt.Frame()
 	return r
 }

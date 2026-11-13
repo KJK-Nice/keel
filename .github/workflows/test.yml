@@ -40,6 +40,45 @@ jobs:
         if: runner.os == 'Linux'
         run: sh scripts/ci-run.sh "make test-nonwindow (${{ matrix.os }})" make test-nonwindow
 
+      # Issue #140, round 1 (docs/native.md "Linux"): run the window's package with -v on Ubuntu, never failing the job, print what
+      # a layout difference could come from, and keep the whole log. Remove this step once the package is green here and the
+      # Linux leg runs make test.
+      - name: window tests on Linux (diagnostic, #140)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          echo "== facts"
+          go env GOOS GOARCH
+          echo "DISPLAY=$DISPLAY WAYLAND_DISPLAY=$WAYLAND_DISPLAY XDG_SESSION_TYPE=$XDG_SESSION_TYPE"
+          locale || true
+          echo "gtk-3 libraries: $(ldconfig -p | grep -c gtk-3 || true)"
+          echo "pango/cairo/fontconfig/freetype libraries:"
+          ldconfig -p | grep -E 'libpango|libcairo|libfontconfig|libfreetype|libharfbuzz' || echo "none"
+          if command -v fc-list >/dev/null 2>&1; then
+            echo "fonts: $(fc-list | wc -l)"
+            fc-match sans
+            fc-match monospace
+            fc-match system-ui
+          else
+            echo "no fc-list"
+          fi
+          echo "== go test -v ./internal/native/"
+          KEEL_KEYRING=off KEEL_AGENT_PROVIDER=fake go test -count=1 -v ./internal/native/ 2>&1 | tee window-linux.log || true
+          echo "== summary"
+          grep -E '^(--- FAIL|FAIL|ok|panic)' window-linux.log || true
+          echo "== linux-diag lines"
+          grep 'linux-diag' window-linux.log || true
+          exit 0
+
+      - name: Upload the window test log (diagnostic, #140)
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: window-linux-log
+          path: window-linux.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
   # Nobody has seen a headless macOS runner run it (it needs the window server), so a failure does not fail the
   # workflow yet: make it required once it has passed here. The unit tests of internal/native run in make test above.

@@ -69,6 +69,13 @@ func TestEmbeddedFontsAreTheShippedSet(t *testing.T) {
 
 // Each shipped family, once registered as run.go does, renders differently from a missing family and from the other.
 func TestShippedFamiliesRenderDifferently(t *testing.T) {
+	t.Cleanup(func() {
+		if t.Failed() { // issue #140: the widths in the default, the bundled and a missing family (linuxdiag_test.go)
+			diagFonts(t)
+			t.Logf("linux-diag: renders equal: bundled JetBrains vs missing %v, Plex vs missing %v, JetBrains vs Plex %v",
+				bytes.Equal(renderIn(monoFamily), renderIn("keel-test-missing-5d1e")), bytes.Equal(renderIn(plexFamily), renderIn("keel-test-missing-5d1e")), bytes.Equal(renderIn(monoFamily), renderIn(plexFamily)))
+		}
+	})
 	registerFonts()
 	missing, jb, plex := renderIn("keel-test-missing-5d1e"), renderIn(monoFamily), renderIn(plexFamily)
 	if bytes.Equal(jb, missing) {

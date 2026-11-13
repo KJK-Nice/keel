@@ -30,6 +30,7 @@ func savedList() keelclient.ConversationList {
 func savedRig(t *testing.T) *rig {
 	t.Helper()
 	r := agentRig(t)
+	diagWindow(t, r) // issue #140: on a failure, what differs from macOS (linuxdiag_test.go)
 	r.fb.convs.list = savedList()
 	r.fb.convs.transcr = map[string]keelclient.Transcript{
 		"c-today": {ID: "c-today", Title: "Why is pg-2 lagging", CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-30 * time.Minute), Saved: true, Turns: []keelclient.SavedTurn{
