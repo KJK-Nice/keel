@@ -440,7 +440,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 
 	// Scrollback lines and the default scope.
-	p := e.w.pageTab("settings").pg.settings
+	p := pageAs[*settingsPage](e.w.pageTab("settings"))
 	p.linesV = 400
 	e.pump(func() bool { return e.serverSettings().Settings.ScrollbackLines == 400 }, "Scrollback lines on keel serve")
 	e.click("Default panes per conversation Every pane in the tab")

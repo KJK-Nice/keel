@@ -32,6 +32,9 @@ type logsPage struct {
 	filterH ui.Handle
 }
 
+func (p *logsPage) load(w *workspace)                { w.loadLogs() }
+func (p *logsPage) view(w *workspace, c *ui.Context) { w.logsView(c, p) }
+
 func (p *logsPage) String() string {
 	return fmt.Sprintf("logsPage{%d entries kind=%s}", len(p.entries), p.kind)
 }
@@ -167,11 +170,11 @@ func (w *workspace) logsTick() {
 	if w.closed || w.gate != nil || w.first != nil {
 		return
 	}
-	t := w.tab()
-	if t == nil || t.pg == nil || t.pg.logs == nil || t.pg.logs.reading {
+	p := pageAs[*logsPage](w.tab())
+	if p == nil || p.reading {
 		return
 	}
-	w.readLogs(&t.pg.logs.reading, true)
+	w.readLogs(&p.reading, true)
 }
 
 // loadLogs reads the log again (the page opened or was selected, the vault changed, or Refresh).
@@ -185,10 +188,10 @@ func (w *workspace) readLogs(busy *bool, quiet bool) {
 		switch {
 		case t == nil:
 		case err == nil:
-			p := t.pg.logs
+			p := pageAs[*logsPage](t)
 			p.err, p.loaded, p.entries = "", true, entries
 		case !quiet:
-			t.pg.logs.err = "Could not read the log: " + hostError(err)
+			pageAs[*logsPage](t).err = "Could not read the log: " + hostError(err)
 		}
 	})
 }

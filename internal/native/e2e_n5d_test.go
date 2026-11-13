@@ -376,8 +376,8 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	}
 	e2.key(ui.Cmd, ui.KeyComma)
 	e2.pump(func() bool { return e2.hasLabel("Window opacity slider") }, "Settings in the second window")
-	if e2.w.pageTab("settings").pg.settings.opacityV != 80 {
-		t.Errorf("the slider starts at %v", e2.w.pageTab("settings").pg.settings.opacityV)
+	if pageAs[*settingsPage](e2.w.pageTab("settings")).opacityV != 80 {
+		t.Errorf("the slider starts at %v", pageAs[*settingsPage](e2.w.pageTab("settings")).opacityV)
 	}
 	e2.w.closeWindow()
 }
@@ -390,7 +390,7 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	e.pump(func() bool { return e.hasLabel("tab Settings") }, "Settings")
 	e.click("settings nav Runtime")
 	e.pump(func() bool { return e.hasLabel("value 1") && e.tt.HasText("Running sessions") }, "the Runtime section with one session")
-	if want := versionOf(e.w.pageTab("settings").pg.settings.rt.Build); want == "" || !e.tt.HasText(want) {
+	if want := versionOf(pageAs[*settingsPage](e.w.pageTab("settings")).rt.Build); want == "" || !e.tt.HasText(want) {
 		t.Errorf("the version %q is not shown", want)
 	}
 	e.shot("TestE2ESettingsRuntimeStop-runtime")
@@ -455,7 +455,9 @@ func TestE2EToasts(t *testing.T) {
 	e.key(ui.Cmd, ui.KeyComma)
 	e.pump(func() bool { return e.hasLabel("tab Settings") }, "Settings")
 	e.click("settings nav Sharing")
-	e.pump(func() bool { return e.hasLabel("Signal server input") && e.w.pageTab("settings").pg.settings.rt != nil }, "the Sharing section")
+	e.pump(func() bool {
+		return e.hasLabel("Signal server input") && pageAs[*settingsPage](e.w.pageTab("settings")).rt != nil
+	}, "the Sharing section")
 	code, body := e.raw("PUT", "/api/share/signal", map[string]string{"url": "ftp://not-a-signal-server"})
 	var refusal struct{ Error string }
 	json.Unmarshal([]byte(body), &refusal)

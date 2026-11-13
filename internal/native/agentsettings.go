@@ -50,8 +50,8 @@ func (p *settingsPage) card(id string) *keyCard {
 // loadAgentSettings reads the settings and the providers (GET /api/agent/settings, /api/agent/providers).
 func (w *workspace) loadAgentSettings() {
 	a := w.agent
-	if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
-		w.loadNotes(&t.pg.settings.notes) // Notes for the agent: the user's own
+	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		w.loadNotes(&p.notes) // Notes for the agent: the user's own
 	}
 	type read struct {
 		s    keelclient.AgentSettings
@@ -233,8 +233,8 @@ func (w *workspace) disconnect(id, name string) {
 			w.warn(errText("Could not disconnect", err))
 			return
 		}
-		if t := w.pageTab("settings"); t != nil {
-			*t.pg.settings.card(id) = keyCard{}
+		if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+			*p.card(id) = keyCard{}
 		}
 		w.say(name + " disconnected")
 		w.loadAgentSettings()

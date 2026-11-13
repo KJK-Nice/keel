@@ -497,7 +497,9 @@ func TestE2ELogsPage(t *testing.T) {
 	e.tt.Type("Logs")
 	e.step()
 	e.key(0, ui.KeyEnter)
-	e.pump(func() bool { return e.w.tab().pg != nil && e.w.tab().pg.logs != nil && e.w.tab().pg.logs.loaded }, "the Logs page")
+	e.pump(func() bool {
+		return e.w.tab().pg != nil && pageAs[*logsPage](e.w.tab()) != nil && pageAs[*logsPage](e.w.tab()).loaded
+	}, "the Logs page")
 	for _, s := range []string{"Logs", "Refresh", "All", "Sessions", "Forwards", "Vault", "Agent", "Time", "Kind", "Target", "Event"} {
 		if !e.tt.HasText(s) {
 			t.Errorf("no %q", s)
@@ -508,7 +510,7 @@ func TestE2ELogsPage(t *testing.T) {
 	}
 	e.noSecretDrawn(f.password)
 	// Newest first: the log's own order on screen.
-	p := e.w.tab().pg.logs
+	p := pageAs[*logsPage](e.w.tab())
 	rows := p.rows()
 	all := e.logEntries()
 	if len(rows) == 0 || rows[0].Message != all[0].Message || rows[0].Time.Before(rows[len(rows)-1].Time) {
@@ -553,7 +555,9 @@ func TestE2EPagesComeBack(t *testing.T) {
 	if e2.sidOf(0) != sid {
 		t.Errorf("the session tab came back as %q, want %q", e2.sidOf(0), sid)
 	}
-	e2.pump(func() bool { return e2.w.pageTab("logs").pg.logs.loaded && e2.w.pageTab("keychain").pg.keychain.loaded }, "both pages to read the server")
+	e2.pump(func() bool {
+		return pageAs[*logsPage](e2.w.pageTab("logs")).loaded && pageAs[*keychainPage](e2.w.pageTab("keychain")).loaded
+	}, "both pages to read the server")
 	e2.click("tab Keychain")
 	e2.pump(func() bool { return e2.tt.HasText("No identities yet") }, "the Keychain page")
 	e2.shot("TestE2EPagesComeBack")

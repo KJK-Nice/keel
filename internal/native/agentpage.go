@@ -47,6 +47,14 @@ type agentPage struct {
 	width                         float32 // the tab's width last frame, for the narrow layouts
 }
 
+func (p *agentPage) load(w *workspace) {
+	w.loadAgent()
+	w.loadConversations()
+}
+
+func (p *agentPage) view(w *workspace, c *ui.Context) { w.agentPageView(c, p) }
+func (p *agentPage) newItem(w *workspace)             { w.newAgentConversation() }
+
 // openAgentPage is the palette's Agent conversations and the panel's Open all in a tab.
 func (w *workspace) openAgentPage() { w.openPage(pageAgent) }
 
@@ -86,8 +94,8 @@ func (a *agentPanel) pageRetention() string {
 // openRetentionSettings is Retention settings: Settings · Agent.
 func (w *workspace) openRetentionSettings() {
 	w.openPage("settings")
-	if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
-		t.pg.settings.section, t.pg.settings.search = "agent", ""
+	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		p.section, p.search = "agent", ""
 		w.loadAgentSettings()
 	}
 }

@@ -41,10 +41,10 @@ func (r *rig) settleFrames() {
 func pageOf(t *testing.T, r *rig) *agentPage {
 	t.Helper()
 	tb := r.w.pageTab(pageAgent)
-	if tb == nil || tb.pg.agent == nil {
+	if tb == nil || pageAs[*agentPage](tb) == nil {
 		t.Fatal("no Agent page tab")
 	}
-	return tb.pg.agent
+	return pageAs[*agentPage](tb)
 }
 
 func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
@@ -54,7 +54,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if tb := r.w.tab(); tb == nil || tb.pg == nil || tb.pg.agent == nil {
+	if tb := r.w.tab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil {
 		t.Fatal("the palette's Agent conversations did not open the page")
 	}
 	for _, s := range []string{"Conversations", "In scope", "Read so far", "Proposals", "Retention settings", "Every read and every typed proposal is also in Logs, under Agent.",
@@ -68,7 +68,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.tt.Frame()
 	n := 0
 	for _, tb := range r.w.tabs {
-		if tb.pg != nil && tb.pg.agent != nil {
+		if tb.pg != nil && pageAs[*agentPage](tb) != nil {
 			n++
 		}
 	}
@@ -81,7 +81,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.openRecent(t)
 	r.click(t, "Open all in a tab")
 	r.tt.Frame()
-	if tb := r.w.tab(); tb == nil || tb.pg == nil || tb.pg.agent == nil || r.w.agent.sessOpen {
+	if tb := r.w.tab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil || r.w.agent.sessOpen {
 		t.Fatal("Open all in a tab did not open the page")
 	}
 }

@@ -124,13 +124,21 @@ func newGroupPage() *groupPage {
 	return &groupPage{ex: ansibleDrawer{format: "ini", mode: "rolling", user: true}}
 }
 
-// groupPageState is the page of the Group tab, or nil.
-func (w *workspace) groupPageState() *groupPage {
-	if t := w.pageTab("group"); t != nil {
-		return t.pg.group
+func (p *groupPage) load(w *workspace)                { w.loadGroupPage() }
+func (p *groupPage) view(w *workspace, c *ui.Context) { w.groupPageView(c, p) }
+func (p *groupPage) tabTitle() string                 { return p.title }
+func (p *groupPage) snapshot(d *savedDoc)             { d.GroupID = p.id }
+
+func (p *groupPage) restore(w *workspace, d *savedDoc) {
+	p.id = d.GroupID
+	p.notes = notesEditor{group: true, groupID: d.GroupID}
+	if g, ok := groupByID(w.folders, d.GroupID); ok {
+		p.title = g.Name
 	}
-	return nil
 }
+
+// groupPageState is the page of the Group tab, or nil.
+func (w *workspace) groupPageState() *groupPage { return pageAs[*groupPage](w.pageTab("group")) }
 
 // openGroupPage opens the folder's page (the folder menu's Roles and runbooks, the palette's Group …), or shows it in the
 // tab that is open: one instance. runMenu also opens its "Run a runbook on this group" list.
@@ -143,7 +151,7 @@ func (w *workspace) openGroupPage(id string, runMenu bool) {
 	if t == nil {
 		t = w.addPageTab("group")
 	}
-	p := t.pg.group
+	p := pageAs[*groupPage](t)
 	if p.id != id {
 		*p = *newGroupPage()
 		p.id = id

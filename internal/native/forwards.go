@@ -42,6 +42,10 @@ type forwardsPage struct {
 	filterH ui.Handle
 }
 
+func (p *forwardsPage) load(w *workspace)                { w.reloadTunnels() }
+func (p *forwardsPage) view(w *workspace, c *ui.Context) { w.forwardsView(c, p) }
+func (p *forwardsPage) newItem(w *workspace)             { w.newForward() }
+
 // tunnelStateInfo is internal/ui/data.go tunnelStatus: how a forward's state reads, a dot and a word.
 type tunnelStateInfo struct {
 	label  string
@@ -195,8 +199,7 @@ func (w *workspace) forwardsShown() bool {
 	if w.sidebar && w.sideSeg == "forwards" {
 		return true
 	}
-	t := w.tab()
-	return t != nil && t.pg != nil && t.pg.forwards != nil
+	return pageAs[*forwardsPage](w.tab()) != nil
 }
 
 // ---- reading ----

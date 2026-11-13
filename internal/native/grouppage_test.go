@@ -54,7 +54,7 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 	r.openGroup(t, "Apps")
 	pages := 0
 	for _, tb := range r.w.tabs {
-		if tb.pg != nil && tb.pg.group != nil {
+		if tb.pg != nil && pageAs[*groupPage](tb) != nil {
 			pages++
 		}
 	}

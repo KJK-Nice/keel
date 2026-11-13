@@ -109,7 +109,7 @@ func TestForwardsChipsAndFilterNarrowRows(t *testing.T) {
 	}
 	r.click(t, "All 4")
 	// The filter reads the name, the host's name, the listen address and the target, any case.
-	p := r.w.pageTab("forwards").pg.forwards
+	p := pageAs[*forwardsPage](r.w.pageTab("forwards"))
 	for q, want := range map[string]string{"STAGING": "web back", "9000": "open bind", "3000": "web back", "socks5": "socks"} {
 		r.fill(t, "Filter forwards", q)
 		rows := r.w.shownTunnels(p)
