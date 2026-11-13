@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -123,22 +124,17 @@ func dateLabel(id keelclient.Identity) string {
 
 // loadIdentities reads the identities (and with them the hosts, so that "Used by" is as the server has it).
 func (w *workspace) loadIdentities() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		ids, err := w.be.Identities(c)
-		w.post(func() {
-			t := w.pageTab("keychain")
-			if w.closed || t == nil {
-				return
-			}
-			p := t.pg.keychain
-			if err != nil {
-				p.err = "Could not read the Keychain: " + hostError(err)
-				return
-			}
-			p.err, p.loaded, p.idents = "", true, ids
-		})
+	call(w, w.be.Identities, func(ids []keelclient.Identity, err error) {
+		t := w.pageTab("keychain")
+		if t == nil {
+			return
+		}
+		p := t.pg.keychain
+		if err != nil {
+			p.err = "Could not read the Keychain: " + hostError(err)
+			return
+		}
+		p.err, p.loaded, p.idents = "", true, ids
 	})
 }
 
@@ -230,26 +226,24 @@ func (w *workspace) saveIdentity() {
 	in := d.f.input(d.id)
 	d.saving, d.err = true, ""
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", "" // they are in in now, and in only goes in this request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	call(w, func(c context.Context) (keelclient.Identity, error) {
 		saved, err := w.be.SaveIdentity(c, in)
 		in = keelclient.IdentityInput{}
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.identDlg == d {
-				w.closeIdentityDialog()
-			}
-			if t := w.pageTab("keychain"); t != nil && d.id == "" {
-				t.pg.keychain.selected = saved.ID
-			}
-			w.say("Identity saved")
-			w.loadIdentities()
-		})
+		return saved, err
+	}, func(saved keelclient.Identity, err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.identDlg == d {
+			w.closeIdentityDialog()
+		}
+		if t := w.pageTab("keychain"); t != nil && d.id == "" {
+			t.pg.keychain.selected = saved.ID
+		}
+		w.say("Identity saved")
+		w.loadIdentities()
 	})
 }
 
@@ -266,17 +260,12 @@ func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 }
 
 func (w *workspace) deleteIdentity(id keelclient.Identity) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteIdentity(c, id.ID)
-		w.post(func() {
-			if err != nil {
-				w.fail("delete identity", err)
-				return
-			}
-			w.loadIdentities()
-			w.reloadHosts()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteIdentity(c, id.ID) }, func(err error) {
+		if err != nil {
+			w.fail("delete identity", err)
+			return
+		}
+		w.loadIdentities()
+		w.reloadHosts()
 	})
 }

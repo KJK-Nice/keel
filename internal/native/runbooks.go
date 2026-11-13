@@ -58,29 +58,24 @@ func (w *workspace) saveBookProposal(id string) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveProposedRunbook(c, conv, id)
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			if res.Proposal != nil {
-				rec.b = *res.Proposal
-			} else {
-				rec.b.Status, rec.b.RunbookID = "saved", res.Runbook.ID
-			}
-			if t := savedRedactedToast(res.Redacted); t != "" {
-				w.say(t)
-			}
-			w.reloadRunbooksPage()
-		})
+	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveProposedRunbook(c, conv, id) }, func(res keelclient.SavedRunbook, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		if res.Proposal != nil {
+			rec.b = *res.Proposal
+		} else {
+			rec.b.Status, rec.b.RunbookID = "saved", res.Runbook.ID
+		}
+		if t := savedRedactedToast(res.Redacted); t != "" {
+			w.say(t)
+		}
+		w.reloadRunbooksPage()
 	})
 }
 
@@ -95,30 +90,24 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var b keelclient.RunbookProposal
-		var err error
+	call(w, func(c context.Context) (keelclient.RunbookProposal, error) {
 		if undo {
-			b, err = w.be.UndoProposedRunbook(c, conv, id)
-		} else {
-			b, err = w.be.DismissProposedRunbook(c, conv, id)
+			return w.be.UndoProposedRunbook(c, conv, id)
 		}
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			rec.b = b
-			if undo {
-				w.reloadRunbooksPage()
-			}
-		})
+		return w.be.DismissProposedRunbook(c, conv, id)
+	}, func(b keelclient.RunbookProposal, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		rec.b = b
+		if undo {
+			w.reloadRunbooksPage()
+		}
 	})
 }
 
@@ -283,24 +272,19 @@ func (w *workspace) runStepAction(stepID, action string) {
 	}
 	conv := a.conv
 	u.busy, u.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.StepAction(c, conv, stepID, action)
-		w.post(func() {
-			u.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			w.setRun(res.Runbook, nil)
-			if action == "retry" {
-				w.proposeRunStep()
-			}
-		})
+	call(w, func(c context.Context) (keelclient.RunState, error) { return w.be.StepAction(c, conv, stepID, action) }, func(res keelclient.RunState, err error) {
+		u.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		w.setRun(res.Runbook, nil)
+		if action == "retry" {
+			w.proposeRunStep()
+		}
 	})
 }
 
@@ -322,26 +306,21 @@ func (w *workspace) moveRun() {
 }
 
 // runCall is a call on the conversation's run that takes no body (Don't use, Move the run).
-func (w *workspace) runCall(call func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
+func (w *workspace) runCall(do func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
 	a := w.agent
 	u := &a.runs
 	conv := a.conv
 	u.busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := call(c, conv)
-		w.post(func() {
-			u.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			ok(res)
-		})
+	call(w, func(c context.Context) (keelclient.RunState, error) { return do(c, conv) }, func(res keelclient.RunState, err error) {
+		u.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		ok(res)
 	})
 }
 
@@ -366,19 +345,11 @@ func (w *workspace) useRunbook(id, name string) {
 		ask()
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err == nil {
-				w.takeAgentSettings(s)
-			}
-			ask()
-		})
+	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+		if err == nil {
+			w.takeAgentSettings(s)
+		}
+		ask()
 	})
 }
 
@@ -393,28 +364,20 @@ func (w *workspace) toggleChoose() {
 	}
 	conv := a.conv
 	panes := w.scopeRbPanes()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Runbooks(c)
-		w.post(func() {
-			if w.closed || a.conv != conv || !u.choosing {
-				return
+	callIf(w, func() bool { return a.conv == conv && u.choosing }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+		u.listed = true
+		u.others = []runOther{}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		for _, rb := range l.Runbooks {
+			if u.run != nil && rb.ID == u.run.RunbookID && !u.none {
+				continue
 			}
-			u.listed = true
-			u.others = []runOther{}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			for _, rb := range l.Runbooks {
-				if u.run != nil && rb.ID == u.run.RunbookID && !u.none {
-					continue
-				}
-				ok, why := runbookOfferFor(rb, panes)
-				u.others = append(u.others, runOther{id: rb.ID, name: rb.Name, when: rb.When, ok: ok, reason: why})
-			}
-		})
+			ok, why := runbookOfferFor(rb, panes)
+			u.others = append(u.others, runOther{id: rb.ID, name: rb.Name, when: rb.When, ok: ok, reason: why})
+		}
 	})
 }
 
@@ -542,33 +505,25 @@ func (w *workspace) loadRunbooks() {
 	if p == nil {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Runbooks(c)
-		w.post(func() {
-			if w.closed || w.runbooksPage() != p {
-				return
+	callIf(w, func() bool { return w.runbooksPage() == p }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+		p.loaded = true
+		var se *keelclient.StatusError
+		switch {
+		case errors.As(err, &se) && se.Code == 423:
+			p.list, p.err = nil, "Unlock the vault to see runbooks."
+			return
+		case err != nil:
+			p.list, p.err = nil, hostError(err)
+			return
+		}
+		p.list, p.unreadable, p.err = l.Runbooks, l.Unreadable, ""
+		if p.selected != "" && p.ed != nil && !p.ed.dirty() {
+			if rb, ok := p.find(p.selected); ok {
+				p.ed = editorFromRunbook(rb)
+			} else {
+				p.closeEditor()
 			}
-			p.loaded = true
-			var se *keelclient.StatusError
-			switch {
-			case errors.As(err, &se) && se.Code == 423:
-				p.list, p.err = nil, "Unlock the vault to see runbooks."
-				return
-			case err != nil:
-				p.list, p.err = nil, hostError(err)
-				return
-			}
-			p.list, p.unreadable, p.err = l.Runbooks, l.Unreadable, ""
-			if p.selected != "" && p.ed != nil && !p.ed.dirty() {
-				if rb, ok := p.find(p.selected); ok {
-					p.ed = editorFromRunbook(rb)
-				} else {
-					p.closeEditor()
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -635,31 +590,23 @@ func (w *workspace) saveRunbook() {
 		return
 	}
 	p.saving, e.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveRunbook(c, e.id, in)
-		w.post(func() {
-			p.saving = false
-			if w.closed {
-				return
-			}
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			rb := res.Runbook
-			p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == rb.ID }), rb)
-			slices.SortFunc(p.list, func(a, b keelclient.Runbook) int {
-				return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
-			})
-			p.selected, p.ed = rb.ID, editorFromRunbook(rb)
-			if t := savedRedactedToast(res.Redacted); t != "" {
-				w.say(t)
-			} else {
-				w.say("Runbook saved")
-			}
+	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveRunbook(c, e.id, in) }, func(res keelclient.SavedRunbook, err error) {
+		p.saving = false
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		rb := res.Runbook
+		p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == rb.ID }), rb)
+		slices.SortFunc(p.list, func(a, b keelclient.Runbook) int {
+			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 		})
+		p.selected, p.ed = rb.ID, editorFromRunbook(rb)
+		if t := savedRedactedToast(res.Redacted); t != "" {
+			w.say(t)
+		} else {
+			w.say("Runbook saved")
+		}
 	})
 }
 
@@ -679,61 +626,45 @@ func (w *workspace) askDeleteRunbook() {
 }
 
 func (w *workspace) deleteRunbook(id string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteRunbook(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			if p := w.runbooksPage(); p != nil {
-				p.list = slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == id })
-				p.closeEditor()
-			}
-			w.say("Runbook deleted")
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteRunbook(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		if p := w.runbooksPage(); p != nil {
+			p.list = slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == id })
+			p.closeEditor()
+		}
+		w.say("Runbook deleted")
 	})
 }
 
 // setRunbookPick is the list's "Agent may pick" switch and the review banner's Enable: only the user's press turns it on.
 func (w *workspace) setRunbookPick(id string, on bool) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rb, err := w.be.SetRunbookPick(c, id, on)
-		w.post(func() {
-			if w.closed {
-				return
+	call(w, func(c context.Context) (keelclient.Runbook, error) { return w.be.SetRunbookPick(c, id, on) }, func(rb keelclient.Runbook, err error) {
+		p := w.runbooksPage()
+		if err != nil {
+			w.warn(hostError(err))
+			if p != nil {
+				w.loadRunbooks()
 			}
-			p := w.runbooksPage()
-			if err != nil {
-				w.warn(hostError(err))
-				if p != nil {
-					w.loadRunbooks()
-				}
-				return
+			return
+		}
+		if p == nil {
+			return
+		}
+		for i := range p.list {
+			if p.list[i].ID == rb.ID {
+				p.list[i] = rb
 			}
-			if p == nil {
-				return
+		}
+		if p.ed != nil && p.ed.id == rb.ID {
+			if p.ed.dirty() {
+				p.ed.agentMayPick = rb.AgentMayPick
+			} else {
+				p.ed = editorFromRunbook(rb)
 			}
-			for i := range p.list {
-				if p.list[i].ID == rb.ID {
-					p.list[i] = rb
-				}
-			}
-			if p.ed != nil && p.ed.id == rb.ID {
-				if p.ed.dirty() {
-					p.ed.agentMayPick = rb.AgentMayPick
-				} else {
-					p.ed = editorFromRunbook(rb)
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -749,24 +680,16 @@ func (w *workspace) openConversationMenu() {
 	}
 	p.menuNB = false // one source menu at a time (runbooks.js openMenu)
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Conversations(c)
-		w.post(func() {
-			if w.closed || !p.menu {
-				return
-			}
-			p.menuLoad = false
-			switch {
-			case err != nil:
-				p.menuEmpty = hostError(err)
-			case l.HistoryDays == 0:
-				p.menuEmpty = "History is off, so no conversation is saved."
-			default:
-				p.menuItems, p.menuEmpty = l.Sessions, "No saved conversations."
-			}
-		})
+	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+		p.menuLoad = false
+		switch {
+		case err != nil:
+			p.menuEmpty = hostError(err)
+		case l.HistoryDays == 0:
+			p.menuEmpty = "History is off, so no conversation is saved."
+		default:
+			p.menuItems, p.menuEmpty = l.Sessions, "No saved conversations."
+		}
 	})
 }
 
@@ -789,11 +712,8 @@ func (w *workspace) draftRunbook(conversationID string) {
 	}
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			d, err := w.be.DraftRunbook(c, conversationID)
-			w.post(func() { w.showDraft(p, d, err) })
+		call(w, func(c context.Context) (keelclient.RunbookDraft, error) { return w.be.DraftRunbook(c, conversationID) }, func(d keelclient.RunbookDraft, err error) {
+			w.showDraft(p, d, err)
 		})
 	})
 }
@@ -809,11 +729,10 @@ func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
 		w.nbFlushID(notebookID, func() {
-			w.work(func() {
-				c, cancel := ctx()
-				defer cancel()
-				d, err := w.be.DraftRunbookOfNotebook(c, notebookID)
-				w.post(func() { w.showDraft(p, d, err) })
+			call(w, func(c context.Context) (keelclient.RunbookDraft, error) {
+				return w.be.DraftRunbookOfNotebook(c, notebookID)
+			}, func(d keelclient.RunbookDraft, err error) {
+				w.showDraft(p, d, err)
 			})
 		})
 	})
