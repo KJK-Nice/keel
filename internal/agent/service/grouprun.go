@@ -459,11 +459,7 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 		inGroup[m.HostID] = true
 	}
 	now := s.now()
-	type made struct {
-		pane agent.Pane
-		risk agent.Risk
-	}
-	var proposed []made
+	proposed := 0
 	s.mu.Lock()
 	run = s.groupRuns[id]
 	if run == nil || run.Status != runActive {
@@ -559,30 +555,25 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 				continue
 			}
 			h := byID[c.HostID]
-			p := &Proposal{
-				ID: newID("p_"), Command: st.Command, Bytes: typedBytes(st.Command), Why: st.Title,
-				Risk: rate(st.Command, ""), ProposedAt: &now,
-				SessionID: pane.SessionID, HostID: c.HostID, Host: h.Name, Production: h.Production,
-				Runbook: &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: stepNo, Of: of, StepID: st.ID},
-			}
-			p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-			p.Placeholders = hasPlaceholder(p.Command)
+			p := s.newProposal(proposalSpec{
+				Command: st.Command, Why: st.Title,
+				Pane:       agent.Pane{SessionID: pane.SessionID, HostID: c.HostID, HostName: h.Name},
+				Production: h.Production,
+				Step:       &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: stepNo, Of: of, StepID: st.ID},
+			}, now)
 			// The proposal keeps {{name}}: values go in only at Type
 			// (fillProposal), never into a stored proposal.
 			p.Vars = varRefs(p.Command)
 			c.State, c.SessionID, c.Proposal, c.ProposedAt = cellProposed, pane.SessionID, p, &now
 			c.Exit, c.Result, c.Confirm, c.TypedAt, c.FinishedAt, c.hasMark = nil, "", false, nil, nil, false
-			proposed = append(proposed, made{pane: agent.Pane{SessionID: pane.SessionID, HostID: c.HostID, HostName: h.Name}, risk: p.Risk})
+			proposed++
 		}
 	}
 	out := run.view()
 	runID, rbID, mode := run.ID, run.RunbookID, run.Mode
 	s.mu.Unlock()
-	for _, m := range proposed {
-		s.audit.Suggest(m.pane, redact.Report{}, riskLabel(m.risk))
-	}
-	if len(proposed) > 0 {
-		s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d proposed for %s (%s)", runID, stepNo, of, noteCountWord(len(proposed), "host", "hosts"), mode), rbID, "", redact.Report{})
+	if proposed > 0 {
+		s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d proposed for %s (%s)", runID, stepNo, of, noteCountWord(proposed, "host", "hosts"), mode), rbID, "", redact.Report{})
 	}
 	return out, nil
 }
@@ -610,157 +601,6 @@ func (s *Service) groupProposalLocked(runID, proposalID string) (*groupRun, *Gro
 		}
 	}
 	return run, nil
-}
-
-// authorizeGroupType is AuthorizeType for a group run's proposal: it must
-// be live and waiting (proposed), for this session, with the shown bytes
-// and no placeholder; its host must still be in the group and readable;
-// the ⇧ rule takes the host's production flag now; the client must drive.
-func (s *Service) authorizeGroupType(req TypeRequest) error {
-	t, err := s.groupTypeTarget(req, false)
-	if err != nil {
-		return err
-	}
-	if agent.NeedsShift(t.risk, t.snap.Production || t.production) && !req.Shift {
-		return ErrNeedsShift
-	}
-	return s.claimGroupType(req, t, agent.TypeApproved)
-}
-
-// groupTarget is a group run's proposal as a Type would write it.
-type groupTarget struct {
-	snap Proposal
-	// want is what the client must send: the typed bytes (^U, the
-	// command, a newline) for the approve dialog, the command alone for a
-	// direct type (§6 rule 13); with a step's variables filled in.
-	want       string
-	risk       agent.Risk
-	filled     int
-	production bool // the host's production flag now
-	// hosts is how many hosts the step targets, anyProduction whether any
-	// of them is production now (or can no longer be found).
-	hosts         int
-	anyProduction bool
-}
-
-// groupTypeTarget runs the checks a group run's Type shares with a direct
-// type: the proposal is live and proposed, for this session, the bytes
-// are the ones filled in now (or saved), with no placeholder, and the host
-// is still in the group and readable. direct compares the command alone.
-func (s *Service) groupTypeTarget(req TypeRequest, direct bool) (groupTarget, error) {
-	s.mu.Lock()
-	run, c := s.groupProposalLocked(req.GroupRunID, req.ProposalID)
-	var (
-		snap    Proposal
-		groupID string
-		state   string
-		hosts   []string // the hosts of this step (§6 rule 13: production)
-	)
-	if run != nil && c != nil && run.Status == runActive {
-		snap, groupID, state = *c.Proposal, run.GroupID, c.State
-		for i := range run.Steps {
-			mine := false
-			for j := range run.Steps[i].Cells {
-				mine = mine || &run.Steps[i].Cells[j] == c
-			}
-			if mine {
-				for _, x := range run.Steps[i].Cells {
-					if x.HostID != "" {
-						hosts = append(hosts, x.HostID)
-					}
-				}
-			}
-		}
-	}
-	s.mu.Unlock()
-	if snap.ID == "" {
-		return groupTarget{}, ErrNotFound
-	}
-	if state != cellProposed {
-		return groupTarget{}, ErrNotProposed
-	}
-	if snap.SessionID == "" {
-		return groupTarget{}, ErrNoTarget
-	}
-	if snap.SessionID != req.SessionID {
-		return groupTarget{}, ErrWrongPane
-	}
-	// The exact bytes: for a step that names variables, the command with
-	// the values filled in now (fillProposal), which is what the approve
-	// dialog showed; the stored proposal keeps {{name}}. A missing or
-	// unsafe value, a vault value or a placeholder refuses it.
-	want, command, risk, filled := snap.Bytes, snap.Command, snap.Risk, 0
-	if runvars.HasRefs(snap.Command) {
-		f, err := s.fillProposal(req.GroupRunID, req.ProposalID)
-		if err != nil {
-			return groupTarget{}, err
-		}
-		want, command, risk, filled = f.Bytes, f.command, f.Risk, len(f.Used)
-	} else if hasPlaceholder(snap.Command) {
-		return groupTarget{}, ErrPlaceholder
-	}
-	if direct {
-		if !DirectLine(command) {
-			return groupTarget{}, needsDialog(ReasonLines)
-		}
-		want = command
-	}
-	if req.Bytes != want {
-		if direct {
-			return groupTarget{}, needsDialog(ReasonBytes)
-		}
-		return groupTarget{}, ErrChanged
-	}
-	if hasPlaceholder(want) {
-		return groupTarget{}, ErrPlaceholder
-	}
-	_, members, byID, err := s.groupMembers(groupID)
-	if err != nil {
-		return groupTarget{}, ErrNotTarget
-	}
-	member := false
-	for _, m := range members {
-		member = member || m.HostID == snap.HostID
-	}
-	h, found := byID[snap.HostID]
-	if !member || !found || !h.AgentReadable {
-		return groupTarget{}, ErrNotTarget
-	}
-	anyProd := false
-	for _, id := range hosts {
-		if x, ok := byID[id]; !ok || x.Production {
-			anyProd = true
-		}
-	}
-	return groupTarget{snap: snap, want: want, risk: risk, filled: filled, production: h.Production, hosts: len(hosts), anyProduction: anyProd}, nil
-}
-
-// claimGroupType checks the role, claims the host under the lock (it is
-// typing until the write is done, GroupTypeDoneAt, or failed,
-// GroupTypeFailed, and Retry, Skip and a mode change leave it alone
-// meanwhile) and logs agent.type with how it was approved.
-func (s *Service) claimGroupType(req TypeRequest, t groupTarget, how string) error {
-	if err := agent.CanInsert(req.Role); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	run, c := s.groupProposalLocked(req.GroupRunID, req.ProposalID)
-	if run == nil || c == nil || run.Status != runActive || c.State != cellProposed {
-		s.mu.Unlock()
-		return ErrNotProposed
-	}
-	c.State, c.filled = cellTyping, t.filled
-	s.mu.Unlock()
-	// A direct type is logged once its bytes are written (DirectTyped).
-	if how == agent.TypeDirect {
-		return nil
-	}
-	// agent.type logs the byte and line counts, never the bytes.
-	if err := s.audit.TypeFrom(agent.Pane{SessionID: t.snap.SessionID, HostID: t.snap.HostID, HostName: t.snap.Host, Role: req.Role}, t.want, how); err != nil {
-		s.GroupTypeFailed(req.GroupRunID, req.ProposalID)
-		return err
-	}
-	return nil
 }
 
 // GroupTypeFailed puts a host back to proposed when its authorized bytes
@@ -938,22 +778,22 @@ func (s *Service) refreshGroupRun(id string) {
 		}
 		switch {
 		case p.noStatus:
-			c.Result = "unreported"
+			c.Result = ResultUnreported
 			if p.abandoned {
-				c.Result = "abandoned"
+				c.Result = ResultAbandoned
 			}
 			logs = append(logs, func() {
 				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d ended with no exit status reported", runID, n, of), rb, host, redact.Report{})
 			})
 		case p.exit == 0 && p.production:
 			exit := 0
-			c.Exit, c.Result, c.Confirm = &exit, "reported", true
+			c.Exit, c.Result, c.Confirm = &exit, ResultReported, true
 			logs = append(logs, func() {
 				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", runID, n, of), rb, host, redact.Report{})
 			})
 		default:
 			exit := p.exit
-			c.Exit, c.Result, c.FinishedAt = &exit, "reported", &now
+			c.Exit, c.Result, c.FinishedAt = &exit, ResultReported, &now
 			c.State = cellDone
 			if exit != 0 {
 				c.State = cellFailed
@@ -1063,7 +903,7 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 				s.mu.Unlock()
 				return GroupRun{}, badRequest("this host is done")
 			}
-			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark, c.Pending = cellSkipped, nil, "user", &now, false, false
+			c.State, c.Proposal, c.Result, c.FinishedAt, c.hasMark, c.Pending = cellSkipped, nil, ResultUser, &now, false, false
 			what = "skipped by you"
 		case "done":
 			if c.State != cellTyped && c.State != cellFailed {
@@ -1077,7 +917,7 @@ func (s *Service) GroupHostAction(id, stepID, hostID, action string) (GroupRun, 
 			if c.Confirm && c.Exit != nil && *c.Exit == 0 {
 				what = "confirmed done by you after a reported exit 0"
 			} else {
-				c.Result = "user"
+				c.Result = ResultUser
 				what = "marked done by you"
 			}
 			c.State, c.Confirm, c.FinishedAt, c.hasMark, c.Pending = cellDone, false, &now, false, false

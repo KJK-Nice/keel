@@ -58,6 +58,8 @@ type Server struct {
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
 	agentJudge        service.JudgeFactory
 	agentDetectWindow time.Duration
+	// agentSuggestTimeout bounds the model call of one in-pane suggestion; 0 is the service's default.
+	agentSuggestTimeout time.Duration
 	// vault counts store and tunnel changes: GET /api/vault reports it as "rev" (vaultrev.go).
 	vault *vaultRev
 	// sockets counts the open session sockets and the work they start

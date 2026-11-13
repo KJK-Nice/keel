@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"keel/internal/agent"
-	"keel/internal/agent/redact"
 	"keel/internal/store"
 )
 
@@ -149,7 +148,7 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 	if lines <= 0 || lines > set.ScrollbackLines {
 		lines = set.ScrollbackLines
 	}
-	ex, err := s.audit.ReadPaneFrom(s.panes, scope, p, lines, r, ExternalSource)
+	ex, err := s.audit.ReadPane(s.panes, scope, p, lines, r, ExternalSource)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
@@ -212,7 +211,7 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	if err != nil {
 		return Proposal{}, err
 	}
-	r, err := s.commandRedactor()
+	r, err := s.redactorFor(forKeptCommand)
 	if err != nil {
 		return Proposal{}, err
 	}
@@ -227,13 +226,7 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	defer s.end(conv)
 
 	now := s.now()
-	risk := agent.Classify(cmd)
-	p := &Proposal{
-		ID: newID("p_"), SessionID: pane.SessionID, HostID: pane.HostID, Host: pane.HostName, Production: h.Production,
-		Command: cmd, Bytes: typedBytes(cmd), Why: why, Risk: risk,
-		NeedsShift: agent.NeedsShift(risk, h.Production), Placeholders: hasPlaceholder(cmd), ProposedAt: &now,
-	}
-	s.audit.SuggestFrom(pane, redact.Report{}, riskLabel(risk), ExternalSource)
+	p := s.newProposal(proposalSpec{Command: cmd, Why: why, Pane: pane, Production: h.Production, Source: ExternalSource}, now)
 
 	// What is kept goes through the Redactor, as for an Ask.
 	answer := "Claude Code proposed a command for " + pane.HostName + "."

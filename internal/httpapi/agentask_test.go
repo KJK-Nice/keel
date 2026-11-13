@@ -49,6 +49,9 @@ type askFixture struct {
 	offID   string
 }
 
+// askSuggestTimeout is the suggestion model bound the next newAskFixture gives its server (0: the default).
+var askSuggestTimeout time.Duration
+
 func bp(b bool) *bool { return &b }
 
 func newAskFixture(t *testing.T, withKey bool) *askFixture {
@@ -97,6 +100,7 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	}
 	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
 	f.server = server
+	server.agentSuggestTimeout = askSuggestTimeout
 	f.srv = httptest.NewServer(server.openHandler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {
@@ -226,7 +230,13 @@ func TestAgentAskRoute(t *testing.T) {
 	if len(trace) != 2 || trace[0].(map[string]any)["status"] != "read" || trace[1].(map[string]any)["reason"] != "not-readable" {
 		t.Fatalf("trace = %v", trace)
 	}
+	// Newest first: the request sent to the provider (logged by the
+	// service's one sender), then the pane read.
 	reads := f.logEntries(agent.EventRead)
+	if len(reads) != 2 || !strings.Contains(reads[0].Message, "to answer it") || reads[0].SessionID != "" {
+		t.Fatalf("agent.read entries = %+v", reads)
+	}
+	reads = reads[1:]
 	if len(reads) != 1 || reads[0].SessionID != web.ID || len(reads[0].Redactions) == 0 {
 		t.Fatalf("agent.read entries = %+v", reads)
 	}

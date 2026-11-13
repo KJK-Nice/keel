@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/agent"
-	"keel/internal/agent/service"
 	"keel/internal/applog"
 	"keel/internal/store"
 )
@@ -307,8 +306,9 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 // A provider that never answers still gets an answer: keel serve ends the call at its own bound and sends the card's
 // error, so the window is never left loading (plan 036).
 func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
-	defer service.SetSuggestTimeoutForTest(300 * time.Millisecond)()
+	askSuggestTimeout = 300 * time.Millisecond
 	f := newAskFixture(t, true)
+	askSuggestTimeout = 0
 	web := f.open(t, f.webID, "ready\n")
 	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
 	defer driver.Close()

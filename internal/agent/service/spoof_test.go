@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
 	"keel/internal/shellmark"
 )
 
@@ -59,7 +58,7 @@ func TestSpoofedMarksAreLabelledAndCannotHideOutput(t *testing.T) {
 			t.Errorf("system prompt lacks %q", want)
 		}
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 1 || !strings.Contains(reads[0].Message, "after it") {
 		t.Fatalf("agent.read = %+v", reads)
 	}

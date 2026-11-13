@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -20,7 +18,7 @@ import (
 // (store, keel.memory). The service is their only way in and out:
 //
 //   - The user adds, edits and deletes them (AddNote, EditNote, DeleteNote).
-//     Every text is redacted for secrets before it is kept (saveRedactor:
+//     Every text is redacted for secrets before it is kept (forSave:
 //     vault values and secret-looking values, never IPs or hostnames, so a
 //     note still says what it means), and every change is logged as
 //     agent.note without the text.
@@ -80,7 +78,6 @@ var (
 	ErrNoteRefused     = errors.New("agent: this host no longer lets the agent propose notes")
 	ErrNoteNotReadable = errors.New("agent: Agent can read is off for this host; turn it on to save a note for it")
 	ErrNoteExpired     = errors.New("agent: this note proposal expired; add the note yourself in Edit host or Settings · Agent")
-	noteFenceRe        = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(NoteFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
 	errNoteTooLong     = fmt.Errorf("%w: a note is 1 to %d bytes", ErrBadRequest, store.MaxAgentNoteBytes)
 	noteStatusValid    = map[string]bool{"open": true, "saved": true, "dismissed": true}
 )
@@ -143,6 +140,7 @@ type rawNote struct {
 // whose text is empty or too long is dropped.
 func parseNotes(text string) (string, []rawNote) {
 	var out []rawNote
+	noteFenceRe := blockOf(NoteFence)
 	rest := noteFenceRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := noteFenceRe.FindStringSubmatch(block)
 		if len(m) < 2 || len(out) >= maxNoteProposals {
@@ -215,7 +213,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 			continue
 		}
 		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", frameName(h.Name, r), nx.Text.String())
-		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: "notes", NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
+		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: TraceNotes, NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
 	}
 	gText, gSteps := s.groupNoteContext(read, byID, byGroup, scope, r)
 	b.WriteString(gText)
@@ -223,7 +221,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 	if mine := byHost[""]; len(mine) > 0 {
 		if nx, err := s.audit.ReadUserNotes(mine, r); err == nil && nx.Count > 0 {
 			fmt.Fprintf(&b, "--- your notes · the user's own preferences, saved by the user ---\n%s\n--- end your notes ---\n\n", nx.Text.String())
-			steps = append(steps, TraceStep{Status: "notes", NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Status: TraceNotes, NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -303,7 +301,7 @@ func (s *Service) groupNoteContext(read []agent.Excerpt, byID map[string]agent.H
 		}
 		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", frameName(gr.g.Name, r), nx.Text.String())
 		if nx.Count > 0 {
-			steps = append(steps, TraceStep{Host: gr.g.Name, Status: "notes", NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Host: gr.g.Name, Status: TraceNotes, NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -462,25 +460,6 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 	return nil
 }
 
-// saveRedactor redacts what is kept in a note: secrets always (vault
-// values as exact matches, secret-looking values), never IPs or hostnames,
-// which a note may need and which the request's Redactor replaces anyway
-// when it is sent with the user's settings.
-//
-// Captured values and group variables' values are kept as {{name}}
-// (groupvars.go); saveCommandRedactor, for runbook step commands, leaves
-// group variables as written.
-func (s *Service) saveRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(true)...)
-}
-
-// saveCommandRedactor is saveRedactor without the group variables: a step
-// command that holds a variable's value (10.20.0.10) is the user's to
-// type, not a secret, and is kept as written.
-func (s *Service) saveCommandRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(false)...)
-}
-
 func (s *Service) noteHost(hostID string) (agent.Host, error) {
 	hosts, err := s.st.ListHosts()
 	if err != nil {
@@ -503,7 +482,7 @@ func (s *Service) cleanNote(text string) (string, redact.Report, error) {
 	if len(text) > 4*store.MaxAgentNoteBytes {
 		return "", redact.Report{}, errNoteTooLong
 	}
-	r, err := s.saveRedactor()
+	r, err := s.redactorFor(forSave)
 	if err != nil {
 		return "", redact.Report{}, err
 	}
@@ -629,7 +608,7 @@ func (s *Service) DeleteAllNotes() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	s.log.Append(applog.Entry{Kind: agent.EventNote, Message: fmt.Sprintf("every note for the agent deleted by you (%d)", n), Count: n})
+	s.audit.Event(agent.EventNote, "", fmt.Sprintf("every note for the agent deleted by you (%d)", n), n)
 	return n, nil
 }
 

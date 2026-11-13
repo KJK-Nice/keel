@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"keel/internal/agent/provider"
+	"keel/internal/agent/provider/transport"
 	"keel/internal/agent/redact"
 )
 
@@ -142,7 +143,7 @@ func TestDescriptorModels(t *testing.T) {
 	if !listed[d.DefaultModel] || !listed[d.SuggestModel] {
 		t.Fatalf("default %q or suggest %q not in %v", d.DefaultModel, d.SuggestModel, d.Models)
 	}
-	if _, err := effort(d.SuggestThinking); err != nil {
+	if _, err := provider.Thinking(d.ID, d.SuggestModel, d.SuggestThinking); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -202,7 +203,7 @@ func TestOutputLimitLeavesRoomForThinking(t *testing.T) {
 		{8192, "", 8192 + 16384},
 		{8192, "high", 8192 + 16384},
 		{2048, "low", 2048 + 4096},
-		{0, "", defaultAnswer + 16384},
+		{0, "", transport.DefaultAnswerTokens + 16384},
 		{120000, "", maxOutputCap},
 	} {
 		if got := outputLimit(tc.answer, tc.effort); got != tc.want {

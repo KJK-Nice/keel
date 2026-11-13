@@ -216,7 +216,7 @@ func TestAttachedNotebookIsRedactedFramedAndLogged(t *testing.T) {
 	if idx == nil || idx.Count != 3 {
 		t.Fatalf("index step = %+v", idx)
 	}
-	reads := f.logKinds(agent.EventRead) // newest first
+	reads := f.askReads(t) // newest first
 	if len(reads) != 2 || reads[1].Source != "notebook-index" || reads[0].Source != "notebook" || reads[0].Bytes != step.Bytes || !strings.Contains(reads[0].Message, f.ids[nbName]) || len(reads[0].Redactions) == 0 {
 		t.Fatalf("agent.read = %+v", reads)
 	}
@@ -312,7 +312,7 @@ func TestAgentReadsANotebookOnRequest(t *testing.T) {
 	if step == nil || !step.Asked || step.NotebookID != f.ids[nbName] {
 		t.Fatalf("trace = %+v", resp.Trace)
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 2 || !strings.Contains(reads[0].Message, "at its own request") {
 		t.Fatalf("agent.read = %+v", reads)
 	}

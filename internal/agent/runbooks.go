@@ -44,13 +44,15 @@ func (a *Auditor) ReadRunbook(scope Scope, read []Pane, id string, steps int, te
 	}
 	before := r.Report()
 	safe := r.Text(text)
-	rep := diff(before, r.Report())
-	a.log.Append(applog.Entry{
+	rep := Diff(before, r.Report())
+	if err := a.gate(applog.Entry{
 		Kind:       EventRunbook,
 		Message:    fmt.Sprintf("agent sent runbook %s (%s) with a question · %s", id, noteCount(steps, "step", "steps"), redactionNote(rep)),
 		Count:      steps,
 		Redactions: rep.Strings(),
-	})
+	}); err != nil {
+		return RunbookExcerpt{}, err
+	}
 	return RunbookExcerpt{Text: safe, Report: rep}, nil
 }
 
@@ -66,13 +68,15 @@ func (a *Auditor) OfferRunbooks(scope Scope, read []Pane, ids []string, text str
 	}
 	before := r.Report()
 	safe := r.Text(text)
-	rep := diff(before, r.Report())
-	a.log.Append(applog.Entry{
+	rep := Diff(before, r.Report())
+	if err := a.gate(applog.Entry{
 		Kind:       EventRunbook,
 		Message:    fmt.Sprintf("agent sent the names of %s to pick from with a question (%s) · %s", noteCount(len(ids), "runbook", "runbooks"), strings.Join(ids, ", "), redactionNote(rep)),
 		Count:      len(ids),
 		Redactions: rep.Strings(),
-	})
+	}); err != nil {
+		return RunbookExcerpt{}, err
+	}
 	return RunbookExcerpt{Text: safe, Report: rep}, nil
 }
 
@@ -87,7 +91,7 @@ func (a *Auditor) RunbookEvent(what, id, hostID string, rep redact.Report) {
 	if len(rep.Counts) > 0 {
 		msg += " · " + redactionNote(rep)
 	}
-	a.log.Append(applog.Entry{
+	_ = a.note(applog.Entry{
 		Kind:       EventRunbook,
 		Message:    msg,
 		HostID:     hostID,

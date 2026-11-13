@@ -25,7 +25,7 @@ import (
 //   - The user adds, edits and deletes them (AddRunbook, UpdateRunbook,
 //     DeleteRunbook), also from a draft made from a notebook or a saved
 //     conversation (RunbookDraft). Every text is redacted for secrets
-//     before it is kept (saveRedactor, as for notes); every change is logged
+//     before it is kept (forSave, as for notes); every change is logged
 //     as agent.runbook without the text.
 //   - The agent never writes one. Ask may only propose a runbook (a
 //     ```keel-runbook block); nothing is kept until the user saves it
@@ -109,8 +109,6 @@ var (
 	// change: kept, it would hold a literal placeholder such as [secret:1]
 	// (a shell glob) that could be typed.
 	ErrSecretInCommand = errors.New("agent: a step command holds a secret or a secret-looking value, and Keel does not keep secrets in runbooks; read it from an environment variable set outside the runbook, or ask for it with a prompt such as read -s DB_PASS")
-	runbookUseRe       = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(RunbookUseFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
-	runbookFenceRe     = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(RunbookFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
 	runbookStatusValid = map[string]bool{"open": true, "saved": true, "dismissed": true}
 )
 
@@ -224,6 +222,7 @@ type rawRunbook struct {
 // pick, the first proposed runbook, and the text without any of them.
 func parseRunbookBlocks(text string) (string, *rawRunbookUse, *rawRunbook) {
 	var use *rawRunbookUse
+	runbookUseRe, runbookFenceRe := blockOf(RunbookUseFence), blockOf(RunbookFence)
 	rest := runbookUseRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := runbookUseRe.FindStringSubmatch(block)
 		if len(m) < 2 || use != nil {
@@ -292,13 +291,13 @@ func (s *Service) cleanRunbookText(in RunbookInput) (store.Runbook, redact.Repor
 	if len(in.Steps) > store.MaxRunbookSteps {
 		return store.Runbook{}, redact.Report{}, badRequest(fmt.Sprintf("at most %d steps", store.MaxRunbookSteps))
 	}
-	r, err := s.saveRedactor()
+	r, err := s.redactorFor(forSave)
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
 	// Commands are checked without the group variables (a command may
 	// hold a variable's value as the user wrote it).
-	cr, err := s.saveCommandRedactor()
+	cr, err := s.redactorFor(forSaveCommand)
 	if err != nil {
 		return store.Runbook{}, redact.Report{}, err
 	}
@@ -521,11 +520,11 @@ func (s *Service) RunbookDraft(req DraftRequest) (RunbookInput, error) {
 	// A command that holds a secret (or a placeholder from an earlier
 	// redaction) is left out of the draft, with a note: the save would
 	// refuse it.
-	sr, err := s.saveRedactor()
+	sr, err := s.redactorFor(forSave)
 	if err != nil {
 		return RunbookInput{}, err
 	}
-	cr, err := s.saveCommandRedactor()
+	cr, err := s.redactorFor(forSaveCommand)
 	if err != nil {
 		return RunbookInput{}, err
 	}
@@ -553,7 +552,7 @@ const secretLeftOut = "(Command left out: it held a secret. Use an environment v
 // placeholder from an earlier redaction and nothing the save Redactor
 // would replace.
 func commandKeepable(r *redact.Redactor, cmd string) bool {
-	if hasPlaceholder(cmd) {
+	if HasPlaceholder(cmd) {
 		return false
 	}
 	return r.Text(cmd).String() == cmd
@@ -862,7 +861,7 @@ func (s *Service) runbookBefore(c *conversation, req AskRequest, read []agent.Ex
 			return t, nil
 		}
 		t.text = ex.Text.String()
-		t.trace = append(t.trace, TraceStep{Status: "runbook", Runbook: run.Name, RunbookID: run.RunbookID, Redactions: ex.Report.Strings()})
+		t.trace = append(t.trace, TraceStep{Status: TraceRunbook, Runbook: run.Name, RunbookID: run.RunbookID, Redactions: ex.Report.Strings()})
 		return t, nil
 	}
 	if noRunbook {
@@ -922,14 +921,14 @@ func runbookFrame(run *store.AgentChatRunbook, scope agent.Scope) string {
 		switch {
 		case i == cur && (st.State == stepNext || st.State == stepProposed):
 			state = "current step: Keel proposes it to the user, do not propose it yourself"
-		case st.State == stepTyped && st.Result == "reported" && st.Exit != nil:
+		case st.State == stepTyped && st.Result == ResultReported && st.Exit != nil:
 			state = "typed by the user, waiting for the user to confirm it"
 		case st.State == stepTyped:
 			state = "typed by the user, no result yet"
-		case st.State == stepDone && st.Result == "user", st.State == stepFailed && st.Result == "user":
+		case st.State == stepDone && st.Result == ResultUser, st.State == stepFailed && st.Result == ResultUser:
 			state += ", marked by the user"
 		}
-		if (st.State == stepDone || st.State == stepFailed || st.State == stepTyped) && st.Result == "reported" && st.Exit != nil {
+		if (st.State == stepDone || st.State == stepFailed || st.State == stepTyped) && st.Result == ResultReported && st.Exit != nil {
 			if scope.AllowsHost(st.HostID) {
 				state += fmt.Sprintf(", reported exit %d (unverified)", *st.Exit)
 			}
@@ -975,7 +974,7 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 		s.startRunLocked(c, b, "agent", why, c.asks+1, now)
 		s.mu.Unlock()
 		s.audit.RunbookEvent(fmt.Sprintf("runbook picked by the agent (%d steps)", len(b.Steps)), b.ID, "", redact.Report{})
-		trace = append(trace, TraceStep{Status: "runbook", Runbook: b.Name, RunbookID: b.ID})
+		trace = append(trace, TraceStep{Status: TraceRunbook, Runbook: b.Name, RunbookID: b.ID})
 	}
 	if len(read) == 0 {
 		return nil, trace
@@ -1018,15 +1017,11 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 	if run.PinHostID == "" {
 		run.PinHostID, run.PinHost, run.PinSessionID = target.Pane.HostID, target.Pane.HostName, target.Pane.SessionID
 	}
-	h := byID[target.Pane.HostID]
-	p := &Proposal{
-		ID: newID("p_"), Command: st.Command, Bytes: typedBytes(st.Command), Why: st.Title,
-		Risk: rate(st.Command, ""), ProposedAt: &now,
-		SessionID: target.Pane.SessionID, HostID: target.Pane.HostID, Host: target.Pane.HostName, Production: h.Production,
-		Runbook: &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: i + 1, Of: len(run.Steps), StepID: st.ID},
-	}
-	p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-	p.Placeholders = hasPlaceholder(p.Command)
+	p := s.newProposal(proposalSpec{
+		Command: st.Command, Why: st.Title, Pane: target.Pane, Production: byID[target.Pane.HostID].Production,
+		Step:   &ProposalStep{RunbookID: run.RunbookID, Name: run.Name, Step: i + 1, Of: len(run.Steps), StepID: st.ID},
+		Report: r.Report(),
+	}, now)
 	st.State, st.ProposalID, st.SessionID, st.HostID, st.Host, st.ProposedAt = stepProposed, p.ID, p.SessionID, p.HostID, p.Host, &now
 	st.Exit, st.Result, st.TypedAt, st.FinishedAt, st.Edited, st.Typed = nil, "", nil, nil, false, ""
 	c.proposals = append(c.proposals, p)
@@ -1035,7 +1030,6 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 	}
 	runbookID, steps := run.RunbookID, len(run.Steps)
 	s.mu.Unlock()
-	s.audit.Suggest(target.Pane, r.Report(), riskLabel(p.Risk))
 	s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d proposed for %s", i+1, steps, p.Host), runbookID, p.HostID, redact.Report{})
 	_ = s.books.MarkRunbookUsed(runbookID, p.Host, now)
 	return p, trace
@@ -1103,7 +1097,7 @@ func stepCommands(cmd string) int {
 // stepTypedLocked records that a step's proposal was typed: the step waits
 // for its result from the stream offset taken right before the write.
 // Call with s.mu held.
-func (c *conversation) stepTypedLocked(proposalID string, mark uint64, hasMark bool, now time.Time) bool {
+func (c *conversation) stepTypedLocked(proposalID string, mark uint64, now time.Time) bool {
 	if c.run == nil {
 		return false
 	}
@@ -1116,11 +1110,7 @@ func (c *conversation) stepTypedLocked(proposalID string, mark uint64, hasMark b
 		if c.runMarks == nil {
 			c.runMarks = map[string]uint64{}
 		}
-		if hasMark {
-			c.runMarks[st.ID] = mark
-		} else {
-			delete(c.runMarks, st.ID)
-		}
+		c.runMarks[st.ID] = mark
 		return true
 	}
 	return false
@@ -1245,9 +1235,9 @@ func (s *Service) refreshRun(convID string) {
 			n, of, rid, host := g.p.n, len(c.run.Steps), c.run.RunbookID, g.p.hostID
 			switch {
 			case g.noStatus:
-				st.Result = "unreported"
+				st.Result = ResultUnreported
 				if g.abandoned {
-					st.Result = "abandoned"
+					st.Result = ResultAbandoned
 				}
 				logs = append(logs, func() {
 					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d ended with no exit status reported", n, of), rid, host, redact.Report{})
@@ -1256,13 +1246,13 @@ func (s *Service) refreshRun(convID string) {
 				// On a production host a reported exit 0 is not enough:
 				// the user confirms the step (the card says so).
 				exit := 0
-				st.Exit, st.Result = &exit, "reported"
+				st.Exit, st.Result = &exit, ResultReported
 				logs = append(logs, func() {
 					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", n, of), rid, host, redact.Report{})
 				})
 			default:
 				exit := g.exit
-				st.Exit, st.Result, st.FinishedAt = &exit, "reported", &now
+				st.Exit, st.Result, st.FinishedAt = &exit, ResultReported, &now
 				st.State = stepDone
 				if exit != 0 {
 					st.State = stepFailed
@@ -1316,15 +1306,15 @@ func (s *Service) StepAction(convID, stepID, action string) (RunState, error) {
 	var what string
 	switch action {
 	case "done":
-		if st.State == stepTyped && st.Result == "reported" && st.Exit != nil && *st.Exit == 0 {
+		if st.State == stepTyped && st.Result == ResultReported && st.Exit != nil && *st.Exit == 0 {
 			st.State, st.FinishedAt = stepDone, &now
 			what = "confirmed done by you after a reported exit 0"
 			break
 		}
-		st.State, st.Result, st.FinishedAt = stepDone, "user", &now
+		st.State, st.Result, st.FinishedAt = stepDone, ResultUser, &now
 		what = "marked done by you"
 	case "skip":
-		st.State, st.Result, st.FinishedAt = stepSkipped, "user", &now
+		st.State, st.Result, st.FinishedAt = stepSkipped, ResultUser, &now
 		what = "skipped by you"
 	case "retry":
 		if st.State != stepFailed && st.State != stepTyped && st.State != stepProposed {
@@ -1469,7 +1459,7 @@ func (s *Service) runbookProposal(raw *rawRunbook, excerpts []agent.Excerpt, r *
 		}
 		// A command the Redactor changed holds a placeholder: it is left
 		// out (a save would refuse it), with a note.
-		if hasPlaceholder(cmd) {
+		if HasPlaceholder(cmd) {
 			cmd = ""
 			desc = truncate(strings.TrimSpace(desc+" "+secretLeftOut), store.MaxRunbookTextBytes-4)
 		}

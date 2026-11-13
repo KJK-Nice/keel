@@ -8,7 +8,6 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/store"
 )
 
@@ -274,7 +273,6 @@ func (s *Service) Transcript(id string) (Transcript, error) {
 
 // expiredView shows a saved proposal that can no longer be typed.
 func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]bool) Proposal {
-	risk := agent.Stricter(agent.Classify(sp.Command), agent.Risk(sp.Risk))
 	prod, ok := prodCache[sp.HostID]
 	if !ok {
 		prod, _ = s.hostProduction(sp.HostID)
@@ -284,10 +282,10 @@ func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]b
 	at := sp.ProposedAt
 	out := Proposal{
 		ID: sp.ID, SessionID: sp.SessionID, HostID: sp.HostID, Host: sp.Host, Production: prod,
-		Command: sp.Command, Bytes: typedBytes(sp.Command), Why: sp.Why, Risk: risk,
-		NeedsShift: agent.NeedsShift(risk, prod), Placeholders: hasPlaceholder(sp.Command), Edited: sp.Edited,
+		Command: sp.Command, Why: sp.Why, Edited: sp.Edited,
 		ProposedAt: &at, TypedAt: sp.TypedAt, Expired: true,
 	}
+	out.seal(agent.Risk(sp.Risk))
 	if sp.Step > 0 {
 		out.Runbook = &ProposalStep{Step: sp.Step, Of: sp.Steps}
 	}
@@ -324,7 +322,7 @@ func (s *Service) hydrate(id string) error {
 	// The saved text was redacted when it was sent; it goes through a
 	// Redactor again (a second pass leaves placeholders as they are) so
 	// that only redact.Safe values ever reach a provider request.
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return err
 	}
@@ -346,38 +344,6 @@ func (s *Service) hydrate(id string) error {
 		s.convs[id] = c
 	}
 	return nil
-}
-
-// redactor builds a Redactor with the current settings and hosts, for
-// text the service keeps rather than sends.
-//
-// Like every Redactor the service builds it replaces captured values and
-// group variables' values with {{name}} (groupvars.go), except
-// commandRedactor's.
-func (s *Service) redactor() (*redact.Redactor, error) {
-	return s.keptRedactor(true)
-}
-
-// commandRedactor is redactor for a command the user will type (an edited
-// proposal): captured values are withheld, group variables are not. A
-// group variable is config, not a secret, and a command the user wrote
-// with its value (an address, a version) must stay typeable; the model
-// never sees such a command's text but through a request Redactor, which
-// replaces it.
-func (s *Service) commandRedactor() (*redact.Redactor, error) {
-	return s.keptRedactor(false)
-}
-
-func (s *Service) keptRedactor(withVars bool) (*redact.Redactor, error) {
-	set, err := s.st.AgentSettings()
-	if err != nil {
-		return nil, err
-	}
-	hosts, err := s.st.ListHosts()
-	if err != nil {
-		return nil, err
-	}
-	return agent.NewRedactor(s.st, set.Redact, agent.HostsFrom(hosts), s.namedValues(withVars)...)
 }
 
 // snapshotLocked copies the conversation's record for saving. Call with
@@ -479,7 +445,7 @@ func (s *Service) noteSave(err error) {
 	s.saveErr = msg
 	s.mu.Unlock()
 	if changed && msg != "" {
-		s.log.Append(applog.Entry{Kind: "agent", Message: "agent conversation not saved: " + msg})
+		s.audit.Event(agent.EventAgent, "", "agent conversation not saved: "+msg, 0)
 	}
 }
 
@@ -542,7 +508,7 @@ func (s *Service) Rename(id, title string) (string, error) {
 	if !convIDRe.MatchString(id) {
 		return "", ErrNotFound
 	}
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return "", err
 	}
@@ -614,28 +580,27 @@ func (s *Service) ProposeAgain(convID, proposalID string) (Proposal, error) {
 			host = &h
 		}
 	}
-	r, err := s.redactor()
+	r, err := s.redactorFor(forKept)
 	if err != nil {
 		return Proposal{}, err
 	}
-	risk := agent.Stricter(agent.Classify(cmd), agent.Risk(src.Risk))
 	now := s.now()
-	p := &Proposal{ID: newID("p_"), Command: cmd, Bytes: typedBytes(cmd), Why: r.Text(src.Why).String(), Risk: risk, ProposedAt: &now}
-	p.Host, p.HostID = src.Host, src.HostID
-	p.Production = host == nil || host.Production
+	spec := proposalSpec{
+		Command: cmd, Why: r.Text(src.Why).String(), Floor: agent.Risk(src.Risk),
+		Pane:       agent.Pane{HostID: src.HostID, HostName: src.Host},
+		Production: host == nil || host.Production,
+	}
 	if host != nil {
-		p.Host = host.Name
+		spec.Pane.HostName = host.Name
 		// The pane is a target only while it is still open on the same
 		// host and the agent may read that host now (§6.2): otherwise the
 		// new proposal is Copy only.
 		scope := agent.NewScope(agent.HostsFrom(hosts))
 		if pane, ok := s.panes.Pane(src.SessionID); ok && src.SessionID != "" && pane.HostID == host.ID && scope.Allows(pane) {
-			p.SessionID = src.SessionID
-			s.audit.Suggest(agent.Pane{SessionID: pane.SessionID, HostID: host.ID, HostName: host.Name}, redact.Report{}, riskLabel(risk))
+			spec.Pane.SessionID = src.SessionID
 		}
 	}
-	p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-	p.Placeholders = hasPlaceholder(cmd)
+	p := s.newProposal(spec, now)
 
 	s.mu.Lock()
 	c = s.convs[convID]
@@ -667,20 +632,12 @@ func recordOf(p *Proposal, command, why string, at time.Time) store.AgentChatPro
 	return out
 }
 
-// TypeDone records that a proposal was typed (keel serve calls it after the
-// approved bytes were written), so the transcript shows it as typed.
-func (s *Service) TypeDone(convID, proposalID string) {
-	s.typeDone(convID, proposalID, 0, false)
-}
-
-// TypeDoneAt is TypeDone with the pane's stream offset taken right before
-// the write: a runbook step's result is the first command the pane's
-// shell reports after it (runbooks.go).
+// TypeDoneAt records that a proposal was typed (keel serve calls it after
+// the bytes were written), so the transcript shows it as typed. mark is
+// the pane's stream offset taken right before the write: a runbook step's
+// result is the first command the pane's shell reports after it
+// (runbooks.go).
 func (s *Service) TypeDoneAt(convID, proposalID string, mark uint64) {
-	s.typeDone(convID, proposalID, mark, true)
-}
-
-func (s *Service) typeDone(convID, proposalID string, mark uint64, hasMark bool) {
 	s.mu.Lock()
 	c := s.convs[convID]
 	if c == nil {
@@ -697,7 +654,7 @@ func (s *Service) typeDone(convID, proposalID string, mark uint64, hasMark bool)
 	if sp != nil {
 		sp.TypedAt = &now
 	}
-	step := c.stepTypedLocked(proposalID, mark, hasMark, now)
+	step := c.stepTypedLocked(proposalID, mark, now)
 	s.mu.Unlock()
 	if sp != nil || step {
 		s.persist(c)

@@ -93,23 +93,11 @@ var (
 	ErrNotebookClosed  = errors.New("agent: this was already done or undone")
 	ErrNotebookExpired = errors.New("agent: Keel no longer holds this conversation's notebook changes; use History on the notebook, or Notebooks · Recently deleted")
 
-	notebookFenceRe       = blockRe(NotebookFence)
-	notebookReadFenceRe   = blockRe(NotebookReadFence)
-	notebookEditFenceRe   = blockRe(NotebookEditFence)
-	notebookDeleteFenceRe = blockRe(NotebookDeleteFence)
-	notebookStatus        = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
+	notebookStatus = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
 
 	errNoMatch = errors.New("no-match")
 	errNothing = errors.New("nothing")
 )
-
-// blockRe matches a fenced block with info string name. The block may be
-// fenced with three or more backticks; its closing fence must start a line.
-// A JSON string holds no raw line break, so a ``` inside the body (a shell
-// fence, escaped as \n```sh) never ends it.
-func blockRe(name string) *regexp.Regexp {
-	return regexp.MustCompile("(?s)`{3,}[ \\t]*" + regexp.QuoteMeta(name) + "[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*`{3,}[ \\t]*(?:\\r?\\n|$)")
-}
 
 // NotebookProposal is one card in the conversation: what the agent did to
 // a notebook, or a delete it proposed, and what the user did with it.
@@ -213,7 +201,7 @@ func takeBlocks(text string, re *regexp.Regexp, max int) (string, []string) {
 // parseNotebookBlock takes the create blocks out of a reply: the first
 // that parses, and the text without any of them.
 func parseNotebookBlock(text string) (string, *rawNotebook) {
-	rest, bodies := takeBlocks(text, notebookFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookFence), 4)
 	for _, b := range bodies {
 		var nb rawNotebook
 		if json.Unmarshal([]byte(b), &nb) == nil && strings.TrimSpace(nb.Body) != "" {
@@ -226,7 +214,7 @@ func parseNotebookBlock(text string) (string, *rawNotebook) {
 // parseNotebookReads takes the read requests out of a reply: the numbers
 // asked for, in order, once each.
 func parseNotebookReads(text string) (string, []int) {
-	rest, bodies := takeBlocks(text, notebookReadFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookReadFence), 4)
 	var nums []int
 	seen := map[int]bool{}
 	for _, b := range bodies {
@@ -245,7 +233,7 @@ func parseNotebookReads(text string) (string, []int) {
 }
 
 func parseNotebookEdits(text string) (string, []rawNbEdit) {
-	rest, bodies := takeBlocks(text, notebookEditFenceRe, maxNotebookEditsPerAnswer)
+	rest, bodies := takeBlocks(text, blockOf(NotebookEditFence), maxNotebookEditsPerAnswer)
 	var out []rawNbEdit
 	for _, b := range bodies {
 		var e rawNbEdit
@@ -257,7 +245,7 @@ func parseNotebookEdits(text string) (string, []rawNbEdit) {
 }
 
 func parseNotebookDelete(text string) (string, *rawNbDelete) {
-	rest, bodies := takeBlocks(text, notebookDeleteFenceRe, 1)
+	rest, bodies := takeBlocks(text, blockOf(NotebookDeleteFence), 1)
 	for _, b := range bodies {
 		var d rawNbDelete
 		if json.Unmarshal([]byte(b), &d) == nil && d.Notebook > 0 {
@@ -346,7 +334,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		}
 		b.WriteString(idx.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook-index", Host: "notebooks", Count: len(a.entries)})
+		steps = append(steps, TraceStep{Status: TraceNotebookIndex, Host: "notebooks", Count: len(a.entries)})
 	}
 	for _, id := range attached {
 		nb, ok := byID[id]
@@ -357,7 +345,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 			if _, err := s.nbs.AgentGetNotebook(id); errors.Is(err, store.ErrNotebookPrivate) {
 				reason = "notebook-private"
 			}
-			steps = append(steps, TraceStep{Status: "skipped", Reason: reason, Host: "a notebook", NotebookID: id})
+			steps = append(steps, TraceStep{Status: TraceSkipped, Reason: reason, Host: "a notebook", NotebookID: id})
 			continue
 		}
 		e := a.entryFor(id)
@@ -368,7 +356,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
 	}
 	return a, b.String(), steps, nil
 }
@@ -407,7 +395,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		if n >= maxNotebookReadsPerRound || a.asked >= maxNotebookReadsPerAsk || a.askedBytes >= maxNotebookReadBytesPerAsk {
 			if !a.limited {
 				a.limited = true
-				steps = append(steps, TraceStep{Status: "skipped", Reason: "notebook-limit", Host: "notebooks"})
+				steps = append(steps, TraceStep{Status: TraceSkipped, Reason: SkipNotebookLimit, Host: "notebooks"})
 			}
 			break
 		}
@@ -429,7 +417,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
 	}
 	if n == 0 {
 		return "", steps, nil
@@ -678,7 +666,7 @@ func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts 
 	if body == "" {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: hasPlaceholder(body) || hasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: HasPlaceholder(body) || HasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
 	fromPanes(&p.NotebookProposal, body, excerpts)
 	nb, err := s.nbs.AgentCreateNotebook(store.Notebook{Name: title, Cells: []store.NotebookCell{{Body: body}}})
 	if err != nil {
@@ -809,7 +797,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = "edited", "", updated.Rev, vid, &updated
 	p.Title = agent.SafeNotebookName(updated.Name, r)
 	p.Bytes = len(notebookText(updated))
-	p.Placeholders = hasPlaceholder(added) || hasPlaceholder(title)
+	p.Placeholders = HasPlaceholder(added) || HasPlaceholder(title)
 	p.Withheld = namedRe.MatchString(added)
 	fromPanes(&p.NotebookProposal, added, excerpts)
 	s.audit.NotebookEvent(fmt.Sprintf("notebook edited by the agent (rev %d to %d, %d bytes, %d replacements, whole text: %t); the version before it is kept", base, updated.Rev, p.Bytes, len(subs), body != nil), []string{e.ID, vid, p.ID, conv.id}, redact.Report{})
@@ -1105,9 +1093,3 @@ func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, erro
 	s.mu.Unlock()
 	return NotebookAction{Proposal: s.finishNbProp(c, p, status, ""), Notebook: &nb}, nil
 }
-
-// HasPlaceholder reports whether a command holds a redaction placeholder
-// such as [secret:1]. keel serve refuses to type a notebook fence that
-// holds one (the session socket's notebook-labelled inject), as
-// AuthorizeType does for a proposal (ErrPlaceholder).
-func HasPlaceholder(s string) bool { return hasPlaceholder(s) }

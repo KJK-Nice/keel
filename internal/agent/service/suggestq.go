@@ -14,7 +14,7 @@ import (
 // (docs/ui-redesign.md §5.5, §7). The client's debounce is in
 // cmd/keel/web/js/lib/suggest.js (DETECT_PAUSE_MS).
 //
-// Tuned against jev-1.13.0 (provider/jev.Model) on 2026-10-15 with 14
+// Tuned against jev-1.13.0 (provider.JevModel) on 2026-10-15 with 14
 // prompt lines and 6 commands: plain requests scored 0.80–0.98 ("list
 // docker containers" 0.80, "which process is listening on 5432" 0.98),
 // commands 0.01–0.28 ("git status" 0.28 in a batch, 0.02 alone). The
@@ -62,16 +62,9 @@ const (
 	maxAlternatives = 2
 )
 
-// suggestTimeout bounds the model provider call for a suggestion. The window waits this long, the history pick and a
-// margin (internal/native suggestWait) before it gives up on an answer; a var only so a test can shorten it.
-var suggestTimeout = 30 * time.Second
-
-// SetSuggestTimeoutForTest shortens the model call's bound and returns the call that puts it back.
-func SetSuggestTimeoutForTest(d time.Duration) (restore func()) {
-	old := suggestTimeout
-	suggestTimeout = d
-	return func() { suggestTimeout = old }
-}
+// defaultSuggestTimeout bounds the model provider call for a suggestion (Options.SuggestTimeout). The window waits
+// this long, the history pick and a margin (internal/native suggestWait) before it gives up on an answer.
+const defaultSuggestTimeout = 30 * time.Second
 
 // History first (phase 6c+): before the model writes a command, code
 // gathers commands the user already ran in the pane (its scrollback) or

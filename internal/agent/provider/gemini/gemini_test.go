@@ -127,7 +127,11 @@ func TestSuggestModelTakesItsThinkingLevel(t *testing.T) {
 	if d.SuggestModel != "gemini-3.5-flash-lite" || d.SuggestThinking != provider.ThinkingMinimal {
 		t.Fatalf("descriptor = %+v", d)
 	}
-	if !SupportsMinimal(d.SuggestModel) || SupportsMinimal(d.DefaultModel) {
+	takesMinimal := func(model string) bool {
+		level, err := provider.Thinking(d.ID, model, provider.ThinkingMinimal)
+		return err == nil && level == provider.ThinkingMinimal
+	}
+	if !takesMinimal(d.SuggestModel) || takesMinimal(d.DefaultModel) {
 		t.Fatal("thinking table out of step with the descriptor")
 	}
 	listed := false
@@ -196,8 +200,8 @@ func TestOutputLimitLeavesRoomForThinking(t *testing.T) {
 		want   int
 	}{
 		{8192, "", 8192 + 24576},
-		{8192, "HIGH", 8192 + 24576},
-		{2048, "MINIMAL", 2048 + 1024},
+		{8192, provider.ThinkingHigh, 8192 + 24576},
+		{2048, provider.ThinkingMinimal, 2048 + 1024},
 		{60000, "", maxOutputCap},
 	} {
 		if got := outputLimit(tc.answer, tc.level); got != tc.want {

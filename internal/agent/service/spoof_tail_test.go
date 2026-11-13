@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
 	"keel/internal/shellmark"
 )
 
@@ -37,7 +36,7 @@ func TestSpoofedEndCannotHideEarlierOutput(t *testing.T) {
 	if strings.Index(user, "DANGER") > strings.Index(user, "reported command:") {
 		t.Error("the earlier text should come before the reported parts")
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 1 || !strings.Contains(reads[0].Message, "before it") {
 		t.Fatalf("agent.read = %+v", reads)
 	}

@@ -141,7 +141,44 @@ const systemPrompt = "You are the agent inside Keel, a local SSH workspace. The 
 
 var systemSafe = redact.Static(systemPrompt)
 
-var fenceRe = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(ProposalFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
+// keelBlocks is every keel-* block a reply may hold: its fence's name and
+// the regex that takes the block out. Adding a block kind is one entry
+// here: its parser asks for it by name (blockOf), and a cut reply is
+// checked against all of them (dropOpenBlock).
+var keelBlocks = map[string]*regexp.Regexp{
+	ProposalFence:       inlineBlockRe(ProposalFence),
+	NoteFence:           inlineBlockRe(NoteFence),
+	RunbookUseFence:     inlineBlockRe(RunbookUseFence),
+	RunbookFence:        inlineBlockRe(RunbookFence),
+	NotebookFence:       blockRe(NotebookFence),
+	NotebookReadFence:   blockRe(NotebookReadFence),
+	NotebookEditFence:   blockRe(NotebookEditFence),
+	NotebookDeleteFence: blockRe(NotebookDeleteFence),
+}
+
+// blockOf is the regex of a block kind in keelBlocks.
+func blockOf(fence string) *regexp.Regexp {
+	re, ok := keelBlocks[fence]
+	if !ok {
+		panic("agent: no keel block " + fence)
+	}
+	return re
+}
+
+// inlineBlockRe matches a fenced block with info string name, opened by
+// exactly three backticks; its closing fence may follow the body on the
+// same line.
+func inlineBlockRe(name string) *regexp.Regexp {
+	return regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(name) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
+}
+
+// blockRe matches a fenced block with info string name. The block may be
+// fenced with three or more backticks; its closing fence must start a line.
+// A JSON string holds no raw line break, so a ``` inside the body (a shell
+// fence, escaped as \n```sh) never ends it.
+func blockRe(name string) *regexp.Regexp {
+	return regexp.MustCompile("(?s)`{3,}[ \\t]*" + regexp.QuoteMeta(name) + "[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*`{3,}[ \\t]*(?:\\r?\\n|$)")
+}
 
 // rawProposal is one parsed block, before Keel checks and rates it.
 type rawProposal struct {
@@ -156,6 +193,7 @@ type rawProposal struct {
 // is empty, too long, or has control characters, is dropped.
 func parseResponse(text string) (string, []rawProposal) {
 	var out []rawProposal
+	fenceRe := blockOf(ProposalFence)
 	answer := fenceRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := fenceRe.FindStringSubmatch(block)
 		if len(m) < 2 || len(out) >= maxProposals {
@@ -204,7 +242,12 @@ func typedBytes(command string) string {
 	return "\x15" + command + "\n"
 }
 
+// modelRisk reads a model's own rating: "" when it gave none, and
+// anything it did not spell as read-only or destructive is "changes".
 func modelRisk(s string) agent.Risk {
+	if s == "" {
+		return ""
+	}
 	switch agent.Risk(strings.ToLower(strings.TrimSpace(s))) {
 	case agent.RiskReadOnly:
 		return agent.RiskReadOnly
@@ -214,19 +257,23 @@ func modelRisk(s string) agent.Risk {
 	return agent.RiskChanges
 }
 
-// rate is Keel's code rule, made stricter (never looser) by the model's
-// own rating when it gave one.
-func rate(command, model string) agent.Risk {
+// rate is Keel's code rule, made stricter (never looser) by floor: a
+// rating from somewhere else (the model's own, a saved one), "" for none.
+func rate(command string, floor agent.Risk) agent.Risk {
 	r := agent.Classify(command)
-	if model != "" {
-		r = agent.Stricter(r, modelRisk(model))
+	if floor != "" {
+		r = agent.Stricter(r, floor)
 	}
 	return r
 }
 
 var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
 
-func hasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
+// HasPlaceholder reports whether text holds a redaction placeholder such
+// as [secret:1]: a shell glob, never the value. Nothing that holds one is
+// typed (§6 rule 9): the one gate refuses it, and keel serve refuses a
+// notebook fence that holds one.
+func HasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
 
 func truncate(s string, max int) string {
 	if len(s) <= max {
@@ -249,18 +296,13 @@ func truncate(s string, max int) string {
 // cut inside the name (```kee at the very end).
 var keelOpenRe = regexp.MustCompile("`{3,}[ \\t]*(?:keel-[a-z-]*[ \\t]*(?:\\r?\\n|$)|(?:k|ke|kee|keel)$)")
 
-// blockParsers are the regexes that take keel-* blocks out of a reply. A
-// block one of them matches whole is complete, whatever its line layout.
-func blockParsers() []*regexp.Regexp {
-	return []*regexp.Regexp{fenceRe, noteFenceRe, runbookUseRe, runbookFenceRe, notebookFenceRe, notebookReadFenceRe, notebookEditFenceRe, notebookDeleteFenceRe}
-}
-
 // completeBlockAt returns where the keel-* block that opens with the k
-// backticks at i ends, or -1 when no parser matches a whole block there.
+// backticks at i ends, or -1 when no block kind (keelBlocks) matches a
+// whole block there: one that does is complete, whatever its line layout.
 // A parser may start at a later backtick of the run (```` read as ```).
 func completeBlockAt(text string, i, k int) int {
 	for s := i; s <= i+k-3; s++ {
-		for _, re := range blockParsers() {
+		for _, re := range keelBlocks {
 			if loc := re.FindStringIndex(text[s:]); loc != nil && loc[0] == 0 {
 				return s + loc[1]
 			}

@@ -113,7 +113,7 @@ func (s *Service) SetGroupVar(groupID, name, value string) (store.Group, error) 
 		return store.Group{}, ErrNotFound
 	}
 	if strings.TrimSpace(value) != "" {
-		r, err := agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil)
+		r, err := s.redactorFor(forVaultCheck)
 		if err != nil {
 			return store.Group{}, err
 		}
@@ -138,7 +138,7 @@ func (s *Service) SetGroupVar(groupID, name, value string) (store.Group, error) 
 // holdsVaultValue reports whether any text holds a value from the vault.
 // It uses a Redactor (the one way the agent tree reads vault values).
 func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
-	r, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	r, err := s.redactorFor(forVaultCheck)
 	if err != nil {
 		return false, err
 	}
@@ -150,31 +150,15 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 	return false, nil
 }
 
-// overlapsVault reports whether a value to fill in holds a vault value, or
-// (6 bytes or longer) is part of one: a captured piece of a vault secret
-// is as much a secret as the whole. Exported for the Ansible export too
-// (HoldsVaultValue).
-func (s *Service) overlapsVault(v string) (bool, error) {
-	r, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
-	if err != nil {
-		return false, err
-	}
-	return r.HoldsKnown(v) || r.InsideKnown(v), nil
-}
-
-// HoldsVaultValue is overlapsVault for keel serve's Ansible export: a
-// group variable saved before its value went into the vault is left out.
-// It fails closed (true) when the vault cannot be read.
+// HoldsVaultValue reports whether a value holds a vault value, or (6 bytes
+// or longer) is part of one: a captured piece of a vault secret is as much
+// a secret as the whole. A captured value that does is not kept, and keel
+// serve's Ansible export leaves out a group variable saved before its
+// value went into the vault. It fails closed (true) when the vault cannot
+// be read.
 func (s *Service) HoldsVaultValue(v string) bool {
-	bad, err := s.overlapsVault(v)
-	return err != nil || bad
-}
-
-// requestRedactor is the Redactor of one agent request: agent.NewRedactor
-// with every captured value and every group variable's value replaced by
-// its {{name}}.
-func (s *Service) requestRedactor(opts store.AgentRedaction, hosts []agent.Host) (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, opts, hosts, s.namedValues(true)...)
+	r, err := s.redactorFor(forVaultCheck)
+	return err != nil || r.HoldsKnown(v) || r.InsideKnown(v)
 }
 
 // maxWithheld bounds the redact-only set of captured values. When it is
@@ -203,36 +187,6 @@ func (s *Service) withholdLocked(name, value string) bool {
 	}
 	s.withheld[value] = name
 	return true
-}
-
-// namedValues lists the values the model must never see: every value a
-// group run captured since keel serve started (the redact-only set, which
-// outlives the runs), and (withVars) every group variable's value.
-func (s *Service) namedValues(withVars bool) []redact.Named {
-	var out []redact.Named
-	s.mu.Lock()
-	for value, name := range s.withheld {
-		out = append(out, redact.Named{Name: name, Value: value, Kind: redact.KindCaptured})
-	}
-	s.mu.Unlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Value < out[j].Value })
-	if withVars {
-		if vs, ok := s.st.(GroupVarStore); ok {
-			if all, err := vs.AllGroupVars(); err == nil {
-				ids := make([]string, 0, len(all))
-				for id := range all {
-					ids = append(ids, id)
-				}
-				sort.Strings(ids)
-				for _, id := range ids {
-					for _, v := range all[id] {
-						out = append(out, redact.Named{Name: v.Name, Value: v.Value, Kind: redact.KindVariable})
-					}
-				}
-			}
-		}
-	}
-	return out
 }
 
 // pruneCapturesLocked drops values older than captureTTL and marks them
@@ -358,7 +312,7 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 		if out[i].state != CaptureCaptured {
 			continue
 		}
-		if bad, err := s.overlapsVault(out[i].value); err != nil || bad {
+		if s.HoldsVaultValue(out[i].value) {
 			out[i].value, out[i].state = "", CaptureBlocked
 		}
 	}
@@ -441,7 +395,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 	s.mu.Unlock()
 	f := GroupFill{ProposalID: snap.ID, HostID: snap.HostID, Host: snap.Host, Bytes: snap.Bytes, Risk: snap.Risk, NeedsShift: snap.NeedsShift, command: snap.Command}
 	if !runvars.HasRefs(snap.Command) {
-		if hasPlaceholder(snap.Command) {
+		if HasPlaceholder(snap.Command) {
 			return f, ErrPlaceholder
 		}
 		return f, nil
@@ -455,7 +409,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		groupVars = all[groupID]
 	}
 	// Only its vault matches are used (HoldsKnown, InsideKnown).
-	vault, err := agent.NewRedactor(s.st, store.AgentRedaction{}, nil)
+	vault, err := s.redactorFor(forVaultCheck)
 	if err != nil {
 		return f, err
 	}
@@ -510,16 +464,20 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		}
 		return f, fmt.Errorf("%w: %v", ErrFill, err)
 	}
-	if hasPlaceholder(filled) {
+	if HasPlaceholder(filled) {
 		return f, ErrPlaceholder
 	}
 	if len(filled) > 4*store.MaxRunbookCommandBytes {
 		return f, fmt.Errorf("%w: the filled command is longer than %d bytes", ErrFill, 4*store.MaxRunbookCommandBytes)
 	}
+	// The filled command is sealed like any proposal's, with the saved
+	// rating as its floor and the host counted as production if it was or
+	// is now (a host that cannot be found is).
 	prod, _ := s.hostProduction(snap.HostID)
-	f.Bytes, f.Used, f.command = typedBytes(filled), used, filled
-	f.Risk = agent.Stricter(snap.Risk, agent.Classify(filled))
-	f.NeedsShift = agent.NeedsShift(f.Risk, snap.Production || prod)
+	sealed := Proposal{Command: filled, Production: snap.Production || prod}
+	sealed.seal(snap.Risk)
+	f.Bytes, f.Used, f.command = sealed.Bytes, used, filled
+	f.Risk, f.NeedsShift = sealed.Risk, sealed.NeedsShift
 	return f, nil
 }
 

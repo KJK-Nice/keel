@@ -45,14 +45,16 @@ func (a *Auditor) ReadHostNotes(scope Scope, h Host, notes []string, r *redact.R
 	if name == "" {
 		name = "host " + h.ID
 	}
-	a.log.Append(applog.Entry{
+	if err := a.gate(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("agent sent %s for %s with a question · %s", noteCount(ex.Count, "host note", "host notes"), name, redactionNote(ex.Report)),
 		HostID:     h.ID,
 		Count:      ex.Count,
 		Redactions: ex.Report.Strings(),
 		Source:     "host",
-	})
+	}); err != nil {
+		return NoteExcerpt{}, err
+	}
 	return ex, nil
 }
 
@@ -88,21 +90,23 @@ func (a *Auditor) ReadGroupNotes(scope Scope, groupID string, read []Host, notes
 	}
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n"))
-	ex := NoteExcerpt{Count: n, Text: safe, Report: diff(before, r.Report())}
-	a.log.Append(applog.Entry{
+	ex := NoteExcerpt{Count: n, Text: safe, Report: Diff(before, r.Report())}
+	if err := a.gate(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("agent sent %s for group %s with a question · %s", noteCount(ex.Count, "group note", "group notes"), groupID, redactionNote(ex.Report)),
 		Count:      ex.Count,
 		Redactions: ex.Report.Strings(),
 		Source:     "group",
-	})
+	}); err != nil {
+		return NoteExcerpt{}, err
+	}
 	return ex, nil
 }
 
 // GroupNoteChanged logs agent.note for a group note the user added, edited
 // or deleted: what happened and the group's id, never the text.
 func (a *Auditor) GroupNoteChanged(what, groupID string, rep redact.Report) {
-	a.log.Append(applog.Entry{
+	_ = a.note(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("%s · group notes for group %s · %s", what, groupID, redactionNote(rep)),
 		Redactions: rep.Strings(),
@@ -116,13 +120,15 @@ func (a *Auditor) ReadUserNotes(notes []string, r *redact.Redactor) (NoteExcerpt
 	if err != nil {
 		return NoteExcerpt{}, err
 	}
-	a.log.Append(applog.Entry{
+	if err := a.gate(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("agent sent %s with a question · %s", noteCount(ex.Count, "of your notes", "of your notes"), redactionNote(ex.Report)),
 		Count:      ex.Count,
 		Redactions: ex.Report.Strings(),
 		Source:     "user",
-	})
+	}); err != nil {
+		return NoteExcerpt{}, err
+	}
 	return ex, nil
 }
 
@@ -145,7 +151,7 @@ func (a *Auditor) readNotes(notes []string, r *redact.Redactor) (NoteExcerpt, er
 	}
 	before := r.Report()
 	safe := r.Text(strings.TrimRight(b.String(), "\n"))
-	return NoteExcerpt{Count: n, Text: safe, Report: diff(before, r.Report())}, nil
+	return NoteExcerpt{Count: n, Text: safe, Report: Diff(before, r.Report())}, nil
 }
 
 // NoteChanged logs agent.note for a note the user added, saved from a
@@ -159,7 +165,7 @@ func (a *Auditor) NoteChanged(what, hostID, hostName string, rep redact.Report) 
 			whose = "host notes for host " + hostID
 		}
 	}
-	a.log.Append(applog.Entry{
+	_ = a.note(applog.Entry{
 		Kind:       EventNote,
 		Message:    fmt.Sprintf("%s · %s · %s", what, whose, redactionNote(rep)),
 		HostID:     hostID,

@@ -517,7 +517,7 @@ func TestCapturedValueWithheldAfterRunEnds(t *testing.T) {
 			t.Fatalf("%s: the value reached the provider after its run: %s", end, sent)
 		}
 		// And a note saved after the run keeps the name, not the value.
-		if r, err := v.svc.saveRedactor(); err != nil || strings.Contains(r.Text("token "+joinToken).String(), joinToken) {
+		if r, err := v.svc.redactorFor(forSave); err != nil || strings.Contains(r.Text("token "+joinToken).String(), joinToken) {
 			t.Fatalf("%s: save Redactor kept the value", end)
 		}
 	}
@@ -573,7 +573,7 @@ func TestCaptureTooShortOrSetFull(t *testing.T) {
 	if got := cellOf(t, run, 0, "cp1").Captures; len(got) != 1 || got[0].State != CaptureTooShort {
 		t.Fatalf("short value kept: %+v", got)
 	}
-	if liveCaptures(v.svc) != 0 || len(v.svc.namedValues(false)) != 0 {
+	if named, err := v.svc.namedValues(redactShape{captured: true}); liveCaptures(v.svc) != 0 || err != nil || len(named) != 0 {
 		t.Fatal("a short value is held")
 	}
 	c := cellOf(t, run, 1, "wk1")
