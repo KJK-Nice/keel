@@ -284,41 +284,33 @@ func (w *workspace) setAgentOpen(open bool) {
 // for the Connect card.
 func (w *workspace) loadAgent() {
 	a := w.agent
-	if a.loading {
-		return
+	type read struct {
+		s    keelclient.AgentSettings
+		prov *keelclient.AgentProvider
 	}
-	a.loading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		var prov *keelclient.AgentProvider
-		if err == nil && !s.KeyConfigured() {
+	callOnce(w, &a.loading, nil, func(c context.Context) (r read, err error) {
+		if r.s, err = w.be.AgentSettings(c); err == nil && !r.s.KeyConfigured() {
 			if list, lerr := w.be.AgentProviders(c); lerr == nil {
 				for i := range list {
-					if list[i].ID == s.Settings.Provider {
-						prov = &list[i]
+					if list[i].ID == r.s.Settings.Provider {
+						r.prov = &list[i]
 					}
 				}
 			}
 		}
-		w.post(func() {
-			a.loading = false
-			if w.closed {
-				return
-			}
-			var se *keelclient.StatusError
-			switch {
-			case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
-			case err != nil:
-				a.keyConfigured = nil
-			default:
-				a.settings = &s
-				k := s.KeyConfigured()
-				a.keyConfigured = &k
-				a.provider = prov
-			}
-		})
+		return r, err
+	}, func(r read, err error) {
+		var se *keelclient.StatusError
+		switch {
+		case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
+		case err != nil:
+			a.keyConfigured = nil
+		default:
+			a.settings = &r.s
+			k := r.s.KeyConfigured()
+			a.keyConfigured = &k
+			a.provider = r.prov
+		}
 	})
 }
 
@@ -487,23 +479,21 @@ func (w *workspace) saveAgentKey() {
 	in := keelclient.AgentKeyInput{Provider: pid, Key: key}
 	key = ""
 	a.keyBusy, a.keyErr = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	call(w, func(c context.Context) (struct{}, error) {
 		err := w.be.SetAgentKey(c, in)
 		in = keelclient.AgentKeyInput{}
-		w.post(func() {
-			a.keyBusy = false
-			if err != nil {
-				a.keyErr = errText("save the key", err)
-				return
-			}
-			k := true
-			a.keyConfigured = &k
-			w.say(short + " connected. The key is in the vault.")
-			a.focusInput = true
-			w.loadAgent()
-		})
+		return struct{}{}, err
+	}, func(_ struct{}, err error) {
+		a.keyBusy = false
+		if err != nil {
+			a.keyErr = errText("save the key", err)
+			return
+		}
+		k := true
+		a.keyConfigured = &k
+		w.say(short + " connected. The key is in the vault.")
+		a.focusInput = true
+		w.loadAgent()
 	})
 }
 
@@ -519,21 +509,16 @@ func (w *workspace) editAgentProposal(id string) {
 	}
 	command, conv := rec.edit, a.conv
 	rec.saving = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.EditProposal(c, conv, id, command)
-		w.post(func() {
-			rec.saving = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				w.warn(errText("edit the command", err))
-				return
-			}
-			rec.p, rec.status, rec.editing = p, nil, false
-		})
+	call(w, func(c context.Context) (keelclient.Proposal, error) { return w.be.EditProposal(c, conv, id, command) }, func(p keelclient.Proposal, err error) {
+		rec.saving = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			w.warn(errText("edit the command", err))
+			return
+		}
+		rec.p, rec.status, rec.editing = p, nil, false
 	})
 }
 

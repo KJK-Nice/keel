@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -101,33 +102,20 @@ func (w *workspace) agentPageShown() bool {
 // loadConversations reads the saved conversations (GET /api/agent/conversations).
 func (w *workspace) loadConversations() {
 	a := w.agent
-	if a.listLoading {
-		return
-	}
-	a.listLoading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Conversations(c)
-		w.post(func() {
-			a.listLoading = false
-			if w.closed {
-				return
+	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+		if err != nil {
+			a.list.sessions = nil
+			var se *keelclient.StatusError
+			if errors.As(err, &se) && se.Code == 423 {
+				a.list.err = msgListLocked
+			} else {
+				a.list.err = errText("read the conversations", err)
 			}
-			if err != nil {
-				a.list.sessions = nil
-				var se *keelclient.StatusError
-				if errors.As(err, &se) && se.Code == 423 {
-					a.list.err = msgListLocked
-				} else {
-					a.list.err = errText("read the conversations", err)
-				}
-				return
-			}
-			d := l.HistoryDays
-			a.list = convListState{sessions: l.Sessions, historyDays: &d, saveError: l.SaveError, unreadable: l.Unreadable}
-			a.sess.sel = min(a.sess.sel, len(l.Sessions)-1)
-		})
+			return
+		}
+		d := l.HistoryDays
+		a.list = convListState{sessions: l.Sessions, historyDays: &d, saveError: l.SaveError, unreadable: l.Unreadable}
+		a.sess.sel = min(a.sess.sel, len(l.Sessions)-1)
 	})
 }
 
@@ -161,14 +149,9 @@ func (w *workspace) resumeConversation(id string) {
 	}
 	a.resumedSeq++
 	seq := a.resumedSeq
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		t, err := w.be.Conversation(c, id)
-		w.post(func() {
-			if w.closed || a.resumedSeq != seq { // another resume, or a new conversation, began meanwhile
-				return
-			}
+	callIf(w, func() bool { return a.resumedSeq == seq }, // another resume, or a new conversation, began meanwhile
+		func(c context.Context) (keelclient.Transcript, error) { return w.be.Conversation(c, id) },
+		func(t keelclient.Transcript, err error) {
 			if err != nil {
 				var se *keelclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
@@ -181,7 +164,6 @@ func (w *workspace) resumeConversation(id string) {
 			}
 			w.showTranscript(t)
 		})
-	})
 }
 
 // showTranscript makes the transcript the window's conversation: in memory only.
@@ -258,27 +240,19 @@ func (w *workspace) renameConversation(id, title string) {
 	if title == "" || id == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		kept, err := w.be.RenameConversation(c, id, title)
-		w.post(func() {
-			if w.closed {
-				return
+	call(w, func(c context.Context) (string, error) { return w.be.RenameConversation(c, id, title) }, func(kept string, err error) {
+		if err != nil {
+			w.warn(errText("rename the conversation", err))
+			return
+		}
+		for i := range a.list.sessions {
+			if a.list.sessions[i].ID == id {
+				a.list.sessions[i].Title = kept
 			}
-			if err != nil {
-				w.warn(errText("rename the conversation", err))
-				return
-			}
-			for i := range a.list.sessions {
-				if a.list.sessions[i].ID == id {
-					a.list.sessions[i].Title = kept
-				}
-			}
-			if id == a.conv {
-				a.title = kept
-			}
-		})
+		}
+		if id == a.conv {
+			a.title = kept
+		}
 	})
 }
 
@@ -289,25 +263,17 @@ func (w *workspace) deleteConversation(id string) {
 		return
 	}
 	a := w.agent
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteConversation(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("delete the conversation", err))
-				return
-			}
-			a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
-			if id == a.conv {
-				w.newAgentConversation()
-				a.focusInput = false
-			}
-			w.say("Conversation deleted")
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteConversation(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(errText("delete the conversation", err))
+			return
+		}
+		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
+		if id == a.conv {
+			w.newAgentConversation()
+			a.focusInput = false
+		}
+		w.say("Conversation deleted")
 	})
 }
 
@@ -319,23 +285,15 @@ func (w *workspace) askDeleteAll() {
 
 func (w *workspace) deleteAllConversations() {
 	a := w.agent
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteAllConversations(c)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("delete the history", err))
-				return
-			}
-			a.list.sessions, a.list.saveError, a.list.unreadable, a.list.err = nil, "", false, ""
-			w.newAgentConversation()
-			a.focusInput = false
-			w.say("Agent history deleted")
-		})
+	callErr(w, w.be.DeleteAllConversations, func(err error) {
+		if err != nil {
+			w.warn(errText("delete the history", err))
+			return
+		}
+		a.list.sessions, a.list.saveError, a.list.unreadable, a.list.err = nil, "", false, ""
+		w.newAgentConversation()
+		a.focusInput = false
+		w.say("Agent history deleted")
 	})
 }
 
@@ -351,14 +309,8 @@ func (w *workspace) proposeAgain(id string) {
 		return
 	}
 	conv := a.conv
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.ProposeAgain(c, conv, id)
-		w.post(func() {
-			if w.closed || a.conv != conv {
-				return
-			}
+	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (keelclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
+		func(p keelclient.Proposal, err error) {
 			if err != nil {
 				w.warn(errText("propose again", err))
 				return
@@ -367,5 +319,4 @@ func (w *workspace) proposeAgain(id string) {
 			a.turns = append(a.turns, &agentTurn{done: true, again: true, at: time.Now(), props: []string{p.ID}})
 			a.stick = true
 		})
-	})
 }

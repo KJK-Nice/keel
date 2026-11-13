@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"math"
 	"strings"
@@ -52,37 +53,34 @@ func (w *workspace) loadAgentSettings() {
 	if t := w.pageTab("settings"); t != nil && t.pg.settings != nil {
 		w.loadNotes(&t.pg.settings.notes) // Notes for the agent: the user's own
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		var list []keelclient.AgentProvider
-		var lerr error
-		if err == nil {
-			list, lerr = w.be.AgentProviders(c)
+	type read struct {
+		s    keelclient.AgentSettings
+		list []keelclient.AgentProvider
+		lerr error
+	}
+	call(w, func(c context.Context) (r read, err error) {
+		if r.s, err = w.be.AgentSettings(c); err == nil {
+			r.list, r.lerr = w.be.AgentProviders(c)
 		}
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			var se *keelclient.StatusError
-			switch {
-			case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
-				return
-			case err != nil:
-				w.warn(errText("Could not load the agent settings", err))
-				return
-			}
-			w.takeAgentSettings(s)
-			if lerr == nil {
-				a.provs = a.provs[:0]
-				for _, d := range list {
-					if d.Kind == "model" || d.ID == "jev" {
-						a.provs = append(a.provs, d)
-					}
+		return r, err
+	}, func(r read, err error) {
+		var se *keelclient.StatusError
+		switch {
+		case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
+			return
+		case err != nil:
+			w.warn(errText("Could not load the agent settings", err))
+			return
+		}
+		w.takeAgentSettings(r.s)
+		if r.lerr == nil {
+			a.provs = a.provs[:0]
+			for _, d := range r.list {
+				if d.Kind == "model" || d.ID == "jev" {
+					a.provs = append(a.provs, d)
 				}
 			}
-		})
+		}
 	})
 }
 
@@ -146,27 +144,19 @@ func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
 	applyPatch(&cp, p)
 	a.settings = &cp // shown at once; keel serve's answer replaces it
 	w.noteSuggestSettings(cp)
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.SaveAgentSettings(c, p)
-		w.post(func() {
-			if done != nil {
-				defer done()
-			}
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("Could not save", err))
-				w.loadAgentSettings()
-				return
-			}
-			w.takeAgentSettings(saved)
-			if p.HistoryDays != nil { // a shorter Keep conversations (or Only while open) applies now: the list follows
-				w.loadConversations()
-			}
-		})
+	call(w, func(c context.Context) (keelclient.AgentSettings, error) { return w.be.SaveAgentSettings(c, p) }, func(saved keelclient.AgentSettings, err error) {
+		if done != nil {
+			defer done()
+		}
+		if err != nil {
+			w.warn(errText("Could not save", err))
+			w.loadAgentSettings()
+			return
+		}
+		w.takeAgentSettings(saved)
+		if p.HistoryDays != nil { // a shorter Keep conversations (or Only while open) applies now: the list follows
+			w.loadConversations()
+		}
 	})
 }
 
@@ -212,21 +202,19 @@ func (w *workspace) saveCardKey(p *settingsPage, id string) {
 	if d, ok := w.providerFor(id); ok {
 		name = d.Name
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	callErr(w, func(c context.Context) error {
 		err := w.be.SetAgentKey(c, in)
 		in = keelclient.AgentKeyInput{}
-		w.post(func() {
-			card.busy = false
-			if err != nil {
-				card.err, card.focus = keyError(err), true
-				return
-			}
-			*card = keyCard{}
-			w.say(name + " connected. The key is in the vault.")
-			w.loadAgentSettings()
-		})
+		return err
+	}, func(err error) {
+		card.busy = false
+		if err != nil {
+			card.err, card.focus = keyError(err), true
+			return
+		}
+		*card = keyCard{}
+		w.say(name + " connected. The key is in the vault.")
+		w.loadAgentSettings()
 	})
 }
 
@@ -240,24 +228,16 @@ func (w *workspace) askDisconnect(id string) {
 }
 
 func (w *workspace) disconnect(id, name string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteAgentKey(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("Could not disconnect", err))
-				return
-			}
-			if t := w.pageTab("settings"); t != nil {
-				*t.pg.settings.card(id) = keyCard{}
-			}
-			w.say(name + " disconnected")
-			w.loadAgentSettings()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteAgentKey(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(errText("Could not disconnect", err))
+			return
+		}
+		if t := w.pageTab("settings"); t != nil {
+			*t.pg.settings.card(id) = keyCard{}
+		}
+		w.say(name + " disconnected")
+		w.loadAgentSettings()
 	})
 }
 
@@ -271,21 +251,13 @@ func (w *workspace) askDeleteHistory() {
 }
 
 func (w *workspace) deleteHistory() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteAllConversations(c)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("Could not delete the history", err))
-				return
-			}
-			w.say("Agent history deleted")
-			w.loadConversations()
-		})
+	callErr(w, w.be.DeleteAllConversations, func(err error) {
+		if err != nil {
+			w.warn(errText("Could not delete the history", err))
+			return
+		}
+		w.say("Agent history deleted")
+		w.loadConversations()
 	})
 }
 
