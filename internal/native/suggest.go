@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Plain language → command in a pane (docs/ui-redesign.md §5.5): the state machine and the pure rules, a port of
@@ -93,15 +94,6 @@ const (
 	sugAuto
 )
 
-var riskOrder = map[string]int{keelclient.RiskReadOnly: 0, keelclient.RiskChanges: 1, keelclient.RiskDestructive: 2}
-
-func riskRank(r string) int {
-	if n, ok := riskOrder[r]; ok {
-		return n
-	}
-	return 1
-}
-
 // applyRisk merges a later, stricter rating into a suggestion (lib/suggest.js applyRisk). It returns a new suggestion,
 // or sug itself when the update is for another one. It never loosens what is shown: it can only add ⇧.
 func applyRisk(sug *keelclient.Suggestion, id string, upd []keelclient.SuggestOption) *keelclient.Suggestion {
@@ -112,7 +104,7 @@ func applyRisk(sug *keelclient.Suggestion, id string, upd []keelclient.SuggestOp
 	for i, o := range sug.Options {
 		if i < len(upd) {
 			u := upd[i]
-			if riskRank(u.Risk) > riskRank(o.Risk) {
+			if wire.Risk(u.Risk).Rank() > wire.Risk(o.Risk).Rank() {
 				o.Risk = u.Risk
 			}
 			o.NeedsShift = o.NeedsShift || u.NeedsShift

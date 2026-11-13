@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/cmdrule"
 	"keel/internal/native/keelclient"
 )
 
@@ -265,7 +266,7 @@ func (w *workspace) approveType(shift bool) {
 		}
 		job := typeJob{conn: d.p.conn, command: clearLine + d.shown()}
 		if d.notebook { // the app's bytes for a fence: the line and a newline (confirmTermInput), no Ctrl-U
-			if hasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
+			if cmdrule.HasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
 				d.err = placeholderRefused
 				return
 			}

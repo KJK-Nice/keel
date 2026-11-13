@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui/markdown/parser"
 
+	"keel/internal/cmdrule"
 	"keel/internal/native/keelclient"
 )
 
@@ -26,12 +26,6 @@ const (
 
 // byAgent is Notebook.LastBy and Notebook.Source of the agent's work (a constant: guard_test.go keeps the quoted key).
 const byAgent = "agent"
-
-var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
-
-// hasPlaceholder reports a redaction placeholder such as [secret:1]: a shell glob, never the value (lib/notebooks.js
-// hasPlaceholder). keel serve refuses to type one.
-func hasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
 
 // privateLabel is the meta line's toggle (lib/notebooks.js privateLabel).
 func privateLabel(nb keelclient.Notebook) string {
@@ -136,7 +130,7 @@ func fenceAt(fs []fence, index int) (fence, bool) {
 // placeholder (term.js runNotebookFence: TD.directHint(line) && !hasPlaceholder(line); keel serve decides again).
 func directable(f fence) bool {
 	line := strings.TrimSpace(f.Code)
-	return f.Shell && line != "" && !strings.Contains(line, "\n") && !hasPlaceholder(line)
+	return f.Shell && line != "" && !strings.Contains(line, "\n") && !cmdrule.HasPlaceholder(line)
 }
 
 // ---- autosave (lib/autosave.js) ----

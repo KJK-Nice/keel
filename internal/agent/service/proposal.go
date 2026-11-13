@@ -5,6 +5,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 )
 
 // Every proposal the user can type is made here (docs/ui-redesign.md §6
@@ -20,8 +21,8 @@ import (
 func (p *Proposal) seal(floor agent.Risk) {
 	p.Bytes = typedBytes(p.Command)
 	p.Risk = rate(p.Command, floor)
-	p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-	p.Placeholders = HasPlaceholder(p.Command)
+	p.NeedsShift = cmdrule.NeedsShift(p.Risk, p.Production)
+	p.Placeholders = cmdrule.HasPlaceholder(p.Command)
 }
 
 // proposalSpec is what a caller knows about a proposal it wants made.

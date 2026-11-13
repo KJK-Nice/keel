@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"keel/internal/agent"
+	"keel/internal/cmdrule"
 	"keel/internal/runvars"
 )
 
@@ -185,10 +186,10 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	if err := agent.CanInsert(ask.role); err != nil {
 		return Grant{}, err
 	}
-	if !path.editable && HasPlaceholder(ask.bytes) {
+	if !path.editable && cmdrule.HasPlaceholder(ask.bytes) {
 		return Grant{}, ErrPlaceholder
 	}
-	if path.noDialog && !DirectLine(ask.bytes) {
+	if path.noDialog && !cmdrule.DirectLine(ask.bytes) {
 		return Grant{}, needsDialog(ReasonLines)
 	}
 	t, err := sub.find()
@@ -203,7 +204,7 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	}
 	command, risk, filled := t.command, t.risk, 0
 	if !path.editable {
-		if HasPlaceholder(t.command) {
+		if cmdrule.HasPlaceholder(t.command) {
 			return Grant{}, ErrPlaceholder
 		}
 		if runvars.HasRefs(t.command) {
@@ -211,11 +212,11 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 				return Grant{}, err
 			}
 		}
-		if HasPlaceholder(command) {
+		if cmdrule.HasPlaceholder(command) {
 			return Grant{}, ErrPlaceholder
 		}
 	}
-	if path.noDialog && !DirectLine(command) {
+	if path.noDialog && !cmdrule.DirectLine(command) {
 		return Grant{}, needsDialog(ReasonLines)
 	}
 	// same compares the client's bytes with a command as kept.
@@ -246,10 +247,10 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	production := t.production || now.production
 	// shiftRule is the ⇧ rule (§6.5) for a rating.
 	shiftRule := func(risk, codeRisk agent.Risk, judged bool) error {
-		if !agent.NeedsShift(risk, production) || ask.shift {
+		if !cmdrule.NeedsShift(risk, production) || ask.shift {
 			return nil
 		}
-		if judged && path.judgedShift != nil && !agent.NeedsShift(codeRisk, production) {
+		if judged && path.judgedShift != nil && !cmdrule.NeedsShift(codeRisk, production) {
 			return path.judgedShift
 		}
 		return path.needsShift

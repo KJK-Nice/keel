@@ -9,6 +9,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
@@ -395,7 +396,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 	s.mu.Unlock()
 	f := GroupFill{ProposalID: snap.ID, HostID: snap.HostID, Host: snap.Host, Bytes: snap.Bytes, Risk: snap.Risk, NeedsShift: snap.NeedsShift, command: snap.Command}
 	if !runvars.HasRefs(snap.Command) {
-		if HasPlaceholder(snap.Command) {
+		if cmdrule.HasPlaceholder(snap.Command) {
 			return f, ErrPlaceholder
 		}
 		return f, nil
@@ -464,7 +465,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 		}
 		return f, fmt.Errorf("%w: %v", ErrFill, err)
 	}
-	if HasPlaceholder(filled) {
+	if cmdrule.HasPlaceholder(filled) {
 		return f, ErrPlaceholder
 	}
 	if len(filled) > 4*store.MaxRunbookCommandBytes {

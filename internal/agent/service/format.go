@@ -7,6 +7,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 )
 
 // ProposalFence is the info string of the fenced block in which the model
@@ -260,20 +261,12 @@ func modelRisk(s string) agent.Risk {
 // rate is Keel's code rule, made stricter (never looser) by floor: a
 // rating from somewhere else (the model's own, a saved one), "" for none.
 func rate(command string, floor agent.Risk) agent.Risk {
-	r := agent.Classify(command)
+	r := cmdrule.Classify(command)
 	if floor != "" {
-		r = agent.Stricter(r, floor)
+		r = cmdrule.Stricter(r, floor)
 	}
 	return r
 }
-
-var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
-
-// HasPlaceholder reports whether text holds a redaction placeholder such
-// as [secret:1]: a shell glob, never the value. Nothing that holds one is
-// typed (§6 rule 9): the one gate refuses it, and keel serve refuses a
-// notebook fence that holds one.
-func HasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }
 
 func truncate(s string, max int) string {
 	if len(s) <= max {

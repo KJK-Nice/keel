@@ -18,6 +18,7 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/applog"
+	"keel/internal/cmdrule"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/sessionsock"
@@ -1115,7 +1116,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		c.Send(out)
 		return nil
 	}
-	if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
+	if ctl.Notebook && ctl.Agent == nil && cmdrule.HasPlaceholder(ctl.Command) {
 		// A notebook fence (an agent's draft, or text pasted from an
 		// answer) that still holds a placeholder is a shell glob, never
 		// the value: not typed.

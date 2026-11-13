@@ -35,6 +35,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/store"
 )
 
@@ -555,8 +556,8 @@ func codeRatings(cands []Candidate, production bool) []SuggestOption {
 			Bytes:        insertBytes(c.Command),
 			Why:          c.Why,
 			Risk:         risk,
-			NeedsShift:   agent.NeedsShift(risk, production),
-			Placeholders: HasPlaceholder(c.Command),
+			NeedsShift:   cmdrule.NeedsShift(risk, production),
+			Placeholders: cmdrule.HasPlaceholder(c.Command),
 			Source:       c.Source,
 			codeRisk:     risk,
 		}
@@ -662,13 +663,13 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 		if i >= len(opts) {
 			continue
 		}
-		next := agent.Stricter(opts[i].Risk, j)
+		next := cmdrule.Stricter(opts[i].Risk, j)
 		if next != opts[i].Risk {
 			stricter = true
 		}
 		opts[i].Risk = next
 		opts[i].Judged = true
-		opts[i].NeedsShift = agent.NeedsShift(next, c.sug.Production)
+		opts[i].NeedsShift = cmdrule.NeedsShift(next, c.sug.Production)
 	}
 	if cur != nil {
 		cur.Options = opts

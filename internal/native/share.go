@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Share (docs/ui-redesign.md §5.6), as the app has it: features/share.md. The rules are the pure functions of
@@ -60,15 +61,13 @@ func (s *sharePrompt) key() string {
 // ---- the pure rules of lib/share.js ----
 
 // roleOf is a client's role in a session as the share hub reports it: the driver drives, the owner may take control
-// back, everyone else follows.
+// back, everyone else follows. It is wire.RoleOf, except that id 0 (no client) is a follower and never matches an unset
+// driver or owner id.
 func roleOf(id, ownerID, driverID uint64) string {
-	switch {
-	case id != 0 && id == driverID:
-		return "driver"
-	case id != 0 && id == ownerID:
-		return "owner"
+	if id == 0 {
+		return string(wire.RoleFollower)
 	}
-	return "follower"
+	return string(wire.RoleOf(id, driverID, ownerID))
 }
 
 // kindLabel says how a client came.

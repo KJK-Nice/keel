@@ -12,6 +12,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/applog"
+	"keel/internal/cmdrule"
 	"keel/internal/runtime"
 	"keel/internal/sessionsock"
 	"keel/internal/wire"
@@ -203,7 +204,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 	case wire.DirectSnippet:
 		// A snippet is the user's own text: one with a placeholder goes
 		// to the dialog, as before, rather than being refused.
-		if !service.DirectLine(command) || service.HasPlaceholder(command) {
+		if !cmdrule.DirectLine(command) || cmdrule.HasPlaceholder(command) {
 			return none, &service.DialogError{Reason: service.ReasonLines}
 		}
 		snippets, err := s.store.ListSnippets()
@@ -224,10 +225,10 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 		return none, &service.DialogError{Reason: service.ReasonBytes}
 	case wire.DirectNotebook:
 		// A placeholder is a shell glob, never the value (rule 9).
-		if service.HasPlaceholder(command) {
+		if cmdrule.HasPlaceholder(command) {
 			return none, service.ErrPlaceholder
 		}
-		if !service.DirectLine(command) {
+		if !cmdrule.DirectLine(command) {
 			return none, &service.DialogError{Reason: service.ReasonLines}
 		}
 		nb, err := s.store.GetNotebook(d.NotebookID)

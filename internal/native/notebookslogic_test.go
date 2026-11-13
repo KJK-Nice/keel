@@ -11,14 +11,6 @@ import (
 // Test ports of the cases of cmd/keel/web/js/test/notebooks.test.mjs (placeholders, diffLines, history rows) and
 // test/autosave.test.mjs that the native client uses.
 
-func TestPlaceholdersAreFoundAsKeelServeFindsThem(t *testing.T) {
-	for s, want := range map[string]bool{"export T=[secret:1]": true, "ping [ip:12]": true, "ssh [host:3]": true, "ls [abc] [secret:]": false, "": false} {
-		if got := hasPlaceholder(s); got != want {
-			t.Errorf("hasPlaceholder(%q) = %v, want %v", s, got, want)
-		}
-	}
-}
-
 func TestDiffLinesAlignsTheLinesThatStayedAndMarksTheRest(t *testing.T) {
 	ops := func(d []diffLine) (out []string) {
 		for _, l := range d {

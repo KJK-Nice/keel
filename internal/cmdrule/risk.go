@@ -1,4 +1,10 @@
-package agent
+// Package cmdrule holds the pure rules that decide what a command line is:
+// its risk (Classify), whether it may be typed without the approve dialog
+// (DirectSafe), whether it is one line (DirectLine) and what a redaction
+// placeholder looks like. keel serve and the window both import it, so the
+// rule is written once. It is a leaf: it imports no keel package but wire
+// (leaf_test.go checks).
+package cmdrule
 
 import (
 	"path"

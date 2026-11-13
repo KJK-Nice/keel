@@ -3,10 +3,9 @@ package service
 import (
 	"context"
 	"errors"
-	"unicode"
-	"unicode/utf8"
 
 	"keel/internal/agent"
+	"keel/internal/cmdrule"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
@@ -44,28 +43,6 @@ func NeedsDialog(err error) (string, bool) {
 	return "", false
 }
 
-// DirectLine reports whether command stays one line on a shell prompt, as
-// typed: not empty, valid UTF-8, and no control character (C0, which holds
-// newline, CR, tab and ESC; DEL; C1), no line or paragraph separator, and
-// no invisible format character (zero-width and bidi controls), which
-// could show the user something else than what the shell reads.
-func DirectLine(command string) bool {
-	if command == "" || !utf8.ValidString(command) {
-		return false
-	}
-	for _, r := range command {
-		switch {
-		case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
-			return false
-		case r == '\u2028', r == '\u2029':
-			return false
-		case unicode.Is(unicode.Cf, r):
-			return false
-		}
-	}
-	return true
-}
-
 // AuthorizeDirect checks a Type without the dialog of an agent proposal
 // (a conversation's, or a group run's for one host) through authorize
 // (authorize.go, pathDirect): the client drives, the bytes are the
@@ -96,9 +73,9 @@ func (s *Service) DirectTyped(g DirectGrant) error { return s.settle(g, nil) }
 
 // directSafe is the one decision of rule 13 on a command: plainly
 // read-only by its kept rating and by Keel's code rule on the bytes, and
-// one of the few exact commands agent.DirectSafe allows.
+// one of the few exact commands cmdrule.DirectSafe allows.
 func directSafe(kept agent.Risk, command string) bool {
-	return agent.Stricter(kept, agent.Classify(command)) == agent.RiskReadOnly && agent.DirectSafe(command)
+	return cmdrule.Stricter(kept, cmdrule.Classify(command)) == agent.RiskReadOnly && cmdrule.DirectSafe(command)
 }
 
 // DirectRating decides a command that has no rating of its own (a

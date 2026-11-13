@@ -1,6 +1,10 @@
 package native
 
-import "strings"
+import (
+	"strings"
+
+	"keel/internal/cmdrule"
+)
 
 // Typing a notebook's fence (docs/ui-redesign.md §6 rules 12 and 13; term.js runNotebookFence, insertNotebookIntoInput,
 // confirmTermInput). A notebook is one more source for the two ways a snippet is typed, and adds no writer and no call
@@ -36,7 +40,7 @@ func (w *workspace) typeNotebookFence(np *pane, f fence) {
 		w.say("Write a command first")
 		return
 	}
-	if hasPlaceholder(line) { // a shell glob, never the value: refused before anything is sent
+	if cmdrule.HasPlaceholder(line) { // a shell glob, never the value: refused before anything is sent
 		w.warn(placeholderRefused)
 		return
 	}

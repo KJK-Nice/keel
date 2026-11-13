@@ -12,6 +12,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/service"
 	"keel/internal/ansible"
+	"keel/internal/cmdrule"
 	"keel/internal/store"
 )
 
@@ -167,7 +168,7 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 		for _, st := range b.Steps {
 			step := ansible.Step{Title: st.Title, Description: st.Description, Command: st.Command, Role: st.Role, OneHost: st.OneHost}
 			if st.Command != "" {
-				step.ReadOnly = agent.Classify(st.Command) == agent.RiskReadOnly
+				step.ReadOnly = cmdrule.Classify(st.Command) == agent.RiskReadOnly
 			}
 			for _, c := range st.Captures {
 				step.Captures = append(step.Captures, ansible.Capture{Name: c.Name, Pattern: c.Pattern})

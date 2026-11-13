@@ -1,4 +1,4 @@
-package agent
+package cmdrule
 
 import "testing"
 

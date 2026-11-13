@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
@@ -356,7 +357,7 @@ func (s *Service) StartGroupRun(req GroupRunRequest) (GroupRun, error) {
 			rs.Captures = append([]store.StepCapture(nil), st.Captures...)
 		}
 		if st.Command != "" {
-			rs.Risk = string(agent.Classify(st.Command))
+			rs.Risk = string(cmdrule.Classify(st.Command))
 			var hosts []GroupRunHost
 			for _, m := range run.Members {
 				if m.Excluded == "" && (st.Role == "" || m.Role == st.Role) {

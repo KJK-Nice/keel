@@ -14,9 +14,10 @@ package redact
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 	"unicode"
+
+	"keel/internal/cmdrule"
 )
 
 // Kind is one rule that matched. Kinds are stable: they are written to
@@ -57,9 +58,9 @@ const (
 type category string
 
 const (
-	catSecret category = "secret"
-	catIP     category = "ip"
-	catHost   category = "host"
+	catSecret category = cmdrule.PlaceholderSecret
+	catIP     category = cmdrule.PlaceholderIP
+	catHost   category = cmdrule.PlaceholderHost
 )
 
 func (k Kind) category() category {
@@ -306,7 +307,7 @@ func (r *Redactor) placeholder(k Kind, value string) string {
 		return p
 	}
 	r.next[cat]++
-	p := "[" + string(cat) + ":" + strconv.Itoa(r.next[cat]) + "]"
+	p := cmdrule.Placeholder(string(cat), r.next[cat])
 	r.seen[key] = p
 	return p
 }

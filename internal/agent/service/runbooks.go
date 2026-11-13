@@ -10,6 +10,7 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
@@ -256,7 +257,7 @@ func runbookView(b store.Runbook) RunbookView {
 	for _, st := range b.Steps {
 		sv := RunbookStepView{RunbookStep: st}
 		if st.Command != "" {
-			sv.Risk = agent.Classify(st.Command)
+			sv.Risk = cmdrule.Classify(st.Command)
 		}
 		v.Steps = append(v.Steps, sv)
 	}
@@ -552,7 +553,7 @@ const secretLeftOut = "(Command left out: it held a secret. Use an environment v
 // placeholder from an earlier redaction and nothing the save Redactor
 // would replace.
 func commandKeepable(r *redact.Redactor, cmd string) bool {
-	if HasPlaceholder(cmd) {
+	if cmdrule.HasPlaceholder(cmd) {
 		return false
 	}
 	return r.Text(cmd).String() == cmd
@@ -803,7 +804,7 @@ func (s *Service) startRunLocked(c *conversation, b store.Runbook, by, why strin
 	for _, st := range b.Steps {
 		rs := store.AgentChatRunStep{ID: st.ID, Title: st.Title, Description: st.Description, Command: st.Command, Expect: st.Expect, State: stepNext}
 		if st.Command != "" {
-			rs.Risk = string(agent.Classify(st.Command))
+			rs.Risk = string(cmdrule.Classify(st.Command))
 		}
 		run.Steps = append(run.Steps, rs)
 	}
@@ -1459,7 +1460,7 @@ func (s *Service) runbookProposal(raw *rawRunbook, excerpts []agent.Excerpt, r *
 		}
 		// A command the Redactor changed holds a placeholder: it is left
 		// out (a save would refuse it), with a note.
-		if HasPlaceholder(cmd) {
+		if cmdrule.HasPlaceholder(cmd) {
 			cmd = ""
 			desc = truncate(strings.TrimSpace(desc+" "+secretLeftOut), store.MaxRunbookTextBytes-4)
 		}

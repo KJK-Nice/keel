@@ -37,6 +37,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/store"
 )
 
@@ -197,7 +198,7 @@ func snippetCandidate(sn store.Snippet, r *redact.Redactor) (string, bool) {
 	if strings.ContainsAny(cmd, "\r\n") || strings.Contains(cmd, "{{") || !plausibleCommand(cmd) {
 		return "", false
 	}
-	if r.Text(cmd).String() != cmd || HasPlaceholder(cmd) {
+	if r.Text(cmd).String() != cmd || cmdrule.HasPlaceholder(cmd) {
 		return "", false
 	}
 	return cmd, true
@@ -315,7 +316,7 @@ func commandOnLine(line string) (prompt, cmd string, ok bool) {
 		return "", "", false
 	}
 	cmd = strings.TrimSpace(m[3])
-	if HasPlaceholder(line) || passwordRe.MatchString(line) || hasControlNotation(line) || !plausibleCommand(cmd) {
+	if cmdrule.HasPlaceholder(line) || passwordRe.MatchString(line) || hasControlNotation(line) || !plausibleCommand(cmd) {
 		return "", "", false
 	}
 	return prompt, cmd, true

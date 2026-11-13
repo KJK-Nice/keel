@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"keel/internal/cmdrule"
 	"keel/internal/wire"
 )
 
@@ -367,7 +368,7 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 	if err := c.directReady(ref); err != nil {
 		return DirectResult{}, err
 	}
-	if !DirectLine(command) {
+	if !cmdrule.DirectLine(command) {
 		return DirectResult{Dialog: true}, nil
 	}
 	nonce, err := c.claim(true)

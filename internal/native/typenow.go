@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/cmdrule"
 	"keel/internal/native/keelclient"
 )
 
@@ -51,7 +52,7 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 	case p.remote, st.Status != "ready", st.Role != "driver": // the dialog's own refusals say why
 		s.dialog()
 		return
-	case s.line == "", !directHint(s.line), alt: // the dialog is certain: keel serve is not asked
+	case s.line == "", !cmdrule.DirectSafe(s.line), alt: // the dialog is certain: keel serve is not asked
 		s.dialog()
 		return
 	case p.typing:

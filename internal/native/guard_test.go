@@ -396,8 +396,15 @@ func TestAgentAndDirectReferencesAreBuiltOnlyWhereTheWritersAreCalled(t *testing
 // A direct type is the command alone: the code that hands it over holds no Ctrl-U, newline or carriage return of its
 // own (the dialog's clearLine is approve.go's, and the Approve path's).
 func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
-	for _, name := range []string{"typenow.go", "typedirect.go", "keelclient/directline.go"} {
+	line, err := os.ReadFile("../cmdrule/line.go") // the one-line rule, shared with keel serve
+	if err != nil {
+		t.Fatalf("internal/cmdrule/line.go is gone; update the guard: %v", err)
+	}
+	for _, name := range []string{"typenow.go", "typedirect.go", "cmdrule/line.go"} {
 		src := sourceFiles(t)[name]
+		if name == "cmdrule/line.go" {
+			src = string(line)
+		}
 		if src == "" {
 			t.Fatalf("%s is gone; update the guard", name)
 		}

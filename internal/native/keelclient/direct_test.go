@@ -266,17 +266,3 @@ func TestDirectTypeStopsWhenItsContextEnds(t *testing.T) {
 		}
 	}
 }
-
-func TestDirectLineMatchesTheServersRule(t *testing.T) {
-	for _, ok := range []string{"ls -la", "echo 'h\xc3\xa9llo'"} {
-		if !DirectLine(ok) {
-			t.Errorf("%q", ok)
-		}
-	}
-	// C1 U+0085, U+2028, U+2029 line separators, U+200B, U+202E, U+FEFF invisible, and invalid UTF-8.
-	for _, bad := range []string{"", "a\nb", "a\rb", "a\tb", "a\x1bb", "a\x7fb", "a\xc2\x85b", "a\xe2\x80\xa8b", "a\xe2\x80\xa9b", "a\xe2\x80\x8bb", "a\xe2\x80\xaeb", "a\xef\xbb\xbfb", "a\xffb"} {
-		if DirectLine(bad) {
-			t.Errorf("%q", bad)
-		}
-	}
-}

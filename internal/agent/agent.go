@@ -49,6 +49,17 @@ const (
 	RoleFollower = wire.RoleFollower
 )
 
+// Risk is how much a command can change on its host: the label on every
+// proposal and the input to the ⇧ gate. The rules that rate a command are
+// in internal/cmdrule.
+type Risk = wire.Risk
+
+const (
+	RiskReadOnly    = wire.RiskReadOnly
+	RiskChanges     = wire.RiskChanges
+	RiskDestructive = wire.RiskDestructive
+)
+
 // Pane is one terminal pane as the agent sees it.
 type Pane struct {
 	SessionID string

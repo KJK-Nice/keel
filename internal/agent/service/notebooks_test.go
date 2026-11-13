@@ -796,14 +796,6 @@ func TestNotebookAttachLimits(t *testing.T) {
 	}
 }
 
-func TestHasPlaceholderForNotebookFences(t *testing.T) {
-	for cmd, want := range map[string]bool{"export T=[secret:1]": true, "ping [ip:2]": true, "ls [abc]": false, "echo ok": false} {
-		if HasPlaceholder(cmd) != want {
-			t.Errorf("HasPlaceholder(%q) = %v", cmd, !want)
-		}
-	}
-}
-
 // Two edits of one notebook in one answer apply one after the other; a
 // title holding a redacted value is not the agent's to replace.
 func TestAgentTwoEditsAndRedactedTitle(t *testing.T) {
