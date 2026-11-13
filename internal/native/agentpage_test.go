@@ -1,6 +1,7 @@
 package native
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -21,9 +22,19 @@ func (r *rig) openPageSettled() {
 	r.settleFrames()
 }
 
+// settleFrames draws at least four frames and then until the texts and the page's rect stop changing (at most twelve): after a
+// resize or a page opening, how many frames a layout needs is not the same on every platform (on Ubuntu CI the Agent page's
+// width was one resize behind after two frames, issue #140), so the tests wait for the layout, not for a count.
 func (r *rig) settleFrames() {
-	for i := 0; i < 4; i++ {
+	prev := ""
+	for i := 0; i < 12; i++ {
 		r.tt.Frame()
+		rc, _ := r.tt.Find("agent page")
+		cur := fmt.Sprint(rc, r.tt.Texts())
+		if i >= 3 && cur == prev {
+			return
+		}
+		prev = cur
 	}
 }
 
@@ -256,8 +267,7 @@ func TestTheNarrowLayoutsFollowTheTabWidth(t *testing.T) {
 		t.Fatalf("width %v: not the three columns", p.width)
 	}
 	r.tt.SetSize(1100, 700) // 1100 - the sidebar is in the 660-960 range
-	r.tt.Frame()
-	r.tt.Frame()
+	r.settleFrames()
 	if pageLayout(p.width) != layoutMid {
 		t.Errorf("width %v: not the context under the list", p.width)
 	}
@@ -265,8 +275,7 @@ func TestTheNarrowLayoutsFollowTheTabWidth(t *testing.T) {
 		t.Errorf("the mid layout lost a column: %v", r.tt.Texts())
 	}
 	r.tt.SetSize(850, 700)
-	r.tt.Frame()
-	r.tt.Frame()
+	r.settleFrames()
 	if pageLayout(p.width) != layoutNarrow {
 		t.Errorf("width %v: not the narrow layout", p.width)
 	}

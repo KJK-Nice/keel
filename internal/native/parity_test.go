@@ -21,7 +21,10 @@ func TestTitleBarShowsTheBarStatusAndTheStatusBarDoesNot(t *testing.T) {
 	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Subtitle: "vm", Role: "driver"}
 	r.tt.Frame()
 	bar, ok := r.tt.Find("vm · driving")
-	if !ok || bar.Y+bar.H > sizeTitlebar || bar.X < 900 {
+	// At the right of the title bar, before the Share and Agent buttons: how far right depends on the width of their key caps
+	// ("⌘I" on macOS, "Ctrl+⇧I" on Linux: 835 there, not 900), so the test asks for the right half and for the buttons' side.
+	share, _ := r.tt.Find("Share")
+	if !ok || bar.Y+bar.H > sizeTitlebar || bar.X < 640 || bar.X+bar.W > share.X {
 		t.Errorf("bar status 'vm · driving' at %v (%v): %v", bar, ok, r.tt.Texts())
 	}
 	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Role: "follower"}
@@ -105,8 +108,19 @@ func TestTabCountIsAMonoBadge(t *testing.T) {
 	tab, _ := r.tt.Find("tab api-1")
 	// k-badge--mono tab-count: the hover ground behind the number, at the right of the pill, before the close button
 	// (16 px and a gap, plan 025).
-	if got := r.pixel(tab.X+tab.W-space2-space4-space1_5-2, tab.Y+tab.H/2-rem(tabCountPx)/2+1); !is(got, hoverGround) {
-		t.Errorf("tab count ground %v, want hover %v", got, hoverGround)
+	// The sample column runs down the badge's left side: a glyph of the count, which differs with the font (on Linux a pixel of
+	// the digit, [45 45 49] over the ground), can cover one row of it but not all.
+	x, top := tab.X+tab.W-space2-space4-space1_5-2, tab.Y+tab.H/2-rem(tabCountPx)/2+1
+	found := false
+	var got [3]uint8
+	for dy := float32(0); dy < rem(tabCountPx)-2; dy++ {
+		if got = r.pixel(x, top+dy); is(got, hoverGround) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("tab count ground %v at the last sample, want hover %v on some row of the badge", got, hoverGround)
 	}
 }
 

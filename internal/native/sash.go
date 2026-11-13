@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -20,7 +21,19 @@ const sidebarWidthFileKey = "sidebarWidth"
 // but hardly narrowed; TestSidebarSegmentLabelsFitAtEveryUISize holds the number.
 const sidebarLabelsMin = 246
 
-func sidebarMin() float32 { return max(sizeRail, sidebarLabelsMin, rem(sidebarLabelsMin)) }
+// sidebarFontSlack is added off macOS, where the 246 was not measured: the system sans there (DejaVu Sans on Ubuntu) is wider than
+// macOS's, and the labels were short by 0.8 to 1.7 px each at UI size 12 in the narrowest sidebar (issue #140; the four labels
+// together are about 6 px short, which is all the room the narrowest sidebar had over the default 252).
+func sidebarFontSlack() float32 {
+	if runtime.GOOS == "darwin" {
+		return 0
+	}
+	return 6
+}
+
+func sidebarMin() float32 {
+	return max(sizeRail, sidebarLabelsMin+sidebarFontSlack(), rem(sidebarLabelsMin)+sidebarFontSlack())
+}
 func sidebarMax() float32 { return 2 * sidebarWidth() }
 
 // clampSidebarWidth is clampWidth: w rounded and held inside the bounds; 0 and less is the default.
