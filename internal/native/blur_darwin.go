@@ -5,6 +5,9 @@ package native
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ebitengine/purego"
@@ -14,6 +17,20 @@ import (
 
 // blurTimeout bounds the wait for the main thread to run the call.
 const blurTimeout = 2 * time.Second
+
+// windowCornerRadius is the radius macOS cuts a titled window to, which the window border follows: 10 pt up to macOS 15, and
+// 16 pt from macOS 26 (Liquid Glass rounds windows without a toolbar more). Not read from the window: AppKit has no call for it.
+func windowCornerRadius() float32 {
+	v, err := syscall.Sysctl("kern.osproductversion")
+	if err != nil {
+		return 10
+	}
+	major, _, _ := strings.Cut(v, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 26 {
+		return 16
+	}
+	return 10
+}
 
 // setWindowHasShadow gives the window its shadow or takes it away, on the main thread. Keel's window has none: a
 // Transparent window's shadow is cut from its content's alpha once and shows through the translucent grounds as a ghost

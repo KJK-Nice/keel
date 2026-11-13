@@ -163,6 +163,7 @@ func RunWith(o Options) error {
 		w.saveDialog = func(name string) (string, error) {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name, CreateDirectories: true})
 		}
+		w.cornerR = windowCornerRadius()
 		// The window has no shadow (plan 037 part C).
 		win.OnShow(func() { setWindowHasShadow(win, false) })
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
