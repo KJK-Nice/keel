@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -69,6 +70,9 @@ func TestEmbeddedFontsAreTheShippedSet(t *testing.T) {
 
 // Each shipped family, once registered as run.go does, renders differently from a missing family and from the other.
 func TestShippedFamiliesRenderDifferently(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("registerFonts registers nothing on Linux (run.go): on Ubuntu CI the registered families measured about 1.8x too wide and rendered alike; see TestDiagRegisteredFontMetrics and docs/native.md Linux")
+	}
 	t.Cleanup(func() {
 		if t.Failed() { // issue #140: the widths in the default, the bundled and a missing family (linuxdiag_test.go)
 			diagFonts(t)

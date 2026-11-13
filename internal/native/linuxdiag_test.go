@@ -40,6 +40,37 @@ func TestTheDiagnosticProbeMeasuresText(t *testing.T) {
 	}
 }
 
+// TestDiagRegisteredFontMetrics (issue #140, round 2) registers each shipped woff2 file by itself under a private family and logs
+// what MyGo measures and draws: the width of ten Ms at the UI size (a 600-unit mono advance gives 7.8 px each at 13 px), the
+// number of lit pixels of a render, and what ui.FontFamilies says of the family. It only logs: on Ubuntu CI the registered
+// families measured about 1.8 times too wide, and this tells which file, and whether the first Linux fix (not registering them)
+// can be undone.
+func TestDiagRegisteredFontMetrics(t *testing.T) {
+	files, _ := fontFiles.ReadDir("fonts")
+	for _, f := range files {
+		b, err := fontFiles.ReadFile("fonts/" + f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		family := "keel-diag-" + strings.TrimSuffix(f.Name(), ".woff2")
+		err = ui.RegisterFont(b, family)
+		w := probeWidth("MMMMMMMMMM", uiFontSize, family)
+		ink := 0
+		for _, p := range renderIn(family) {
+			if p > 32 {
+				ink++
+			}
+		}
+		t.Logf("linux-diag: %s: RegisterFont=%v, ten Ms at %v px are %.2f wide (%.2f each), \"Hosts Panes Snippets Forwards\" %.2f, %d lit bytes in a render, missing family is %.2f wide",
+			f.Name(), err, uiFontSize, w, w/10, probeWidth("Hosts Panes Snippets Forwards", uiFontSize, family), ink, probeWidth("MMMMMMMMMM", uiFontSize, "keel-test-missing-5d1e"))
+	}
+	for _, ff := range ui.FontFamilies() {
+		if strings.HasPrefix(ff.Name, "keel-diag-jetbrains-mono-latin-400") || strings.HasPrefix(ff.Name, "keel-diag-ibm-plex-mono-latin-400") {
+			t.Logf("linux-diag: family %q monospaced %v registered %v", ff.Name, ff.Monospaced, ff.Registered)
+		}
+	}
+}
+
 // diagFonts logs the text facts: the measured width of a fixed string in the default, the bundled and a missing family, at
 // the UI size. Equal widths in the bundled and missing families mean the bundled one is not in use; a zero width means the
 // text engine drew nothing (MyGo's Linux engine, Pango through purego, falls back to a stub when its libraries are missing).
@@ -65,7 +96,8 @@ func diagWindow(t *testing.T, r *rig) {
 			return
 		}
 		t.Logf("linux-diag: sidebar width %v, sidebar shown %v", r.w.sidebarNow(), r.w.sidebar)
-		for _, l := range []string{"Toggle sidebar", "Agent", "sidebar hosts", "pane 1", "agent page", "start page", "Resize sidebar"} {
+		for _, l := range []string{"Toggle sidebar", "Agent", "sidebar hosts", "pane 1", "agent page", "agent panel", "agent conversation", "start page", "Resize sidebar",
+			"conversation Why is pg-2 lagging", "Rename this conversation", "host filter All", "host filter ceph-rgw-1", "Retention settings", "In scope", "Conversations"} {
 			if rc, ok := r.tt.Find(l); ok {
 				t.Logf("linux-diag: %q at x=%.1f y=%.1f w=%.1f h=%.1f", l, rc.X, rc.Y, rc.W, rc.H)
 			}

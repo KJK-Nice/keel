@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,13 @@ var fontFiles embed.FS
 // registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ holds the
 // eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
+	if runtime.GOOS == "linux" {
+		// Not on Linux (issue #140, plan 037 round 2): on Ubuntu a registered family measured about 1.8 times too wide (29
+		// characters of JetBrains Mono at 13 px came out 399 px, the system monospace 232 and the font's own advance gives
+		// about 226), which made the terminal's cells about twice as wide as its glyphs, and JetBrains Mono and IBM Plex Mono
+		// rendered alike. The stacks fall back to the system monospace until MyGo's Linux registration is understood.
+		return
+	}
 	files, _ := fontFiles.ReadDir("fonts")
 	for _, f := range files {
 		family := monoFamily
