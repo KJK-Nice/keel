@@ -801,6 +801,22 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		})
 		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
 		pane.Children(func() {
+			// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139,
+			// plan 037 part A): its last picture is not readable through the overlay and no caret blinks; the pane shows its
+			// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
+			// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
+			// and the pane takes the keyboard again if it had it.
+			if st.Status != "ready" && !p.remote {
+				if t.focused == p.id {
+					p.regain = true
+				}
+				w.connectLogView(c, p, st)
+				return
+			}
+			if p.regain {
+				p.regain = false
+				w.wantFocus = p.id
+			}
 			tv := p.view(c).Bind(&p.handle)
 			if multi && !focused { // the terminal's text dims, the body keeps its ground (keel.css:942 dims .xterm only)
 				tv.Opacity(dimAlpha)

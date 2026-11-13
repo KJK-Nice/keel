@@ -217,6 +217,7 @@ type pane struct {
 	conn session
 	sid  string // session id when known before the ready frame (an attached session)
 
+	regain bool // the pane had the keyboard while its session was not ready: it takes it back when the view returns (view.go)
 	// Set by workspace.mkBody: a live terminal, or a placeholder in tests.
 	view    func(c *ui.Context) ui.Element
 	size    func() (cols, rows int)
