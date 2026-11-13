@@ -249,14 +249,9 @@ func (w *workspace) agentPanes() (out []agentPane) {
 			if p == nil || p.sessionID() == "" {
 				continue
 			}
-			var host *keelclient.Host // the host as it is now: reading may have been turned off since the pane opened
-			for i := range w.hosts {
-				if w.hosts[i].ID == p.host.ID {
-					host = &w.hosts[i]
-				}
-			}
+			host, known := hostByID(w.hosts, p.host.ID) // the host as it is now: reading may have been turned off since the pane opened
 			label := p.title()
-			if host != nil {
+			if known {
 				label = host.Name
 			}
 			out = append(out, agentPane{
@@ -264,8 +259,8 @@ func (w *workspace) agentPanes() (out []agentPane) {
 				focused:     t == sessionTab && t.focused == id,
 				inActiveTab: t == sessionTab,
 				// The server decides; this only shapes the picker. A host it does not know is not readable there either.
-				readable:   host != nil && (host.AgentReadable == nil || *host.AgentReadable),
-				production: host != nil && host.Production != nil && *host.Production,
+				readable:   known && host.AgentMayRead(),
+				production: known && host.IsProduction(),
 				driving:    p.conn.Snapshot().Role == "driver",
 				remote:     p.remote || t.remote,
 				p:          p, t: t,

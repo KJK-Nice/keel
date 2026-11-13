@@ -109,7 +109,7 @@ func (w *workspace) paneRows(t *tab) (out []paneRow) {
 		out = append(out, paneRow{
 			id: id, name: p.host.Name, sub: sub, host: p.host,
 			driving: shared && st.Role == "driver",
-			agent:   p.sessionID() != "" && p.host.ID != "" && (p.host.AgentReadable == nil || *p.host.AgentReadable),
+			agent:   p.sessionID() != "" && p.host.ID != "" && p.host.AgentMayRead(),
 		})
 	}
 	return out
@@ -239,7 +239,7 @@ func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) 
 		switch {
 		case r.notebook:
 			glyph = "notebook-pen"
-		case r.host.AuthType == "local" || r.host.ID == "":
+		case r.host.IsLocal() || r.host.ID == "":
 			glyph = "computer-terminal-01"
 		}
 		rowTile(c, glyph, hostTint(r.host.Color), accentOn, nameCol)

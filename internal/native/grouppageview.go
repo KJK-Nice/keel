@@ -170,12 +170,12 @@ func (w *workspace) groupHostsTable(c *ui.Context, p *groupPage) {
 					}
 				})
 				cell(4).Children(func() {
-					if h.AgentReadable != nil && !*h.AgentReadable {
+					if !h.AgentMayRead() {
 						pill(c, "Agent cannot read", hoverGround, inkMuted)
 					} else {
 						pill(c, "Can read", hazeSoft, haze)
 					}
-					if h.Production != nil && *h.Production {
+					if h.IsProduction() {
 						pill(c, "Production", signalSoft, signal)
 					}
 				})
@@ -192,7 +192,7 @@ func memberAddr(h keelclient.Host) string {
 			return h.Username + "@" + h.Address
 		}
 		return h.Address
-	case h.AuthType == "local":
+	case h.IsLocal():
 		return "this machine"
 	}
 	return ""

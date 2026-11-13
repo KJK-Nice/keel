@@ -15,7 +15,7 @@ import (
 // hostMenu fills the menu of a host row.
 func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		local := h.AuthType == "local"
+		local := h.IsLocal()
 		if menuItem(m, "Connect").Chosen() {
 			w.act(func() { w.openHost(h) })
 		}
@@ -35,7 +35,7 @@ func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
 		if menuItem(m, "Move to folder…").Chosen() {
 			w.act(func() { w.moveHostToFolder(h) })
 		}
-		on := h.AgentReadable == nil || *h.AgentReadable
+		on := h.AgentMayRead()
 		if menuItem(m, "Agent can read").Checked(on).Chosen() {
 			w.act(func() { w.setAgentReadable(h, !on) })
 		}

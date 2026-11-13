@@ -94,10 +94,8 @@ func logBadgeFailed(kind string) bool {
 // client reads no forwards yet (docs/native.md).
 func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 	if e.HostID != "" {
-		for _, h := range hosts {
-			if h.ID == e.HostID {
-				return h.Name
-			}
+		if h, ok := hostByID(hosts, e.HostID); ok {
+			return h.Name
 		}
 	}
 	return "—"

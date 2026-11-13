@@ -177,7 +177,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 	r.Border(1, border)
 	r.Children(func() {
 		ic := "server"
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			ic = "computer-terminal-01"
 		}
 		ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).

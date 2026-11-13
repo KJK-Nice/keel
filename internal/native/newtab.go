@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 	"keel/internal/native/sshparse"
@@ -82,7 +83,7 @@ func (w *workspace) newTabKey() {
 
 func (w *workspace) localHost() (keelclient.Host, bool) {
 	for _, h := range w.hosts {
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			return h, true
 		}
 	}
@@ -182,10 +183,8 @@ func (w *workspace) closedList() []closedEntry {
 // "· split pane" for a pane.
 func (w *workspace) closedRow(e closedEntry) string {
 	name := e.title
-	for _, h := range w.hosts {
-		if h.ID == e.hostID {
-			name = h.Name
-		}
+	if h, ok := hostByID(w.hosts, e.hostID); ok {
+		name = h.Name
 	}
 	if name == "" {
 		name = "Session"
@@ -200,12 +199,9 @@ func (w *workspace) closedRow(e closedEntry) string {
 
 // targetText is lib/newtab.js targetText: "deploy@10.0.4.21:2222" (IPv6 gets brackets).
 func targetText(r *sshparse.Result) string {
-	host := r.Host
-	if strings.Contains(host, ":") {
-		host = "[" + host + "]"
-	}
+	host := keelclient.BracketIPv6(r.Host)
 	port := ""
-	if r.Port != 0 && r.Port != 22 {
+	if r.Port != 0 && r.Port != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", r.Port)
 	}
 	user := ""

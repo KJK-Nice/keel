@@ -129,10 +129,8 @@ func tunnelLocalAddress(t keelclient.Tunnel) string {
 
 // tunnelHostName is data.go hostNameByID: the host's name, else its id.
 func (w *workspace) tunnelHostName(id string) string {
-	for _, h := range w.hosts {
-		if h.ID == id {
-			return h.Name
-		}
+	if h, ok := hostByID(w.hosts, id); ok {
+		return h.Name
 	}
 	return id
 }
@@ -354,7 +352,7 @@ func (w *workspace) closeForwardDialog() { w.fwdDlg = nil }
 // sshHosts is the host picker's list: every host but the local shell (term.js sshHosts).
 func (w *workspace) sshHosts() (out []keelclient.Host) {
 	for _, h := range w.hosts {
-		if h.AuthType != "local" {
+		if !h.IsLocal() {
 			out = append(out, h)
 		}
 	}

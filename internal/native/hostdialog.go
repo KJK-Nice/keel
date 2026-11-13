@@ -119,17 +119,14 @@ func isProductionGroup(groups []keelclient.Group, id string) bool {
 
 // newHostForm is term.js fillHostForm: the defaults of a new host, or the values of a saved one.
 func newHostForm(h *keelclient.Host) hostForm {
-	f := hostForm{port: "22", color: defaultColor, auth: "password", keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
+	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: "password", keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
 		autoReconnect: true, agentReadable: true, agentNotes: true}
 	if h == nil {
 		return f
 	}
 	f.name, f.groupID, f.tags = h.Name, h.GroupID, strings.Join(h.Tags, ", ")
 	f.address, f.username, f.startup, f.jump, f.identityID = h.Address, h.Username, h.StartupCommand, h.JumpHost, h.IdentityID
-	f.port = "22"
-	if h.Port != 0 {
-		f.port = strconv.Itoa(h.Port)
-	}
+	f.port = strconv.Itoa(h.SSHPort())
 	if h.AuthType != "" {
 		f.auth = h.AuthType
 	}
@@ -141,9 +138,7 @@ func newHostForm(h *keelclient.Host) hostForm {
 		f.keepSec = strconv.Itoa(h.KeepAliveSec)
 	}
 	f.autoReconnect = !h.NoAutoReconnect
-	f.agentReadable = h.AgentReadable == nil || *h.AgentReadable
-	f.production = h.Production != nil && *h.Production
-	f.agentNotes = h.AgentNotes == nil || *h.AgentNotes
+	f.agentReadable, f.production, f.agentNotes = h.AgentMayRead(), h.IsProduction(), h.AgentMayNote()
 	return f
 }
 
@@ -169,11 +164,9 @@ func (w *workspace) editHost(h keelclient.Host) { w.openHostDialog(&h, nil, h.ID
 
 // editPaneHost is the failure banner's Edit host (term.js editPaneHost): the pane's host, as saved now.
 func (w *workspace) editPaneHost(p *pane) {
-	for _, h := range w.hosts {
-		if h.ID == p.host.ID {
-			w.editHost(h)
-			return
-		}
+	if h, ok := hostByID(w.hosts, p.host.ID); ok {
+		w.editHost(h)
+		return
 	}
 	w.warn("Host not found")
 }
@@ -193,7 +186,7 @@ func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, i
 		groups, _ := w.be.Groups(c) // a failed list leaves the picker with "No group", as the webview's catch does
 		idents, _ := w.be.Identities(c)
 		var key *keelclient.KnownKey
-		if id != "" && h.AuthType != "local" {
+		if id != "" && !h.IsLocal() {
 			if k, err := w.be.HostKey(c, id); err == nil {
 				key = &k
 			}
@@ -253,12 +246,12 @@ func (f hostForm) detail(id string) keelclient.HostDetail {
 	local := f.auth == "local"
 	h := keelclient.HostDetail{
 		ID: id, Name: strings.TrimSpace(f.name), GroupID: f.groupID, Tags: parseTags(f.tags),
-		Address: strings.TrimSpace(f.address), Port: atoiClamp(f.port, 22, 0, maxPort), Username: strings.TrimSpace(f.username),
+		Address: strings.TrimSpace(f.address), Port: atoiClamp(f.port, limits.DefaultPort, 0, maxPort), Username: strings.TrimSpace(f.username),
 		AuthType: f.auth, Color: f.color, JumpHost: f.jump, StartupCommand: strings.TrimSpace(f.startup),
 		AgentReadable: boolp(f.agentReadable), Production: boolp(f.production), AgentNotes: boolp(f.agentNotes),
 	}
 	if h.Port == 0 {
-		h.Port = 22
+		h.Port = limits.DefaultPort
 	}
 	switch f.auth {
 	case "identity":
@@ -395,7 +388,7 @@ func (w *workspace) afterHostWrite(saved keelclient.Host) {
 // askDeleteHost is the Delete host button and the host menu's Delete: it asks first (term.js: askConfirm
 // `Remove ${host.name}?`). The local shell cannot be removed.
 func (w *workspace) askDeleteHost(h keelclient.Host) {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		w.warn("Local Shell is part of the workspace and cannot be removed")
 		return
 	}
@@ -430,7 +423,7 @@ func (w *workspace) deleteHost(h keelclient.Host) {
 
 // duplicateHost is the host menu's Duplicate: the server copies the host as "name (copy)".
 func (w *workspace) duplicateHost(h keelclient.Host) {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		w.say("Local Shell cannot be duplicated") // toast(…) without the error flag, as term.js
 		return
 	}
@@ -511,7 +504,7 @@ func (w *workspace) forgetKey(d *hostDialog) {
 
 // loadHostKey reads the saved key again (after a key was trusted).
 func (w *workspace) loadHostKey(d *hostDialog) {
-	if d.id == "" || d.saved == nil || d.saved.AuthType == "local" {
+	if d.id == "" || d.saved == nil || d.saved.IsLocal() {
 		return
 	}
 	w.work(func() {
@@ -734,7 +727,7 @@ func jumpEntries(hosts []keelclient.Host, self, current string) []pickEntry {
 	out := []pickEntry{{"", "None", ""}}
 	found := current == ""
 	for _, h := range hosts {
-		if h.ID == "" || h.ID == self || h.AuthType == "local" || h.JumpHost != "" {
+		if h.ID == "" || h.ID == self || h.IsLocal() || h.JumpHost != "" {
 			if h.ID == current {
 				found = true
 				out = append(out, pickEntry{h.ID, h.Name, hostSubtitle(h)})

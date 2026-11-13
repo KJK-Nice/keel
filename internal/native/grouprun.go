@@ -218,11 +218,9 @@ func (w *workspace) askStopRun(p *groupRunPage) {
 // openRunHost is "Open <host>": a session on a host that has no pane here, exactly as clicking it in the sidebar. It is the
 // user's click; nothing is typed into it until approved.
 func (w *workspace) openRunHost(hostID string) {
-	for _, h := range w.hosts {
-		if h.ID == hostID {
-			w.openHost(h)
-			return
-		}
+	if h, ok := hostByID(w.hosts, hostID); ok {
+		w.openHost(h)
+		return
 	}
 	w.warn("Host not found")
 }

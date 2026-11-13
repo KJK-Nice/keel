@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -15,29 +16,26 @@ import (
 // invisible character gets no command at all, and neither does a jump host like that: hosts can come from an imported
 // ~/.ssh/config, and a pasted command must never run anything but ssh to that host. Copying it writes nothing to a session.
 func sshCommand(h keelclient.Host, hosts []keelclient.Host) string {
-	if h.AuthType == "local" || strings.TrimSpace(h.Address) == "" || !sshSafe(h.Username) || !sshSafe(h.Address) {
+	if h.IsLocal() || strings.TrimSpace(h.Address) == "" || !sshSafe(h.Username) || !sshSafe(h.Address) {
 		return ""
 	}
 	parts := []string{"ssh"}
-	if h.Port != 0 && h.Port != 22 {
+	if h.SSHPort() != limits.DefaultPort {
 		parts = append(parts, "-p", strconv.Itoa(h.Port))
 	}
 	if h.JumpHost != "" {
-		for _, j := range hosts {
-			if j.ID == h.JumpHost && j.AuthType != "local" && strings.TrimSpace(j.Address) != "" {
-				if !sshSafe(j.Username) || !sshSafe(j.Address) {
-					return ""
-				}
-				jump := userAt(j.Username, j.Address)
-				if j.Port != 0 && j.Port != 22 {
-					jump += ":" + strconv.Itoa(j.Port)
-				}
-				parts = append(parts, "-J", shellWord(jump))
-				break
+		if j, ok := hostByID(hosts, h.JumpHost); ok && !j.IsLocal() && strings.TrimSpace(j.Address) != "" {
+			if !sshSafe(j.Username) || !sshSafe(j.Address) {
+				return ""
 			}
+			jump := j.UserAtAddress()
+			if j.SSHPort() != limits.DefaultPort {
+				jump += ":" + strconv.Itoa(j.Port)
+			}
+			parts = append(parts, "-J", shellWord(jump))
 		}
 	}
-	return strings.Join(append(parts, shellWord(userAt(h.Username, h.Address))), " ")
+	return strings.Join(append(parts, shellWord(h.UserAtAddress())), " ")
 }
 
 // sshSafe reports a user name or address that ssh reads only as what it is. An empty user name is safe (ssh then uses its
@@ -52,17 +50,6 @@ func sshSafe(s string) bool {
 		}
 	}
 	return true
-}
-
-func userAt(user, addr string) string {
-	addr = strings.TrimSpace(addr)
-	if strings.Contains(addr, ":") && !strings.HasPrefix(addr, "[") {
-		addr = "[" + addr + "]" // IPv6
-	}
-	if u := strings.TrimSpace(user); u != "" {
-		return u + "@" + addr
-	}
-	return addr
 }
 
 // shellWord quotes s for a POSIX shell when it holds anything but the characters an address or a user name usually has.

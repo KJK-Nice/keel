@@ -557,10 +557,8 @@ func (w *workspace) start() {
 				continue
 			}
 			h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
-			for _, k := range hosts {
-				if k.ID == s.HostID {
-					h = k
-				}
+			if k, ok := hostByID(hosts, s.HostID); ok {
+				h = k
 			}
 			live = append(live, attached{h, conn, s.ID})
 		}
@@ -647,11 +645,9 @@ func (w *workspace) selectTab(i int) {
 
 // newLocalTab opens the first local host in a new tab (term.js newLocalTab).
 func (w *workspace) newLocalTab() {
-	for _, h := range w.hosts {
-		if h.AuthType == "local" {
-			w.openHost(h)
-			return
-		}
+	if h, ok := w.localHost(); ok {
+		w.openHost(h)
+		return
 	}
 	w.warn("Local shell is not available")
 }
@@ -667,11 +663,9 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 			w.splitOn(t, target, term.host, d)
 			return
 		}
-		for _, h := range w.hosts {
-			if h.AuthType == "local" {
-				w.splitOn(t, target, h, d)
-				return
-			}
+		if h, ok := w.localHost(); ok {
+			w.splitOn(t, target, h, d)
+			return
 		}
 		w.say("Split needs a local host session")
 		return

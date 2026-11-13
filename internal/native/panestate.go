@@ -45,31 +45,23 @@ func failHeadline(st keelclient.State) string {
 
 // failEndpoint is term.js failEndpoint.
 func failEndpoint(h keelclient.Host, st keelclient.State) string {
-	if h.AuthType == "" || h.AuthType == "local" {
+	if h.IsLocal() {
 		if st.Subtitle != "" {
 			return st.Subtitle
 		}
 		return "Local shell"
 	}
-	port := h.Port
-	if port == 0 {
-		port = 22
-	}
-	return "SSH " + h.Address + ":" + strconv.Itoa(port)
+	return "SSH " + h.Address + ":" + strconv.Itoa(h.SSHPort())
 }
 
 // connectLog is term.js seedConnectLog followed by what keel serve reported (State.Log): the lines a failed or connecting
 // pane lists and Copy logs copies.
 func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	var seed []keelclient.LogLine
-	if h.AuthType == "" || h.AuthType == "local" {
+	if h.IsLocal() {
 		seed = []keelclient.LogLine{{Kind: "user", Text: "Starting a local shell"}}
 	} else {
-		port := h.Port
-		if port == 0 {
-			port = 22
-		}
-		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(port)+`"`
+		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(h.SSHPort())+`"`
 		seed = []keelclient.LogLine{
 			{Kind: "user", Text: "Starting a new connection to: " + addr + " port " + p},
 			{Kind: "work", Text: "Starting address resolution of " + addr},
@@ -97,7 +89,7 @@ func logText(lines []keelclient.LogLine) string {
 // connectLogView is .pane-fail-log: over the pane's body while the session is down or connecting, a row per line with its
 // glyph (person for what the user asked, gear for a step, a frown for a failure; a failure is in the flare colour).
 func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) {
-	if p.remote || !(st.Status == "error" || st.Status == "exited" || (st.Status == "connecting" && p.host.AuthType != "local")) {
+	if p.remote || !(st.Status == "error" || st.Status == "exited" || (st.Status == "connecting" && !p.host.IsLocal())) {
 		return
 	}
 	ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(w.ground(stage)).Padding(space3).Gap(space2).Label("connection log " + p.id).Children(func() {
@@ -166,7 +158,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 				w.act(func() { w.reconnect(p) })
 			}
 		})
-	case st.Status == "connecting" && p.host.AuthType != "local":
+	case st.Status == "connecting" && !p.host.IsLocal():
 		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", common)
 	case st.Role == "follower" || st.Role == "owner": // anyone who is not driving
 		who := "Nobody is driving"

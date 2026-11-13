@@ -20,13 +20,21 @@ func (w *workspace) setHosts(hosts []keelclient.Host) {
 	w.hosts = hosts
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
-			for _, h := range hosts {
-				if h.ID == p.host.ID {
-					p.host = h
-				}
+			if h, ok := hostByID(hosts, p.host.ID); ok {
+				p.host = h
 			}
 		}
 	}
+}
+
+// hostByID is the host with that id, as the list holds it.
+func hostByID(hosts []keelclient.Host, id string) (keelclient.Host, bool) {
+	for _, h := range hosts {
+		if h.ID == id {
+			return h, true
+		}
+	}
+	return keelclient.Host{}, false
 }
 
 // reloadHosts reads the hosts again.

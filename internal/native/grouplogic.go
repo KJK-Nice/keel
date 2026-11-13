@@ -77,7 +77,7 @@ func groupLine(members []keelclient.GroupMember, hosts []keelclient.Host) string
 	prod := 0
 	for _, m := range members {
 		for _, h := range hosts {
-			if h.ID == m.HostID && h.Production != nil && *h.Production {
+			if h.ID == m.HostID && h.IsProduction() {
 				prod++
 				break
 			}
