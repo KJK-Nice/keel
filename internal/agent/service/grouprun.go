@@ -10,7 +10,6 @@ import (
 	"keel/internal/agent/redact"
 	"keel/internal/cmdrule"
 	"keel/internal/runvars"
-	"keel/internal/shellmark"
 	"keel/internal/store"
 )
 
@@ -642,29 +641,6 @@ func (s *Service) GroupTypeDoneAt(runID, proposalID string, mark uint64) {
 	}
 }
 
-// cmdResult reads a step's result from the commands a shell reported after
-// its mark: any non-zero exit fails it at once; it is done once want
-// commands ended, each with exit 0. ok is false while it waits.
-func cmdResult(cmds []shellmark.Command, want int) (exit int, noStatus, abandoned, ok bool) {
-	ended := 0
-	for _, cmd := range cmds {
-		if !cmd.Done {
-			break
-		}
-		ended++
-		switch {
-		case cmd.Abandoned || !cmd.HasExit:
-			return 0, true, cmd.Abandoned, true
-		case cmd.Exit != 0:
-			return cmd.Exit, false, false, true
-		}
-		if ended >= want {
-			return 0, false, false, true
-		}
-	}
-	return 0, false, false, false
-}
-
 // refreshGroupRun records the exit status each typed host's shell reported
 // (OSC 133), labelled reported. On a production host (now, or no longer
 // found) a reported exit 0 waits for the user's Confirm.
@@ -680,9 +656,7 @@ func (s *Service) refreshGroupRun(id string) {
 		mark        uint64
 		want        int
 		proposalID  string
-		exit        int
-		noStatus    bool
-		abandoned   bool
+		report      shellReport
 		gotResult   bool
 		production  bool
 		hasMarks    bool
@@ -713,7 +687,7 @@ func (s *Service) refreshGroupRun(id string) {
 	}
 	for k := range pend {
 		p := &pend[k]
-		p.exit, p.noStatus, p.abandoned, p.gotResult = cmdResult(src.CommandsAfter(p.sessionID, p.mark), p.want)
+		p.report, p.gotResult = cmdResult(src.CommandsAfter(p.sessionID, p.mark), p.want)
 		// A shell that has ever sent a mark is expected to report this
 		// command too; one that never did leaves the result to the user.
 		p.hasMarks = len(src.CommandsAfter(p.sessionID, 0)) > 0
@@ -722,7 +696,7 @@ func (s *Service) refreshGroupRun(id string) {
 		}
 		// Captures run on a reported exit 0 only, on that host's output
 		// between the marks (groupvars.go).
-		if p.gotResult && !p.noStatus && p.exit == 0 && len(p.caps) > 0 {
+		if p.gotResult && !p.report.noStatus && p.report.exit == 0 && len(p.caps) > 0 {
 			p.captured = s.runCaptures(p.sessionID, p.mark, p.want, p.caps)
 		}
 	}
@@ -777,32 +751,23 @@ func (s *Service) refreshGroupRun(id string) {
 				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · %s captured from the step's output, %d not (values not logged)", runID, n, of, noteCountWord(kept, "value", "values"), other), rb, host, redact.Report{})
 			})
 		}
-		switch {
-		case p.noStatus:
-			c.Result = ResultUnreported
-			if p.abandoned {
-				c.Result = ResultAbandoned
-			}
-			logs = append(logs, func() {
-				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d ended with no exit status reported", runID, n, of), rb, host, redact.Report{})
-			})
-		case p.exit == 0 && p.production:
-			exit := 0
-			c.Exit, c.Result, c.Confirm = &exit, ResultReported, true
-			logs = append(logs, func() {
-				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", runID, n, of), rb, host, redact.Report{})
-			})
-		default:
-			exit := p.exit
-			c.Exit, c.Result, c.FinishedAt = &exit, ResultReported, &now
-			c.State = cellDone
-			if exit != 0 {
+		o := p.report.outcome(p.production)
+		c.Result = o.result
+		if o.exit != nil {
+			c.Exit = o.exit
+		}
+		if o.confirm {
+			c.Confirm = true
+		}
+		if o.finished {
+			c.FinishedAt, c.State = &now, cellDone
+			if o.failed {
 				c.State = cellFailed
 			}
-			logs = append(logs, func() {
-				s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d · exit %d reported by the shell", runID, n, of, exit), rb, host, redact.Report{})
-			})
 		}
+		logs = append(logs, func() {
+			s.audit.RunbookEvent(fmt.Sprintf("group run %s · step %d of %d%s", runID, n, of, o.log), rb, host, redact.Report{})
+		})
 	}
 	run.advanceLocked()
 	s.mu.Unlock()

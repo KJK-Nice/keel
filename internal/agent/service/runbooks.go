@@ -1172,42 +1172,14 @@ func (s *Service) refreshRun(convID string) {
 	if len(pend) == 0 {
 		return
 	}
-	// A step's result: the commands the shell reported after the mark.
-	// Any non-zero exit fails it at once; it is done only once as many
-	// commands as its command has lines ended, each with exit 0 (the last
-	// of them, not the first). One that ended with no status, or a shell
-	// that went away, is left to the user.
 	type result struct {
-		p         pendingStep
-		exit      int
-		noStatus  bool
-		abandoned bool
+		p      pendingStep
+		report shellReport
 	}
 	var got []result
 	for _, p := range pend {
-		cmds := src.CommandsAfter(p.sessionID, p.mark)
-		ended := 0
-		var res *result
-		for _, cmd := range cmds {
-			if !cmd.Done {
-				break
-			}
-			ended++
-			switch {
-			case cmd.Abandoned || !cmd.HasExit:
-				res = &result{p: p, noStatus: true, abandoned: cmd.Abandoned}
-			case cmd.Exit != 0:
-				res = &result{p: p, exit: cmd.Exit}
-			}
-			if res != nil || ended >= p.want {
-				break
-			}
-		}
-		if res == nil && ended >= p.want {
-			res = &result{p: p}
-		}
-		if res != nil {
-			got = append(got, *res)
+		if rep, ok := cmdResult(src.CommandsAfter(p.sessionID, p.mark), p.want); ok {
+			got = append(got, result{p: p, report: rep})
 		}
 	}
 	if len(got) == 0 {
@@ -1234,34 +1206,20 @@ func (s *Service) refreshRun(convID string) {
 				continue
 			}
 			n, of, rid, host := g.p.n, len(c.run.Steps), c.run.RunbookID, g.p.hostID
-			switch {
-			case g.noStatus:
-				st.Result = ResultUnreported
-				if g.abandoned {
-					st.Result = ResultAbandoned
-				}
-				logs = append(logs, func() {
-					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d ended with no exit status reported", n, of), rid, host, redact.Report{})
-				})
-			case g.exit == 0 && prod[g.p.hostID]:
-				// On a production host a reported exit 0 is not enough:
-				// the user confirms the step (the card says so).
-				exit := 0
-				st.Exit, st.Result = &exit, ResultReported
-				logs = append(logs, func() {
-					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d · exit 0 reported by the shell · waiting for you to confirm (production host)", n, of), rid, host, redact.Report{})
-				})
-			default:
-				exit := g.exit
-				st.Exit, st.Result, st.FinishedAt = &exit, ResultReported, &now
-				st.State = stepDone
-				if exit != 0 {
+			o := g.report.outcome(prod[g.p.hostID])
+			st.Result = o.result
+			if o.exit != nil {
+				st.Exit = o.exit
+			}
+			if o.finished {
+				st.FinishedAt, st.State = &now, stepDone
+				if o.failed {
 					st.State = stepFailed
 				}
-				logs = append(logs, func() {
-					s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d · exit %d reported by the shell", n, of, exit), rid, host, redact.Report{})
-				})
 			}
+			logs = append(logs, func() {
+				s.audit.RunbookEvent(fmt.Sprintf("runbook step %d of %d%s", n, of, o.log), rid, host, redact.Report{})
+			})
 			delete(c.runMarks, st.ID)
 		}
 	}
