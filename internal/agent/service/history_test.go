@@ -673,12 +673,12 @@ func TestAuthorizeInsertRereadsTheRatingBeforeReserving(t *testing.T) {
 	if s.Options[0].NeedsShift {
 		t.Fatalf("code rating already needs ⇧: %+v", s.Options[0])
 	}
-	f.svc.beforeReserve = func() { check.Run(context.Background()) }
+	// The host's flag is read between the snapshot and the reserve.
+	f.st.onListHosts = func() { check.Run(context.Background()) }
 	_, err = f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes})
 	if !errors.Is(err, ErrNeedsShiftJudged) {
 		t.Fatalf("plain ⇥ after a late stricter rating → %v", err)
 	}
-	f.svc.beforeReserve = nil
 	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes, Shift: true}); err != nil {
 		t.Fatalf("⇧⇥ → %v", err)
 	}

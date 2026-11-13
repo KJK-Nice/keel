@@ -756,120 +756,24 @@ type InsertRequest struct {
 	Shift        bool       // ⇧ was held
 }
 
-// InsertGrant is one authorised insert, reserved until InsertDone says
-// whether the write happened.
-type InsertGrant struct {
-	suggestionID string
-	pane         agent.Pane
-	bytes        string
-	source       string
-}
-
-// AuthorizeInsert checks an insert before keel serve writes it: the
+// AuthorizeInsert checks an insert before keel serve writes it, through
+// authorize (authorize.go, pathInsert): the client drives the session; the
 // suggestion exists, has not expired, has not been inserted already and
-// targets this session; the bytes are the option's; the ⇧ rule holds,
-// with the host counted as production if it was when suggested, is now,
-// or can no longer be found; and the client drives the session. It then
-// reserves the suggestion, so a resent insert is refused. It writes and
-// logs nothing: keel serve writes, then calls InsertDone, which logs
-// agent.insert only for a write that happened.
+// targets this session; the bytes are the option's; the ⇧ rule holds, with
+// the host counted as production if it was when suggested, is now, or can
+// no longer be found. It then reserves the suggestion, so a resent insert
+// is refused. It writes and logs nothing: keel serve writes, then calls
+// InsertDone, which logs agent.insert only for a write that happened.
 func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
-	if err := agent.CanInsert(req.Role); err != nil {
-		return InsertGrant{}, err
-	}
-	s.sug.mu.Lock()
-	sug := s.sug.suggestions[req.SuggestionID]
-	var snap Suggestion
-	if sug != nil {
-		snap = *sug
-	}
-	s.sug.mu.Unlock()
-	if sug == nil || s.now().Sub(snap.created) > suggestionTTL {
-		return InsertGrant{}, ErrExpired
-	}
-	if snap.used {
-		return InsertGrant{}, ErrUsed
-	}
-	if snap.SessionID != req.SessionID {
-		return InsertGrant{}, ErrWrongPane
-	}
-	if req.Option < 0 || req.Option >= len(snap.Options) {
-		return InsertGrant{}, ErrNotFound
-	}
-	opt := snap.Options[req.Option]
-	if req.Bytes != opt.Bytes || strings.ContainsAny(req.Bytes, "\r\n") {
-		return InsertGrant{}, ErrChanged
-	}
-	current, err := s.hostProduction(snap.HostID)
-	if err != nil {
-		return InsertGrant{}, err
-	}
-	prod := snap.Production || current
-	if err := shiftRule(opt, prod, req.Shift); err != nil {
-		return InsertGrant{}, err
-	}
-	if s.beforeReserve != nil {
-		s.beforeReserve()
-	}
-	s.sug.mu.Lock()
-	defer s.sug.mu.Unlock()
-	cur := s.sug.suggestions[req.SuggestionID]
-	if cur == nil {
-		return InsertGrant{}, ErrExpired
-	}
-	if cur.used {
-		return InsertGrant{}, ErrUsed
-	}
-	// Again under the lock that reserves it: a RiskCheck may have made
-	// the rating stricter since the snapshot above.
-	if req.Option >= len(cur.Options) {
-		return InsertGrant{}, ErrNotFound
-	}
-	opt = cur.Options[req.Option]
-	if req.Bytes != opt.Bytes {
-		return InsertGrant{}, ErrChanged
-	}
-	if err := shiftRule(opt, prod, req.Shift); err != nil {
-		return InsertGrant{}, err
-	}
-	cur.used = true
-	return InsertGrant{
-		suggestionID: snap.ID,
-		pane:         agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role},
-		bytes:        opt.Bytes,
-		source:       opt.Source,
-	}, nil
-}
-
-// shiftRule is the ⇧ rule for one option (§6.5).
-func shiftRule(opt SuggestOption, production, shift bool) error {
-	if !agent.NeedsShift(opt.Risk, production) || shift {
-		return nil
-	}
-	if opt.Judged && !agent.NeedsShift(opt.codeRisk, production) {
-		return ErrNeedsShiftJudged
-	}
-	return ErrNeedsShiftInsert
+	sub := suggestionSubject{s: s, id: req.SuggestionID, option: req.Option}
+	return s.authorize(context.Background(), &pathInsert, sub, typeAsk{sessionID: req.SessionID, role: req.Role, bytes: req.Bytes, shift: req.Shift})
 }
 
 // InsertDone records the outcome of an authorised insert. A write that
 // happened is logged as agent.insert and the suggestion stays used; a
 // write that failed is not logged as an insert, and the suggestion may be
-// inserted again.
-func (s *Service) InsertDone(g InsertGrant, writeErr error) {
-	if g.suggestionID == "" {
-		return
-	}
-	if writeErr != nil {
-		s.sug.mu.Lock()
-		if cur := s.sug.suggestions[g.suggestionID]; cur != nil {
-			cur.used = false
-		}
-		s.sug.mu.Unlock()
-		return
-	}
-	_ = s.audit.InsertFrom(g.pane, g.bytes, g.source)
-}
+// inserted again. It returns the log's error.
+func (s *Service) InsertDone(g InsertGrant, writeErr error) error { return s.settle(g, writeErr) }
 
 // ErrNeedsShiftInsert is ErrNeedsShift worded for ⇥.
 var ErrNeedsShiftInsert = errors.New("agent: this command is destructive, or changes state on a production host; press ⇧⇥ to insert it")

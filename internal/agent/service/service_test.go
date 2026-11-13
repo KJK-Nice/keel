@@ -29,6 +29,9 @@ type fakeStore struct {
 	keyReads  int
 	snippets  []store.Snippet
 	snipReads int
+	// onListHosts, when set, runs once at the next ListHosts: a test lands
+	// something between an authorization's first read and its claim.
+	onListHosts func()
 }
 
 func (f *fakeStore) KnownSecretValues() ([]string, error) { return f.secrets, nil }
@@ -46,6 +49,13 @@ func (f *fakeStore) setSettings(fn func(*store.AgentSettings)) {
 	fn(&f.settings)
 }
 func (f *fakeStore) ListHosts() ([]store.Host, error) {
+	f.mu.Lock()
+	hook := f.onListHosts
+	f.onListHosts = nil
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]store.Host(nil), f.hosts...), nil

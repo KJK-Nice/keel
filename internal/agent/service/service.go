@@ -153,9 +153,6 @@ type Service struct {
 
 	sug          suggestState
 	detectWindow time.Duration
-	// beforeReserve, in tests only, runs in AuthorizeInsert between the
-	// checks on the snapshot and the reserve, to land a RiskCheck there.
-	beforeReserve func()
 }
 
 const (
@@ -904,49 +901,27 @@ type TypeRequest struct {
 	Shift      bool       // ⇧ was held
 }
 
-// AuthorizeType checks a Type into pane before keel serve writes it: the
-// proposal exists and targets this session, the bytes are the ones shown,
-// the ⇧ rule holds (with the host's current production flag), and the
-// client drives the session. It then logs agent.type. It writes nothing.
+// AuthorizeType checks a Type into pane, approved in the dialog, before
+// keel serve writes it (authorize, authorize.go): the client drives the
+// session, the proposal exists and targets it, the bytes are the ones
+// shown, and the ⇧ rule holds (with the host's current production flag).
+// It then logs agent.type. It writes nothing.
 func (s *Service) AuthorizeType(req TypeRequest) error {
+	_, err := s.authorize(context.Background(), &pathApproved, req.subject(s), req.ask(false))
+	return err
+}
+
+// subject is the proposal a Type names: a group run's host, or a
+// conversation's proposal.
+func (req TypeRequest) subject(s *Service) typeSubject {
 	if req.GroupRunID != "" {
-		return s.authorizeGroupType(req)
+		return groupSubject{s: s, runID: req.GroupRunID, proposalID: req.ProposalID}
 	}
-	s.mu.Lock()
-	p, err := s.proposalLocked(req.ConversationID, req.ProposalID)
-	var snap Proposal
-	if err == nil {
-		snap = *p
-	}
-	s.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	if snap.SessionID == "" {
-		return ErrNoTarget
-	}
-	if snap.SessionID != req.SessionID {
-		return ErrWrongPane
-	}
-	if req.Bytes != snap.Bytes {
-		return ErrChanged
-	}
-	if hasPlaceholder(snap.Command) {
-		return ErrPlaceholder
-	}
-	// Only a group run's step has its variables filled in (groupvars.go);
-	// anywhere else {{name}} would be typed as text.
-	if runvars.HasRefs(snap.Command) {
-		return ErrVarsOutsideRun
-	}
-	current, err := s.hostProduction(snap.HostID)
-	if err != nil {
-		return err
-	}
-	if agent.NeedsShift(snap.Risk, snap.Production || current) && !req.Shift {
-		return ErrNeedsShift
-	}
-	return s.audit.TypeFrom(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes, agent.TypeApproved)
+	return convSubject{s: s, convID: req.ConversationID, proposalID: req.ProposalID}
+}
+
+func (req TypeRequest) ask(checkOnly bool) typeAsk {
+	return typeAsk{sessionID: req.SessionID, role: req.Role, bytes: req.Bytes, shift: req.Shift, checkOnly: checkOnly}
 }
 
 // hostProduction reports a host's current production flag. It fails

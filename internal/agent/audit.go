@@ -487,13 +487,13 @@ func (a *Auditor) Insert(p Pane, command string) error {
 // InsertFrom is Insert with the suggestion's source, which the entry
 // records.
 func (a *Auditor) InsertFrom(p Pane, command, source string) error {
-	return a.authorize(EventInsert, "inserted", p, command, source)
+	return a.logWrite(EventInsert, "inserted", p, command, source)
 }
 
 // Type authorizes typing command into p (Type into pane ↵) and logs
 // agent.type. Like Insert, it writes nothing itself.
 func (a *Auditor) Type(p Pane, command string) error {
-	return a.authorize(EventType, "typed", p, command, "")
+	return a.logWrite(EventType, "typed", p, command, "")
 }
 
 // How a Type into pane was approved, as agent.type records it (Source).
@@ -511,10 +511,12 @@ func (a *Auditor) TypeFrom(p Pane, command, how string) error {
 	if how == TypeDirect {
 		verb = "typed without Enter"
 	}
-	return a.authorize(EventType, verb, p, command, how)
+	return a.logWrite(EventType, verb, p, command, how)
 }
 
-func (a *Auditor) authorize(kind, verb string, p Pane, command, source string) error {
+// logWrite logs a write into a pane (ids and counts, never the bytes),
+// refusing a client that does not drive it.
+func (a *Auditor) logWrite(kind, verb string, p Pane, command, source string) error {
 	if err := CanInsert(p.Role); err != nil {
 		return err
 	}
