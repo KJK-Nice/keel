@@ -257,6 +257,19 @@ func commandByID(id string) *command {
 	panic("no command " + id)
 }
 
+// capLabel is a command's key as the cap shows it while ⌘ is held: the key, with ⇧ or ⌥ when they are part of it ("B", "⇧D").
+func capLabel(id string) string {
+	k := commandByID(id).key
+	s := ""
+	if k.mods&ui.Shift != 0 && !k.shiftImplied {
+		s += "⇧"
+	}
+	if k.mods&ui.Alt != 0 {
+		s += "⌥"
+	}
+	return s + k.glyph
+}
+
 // commandKeyLabel is the key cap text of a command on this platform.
 func commandKeyLabel(id string) string { return commandByID(id).keyLabel() }
 

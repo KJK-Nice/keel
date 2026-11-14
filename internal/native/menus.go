@@ -25,15 +25,14 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 			w.act(func() { w.pickPane(t, p.id) })
 		}
 		if !p.remote { // splits need a pane of this window, not a joined one
-			if menuItem(m, "Split right").Shortcut(shortcutOf("pane.splitr")).Chosen() {
-				w.act(func() { w.split(t, p.id, layout.Row) })
-			}
-			if menuItem(m, "Split down").Shortcut(shortcutOf("pane.splitd")).Chosen() {
-				w.act(func() { w.split(t, p.id, layout.Col) })
+			for _, s := range paneSplits {
+				if menuItem(m, s.label).Shortcut(shortcutOf(s.id)).Chosen() {
+					w.act(func() { w.split(t, p.id, s.dir) })
+				}
 			}
 		}
 		if !row && (len(t.panes) > 1 || t.zoomed != "") {
-			if menuItem(m, "Focus view").Shortcut(shortcutOf("pane.zoom")).Chosen() {
+			if menuItem(m, labelFocusView).Shortcut(shortcutOf("pane.zoom")).Chosen() {
 				w.act(func() { w.toggleZoom(t, p.id) })
 			}
 		}
@@ -46,9 +45,46 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 			}
 		}
 		m.Separator()
-		if menuItem(m, "Close pane").Shortcut(shortcutOf("tab.close")).Chosen() {
+		if menuItem(m, labelClosePane).Shortcut(shortcutOf("tab.close")).Chosen() {
 			w.act(func() { w.closePane(t, p.id) })
 		}
+	}
+}
+
+// The pane actions as a pane's bar and its menu name them.
+const (
+	labelFocusView = "Focus view"
+	labelClosePane = "Close pane"
+)
+
+// paneSplits are a pane's two splits: the command, the label (the tool's tip and the menu item) and the tool's glyph.
+var paneSplits = []struct {
+	id, label, glyph string
+	dir              layout.Dir
+}{
+	{"pane.splitr", "Split right", "split-h", layout.Row},
+	{"pane.splitd", "Split down", "split-v", layout.Col},
+}
+
+// paneTools are the tools at the end of a pane's bar, a terminal's or a notebook's: the splits, focus view, the menu and
+// close. Only the focused pane's tools show caps.
+func (w *workspace) paneTools(c *ui.Context, t *tab, p *pane, focused bool) {
+	for _, s := range paneSplits {
+		if w.paneCapBtn(c, focused, capLabel(s.id), s.glyph, s.label, false, false) {
+			w.act(func() { w.split(t, p.id, s.dir) })
+		}
+	}
+	zoomed := t.zoomed == p.id
+	zoomTip, zoomGlyph := labelFocusView, "zoom"
+	if zoomed {
+		zoomTip, zoomGlyph = "Exit focus view", "unzoom"
+	}
+	if w.paneCapBtn(c, focused, capLabel("pane.zoom"), zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
+		w.act(func() { w.toggleZoom(t, p.id) })
+	}
+	iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
+	if iconBtn(c, "cancel-01", labelClosePane, sizeControlSm, false) {
+		w.act(func() { w.closePane(t, p.id) })
 	}
 }
 

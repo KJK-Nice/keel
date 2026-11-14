@@ -148,13 +148,13 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if !w.joinedActive() && w.capBtn(c, "B", "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no button in a joined tab
+		if !w.joinedActive() && w.capBtn(c, capLabel("sidebar"), "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no button in a joined tab
 			w.act(func() { w.runCommand("sidebar") })
 		}
 		for i, t := range w.tabs {
 			w.tabPill(c, i, t)
 		}
-		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
+		if w.capBtn(c, capLabel("tab.new"), "add-01", "New tab", sizeControlSm, false, false) {
 			w.act(w.addStartTab)
 		}
 		// The empty strip past the last tab: a tab dropped here goes last.
@@ -334,7 +334,7 @@ func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) 
 	b.Children(func() {
 		switch {
 		case capped:
-			w.capFace(c, "W")
+			w.capFace(c, capLabel("tab.close"))
 		case hov:
 			icon(c, "cancel-01", ink)
 		default:
@@ -372,7 +372,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					searchField(c, &w.filter, "Filter hosts", &w.hostsH).Grow(1).Shrink(1)
 				}
 				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {
-					if w.capBtn(c, "N", "add-01", "New host", sizeControlSm, false, false) {
+					if w.capBtn(c, capLabel("host.new"), "add-01", "New host", sizeControlSm, false, false) {
 						w.act(w.newHost)
 					}
 					iconMenuBtn(c, "more-horizontal", "More host actions", sizeControlSm, w.hostActionsMenu)
@@ -450,7 +450,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if w.capBtn(c, ",", "settings-01", "Settings", sizeControlSm, false, false) {
+		if w.capBtn(c, capLabel("settings"), "settings-01", "Settings", sizeControlSm, false, false) {
 			w.act(func() { w.openPage(pageSettings) })
 		}
 	})
@@ -704,24 +704,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 						w.act(func() { w.toggleSync(t) })
 					}
 				}
-				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Row) })
-				}
-				if w.paneCapBtn(c, focused, "⇧E", "split-v", "Split down", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Col) })
-				}
-				zoomed := t.zoomed == p.id
-				zoomTip, zoomGlyph := "Focus view", "zoom"
-				if zoomed {
-					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
-				}
-				if w.paneCapBtn(c, focused, "⇧↵", zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
-					w.act(func() { w.toggleZoom(t, p.id) })
-				}
-				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
-				if iconBtn(c, "cancel-01", "Close pane", sizeControlSm, false) {
-					w.act(func() { w.closePane(t, p.id) })
-				}
+				w.paneTools(c, t, p, focused)
 			})
 		})
 		w.paneBanners(c, t, p, st)

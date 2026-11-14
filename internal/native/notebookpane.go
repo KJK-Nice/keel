@@ -9,7 +9,6 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 
 	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
 )
 
 // A notebook pane: the pane bar, the
@@ -52,24 +51,7 @@ func (w *workspace) tileNotebook(c *ui.Context, t *tab, p *pane, multi bool, fit
 				if rec, saved := w.notebook(n.id); !(saved && rec.Private) && iconBtn(c, "ai-magic", "Ask the agent about this notebook", sizeControlSm, false) {
 					w.act(func() { w.askAboutNotebookPane(p) })
 				}
-				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Row) })
-				}
-				if w.paneCapBtn(c, focused, "⇧E", "split-v", "Split down", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Col) })
-				}
-				zoomed := t.zoomed == p.id
-				zoomTip, zoomGlyph := "Focus view", "zoom"
-				if zoomed {
-					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
-				}
-				if w.paneCapBtn(c, focused, "⇧↵", zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) {
-					w.act(func() { w.toggleZoom(t, p.id) })
-				}
-				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
-				if iconBtn(c, "cancel-01", "Close pane", sizeControlSm, false) {
-					w.act(func() { w.closePane(t, p.id) })
-				}
+				w.paneTools(c, t, p, focused)
 			})
 		})
 		pane := ui.Column(c).Grow(1).FillWidth().Background(w.ground(surface)).Focusable().Label("notebook " + strings.TrimSpace(n.title)).Bind(&p.handle)
