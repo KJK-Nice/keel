@@ -33,13 +33,13 @@ type pageSaved interface {
 
 // pageKind is what the strip, the palette, the sidebar and the saved workspace know about a page.
 type pageKind struct {
-	name       string // the name in the saved workspace
-	title      string // the tab's name
-	tabIcon    string // the glyph in the tab
-	paletteTag string // the palette's "Open now" glyph; "" is the action glyph
-	listed     bool   // the palette's Vault section lists it
-	footIcon   string // the sidebar footer has a button for it, with this glyph
-	make       func(w *workspace) page
+	name        string // the name in the saved workspace
+	title       string // the tab's name
+	tabIcon     string // the glyph in the tab
+	openNowIcon bool   // the palette's Open now row shows tabIcon; else the action glyph
+	listed      bool   // the palette's Vault section lists it
+	footIcon    string // the sidebar footer has a button for it, with this glyph
+	make        func(w *workspace) page
 }
 
 // The pages' names, as the saved workspace keeps them. pageAgent is a constant also so that no source line holds the
@@ -59,13 +59,13 @@ const (
 
 // pageKinds is every page this client has, in the order the palette and the sidebar footer list them.
 var pageKinds = []pageKind{
-	{name: pageKeychain, title: "Keychain", tabIcon: "key-01", paletteTag: "key-01", listed: true, footIcon: "key-01",
+	{name: pageKeychain, title: "Keychain", tabIcon: "key-01", openNowIcon: true, listed: true, footIcon: "key-01",
 		make: func(*workspace) page { return &keychainPage{} }},
 	{name: pageForwards, title: "Port forwarding", tabIcon: "forwards", listed: true,
 		make: func(*workspace) page { return &forwardsPage{show: tunnelAll} }},
-	{name: pageSnippets, title: "Snippets", tabIcon: "snippet", paletteTag: "snippet", listed: true,
+	{name: pageSnippets, title: "Snippets", tabIcon: "snippet", openNowIcon: true, listed: true,
 		make: func(*workspace) page { return &snippetsPage{} }},
-	{name: pageNotebooks, title: "Notebooks", tabIcon: "notebook-pen", paletteTag: "notebook-pen", listed: true,
+	{name: pageNotebooks, title: "Notebooks", tabIcon: "notebook-pen", openNowIcon: true, listed: true,
 		make: func(*workspace) page { return &notebooksPage{} }},
 	{name: pageLogs, title: "Logs", tabIcon: "logs-tab", listed: true, footIcon: "logs",
 		make: func(*workspace) page { return &logsPage{kind: "all"} }},
@@ -73,13 +73,13 @@ var pageKinds = []pageKind{
 		make: func(w *workspace) page { p := newSettingsPage(); w.initSliders(p); return p }},
 	// The rest are opened from where they belong (the agent panel, a runbook proposal, a folder's menu, the palette's
 	// own rows), so they are not listed.
-	{name: pageAgent, title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic",
+	{name: pageAgent, title: "Agent", tabIcon: "ai-magic", openNowIcon: true,
 		make: func(*workspace) page { return &agentPage{} }},
-	{name: pageRunbooks, title: "Runbooks", tabIcon: "book", paletteTag: "book",
+	{name: pageRunbooks, title: "Runbooks", tabIcon: "book", openNowIcon: true,
 		make: func(*workspace) page { return &runbooksPage{} }},
-	{name: pageGroup, title: "Group", tabIcon: "group", paletteTag: "group",
+	{name: pageGroup, title: "Group", tabIcon: "group", openNowIcon: true,
 		make: func(*workspace) page { return newGroupPage() }},
-	{name: pageGroupRun, title: "Group run", tabIcon: "group-run", paletteTag: "group-run",
+	{name: pageGroupRun, title: "Group run", tabIcon: "group-run", openNowIcon: true,
 		make: func(*workspace) page { return &groupRunPage{} }},
 }
 
