@@ -2,7 +2,7 @@
   "name": "Keel",
   "slug": "keel",
   "identifier": "app.keel.desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "main": "./cmd/keel",
   "out": "build",
   "icon": "packaging/macos/icon.png",
