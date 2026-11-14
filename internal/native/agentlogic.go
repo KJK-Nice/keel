@@ -204,6 +204,9 @@ func riskBadge(risk string) (label, kind string) {
 	return "Changes state", "signal"
 }
 
+// changesState reports a rated command that is not read-only; an unrated one ("") is not counted.
+func changesState(risk string) bool { return risk != "" && risk != keelclient.RiskReadOnly }
+
 func redactedNote(counts map[string]int) string {
 	held, n := 0, 0
 	for kind, c := range counts { // captured values and group variables went as {{name}}

@@ -90,7 +90,7 @@ func runbookReviewText(rb keelclient.Runbook) string {
 	}
 	var changes []string
 	for i, s := range rb.Steps {
-		if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
+		if changesState(s.Risk) {
 			changes = append(changes, fmt.Sprint(i+1))
 		}
 	}
@@ -127,7 +127,7 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 	for _, s := range rb.Steps {
 		if s.Command != "" {
 			commands++
-			if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
+			if changesState(s.Risk) {
 				changes++
 			}
 		}
@@ -147,15 +147,13 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 // runbookStepKind is a step's kind on the page: Check, Read-only, Destructive or Changes (Keel's own rating of the saved
 // command), with the badge colour.
 func runbookStepKind(command, risk string) (label, kind string) {
-	switch {
-	case command == "":
+	if command == "" {
 		return "Check", ""
-	case risk == keelclient.RiskReadOnly:
-		return "Read-only", "tide"
-	case risk == keelclient.RiskDestructive:
-		return "Destructive", "flare"
 	}
-	return "Changes", "signal"
+	if label, kind = riskBadge(risk); kind == "signal" {
+		label = "Changes"
+	}
+	return label, kind
 }
 
 // filterRunbooks narrows the list by name, Use when, hosts and step titles: every word must be in one of them.
