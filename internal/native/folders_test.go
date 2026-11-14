@@ -16,7 +16,7 @@ import (
 // and drops of the window.
 
 // infra > db > replicas ; apps (the forest the tests use)
-var jsGroups = []keelclient.Group{
+var testGroups = []keelclient.Group{
 	{ID: "infra", Name: "Infra"},
 	{ID: "db", Name: "db", ParentID: "infra"},
 	{ID: "rep", Name: "Replicas", ParentID: "db"},
@@ -47,25 +47,25 @@ func sortedKeys(m map[string]bool) []string {
 }
 
 func TestFolderRulesDepthsAndAncestry(t *testing.T) {
-	if got := groupDepth(jsGroups, "rep"); got != 3 {
+	if got := groupDepth(testGroups, "rep"); got != 3 {
 		t.Errorf("groupDepth rep = %d", got)
 	}
-	if got := groupDepth(jsGroups, ""); got != 0 {
+	if got := groupDepth(testGroups, ""); got != 0 {
 		t.Errorf("groupDepth of no folder = %d", got)
 	}
-	if got := groupDescendantDepth(jsGroups, "infra"); got != 2 {
+	if got := groupDescendantDepth(testGroups, "infra"); got != 2 {
 		t.Errorf("groupDescendantDepth infra = %d", got)
 	}
-	if !isGroupUnder(jsGroups, "rep", "infra") {
+	if !isGroupUnder(testGroups, "rep", "infra") {
 		t.Error("rep is under infra")
 	}
-	if isGroupUnder(jsGroups, "apps", "infra") {
+	if isGroupUnder(testGroups, "apps", "infra") {
 		t.Error("apps is not under infra")
 	}
-	if got := sortedKeys(subtreeGroupIDs(jsGroups, "db")); !slices.Equal(got, []string{"db", "rep"}) {
+	if got := sortedKeys(subtreeGroupIDs(testGroups, "db")); !slices.Equal(got, []string{"db", "rep"}) {
 		t.Errorf("subtree of db %v", got)
 	}
-	if subtreeGroupIDs(jsGroups, "") != nil {
+	if subtreeGroupIDs(testGroups, "") != nil {
 		t.Error("no root has no subtree")
 	}
 }
@@ -89,7 +89,7 @@ func TestFolderRulesCyclesDoNotHang(t *testing.T) { // "cycles in group data don
 }
 
 func TestFolderRulesSearchMatchesFoldersAboveTheHostAndTags(t *testing.T) { // "search matches group names above the host and tags"
-	if got := hostSearchHay(jsGroups, jsHosts[1]); !strings.Contains(got, "replicas db infra") {
+	if got := hostSearchHay(testGroups, jsHosts[1]); !strings.Contains(got, "replicas db infra") {
 		t.Errorf("hay %q", got)
 	}
 	for _, c := range []struct {
@@ -100,20 +100,20 @@ func TestFolderRulesSearchMatchesFoldersAboveTheHostAndTags(t *testing.T) { // "
 		{"", "postgres", []string{"h1"}},
 		{"", "INFRA", []string{"h1", "h2"}},
 	} {
-		if got := hostIDs(hostsInSubtree(jsGroups, jsHosts, c.focus, c.query)); !slices.Equal(got, c.want) {
+		if got := hostIDs(hostsInSubtree(testGroups, jsHosts, c.focus, c.query)); !slices.Equal(got, c.want) {
 			t.Errorf("hostsInSubtree(%q, %q) = %v, want %v", c.focus, c.query, got, c.want)
 		}
 	}
 }
 
 func TestFolderRulesParentPickerLabelsPathsAndExcludesTheSubtree(t *testing.T) { // "parent picker labels paths and excludes …"
-	got := groupOptionEntries(jsGroups, "db")
+	got := groupOptionEntries(testGroups, "db")
 	want := []pickEntry{{value: "apps", label: "Apps"}, {value: "infra", label: "Infra"}}
 	if !slices.Equal(got, want) {
 		t.Errorf("entries %v, want %v", got, want)
 	}
 	found := false
-	for _, o := range groupOptionEntries(jsGroups, "") {
+	for _, o := range groupOptionEntries(testGroups, "") {
 		found = found || o.label == "Infra / db / Replicas"
 	}
 	if !found {
@@ -145,7 +145,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 		{"rep", "", ""},
 		{"apps", "rep", ""},
 	} {
-		if got := folderMoveRefusal(jsGroups, c.id, c.dest); got != c.want {
+		if got := folderMoveRefusal(testGroups, c.id, c.dest); got != c.want {
 			t.Errorf("move %s -> %q: %q, want %q", c.id, c.dest, got, c.want)
 		}
 	}
@@ -159,7 +159,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 	if folderCreateRefusal(deep, "h") != msgGroupDepth || folderCreateRefusal(deep, "g") != "" || folderCreateRefusal(deep, "zz") != "Group not found" {
 		t.Error("the depth rule of New subgroup is not the app's")
 	}
-	if got := folderMoveRefusal(append(deep, jsGroups...), "infra", "h"); got != msgGroupDepth {
+	if got := folderMoveRefusal(append(deep, testGroups...), "infra", "h"); got != msgGroupDepth {
 		t.Errorf("a move past 8 levels says %q", got)
 	}
 }
@@ -169,7 +169,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 func folderRig(t *testing.T) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.groups = slices.Clone(jsGroups)
+	fb.groups = slices.Clone(testGroups)
 	fb.hosts = append(slices.Clone(jsHosts), keelclient.Host{ID: "h-local", Name: "Local Shell", AuthType: "local"})
 	for i := range fb.hosts {
 		fb.hosts[i].Group = fb.groupName(fb.hosts[i].GroupID)

@@ -2,6 +2,7 @@ package native
 
 import (
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -161,7 +162,10 @@ func TestScreenOfAgainstARealTerminal(t *testing.T) {
 	r, _ := io.Pipe()
 	term, err := terminal.New(terminal.Options{Conn: nopConn{r}})
 	if err != nil {
-		t.Skip("no terminal library here:", err)
+		if runtime.GOOS == "darwin" { // libghostty ships for macOS: failing to load it there is a bug
+			t.Fatal("libghostty terminal:", err)
+		}
+		t.Skip("no libghostty terminal on "+runtime.GOOS+":", err)
 	}
 	defer term.Close()
 	term.Resize(40, 6)
