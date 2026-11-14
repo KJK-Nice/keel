@@ -36,7 +36,6 @@ func HostKeyName(h Host) string {
 	return net.JoinHostPort(strings.TrimSpace(h.Address), strconv.Itoa(port))
 }
 
-// KnownHost returns the saved key for hostname, if any.
 func (s *Store) KnownHost(hostname string) (KnownHostKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

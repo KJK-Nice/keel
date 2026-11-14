@@ -137,7 +137,6 @@ func (f *askFixture) bridge(t *testing.T, hostID string) *fakeBridge {
 	return nil
 }
 
-// open spawns a session on host and prints text into it.
 func (f *askFixture) open(t *testing.T, hostID, text string) runtime.Info {
 	t.Helper()
 	info := spawn(t, f.srv.URL, hostID)

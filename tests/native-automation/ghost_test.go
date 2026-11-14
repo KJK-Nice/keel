@@ -222,7 +222,7 @@ const ghostFlatMax = 8
 
 // TestNoGhostUnderLowOpacity: at Window opacity 30 (the lowest), with the blur off and with the default, in both themes, the
 // pane of a terminal that has just been opened, and again after a visit to the New tab page, shows nothing of an earlier
-// page. Failed before the fix: the pane's middle showed the New tab page's heading, input and cards.
+// page (no heading, input or cards of the New tab page in its middle).
 func TestNoGhostUnderLowOpacity(t *testing.T) {
 	cases := []struct {
 		opacity, blur int

@@ -483,7 +483,6 @@ func (s *Store) ListAgentChats() ([]AgentChatSummary, error) {
 	return out, nil
 }
 
-// GetAgentChat returns one saved conversation.
 func (s *Store) GetAgentChat(id string) (AgentChat, error) {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()

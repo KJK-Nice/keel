@@ -176,7 +176,7 @@ func legacyGroupsStore(t *testing.T) *Store {
 	return st
 }
 
-// A read never writes: the old file was brought up to date when it was
+// A read never writes: an old file is brought up to date when it is
 // loaded, so listing hosts, groups or a group's members leaves keel.json
 // as it is and tells no listener of a change.
 func TestReadsOfAMigratedStoreDoNotWrite(t *testing.T) {

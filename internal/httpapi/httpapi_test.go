@@ -453,8 +453,7 @@ func TestInjectNonceOneShotRejectsClientApprovedReplay(t *testing.T) {
 	assertInjectNonceOneShotReplay(t)
 }
 
-// TestInjectNonceOneShotReplay is the #46-visible name for the #45 gate:
-// client-forged approved:true never writes the PTY; a server nonce writes once; replay is blocked.
+// TestInjectNonceOneShotReplay: client-forged approved:true never writes the PTY; a server nonce writes once; replay is blocked.
 func TestInjectNonceOneShotReplay(t *testing.T) {
 	assertInjectNonceOneShotReplay(t)
 }

@@ -191,7 +191,6 @@ func answerFor(err error) (int, any) {
 	return status, body
 }
 
-// writeErr answers a request that failed.
 func writeErr(w http.ResponseWriter, err error) {
 	status, body := answerFor(err)
 	writeJSON(w, status, body)

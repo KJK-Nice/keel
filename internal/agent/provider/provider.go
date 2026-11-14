@@ -228,7 +228,6 @@ func Descriptors() []Descriptor {
 	return out
 }
 
-// Lookup returns the descriptor for id.
 func Lookup(id string) (Descriptor, bool) {
 	for _, d := range Descriptors() {
 		if d.ID == id {

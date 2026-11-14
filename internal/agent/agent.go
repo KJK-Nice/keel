@@ -120,7 +120,6 @@ type Scope struct {
 	readable map[string]bool
 }
 
-// NewScope builds a scope from the saved hosts.
 func NewScope(hosts []Host) Scope {
 	m := make(map[string]bool, len(hosts))
 	for _, h := range hosts {
@@ -129,7 +128,6 @@ func NewScope(hosts []Host) Scope {
 	return Scope{readable: m}
 }
 
-// Allows reports whether the agent may read p.
 func (s Scope) Allows(p Pane) bool {
 	return p.HostID != "" && s.readable[p.HostID]
 }

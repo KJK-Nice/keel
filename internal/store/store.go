@@ -132,7 +132,6 @@ func (h Host) ReadableByAgent() bool {
 	return h.AgentReadable == nil || *h.AgentReadable
 }
 
-// IsProduction reports whether the host is treated as production.
 func (h Host) IsProduction() bool {
 	return h.Production != nil && *h.Production
 }

@@ -34,7 +34,6 @@ func (f *sfix) egress() []applog.Entry {
 	return out
 }
 
-// setPane replaces a pane's scrollback.
 func (f *sfix) setPane(id, host, text string) {
 	f.panes.mu.Lock()
 	defer f.panes.mu.Unlock()

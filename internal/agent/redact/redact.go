@@ -108,7 +108,6 @@ type Report struct {
 	Counts map[Kind]int `json:"counts"`
 }
 
-// Total is the number of replacements.
 func (r Report) Total() int {
 	n := 0
 	for _, c := range r.Counts {
@@ -135,7 +134,6 @@ type Safe struct {
 	text string
 }
 
-// String returns the redacted text.
 func (s Safe) String() string { return s.text }
 
 // Tail keeps at most max bytes from the end of s, starting at a line
@@ -181,7 +179,6 @@ type knownValue struct {
 	label    string // a Named value's name: its placeholder is {{label}}
 }
 
-// New returns a Redactor for one request.
 func New(opts Options) *Redactor {
 	r := &Redactor{
 		opts:   opts,

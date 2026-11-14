@@ -207,7 +207,6 @@ func (r *groupRun) pruneCapturesLocked(now time.Time) {
 	}
 }
 
-// wipeCapturesLocked drops every value of an ended run.
 func (r *groupRun) wipeCapturesLocked() {
 	for hostID, byName := range r.captures {
 		for name, cv := range byName {

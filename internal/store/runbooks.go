@@ -318,7 +318,6 @@ func (s *Store) ListRunbooks() ([]Runbook, error) {
 	return out, nil
 }
 
-// GetRunbook returns one runbook.
 func (s *Store) GetRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()
@@ -452,7 +451,6 @@ func (s *Store) changeRunbook(id string, fn func(*Runbook) bool) (Runbook, error
 	return Runbook{}, ErrNotFound
 }
 
-// DeleteRunbook removes one runbook and returns it.
 func (s *Store) DeleteRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()

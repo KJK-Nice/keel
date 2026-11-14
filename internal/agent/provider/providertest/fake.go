@@ -63,7 +63,6 @@ func (f *Fake) Generate(ctx context.Context, req provider.Request) (provider.Res
 	return f.Reply, f.Err
 }
 
-// Requests returns what Generate received, in order.
 func (f *Fake) Requests() []provider.Request {
 	f.mu.Lock()
 	defer f.mu.Unlock()

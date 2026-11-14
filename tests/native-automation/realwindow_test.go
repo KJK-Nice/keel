@@ -21,7 +21,6 @@ import (
 	"time"
 )
 
-// scrollback is the text keel serve holds for the first session.
 func (r *rig) scrollback() string {
 	r.t.Helper()
 	tok, err := os.ReadFile(filepath.Join(r.data, "keel-serve.token"))

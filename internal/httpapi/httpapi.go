@@ -664,7 +664,7 @@ func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
 }
 
 // snippetPayload is a snippet as a client sends it. AgentUsable is a
-// pointer: a client that does not send it (the old edit modal) leaves the
+// pointer: a client that does not send it leaves the
 // flag as it is, so a stale list can never clear it by accident.
 type snippetPayload struct {
 	Name        string `json:"name"`

@@ -9,7 +9,7 @@ import (
 )
 
 // "Let the agent suggest this snippet" changes only when a payload carries
-// agentUsable: the old edit modal (which sends none) keeps it. Every
+// agentUsable: a client that sends none keeps it. Every
 // change is an agent event that names the snippet, never its command.
 func TestSnippetAgentFlagOnlyChangesWhenSent(t *testing.T) {
 	f := newAgentFixture(t, testToken)
@@ -42,7 +42,7 @@ func TestSnippetAgentFlagOnlyChangesWhenSent(t *testing.T) {
 	if !flag() {
 		t.Fatal("explicit true not saved")
 	}
-	// The old modal: no agentUsable in the payload.
+	// A client that omits agentUsable in the payload.
 	put(map[string]any{"id": sn.ID, "name": "deploy 2", "command": "echo keel-flag-body\n"})
 	if !flag() {
 		t.Fatal("a payload without agentUsable cleared the flag")

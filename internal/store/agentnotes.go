@@ -312,7 +312,6 @@ func (s *Store) AddAgentNote(n AgentNote) (AgentNote, error) {
 	return n, nil
 }
 
-// UpdateAgentNote replaces a note's text.
 func (s *Store) UpdateAgentNote(id, text string) (AgentNote, error) {
 	text, ok := CleanAgentNote(text)
 	if !ok {

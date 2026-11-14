@@ -114,7 +114,7 @@ func TestClassifyFlagValueBeforeVerb(t *testing.T) {
 		`systemctl --no-pager -p status stop sshd`:         RiskChanges,
 		`systemctl --no-pager --property status restart x`: RiskChanges,
 		`helm -n list uninstall x`:                         RiskDestructive,
-		// As before this change: the first reading takes kube-system as the verb.
+		// The first reading takes kube-system as the verb.
 		`kubectl -n kube-system get pods`:   RiskChanges,
 		`systemctl --no-pager status nginx`: RiskReadOnly,
 	} {

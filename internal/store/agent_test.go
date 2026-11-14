@@ -496,8 +496,8 @@ func contains(list []string, v string) bool {
 	return false
 }
 
-// Google closed gemini-2.5-flash to new keys, so settings saved with the
-// old default read back as the new one.
+// Google closed gemini-2.5-flash to new keys, so settings that name it
+// read back as the current default.
 func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
 	st, path := agentStore(t)
 	old := DefaultAgentSettings()
