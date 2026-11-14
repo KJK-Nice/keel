@@ -208,8 +208,8 @@ func init() {
 					continue
 				}
 				keys := ""
-				if k.name == "settings" {
-					keys = commandByID("settings").keyLabel()
+				if k.cmd != "" {
+					keys = commandKeyLabel(k.cmd)
 				}
 				rows = append(rows, vaultRow(k.title, keys, "", func(w *workspace) { w.openPage(k.name) }, w))
 			}

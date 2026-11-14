@@ -39,7 +39,10 @@ type pageKind struct {
 	openNowIcon bool   // the palette's Open now row shows tabIcon; else the action glyph
 	listed      bool   // the palette's Vault section lists it
 	footIcon    string // the sidebar footer has a button for it, with this glyph
-	make        func(w *workspace) page
+	// cmd is the command that opens it, for a page with a key: its palette row shows the key, and the sidebar footer has
+	// an icon button for it at the right, with the key's cap.
+	cmd  string
+	make func(w *workspace) page
 }
 
 // The pages' names, as the saved workspace keeps them. pageAgent is a constant also so that no source line holds the
@@ -69,7 +72,7 @@ var pageKinds = []pageKind{
 		make: func(*workspace) page { return &notebooksPage{} }},
 	{name: pageLogs, title: "Logs", tabIcon: "logs-tab", listed: true, footIcon: "logs",
 		make: func(*workspace) page { return &logsPage{kind: "all"} }},
-	{name: pageSettings, title: "Settings", tabIcon: "settings-01", listed: true,
+	{name: pageSettings, title: "Settings", tabIcon: "settings-01", listed: true, cmd: "settings",
 		make: func(w *workspace) page { p := newSettingsPage(); w.initSliders(p); return p }},
 	// The rest are opened from where they belong (the agent panel, a runbook proposal, a folder's menu, the palette's
 	// own rows), so they are not listed.

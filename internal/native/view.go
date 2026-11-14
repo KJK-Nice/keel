@@ -440,7 +440,7 @@ func (w *workspace) hostActionsMenu(m *ui.Menu) {
 	}
 }
 
-// sidebarFoot: Keychain and Logs open their pages; Settings is the icon button on the right, with ⌘,
+// sidebarFoot: Keychain and Logs open their pages; a page with a key (Settings, ⌘,) is an icon button on the right
 // (its key cap shows only while ⌘ is held).
 func (w *workspace) sidebarFoot(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space1_5).Gap(space0_5), 1, 0, 0, 0).Children(func() {
@@ -450,8 +450,10 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 			}
 		}
 		ui.Spacer(c)
-		if w.capBtn(c, capLabel("settings"), "settings-01", "Settings", sizeControlSm, false, false) {
-			w.act(func() { w.openPage(pageSettings) })
+		for _, k := range pageKinds {
+			if k.cmd != "" && w.capBtn(c, capLabel(k.cmd), k.tabIcon, k.title, sizeControlSm, false, false) {
+				w.act(func() { w.runCommand(k.cmd) })
+			}
 		}
 	})
 }
