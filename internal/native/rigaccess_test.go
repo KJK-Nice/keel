@@ -19,9 +19,9 @@ func (w *workspace) approveDlg() *approveDialog { return w.approve }
 
 // confirmOpen is whether a confirm dialog (the host menu's Delete, a delete in the agent panel...) is showing;
 // confirmDlg is it, nil when it is not; dismissConfirm closes it without running its action.
-func (w *workspace) confirmOpen() bool        { return w.confirm != nil }
-func (w *workspace) confirmDlg() *hostConfirm { return w.confirm }
-func (w *workspace) dismissConfirm()          { w.confirm = nil }
+func (w *workspace) confirmOpen() bool          { return w.confirm != nil }
+func (w *workspace) confirmDlg() *confirmDialog { return w.confirm }
+func (w *workspace) dismissConfirm()            { w.confirm = nil }
 
 // allTabs is every tab, left to right; appendTab adds one a test built by hand, without selecting it.
 func (w *workspace) allTabs() []*tab  { return w.tabs }

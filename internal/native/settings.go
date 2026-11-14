@@ -260,7 +260,7 @@ func (w *workspace) askStopRuntime() {
 	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil && p.rt != nil {
 		n = p.rt.Sessions
 	}
-	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
+	w.askConfirm(&confirmDialog{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
 // staleRuntimeNotice is the warning shown when keel serve is from another build.

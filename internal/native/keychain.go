@@ -257,7 +257,7 @@ func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
 }
 
 func (w *workspace) deleteIdentity(id keelclient.Identity) {

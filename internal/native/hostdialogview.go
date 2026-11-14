@@ -10,7 +10,7 @@ import (
 
 func (w *workspace) hostDialogView(c *ui.Context) {
 	d := w.hostDlg
-	if d == nil || d.confirm != nil { // the confirm dialog replaces it while it asks
+	if d == nil {
 		return
 	}
 	d.dropStaleTest()
@@ -268,57 +268,5 @@ func (w *workspace) hostFooter(c *ui.Context, d *hostDialog, local bool) {
 	busyMark(c, d.saving, "Saving")
 	if capButton(c, "Save host", "⌘↵", false).Clicked() {
 		w.act(w.saveHost)
-	}
-}
-
-// confirmView is the confirm dialog (alertdialog): a title, the message, Cancel and the action. It stands in for
-// the host dialog while that asks, and by itself for the host menu's Delete.
-func (w *workspace) confirmView(c *ui.Context) {
-	var cf *hostConfirm
-	standalone := false
-	switch {
-	case w.hostDlg != nil && w.hostDlg.confirm != nil:
-		cf = w.hostDlg.confirm
-	case w.confirm != nil:
-		cf, standalone = w.confirm, true
-	default:
-		return
-	}
-	open := true
-	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		modalChrome(c, backdrop, panel)
-		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("alertdialog " + cf.title)
-		bodyStrong(c, cf.title, ink)
-		ui.Text(c, cf.message).TextColor(inkMuted).FontSize(uiFontSize)
-		ui.Row(c).FillWidth().Gap(space2).Justify(ui.End).Children(func() {
-			if dialogBtn(c, "Cancel", btnGhost, &cf.cancelH, false) {
-				open = false
-			}
-			if dialogBtn(c, cf.action, btnDanger, &cf.actionH, false) {
-				w.act(func() {
-					w.endConfirm(standalone)
-					cf.run()
-				})
-			}
-		})
-	})
-	if !cf.focused { // the keyboard starts on Cancel, so a stray ↵ never destroys: the action is a click, or Tab and ↵
-		cf.cancelH.Focus(c)
-		cf.focused = true
-	}
-	if !open {
-		w.act(func() { w.endConfirm(standalone) })
-	}
-}
-
-// endConfirm closes the confirm dialog; the host dialog comes back with its values.
-func (w *workspace) endConfirm(standalone bool) {
-	if standalone {
-		w.confirm = nil
-		return
-	}
-	if d := w.hostDlg; d != nil {
-		d.confirm = nil
-		d.focus = true
 	}
 }

@@ -223,7 +223,7 @@ func (w *workspace) askDisconnect(id string) {
 	if d, ok := w.providerFor(id); ok {
 		name = d.Name
 	}
-	w.askConfirm(&hostConfirm{title: "Disconnect " + name + "?", message: disconnectMessage(id, name), action: "Disconnect", run: func() { w.disconnect(id, name) }})
+	w.askConfirm(&confirmDialog{title: "Disconnect " + name + "?", message: disconnectMessage(id, name), action: "Disconnect", run: func() { w.disconnect(id, name) }})
 }
 
 func (w *workspace) disconnect(id, name string) {
@@ -242,7 +242,7 @@ func (w *workspace) disconnect(id, name string) {
 
 // askDeleteHistory is Settings · Agent's Delete all history: it asks first.
 func (w *workspace) askDeleteHistory() {
-	w.askConfirm(&hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Delete all history?",
 		message: "Every agent conversation is forgotten, including the ones saved in the vault, in every window. The log entries that say what the agent read stay in Logs.",
 		action:  "Delete all history", run: w.deleteHistory,

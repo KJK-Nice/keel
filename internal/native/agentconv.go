@@ -278,7 +278,7 @@ func (w *workspace) deleteConversation(id string) {
 // askDeleteAll is Delete all (Recent conversations, Settings · Agent's Delete all history): it asks first.
 func (w *workspace) askDeleteAll() {
 	w.closeSessions()
-	w.askConfirm(&hostConfirm{title: deleteAllTitle, message: deleteAllText, action: deleteAllAction, run: w.deleteAllConversations})
+	w.askConfirm(&confirmDialog{title: deleteAllTitle, message: deleteAllText, action: deleteAllAction, run: w.deleteAllConversations})
 }
 
 func (w *workspace) deleteAllConversations() {

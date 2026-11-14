@@ -147,7 +147,7 @@ func (w *workspace) askDeleteFolder(id string) {
 	if !ok {
 		return
 	}
-	w.askConfirm(&hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Confirm",
 		message: "Remove group " + g.Name + "? Hosts and subgroups move up one level.",
 		action:  "Remove",

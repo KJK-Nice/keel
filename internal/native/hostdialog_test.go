@@ -575,6 +575,10 @@ func TestForgetHostKeyAsksFirst(t *testing.T) {
 	if len(r.fb.forgot) != 0 {
 		t.Fatal("Cancel forgot the key")
 	}
+	r.tt.Frame()
+	if r.w.hostDlg == nil || !r.tt.Focused("Label") {
+		t.Fatal("the host dialog did not take the keyboard back after Cancel")
+	}
 	r.click(t, "Forget host key")
 	r.click(t, "Forget key")
 	r.tt.Frame()

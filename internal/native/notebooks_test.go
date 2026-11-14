@@ -218,7 +218,7 @@ func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 	if cf := r.w.confirmDlg(); cf == nil || cf.title != "Delete permanently" || cf.action != "Delete permanently" { // its title and its button share words: the question is checked, then its action is run
 		t.Fatalf("confirm %+v", cf)
 	} else {
-		r.w.endConfirm(true)
+		r.w.endConfirm()
 		cf.run()
 	}
 	r.frames(2)

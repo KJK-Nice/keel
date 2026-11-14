@@ -164,7 +164,7 @@ func (w *workspace) askNbPropAction(id, action string) {
 		return
 	}
 	if action == actDelete {
-		w.askConfirm(&hostConfirm{title: "Delete notebook", message: deleteConfirmText(rec.p), action: "Delete", run: func() { w.nbPropAction(id, action) }})
+		w.askConfirm(&confirmDialog{title: "Delete notebook", message: deleteConfirmText(rec.p), action: "Delete", run: func() { w.nbPropAction(id, action) }})
 		return
 	}
 	w.nbPropAction(id, action)
@@ -240,7 +240,7 @@ func (w *workspace) undoAgentEdit(id string) {
 			}
 			vid := vs[i].ID
 			if rec.LastBy != byAgent {
-				w.askConfirm(&hostConfirm{title: "Undo the agent's edit", action: "Undo",
+				w.askConfirm(&confirmDialog{title: "Undo the agent's edit", action: "Undo",
 					message: "You changed this notebook after the agent's edit. Undo puts back the version from before the agent's edit; your later changes stay in History.",
 					run:     func() { w.restoreBeforeAgentEdit(id, vid, rec.Rev) }})
 				return

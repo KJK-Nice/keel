@@ -248,7 +248,7 @@ func (w *workspace) saveSnippetDialog() {
 
 // askDeleteSnippet is Delete: it asks first.
 func (w *workspace) askDeleteSnippet(s keelclient.Snippet) {
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete snippet “" + s.Name + "”?", action: "Remove", run: func() { w.deleteSnippet(s) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete snippet “" + s.Name + "”?", action: "Remove", run: func() { w.deleteSnippet(s) }})
 }
 
 func (w *workspace) deleteSnippet(s keelclient.Snippet) {

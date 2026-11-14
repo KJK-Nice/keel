@@ -192,7 +192,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 
 // askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
-	w.askConfirm(&hostConfirm{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
+	w.askConfirm(&confirmDialog{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
 		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
 	}})
 }

@@ -549,7 +549,7 @@ func (w *workspace) leaveEditor(p *runbooksPage, then func()) {
 		then()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
+	w.askConfirm(&confirmDialog{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
 }
 
 func (w *workspace) newRunbook() {
@@ -619,7 +619,7 @@ func (w *workspace) askDeleteRunbook() {
 		p.closeEditor()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
+	w.askConfirm(&confirmDialog{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
 		run: func() { w.deleteRunbook(e.id) }})
 }
 

@@ -263,7 +263,7 @@ func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 
 // askDeleteTunnel is Delete: it asks first.
 func (w *workspace) askDeleteTunnel(t keelclient.Tunnel) {
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete forward “" + t.Name + "”?", action: "Remove", run: func() { w.deleteTunnel(t) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete forward “" + t.Name + "”?", action: "Remove", run: func() { w.deleteTunnel(t) }})
 }
 
 func (w *workspace) deleteTunnel(t keelclient.Tunnel) {

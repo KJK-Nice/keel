@@ -528,7 +528,7 @@ func (w *workspace) askDeleteNotebook(id string) {
 	if !ok {
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete notebook “" + notebookName(rec) + "”?", action: "Remove", run: func() { w.deleteNotebook(id, false) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete notebook “" + notebookName(rec) + "”?", action: "Remove", run: func() { w.deleteNotebook(id, false) }})
 }
 
 // deleteNotebook deletes after the user confirmed. Pending edits land first (a save after the delete would put the notebook
@@ -541,7 +541,7 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 			case err == nil:
 				w.removeNotebook(id)
 			case !permanent && keelclient.IsHistoryRefusal(err):
-				w.askConfirm(&hostConfirm{title: "Delete permanently", action: "Delete permanently",
+				w.askConfirm(&confirmDialog{title: "Delete permanently", action: "Delete permanently",
 					message: "Keel cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
 					run:     func() { w.deleteNotebook(id, true) }})
 			default:

@@ -446,7 +446,7 @@ type workspace struct {
 	quick           *quickDialog
 	hostDlg         *hostDialog     // New host / Edit host
 	identDlg        *identityDialog // New identity / Edit identity (the Keychain page)
-	confirm         *hostConfirm    // a confirm dialog on its own (the host menu's Delete)
+	confirm         *confirmDialog  // the confirm dialog, over the dialog or page that asked
 	approve         *approveDialog  // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
 	agent           *agentPanel     // the agent panel and its conversation (agent.go)
 	clips           []clipItem      // copies the frame writes to the clipboard (clipboard.go)
@@ -548,8 +548,8 @@ func (w *workspace) start() {
 			return
 		}
 		snippets, snipErr := w.be.Snippets(c)
-		folders, _ := w.be.Groups(c)  // a failed list leaves the flat tree: the next change reads it again
-		tunnels, _ := w.be.Tunnels(c) // a failed read leaves none: the 2 s read and the next change fill them in
+		folders, _ := w.be.Groups(c)      // a failed list leaves the flat tree: the next change reads it again
+		tunnels, _ := w.be.Tunnels(c)     // a failed read leaves none: the 2 s read and the next change fill them in
 		notebooks, _ := w.be.Notebooks(c) // a failed read leaves none: the next change reads them again
 		type attached struct {
 			host keelclient.Host
