@@ -122,7 +122,7 @@ func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 		if (a.Changed() || b.Changed()) && chosen != p.section {
 			id := chosen
 			w.act(func() {
-				p.section, p.search = id, ""
+				p.showSection(id)
 				if id == "sharing" || id == "vault" || id == "runtime" || id == "about" {
 					w.loadSettings()
 				}

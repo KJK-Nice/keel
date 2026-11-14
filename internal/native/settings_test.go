@@ -129,7 +129,7 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	wantPixel(t, "title bar at 66", r.tt.Image(), 900, 10, chrome, 0.66)
 	r.w.showPage("settings")
 	r.tt.Frame()
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
+	p := r.w.settingsPage()
 	if p.opacityV != 66 || p.blurV != 20 || p.sizeV != 12 {
 		t.Fatalf("the sliders start at %v %v %v", p.opacityV, p.blurV, p.sizeV)
 	}
@@ -217,7 +217,7 @@ func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
 func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	r := settingsRig(t, settingsBackend()) // translucentWin is false: the window started opaque
 	r.w.prefs.Opacity = 100
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
+	p := r.w.settingsPage()
 	p.opacityV = 70
 	r.tt.Frame()
 	if r.w.alpha != 1 {

@@ -11,7 +11,7 @@ import (
 // (the title bar, a control, the sidebar, the spacing).
 func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
+	p := r.w.settingsPage()
 	type measure struct{ tab, newHost, sidebarEdge, status, kbdH, text float32 }
 	read := func(size int) measure {
 		p.uiV = float64(size)

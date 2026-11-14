@@ -495,7 +495,9 @@ func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
 	return e
 }
 
-func (w *workspace) runbooksPage() *runbooksPage { return pageAs[*runbooksPage](w.pageTab("runbooks")) }
+func (w *workspace) runbooksPage() *runbooksPage {
+	return pageAs[*runbooksPage](w.pageTab(pageRunbooks))
+}
 
 // loadRunbooks reads the list (GET /api/agent/runbooks). The editor is read again from it unless the user has changed it.
 func (w *workspace) loadRunbooks() {
@@ -772,4 +774,4 @@ func (w *workspace) rbKeys(ev ui.InputEvent) {
 }
 
 // openRunbooksPage is the palette's Runbooks.
-func (w *workspace) openRunbooksPage() { w.openPage("runbooks") }
+func (w *workspace) openRunbooksPage() { w.openPage(pageRunbooks) }

@@ -42,33 +42,44 @@ type pageKind struct {
 	make       func(w *workspace) page
 }
 
-// pageAgent is the Agent page's name (a constant, so that no source line holds the quoted key that guard_test.go keeps
-// for keelclient/inject.go).
-const pageAgent = "agent"
+// The pages' names, as the saved workspace keeps them. pageAgent is a constant also so that no source line holds the
+// quoted key that guard_test.go keeps for keelclient/inject.go.
+const (
+	pageKeychain  = "keychain"
+	pageForwards  = "forwards"
+	pageSnippets  = "snippets"
+	pageNotebooks = "notebooks"
+	pageLogs      = "logs"
+	pageSettings  = "settings"
+	pageAgent     = "agent"
+	pageRunbooks  = "runbooks"
+	pageGroup     = "group"
+	pageGroupRun  = "grouprun"
+)
 
 // pageKinds is every page this client has, in the order the palette and the sidebar footer list them.
 var pageKinds = []pageKind{
-	{name: "keychain", title: "Keychain", tabIcon: "key-01", paletteTag: "key-01", listed: true, footIcon: "key-01",
+	{name: pageKeychain, title: "Keychain", tabIcon: "key-01", paletteTag: "key-01", listed: true, footIcon: "key-01",
 		make: func(*workspace) page { return &keychainPage{} }},
-	{name: "forwards", title: "Port forwarding", tabIcon: "forwards", listed: true,
+	{name: pageForwards, title: "Port forwarding", tabIcon: "forwards", listed: true,
 		make: func(*workspace) page { return &forwardsPage{show: tunnelAll} }},
-	{name: "snippets", title: "Snippets", tabIcon: "snippet", paletteTag: "snippet", listed: true,
+	{name: pageSnippets, title: "Snippets", tabIcon: "snippet", paletteTag: "snippet", listed: true,
 		make: func(*workspace) page { return &snippetsPage{} }},
-	{name: "notebooks", title: "Notebooks", tabIcon: "notebook-pen", paletteTag: "notebook-pen", listed: true,
+	{name: pageNotebooks, title: "Notebooks", tabIcon: "notebook-pen", paletteTag: "notebook-pen", listed: true,
 		make: func(*workspace) page { return &notebooksPage{} }},
-	{name: "logs", title: "Logs", tabIcon: "logs-tab", listed: true, footIcon: "logs",
+	{name: pageLogs, title: "Logs", tabIcon: "logs-tab", listed: true, footIcon: "logs",
 		make: func(*workspace) page { return &logsPage{kind: "all"} }},
-	{name: "settings", title: "Settings", tabIcon: "settings-01", listed: true,
+	{name: pageSettings, title: "Settings", tabIcon: "settings-01", listed: true,
 		make: func(w *workspace) page { p := newSettingsPage(); w.initSliders(p); return p }},
 	// The rest are opened from where they belong (the agent panel, a runbook proposal, a folder's menu, the palette's
 	// own rows), so they are not listed.
 	{name: pageAgent, title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic",
 		make: func(*workspace) page { return &agentPage{} }},
-	{name: "runbooks", title: "Runbooks", tabIcon: "book", paletteTag: "book",
+	{name: pageRunbooks, title: "Runbooks", tabIcon: "book", paletteTag: "book",
 		make: func(*workspace) page { return &runbooksPage{} }},
-	{name: "group", title: "Group", tabIcon: "group", paletteTag: "group",
+	{name: pageGroup, title: "Group", tabIcon: "group", paletteTag: "group",
 		make: func(*workspace) page { return newGroupPage() }},
-	{name: "grouprun", title: "Group run", tabIcon: "group-run", paletteTag: "group-run",
+	{name: pageGroupRun, title: "Group run", tabIcon: "group-run", paletteTag: "group-run",
 		make: func(*workspace) page { return &groupRunPage{} }},
 }
 

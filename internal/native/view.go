@@ -451,7 +451,7 @@ func (w *workspace) sidebarFoot(c *ui.Context) {
 		}
 		ui.Spacer(c)
 		if w.capBtn(c, ",", "settings-01", "Settings", sizeControlSm, false, false) {
-			w.act(func() { w.openPage("settings") })
+			w.act(func() { w.openPage(pageSettings) })
 		}
 	})
 }

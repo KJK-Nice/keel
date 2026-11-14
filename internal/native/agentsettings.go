@@ -49,7 +49,7 @@ func (p *settingsPage) card(id string) *keyCard {
 // loadAgentSettings reads the settings and the providers (GET /api/agent/settings, /api/agent/providers).
 func (w *workspace) loadAgentSettings() {
 	a := w.agent
-	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+	if p := w.settingsPage(); p != nil {
 		w.loadNotes(&p.notes) // Notes for the agent: the user's own
 	}
 	type read struct {
@@ -232,7 +232,7 @@ func (w *workspace) disconnect(id, name string) {
 			w.warn(errText("Could not disconnect", err))
 			return
 		}
-		if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		if p := w.settingsPage(); p != nil {
 			*p.card(id) = keyCard{}
 		}
 		w.say(name + " disconnected")

@@ -170,7 +170,7 @@ func (w *workspace) sidebarNotebooks(c *ui.Context) {
 				w.act(w.newNotebook)
 			}
 			if textBtn(c, "All notebooks", btnGhost) {
-				w.act(func() { w.openPage("notebooks") })
+				w.act(func() { w.openPage(pageNotebooks) })
 			}
 		})
 	})

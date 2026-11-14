@@ -92,9 +92,9 @@ func (a *agentPanel) pageRetention() string {
 
 // openRetentionSettings is Retention settings: Settings · Agent.
 func (w *workspace) openRetentionSettings() {
-	w.openPage("settings")
-	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
-		p.section, p.search = "agent", ""
+	w.openPage(pageSettings)
+	if p := w.settingsPage(); p != nil {
+		p.showSection("agent")
 		w.loadAgentSettings()
 	}
 }

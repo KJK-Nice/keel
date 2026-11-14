@@ -234,7 +234,7 @@ func (w *workspace) deleteAllNotes() {
 			return
 		}
 		w.say("Notes deleted")
-		if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		if p := w.settingsPage(); p != nil {
 			w.loadNotes(&p.notes)
 		}
 		if d := w.hostDlg; d != nil && d.nb != nil {

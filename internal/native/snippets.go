@@ -162,7 +162,7 @@ func (w *workspace) typeSnippet(id string) {
 // saveEditor is Save (⌘S) on the page: the name is trimmed
 // and the command ends with a newline.
 func (w *workspace) saveEditor() {
-	t := w.pageTab("snippets")
+	t := w.pageTab(pageSnippets)
 	if t == nil {
 		return
 	}
@@ -236,7 +236,7 @@ func (w *workspace) saveSnippetDialog() {
 		if w.snipDlg == d {
 			w.closeSnippetDialog()
 		}
-		if t := w.pageTab("snippets"); t != nil && d.id == "" {
+		if t := w.pageTab(pageSnippets); t != nil && d.id == "" {
 			pageAs[*snippetsPage](t).selected = saved.ID
 		}
 		w.say("Snippet saved")

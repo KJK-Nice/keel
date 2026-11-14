@@ -216,7 +216,7 @@ func init() {
 			}
 			return rows
 		}}},
-		{id: "settings", key: &chord{mods: ui.Cmd, key: ui.KeyComma, glyph: ","}, run: func(w *workspace) { w.openPage("settings") }, help: &helpSpec{"Vault", "Settings"}},
+		{id: "settings", key: &chord{mods: ui.Cmd, key: ui.KeyComma, glyph: ","}, run: func(w *workspace) { w.openPage(pageSettings) }, help: &helpSpec{"Vault", "Settings"}},
 		{id: "pane.splitr", key: cmdShiftKey(ui.KeyD, "D"), run: func(w *workspace) { w.splitFocused(layout.Row) },
 			menuSep: true, menu: &menuSpec{"File", "Split Right", 7}, pal: &palSpec{section: "Panes", title: "Split right", icon: "split-h"}, help: &helpSpec{"Panes", "Split right"}},
 		{id: "pane.splitd", key: cmdShiftKey(ui.KeyE, "E"), run: func(w *workspace) { w.splitFocused(layout.Col) },

@@ -63,6 +63,14 @@ func newSettingsPage() *settingsPage {
 	return &settingsPage{section: "appearance", notes: notesEditor{user: true}}
 }
 
+// settingsPage is the open Settings tab's page, or nil.
+func (w *workspace) settingsPage() *settingsPage {
+	return pageAs[*settingsPage](w.pageTab(pageSettings))
+}
+
+// showSection shows section id, with the search cleared.
+func (p *settingsPage) showSection(id string) { p.section, p.search = id, "" }
+
 func (p *settingsPage) load(w *workspace) {
 	w.loadSettings()
 	if p.section == "agent" {
@@ -87,11 +95,10 @@ func (w *workspace) loadSettings() {
 		r.v, r.verr = w.be.Vault(c)
 		return r, nil
 	}, func(r read, _ error) {
-		t := w.pageTab("settings")
-		if t == nil {
+		p := w.settingsPage()
+		if p == nil {
 			return
 		}
-		p := pageAs[*settingsPage](t)
 		if r.rerr == nil {
 			p.rt = &r.rt
 		}
@@ -257,7 +264,7 @@ func (w *workspace) commitSignal(p *settingsPage) {
 // askStopRuntime is Stop runtime…: it asks first, with the session count it knows.
 func (w *workspace) askStopRuntime() {
 	n := w.paneCount()
-	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil && p.rt != nil {
+	if p := w.settingsPage(); p != nil && p.rt != nil {
 		n = p.rt.Sessions
 	}
 	w.askConfirm(&confirmDialog{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})

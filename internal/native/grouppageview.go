@@ -72,7 +72,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 			return
 		case len(p.run.books) == 0:
 			if emptySide(c, emptySentences("book", groupNoBooks, "Open Runbooks")) {
-				w.act(func() { w.openPage("runbooks") })
+				w.act(func() { w.openPage(pageRunbooks) })
 			}
 			return
 		}
