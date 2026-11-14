@@ -18,7 +18,7 @@ import (
 const offerToken = "one-time-offer-token"
 
 // script serves /ws/session sending the frames pushed on out, records what the client sends, and
-// serves the POST endpoints N3 uses, recording method, path and body.
+// serves the POST endpoints the window uses, recording method, path and body.
 type script struct {
 	c    *Client
 	out  chan string
