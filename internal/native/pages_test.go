@@ -543,13 +543,10 @@ func TestLogsPageRowsAreNewestFirstWithTimeKindTargetAndEvent(t *testing.T) {
 	r.w.showPage("logs")
 	r.tt.Frame()
 	r.texts(t, "Logs", "What Keel did on this machine, newest first. Secrets are never written here.", "Refresh", "Search events",
-		"All", "Sessions", "Forwards", "Vault", "Agent", "Time", "Kind", "Target", "Event",
+		"All", "Sessions", "Forwards", "Vault", "Sharing", "Agent", "Time", "Kind", "Target", "Event",
 		"15:04:08", "host", "api-1", "host deleted", "15:04:05", "tunnel", "tunnel started",
 		"agent.read", "pg-primary", "agent read 12 lines", "12 lines", "300 bytes", "3 redacted", "via jev",
 		"session opened", "staging-web", "3 sent", "model 40 ms", "Jev 9 ms", "connect failed")
-	if r.tt.HasText("Sharing") {
-		t.Error("a Sharing chip: the webview has none")
-	}
 	if fb.logLimit != logsLimit {
 		t.Errorf("limit %d", fb.logLimit)
 	}
@@ -579,8 +576,12 @@ func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	if !has("tunnel started") || has("session opened") {
 		t.Error("the Forwards chip keeps the wrong rows")
 	}
-	// The title bar's Agent button shares this chip's name: the chip is the one after Vault.
-	v, _ := r.tt.Find("Vault")
+	r.click(t, "Sharing")
+	if has("host deleted") || has("session opened") || has("agent read 12 lines") {
+		t.Error("the Sharing chip keeps the wrong rows")
+	}
+	// The title bar's Agent button shares this chip's name: the chip is the one after Sharing.
+	v, _ := r.tt.Find("Sharing")
 	r.tt.ClickAt(v.X+v.W+space1_5+20, v.Y+v.H/2)
 	r.tt.Frame()
 	if !has("agent read 12 lines") || !has("suggestion") || has("host deleted") || has("connect failed") {
@@ -670,9 +671,9 @@ func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 	}
 }
 
-func TestLogRulesAreTheWebviews(t *testing.T) {
+func TestLogGroups(t *testing.T) {
 	for kind, want := range map[string]string{"session": "sessions", "tunnel": "forwards", "vault": "vault", "host": "vault", "group": "vault", "identity": "vault",
-		"snippet": "vault", "notebook": "vault", "agent": "agent", "agent.type": "agent", "AGENT.read": "agent", "share": "other", "error": "other"} {
+		"snippet": "vault", "notebook": "vault", "agent": "agent", "agent.type": "agent", "AGENT.read": "agent", "share": "sharing", "error": "other"} {
 		if got := logGroup(kind); got != want {
 			t.Errorf("logGroup(%q) = %q, want %q", kind, got, want)
 		}

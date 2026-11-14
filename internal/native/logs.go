@@ -16,14 +16,14 @@ import (
 // The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. Entries carry counts, never
 // content: nothing here could show a secret.
 //
-// The chips are All, Sessions, Forwards, Vault and Agent. §5.13 also lists Sharing; there is no such chip.
+// The chips are §5.13's: All, Sessions, Forwards, Vault, Sharing and Agent.
 
 const logsLimit = 200 // GET /api/logs' own default, asked for by name
 
 // logsPage is the state of the Logs tab.
 type logsPage struct {
 	filter  string // the search box: kind and message
-	kind    string // the chip: all, sessions, forwards, vault or agent
+	kind    string // the chip: all, sessions, forwards, vault, sharing or agent
 	entries []keelclient.LogEntry
 	loaded  bool
 	reading bool // a logsTick read is out
@@ -41,9 +41,9 @@ func (p *logsPage) String() string {
 func (p *logsPage) GoString() string { return p.String() }
 
 // logChips are the filter chips.
-var logChips = [][2]string{{"all", "All"}, {"sessions", "Sessions"}, {"forwards", "Forwards"}, {"vault", "Vault"}, {"agent", "Agent"}}
+var logChips = [][2]string{{"all", "All"}, {"sessions", "Sessions"}, {"forwards", "Forwards"}, {"vault", "Vault"}, {"sharing", "Sharing"}, {"agent", "Agent"}}
 
-// logGroup is the chip a log kind belongs to (data.go logGroup).
+// logGroup is the chip a log kind belongs to.
 func logGroup(kind string) string {
 	k := strings.ToLower(kind)
 	if k == wire.LogAgent || strings.HasPrefix(k, wire.LogAgent+".") {
@@ -56,6 +56,8 @@ func logGroup(kind string) string {
 		return "forwards"
 	case wire.LogVault, wire.LogHost, wire.LogGroup, wire.LogIdentity, wire.LogSnippet, wire.LogNotebook:
 		return "vault"
+	case wire.LogShare:
+		return "sharing"
 	}
 	return "other"
 }
