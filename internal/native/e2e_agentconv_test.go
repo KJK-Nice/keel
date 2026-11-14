@@ -470,7 +470,8 @@ func TestE2EAgentSettings(t *testing.T) {
 
 	// Claude Code: off, on, off; only claudeCode is sent, and the window has no call that reaches keel mcp.
 	e.click("Allow Claude Code (keel mcp) switch")
-	e.pump(func() bool { return e.serverSettings().Settings.ClaudeCode }, "Claude Code on")
+	// The switch draws keel serve's answer: the second click waits for the window to have it, or it would send "on" again.
+	e.pump(func() bool { return e.serverSettings().Settings.ClaudeCode && e.w.agentVal().Settings.ClaudeCode }, "Claude Code on")
 	e.click("Allow Claude Code (keel mcp) switch")
 	e.pump(func() bool { return !e.serverSettings().Settings.ClaudeCode }, "Claude Code off")
 	var claude []keelclient.AgentSettingsPatch
