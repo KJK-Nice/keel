@@ -39,7 +39,7 @@ func TestUnfocusedTileBodyKeepsItsGround(t *testing.T) {
 		r.w.setTheme(th)
 		r.click(t, "Split right")
 		if r.tt.Image() == nil {
-			t.Skip("Tester.Image gave no pixels")
+			noPixels(t)
 		}
 		a, _ := r.tt.Find("pane 1")
 		b, _ := r.tt.Find("pane 2")
@@ -65,7 +65,7 @@ func TestKeyCapsAreFlat(t *testing.T) {
 			tt.Frame()
 			img := tt.Image()
 			if img == nil {
-				t.Skip("Tester.Image gave no pixels")
+				noPixels(t)
 			}
 			r, ok := tt.Find("cap")
 			if !ok {
@@ -113,7 +113,7 @@ func TestSeamsAreOneLineOfOneColour(t *testing.T) {
 			r.tt.SetScale(scale)
 			r.tt.Frame()
 			if r.tt.Image() == nil {
-				t.Skip("Tester.Image gave no pixels")
+				noPixels(t)
 			}
 			want := int(scale) // a 1 DIP line is `scale` device pixels
 			name := func(s string) string { return th + " " + s }

@@ -92,7 +92,7 @@ func TestControlFillOnTheGlass(t *testing.T) {
 		}
 		img := r.tt.Image()
 		if img == nil {
-			t.Skip("Tester.Image gave no pixels")
+			noPixels(t)
 		}
 		in, ok := r.tt.Find("Filter hosts")
 		if !ok {

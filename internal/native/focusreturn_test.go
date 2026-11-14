@@ -114,7 +114,7 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 		r.tt.Frame()
 		r.tt.Frame()
 		if len(r.fb.conns) < 2 {
-			t.Skip("the split opened no second session in this rig")
+			t.Fatal("the split opened no second session")
 		}
 		r.tt.Frame()
 		if !r.tt.Focused("body 2") {

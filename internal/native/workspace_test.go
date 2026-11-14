@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -770,6 +771,16 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 // pixel samples the tester image at DIP coordinates.
 func (r *rig) pixel(x, y float32) [3]uint8 { return pixelAt(r.tt, x, y) }
 
+// noPixels ends a pixel test whose Tester.Image gave nothing: on macOS the tester always draws, so it fails there;
+// elsewhere it is skipped (the tester may have no renderer).
+func noPixels(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		t.Fatal("Tester.Image gave no pixels on macOS")
+	}
+	t.Skip("Tester.Image gave no pixels on " + runtime.GOOS)
+}
+
 func pixelAt(tt *ui.Tester, x, y float32) [3]uint8 {
 	img := tt.Image()
 	s := float64(img.Bounds().Dx()) / 1280
@@ -787,7 +798,7 @@ func TestSinglePaneIsFullBleedAndSplitHasARingOnTheFocusedTileOnly(t *testing.T)
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	if r.tt.Image() == nil {
-		t.Skip("Tester.Image gave no pixels")
+		noPixels(t)
 	}
 	one, ok := r.tt.Find("pane 1")
 	if !ok {
