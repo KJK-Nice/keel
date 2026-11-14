@@ -1,6 +1,7 @@
 package native
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -45,9 +46,17 @@ func (r *rig) nbPane(t *testing.T) *pane {
 	return nil
 }
 
+// frames draws at least n frames and goes on until the texts on screen stop changing (at most 12 more), so a test does not
+// depend on how many frames a layout needs to settle.
 func (r *rig) frames(n int) {
-	for range n {
+	prev := ""
+	for i := 0; i < n+12; i++ {
 		r.tt.Frame()
+		cur := fmt.Sprint(r.tt.Texts())
+		if i+1 >= n && cur == prev {
+			return
+		}
+		prev = cur
 	}
 }
 
