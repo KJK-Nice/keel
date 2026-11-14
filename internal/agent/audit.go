@@ -190,7 +190,7 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 			return a.readCommand(p, blk, lines, r, source)
 		}
 	}
-	return a.readPane(src, scope, p, lines, r, false, source)
+	return a.readPane(src, scope, p, lines, r, asWritten, source)
 }
 
 // readCommand turns a command block into an excerpt, as one plain text
@@ -310,7 +310,7 @@ func oneLine(s string) string {
 // first, so a line that was redrawn, moved over or erased is not read as
 // it was first written. Logged the same way.
 func (a *Auditor) ReadPaneScreen(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor) (Excerpt, error) {
-	return a.readPane(src, scope, p, lines, r, true, "")
+	return a.readPane(src, scope, p, lines, r, CommandLines, "")
 }
 
 var csiRe = regexp.MustCompile(`\x1b\[([0-?]*)[ -/]*([@-~])`)
@@ -405,7 +405,12 @@ func motions(ln string) (up int, above, touched bool) {
 	return up, above, touched
 }
 
-func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, screen bool, source string) (Excerpt, error) {
+// asWritten reads a pane's output as the shell wrote it.
+func asWritten(raw string) string { return raw }
+
+// readPane reads a pane's scrollback through view (asWritten, or
+// CommandLines), redacts it and logs the read.
+func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, view func(raw string) string, source string) (Excerpt, error) {
 	if !scope.Allows(p) {
 		return Excerpt{}, ErrNotReadable
 	}
@@ -416,11 +421,7 @@ func (a *Auditor) readPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 	if err != nil {
 		return Excerpt{}, err
 	}
-	in := string(raw)
-	if screen {
-		in = CommandLines(in)
-	}
-	text, n := LastLines(redact.Normalize(in), ClampLines(lines))
+	text, n := LastLines(redact.Normalize(view(string(raw))), ClampLines(lines))
 	before := r.Report()
 	safe := r.Text(text).Tail(maxExcerptBytes)
 	rep := Diff(before, r.Report())
