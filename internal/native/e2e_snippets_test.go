@@ -243,7 +243,7 @@ func TestE2ESnippetsPageComesBack(t *testing.T) {
 	if s, _ := e.snippetNamed("e2e kept"); s.AgentUsable {
 		t.Fatal("a new snippet may be suggested by the agent")
 	}
-	ed := &e.w.pageTab("snippets").pg.snippets.ed
+	ed := &pageAs[*snippetsPage](e.w.pageTab("snippets")).ed
 	// The save is done when the window's list holds it too: until then the editor re-reads the old text.
 	e.pump(func() bool {
 		s, _ := e.w.snippet(ed.id)

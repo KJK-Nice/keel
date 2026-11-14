@@ -234,7 +234,7 @@ var fwdKinds = [][2]string{{"local", "Local (−L)"}, {"remote", "Remote (−R)"
 
 func (w *workspace) forwardDialogView(c *ui.Context) {
 	d := w.fwdDlg
-	if d == nil || w.confirm != nil || w.fwdKey != nil {
+	if d == nil {
 		return
 	}
 	title := "New forward"

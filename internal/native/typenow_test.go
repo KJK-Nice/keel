@@ -332,7 +332,7 @@ func TestAProposalRefusedByTheServerShowsItsWordsOnTheCard(t *testing.T) {
 	r2.answers(directProposal())
 	r2.ask(t, "q")
 	r2.click(t, "Type into pane")
-	if r2.w.approve == nil || r2.w.approve.agent == nil || len(r2.typed()) != 0 {
+	if r2.w.approve == nil || r2.w.approve.agent() == nil || len(r2.typed()) != 0 {
 		t.Fatal("the dialog did not open for the proposal")
 	}
 	if got := r2.w.approve.shown(); got != "\x15df -h\n" {

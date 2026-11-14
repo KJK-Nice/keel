@@ -467,10 +467,10 @@ func (e *win) waitTypeAll(n int) {
 
 // rowsOf are the open group dialog's rows.
 func (e *win) dialogRows() []*groupRow {
-	if e.w.approve == nil || e.w.approve.group == nil {
+	if e.w.approve == nil || e.w.approve.group() == nil {
 		return nil
 	}
-	return e.w.approve.group.rows
+	return e.w.approve.group().rows
 }
 
 func (e *win) holds(sid, s string) bool { return strings.Contains(e.scrollback(sid), s) }

@@ -166,7 +166,7 @@ func (w *workspace) folderRenameFocus(c *ui.Context) {
 
 func (w *workspace) folderDialogView(c *ui.Context) {
 	d := w.folderDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	title := folderNewTitle

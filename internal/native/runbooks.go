@@ -407,6 +407,10 @@ type runbooksPage struct {
 	menuLoad  bool
 }
 
+func (p *runbooksPage) load(w *workspace)                { w.loadRunbooks() }
+func (p *runbooksPage) view(w *workspace, c *ui.Context) { w.runbooksView(c, p) }
+func (p *runbooksPage) newItem(w *workspace)             { w.newRunbook() }
+
 // rbStepState is a step in the editor: the fields the user edits (the group-run fields of §17 too: a role, One host only and
 // captures), and what is only carried (the rating).
 type rbStepState struct {
@@ -492,12 +496,7 @@ func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
 	return e
 }
 
-func (w *workspace) runbooksPage() *runbooksPage {
-	if t := w.pageTab("runbooks"); t != nil {
-		return t.pg.runbooks
-	}
-	return nil
-}
+func (w *workspace) runbooksPage() *runbooksPage { return pageAs[*runbooksPage](w.pageTab("runbooks")) }
 
 // loadRunbooks reads the list (GET /api/agent/runbooks). The editor is read again from it unless the user has changed it.
 func (w *workspace) loadRunbooks() {

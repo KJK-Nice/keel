@@ -236,7 +236,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		case modeNew:
 			lead = icon(c, "computer-terminal-01", inkMuted)
 		case modePage:
-			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
+			lead = icon(c, t.pg.tabIcon, inkMuted)
 		case modeRemote: // the joined-share link (lib/tabstrip.js)
 			lead = icon(c, "link", inkMuted)
 		case modeNotebooks: // no session to have a state
@@ -443,14 +443,9 @@ func (w *workspace) hostActionsMenu(m *ui.Menu) {
 // (its key cap shows only while ⌘ is held in the app).
 func (w *workspace) sidebarFoot(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space1_5).Gap(space0_5), 1, 0, 0, 0).Children(func() {
-		for _, name := range footPages {
-			def := pageDefs[name]
-			glyph := "key-01"
-			if name == "logs" {
-				glyph = "logs"
-			}
-			if textBtnIcon(c, glyph, def.title, btnGhost) {
-				w.act(func() { w.openPage(name) })
+		for _, k := range pageKinds {
+			if k.footIcon != "" && textBtnIcon(c, k.footIcon, k.title, btnGhost) {
+				w.act(func() { w.openPage(k.name) })
 			}
 		}
 		ui.Spacer(c)
@@ -539,7 +534,7 @@ func (w *workspace) stage(c *ui.Context) {
 	case t.mode() == modeNew:
 		w.startPageView(c, t)
 	case t.mode() == modePage:
-		w.pageView(c, t)
+		t.pg.view(w, c)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {
 			t.zoomed = ""

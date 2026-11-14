@@ -224,7 +224,7 @@ func stored(have bool, yes, no string) string {
 
 func (w *workspace) identityDialogView(c *ui.Context) {
 	d := w.identDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	title := "New identity"

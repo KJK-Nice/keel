@@ -181,7 +181,7 @@ func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
 
 func TestSettingsAgentScrollbackLinesRangeAndRequest(t *testing.T) {
 	r := agentSettingsRig(t)
-	p := r.w.pageTab("settings").pg.settings
+	p := pageAs[*settingsPage](r.w.pageTab("settings"))
 	if p.linesV != 200 {
 		t.Fatalf("the slider starts at %v: it shows what keel serve holds", p.linesV)
 	}
@@ -282,7 +282,7 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 	r.click(t, "Anthropic API key input")
 	r.tt.Type(fakeProviderKey)
 	r.tt.Frame()
-	p := r.w.pageTab("settings").pg.settings
+	p := pageAs[*settingsPage](r.w.pageTab("settings"))
 	if p.card("anthropic").field != fakeProviderKey {
 		t.Fatal("the field did not take the key")
 	}
@@ -379,7 +379,7 @@ func TestRetentionSettingsOpensSettingsAgent(t *testing.T) {
 	r.click(t, "Retention settings")
 	r.settleFrames()
 	tb := r.w.tab()
-	if tb == nil || tb.pg == nil || tb.pg.settings == nil || tb.pg.settings.section != "agent" || !r.tt.HasText("Keep conversations") {
+	if tb == nil || tb.pg == nil || pageAs[*settingsPage](tb) == nil || pageAs[*settingsPage](tb).section != "agent" || !r.tt.HasText("Keep conversations") {
 		t.Fatalf("Retention settings did not open Settings · Agent: %v", r.tt.Texts())
 	}
 }

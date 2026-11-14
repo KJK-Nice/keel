@@ -204,12 +204,15 @@ func init() {
 			menu: &menuSpec{"File", "Join Session", 6}, pal: &palSpec{section: "Vault", title: "Join session", icon: "link"}, help: &helpSpec{"Vault", "Join session"}},
 		{id: "hosts.import", run: (*workspace).openImport, pal: &palSpec{section: "Vault", title: "Import hosts from ~/.ssh/config"}},
 		{id: "pages", pal: &palSpec{many: func(w *workspace) (rows []palItem) { // Keychain, Port forwarding, Snippets, Notebooks, Logs, Settings
-			for _, name := range pageNames {
+			for _, k := range pageKinds {
+				if !k.listed {
+					continue
+				}
 				keys := ""
-				if name == "settings" {
+				if k.name == "settings" {
 					keys = commandByID("settings").keyLabel()
 				}
-				rows = append(rows, vaultRow(pageDefs[name].title, keys, "", func(w *workspace) { w.openPage(name) }, w))
+				rows = append(rows, vaultRow(k.title, keys, "", func(w *workspace) { w.openPage(k.name) }, w))
 			}
 			return rows
 		}}},

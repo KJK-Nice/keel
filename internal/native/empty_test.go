@@ -68,7 +68,7 @@ func TestPageEmptyStates(t *testing.T) {
 		{"notebooks", "No notebooks yet", "empty New notebook", func(w *workspace) bool { return slices.ContainsFunc(w.tabs, (*tab).onlyNotebooks) }},
 		{"forwards", "No forwards yet", "empty New forward", func(w *workspace) bool { return w.fwdDlg != nil }},
 		{"keychain", "No identities yet", "empty New identity", func(w *workspace) bool { return w.identDlg != nil }},
-		{"runbooks", "No runbooks yet", "empty New runbook", func(w *workspace) bool { return w.tab().pg.runbooks.ed != nil }},
+		{"runbooks", "No runbooks yet", "empty New runbook", func(w *workspace) bool { return pageAs[*runbooksPage](w.tab()).ed != nil }},
 	} {
 		r := emptyRig(t)
 		r.w.openPage(c.page)
@@ -92,7 +92,7 @@ func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 	r.tt.Frame()
 	r.w.openPage("logs")
 	r.tt.Frame()
-	r.w.tab().pg.logs.err = "keel serve is not answering"
+	pageAs[*logsPage](r.w.tab()).err = "keel serve is not answering"
 	r.tt.Frame()
 	r.texts(t, "Cannot load the log", "keel serve is not answering", "empty Try again")
 	before := r.fb.logsCalls

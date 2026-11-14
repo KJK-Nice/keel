@@ -18,6 +18,10 @@ type notebooksPage struct {
 	filterH ui.Handle
 }
 
+func (p *notebooksPage) load(w *workspace)                { w.reloadNotebooks() }
+func (p *notebooksPage) view(w *workspace, c *ui.Context) { w.notebooksView(c, p) }
+func (p *notebooksPage) newItem(w *workspace)             { w.newNotebook() }
+
 // notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Ask the
 // agent about this notebook (not for a private one), Delete. Nothing in the menu types.
 func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {

@@ -29,6 +29,10 @@ type keychainPage struct {
 	filterH  ui.Handle
 }
 
+func (p *keychainPage) load(w *workspace)                { w.loadIdentities() }
+func (p *keychainPage) view(w *workspace, c *ui.Context) { w.keychainView(c, p) }
+func (p *keychainPage) newItem(w *workspace)             { w.newIdentity() }
+
 func (p *keychainPage) String() string {
 	return fmt.Sprintf("keychainPage{%d identities}", len(p.idents))
 }
@@ -129,7 +133,7 @@ func (w *workspace) loadIdentities() {
 		if t == nil {
 			return
 		}
-		p := t.pg.keychain
+		p := pageAs[*keychainPage](t)
 		if err != nil {
 			p.err = "Could not read the Keychain: " + hostError(err)
 			return
@@ -240,7 +244,7 @@ func (w *workspace) saveIdentity() {
 			w.closeIdentityDialog()
 		}
 		if t := w.pageTab("keychain"); t != nil && d.id == "" {
-			t.pg.keychain.selected = saved.ID
+			pageAs[*keychainPage](t).selected = saved.ID
 		}
 		w.say("Identity saved")
 		w.loadIdentities()

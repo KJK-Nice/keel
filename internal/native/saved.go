@@ -90,11 +90,8 @@ func (w *workspace) snapshot() savedDoc {
 			if i == w.active {
 				d.ActivePage = t.pg.name
 			}
-			switch {
-			case t.pg.group != nil:
-				d.GroupID = t.pg.group.id
-			case t.pg.grouprun != nil:
-				d.RunID = t.pg.grouprun.id
+			if p, ok := t.pg.page.(pageSaved); ok {
+				p.snapshot(&d)
 			}
 			continue
 		}
@@ -269,15 +266,8 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 	if doc != nil {
 		for _, name := range doc.Pages {
 			if t := w.addPageTab(name); t != nil {
-				switch { // the folder or the run the page showed
-				case t.pg.group != nil:
-					t.pg.group.id = doc.GroupID
-					t.pg.group.notes = notesEditor{group: true, groupID: doc.GroupID}
-					if g, ok := groupByID(w.folders, doc.GroupID); ok {
-						t.pg.group.title = g.Name
-					}
-				case t.pg.grouprun != nil:
-					t.pg.grouprun.id = doc.RunID
+				if p, ok := t.pg.page.(pageSaved); ok {
+					p.restore(w, doc)
 				}
 				pages = append(pages, t)
 				if name == doc.ActivePage {

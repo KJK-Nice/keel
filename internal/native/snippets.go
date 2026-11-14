@@ -34,6 +34,10 @@ type snippetsPage struct {
 	ed       snippetEditor
 }
 
+func (p *snippetsPage) load(w *workspace)                { w.reloadSnippets() }
+func (p *snippetsPage) view(w *workspace, c *ui.Context) { w.snippetsView(c, p) }
+func (p *snippetsPage) newItem(w *workspace)             { w.newSnippet() }
+
 // snippetEditor is the editor beside the list: the fields of the selected snippet.
 type snippetEditor struct {
 	id                    string // the snippet the fields were read from
@@ -173,7 +177,7 @@ func (w *workspace) saveEditor() {
 	if t == nil {
 		return
 	}
-	p := t.pg.snippets
+	p := pageAs[*snippetsPage](t)
 	e := &p.ed
 	if e.saving || e.id == "" {
 		return
@@ -244,7 +248,7 @@ func (w *workspace) saveSnippetDialog() {
 			w.closeSnippetDialog()
 		}
 		if t := w.pageTab("snippets"); t != nil && d.id == "" {
-			t.pg.snippets.selected = saved.ID
+			pageAs[*snippetsPage](t).selected = saved.ID
 		}
 		w.say("Snippet saved")
 		w.reloadSnippets()

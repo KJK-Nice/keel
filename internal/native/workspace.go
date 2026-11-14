@@ -322,13 +322,10 @@ func (m tabMode) hasPanes() bool { return m != modeNew && m != modePage }
 
 func (t *tab) name() string {
 	if t.pg != nil { // a page is named by what it is: no rename
-		switch { // the Group page by its folder, the group run page by its runbook (term.js setPageTitle)
-		case t.pg.group != nil && t.pg.group.title != "":
-			return t.pg.group.title
-		case t.pg.grouprun != nil && t.pg.grouprun.title != "":
-			return t.pg.grouprun.title
+		if p, ok := t.pg.page.(pageTitled); ok && p.tabTitle() != "" {
+			return p.tabTitle() // the Group page by its folder, the group run page by its runbook
 		}
-		return pageDefs[t.pg.name].title
+		return t.pg.title
 	}
 	if t.title != "" {
 		return t.title

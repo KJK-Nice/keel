@@ -70,6 +70,15 @@ func newSettingsPage() *settingsPage {
 	return &settingsPage{section: "appearance", notes: notesEditor{user: true}}
 }
 
+func (p *settingsPage) load(w *workspace) {
+	w.loadSettings()
+	if p.section == "agent" {
+		w.loadAgentSettings()
+	}
+}
+
+func (p *settingsPage) view(w *workspace, c *ui.Context) { w.settingsView(c, p) }
+
 // ---- reading ----
 
 // loadSettings reads what Sharing, Vault & security, Runtime and About show (settingspages.js refresh). Neither call
@@ -89,7 +98,7 @@ func (w *workspace) loadSettings() {
 		if t == nil {
 			return
 		}
-		p := t.pg.settings
+		p := pageAs[*settingsPage](t)
 		if r.rerr == nil {
 			p.rt = &r.rt
 		}
@@ -256,8 +265,8 @@ func (w *workspace) commitSignal(p *settingsPage) {
 // askStopRuntime is Stop runtime…: it asks first, with the app's words and the session count it knows.
 func (w *workspace) askStopRuntime() {
 	n := w.paneCount()
-	if t := w.pageTab("settings"); t != nil && t.pg.settings.rt != nil {
-		n = t.pg.settings.rt.Sessions
+	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil && p.rt != nil {
+		n = p.rt.Sessions
 	}
 	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }

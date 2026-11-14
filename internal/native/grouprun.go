@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"keel/internal/native/keelclient"
 )
 
@@ -59,12 +61,15 @@ type groupRunPage struct {
 // groupRunNarrow is #page-grouprun's container query (keel.css): under this width the steps sit above the detail.
 const groupRunNarrow = 760
 
+func (p *groupRunPage) load(w *workspace)                 { w.loadGroupRunPage() }
+func (p *groupRunPage) view(w *workspace, c *ui.Context)  { w.groupRunView(c, p) }
+func (p *groupRunPage) tabTitle() string                  { return p.title }
+func (p *groupRunPage) snapshot(d *savedDoc)              { d.RunID = p.id }
+func (p *groupRunPage) restore(_ *workspace, d *savedDoc) { p.id = d.RunID }
+
 // groupRunPageState is the page of the Group run tab, or nil.
 func (w *workspace) groupRunPageState() *groupRunPage {
-	if t := w.pageTab("grouprun"); t != nil {
-		return t.pg.grouprun
-	}
-	return nil
+	return pageAs[*groupRunPage](w.pageTab("grouprun"))
 }
 
 // openGroupRun opens the run's page, or shows it in the tab that is open: one instance.
@@ -76,7 +81,7 @@ func (w *workspace) openGroupRun(run keelclient.GroupRun) {
 	if t == nil {
 		t = w.addPageTab("grouprun")
 	}
-	p := t.pg.grouprun
+	p := pageAs[*groupRunPage](t)
 	if p.id != run.ID {
 		*p = groupRunPage{}
 	}

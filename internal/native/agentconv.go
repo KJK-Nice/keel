@@ -93,8 +93,7 @@ func (a *agentPanel) known() bool { return len(a.turns) > 0 }
 
 // agentPageShown is whether the Agent page is the tab on screen.
 func (w *workspace) agentPageShown() bool {
-	t := w.tab()
-	return t != nil && t.pg != nil && t.pg.agent != nil
+	return pageAs[*agentPage](w.tab()) != nil
 }
 
 // ---- the list ----

@@ -197,6 +197,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 			return e2.w.prefs.AgentPanel && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
 		}, "the panel on the new daemon")
 		e2.openRecent()
+		e2.pump(func() bool { return e2.hasLabel("conversation what should I run?") }, "the saved conversation in the list") // the list loads from the restarted daemon
 		e2.click("conversation what should I run?")
 		e2.pump(func() bool { return e2.w.agent.conv == id && e2.hasLabel("Proposal expired") }, "the expired card")
 		for _, s := range []string{"Expired", "Panes may have changed since this was proposed.", "Copy", "Propose again"} {
@@ -440,7 +441,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 
 	// Scrollback lines and the default scope.
-	p := e.w.pageTab("settings").pg.settings
+	p := pageAs[*settingsPage](e.w.pageTab("settings"))
 	p.linesV = 400
 	e.pump(func() bool { return e.serverSettings().Settings.ScrollbackLines == 400 }, "Scrollback lines on keel serve")
 	e.click("Default panes per conversation Every pane in the tab")

@@ -286,3 +286,41 @@ func TestSavingFollowsChangesAndWaitsForTheStart(t *testing.T) {
 		t.Errorf("a locked window rewrote the file: %s", after)
 	}
 }
+
+// testdata/saved-workspace.json is a file users have on disk (one tab of every page kind): it comes back whole and is
+// written again byte for byte. Do not regenerate it to make this pass.
+func TestSavedWorkspaceFixtureComesBackAndSavesTheSame(t *testing.T) {
+	want, err := os.ReadFile("testdata/saved-workspace.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, savedFile), want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
+	r := newRigIn(t, fb, dir)
+	var names []string
+	for _, tb := range r.w.tabs {
+		if tb.isPage() {
+			names = append(names, tb.pg.name)
+		} else {
+			names = append(names, tb.title+" "+shape(tb))
+		}
+	}
+	wantTabs := []string{"deploy R0.50(s1 s2)", "logs", "keychain", "settings", "forwards", "notebooks", "snippets", "agent", "runbooks", "group", "grouprun"}
+	if !slices.Equal(names, wantTabs) {
+		t.Fatalf("tabs %q, want %q", names, wantTabs)
+	}
+	if r.w.tab() != r.w.pageTab("snippets") {
+		t.Errorf("active tab %d, want the Snippets page", r.w.active)
+	}
+	if g, run := r.w.groupPageState(), r.w.groupRunPageState(); g.id != "g-fixture" || g.notes.groupID != "g-fixture" || run.id != "run-fixture" {
+		t.Errorf("group %q (notes %q), run %q", g.id, g.notes.groupID, run.id)
+	}
+	r.w.closeWindow()
+	got, _ := os.ReadFile(filepath.Join(dir, savedFile))
+	if string(got)+"\n" != string(want) {
+		t.Errorf("saved again as\n%s\nwant\n%s", got, want)
+	}
+}

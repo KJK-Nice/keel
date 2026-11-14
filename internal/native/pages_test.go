@@ -293,7 +293,7 @@ func TestKeychainPageNeverRendersASecret(t *testing.T) {
 			t.Fatalf("the page shows a secret: %q", s)
 		}
 	}
-	if s := fmt.Sprintf("%v %+v %#v", r.w.tab().pg.keychain, in, in); strings.Contains(s, scratchPassword) || strings.Contains(s, scratchPEM) {
+	if s := fmt.Sprintf("%v %+v %#v", pageAs[*keychainPage](r.w.tab()), in, in); strings.Contains(s, scratchPassword) || strings.Contains(s, scratchPEM) {
 		t.Fatalf("printing holds a secret: %s", s)
 	}
 }
@@ -331,7 +331,7 @@ func TestNewIdentityPasswordSendsItOnceAndSelectsTheNewOne(t *testing.T) {
 		t.Error("the dialog stays open")
 	}
 	r.texts(t, "db login", "Password · postgres · 0 hosts")
-	if got := r.w.tab().pg.keychain.selected; got != "i-new1" {
+	if got := pageAs[*keychainPage](r.w.tab()).selected; got != "i-new1" {
 		t.Errorf("selected %q", got)
 	}
 	// The secret is nowhere in the page.

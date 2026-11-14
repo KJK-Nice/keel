@@ -25,7 +25,7 @@ const (
 )
 
 func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
-	g := d.group
+	g := d.group()
 	open := true
 	var typeable []*groupRow // the rows keel serve made bytes for
 	attempted := false
@@ -112,7 +112,7 @@ func anyUsed(rows []*groupRow) bool {
 // groupApproveRow is one host: its tick, name, pane, badges and, as the app has them, its own bytes when they differ and
 // where its values came from.
 func (w *workspace) groupApproveRow(c *ui.Context, d *approveDialog, r *groupRow, same, sameUsed bool) {
-	g := d.group
+	g := d.group()
 	why := g.rowBlocked(r)
 	off := why != "" || r.attempted || d.busy
 	st := checkOff

@@ -273,7 +273,7 @@ func (w *workspace) paletteItems() []palItem {
 			items = append(items, palItem{group: "Open now", title: "New tab", hint: fmt.Sprintf("tab %d", n), keys: keys, icon: "add-01", run: func(bool) { focusTab() }})
 			continue
 		case modePage:
-			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: pageDefs[t.pg.name].paletteTag, run: func(bool) { focusTab() }})
+			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: t.pg.paletteTag, run: func(bool) { focusTab() }})
 			continue
 		}
 		leaves := t.root.Leaves()

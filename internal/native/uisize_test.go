@@ -11,7 +11,7 @@ import (
 // (the title bar, a control, the sidebar, the spacing): keel.css and tokens.css.
 func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	p := r.w.pageTab("settings").pg.settings
+	p := pageAs[*settingsPage](r.w.pageTab("settings"))
 	type measure struct{ tab, newHost, sidebarEdge, status, kbdH, text float32 }
 	read := func(size int) measure {
 		p.uiV = float64(size)

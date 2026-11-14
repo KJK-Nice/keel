@@ -52,23 +52,53 @@ const (
 
 // approveDialog is the open Approve before type dialog: the pane it types into and where the command comes from.
 type approveDialog struct {
-	p      *pane                 // nil for the group dialog, which types into a pane per ticked row
-	source func() (string, bool) // the command as it is now; false when it is gone (deleted elsewhere)
-	err    string                // why the last Type did not type
-	busy   bool                  // a Type is waiting for keel serve
-	focus  bool                  // the dialog has been given the keyboard
-
-	agent *approveAgent // set when the bytes are an agent proposal's
-	group *approveGroup // set for the group approve dialog (§6 rule 10)
-
-	// A notebook fence (notebooktype.go): the bytes are the fence's line and a newline, with no Ctrl-U (term.js
-	// confirmTermInput sends line + "\n"), and the inject carries notebook:true. note is the line under the bytes when the
-	// agent edited the notebook and the user has not reviewed it (§6 rule 12).
-	notebook bool
-	note     string
+	p     *pane         // nil for the group dialog, which types into a pane per ticked row
+	src   approveSource // where the bytes come from
+	err   string        // why the last Type did not type
+	busy  bool          // a Type is waiting for keel serve
+	focus bool          // the dialog has been given the keyboard
 
 	cancelH, typeH ui.Handle
 }
+
+// approveSource is where the dialog's bytes come from: exactly one of approveSnippet, approveNotebook, *approveAgent and
+// *approveGroup.
+type approveSource interface {
+	// shown is the text the dialog previews and Type sends, as it is now; false when it is gone (deleted elsewhere).
+	shown() (string, bool)
+}
+
+// approveSnippet is a snippet's command (or any text the user chose to type): it is sent behind Ctrl-U.
+type approveSnippet struct {
+	text func() (string, bool)
+}
+
+// shown is the command, with a newline if it has none (term.js paletteRunSnippet).
+func (s approveSnippet) shown() (string, bool) {
+	cmd, ok := s.text()
+	if !strings.HasSuffix(cmd, "\n") {
+		cmd += "\n"
+	}
+	return cmd, ok
+}
+
+// approveNotebook is a notebook fence (notebooktype.go): the bytes are the fence's line and a newline, with no Ctrl-U
+// (term.js confirmTermInput sends line + "\n"), and the inject carries notebook:true. note is the line under the bytes
+// when the agent edited the notebook and the user has not reviewed it (§6 rule 12).
+type approveNotebook struct {
+	approveSnippet
+	note string
+}
+
+// shown is the proposal's bytes as keel serve holds them: nothing is added, not even a newline.
+func (a *approveAgent) shown() (string, bool) { return a.source() }
+
+// shown is nothing: a group has no bytes of its own, each row has (groupRow.bytes).
+func (g *approveGroup) shown() (string, bool) { return "", true }
+
+// agent and group are the source when it is an agent proposal or a group run, else nil.
+func (d *approveDialog) agent() *approveAgent { a, _ := d.src.(*approveAgent); return a }
+func (d *approveDialog) group() *approveGroup { g, _ := d.src.(*approveGroup); return g }
 
 // approveGroup is what the group approve dialog adds (docs/ui-redesign.md §6 rule 10, §17): one row per host, none ticked in
 // advance unless there is only one, and the run they belong to. Its Type is the same approveType: each ticked row is its own
@@ -109,35 +139,24 @@ type approveAgent struct {
 	cancelled      func()          // the dialog closed with nothing typed
 }
 
-// shown is the text the dialog previews: the command, with a newline if it has none (term.js paletteRunSnippet).
+// shown is the text the dialog previews.
 func (d *approveDialog) shown() string {
-	if d.agent != nil { // a proposal's bytes are sent as keel serve holds them: nothing is added, not even a newline
-		b, _ := d.agent.source()
-		return b
-	}
-	cmd, _ := d.source()
-	if !strings.HasSuffix(cmd, "\n") {
-		cmd += "\n"
-	}
-	return cmd
+	b, _ := d.src.shown()
+	return b
 }
 
 func (d *approveDialog) has() bool {
-	if d.agent != nil {
-		_, ok := d.agent.source()
-		return ok
-	}
-	_, ok := d.source()
+	_, ok := d.src.shown()
 	return ok
 }
 
 // session is the line after "Session:" (term.js: the pane's subtitle, else its title).
 func (d *approveDialog) session() string {
-	if d.group != nil {
+	if d.group() != nil {
 		return ""
 	}
-	if d.agent != nil {
-		return d.agent.session
+	if ag := d.agent(); ag != nil {
+		return ag.session
 	}
 	st := d.p.conn.Snapshot()
 	switch {
@@ -151,7 +170,7 @@ func (d *approveDialog) session() string {
 
 // blocked is why Type cannot type into the pane now, in the webview's words, or "" (rule: driver only).
 func (d *approveDialog) blocked() string {
-	if d.group != nil { // every row says for itself why it cannot be typed
+	if d.group() != nil { // every row says for itself why it cannot be typed
 		return ""
 	}
 	st := d.p.conn.Snapshot()
@@ -168,7 +187,12 @@ func (d *approveDialog) blocked() string {
 
 // openApprove opens the dialog for pane p. It sends nothing. Opening it again replaces it.
 func (w *workspace) openApprove(p *pane, source func() (string, bool)) {
-	w.approve = &approveDialog{p: p, source: source, focus: true}
+	w.approve = &approveDialog{p: p, src: approveSnippet{source}, focus: true}
+}
+
+// fromNotebook says the dialog's text is a notebook fence's line, with the note under the bytes ("" for none).
+func (d *approveDialog) fromNotebook(note string) {
+	d.src = approveNotebook{d.src.(approveSnippet), note}
 }
 
 // openApproveAgent opens the dialog for an agent proposal in pane p, showing that pane's tab first so the approval names
@@ -177,7 +201,7 @@ func (w *workspace) openApproveAgent(p *pane, ag *approveAgent) {
 	if t := w.tabOf(p); t != nil && t != w.tab() {
 		w.selectTab(w.tabIndex(t))
 	}
-	w.approve = &approveDialog{p: p, agent: ag, source: ag.source, focus: true}
+	w.approve = &approveDialog{p: p, src: ag, focus: true}
 }
 
 // typeTarget is the pane a snippet types into: the focused pane of the tab shown, else of the session tab shown
@@ -217,11 +241,13 @@ func (w *workspace) askType(source func() (string, bool)) {
 // cancelApprove is Escape, Cancel and a click outside: the dialog closes, nothing is sent, and an agent card is told.
 func (w *workspace) cancelApprove() {
 	if d := w.approve; d != nil {
-		switch {
-		case d.agent != nil:
-			d.agent.cancelled()
-		case d.group != nil && d.group.cancelled != nil && !d.busy:
-			d.group.cancelled()
+		switch s := d.src.(type) {
+		case *approveAgent:
+			s.cancelled()
+		case *approveGroup:
+			if s.cancelled != nil && !d.busy {
+				s.cancelled()
+			}
 		}
 	}
 	w.closeApprove()
@@ -250,7 +276,7 @@ func (w *workspace) approveType(shift bool) {
 		return
 	}
 	var jobs []typeJob
-	if d.group != nil {
+	if d.group() != nil {
 		// The group dialog (§6 rule 10): only the ticked rows, each its own job. shift is the key as it was pressed with Type.
 		if jobs = w.groupJobs(d, shift); len(jobs) == 0 {
 			return
@@ -265,16 +291,16 @@ func (w *workspace) approveType(shift bool) {
 			return
 		}
 		job := typeJob{conn: d.p.conn, command: clearLine + d.shown()}
-		if d.notebook { // the app's bytes for a fence: the line and a newline (confirmTermInput), no Ctrl-U
+		switch s := d.src.(type) {
+		case approveNotebook: // the app's bytes for a fence: the line and a newline (confirmTermInput), no Ctrl-U
 			if cmdrule.HasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
 				d.err = placeholderRefused
 				return
 			}
 			job.command, job.opts = d.shown(), []keelclient.InjectOption{keelclient.FromNotebook}
-		}
-		if ag := d.agent; ag != nil {
+		case *approveAgent:
 			job.command = d.shown() // the proposal's bytes already start with Ctrl-U and end with the newline
-			job.ref = &keelclient.AgentRef{ConversationID: ag.conv, ProposalID: ag.proposal, Shift: ag.shift}
+			job.ref = &keelclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}
 		}
 		jobs = []typeJob{job}
 	}
@@ -291,14 +317,14 @@ func (w *workspace) approveType(shift bool) {
 		}
 		w.post(func() {
 			d.busy = false
-			if g := d.group; g != nil {
+			if g := d.group(); g != nil {
 				w.groupTyped(d, g, jobs, errs)
 				return
 			}
 			err := errs[0]
-			if d.agent != nil && w.approve == d {
+			if ag := d.agent(); ag != nil && w.approve == d {
 				// keel serve's answer is final, shown on the card as the webview shows it: the dialog closes either way.
-				d.agent.done(err)
+				ag.done(err)
 				w.closeApprove()
 				return
 			}
@@ -314,7 +340,7 @@ func (w *workspace) approveType(shift bool) {
 
 // openApproveGroup opens the group approve dialog (§6 rule 10). It sends nothing.
 func (w *workspace) openApproveGroup(g *approveGroup) {
-	w.approve = &approveDialog{group: g, focus: true}
+	w.approve = &approveDialog{src: g, focus: true}
 }
 
 // rowBlocked is why a row cannot be ticked or typed now, in the app's words, or "": a failed fill, a Type that already
@@ -356,7 +382,7 @@ func (g *approveGroup) effective() (out []*groupRow) {
 // attempted never does again, and a row whose pane closed, is followed or is not ready is left out (its row says why). A row
 // that needs ⇧ is typed only when ⇧ was held with Type; otherwise nothing at all is typed and the dialog says to hold it.
 func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
-	g := d.group
+	g := d.group()
 	pick := g.effective()
 	if len(pick) == 0 {
 		return nil

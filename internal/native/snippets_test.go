@@ -60,7 +60,7 @@ func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) 
 	r.w.openPage("snippets")
 	r.tt.Frame()
 	r.click(t, "snippet two steps")
-	e := &r.w.tab().pg.snippets.ed
+	e := &pageAs[*snippetsPage](r.w.tab()).ed
 	if e.agent {
 		t.Fatal("the switch is on for a snippet that may not be suggested")
 	}
@@ -92,7 +92,7 @@ func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 	r.tt.Frame()
 	r.texts(t, "Snippets", "disk usage", "df -h", "two steps", "cd /var/log …", "Commands", "One command per line. Each line ends with Enter when typed.", "Type into pane…", "Save", "Delete snippet")
 	// The first one is selected and the editor holds its command without the last newline.
-	e := &r.w.tab().pg.snippets.ed
+	e := &pageAs[*snippetsPage](r.w.tab()).ed
 	if e.id != "sn-1" || e.name != "disk usage" || e.command != "df -h" {
 		t.Fatalf("editor %+v", e)
 	}
@@ -146,12 +146,12 @@ func TestSnippetEditorKeepsUneditedWorkWhenTheListIsReadAgain(t *testing.T) {
 	fb.snippets[0].Command = "changed elsewhere\n"
 	r.w.reloadSnippets()
 	r.tt.Frame()
-	if e := r.w.tab().pg.snippets.ed; e.command != "half typed" {
+	if e := pageAs[*snippetsPage](r.w.tab()).ed; e.command != "half typed" {
 		t.Fatalf("the poll replaced the user's text: %q", e.command)
 	}
-	r.w.tab().pg.snippets.ed.command = r.w.tab().pg.snippets.ed.origCommand // not dirty any more
+	pageAs[*snippetsPage](r.w.tab()).ed.command = pageAs[*snippetsPage](r.w.tab()).ed.origCommand // not dirty any more
 	r.tt.Frame()
-	if e := r.w.tab().pg.snippets.ed; e.command != "changed elsewhere" {
+	if e := pageAs[*snippetsPage](r.w.tab()).ed; e.command != "changed elsewhere" {
 		t.Fatalf("a clean editor did not follow the server: %q", e.command)
 	}
 }
@@ -174,8 +174,8 @@ func TestNewSnippetDialogAndItsRefusals(t *testing.T) {
 	if len(fb.snipSaved) != 1 || fb.snipSaved[0] != (keelclient.SnippetInput{Name: "who", Command: "whoami\n"}) {
 		t.Fatalf("saved %v", fb.snipSaved)
 	}
-	if r.w.snipDlg != nil || r.w.tab().pg.snippets.selected != "sn-new1" {
-		t.Errorf("dialog %v selected %q", r.w.snipDlg, r.w.tab().pg.snippets.selected)
+	if r.w.snipDlg != nil || pageAs[*snippetsPage](r.w.tab()).selected != "sn-new1" {
+		t.Errorf("dialog %v selected %q", r.w.snipDlg, pageAs[*snippetsPage](r.w.tab()).selected)
 	}
 	// A server refusal stays in the dialog with its words.
 	fb.snipSaveErr = &keelclient.StatusError{Code: 400, Msg: "Give the snippet a name"}
@@ -271,7 +271,7 @@ func TestEveryEntryPointOpensTheDialogAndNoneTypes(t *testing.T) {
 			t.Errorf("%s: no Approve dialog", name)
 			continue
 		}
-		if got, _ := r.w.approve.source(); got != "cd /var/log\nls -la\n" {
+		if got, _ := r.w.approve.src.(approveSnippet).text(); got != "cd /var/log\nls -la\n" {
 			t.Errorf("%s: dialog holds %q", name, got)
 		}
 		r.tt.Frame()
@@ -351,7 +351,7 @@ func TestSidebarSnippetsSectionListsEverySnippetAndFilters(t *testing.T) {
 	r.tt.Frame()
 	r.texts(t, "Nothing matches “zzz”")
 	r.click(t, "Manage snippets")
-	if r.w.tab().pg == nil || r.w.tab().pg.snippets == nil {
+	if r.w.tab().pg == nil || pageAs[*snippetsPage](r.w.tab()) == nil {
 		t.Fatal("Manage snippets did not open the page")
 	}
 	r.click(t, "Hosts")
