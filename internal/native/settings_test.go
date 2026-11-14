@@ -68,6 +68,7 @@ func TestSettingsNavIsTheApps(t *testing.T) {
 }
 
 func TestSettingsOpensFromTheKeyTheFooterAndThePalette(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := newRig(t, settingsBackend())
 	r.tt.Frame()
 	r.tt.Key(ui.Cmd, ui.KeyComma)
@@ -286,6 +287,7 @@ func TestLoadTermPrefs(t *testing.T) {
 }
 
 func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Keyboard")
 	r.texts(t, "The keys Keel handles. They are fixed; the command palette shows the same keys beside each action.",
@@ -451,6 +453,7 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 }
 
 func TestSettingsAboutAndSearch(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "About Keel")
 	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/keel", "README", "Copy link")

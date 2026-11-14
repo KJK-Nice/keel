@@ -148,6 +148,7 @@ func TestSaveAsHostFromAPastedCommandPrefillsAndSendsNothing(t *testing.T) {
 }
 
 func TestEntryPointsOpenNewHost(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	for name, open := range map[string]func(r *rig, t *testing.T){
 		"the sidebar +": func(r *rig, t *testing.T) { // a session tab, so the New tab page's own action is not on screen
 			r.click(t, "host Local Shell")
