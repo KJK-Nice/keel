@@ -61,7 +61,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 - Separation comes from ground steps and hairlines first. Shadows only on things that float: `shadow-pop` (menus, tooltips, toasts) and `shadow-modal` (dialogs, palette, over `scrim`).
 - **Selected tab.** A `raised` pill with `ink` text: no border, no underline.
-- **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines (`.k-tiles`, or any container with two `.k-pane` children). The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
+- **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines. The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
 - Never use colored rules, side bars or left-border accents to mark the selected tab or the focused pane.
 - Motion is functional: `duration-fast` 90ms for hover and focus, `duration-base` 160ms for menus, tooltips and the switch, `duration-slow` 240ms for dialogs and toasts. Ease-out in, ease-in out. The reconnecting dot pulses; under `prefers-reduced-motion` it is static and nothing slides.
 
