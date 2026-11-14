@@ -104,16 +104,6 @@ func TestKeyCapsAreFlat(t *testing.T) {
 	useTheme(true)
 }
 
-// The token values themselves, measured for the maintainer (docs/design/tokens.json is not changed by them): how far each
-// line stands from the ground it sits on. Read with -v.
-func TestLineTokenContrastIsReported(t *testing.T) {
-	for _, dark := range []bool{true, false} {
-		p := paletteOf(dark)
-		t.Logf("dark=%v: line on chrome %.2f, line on stage %.2f, line-strong on stage %.2f, line-strong on chrome %.2f", dark,
-			contrast(tok(p.line), tok(p.chrome)), contrast(tok(p.line), tok(p.stage)), contrast(tok(p.lineStrong), tok(p.stage)), contrast(tok(p.lineStrong), tok(p.chrome)))
-	}
-}
-
 func TestSeamsAreOneLineOfOneColour(t *testing.T) {
 	for _, th := range []string{themeLight, themeDark} {
 		for _, scale := range []float32{1, 2} {

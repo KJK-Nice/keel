@@ -99,20 +99,20 @@ func TestCreatingEditingAndDeletingARunbookSendsTheEditorsStateAndDeleteAsksFirs
 	}
 	// Delete asks first.
 	r.click(t, "Delete")
-	r.settleFrames()
+	r.settle()
 	cf := r.w.confirm
 	if cf == nil || cf.title != "Delete runbook?" || cf.action != "Delete" || cf.message != "“Disk usage” is deleted from the vault. Conversations that used it keep their copy of its steps." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.mem.runbooks) != 1 {
 		t.Fatal("Cancel deleted it")
 	}
 	r.click(t, "Delete")
-	r.settleFrames()
+	r.settle()
 	r.w.confirm.run()
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.mem.runbooks) != 0 || !r.tt.HasText("No runbooks yet") || !r.tt.HasText("Runbook deleted") {
 		t.Fatal("confirming did not delete it")
 	}
@@ -141,13 +141,13 @@ func TestARunbookIsCheckedBeforeItIsSentAndAUnsavedEditorAsksBeforeItIsLeft(t *t
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.click(t, "Open Marker check")
-	r.settleFrames()
+	r.settle()
 	cf := r.w.confirm
 	if cf == nil || cf.title != "Discard changes?" || cf.message != "Your changes to this runbook are not saved." || cf.action != "Discard" {
 		t.Fatalf("no confirm: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if r.w.runbooksPage().ed.name != "x" {
 		t.Fatal("Cancel left the editor")
 	}

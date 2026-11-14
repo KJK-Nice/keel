@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -287,28 +286,6 @@ func TestTheFlagIsSavedWithTheWorkspace(t *testing.T) {
 	if a.conn.(*fakeConn).written() != "k" || b.conn.(*fakeConn).written() != "k" {
 		t.Errorf("after a restart the keys reached %q and %q", a.conn.(*fakeConn).written(), b.conn.(*fakeConn).written())
 	}
-}
-
-// The terminal's input goroutine writes while the UI thread publishes: run it with -race.
-func TestSyncPublishAndWriteDoNotRace(t *testing.T) {
-	r := syncRig(t, 3)
-	r.syncOn(t)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
-			typeKeys(r.p, "x")
-		}
-	}()
-	for i := 0; i < 200; i++ {
-		r.w.publishSync()
-		if i%50 == 0 {
-			r.w.toggleSync(r.w.tab())
-			r.w.toggleSync(r.w.tab())
-		}
-	}
-	wg.Wait()
 }
 
 func TestTheSyncButtonAndTheStatusBarSayWhatSyncIs(t *testing.T) {

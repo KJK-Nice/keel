@@ -768,8 +768,10 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 }
 
 // pixel samples the tester image at DIP coordinates.
-func (r *rig) pixel(x, y float32) [3]uint8 {
-	img := r.tt.Image()
+func (r *rig) pixel(x, y float32) [3]uint8 { return pixelAt(r.tt, x, y) }
+
+func pixelAt(tt *ui.Tester, x, y float32) [3]uint8 {
+	img := tt.Image()
 	s := float64(img.Bounds().Dx()) / 1280
 	o := img.PixOffset(int(float64(x)*s), int(float64(y)*s))
 	return [3]uint8{img.Pix[o], img.Pix[o+1], img.Pix[o+2]}

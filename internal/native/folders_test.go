@@ -435,7 +435,7 @@ func TestDeleteFolderAsksWithTheAppsWordsAndHostsMoveUp(t *testing.T) {
 	r := folderRig(t)
 	r.menuOf(t, "folder db")
 	r.pick(t, "Delete")
-	if !r.hasText("Remove group db? Hosts and subgroups move up one level.") || !r.hasText("Confirm") || len(r.fb.fold.reqs) != 0 {
+	if !r.tt.HasText("Remove group db? Hosts and subgroups move up one level.") || !r.tt.HasText("Confirm") || len(r.fb.fold.reqs) != 0 {
 		t.Fatalf("no confirm, or a request before it: %v %v", r.tt.Texts(), r.fb.fold.reqs)
 	}
 	r.click(t, "Cancel")

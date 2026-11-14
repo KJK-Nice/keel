@@ -154,7 +154,7 @@ func TestGroupDialogNoRowIsTickedInAdvanceWithTwoOrMoreHostsAndNothingIsTypedBef
 		t.Fatalf("%d rows, %d ticked", len(g.rows), ticked(g.rows))
 	}
 	for _, s := range []string{groupApproveTitle, groupApproveHint, "1 line · 12 bytes · the same bytes in every pane", "Tick the hosts to type into", "wk-1", "wk-2", "wk-3"} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("the dialog lacks %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -179,7 +179,7 @@ func TestGroupDialogOneHostIsTheOrdinaryApprovalAndItsRowIsTicked(t *testing.T) 
 	r.startRun(runOf("echo grp-1", "readonly", 1, nil))
 	r.pressTypeAll(t, 1)
 	g := r.groupDlg(t)
-	if len(g.rows) != 1 || !g.rows[0].checked || !r.hasText("Type into 1 pane") {
+	if len(g.rows) != 1 || !g.rows[0].checked || !r.tt.HasText("Type into 1 pane") {
 		t.Fatalf("rows %+v", g.rows)
 	}
 	r.nothingTyped(t) // ticked is not typed: Type is the user's
@@ -195,7 +195,7 @@ func TestGroupDialogOnlyTickedRowsAreTypedEachWithItsOwnProposalAndConnection(t 
 	r.pressTypeAll(t, 3)
 	r.click(t, "Type into wk-2")
 	r.click(t, "Type into wk-3")
-	if !r.hasText("Type into 2 panes") {
+	if !r.tt.HasText("Type into 2 panes") {
 		t.Fatalf("the button: %v", r.tt.Texts())
 	}
 	r.click(t, "Type into 2 panes")
@@ -232,30 +232,30 @@ func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 			c.Proposal.Production, c.Proposal.NeedsShift = true, true
 		}
 	}))
-	if !r.hasText("1 of these host is production. Typing there needs ⇧.") && !r.hasText("1 of these host is production.") {
+	if !r.tt.HasText("1 of these host is production. Typing there needs ⇧.") && !r.tt.HasText("1 of these host is production.") {
 		t.Errorf("no production note: %v", r.tt.Texts())
 	}
 	r.w.tabs[1].title = "ops" // wk-2's tab, named by the user: the row says which tab the pane is in
 	r.tt.Frame()
 	r.pressTypeAll(t, 2)
 	for _, s := range []string{"tab ops", "Production", "⇧"} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("the rows lack %q (the pane's tab, the Production and ⇧ badges): %v", s, r.tt.Texts())
 		}
 	}
 	r.click(t, "Type into wk-1")
-	if r.hasText(groupShiftNeeded) {
+	if r.tt.HasText(groupShiftNeeded) {
 		t.Error("an unticked production host asks for ⇧")
 	}
 	r.click(t, "Type into wk-2")
-	if !r.hasText(groupShiftNeeded) || !r.hasText("Type into 2 panes ⇧↵") {
+	if !r.tt.HasText(groupShiftNeeded) || !r.tt.HasText("Type into 2 panes ⇧↵") {
 		t.Fatalf("the dialog does not ask for ⇧: %v", r.tt.Texts())
 	}
 	// A plain press types nothing at all, not even the host that needs no ⇧.
 	r.click(t, "Type")
 	r.w.approveType(false)
 	r.nothingTyped(t)
-	if !r.groupDlg(t).shiftHint || !r.hasText(groupShiftRefused) {
+	if !r.groupDlg(t).shiftHint || !r.tt.HasText(groupShiftRefused) {
 		t.Error("the refusal is not said")
 	}
 	// ⇧ held with Type types both, and keel serve is told ⇧ was held.
@@ -290,7 +290,7 @@ func TestGroupFollowersAndClosedPanesCannotBeTicked(t *testing.T) {
 	r.click(t, "Type into wk-4")
 	r.fb.conns[0].st = &keelclient.State{Status: "ready", Role: "follower"}
 	r.tt.Frame()
-	if !r.hasText(msgGroupPaneFollow) {
+	if !r.tt.HasText(msgGroupPaneFollow) {
 		t.Errorf("the row does not say it is followed: %v", r.tt.Texts())
 	}
 	r.click(t, "Type into 1 pane") // wk-4 only: wk-1's tick does not count
@@ -308,7 +308,7 @@ func TestGroupDialogAClosedPaneWhileOpenIsNeverTypedAndTheOthersType(t *testing.
 	r.click(t, "Type into wk-2")
 	r.w.closePane(r.w.tabs[0], r.w.tabs[0].focused)
 	r.tt.Frame()
-	if !r.hasText(msgGroupPaneGone) {
+	if !r.tt.HasText(msgGroupPaneGone) {
 		t.Errorf("the row does not say its pane is gone: %v", r.tt.Texts())
 	}
 	r.click(t, "Type into 1 pane")
@@ -334,7 +334,7 @@ func TestGroupDialogARefusalForOneHostIsShownOnItsRowAndTheOthersStillTypeNothin
 	if !g.rows[0].typedOK || g.rows[1].typedOK || !g.rows[2].typedOK || g.rows[1].outcome != "Not typed: wk-2 left the group" {
 		t.Fatalf("rows %+v %+v %+v", g.rows[0], g.rows[1], g.rows[2])
 	}
-	if !r.hasText("Not typed: wk-2 left the group") || !r.hasText("Typed.") {
+	if !r.tt.HasText("Not typed: wk-2 left the group") || !r.tt.HasText("Typed.") {
 		t.Errorf("the rows do not say what happened: %v", r.tt.Texts())
 	}
 	if _, ok := r.tt.Find("toast Not typed on wk-2: Not typed: wk-2 left the group"); !ok {
@@ -416,7 +416,7 @@ func TestGroupVariablesAreNamesOnTheRunPageValuesOnlyInTheDialogAndTypedBytesAre
 	}
 	// The dialog shows the exact filled bytes per host, where they came from, and the host whose fill failed cannot be ticked.
 	for _, s := range []string{groupValuesDiffer, "echo port-8080", "echo port-9090", "{{port}} group variable", "{{port}} captured on cp-1 · step 1", "{{port}} has no value for wk-3: no earlier step of this run captured it"} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("the dialog lacks %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -455,7 +455,7 @@ func TestGroupDialogSameFilledBytesAreShownOnceWithWhereTheyCameFrom(t *testing.
 		"p2": {Bytes: "\x15echo port-8080\n", Used: used},
 	}
 	r.pressTypeAll(t, 2)
-	if !r.hasText("1 line · 16 bytes · the same bytes in every pane · filled in by Keel: {{port}} group variable") {
+	if !r.tt.HasText("1 line · 16 bytes · the same bytes in every pane · filled in by Keel: {{port}} group variable") {
 		t.Errorf("no single description: %v", r.tt.Texts())
 	}
 }
@@ -531,7 +531,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 			}
 		}
 	}
-	if !r.hasText("Type into 1 pane…") || r.hasText("Type into 2 panes…") {
+	if !r.tt.HasText("Type into 1 pane…") || r.tt.HasText("Type into 2 panes…") {
 		t.Fatalf("rolling must offer one host: %v", r.tt.Texts())
 	}
 	r.pressTypeAll(t, 1)
@@ -546,7 +546,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 	r.fb.grp.run.Steps[0].Cells[0].State = "typed"
 	r.w.groupRunTick()
 	r.tt.Frame()
-	if cells := typeable(r.w.groupRunPageState().run, r.w.groupPaneOpen); len(cells) != 0 || r.hasText("Type into 1 pane…") {
+	if cells := typeable(r.w.groupRunPageState().run, r.w.groupPaneOpen); len(cells) != 0 || r.tt.HasText("Type into 1 pane…") {
 		t.Fatalf("the next host is offered before the previous one is done: %+v", cells)
 	}
 	r.fb.grp.run.Steps[0].Cells[0].State = "done"
@@ -565,7 +565,7 @@ func TestClosingAPaneKeepsTheRunAndOffersNothingForIt(t *testing.T) {
 	if r.w.groupRunPageState().run == nil || r.w.groupRunPageState().run.Status != "active" {
 		t.Fatal("closing a pane ended the run")
 	}
-	if !r.hasText("Type into 1 pane…") {
+	if !r.tt.HasText("Type into 1 pane…") {
 		t.Errorf("the closed pane is still offered: %v", r.tt.Texts())
 	}
 	r.w.groupRunTick()
@@ -580,7 +580,7 @@ func TestHostsWithNoPaneHaveAnOpenButtonThatOpensASessionAndTypesNothing(t *test
 	run := runOf("echo grp-1", "readonly", 2, nil)
 	run.NeedPane = []keelclient.GroupRunHost{{HostID: "h2", Host: "wk-2"}}
 	r.startRun(run)
-	if !r.hasText("wk-2 has no pane open here.") {
+	if !r.tt.HasText("wk-2 has no pane open here.") {
 		t.Fatalf("no note: %v", r.tt.Texts())
 	}
 	n := len(r.fb.spawned)
@@ -604,7 +604,7 @@ func TestTheModeSwitchIsOffWhileLockedAndSendsTheMode(t *testing.T) {
 	r.fb.grp.run.ModeLocked = true
 	r.w.loadGroupRunPage()
 	r.tt.Frame()
-	if !r.hasText(modeLockedText) {
+	if !r.tt.HasText(modeLockedText) {
 		t.Errorf("no reason: %v", r.tt.Texts())
 	}
 	_ = r.tt.Click("Rolling")
@@ -629,7 +629,7 @@ func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) 
 	run.Halted = "wk-1"
 	r.startRun(run)
 	for _, s := range []string{"wk-1 failed with exit 1. Rolling stopped before wk-2.", "wk-2 and wk-3 were not touched."} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -647,7 +647,7 @@ func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) 
 	// keel serve's 409 is shown in its words.
 	r.fb.grp.runErr = &keelclient.StatusError{Code: 409, Msg: "wk-2 is still reporting"}
 	r.click(t, "Mark done wk-2")
-	if !r.hasText("wk-2 is still reporting") {
+	if !r.tt.HasText("wk-2 is still reporting") {
 		t.Errorf("no refusal: %v", r.tt.Texts())
 	}
 	r.nothingTyped(t)
@@ -663,7 +663,7 @@ func TestTheMatrixSaysWhatTheShellReportedAndWhatIsLeftOut(t *testing.T) {
 	run.Members = append(run.Members, keelclient.GroupRunMember{HostID: "hoff", Host: "wx-off", Excluded: "Agent can read is off"})
 	r.startRun(run)
 	for _, s := range []string{"Results", "Step 1: 1 of 2 done", "✓ exit 0", "· waiting for you", "Left out: wx-off (Agent can read is off). The run never types into them.", runReportedLine} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -673,7 +673,7 @@ func TestStopRunbookAsksFirstWithTheAppsWords(t *testing.T) {
 	r := runRig(t, 2)
 	r.startRun(runOf("echo grp-1", "readonly", 2, nil))
 	r.click(t, "Stop runbook")
-	if !r.hasText(stopTitle) || !r.hasText(stopRunMessage) || slices.Contains(r.fb.grp.runReqs, "stop") {
+	if !r.tt.HasText(stopTitle) || !r.tt.HasText(stopRunMessage) || slices.Contains(r.fb.grp.runReqs, "stop") {
 		t.Fatalf("no confirm, or a stop before it: %v %v", r.tt.Texts(), r.fb.grp.runReqs)
 	}
 	r.click(t, "Cancel")
@@ -690,11 +690,11 @@ func TestStopRunbookAsksFirstWithTheAppsWords(t *testing.T) {
 	r.w.endConfirm(true)
 	cf.run()
 	r.tt.Frame()
-	if !slices.Contains(r.fb.grp.runReqs, "stop") || !r.hasText("Runbook stopped at step 1.") {
+	if !slices.Contains(r.fb.grp.runReqs, "stop") || !r.tt.HasText("Runbook stopped at step 1.") {
 		t.Fatalf("requests %v, texts %v", r.fb.grp.runReqs, r.tt.Texts())
 	}
 	// A stopped run offers nothing to type.
-	if r.hasText("Type into 2 panes…") {
+	if r.tt.HasText("Type into 2 panes…") {
 		t.Error("a stopped run still offers Type")
 	}
 	r.nothingTyped(t)
@@ -712,7 +712,7 @@ func TestACapturedValueIsAMaskAndALengthNeverTheValue(t *testing.T) {
 	run.Steps[0].Captures = []keelclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}
 	r.startRun(run)
 	for _, s := range []string{"Captured from step 1 · Print a marker", "Captured by Keel, never sent to the agent", "{{join_token}}", `--token\s+(\S+)`, "••••••••••••", "23 bytes", "not kept: it holds a value from the vault"} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -730,14 +730,14 @@ func TestTheRunPageComesBackWithTheWorkspaceAndSaysWhenKeelServeLostTheRun(t *te
 	w2 := newRig(t, b2)
 	w2.w.restore(&d, nil)
 	w2.tt.Frame()
-	if p := w2.w.groupRunPageState(); p == nil || p.run == nil || p.id != "gr1" || !w2.hasText("Step 1 · Print a marker") {
+	if p := w2.w.groupRunPageState(); p == nil || p.run == nil || p.id != "gr1" || !w2.tt.HasText("Step 1 · Print a marker") {
 		t.Fatalf("the run page did not come back: %+v", p)
 	}
 	b3 := okBackend() // a keel serve restart: the run is gone
 	w3 := newRig(t, b3)
 	w3.w.restore(&d, nil)
 	w3.tt.Frame()
-	if !w3.hasText(msgRunEnded) {
+	if !w3.tt.HasText(msgRunEnded) {
 		t.Errorf("no word on the lost run: %v", w3.tt.Texts())
 	}
 }

@@ -120,7 +120,7 @@ func TestHostMenuActions(t *testing.T) {
 	}
 	r.press(0, ui.KeyEscape)
 	choose("pg-primary", "Duplicate")
-	if !slices.Equal(r.fb.duplicated, []string{"h-pg"}) || !r.hasText("pg-primary (copy)") {
+	if !slices.Equal(r.fb.duplicated, []string{"h-pg"}) || !r.tt.HasText("pg-primary (copy)") {
 		t.Fatalf("duplicated %v", r.fb.duplicated)
 	}
 	choose("pg-primary", "Agent can read") // on by default: this turns it off
@@ -128,7 +128,7 @@ func TestHostMenuActions(t *testing.T) {
 		t.Fatalf("agent readable %v", r.fb.readable)
 	}
 	choose("pg-primary", "Delete")
-	if len(r.fb.deleted) != 0 || !r.hasText("Remove pg-primary?") {
+	if len(r.fb.deleted) != 0 || !r.tt.HasText("Remove pg-primary?") {
 		t.Fatal("Delete did not ask first")
 	}
 	r.click(t, "Cancel")
@@ -181,10 +181,10 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	r.fb.hosts = append(r.fb.hosts, keelclient.Host{ID: "h-new", Name: "pg-replica", Group: "production", AuthType: "key", Address: "10.0.0.9", Username: "dba"})
 	r.w.reloadHosts()
 	r.tt.Frame()
-	if r.fb.hostsCalls != before+1 || !r.hasText("pg-replica") {
-		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.hasText("pg-replica"))
+	if r.fb.hostsCalls != before+1 || !r.tt.HasText("pg-replica") {
+		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.tt.HasText("pg-replica"))
 	}
-	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || len(r.w.tabs) != 1 || r.hasText("api-1 ") && false {
+	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || len(r.w.tabs) != 1 || r.tt.HasText("api-1 ") && false {
 		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.prefs.Collapsed, len(r.w.tabs))
 	}
 	// A pane takes its host's new name.
@@ -215,8 +215,8 @@ func TestARevChangeReloadsOnceAndSameRevNever(t *testing.T) {
 	r.fb.vault.Rev = "e.2"
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.fb.hostsCalls != base+1 || !r.hasText("from-elsewhere") || r.w.rev != "e.2" {
-		t.Fatalf("hosts calls %d, shown %v, rev %q", r.fb.hostsCalls-base, r.hasText("from-elsewhere"), r.w.rev)
+	if r.fb.hostsCalls != base+1 || !r.tt.HasText("from-elsewhere") || r.w.rev != "e.2" {
+		t.Fatalf("hosts calls %d, shown %v, rev %q", r.fb.hostsCalls-base, r.tt.HasText("from-elsewhere"), r.w.rev)
 	}
 	r.w.pollTick() // the same rev again
 	if r.fb.hostsCalls != base+1 {
@@ -254,7 +254,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.fb.vault = keelclient.Vault{Locked: true, Sessions: 2}
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.w.gate == nil || !r.hasText("Unlock your vault") || r.hasText("Filter hosts") {
+	if r.w.gate == nil || !r.tt.HasText("Unlock your vault") || r.tt.HasText("Filter hosts") {
 		t.Fatal("the Unlock screen is not over the window")
 	}
 	if r.w.paneCount() != panes || len(r.w.tabs) != 1 {
@@ -279,7 +279,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.tt.Type(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || r.w.paneCount() != panes || len(r.w.tabs) != 1 || r.fb.hostsCalls != hosts+1 || !r.hasText("Filter hosts") {
+	if r.w.gate != nil || r.w.paneCount() != panes || len(r.w.tabs) != 1 || r.fb.hostsCalls != hosts+1 || !r.tt.HasText("Filter hosts") {
 		t.Fatalf("gate %v panes %d hosts calls %d", r.w.gate != nil, r.w.paneCount(), r.fb.hostsCalls-hosts)
 	}
 }
@@ -293,7 +293,7 @@ func TestUnlockedElsewhereTakesTheScreenAway(t *testing.T) {
 	r.fb.vault = keelclient.Vault{Rev: "e.1"}
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.w.gate != nil || !r.hasText("Filter hosts") || !r.hasText("Local Shell") {
+	if r.w.gate != nil || !r.tt.HasText("Filter hosts") || !r.tt.HasText("Local Shell") {
 		t.Fatal("the screen stayed after another window unlocked the vault")
 	}
 }

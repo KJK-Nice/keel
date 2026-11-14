@@ -21,6 +21,7 @@ func failedRig(t *testing.T, st keelclient.State, hostID string) *rig {
 	return r
 }
 
+// has reports whether an element is labelled label; r.tt.HasText is for what is drawn as text.
 func (r *rig) has(label string) bool { _, ok := r.tt.Find(label); return ok }
 
 func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
