@@ -231,14 +231,10 @@ func (d *approveDialog) blocked() string {
 	return ""
 }
 
-// openApprove opens the dialog for pane p. It sends nothing. Opening it again replaces it.
-func (w *workspace) openApprove(p *pane, source func() (string, bool)) {
-	w.approve = &approveDialog{p: p, src: approveSnippet{source}, focus: true}
-}
-
-// fromNotebook says the dialog's text is a notebook fence's line, with the note under the bytes ("" for none).
-func (d *approveDialog) fromNotebook(note string) {
-	d.src = approveNotebook{d.src.(approveSnippet), note}
+// openApprove opens the dialog for pane p: a snippet's or a notebook fence's bytes. It sends nothing. Opening it again
+// replaces it.
+func (w *workspace) openApprove(p *pane, src approveSource) {
+	w.approve = &approveDialog{p: p, src: src, focus: true}
 }
 
 // openApproveAgent opens the dialog for an agent proposal in pane p, showing that pane's tab first so the approval names
@@ -281,7 +277,7 @@ func (w *workspace) askType(source func() (string, bool)) {
 	if t := w.tabOf(p); t != nil && t != w.tab() {
 		w.selectTab(w.tabIndex(t)) // the approval names the pane you can see
 	}
-	w.openApprove(p, source)
+	w.openApprove(p, approveSnippet{source})
 }
 
 // cancelApprove is Escape, Cancel and a click outside: the dialog closes, nothing is sent, and an agent card is told.

@@ -153,7 +153,7 @@ func (w *workspace) typeSnippet(id string) {
 	w.typeNow(p, typeSource{
 		line:      snippetLine(sn.Command),
 		snippetID: id,
-		dialog:    func() { w.openApprove(p, source) },
+		dialog:    func() { w.openApprove(p, approveSnippet{source}) },
 	})
 }
 
