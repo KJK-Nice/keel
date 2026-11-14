@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	onbWidth     = sizeSidebar * 5 / 2 // 2.5 sidebar widths, inside its padding
-	onbWideWidth = sizeSidebar * 3     // 3 sidebar widths, for the hosts step
+	onbWidth     = sizeSidebar * 5 / 2
+	onbWideWidth = sizeSidebar * 3
 	stepDotSize  = 20
 	kvKeyWidth   = space8*3 + space4
-	impCheckCol  = space6 + space4 // the table's first column
+	impCheckCol  = space6 + space4
 	impRowHeight = sizeControlLg + space1_5
 	impTableRows = 8
 	maxPassLen   = 1024
@@ -85,7 +85,6 @@ func (w *workspace) firstRunFocus(c *ui.Context, f *firstRun) {
 	c.Invalidate()
 }
 
-// stepper is the progress row: Vault, Hosts, Agent.
 func (w *workspace) stepper(c *ui.Context, f *firstRun) {
 	ui.Row(c).Gap(space2 + space0_5).Label("Setup progress").Children(func() {
 		for i, name := range []string{"Vault", "Hosts", "Agent"} {
@@ -118,7 +117,6 @@ func (w *workspace) stepper(c *ui.Context, f *firstRun) {
 	})
 }
 
-// head is an optional mark, the title and the lead.
 func head(c *ui.Context, withMark bool, title, lead string) {
 	ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
 		if withMark {
@@ -150,7 +148,6 @@ func neutralBadge(c *ui.Context, s string) ui.Element {
 	return ui.Badge(c, s).Label("badge " + s).Shrink(0)
 }
 
-// accentBadge is neutralBadge in the accent, for a label that points at the choice to take.
 func accentBadge(c *ui.Context, s string) ui.Element {
 	return neutralBadge(c, s).Background(accentSoft).TextColor(accentInk)
 }
@@ -165,7 +162,6 @@ func tag(c *ui.Context, s string, bg, fg ui.Color) {
 // (a long import table would push the buttons out of sight).
 func (f *firstRun) foot(kids func()) { f.footFn = kids }
 
-// bigPrimary is the large primary button with the ↵ key cap. It reports a click and ignores one while off.
 func bigPrimary(c *ui.Context, name string, enabled bool) bool {
 	return capButton(c, name, "↵", !enabled).Clicked() && enabled
 }
@@ -180,7 +176,6 @@ func radio(c *ui.Context, on bool) {
 	r.Border(1, lineStrong)
 }
 
-// choiceCard is a radio, a title with an optional badge, and the description. It reports a click.
 func choiceCard(c *ui.Context, name string, on, disabled bool, title, badgeText, desc string) bool {
 	selected := on
 	r := ui.RadioBase(c, &selected, true).Row().FillWidth().Padding(space3, space4).Gap(space3).AlignItems(ui.Start).Radius(radiusMd).Background(surface).Label(name)
@@ -268,7 +263,6 @@ func (w *workspace) vaultStep(c *ui.Context, f *firstRun) {
 	})
 }
 
-// vaultKey makes ↵ in a passphrase field create the vault.
 func (w *workspace) vaultKey(f *firstRun, field *string) func(ui.TextKey) bool {
 	return func(k ui.TextKey) bool {
 		if k.Key == ui.KeyEnter && k.Mods == 0 {
@@ -556,7 +550,6 @@ func joinWords(s []string) string {
 	return out
 }
 
-// keyPassKey makes ↵ in a key's passphrase field run the import.
 func (w *workspace) keyPassKey(st *keyState) func(ui.TextKey) bool {
 	return func(k ui.TextKey) bool {
 		if k.Key == ui.KeyEnter && k.Mods == 0 {
@@ -616,8 +609,6 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 	})
 }
 
-// agentChoice is the box of step 3: the provider (Google Gemini or Not now), the key field and the provider's words
-// when Gemini is chosen, the switch, and the line under them.
 func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
 	d := keelclient.AgentProvider{Name: "Google Gemini", KeyLabel: "Gemini API key"}
 	if f.agentProv != nil {

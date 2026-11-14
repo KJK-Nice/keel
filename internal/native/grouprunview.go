@@ -266,7 +266,6 @@ func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.G
 	})
 }
 
-// runProposalCard is the step's proposal: where it runs, its kind, the bytes with the variable names, and Type into N panes.
 func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun, i int) {
 	st := run.Steps[i]
 	ready := typeable(run, w.groupPaneOpen)
@@ -442,7 +441,7 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 
 // ---- the results matrix ----
 
-var matrixCols = [3]float32{3, 2, 2} // Host, Role, and each step
+var matrixCols = [3]float32{3, 2, 2}
 
 func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	// Rows: the run's target hosts (any step), in member order.

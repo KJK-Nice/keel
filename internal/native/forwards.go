@@ -31,10 +31,9 @@ const (
 	tunnelStopped = "stopped"
 )
 
-// forwardsPage is the state of the Port forwarding tab.
 type forwardsPage struct {
 	filter  string
-	show    string // all | running | stopped (the chips)
+	show    string
 	filterH ui.Handle
 }
 
@@ -42,7 +41,6 @@ func (p *forwardsPage) load(w *workspace)                { w.reloadTunnels() }
 func (p *forwardsPage) view(w *workspace, c *ui.Context) { w.forwardsView(c, p) }
 func (p *forwardsPage) newItem(w *workspace)             { w.newForward() }
 
-// tunnelStateInfo is how a forward's state reads, a dot and a word.
 type tunnelStateInfo struct {
 	label  string
 	dot    string // the palette's dot: live | connecting | dead | idle
@@ -66,7 +64,6 @@ func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
 	return tunnelStateInfo{"Stopped", "idle", tunnelStopped, false}
 }
 
-// tunnelFlag is the ssh flag a kind maps to.
 func tunnelFlag(kind string) string {
 	switch kind {
 	case "remote":
@@ -162,7 +159,6 @@ func (w *workspace) tunnelCounts() (all, running, stopped int) {
 	return
 }
 
-// runningForwards is the status bar's count: forwards that are ready.
 func (w *workspace) runningForwards() (n int) {
 	for _, t := range w.tunnels {
 		if t.Status == "ready" {
@@ -191,7 +187,6 @@ func (w *workspace) forwardsShown() bool {
 
 func (w *workspace) reloadTunnels() { w.readTunnels(new(bool), false) }
 
-// tunnelTick is one tick of the 2 s read: it reads only while the forwards show and no read is out.
 func (w *workspace) tunnelTick() {
 	if w.forwardsShown() {
 		w.readTunnels(&w.tunReading, true)
@@ -220,7 +215,6 @@ type fwdKeyOffer struct {
 	key      keelclient.HostKey
 }
 
-// setTunnelOn is the switch, Retry and the menu's Start / Stop.
 func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
 	callErr(w, func(c context.Context) (err error) {
 		if on {
@@ -242,7 +236,6 @@ func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
 	})
 }
 
-// trustForwardKey is Trust and connect: it trusts the key the server offered, starts the forward again and says so.
 func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	w.fwdKey = nil
 	callErr(w, func(c context.Context) error {
@@ -261,7 +254,6 @@ func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	})
 }
 
-// askDeleteTunnel is Delete: it asks first.
 func (w *workspace) askDeleteTunnel(t keelclient.Tunnel) {
 	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete forward “" + t.Name + "”?", action: "Remove", run: func() { w.deleteTunnel(t) }})
 }
@@ -277,9 +269,8 @@ func (w *workspace) deleteTunnel(t keelclient.Tunnel) {
 
 // ---- the dialog ----
 
-// forwardDialog is New forward / Edit forward. The values are strings, as the form's.
 type forwardDialog struct {
-	id                                                string // "" for New forward
+	id                                                string
 	name, hostID, kind                                string
 	bindAddr, bindPort, destHost, destPort            string
 	err                                               string
@@ -287,7 +278,6 @@ type forwardDialog struct {
 	nameH, bindAddrH, bindPortH, destHostH, destPortH ui.Handle
 }
 
-// newForward opens the dialog with: local, 127.0.0.1, port 0, a target of 127.0.0.1:5432.
 func (w *workspace) newForward() {
 	w.fwdDlg = &forwardDialog{kind: "local", bindAddr: "127.0.0.1", bindPort: "0", destHost: "127.0.0.1", destPort: "5432", focus: true}
 }
@@ -312,7 +302,6 @@ func (w *workspace) editForward(t keelclient.Tunnel) {
 
 func (w *workspace) closeForwardDialog() { w.fwdDlg = nil }
 
-// sshHosts is the host picker's list: every host but the local shell.
 func (w *workspace) sshHosts() (out []keelclient.Host) {
 	for _, h := range w.hosts {
 		if !h.IsLocal() {

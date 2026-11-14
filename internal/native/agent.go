@@ -32,20 +32,18 @@ import (
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 
-// agentStatus is a card's line after a Type: what happened.
 type agentStatus struct {
 	ok   bool
 	text string
 }
 
-// agentProp is a proposal on the thread: what keel serve holds, what the card says about it, and an edit in progress.
 type agentProp struct {
 	p       keelclient.Proposal
 	status  *agentStatus
 	editing bool
-	edit    string    // the edit field; never typed anywhere, only sent to keel serve by Save command
-	editH   ui.Handle // the field in the panel
-	editHP  ui.Handle // the same field on the Agent page
+	edit    string // the edit field; never typed anywhere, only sent to keel serve by Save command
+	editH   ui.Handle
+	editHP  ui.Handle
 	saving  bool
 
 	focusEdit bool
@@ -55,8 +53,8 @@ type agentProp struct {
 // again turn (again) has no question: it is only the new card.
 type agentTurn struct {
 	question string
-	at       time.Time // when it was asked; set on a saved turn
-	scoped   int       // panes in scope when it was asked
+	at       time.Time
+	scoped   int
 	pending  bool
 	stopped  bool
 	err      error
@@ -66,7 +64,7 @@ type agentTurn struct {
 	trace        []keelclient.TraceStep
 	answer, cut  string
 	testProvider bool
-	props        []string // the proposals under it, by id (agentPanel.props holds them)
+	props        []string
 	notes        []string // the notes it proposed (agentPanel.notes), shown after the proposals
 	books        []string // the runbooks it proposed (agentPanel.books)
 	nbs          []string // what the agent did to notebooks, and the deletes it proposed (agentPanel.nbProps), shown last
@@ -78,8 +76,8 @@ type agentPanel struct {
 	// title is the conversation's name from keel serve; "" is "New conversation".
 	title string
 
-	scope     []string // session ids
-	scopeAuto bool     // the scope follows the setting until the user picks
+	scope     []string
+	scopeAuto bool // the scope follows the setting until the user picks
 	picker    bool
 
 	settings      *keelclient.AgentSettings
@@ -109,10 +107,10 @@ type agentPanel struct {
 	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.
 	list        convListState
-	createdAt   time.Time // when the conversation started (the page's header)
+	createdAt   time.Time
 	resumedAt   time.Time // set on a resumed conversation: the divider says how long ago it was last used
 	resumedSeq  int       // a resume answered after another one began is dropped
-	sessOpen    bool      // Recent conversations
+	sessOpen    bool
 	sess        sessUI
 	renameID    string // the row (or, on the page, the heading) being renamed; "" for none
 	renameText  string
@@ -123,7 +121,7 @@ type agentPanel struct {
 	input      string
 	inputH     ui.Handle
 	focusInput bool
-	busy       context.CancelFunc // the ask in flight
+	busy       context.CancelFunc
 
 	keyField string // the masked field: emptied the moment the key is sent
 	keyErr   string
@@ -132,7 +130,7 @@ type agentPanel struct {
 	keyBusy  bool
 
 	scroll ui.ScrollState
-	stick  bool // scroll to the end in the next frame
+	stick  bool
 
 	sash sashState
 }
@@ -155,7 +153,6 @@ const (
 	agentNoModelDetail = "Add a key to ask the agent."
 )
 
-// shiftWord is how the sentences name the ⇧ key.
 func shiftWord() string {
 	if isMac() {
 		return "⇧"
@@ -169,8 +166,6 @@ func agentKeys() string { return commandKeyLabel("agent.toggle") }
 // The panel's width: at least --size-agent and at most half the window, kept as agentWidth in
 // keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).
 
-// clampAgentWidth is applyWidth: a width of 0 is the default, else between size-agent and half the window (never below
-// size-agent, whatever the window).
 func clampAgentWidth(width, windowW float32) float32 {
 	if width <= 0 {
 		return sizeAgent
@@ -179,7 +174,6 @@ func clampAgentWidth(width, windowW float32) float32 {
 	return min(hi, max(sizeAgent, float32(int(width+0.5))))
 }
 
-// setAgentWidth keeps a new width (0 puts the default back) in keel-native.json.
 func (w *workspace) setAgentWidth(width float32) {
 	w.prefs.AgentWidth = width
 	w.setPref(keyAgentWidth)
@@ -263,7 +257,6 @@ func (w *workspace) toggleAgent() {
 	w.setAgentOpen(!w.prefs.AgentPanel)
 }
 
-// setAgentOpen shows or hides the panel and keeps the choice in keel-native.json.
 func (w *workspace) setAgentOpen(open bool) {
 	a := w.agent
 	w.prefs.AgentPanel = open
@@ -274,7 +267,7 @@ func (w *workspace) setAgentOpen(open bool) {
 		return
 	}
 	a.picker, a.sessOpen = false, false
-	w.returnKeyboard(false) // the keyboard goes back to the pane
+	w.returnKeyboard(false)
 }
 
 // loadAgent reads the agent settings (the default scope, whether a key is saved) and, with no key, the provider's words
@@ -326,7 +319,7 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	}
 	if a.keyConfigured != nil && !*a.keyConfigured {
 		a.focusInput, a.focusKey = false, true
-		return false // the Connect card is what the thread shows
+		return false
 	}
 	a.picker, a.sessOpen, a.nbPicker = false, false, ""
 	w.agentSync()
@@ -419,7 +412,6 @@ func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *
 	})
 }
 
-// typedStatus is the card's line for a proposal keel serve already knows was typed.
 func typedStatus(p keelclient.Proposal) *agentStatus {
 	if p.TypedAt == nil || p.Expired {
 		return nil
@@ -427,14 +419,12 @@ func typedStatus(p keelclient.Proposal) *agentStatus {
 	return &agentStatus{ok: true, text: "Typed into " + orElse(p.Host, "the pane") + " at " + stampLabel(*p.TypedAt, time.Now()) + "."}
 }
 
-// agentStop is Stop: it cancels the ask in flight.
 func (w *workspace) agentStop() {
 	if w.agent.busy != nil {
 		w.agent.busy()
 	}
 }
 
-// newAgentConversation is New conversation: it stops an ask in flight and starts again with the setting's scope.
 func (w *workspace) newAgentConversation() {
 	a := w.agent
 	if a.busy != nil {

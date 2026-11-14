@@ -28,29 +28,28 @@ const (
 
 const (
 	flowFirstRun = "first-run"
-	flowImport   = "import" // step 2 on its own, from the palette
+	flowImport   = "import"
 )
 
-// firstRun is the screen's state.
 type firstRun struct {
 	flow    string
 	step    int
 	vault   keelclient.Vault
-	created bool // this window made the vault in step 1
+	created bool
 	busy    bool
 
 	// Step 1.
 	pass, pass2 string
 	passErr     string
-	existing    bool // "I already have a keel.vault…" is open
+	existing    bool
 
 	// Step 2.
 	preview   *keelclient.SSHPreview
 	sel       *importSel
 	lead      string
-	keyErrs   map[string]string // by key path
+	keyErrs   map[string]string
 	notesOpen bool
-	notice    string // the import's result or refusal, shown under the step
+	notice    string
 	noticeBad bool
 	gen       int // the preview read in flight; a stale answer is dropped
 
@@ -65,21 +64,19 @@ type firstRun struct {
 	agentProvGen int // the descriptor read in flight
 
 	wantTries int
-	footFn    func() // the step's buttons, drawn under the scrolling step
+	footFn    func()
 	want      string // the field that takes the keyboard in the next frame: "pass", "pass2" or "key:<path>"
 	passH     ui.Handle
 	pass2H    ui.Handle
 	keyH      map[string]*ui.Handle
 }
 
-// String prints the screen's state without a passphrase.
 func (f *firstRun) String() string {
 	return fmt.Sprintf("firstRun{%s step=%d created=%v busy=%v}", f.flow, f.step, f.created, f.busy)
 }
 
 func (f *firstRun) GoString() string { return f.String() }
 
-// clearSecrets forgets every passphrase this screen holds.
 func (f *firstRun) clearSecrets() {
 	f.pass, f.pass2, f.agentKey = "", "", ""
 	if f.sel != nil {
@@ -175,7 +172,7 @@ func (w *workspace) submitVault() {
 			w.showHostsStep(f)
 			return
 		}
-		w.closeFirstRun() // nothing to set up
+		w.closeFirstRun()
 		w.start()
 	})
 }
@@ -194,7 +191,6 @@ func vaultError(err error) string {
 
 var vaultFileSuffix = regexp.MustCompile(`[\\/]keel\.vault$`)
 
-// dataFolder is the folder of the vault file.
 func dataFolder(path string) string {
 	if d := vaultFileSuffix.ReplaceAllString(path, ""); d != "" {
 		return d
@@ -202,7 +198,6 @@ func dataFolder(path string) string {
 	return "the Keel data folder"
 }
 
-// keychainDesc is the Keychain card's text.
 func keychainDesc(f *firstRun, keychain string) string {
 	switch {
 	case f.usesKeychain():
@@ -240,7 +235,6 @@ func firstRunKeychain() string { return keychainName() }
 
 // ---- step 2 ----
 
-// showHostsStep reads the preview and shows the table.
 func (w *workspace) showHostsStep(f *firstRun) {
 	f.step, f.preview, f.sel, f.notice, f.keyErrs, f.notesOpen = stepHosts, nil, nil, "", nil, false
 	f.gen++
@@ -474,7 +468,6 @@ func (w *workspace) openKeel(f *firstRun) {
 	})
 }
 
-// finishFirstRun is Open Keel and Set up later: it ends the first run and opens the window.
 func (w *workspace) finishFirstRun(f *firstRun) {
 	if w.first != f || f.busy {
 		return

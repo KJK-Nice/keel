@@ -27,7 +27,7 @@ const (
 
 type savedDoc struct {
 	V      int        `json:"v"`
-	Active int        `json:"active"` // index into Tabs
+	Active int        `json:"active"`
 	Tabs   []savedTab `json:"tabs"`
 	// Pages are the page tabs (Keychain, Logs…) by name, in strip order; they come back after the session tabs.
 	// ActivePage names the page that was shown, when one was (Active is then not used). Nothing of a page's
@@ -47,7 +47,7 @@ type savedTab struct {
 	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
 	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
 	Layout          *savedNode `json:"layout"`
-	Sync            bool       `json:"sync,omitempty"` // Sync input is on
+	Sync            bool       `json:"sync,omitempty"`
 }
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
@@ -61,10 +61,9 @@ type savedNode struct {
 	B        *savedNode `json:"b,omitempty"`
 }
 
-// saveState is what the workspace keeps to write the file.
 type saveState struct {
-	ready bool   // start has restored the tabs; nothing is written before
-	last  []byte // the last snapshot taken (UI thread)
+	ready bool // start has restored the tabs; nothing is written before
+	last  []byte
 
 	mu      sync.Mutex // guards the rest
 	pending []byte
@@ -178,7 +177,6 @@ func (w *workspace) persist() {
 	s.timer.Reset(saveDelay)
 }
 
-// flush writes what persist scheduled, now.
 func (w *workspace) flush() error {
 	s := &w.saved
 	s.mu.Lock()
@@ -191,7 +189,6 @@ func (w *workspace) flush() error {
 	return writeFileAtomic(w.dataDir, savedFile, b)
 }
 
-// saveNow writes the workspace as it is, on window close.
 func (w *workspace) saveNow() {
 	if w.dataDir == "" || !w.saved.ready {
 		return
@@ -277,7 +274,7 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 	if active < 0 {
 		active = len(w.tabs) - 1
 	}
-	w.selectTab(active) // reads the page when it is a page
+	w.selectTab(active)
 	for _, t := range pages {
 		if t != w.tab() {
 			w.loadPage(t)

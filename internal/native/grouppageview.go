@@ -8,10 +8,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Group page: the head
-// (the folder's name, "Folder · N hosts · production", Run a runbook on this group, Export to Ansible), the role chips, the
-// hosts table (host, address, role, tags, agent), the group notes and the variables, and the export drawer beside the page.
-
 // memberCols are the table's columns as weights: Host, Address, Role, Tags, Agent.
 var memberCols = [5]float32{3, 3, 2.4, 2.4, 2.6}
 
@@ -60,7 +56,6 @@ func (w *workspace) groupHead(c *ui.Context, p *groupPage) {
 	}
 }
 
-// groupRunMenu is the list under "Run a runbook on this group": each runbook with its steps and roles.
 func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 	ui.Column(c).Width(sizeRail*1.6).Padding(space1).Gap(space0_5).Radius(radiusSm).Background(raised).Border(1, line).Label("group runbooks").Children(func() {
 		switch {
@@ -283,7 +278,6 @@ func (w *workspace) groupVarsBox(c *ui.Context, p *groupPage) {
 	})
 }
 
-// varRow is one variable: its name and value, Edit and Remove; or the field the value is edited in.
 func (w *workspace) varRow(c *ui.Context, p *groupPage, v keelclient.GroupVar) {
 	ui.Row(c).FillWidth().Gap(space2).Key(v.Name).AlignItems(ui.Center).Label("variable " + v.Name).Children(func() {
 		mono(c, v.Name, ink).Width(sizeRail / 2).Shrink(0)
@@ -345,7 +339,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 						ex.runbook = v
 						ex.file = 0
 						if v != "" {
-							ex.file = 1 // the playbook
+							ex.file = 1
 						}
 						w.exportRefresh(p)
 					})

@@ -13,12 +13,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The agent panel drawn: a right-hand panel of size-agent, a header, the scope chip, the thread (your question, the
-// trace, the answer, proposal cards), and the composer. Colours and sizes are tokens.go's.
-//
 // A card's buttons ask the workspace (agent.go); none of them types. Type into pane opens Approve before type.
 
-// pill is a badge with a text.
 func pill(c *ui.Context, s string, bg, fg ui.Color) ui.Element {
 	return ui.Row(c).Height(space4).Padding(0, space1_5).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(bg).Children(func() {
 		text(c, s, fg, kbdSize, weightSemibold)
@@ -49,7 +45,7 @@ func (w *workspace) agentView(c *ui.Context) {
 	if atTrigger(a.input) { // "@" at the start of a word opens the pane picker and is not typed
 		a.input, a.picker = strings.TrimSuffix(a.input, "@"), true
 	}
-	if a.settings == nil && !a.loading && !a.loadTried { // open at start: read the settings once the window is shown
+	if a.settings == nil && !a.loading && !a.loadTried {
 		a.loadTried = true
 		w.act(w.loadAgent)
 	}
@@ -77,7 +73,6 @@ func (w *workspace) agentHead(c *ui.Context) {
 	a := w.agent
 	hairline(ui.Row(c).FillWidth().Height(sizeControlLg+space2).Shrink(0).Padding(0, space1_5, 0, space3).Gap(space2), 0, 0, 1, 0).Children(func() {
 		icon(c, "ai-magic", accentInk)
-		// The title is the button that opens Recent conversations.
 		t := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1).Radius(radiusSm).Shrink(1).MinWidth(0).
 			Label("Recent conversations").Cursor(ui.CursorPointer).Focusable().Selected(a.sessOpen)
 		if t.Hovered() || a.sessOpen {
@@ -109,7 +104,6 @@ func (w *workspace) agentHead(c *ui.Context) {
 	})
 }
 
-// agentSub is the scope chip, which opens the pane picker, and where conversations are kept.
 func (w *workspace) agentSub(c *ui.Context) {
 	a := w.agent
 	m := len(candidatePanes(w.agentPanes()))
@@ -259,7 +253,6 @@ func (w *workspace) agentThread(c *ui.Context, onPage bool) {
 	}
 }
 
-// agentResumed is the "Resumed · …" divider and the note under the saved turns of a resumed conversation.
 func (w *workspace) agentResumed(c *ui.Context) {
 	a := w.agent
 	hairlineRow := func() { ui.Box(c).Grow(1).Height(1).Background(line) }
@@ -371,7 +364,7 @@ func (w *workspace) agentWho(c *ui.Context, who string, ai bool) {
 func traceRow(c *ui.Context, glyph string, col ui.Color, s string) {
 	ui.Row(c).FillWidth().Gap(space2).Children(func() {
 		icon(c, glyph, col)
-		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0) // a long line wraps
+		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0)
 	})
 }
 
@@ -407,7 +400,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 					if s.Status == "read" {
 						traceRow(c, "tick", tide, traceText(s))
 					} else if s.Status == "notebook" || s.Status == "notebook-index" {
-						traceRow(c, "notebook", inkFaint, traceText(s)) // the notebook glyph
+						traceRow(c, "notebook", inkFaint, traceText(s))
 					} else if s.Status == "notes" || s.Status == "runbook" {
 						traceRow(c, "agent-info", inkFaint, traceText(s))
 					} else {
@@ -594,7 +587,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 			}
 		})
 	})
-	if rec.editing && rec.focusEdit && onPage == w.agentPageShown() { // the field on screen takes the keyboard
+	if rec.editing && rec.focusEdit && onPage == w.agentPageShown() {
 		editH.Focus(c)
 		rec.focusEdit = false
 	}
@@ -663,7 +656,6 @@ func paneLabel(p *agentPane, fallback string) string {
 	return fallback
 }
 
-// cardNote is a card's note line: the icon carries the colour, the words are muted, except a status, which is its colour's.
 func cardNote(c *ui.Context, glyph string, col ui.Color, s string) ui.Element {
 	words := inkMuted
 	if col == flare || col == tide {
@@ -690,7 +682,7 @@ func (w *workspace) startEdit(rec *agentProp) {
 func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	rec := w.agent.props[id]
 	name := "Type into pane"
-	if onPage { // the page is away from the panes, so the button names the one it types into
+	if onPage {
 		name = "Type into " + orElse(rec.p.Host, "pane")
 		if pn := w.agentPaneBySession(rec.p.SessionID); pn != nil {
 			name = "Type into " + paneTarget(pn.label, pn.sub)
@@ -721,7 +713,6 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	}
 }
 
-// agentCardMenu is the card menu: the card's own buttons, each doing what its button does.
 func (w *workspace) agentCardMenu(m *ui.Menu, id, offer string) {
 	rec := w.agent.props[id]
 	if rec == nil {
@@ -755,7 +746,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 		if len(a.scope) > 0 || len(a.attached) > 0 {
 			ui.Row(c).FillWidth().Wrap().Gap(space1_5).Children(func() {
 				all := w.agentPanes()
-				defer w.nbChips(c) // the attached notebooks go after the panes
+				defer w.nbChips(c)
 				for _, id := range a.scope {
 					var p *agentPane
 					for i := range all {

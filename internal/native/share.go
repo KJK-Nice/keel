@@ -24,7 +24,6 @@ type shareLink struct{ url string }
 func (shareLink) String() string     { return "{share link}" }
 func (l shareLink) GoString() string { return l.String() }
 
-// sharePop is the open Share popover: the pane it shares and what keel serve answered.
 type sharePop struct {
 	open     bool
 	p        *pane
@@ -69,7 +68,6 @@ func roleOf(id, ownerID, driverID uint64) wire.Role {
 	return wire.RoleOf(id, driverID, ownerID)
 }
 
-// kindLabel says how a client came.
 func kindLabel(kind string) string {
 	switch kind {
 	case keelclient.KindJoined:
@@ -80,7 +78,6 @@ func kindLabel(kind string) string {
 	return ""
 }
 
-// person is a row of the people list.
 type person struct {
 	id       uint64
 	name     string
@@ -159,7 +156,6 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 	return rows
 }
 
-// watchingCount is how many people watch through a share link.
 func watchingCount(attached []keelclient.Peer) (n int) {
 	for _, c := range attached {
 		if c.Kind == keelclient.KindJoined {
@@ -179,7 +175,6 @@ func clientName(attached []keelclient.Peer, id uint64) string {
 	return "Someone"
 }
 
-// seat is what the pane's session says about this client's seat: it owns, drives or follows.
 type seat struct{ owner, driving bool }
 
 func seatOf(st keelclient.State) seat {
@@ -297,7 +292,6 @@ func (w *workspace) closeShare() {
 	}
 }
 
-// toggleShare is the titlebar button and the badge.
 func (w *workspace) toggleShare() {
 	if w.share != nil && w.share.open {
 		w.closeShare()
@@ -329,7 +323,6 @@ func (w *workspace) stopShare() {
 	})
 }
 
-// syncShare closes the popover when focus moved to another pane or to a joined one.
 func (w *workspace) syncShare() {
 	if s := w.share; s != nil && (w.tabOf(s.p) == nil || w.shareTarget() != s.p) {
 		w.share = nil
@@ -400,7 +393,6 @@ func (w *workspace) dropControlPrompts(p *pane) {
 	w.prompts = slices.DeleteFunc(w.prompts, func(s *sharePrompt) bool { return s.p == p && s.control })
 }
 
-// forgetPrompts drops every prompt of a pane (the share stopped, or the pane closed).
 func (w *workspace) forgetPrompts(p *pane) {
 	w.prompts = slices.DeleteFunc(w.prompts, func(s *sharePrompt) bool { return s.p == p })
 }
@@ -428,7 +420,6 @@ func (w *workspace) handOver(s *sharePrompt) {
 	w.sendControl(func() error { return s.p.conn.GrantControl(s.fromID) }, "hand over control")
 }
 
-// passControl is the popover's Pass control to <name>.
 func (w *workspace) passControl(p *pane, to uint64) {
 	w.sendControl(func() error { return p.conn.GrantControl(to) }, "pass control")
 }

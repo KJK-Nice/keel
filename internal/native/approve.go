@@ -35,7 +35,7 @@ import (
 // clearLine is Ctrl-U: the shell clears what is typed on the line before the snippet.
 const clearLine = "\x15"
 
-const approvePreviewMax = 130 // not a token: .pty-inject-preview max-height, 10rem
+const approvePreviewMax = 130
 
 const (
 	approveTitle = "Type into the terminal?"
@@ -48,13 +48,12 @@ const (
 	msgGone             = "It was deleted elsewhere; close this dialog." // hostError for a 404
 )
 
-// approveDialog is the open Approve before type dialog: the pane it types into and where the command comes from.
 type approveDialog struct {
-	p     *pane         // nil for the group dialog, which types into a pane per ticked row
-	src   approveSource // where the bytes come from
-	err   string        // why the last Type did not type
-	busy  bool          // a Type is waiting for keel serve
-	focus bool          // the dialog has been given the keyboard
+	p     *pane // nil for the group dialog, which types into a pane per ticked row
+	src   approveSource
+	err   string // why the last Type did not type
+	busy  bool
+	focus bool
 
 	cancelH, typeH ui.Handle
 }
@@ -107,7 +106,6 @@ type approveNotebook struct {
 
 func (n approveNotebook) words() (string, string, bool) { return approveHintNotebook, n.note, false }
 
-// prepare: a fence's bytes are the line and a newline, no Ctrl-U.
 func (approveNotebook) prepare(j *typeJob, shown string) string {
 	if cmdrule.HasPlaceholder(shown) { // keel serve refuses it too (the notebook-labelled inject)
 		return placeholderRefused
@@ -119,7 +117,6 @@ func (approveNotebook) prepare(j *typeJob, shown string) string {
 // shown is the proposal's bytes as keel serve holds them: nothing is added, not even a newline.
 func (a *approveAgent) shown() (string, bool) { return a.source() }
 
-// words: the bytes as the proposal card draws them, ^U, the command, ↵.
 func (a *approveAgent) words() (string, string, bool) { return approveHint, "", true }
 func (a *approveAgent) sessionLine(*pane) string      { return a.session }
 
@@ -148,7 +145,6 @@ func (g *approveGroup) dropped(busy bool) {
 	}
 }
 
-// group is the source when it is a group run, else nil.
 func (d *approveDialog) group() *approveGroup { g, _ := d.src.(*approveGroup); return g }
 
 // approveGroup is what the group approve dialog adds (docs/ui-redesign.md §6 rule 10, §17): one row per host, none ticked in
@@ -163,7 +159,6 @@ type approveGroup struct {
 	cancelled func()                            // the dialog closed with nothing typed
 }
 
-// typeJob is one row's Type: the pane's connection, the exact bytes, and the proposal they are for.
 type typeJob struct {
 	conn    session
 	command string
@@ -190,7 +185,6 @@ type approveAgent struct {
 	cancelled      func()          // the dialog closed with nothing typed
 }
 
-// shown is the text the dialog previews.
 func (d *approveDialog) shown() string {
 	b, _ := d.src.shown()
 	return b
@@ -201,10 +195,8 @@ func (d *approveDialog) has() bool {
 	return ok
 }
 
-// session is the line after "Session:".
 func (d *approveDialog) session() string { return d.src.sessionLine(d.p) }
 
-// paneSession is a pane's subtitle, else its title.
 func paneSession(p *pane) string {
 	st := p.conn.Snapshot()
 	switch {
@@ -274,7 +266,7 @@ func (w *workspace) askType(source func() (string, bool)) {
 		w.say(why)
 		return
 	}
-	w.showPane(p) // the approval names the pane you can see
+	w.showPane(p)
 	w.openApprove(p, approveSnippet{source})
 }
 
@@ -286,7 +278,6 @@ func (w *workspace) cancelApprove() {
 	w.closeApprove()
 }
 
-// closeApprove closes the dialog without typing and gives the keyboard back to the pane.
 func (w *workspace) closeApprove() {
 	d := w.approve
 	if d == nil {
@@ -362,7 +353,6 @@ func (w *workspace) approveType(shift bool) {
 	})
 }
 
-// openApproveGroup opens the group approve dialog (§6 rule 10). It sends nothing.
 func (w *workspace) openApproveGroup(g *approveGroup) {
 	w.approve = &approveDialog{src: g, focus: true}
 }

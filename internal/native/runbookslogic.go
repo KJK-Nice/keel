@@ -66,7 +66,6 @@ func runbookNeedsReview(rb keelclient.Runbook) bool {
 	return rb.Source != "" && rb.Source != "user" && !rb.AgentMayPick
 }
 
-// runbookReviewText is the review banner's words.
 func runbookReviewText(rb keelclient.Runbook) string {
 	var from string
 	switch rb.Source {
@@ -242,7 +241,6 @@ func cleanLine(text string) string {
 	return strings.Join(strings.FieldsFunc(b.String(), unicode.IsSpace), " ")
 }
 
-// rbEditStep and rbEdit are the editor's state as toRunbookInput reads it.
 type rbEditStep struct {
 	id, title, description, command, expect string
 	role                                    string
@@ -304,10 +302,8 @@ func checkRunbookInput(in keelclient.RunbookInput) string {
 	return checkCaptures(in.Steps)
 }
 
-// validRole is one role word as keel serve keeps it (limits.ValidRole).
 func validRole(r string) bool { return limits.ValidRole(r) }
 
-// addHost adds a folder or tag chip (no duplicates, any case).
 func addHost(hosts []string, text string) []string {
 	t := cleanLine(text)
 	if t == "" {
@@ -321,7 +317,6 @@ func addHost(hosts []string, text string) []string {
 	return append(append([]string{}, hosts...), t)
 }
 
-// moveItem moves item i by delta (-1 up, +1 down), within bounds, in a copy.
 func moveItem[T any](items []T, i, delta int) []T {
 	j := i + delta
 	if i < 0 || i >= len(items) || j < 0 || j >= len(items) {
@@ -334,7 +329,6 @@ func moveItem[T any](items []T, i, delta int) []T {
 
 // ---- a runbook in use in a conversation ----
 
-// currentStep is the first step not done or skipped, or -1.
 func currentStep(run *keelclient.ChatRunbook) int {
 	if run == nil {
 		return -1
@@ -347,7 +341,6 @@ func currentStep(run *keelclient.ChatRunbook) int {
 	return -1
 }
 
-// runRow is one row of the progress list: its state for the marks, the mark, and a short note.
 type runRow struct{ state, mark, note string }
 
 func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
@@ -412,7 +405,6 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 	return runRow{"next", n, ""}
 }
 
-// runAction is what the run card offers for the current step.
 type runAction struct {
 	kind string // propose | proposed | confirm | waiting | noexit | failed | check | finished | stopped | none
 	step runStepRef
@@ -470,7 +462,6 @@ func waitingForShell(run *keelclient.ChatRunbook) bool {
 	return false
 }
 
-// runWhyLine is the run card's second line.
 func runWhyLine(run *keelclient.ChatRunbook) string {
 	if run.PickedBy == "agent" {
 		if run.Why != "" {
@@ -481,12 +472,10 @@ func runWhyLine(run *keelclient.ChatRunbook) string {
 	return "You picked this runbook."
 }
 
-// continueQuestion is what Propose step N asks the agent.
 func continueQuestion(step runStepRef) string {
 	return fmt.Sprintf("Continue with step %d of %d: %s", step.n, step.of, step.title)
 }
 
-// startQuestion is what starting a runbook asks.
 func startQuestion(name string) string {
 	return "Walk me through the runbook “" + cleanLine(name) + "”."
 }

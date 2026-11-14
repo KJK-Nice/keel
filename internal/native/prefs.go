@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// The keys of keel-native.json. A key this version does not know is kept as it is on every save; windowShadow (retired in
-// v0.2.1: the window has no shadow) is ignored on load and dropped by the next save.
+// The keys of keel-native.json. A key this version does not know is kept as it is on every save.
 const (
 	keyOpacity      = "opacity"
 	keyBlur         = "blur"
@@ -44,13 +43,13 @@ type prefsDoc struct {
 
 	TermFont string // Settings · Terminal · Font: jetbrains | ibmplex | menlo | consolas | system
 
-	CopyOnSelect bool   // copy the terminal selection to the clipboard
+	CopyOnSelect bool
 	RightClick   string // paste | menu | nothing
 	Name         string // Settings · Sharing · Display name; "" is the default
 
 	SidebarWidth float32 // the sidebar's width as kept; 0 is the default
 	AgentWidth   float32 // the agent panel's width as kept; 0 is the default
-	AgentPanel   bool    // the agent panel was left open
+	AgentPanel   bool
 
 	Collapsed   map[string]bool // the folders the tree shows closed (ids and flat group names)
 	RecentHosts []string        // host ids, newest first, at most recentMax
@@ -80,7 +79,6 @@ var intPrefs = []struct {
 	{keyUISize, uiSizeMin, uiSizeMax, uiSizeDefault, func(p *prefsDoc) *int { return &p.UISize }},
 }
 
-// defaultPrefs is what a window starts with when there is no file.
 func defaultPrefs() prefsDoc {
 	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {
@@ -169,7 +167,6 @@ func loadPrefs(dataDir string) prefsDoc {
 	return p
 }
 
-// cutName trims a display name and cuts it to nameMax characters.
 func cutName(s string) string {
 	s = strings.TrimSpace(s)
 	if r := []rune(s); len(r) > nameMax {
@@ -178,7 +175,6 @@ func cutName(s string) string {
 	return s
 }
 
-// closedJSON is the closed list as loadPrefs reads it.
 func closedJSON(list []closedEntry) []map[string]any {
 	out := make([]map[string]any, 0, len(list))
 	for _, e := range list {
@@ -226,7 +222,7 @@ var prefKeys = map[string]struct {
 // with the value set last, and a burst of sets (a slider, a sash drag) is one write.
 type prefWrites struct {
 	write   sync.Mutex // held from taking the keys to the end of their write
-	mu      sync.Mutex // guards pending
+	mu      sync.Mutex
 	pending map[string]any
 }
 
@@ -291,7 +287,7 @@ func savePrefs(dataDir string, set map[string]any) error {
 	case !os.IsNotExist(err):
 		return err
 	}
-	delete(fields, "windowShadow") // retired in v0.2.1: the window has no shadow, and an old file's value is dropped
+	delete(fields, "windowShadow") // an old file's value is dropped
 	for k, v := range set {
 		raw, err := json.Marshal(v)
 		if err != nil {
@@ -308,7 +304,7 @@ func savePrefs(dataDir string, set map[string]any) error {
 
 // writeFileAtomic writes dir/name through a temp file in dir and a rename, with mode 0600.
 func writeFileAtomic(dir, name string, data []byte) error {
-	f, err := os.CreateTemp(dir, name+".*.tmp") // 0600
+	f, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
 		return err
 	}
