@@ -5,6 +5,7 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Groups, part 1 (docs/ui-redesign.md §17, boards GroupRoles and
@@ -48,7 +49,7 @@ func (s *Server) setGroupRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, g)
-	s.note("group", "host role set in group "+g.ID, req.HostID, "", "")
+	s.note(wire.LogGroup, "host role set in group "+g.ID, req.HostID, "", "")
 }
 
 func (s *Server) agentStartGroupRun(w http.ResponseWriter, r *http.Request) {

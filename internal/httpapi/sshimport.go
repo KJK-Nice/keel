@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
 	"keel/internal/hostimport"
+	"keel/internal/paths"
 	"keel/internal/sshconfig"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // First-run host import (docs/ui-redesign.md §5.15) over HTTP. The import
@@ -26,17 +27,7 @@ func (s *Server) sshOptions() (sshconfig.Options, bool) {
 	if s.sshDir == "" {
 		return sshconfig.Options{}, false
 	}
-	return sshconfig.Options{SSHDir: s.sshDir, LocalUser: localUser()}, true
-}
-
-func localUser() string {
-	if u := os.Getenv("USER"); u != "" {
-		return u
-	}
-	if u, err := user.Current(); err == nil {
-		return u.Username
-	}
-	return ""
+	return sshconfig.Options{SSHDir: s.sshDir, LocalUser: paths.LocalUser()}, true
 }
 
 func (s *Server) sshConfigPreview(w http.ResponseWriter, _ *http.Request) {
@@ -70,9 +61,9 @@ func (s *Server) sshConfigImport(w http.ResponseWriter, r *http.Request) {
 		ids[i] = id.Redacted()
 	}
 	for _, f := range res.Failed {
-		s.note("vault", "host import: "+f.Alias+" not added: "+f.Error, "", "", "")
+		s.note(wire.LogVault, "host import: "+f.Alias+" not added: "+f.Error, "", "", "")
 	}
-	s.note("vault", fmt.Sprintf("imported %d hosts (%d through a jump host) and %d keys from %s", len(hosts), res.Jumps, len(ids), res.Path), "", "", "")
+	s.note(wire.LogVault, fmt.Sprintf("imported %d hosts (%d through a jump host) and %d keys from %s", len(hosts), res.Jumps, len(ids), res.Path), "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"hosts": hosts, "identities": ids, "failed": res.Failed})
 }
 

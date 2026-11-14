@@ -21,6 +21,18 @@ func TestParseSize(t *testing.T) {
 	}
 }
 
+func TestClampSize(t *testing.T) {
+	for _, c := range []struct{ inC, inR, wantC, wantR int }{
+		{0, -3, 80, 24},
+		{120, 40, 120, 40},
+		{70000, 65537, 1000, 1000},
+	} {
+		if c1, r1 := ClampSize(c.inC, c.inR); c1 != c.wantC || r1 != c.wantR {
+			t.Fatalf("ClampSize(%d,%d) = %d x %d", c.inC, c.inR, c1, r1)
+		}
+	}
+}
+
 func TestLocalWorkingDirIsHome(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {

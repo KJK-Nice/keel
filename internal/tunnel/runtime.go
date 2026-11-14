@@ -144,7 +144,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 	if host.IsLocal() {
 		return Info{}, fmt.Errorf("port forwarding needs an SSH host")
 	}
-	if tn.Kind == "dynamic" && !store.IsLoopbackAddr(tn.BindAddr) {
+	if tn.Kind == store.TunnelDynamic && !store.IsLoopbackAddr(tn.BindAddr) {
 		// Tunnels saved before UpsertTunnel checked this.
 		return Info{}, store.ErrOpenSOCKS
 	}
@@ -296,9 +296,9 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 		err error
 	)
 	switch tn.Kind {
-	case "local", "dynamic":
+	case store.TunnelLocal, store.TunnelDynamic:
 		ln, err = net.Listen("tcp", bind)
-	case "remote":
+	case store.TunnelRemote:
 		ln, err = dialer.Listen("tcp", bind)
 	default:
 		err = fmt.Errorf("unknown tunnel kind %q", tn.Kind)
@@ -321,7 +321,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 			return
 		}
 		switch tn.Kind {
-		case "local":
+		case store.TunnelLocal:
 			go func(local net.Conn) {
 				remote, err := dialer.Dial("tcp", dest)
 				if err != nil {
@@ -330,7 +330,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		case "remote":
+		case store.TunnelRemote:
 			go func(remote net.Conn) {
 				local, err := net.Dial("tcp", dest)
 				if err != nil {
@@ -339,7 +339,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		case "dynamic":
+		case store.TunnelDynamic:
 			go serveSOCKS5(c, dialer.Dial)
 		}
 	}

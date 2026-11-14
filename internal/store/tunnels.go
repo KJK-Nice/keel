@@ -100,11 +100,11 @@ func validateTunnel(tn Tunnel) error {
 		return fmt.Errorf("hostId is required")
 	}
 	switch tn.Kind {
-	case "local", "remote":
+	case TunnelLocal, TunnelRemote:
 		if strings.TrimSpace(tn.DestHost) == "" || tn.DestPort < 1 {
 			return fmt.Errorf("destHost and destPort are required")
 		}
-	case "dynamic":
+	case TunnelDynamic:
 		// The SOCKS5 proxy has no authentication: bound beyond loopback
 		// it would be an open proxy into the remote network.
 		if !IsLoopbackAddr(tn.BindAddr) {

@@ -10,6 +10,7 @@ import (
 	"keel/internal/ansible"
 	"keel/internal/cmdrule"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Groups, part 2 (docs/ui-redesign.md §17, boards CaptureVars,
@@ -67,7 +68,7 @@ func (s *Server) setGroupVar(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Value) == "" {
 		what = "removed"
 	}
-	s.note("group", "group variable "+what+" in group "+g.ID, "", "", "")
+	s.note(wire.LogGroup, "group variable "+what+" in group "+g.ID, "", "", "")
 }
 
 // ExportFile is one file of an Ansible export.
@@ -163,7 +164,7 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 	if runbookID != "" {
 		msg += " with a playbook of runbook " + runbookID
 	}
-	s.note("group", msg, "", "", "")
+	s.note(wire.LogGroup, msg, "", "", "")
 }
 
 // exportHost takes only what an inventory may hold from a saved host:

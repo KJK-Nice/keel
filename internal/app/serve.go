@@ -150,8 +150,8 @@ func lockDataDirWait(dataDir string, wait time.Duration) (func(), error) {
 	}
 }
 
-func EnsureServe(addr, dataDir string) error {
-	if ProbeHealth(addr) {
+func ensureServe(addr, dataDir string) error {
+	if probeHealth(addr) {
 		return nil
 	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
@@ -162,7 +162,7 @@ func EnsureServe(addr, dataDir string) error {
 	}
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		if ProbeHealth(addr) {
+		if probeHealth(addr) {
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -203,7 +203,7 @@ func stopServe(addr, dataDir string, stopWait time.Duration) error {
 	if livePid != pid {
 		return fmt.Errorf("pid file names %d but keel serve on %s reports %d; not signalling", pid, addr, livePid)
 	}
-	if err := signalStop(pid); err != nil && ProbeHealth(addr) {
+	if err := signalStop(pid); err != nil && probeHealth(addr) {
 		return err
 	}
 	if waitUntilDown(addr, stopWait) {
@@ -241,26 +241,20 @@ func listening(addr string) bool {
 	return true
 }
 
-func ProbeHealth(addr string) bool {
-	client := &http.Client{Timeout: 400 * time.Millisecond}
-	res, err := client.Get(healthURL(addr))
-	if err != nil {
-		return false
-	}
-	defer res.Body.Close()
-	_, _ = io.Copy(io.Discard, res.Body)
-	return res.StatusCode == http.StatusOK
+func probeHealth(addr string) bool {
+	_, up := healthPid(addr)
+	return up
 }
 
 func healthURL(addr string) string {
 	return "http://" + addr + "/api/health"
 }
 
-// VerifyServe checks that the keel serve on addr holds token before a
+// verifyServe checks that the keel serve on addr holds token before a
 // client hands the token to it. It sends a random nonce, never the token,
 // and expects HMAC(token, nonce) back: another program that grabbed the
 // port first cannot answer.
-func VerifyServe(addr, token string) error {
+func verifyServe(addr, token string) error {
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	err := authtoken.VerifyServer(context.Background(), client, addr, authtoken.WindowChallenge, token)
 	if errors.Is(err, authtoken.ErrUnproven) {
@@ -274,7 +268,7 @@ func VerifyServe(addr, token string) error {
 // through a redirect.
 func postRuntimeStop(addr, token string) error {
 	if token != "" {
-		if err := VerifyServe(addr, token); err != nil {
+		if err := verifyServe(addr, token); err != nil {
 			return err
 		}
 	}
@@ -302,12 +296,12 @@ func postRuntimeStop(addr, token string) error {
 func waitUntilDown(addr string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		if !ProbeHealth(addr) {
+		if !probeHealth(addr) {
 			return true
 		}
 		time.Sleep(40 * time.Millisecond)
 	}
-	return !ProbeHealth(addr)
+	return !probeHealth(addr)
 }
 
 func spawnServe(addr, dataDir string) error {

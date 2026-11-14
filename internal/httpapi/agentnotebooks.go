@@ -7,6 +7,7 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12).
@@ -84,7 +85,7 @@ func (s *Server) setNotebookPrivate(w http.ResponseWriter, r *http.Request) {
 	if !in.Private {
 		what = "notebook no longer private (the agent may read and change it) · "
 	}
-	s.note("notebook", what+nb.ID, "", "", "")
+	s.note(wire.LogNotebook, what+nb.ID, "", "", "")
 }
 
 // markNotebookReviewed clears the "edited by the agent" mark.
@@ -143,7 +144,7 @@ func (s *Server) restoreNotebookVersion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
-	s.note("notebook", "notebook version restored by you · "+nb.ID+" · "+r.PathValue("vid"), "", "", "")
+	s.note(wire.LogNotebook, "notebook version restored by you · "+nb.ID+" · "+r.PathValue("vid"), "", "", "")
 }
 
 // deletedNotebooks is Recently deleted.
@@ -163,7 +164,7 @@ func (s *Server) restoreDeletedNotebook(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, nb)
-	s.note("notebook", "deleted notebook restored by you · "+nb.ID, "", "", "")
+	s.note(wire.LogNotebook, "deleted notebook restored by you · "+nb.ID, "", "", "")
 }
 
 // patchNotebook renames or pins a notebook without its text: a window with
@@ -202,7 +203,7 @@ func (s *Server) purgeDeletedNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("notebook", "deleted notebook removed for good by you · "+r.PathValue("vid"), "", "", "")
+	s.note(wire.LogNotebook, "deleted notebook removed for good by you · "+r.PathValue("vid"), "", "", "")
 }
 
 // purgeNotebookVersion is Delete this version in History.
@@ -212,5 +213,5 @@ func (s *Server) purgeNotebookVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("notebook", "notebook version removed by you · "+r.PathValue("id")+" · "+r.PathValue("vid"), "", "", "")
+	s.note(wire.LogNotebook, "notebook version removed by you · "+r.PathValue("id")+" · "+r.PathValue("vid"), "", "", "")
 }

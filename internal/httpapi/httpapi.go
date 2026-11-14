@@ -401,9 +401,9 @@ func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
 	}
 	s.share.SetSaved(u)
 	if u == "" {
-		s.note("share", "signal server removed", "", "", "")
+		s.note(wire.LogShare, "signal server removed", "", "", "")
 	} else {
-		s.note("share", "signal server set to "+u, "", "", "")
+		s.note(wire.LogShare, "signal server set to "+u, "", "", "")
 	}
 	writeJSON(w, http.StatusOK, s.signalInfo())
 }
@@ -429,7 +429,7 @@ func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
-	s.note("vault", "vault unlocked", "", "", "")
+	s.note(wire.LogVault, "vault unlocked", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -445,7 +445,7 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
-	s.note("vault", "vault created", "", "", "")
+	s.note(wire.LogVault, "vault created", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -541,7 +541,7 @@ func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved.Redacted())
-	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
+	s.note(wire.LogHost, "host duplicated: "+saved.Name, saved.ID, "", "")
 }
 
 // setHostAgentReadable is a host menu's "Agent can read" (the Edit host
@@ -571,7 +571,7 @@ func (s *Server) setHostAgentReadable(w http.ResponseWriter, r *http.Request) {
 	if v {
 		state = "on"
 	}
-	s.note("host", "agent can read "+state+": "+saved.Name, saved.ID, "", "")
+	s.note(wire.LogHost, "agent can read "+state+": "+saved.Name, saved.ID, "", "")
 	writeJSON(w, http.StatusOK, saved.Redacted())
 }
 
@@ -591,7 +591,7 @@ func (s *Server) moveHosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("group", "hosts moved", "", "", "")
+	s.note(wire.LogGroup, "hosts moved", "", "", "")
 }
 
 func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
@@ -621,9 +621,9 @@ func (s *Server) upsertGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, savedStatus(r.PathValue("id")), saved)
 	if r.PathValue("id") == "" {
-		s.note("group", "group created: "+saved.Name, "", "", "")
+		s.note(wire.LogGroup, "group created: "+saved.Name, "", "", "")
 	} else {
-		s.note("group", "group updated: "+saved.Name, "", "", "")
+		s.note(wire.LogGroup, "group updated: "+saved.Name, "", "", "")
 	}
 }
 
@@ -633,7 +633,7 @@ func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("group", "group deleted", "", "", "")
+	s.note(wire.LogGroup, "group deleted", "", "", "")
 }
 
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
@@ -651,7 +651,7 @@ func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("host", "host deleted: "+host.Name, host.ID, "", "")
+	s.note(wire.LogHost, "host deleted: "+host.Name, host.ID, "", "")
 }
 
 func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
@@ -682,7 +682,7 @@ func (s *Server) noteSnippetFlag(name string, before, after bool) {
 	if after {
 		msg = "snippet \"" + name + "\" may be suggested by the agent; its command is sent, redacted, to TypeSafe Jev"
 	}
-	s.note("agent", msg, "", "", "")
+	s.note(wire.LogAgent, msg, "", "", "")
 }
 
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
@@ -705,7 +705,7 @@ func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("snippet", "snippet deleted", "", "", "")
+	s.note(wire.LogSnippet, "snippet deleted", "", "", "")
 }
 
 func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
@@ -730,7 +730,7 @@ func (s *Server) upsertNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
-	s.note("notebook", "notebook created: "+saved.Name, "", "", "")
+	s.note(wire.LogNotebook, "notebook created: "+saved.Name, "", "", "")
 }
 
 func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
@@ -749,7 +749,7 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
-	s.note("notebook", "notebook updated: "+saved.Name, "", "", "")
+	s.note(wire.LogNotebook, "notebook updated: "+saved.Name, "", "", "")
 }
 
 func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
@@ -760,7 +760,7 @@ func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("notebook", "notebook deleted", "", "", "")
+	s.note(wire.LogNotebook, "notebook deleted", "", "", "")
 }
 
 func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {
@@ -791,7 +791,7 @@ func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("session", "session reconnect: "+info.Title, info.HostID, info.ID, "")
+	s.note(wire.LogSession, "session reconnect: "+info.Title, info.HostID, info.ID, "")
 	writeJSON(w, http.StatusOK, info)
 }
 
@@ -804,7 +804,7 @@ func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
 	if s.share != nil {
 		s.share.Stop(id)
 	}
-	s.note("session", "session killed", "", id, "")
+	s.note(wire.LogSession, "session killed", "", id, "")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1007,7 +1007,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce)
 		s.agent.InsertDone(grant, ierr)
 		if ierr != nil {
-			s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
+			s.note(wire.LogAgent, "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
 			out.Message = wire.MsgInsertExpired
 			if errors.Is(ierr, runtime.ErrNotReady) {
 				out.Message = notReadyTypeMessage
@@ -1023,7 +1023,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		// A notebook fence (an agent's draft, or text pasted from an
 		// answer) that still holds a placeholder is a shell glob, never
 		// the value: not typed.
-		s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
+		s.note(wire.LogNotebook, "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
 		return service.ErrPlaceholder
 	}
 	if ctl.Agent == nil {
@@ -1046,7 +1046,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		if ctl.Agent.GroupRunID != "" {
 			s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
 		}
-		s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
+		s.note(wire.LogAgent, "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
 		out.Message = "the approval expired; press Type again"
 		if errors.Is(ierr, runtime.ErrNotReady) {
 			out.Message = notReadyTypeMessage
@@ -1068,13 +1068,21 @@ func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 	if s.logs == nil {
 		return
 	}
-	s.logs.Append(applog.Entry{
+	s.appendLog(applog.Entry{
 		Kind:      kind,
 		Message:   msg,
 		HostID:    hostID,
 		SessionID: sessionID,
 		TunnelID:  tunnelID,
 	})
+}
+
+// appendLog writes e to the log. A failed write is reported on stderr and
+// otherwise ignored: what the entry describes has already happened.
+func (s *Server) appendLog(e applog.Entry) {
+	if err := s.logs.Append(e); err != nil {
+		log.Printf("log: %v", err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

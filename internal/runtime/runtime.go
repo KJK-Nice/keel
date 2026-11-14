@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/inject"
+	"keel/internal/paths"
+	"keel/internal/randid"
 	"keel/internal/scrollback"
 	"keel/internal/session"
 	"keel/internal/shellmark"
@@ -156,12 +156,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = session.ClampSize(cols, rows)
 	s := &Session{
 		rt:            r,
 		id:            newID(),
@@ -446,7 +441,7 @@ func (s *Session) dropClient(id uint64, slow bool) {
 		msg = "dropped (slow consumer)"
 		// The name is chosen by the joining peer: quote it so it cannot
 		// forge log lines.
-		s.rt.note("session", fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
+		s.rt.note(wire.LogSession, fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
 	}
 	s.emitPresence(msg)
 }
@@ -846,10 +841,14 @@ func (s *Session) requestReconnect() error {
 	if looping {
 		return nil
 	}
-	s.setStatus(StatusConnecting, "reconnecting")
-	s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+	s.markReconnecting()
 	go s.runLoop()
 	return nil
+}
+
+func (s *Session) markReconnecting() {
+	s.setStatus(StatusConnecting, "reconnecting")
+	s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
 }
 
 func (s *Session) runLoop() {
@@ -867,8 +866,7 @@ func (s *Session) runLoop() {
 		restart := !s.closed && s.forceReconnect
 		s.mu.Unlock()
 		if restart {
-			s.setStatus(StatusConnecting, "reconnecting")
-			s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+			s.markReconnecting()
 			go s.runLoop()
 		}
 	}()
@@ -1005,13 +1003,12 @@ func (s *Session) runLoop() {
 			kind := session.BridgeExit(br)
 			if force || (auto && kind == session.ExitDrop) {
 				dropped = true
-				s.setStatus(StatusConnecting, "reconnecting")
 				if force {
 					s.noteLine("Reconnecting…")
 				} else {
 					s.noteLine("Connection lost — reconnecting…")
 				}
-				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+				s.markReconnecting()
 				if !force && !s.backoffWait() {
 					return
 				}
@@ -1049,10 +1046,10 @@ func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
 	s.startupSent = true
 	s.mu.Unlock()
 	if _, err := br.Write([]byte(cmd + "\r")); err != nil {
-		s.rt.note("session", "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
+		s.rt.note(wire.LogSession, "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
 		return
 	}
-	s.rt.note("session", "startup command sent to "+host.Name, host.ID, s.id)
+	s.rt.note(wire.LogSession, "startup command sent to "+host.Name, host.ID, s.id)
 }
 
 func shouldRetryConnect(err error) bool {
@@ -1230,7 +1227,7 @@ func subtitle(h store.Host) string {
 
 func localSubtitle() string {
 	host, _ := os.Hostname()
-	user := os.Getenv("USER")
+	user := paths.LocalUser()
 	switch {
 	case user != "" && host != "":
 		return user + "@" + host
@@ -1242,9 +1239,5 @@ func localSubtitle() string {
 }
 
 func newID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(8)
 }

@@ -65,7 +65,7 @@ func main() {
 func parseName(args []string) string {
 	name := os.Getenv("KEEL_NAME")
 	if name == "" {
-		name = os.Getenv("USER")
+		name = paths.LocalUser()
 	}
 	for i := 0; i < len(args); i++ {
 		switch {

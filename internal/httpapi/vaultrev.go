@@ -1,10 +1,10 @@
 package httpapi
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"strconv"
 	"sync"
+
+	"keel/internal/randid"
 )
 
 // vaultRev names the vault's state as of now: GET /api/vault reports it as "rev", and the native client polls it to
@@ -18,13 +18,7 @@ type vaultRev struct {
 	changes uint64
 }
 
-func newVaultRev() *vaultRev { return &vaultRev{epoch: randomHex(6)} }
-
-func randomHex(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
+func newVaultRev() *vaultRev { return &vaultRev{epoch: randid.Hex(6)} }
 
 func (v *vaultRev) rev() string {
 	v.mu.Lock()

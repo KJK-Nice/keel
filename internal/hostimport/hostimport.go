@@ -361,7 +361,7 @@ func Import(st *store.Store, opts sshconfig.Options, req Request) (Result, error
 		names[name] = true
 		saved, err := st.UpsertIdentity(store.Identity{
 			Name:       name,
-			Kind:       "key",
+			Kind:       store.AuthKey,
 			PrivateKey: string(k.pem),
 			Passphrase: k.passphrase,
 		})
@@ -386,11 +386,11 @@ func Import(st *store.Store, opts sshconfig.Options, req Request) (Result, error
 				Address:  h.HostName,
 				Port:     h.Port,
 				Username: h.User,
-				AuthType: "password",
+				AuthType: store.AuthPassword,
 			}
 			for _, p := range h.IdentityFiles {
 				if id, ok := identityFor[p]; ok {
-					in.AuthType = "identity"
+					in.AuthType = store.AuthIdentity
 					in.IdentityID = id
 					break
 				}

@@ -132,7 +132,7 @@ func (s *Server) agentRetention() {
 func (s *Server) pruneAgentChats() {
 	n, err := s.agent.Prune()
 	if err == nil && n > 0 {
-		s.note("agent", fmt.Sprintf("%d agent %s past the retention deleted from the vault", n, plural(n, "conversation", "conversations")), "", "", "")
+		s.note(wire.LogAgent, fmt.Sprintf("%d agent %s past the retention deleted from the vault", n, plural(n, "conversation", "conversations")), "", "", "")
 	}
 }
 
@@ -244,7 +244,7 @@ func (s *Server) agentResetAll(w http.ResponseWriter, _ *http.Request) {
 			return
 		}
 	}
-	s.note("agent", fmt.Sprintf("agent history deleted (%d %s)", n, plural(n, "conversation", "conversations")), "", "", "")
+	s.note(wire.LogAgent, fmt.Sprintf("agent history deleted (%d %s)", n, plural(n, "conversation", "conversations")), "", "", "")
 	w.WriteHeader(http.StatusNoContent)
 }
 

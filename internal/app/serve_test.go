@@ -32,11 +32,11 @@ func TestProbeHealth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ProbeHealth(u.Host) {
+	if !probeHealth(u.Host) {
 		t.Fatal("expected healthy")
 	}
 	srv.Close()
-	if ProbeHealth(u.Host) {
+	if probeHealth(u.Host) {
 		t.Fatal("expected down after close")
 	}
 }
@@ -85,7 +85,7 @@ func TestRunServeHealthAndStop(t *testing.T) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if ProbeHealth(addr) {
+		if probeHealth(addr) {
 			break
 		}
 		select {
@@ -95,7 +95,7 @@ func TestRunServeHealthAndStop(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if !ProbeHealth(addr) {
+	if !probeHealth(addr) {
 		t.Fatal("serve never became healthy")
 	}
 	pid, err := readPid(dir)
@@ -109,13 +109,13 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("serve did not write its token: %v", err)
 	}
-	if err := VerifyServe(addr, token); err != nil {
+	if err := verifyServe(addr, token); err != nil {
 		t.Fatalf("VerifyServe on our own serve: %v", err)
 	}
 	if err := postRuntimeStop(addr, ""); err == nil {
 		t.Fatal("runtime stop without the token was accepted")
 	}
-	if !ProbeHealth(addr) {
+	if !probeHealth(addr) {
 		t.Fatal("unauthenticated stop brought serve down")
 	}
 	if err := StopServe(addr, dir); err != nil {
@@ -129,7 +129,7 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("RunServe did not exit after stop")
 	}
-	if ProbeHealth(addr) {
+	if probeHealth(addr) {
 		t.Fatal("still healthy after stop")
 	}
 }
@@ -247,7 +247,7 @@ func TestVerifyServeRejectsImpostor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := VerifyServe(u.Host, "our-token"); err == nil {
+			if err := verifyServe(u.Host, "our-token"); err == nil {
 				t.Fatal("VerifyServe trusted a server that does not hold the token")
 			}
 		})
@@ -268,7 +268,7 @@ func TestVerifyServeNeverSendsToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyServe(u.Host, token); err != nil {
+	if err := verifyServe(u.Host, token); err != nil {
 		t.Fatal(err)
 	}
 }

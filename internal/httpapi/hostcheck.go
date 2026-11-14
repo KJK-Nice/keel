@@ -6,6 +6,7 @@ import (
 
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Edit host: Test connection and the host key line (docs/ui-redesign.md
@@ -53,7 +54,7 @@ func (s *Server) testHost(w http.ResponseWriter, r *http.Request) {
 		host.Name = label
 	}
 	res := session.Probe(r.Context(), host, s.store.CheckHostKeyType)
-	s.note("host", "connection test "+label+": "+res.Kind, h.ID, "", "")
+	s.note(wire.LogHost, "connection test "+label+": "+res.Kind, h.ID, "", "")
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -103,6 +104,6 @@ func (s *Server) forgetHostKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no saved host key for "+name)
 		return
 	}
-	s.note("host", "forgot host key for "+h.Name+" ("+name+", "+prev.Fingerprint+")", h.ID, "", "")
+	s.note(wire.LogHost, "forgot host key for "+h.Name+" ("+name+", "+prev.Fingerprint+")", h.ID, "", "")
 	writeJSON(w, http.StatusOK, store.KnownHostKey{Hostname: name})
 }

@@ -42,7 +42,7 @@ func (s *Server) deleteIdentity(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("identity", "identity deleted", "", "", "")
+	s.note(wire.LogIdentity, "identity deleted", "", "", "")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -88,7 +88,7 @@ func (s *Server) deleteTunnel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("tunnel", "tunnel deleted", "", "", id)
+	s.note(wire.LogTunnel, "tunnel deleted", "", "", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -103,7 +103,7 @@ func (s *Server) startTunnel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
-	s.note("tunnel", "tunnel started: "+info.Name, info.HostID, "", info.ID)
+	s.note(wire.LogTunnel, "tunnel started: "+info.Name, info.HostID, "", info.ID)
 	writeJSON(w, http.StatusOK, info)
 }
 
@@ -117,7 +117,7 @@ func (s *Server) stopTunnel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("tunnel", "tunnel stopped", "", "", id)
+	s.note(wire.LogTunnel, "tunnel stopped", "", "", id)
 	info, err := s.tunnels.Get(id)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -166,6 +166,6 @@ func (s *Server) trustHostKey(w http.ResponseWriter, r *http.Request) {
 	if req.Replace {
 		verb = "replaced"
 	}
-	s.note("host", verb+" host key for "+key.Hostname+" ("+key.Fingerprint+")", "", "", "")
+	s.note(wire.LogHost, verb+" host key for "+key.Hostname+" ("+key.Fingerprint+")", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "hostname": key.Hostname, "fingerprint": key.Fingerprint, "keyType": key.KeyType})
 }

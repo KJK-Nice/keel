@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+const (
+	// MaxViewers caps the viewers of one share: each costs the host a WebRTC PeerConnection, and the signal server
+	// admits no more joiners to a room.
+	MaxViewers = 16
+	// MaxSignalMessageBytes bounds one signalling message, on the host's socket and in the server (SDP offers are a few KB).
+	MaxSignalMessageBytes = 64 << 10
+)
+
 // Link is a parsed join link. Key is the share's secret: String, GoString and Format leave it out.
 type Link struct {
 	Origin string // scheme://host[:port] of the signal server

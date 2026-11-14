@@ -4,12 +4,12 @@
 package inject
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"io"
 	"sync"
 	"time"
+
+	"keel/internal/randid"
 )
 
 var (
@@ -61,11 +61,7 @@ func (i *Issuer) Issue(clientID uint64, command string) (string, error) {
 	if command == "" {
 		return "", ErrNotApproved
 	}
-	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return "", err
-	}
-	nonce := hex.EncodeToString(raw[:])
+	nonce := randid.Hex(16)
 	now := time.Now()
 	i.mu.Lock()
 	defer i.mu.Unlock()

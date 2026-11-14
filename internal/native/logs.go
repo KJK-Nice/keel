@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. Entries carry counts, never
@@ -45,15 +46,15 @@ var logChips = [][2]string{{"all", "All"}, {"sessions", "Sessions"}, {"forwards"
 // logGroup is the chip a log kind belongs to (data.go logGroup).
 func logGroup(kind string) string {
 	k := strings.ToLower(kind)
-	if k == "agent" || strings.HasPrefix(k, "agent.") {
+	if k == wire.LogAgent || strings.HasPrefix(k, wire.LogAgent+".") {
 		return "agent"
 	}
 	switch k {
-	case "session":
+	case wire.LogSession:
 		return "sessions"
-	case "tunnel":
+	case wire.LogTunnel:
 		return "forwards"
-	case "vault", "host", "group", "identity", "snippet", "notebook":
+	case wire.LogVault, wire.LogHost, wire.LogGroup, wire.LogIdentity, wire.LogSnippet, wire.LogNotebook:
 		return "vault"
 	}
 	return "other"
