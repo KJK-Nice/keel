@@ -10,7 +10,7 @@ import (
 
 // windowStateStore keeps the main window's frame in window-state.json beside keel-native.json (the data directory,
 // so a test's scratch directory holds its own). MyGo does the rest: it saves the normal bounds when the window closes
-// or the app quits, and a saved frame that would show on no connected display is ignored, so the window gets its
+// or Keel quits, and a saved frame that would show on no connected display is ignored, so the window gets its
 // default. Full screen is not restored as a frame: the entry keeps the bounds only. Nothing here touches a session.
 type windowStateStore struct{ path string }
 

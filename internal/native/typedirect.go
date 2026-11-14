@@ -9,8 +9,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session. They are
-// cmd/keel/web/js/lib/typedirect.js (pinned there by test/typedirect.test.mjs and here by typedirect_test.go).
+// Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session.
+// They are pinned by typedirect_test.go.
 //
 // keel serve decides whether a Type goes without the dialog (internal/httpapi/typedirect.go, agent.DirectSafe). These
 // only skip the round trip when the answer is certainly "dialog", and name the button and the badge. A hint that says
@@ -67,7 +67,7 @@ var (
 // one to what is typed (guard_test.go).
 var crlf = string([]byte{13, 10})
 
-// promptLineMax is the longest line sent, as the page's cursorLine (lib/typedirect.js) cuts it.
+// promptLineMax is the longest line sent.
 const promptLineMax = 512
 
 // screenOf reads the pane's alternate screen and cursor line from a terminal Snapshot, with rows the terminal's height.

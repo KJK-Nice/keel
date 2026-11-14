@@ -16,8 +16,7 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Notebooks (docs/ui-redesign.md §18; cmd/keel/web/js/term.js openNotebook, persistNotebook, notebookChanged and the
-// rest around them). A notebook is one Markdown document kept by keel serve. The pane shows it rendered and, on Edit, as
+// Notebooks (docs/ui-redesign.md §18). A notebook is one Markdown document kept by keel serve. The pane shows it rendered and, on Edit, as
 // plain Markdown in a text area: the stored text is never passed through a rich text model (docs/native.md "Read and edit").
 //
 // What this file does and does not do:
@@ -31,11 +30,11 @@ import (
 const (
 	notebookReadLimit = 64 * 1024 // a longer notebook opens in Edit: rendering it takes seconds
 
-	// defaultNotebookMD is the starter text of a new notebook (term.js DEFAULT_NOTEBOOK_MD). The name is the title, so
+	// defaultNotebookMD is the starter text of a new notebook. The name is the title, so
 	// it has no H1.
 	defaultNotebookMD = "Write a runbook here.\n\n## Check\n\n1. Numbered lists render as steps\n2. Fenced ```sh or ```bash blocks type into the terminal beside the notebook after you confirm\n\n- Bullet lists render too\n"
 
-	msgNoTermBeside = "Split a terminal beside this notebook first" // term.js insertNotebookIntoInput
+	msgNoTermBeside = "Split a terminal beside this notebook first"
 	msgOverAgent    = "Saved your typing over an agent edit this pane had not loaded. The agent's version is in History."
 	msgAgentTyping  = "The agent edited a notebook you are typing in. Your typing is kept; the agent's version is in History."
 )
@@ -78,7 +77,7 @@ func (n *notebookPane) load(rec keelclient.Notebook) {
 		n.cellID = rec.Cells[0].ID
 	}
 	if len(rec.Cells) == 0 {
-		n.md = defaultNotebookMD // term.js copyNotebookCells: a notebook with no cells starts from the starter
+		n.md = defaultNotebookMD // a notebook with no text starts from the starter
 	}
 	n.titleSeen, n.mdSeen = n.title, n.md
 	n.failed = false
@@ -139,7 +138,7 @@ func (w *workspace) notebook(id string) (keelclient.Notebook, bool) {
 	return keelclient.Notebook{}, false
 }
 
-// shownNotebooks is the list under the filter (name and first line), sorted as the app sorts it.
+// shownNotebooks is the list under the filter (name and first line), sorted as sortedNotebooks does.
 func (w *workspace) shownNotebooks(q string) (out []keelclient.Notebook) {
 	for _, n := range sortedNotebooks(w.notebooks) {
 		if sideMatches(n.Name+" "+notebookPreview(n), q) {
@@ -149,7 +148,7 @@ func (w *workspace) shownNotebooks(q string) (out []keelclient.Notebook) {
 	return out
 }
 
-// rememberNotebook puts a notebook keel serve answered with into the list at once (term.js rememberNotebook).
+// rememberNotebook puts a notebook keel serve answered with into the list at once.
 func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 	if i := slices.IndexFunc(w.notebooks, func(n keelclient.Notebook) bool { return n.ID == rec.ID }); i >= 0 {
 		w.notebooks[i] = rec
@@ -225,7 +224,7 @@ func (w *workspace) newNotebookPane(rec *keelclient.Notebook) *pane {
 	return p
 }
 
-// firstTerm is the terminal a notebook's fences type into: the tab's first terminal with a session (term.js termTarget).
+// firstTerm is the terminal a notebook's fences type into: the tab's first terminal with a session.
 func (t *tab) firstTerm() *pane {
 	for _, id := range t.root.Leaves() {
 		if p := t.panes[id]; p != nil && p.nb == nil {
@@ -238,8 +237,7 @@ func (t *tab) firstTerm() *pane {
 // onlyNotebooks is a tab whose panes are all notebooks.
 func (t *tab) onlyNotebooks() bool { return len(t.panes) > 0 && t.firstTerm() == nil }
 
-// placeNotebook shows a notebook pane: beside the terminal of a session tab, else in a tab of its own (term.js
-// openNotebook).
+// placeNotebook shows a notebook pane: beside the terminal of a session tab, else in a tab of its own.
 func (w *workspace) placeNotebook(np *pane) {
 	t := w.tab()
 	if t != nil && (t.mode() == modeSession || t.mode() == modeNotebooks) && t.root != nil && len(t.panes) > 0 {
@@ -279,8 +277,7 @@ func (w *workspace) openNotebook(id string) {
 	w.placeNotebook(w.newNotebookPane(&rec))
 }
 
-// newNotebook is New notebook: a split beside the terminal of a session tab, else a tab of its own; it is saved at once
-// (term.js newNotebook, splitNotebook).
+// newNotebook is New notebook: a split beside the terminal of a session tab, else a tab of its own; it is saved at once.
 func (w *workspace) newNotebook() {
 	np := w.newNotebookPane(nil)
 	w.placeNotebook(np)
@@ -356,7 +353,7 @@ func (w *workspace) nbSettle(p *pane) {
 	}
 }
 
-// nbFlush saves what was typed and then calls done (term.js flushNotebookSaves). done runs on the UI thread, at once when
+// nbFlush saves what was typed and then calls done. done runs on the UI thread, at once when
 // nothing is pending; ok is false when the save failed.
 func (w *workspace) nbFlush(p *pane, done func(ok bool)) {
 	n := p.nb
@@ -394,7 +391,7 @@ func (w *workspace) nbFlushID(id string, done func()) {
 	}
 }
 
-// nbClosed is a notebook pane going away: what was typed is saved first (the pane closed right after typing used to lose it).
+// nbClosed is a notebook pane going away: what was typed is saved first, so a pane closed right after typing loses nothing.
 func (w *workspace) nbClosed(p *pane) {
 	if p.nb.gone {
 		return
@@ -500,7 +497,7 @@ func (w *workspace) toggleNotebookPrivate(id string) {
 	})
 }
 
-// noteMarks takes a notebook's flags (Private, Edited by agent) without touching its text (term.js notebookMarksChanged).
+// noteMarks takes a notebook's flags (Private, Edited by agent) without touching its text.
 func (w *workspace) noteMarks(rec keelclient.Notebook) {
 	cur, ok := w.notebook(rec.ID)
 	if !ok {
@@ -530,7 +527,7 @@ func (w *workspace) askDeleteNotebook(id string) {
 }
 
 // deleteNotebook deletes after the user confirmed. Pending edits land first (a save after the delete would put the notebook
-// back); when keel serve cannot keep it in Recently deleted it asks before deleting for good (term.js deleteNotebook).
+// back); when keel serve cannot keep it in Recently deleted it asks before deleting for good.
 func (w *workspace) deleteNotebook(id string, permanent bool) {
 	rec, _ := w.notebook(id)
 	w.nbFlushID(id, func() {

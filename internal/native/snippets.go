@@ -9,15 +9,13 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Snippets (docs/ui-redesign.md §5.12): saved commands. What the app has, and so what this has: a name and a command
+// Snippets (docs/ui-redesign.md §5.12): saved commands: a name and a command
 // (one per line; each line ends with Enter when typed), the Snippets page with its list and editor, New and Edit
-// snippet dialogs, the sidebar's Snippets section and the palette's Snippets group. The words are SnippetsPage and
-// SnippetList (internal/ui/pages.templ, lists.templ), snippetDialog (dialogs.templ), the snippet menus
-// (rowmenus.templ) and the handlers in cmd/keel/web/js/term.js.
+// snippet dialogs, the sidebar's Snippets section and the palette's Snippets group.
 //
-// Not in the app and so not here: {{var}} fields, "Offer on hosts tagged", the Read-only / Changes state kind and the
-// ⇧↵ rule. The editor has "Let the agent suggest this snippet" and the preview of what gets typed (plan 025): the page's
-// Save sends the switch as the app's form does; the dialogs send no flag, so keel serve keeps it.
+// There are no {{var}} fields, "Offer on hosts tagged", Read-only / Changes state kind or ⇧↵ rule. The editor has "Let
+// the agent suggest this snippet" and the preview of what gets typed: the page's
+// Save sends the switch; the dialogs send no flag, so keel serve keeps it.
 //
 // Nothing here writes to a session. Every entry point (a row, the row menu, the editor's "Type into pane…", the palette)
 // calls typeSnippet, which hands the snippet to typeNow (typenow.go): a read-only one-liner keel serve agrees to is typed
@@ -52,7 +50,7 @@ func (e *snippetEditor) dirty() bool {
 	return e.name != e.origName || e.command != e.origCommand || e.agent != e.origAgent
 }
 
-// snippetPreview is lib/vaultview.js snippetPreview: the lines a snippet types, each with its Enter, and the count line.
+// snippetPreview is the lines a snippet types, each with its Enter, and the count line.
 func snippetPreview(text string) (lines []string, summary string) {
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
@@ -64,7 +62,7 @@ func snippetPreview(text string) (lines []string, summary string) {
 	return lines, countWord(len(lines), "line", "lines") + " · " + countWord(len(text), "byte", "bytes") + ". Typing always goes through Approve before type."
 }
 
-// snippetFirstLine is lists.templ snippetFirstLine: the first line, with " …" when there are more.
+// snippetFirstLine is the first line, with " …" when there are more.
 func snippetFirstLine(s keelclient.Snippet) string {
 	line := strings.TrimSpace(s.Command)
 	if i := strings.IndexByte(line, '\n'); i >= 0 {
@@ -73,7 +71,7 @@ func snippetFirstLine(s keelclient.Snippet) string {
 	return line
 }
 
-// paletteHint is term.js paletteCatalog's hint: the first line of the command.
+// paletteHint is the first line of the command.
 func paletteHint(s keelclient.Snippet) string {
 	return strings.Split(strings.TrimSpace(s.Command), "\n")[0]
 }
@@ -111,7 +109,7 @@ func (w *workspace) shownSnippets(q string) (out []keelclient.Snippet) {
 	return out
 }
 
-// current is the selected snippet, else the first (term.js syncSnippetPage).
+// currentSnippet is the selected snippet, else the first.
 func (w *workspace) currentSnippet(p *snippetsPage) (keelclient.Snippet, bool) {
 	if s, ok := w.snippet(p.selected); ok {
 		return s, true
@@ -122,8 +120,7 @@ func (w *workspace) currentSnippet(p *snippetsPage) (keelclient.Snippet, bool) {
 	return keelclient.Snippet{}, false
 }
 
-// sync reads the selected snippet into the editor, unless the user has edited this one (term.js syncSnippetPage:
-// "form.dataset.snippetId !== sn.id || !form.dataset.dirty"). The command is shown without its last newline.
+// sync reads the selected snippet into the editor, unless the user has edited this one. The command is shown without its last newline.
 func (e *snippetEditor) sync(s keelclient.Snippet) {
 	if e.id == s.ID && e.dirty() {
 		return
@@ -136,7 +133,7 @@ func (e *snippetEditor) sync(s keelclient.Snippet) {
 	e.agent, e.origAgent = s.AgentUsable, s.AgentUsable
 }
 
-// typeSnippet is "Type into pane…", a row, the palette (term.js paletteRunSnippet). A one-line, plainly read-only snippet
+// typeSnippet is "Type into pane…", a row, the palette. A one-line, plainly read-only snippet
 // keel serve agrees to is typed with no dialog and no Enter; every other one opens Approve before type for the snippet as
 // it is saved. Both go through typeNow, which is the only thing here that types.
 func (w *workspace) typeSnippet(id string) {
@@ -162,8 +159,8 @@ func (w *workspace) typeSnippet(id string) {
 
 // ---- saving ----
 
-// saveEditor is Save (⌘S) on the page: term.js posts the editor to /ui/forms/snippet-editor, which trims the name
-// and ends the command with a newline (httpapi forms.go).
+// saveEditor is Save (⌘S) on the page: the name is trimmed
+// and the command ends with a newline.
 func (w *workspace) saveEditor() {
 	t := w.pageTab("snippets")
 	if t == nil {
@@ -174,7 +171,7 @@ func (w *workspace) saveEditor() {
 	if e.saving || e.id == "" {
 		return
 	}
-	agent := e.agent // the app's form always posts the switch (pages.templ: name="agentUsable")
+	agent := e.agent // the page always sends the switch
 	in := keelclient.SnippetInput{ID: e.id, Name: strings.TrimSpace(e.name), Command: e.command, AgentUsable: &agent}
 	if !strings.HasSuffix(in.Command, "\n") {
 		in.Command += "\n"
@@ -195,7 +192,7 @@ func (w *workspace) saveEditor() {
 	})
 }
 
-// snippetDialog is New snippet / Edit snippet (snippetDialog in dialogs.templ): a name and a command.
+// snippetDialog is New snippet / Edit snippet: a name and a command.
 type snippetDialog struct {
 	id            string // "" for New snippet
 	name, command string
@@ -249,7 +246,7 @@ func (w *workspace) saveSnippetDialog() {
 
 // ---- delete ----
 
-// askDeleteSnippet is Delete: it asks first, with the webview's words (term.js: askConfirm `Delete snippet “name”?`).
+// askDeleteSnippet is Delete: it asks first.
 func (w *workspace) askDeleteSnippet(s keelclient.Snippet) {
 	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete snippet “" + s.Name + "”?", action: "Remove", run: func() { w.deleteSnippet(s) }})
 }

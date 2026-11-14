@@ -46,7 +46,7 @@ func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 	}
 }
 
-// term.js seedConnectLog, the log rows of renderFail and copyPaneFailLog: the failure banner has Copy logs between nothing and
+// The failure banner has Copy logs between nothing and
 // Close, the pane lists the connection log under it, and Copy logs puts exactly those lines on the clipboard.
 func TestAFailedPaneListsItsConnectionLogAndCopyLogsCopiesIt(t *testing.T) {
 	st := keelclient.State{Status: "error", Message: "dial tcp: connection refused", Log: []keelclient.LogLine{
@@ -240,7 +240,7 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 	}
 }
 
-// lib/share.js roleChipHTML: a role chip has a glyph before its words, steering for who drives and the owner, an eye for a
+// A role chip has a glyph before its words, steering for who drives and the owner, an eye for a
 // follower. The glyph is 0.923rem, before the words, inside the pill.
 func TestARoleChipHasItsGlyph(t *testing.T) {
 	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}

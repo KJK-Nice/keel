@@ -15,8 +15,8 @@ import (
 // (service.NotebookProposal).
 type NotebookProposal struct {
 	ID string `json:"id"`
-	// Kind is "create", "edit" or "delete"; "" is a draft from a conversation saved by an older Keel (it can no longer
-	// be saved).
+	// Kind is "create", "edit" or "delete"; "" is a draft from a conversation saved by an older Keel (it cannot be
+	// saved).
 	Kind string `json:"kind"`
 	// Status: created, edited, refused (Reason says why), undone, proposed (a delete waiting for the user), deleted,
 	// dismissed, restored; a legacy draft: open, saved or dismissed.

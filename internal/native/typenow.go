@@ -12,8 +12,7 @@ import (
 
 // Type without the dialog (docs/ui-redesign.md §6 rule 13): the one function that asks keelclient.DirectType to type, and
 // the only caller of it. Every entry point of a snippet (the palette row, the sidebar row, the page's button and its row
-// menu) and of an agent proposal's card goes through typeNow; guard_test.go keeps that true. The page's twin is
-// paletteRunSnippet and typeAgentProposal in cmd/keel/web/js/term.js, over pty.js typeDirect.
+// menu) and of an agent proposal's card goes through typeNow; guard_test.go keeps that true.
 //
 // keel serve decides, every time. The hint (typedirect.go) only skips the round trip when the answer is certainly
 // "dialog". The bytes are the command alone: no Ctrl-U, no newline, so the command is appended to the prompt line and
@@ -35,8 +34,8 @@ type typeSource struct {
 	done           func(typed bool, message string) // the card's status for a proposal; nil for a snippet, which a toast tells
 }
 
-// reviewHold is how long the keyboard stays off the terminal after a direct type while a key is still down (term.js
-// focusForReview: 1.5 s): a held ↵ that pressed the button must not repeat into the pane and run the command.
+// reviewHold is how long the keyboard stays off the terminal after a direct type while a key is still down
+// (1.5 s): a held ↵ that pressed the button must not repeat into the pane and run the command.
 const reviewHold = 1500 * time.Millisecond
 
 // typeNow types s.line into p without the dialog when keel serve allows it, and opens the dialog otherwise.

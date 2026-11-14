@@ -12,8 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are keel serve's, shown and saved here as the app does
-// (cmd/keel/web/js/ui/agentsettings.js, internal/ui/pages.templ agentSettingsPanel).
+// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are keel serve's, shown and saved here.
 //
 // What this file does and does not do:
 //   - Every change is saved as it is made with PUT /api/agent/settings and only the fields that changed (keel serve merges
@@ -24,8 +23,8 @@ import (
 //     sent and nothing keeps it. The key is in no error, no toast, no log. Disconnect and Delete all history ask first.
 //   - "Allow Claude Code (keel mcp)" is the setting claudeCode and nothing else: this client never calls keel mcp's routes.
 //
-// Settings whose feature is not built in this window yet (suggestions in panes, notes, runbooks, Claude Code's mcp) are still
-// settings of keel serve: they take effect in the webview and in keel serve today, so they are shown and saved, not hidden.
+// Settings whose feature is not built in this window (Claude Code's mcp) are still settings of keel serve, which acts on
+// them, so they are shown and saved, not hidden.
 
 // keyCard is a provider card's own state: whether its key field is open, its error and the masked field.
 type keyCard struct {
@@ -218,7 +217,7 @@ func (w *workspace) saveCardKey(p *settingsPage, id string) {
 	})
 }
 
-// askDisconnect is a card's Disconnect: it asks first, with the app's words.
+// askDisconnect is a card's Disconnect: it asks first.
 func (w *workspace) askDisconnect(id string) {
 	name := id
 	if d, ok := w.providerFor(id); ok {
@@ -241,7 +240,7 @@ func (w *workspace) disconnect(id, name string) {
 	})
 }
 
-// askDeleteHistory is Settings · Agent's Delete all history: it asks first, with the app's words.
+// askDeleteHistory is Settings · Agent's Delete all history: it asks first.
 func (w *workspace) askDeleteHistory() {
 	w.askConfirm(&hostConfirm{
 		title:   "Delete all history?",

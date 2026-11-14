@@ -12,12 +12,10 @@ import (
 	"keel/internal/wire"
 )
 
-// The command palette (docs/ui-redesign.md §5.2). The model here follows cmd/keel/web/js/lib/palette.js
-// (groups, matching, ordering, cursor, highlight) and the item list of term.js paletteCatalog: titles,
-// hints and key caps are the webview's. Choosing an item never types into a session: a snippet opens Approve before type
+// The command palette (docs/ui-redesign.md §5.2): groups, matching, ordering, cursor, highlight, and the item list.
+// Choosing an item never types into a session: a snippet opens Approve before type
 // (approve.go). The last row, "Ask the agent" (⌘↵), opens the agent panel with the query typed and sends nothing.
 
-// groupOrder is lib/palette.js GROUP_ORDER.
 var groupOrder = []string{"Open now", "Hosts", "Actions", "Snippets"}
 
 // palItem is one row. run gets split = true for ⌥↵ (open in a split); rows with no split form ignore it.
@@ -26,11 +24,11 @@ type palItem struct {
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
 	badge                    string // an accent label before the keys ("Approve first" on snippets)
-	bare                     bool   // no group heading above it (lib/palette.js askRow)
+	bare                     bool   // no group heading above it
 	run                      func(split bool)
 }
 
-// searchHosts is term.js revealVault: the sidebar shows its Hosts section and its filter has the keyboard.
+// searchHosts: the sidebar shows its Hosts section and its filter has the keyboard.
 func (w *workspace) searchHosts() {
 	w.sidebar, w.sideSeg, w.focusHosts, w.wantFocus = true, "hosts", true, ""
 }
@@ -38,7 +36,7 @@ func (w *workspace) searchHosts() {
 // askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS.
 func askKeys() string { return commandKeyLabel("agent.ask") }
 
-// askRow is lib/palette.js askRow: the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
+// askRow is the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
 func (w *workspace) askRow(query string) palItem {
 	q := strings.TrimSpace(query)
 	title := "Ask the agent"
@@ -48,7 +46,7 @@ func (w *workspace) askRow(query string) palItem {
 	return palItem{group: "Agent", title: title, icon: "ai-magic", keys: askKeys(), bare: true, run: func(bool) { w.askFromPalette(q) }}
 }
 
-// askFromPalette is term.js askAgentFromPalette: the panel opens with the query in the composer. Nothing is sent; the user
+// askFromPalette: the panel opens with the query in the composer. Nothing is sent; the user
 // presses ↵ (§5.2). A joined tab has no panel.
 func (w *workspace) askFromPalette(query string) {
 	if w.joinedActive() {
@@ -187,7 +185,7 @@ func indexRunes(s, sub []rune) int {
 
 // ---- the items ----
 
-// tabDot is term.js paletteDot(tabStatus(tab)): live when every pane is ready, connecting while one is,
+// paneDot is live when every pane is ready, connecting while one is,
 // dead when one failed, else idle.
 func paneDot(status wire.Status) string {
 	switch status {
@@ -223,7 +221,7 @@ func (t *tab) dot() string {
 	return "idle"
 }
 
-// hostSubtitle is lib/groups.js hostSubtitle: a host that signs in with a saved identity says so.
+// hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
 	if h.IsLocal() {
 		return "this machine"
@@ -325,12 +323,12 @@ func (w *workspace) paletteItems() []palItem {
 		}})
 	}
 	// Snippets only ever go through typeSnippet. "Approve first" only on a snippet that will certainly ask (rule 13: more
-	// than one line, or outside the direct grammar); the others may type with no dialog (term.js snippetBadge).
+	// than one line, or outside the direct grammar); the others may type with no dialog.
 	for _, sn := range w.snippets {
 		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: snippetBadge(sn.Command),
 			run: func(bool) { w.typeSnippet(sn.ID) }})
 	}
-	// Notebooks open without a session; nothing here types (term.js paletteItems: notebook-new, notebook:<id>).
+	// Notebooks open without a session; nothing here types.
 	items = append(items, palItem{group: "Notebooks", title: "New notebook", run: func(bool) { w.newNotebook() }})
 	for _, nb := range w.notebooks {
 		id, hint := nb.ID, "Open without a session"
@@ -343,7 +341,7 @@ func (w *workspace) paletteItems() []palItem {
 }
 
 // openHostInSplit is ⌥↵ on a host: a session on h in a split right of the focused pane, or in a new tab when
-// no session tab is showing (term.js openHostInSplit).
+// no session tab is showing.
 func (w *workspace) openHostInSplit(h keelclient.Host) {
 	t := w.tab()
 	if t == nil || t.isNew() || t.panes[t.focused] == nil {

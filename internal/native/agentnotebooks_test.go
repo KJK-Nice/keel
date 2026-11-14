@@ -12,8 +12,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Attaching notebooks to a question, "Ask the agent about this notebook", and the trace lines (plan 024, step 3). These are
-// the panel cases of cmd/keel/web/js/test/notebooks.test.mjs (an ask names no notebook until one is attached, a notebook
+// Attaching notebooks to a question, "Ask the agent about this notebook", and the trace lines. These are
+// the panel cases (an ask names no notebook until one is attached, a notebook
 // deleted after it was attached is not named, a private notebook is listed but cannot be attached, an ask saves typing first
 // and names notebooks still saving) and the picker and chips of the composer. A made-up text stands for a notebook's words:
 // it must never be in a request.
@@ -62,7 +62,7 @@ func (r *rig) openNbPicker(t *testing.T) {
 	}
 }
 
-// agentpanel.js nbPickerKeys: ↓ and ↑ move the keyboard between the rows, wrapping at both ends, and tick nothing.
+// ↓ and ↑ move the keyboard between the rows, wrapping at both ends, and tick nothing.
 func TestThePickersArrowKeysWalkBetweenRowsAndTickNothing(t *testing.T) {
 	r := nbAgentRig(t)
 	r.openNbPicker(t)
@@ -126,7 +126,7 @@ func TestThePickerListsSavedNotebooksAndATickedOneIsSentByIdWithEachQuestion(t *
 	if !slices.Equal(r.w.agent.attached, []string{"nb1", "nb2"}) {
 		t.Fatalf("attached %v", r.w.agent.attached)
 	}
-	// A third is refused with the app's words, and the two stay.
+	// A third is refused, and the two stay.
 	r.click(t, "pick notebook Scratch")
 	if !slices.Equal(r.w.agent.attached, []string{"nb1", "nb2"}) || !r.tt.HasText("Attach at most 2 notebooks to a question") {
 		t.Fatalf("a third notebook was attached %v or no reason shown", r.w.agent.attached)
@@ -260,7 +260,7 @@ func TestTheNotebookPaneBarAsksTheAgentOnlyForASavedNotebookThatIsNotPrivate(t *
 		t.Fatalf("open %v attached %v", r.w.prefs.AgentPanel, r.w.agent.attached)
 	}
 
-	// Not saved yet: the app's sentence, nothing attached.
+	// Not saved yet: nothing attached.
 	r2 := nbAgentRig(t)
 	r2.w.agent.attached = nil
 	np := r2.w.newNotebookPane(nil)
@@ -324,7 +324,7 @@ func TestTheAgentPageComposerHasTheSamePickerAndChips(t *testing.T) {
 	}
 }
 
-// ---- a runbook draft from a notebook (plan 024, step 5) ----
+// ---- a runbook draft from a notebook ----
 
 func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testing.T) {
 	r := rbRig(t)
@@ -363,7 +363,7 @@ func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testin
 		t.Fatalf("no private-notebook sentence: %q", r.tt.Texts())
 	}
 
-	// Nothing to make steps from: 422, and the app's toast with its full words.
+	// Nothing to make steps from: 422, and the toast says why.
 	r.press(ui.Cmd, ui.KeyS) // the editor holds no unsaved draft now, so it does not ask
 	r.fb.nbc.draftErr = &keelclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
 	r.click(t, "From a notebook…")

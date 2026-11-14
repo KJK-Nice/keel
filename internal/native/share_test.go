@@ -141,7 +141,7 @@ func TestShareButtonOpensThePopoverAndCopiesTheLink(t *testing.T) {
 	if r.tt.Clipboard() != shareTestURL {
 		t.Errorf("the link was not put on the clipboard")
 	}
-	if !r.tt.HasText(shareTestURL) { // the Join link field shows the whole link, as the app does
+	if !r.tt.HasText(shareTestURL) { // the Join link field shows the whole link
 		t.Errorf("the Join link field does not hold the link: %q", r.tt.Texts())
 	}
 	if !r.has("Pass control to Ann") {

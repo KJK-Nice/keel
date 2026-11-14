@@ -14,7 +14,7 @@ import (
 )
 
 // In-pane suggestions against a real keel serve (KEEL_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
-// process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh). tests/suggest.e2e.ts is the app's twin.
+// process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh).
 //
 // What these prove: a noticed line, the card, an insert that leaves the command on the prompt line with its output absent
 // from the scrollback until the test presses Enter, the put-back of the user's words, the ⇧ rule, esc, the # mode, the
@@ -34,7 +34,7 @@ func (e *win) suggestSetup(detection string) {
 	if code, body := e.raw("PUT", "/api/agent/keys/jev", map[string]string{"key": fakeJevKey}); code != 200 {
 		e.t.Fatalf("PUT /api/agent/keys/jev: %d %s", code, body)
 	}
-	e.w.startPoll(200 * time.Millisecond) // the window learns of settings changed elsewhere through the vault rev (plan 036)
+	e.w.startPoll(200 * time.Millisecond) // the window learns of settings changed elsewhere through the vault rev
 	e.suggestSettings("on", detection)
 }
 

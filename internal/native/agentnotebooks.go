@@ -8,8 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12; cmd/keel/web/js/ui/agentpanel.js, ui/agentthread.js and
-// term.js askAboutNotebook). keel serve decides everything:
+// Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). keel serve decides everything:
 //   - The user attaches up to two notebooks to a question. An ask names them by id and never sends text; keel serve reads
 //     and redacts them, and refuses a private one. It also names the notebooks open here with typing not saved yet
 //     (Editing), so the agent's edit to one is refused and no keystroke is lost.
@@ -32,7 +31,7 @@ func (a *agentPanel) registerNbProp(p keelclient.NotebookProposal) {
 }
 
 // notebookChanged shows a notebook as keel serve has it: the list takes it, an open pane with no typing loads it, and one
-// with typing keeps it and says so once when the agent made the change (term.js notebookChanged).
+// with typing keeps it and says so once when the agent made the change.
 func (w *workspace) notebookChanged(rec keelclient.Notebook) {
 	w.rememberNotebook(rec)
 	w.followNotebooks()
@@ -50,7 +49,7 @@ func (w *workspace) attachedNotebooks() (out []keelclient.Notebook) {
 	return out
 }
 
-// attachNotebook attaches one notebook (agentpanel.js attachNotebook): a private one is refused, and so is a third.
+// attachNotebook attaches one notebook: a private one is refused, and so is a third.
 func (w *workspace) attachNotebook(id string) {
 	a := w.agent
 	if id == "" || slices.Contains(a.attached, id) {
@@ -113,7 +112,7 @@ func (w *workspace) askAboutNotebookPane(p *pane) {
 // ---- before an ask ----
 
 // editingNotebooks are the ids of the open notebooks with typing keel serve does not have (a save pending, running or
-// failed): the agent's edits to them are refused (term.js editingNotebooks).
+// failed): the agent's edits to them are refused.
 func (w *workspace) editingNotebooks() (ids []string) {
 	for _, p := range w.notebookPanes() {
 		if n := p.nb; n.id != "" && !n.gone && n.dirty() && !slices.Contains(ids, n.id) {
@@ -157,7 +156,7 @@ func nbCardMessage(err error) string {
 	return nbErr(err, err.Error())
 }
 
-// askNbPropAction is a card's button. Delete asks first, with the app's question; the others act at once. Each is a request
+// askNbPropAction is a card's button. Delete asks first; the others act at once. Each is a request
 // to keel serve and the card then shows what it answered.
 func (w *workspace) askNbPropAction(id, action string) {
 	rec := w.agent.nbProps[id]
@@ -219,7 +218,7 @@ func (w *workspace) nbPropAction(id, action string) {
 	})
 }
 
-// ---- the review banner's actions (term.js undoAgentEdit) ----
+// ---- the review banner's actions ----
 
 // undoAgentEdit is the banner's Undo: it restores the version kept before the newest agent edit. Typing since then is
 // kept in History too (keel serve keeps the version a restore replaces), but it asks first.

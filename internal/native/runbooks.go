@@ -14,9 +14,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Runbooks (docs/ui-redesign.md §16). The feature is cmd/keel/web/js/ui/runbooks.js (the page), ui/agentthread.js and
-// ui/agentpanel.js (the cards and the walk) and internal/httpapi/agentrunbooks.go; its words and rules are lib/runbooks.js
-// (runbookslogic.go).
+// Runbooks (docs/ui-redesign.md §16): the page, the cards and the walk. The service is internal/httpapi/agentrunbooks.go;
+// the words and rules are in runbookslogic.go.
 //
 // What this file does and does not do:
 //   - Runbooks live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
@@ -45,7 +44,7 @@ func (a *agentPanel) registerBook(b keelclient.RunbookProposal) { a.books[b.ID] 
 // resetMemory forgets the notes, runbooks and the run of the conversation that was left.
 func (a *agentPanel) resetMemory() {
 	a.notes, a.books, a.runs = map[string]*agentNote{}, map[string]*agentBook{}, runUse{}
-	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, "" // agentpanel.js resetRun
+	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, ""
 }
 
 // saveBookProposal is the card's Save (or Save anyway): the one thing that keeps a runbook the agent proposed, with Agent
@@ -113,7 +112,7 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 
 // ---- a runbook in use ----
 
-// runUse is the runbook in use in the conversation (agentpanel.js state.run and its neighbours): keel serve owns the run, this
+// runUse is the runbook in use in the conversation: keel serve owns the run, this
 // shows it and tells keel serve what the user decides.
 type runUse struct {
 	run   *keelclient.ChatRunbook
@@ -139,11 +138,11 @@ type runOther struct {
 }
 
 const (
-	runPollReads = 400                     // about 10 minutes at one read every 1.5 s
-	runEvery     = 1500 * time.Millisecond // agentpanel.js schedulePoll
+	runPollReads = 400 // about 10 minutes at one read every 1.5 s
+	runEvery     = 1500 * time.Millisecond
 )
 
-// runOnLabel is a proposal card's "Run on", or "Step 2 · Run on" for the step of a runbook (agentthread.js runLabel).
+// runOnLabel is a proposal card's "Run on", or "Step 2 · Run on" for the step of a runbook .
 func runOnLabel(p keelclient.Proposal) string {
 	if p.Runbook != nil && p.Runbook.Step > 0 {
 		return "Step " + strconv.Itoa(p.Runbook.Step) + " · Run on"
@@ -209,7 +208,7 @@ func (w *workspace) runStepTyped(rec *agentProp) {
 	u.pollLeft, u.pollForce = runPollReads, true
 }
 
-// runTick is one tick of the 1.5 s read of the run in use (agentpanel.js schedulePoll): it reads only while a typed step
+// runTick is one tick of the 1.5 s read of the run in use: it reads only while a typed step
 // waits for its result, or once after a step was typed, and never while a read is out.
 func (w *workspace) runTick() {
 	a := w.agent
@@ -609,7 +608,7 @@ func (w *workspace) saveRunbook() {
 	})
 }
 
-// askDeleteRunbook is Delete (or Discard on an unsaved one): Delete asks first, with the app's words.
+// askDeleteRunbook is Delete (or Discard on an unsaved one): Delete asks first.
 func (w *workspace) askDeleteRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil {
@@ -677,7 +676,7 @@ func (w *workspace) openConversationMenu() {
 		p.menu = false
 		return
 	}
-	p.menuNB = false // one source menu at a time (runbooks.js openMenu)
+	p.menuNB = false // one source menu at a time
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
 	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l keelclient.ConversationList, err error) {
 		p.menuLoad = false
@@ -692,7 +691,7 @@ func (w *workspace) openConversationMenu() {
 	})
 }
 
-// openNotebookMenu is From a notebook…: the notebooks to make a draft from (runbooks.js openMenu("notebook")).
+// openNotebookMenu is From a notebook…: the notebooks to make a draft from.
 func (w *workspace) openNotebookMenu() {
 	p := w.runbooksPage()
 	if p == nil {

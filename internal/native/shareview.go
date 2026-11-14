@@ -9,12 +9,11 @@ import (
 	"keel/internal/wire"
 )
 
-// The Share controls and popover (§5.6): the words, the order and the rules are lib/share.js sharePopoverHTML and
-// ui/sharepop.js; the prompts are ui/joinprompt.js and ui/sharecontrol.js.
+// The Share controls and popover (§5.6), and the Allow / Deny and control-request prompts.
 
 const (
-	sharePopPx = 400 // .k-share-pop width, min(30.769rem, …)
-	avatarPx   = 26  // .k-avatar 2rem
+	sharePopPx = 400 // width, min(30.769rem, …)
+	avatarPx   = 26  // 2rem
 )
 
 // shareControls is the right of the title bar: the "N watching" badge and the Share button of a session tab.
@@ -24,7 +23,7 @@ func (w *workspace) shareControls(c *ui.Context) {
 		return
 	}
 	st := p.conn.Snapshot()
-	if n := watchingCount(st.Attached); n > 0 { // k-badge--haze k-watching: opens the popover with the people list
+	if n := watchingCount(st.Attached); n > 0 { // opens the popover with the people list
 		b := ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).
 			Background(hazeSoft).Label(fmt.Sprintf("%d watching", n)).Cursor(ui.CursorPointer)
 		b.Children(func() {

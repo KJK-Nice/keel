@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The find bar in a real window, with a query that has matches, in both themes (plan 031 step 3: nobody had looked at it).
+// The find bar in a real window, with a query that has matches, in both themes.
 func TestE2EFindBarLooks(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)

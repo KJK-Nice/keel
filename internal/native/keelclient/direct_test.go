@@ -12,8 +12,7 @@ import (
 )
 
 // A type without the dialog (DirectType) against a fake /ws/session: the frames, their order, what each
-// answer does, and everything that must send nothing. The page's twin is cmd/keel/web/js/pty.js typeDirect.
-
+// answer does, and everything that must send nothing.
 // answerWith replies to a frame with the given type, carrying its ref, and the fields given.
 func answerWith(typ string, fields map[string]any) func(*websocket.Conn, map[string]any) {
 	return func(ws *websocket.Conn, m map[string]any) {

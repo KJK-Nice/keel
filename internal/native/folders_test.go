@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The rules of cmd/keel/web/js/lib/groups.js, case for case from test/groups.test.mjs, and the folder tree, menus, dialog
+// The folder rules, and the folder tree, menus, dialog
 // and drops of the window.
 
 // infra > db > replicas ; apps (the JS test's forest)
@@ -46,7 +46,7 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-func TestFolderRulesDepthsAndAncestry(t *testing.T) { // groups.test.mjs "depths and ancestry"
+func TestFolderRulesDepthsAndAncestry(t *testing.T) {
 	if got := groupDepth(jsGroups, "rep"); got != 3 {
 		t.Errorf("groupDepth rep = %d", got)
 	}
@@ -137,7 +137,7 @@ func TestFolderRulesTagsAndSubtitles(t *testing.T) { // "tags and subtitles" (pa
 }
 
 func TestFolderRulesRefusals(t *testing.T) {
-	// A folder cannot go under itself or under one of its own, and the nest stops at 8 (term.js drop handler, createGroup).
+	// A folder cannot go under itself or under one of its own, and the nest stops at 8.
 	for _, c := range []struct{ id, dest, want string }{
 		{"infra", "infra", msgGroupCycle},
 		{"infra", "rep", msgGroupCycle},
@@ -227,8 +227,7 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 	}
 }
 
-// The closed folders are kept across a restart as groupCollapsed in keel-native.json (the app: localStorage
-// keel-group-collapsed); the file's other fields stay as they are.
+// The closed folders are kept across a restart as groupCollapsed in keel-native.json; the file's other fields stay as they are.
 func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	r := folderRig(t)
 	r.w.useDataDir(t, t.TempDir())
@@ -240,7 +239,7 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 2 || !got["infra"] || !got["apps"] {
 		t.Fatalf("kept %v", got)
 	}
-	r.click(t, "folder Apps") // opened again: no longer kept
+	r.click(t, "folder Apps") // opened again: not kept
 	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 1 || !got["infra"] {
 		t.Fatalf("kept after opening Apps: %v", got)
 	}
@@ -284,7 +283,7 @@ func TestSidebarFilterReadsFoldersAboveTheHost(t *testing.T) {
 	}
 }
 
-func TestFolderMenuItemsAndOrder(t *testing.T) { // groupRowMenu in rowmenus.templ, for the items whose feature exists here
+func TestFolderMenuItemsAndOrder(t *testing.T) {
 	r := folderRig(t)
 	want := []string{"Roles and runbooks", "Run a runbook…", "New host", "New subgroup", "Edit", "Rename", "Move into…", "Delete"}
 	if got := r.menuOf(t, "folder Infra"); !slices.Equal(got, want) {
@@ -519,7 +518,7 @@ func TestDraggingAFolderOntoAFolderNestsItAndTheRefusalsAreTheApps(t *testing.T)
 	if want := []string{"put apps Apps infra"}; !slices.Equal(r.fb.fold.reqs, want) {
 		t.Fatalf("requests %v, want %v", r.fb.fold.reqs, want)
 	}
-	// A folder onto its own descendant, and onto itself: the app's words, no request.
+	// A folder onto its own descendant, and onto itself: refused, no request.
 	r.fb.fold.reqs = nil
 	r.drag(t, "folder Infra", "folder Replicas")
 	r.tt.Frame()

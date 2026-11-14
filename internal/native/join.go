@@ -12,14 +12,12 @@ import (
 	"keel/internal/wire"
 )
 
-// Join a session (docs/ui-redesign.md §5.7), as the app has it: features/share.md. The dialog is joinDialog in
-// internal/ui/dialogs.templ; the joined tab is term.js joinRemote and attachFollowChannel; the peer is
+// Join a session (docs/ui-redesign.md §5.7, docs/sharing.md); the peer is
 // internal/native/joinpeer. A joined tab is a terminal and nothing else: it has no Vault sidebar, no Share, no
 // snippets (typeTarget refuses it), it owns no session on this machine (closing it kills nothing), and it is never
 // saved. The link's key is read by joinpeer.ParseLink and used by the peer to verify the host; it is not kept here:
 // the dialog's text is dropped when Join is pressed, and the pane remembers only the origin and the room.
 
-// The dialog's words (joinDialog in internal/ui/dialogs.templ).
 const (
 	joinTitle = "Join a session"
 	joinDesc  = "Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault."
@@ -42,7 +40,7 @@ func (w *workspace) closeJoin() {
 	w.returnKeyboard(true)
 }
 
-// submitJoin reads the link: the app's error is a toast and the dialog stays; otherwise the dialog closes, its text
+// submitJoin reads the link: an error is a toast and the dialog stays; otherwise the dialog closes, its text
 // is dropped, and the join starts.
 func (w *workspace) submitJoin() {
 	d := w.joinDlg
@@ -58,10 +56,10 @@ func (w *workspace) submitJoin() {
 	w.joinRemote(link)
 }
 
-// joinKey names a join without its key: the same room on the same server (term.js: `join:${origin}:${room}`).
+// joinKey names a join without its key: the same room on the same server.
 func joinKey(l joinpeer.Link) string { return "join:" + l.Origin + ":" + l.Room }
 
-// joinName is what the host is told: the display name, as the Sharing page says (term.js state.name).
+// joinName is what the host is told: the display name, as the Sharing page says.
 func (w *workspace) joinName() string { return displayName(w.prefs.Name, defaultName()) }
 
 // joinRemote opens a tab that follows the share. Pasting the link of a join that is already open shows that tab; one
@@ -101,7 +99,7 @@ open:
 	})
 }
 
-// joinedFallback is the pane's title until the host names its session (term.js joinRemote: "Follow").
+// joinedFallback is the pane's title until the host names its session.
 const joinedFallback = "Follow"
 
 // title is the name a pane shows: a joined pane takes the title of the host's session once it says it.
@@ -120,7 +118,7 @@ func (w *workspace) joinedActive() bool {
 	return t != nil && t.remote
 }
 
-// followNotice is "Typing is off while you follow" with Ask for control (ui/sharecontrol.js wireFollowerNotice), shown
+// followNotice is "Typing is off while you follow" with Ask for control, shown
 // when a follower types. Feedback only: nothing was sent.
 const followNotice = "Typing is off while you follow"
 

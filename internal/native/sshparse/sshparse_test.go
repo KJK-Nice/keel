@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// The rows mirror cmd/keel/web/js/test/sshparse.test.mjs, case for case. Each row's js field names the JS
-// test it came from. A change to the parser or to one of the two tests needs the other.
+// The table of cases. Each row's js field names its case in the test output.
 
 type kind int
 

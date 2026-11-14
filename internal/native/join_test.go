@@ -65,7 +65,7 @@ func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
 			t.Errorf("dialog lacks %q", s)
 		}
 	}
-	// Join with nothing, a bare id, no room, no key: the app's messages, as toasts, and the dialog stays.
+	// Join with nothing, a bare id, no room, no key: the messages are toasts, and the dialog stays.
 	for _, tc := range []struct{ in, want string }{
 		{"", "paste a Share link"},
 		{"0123456789abcdef", "paste the full Share link"},
@@ -166,7 +166,7 @@ func TestAskForControlLeaveAndTheFollowNotice(t *testing.T) {
 	if jr.conns[0].asked != 1 {
 		t.Errorf("asked %d", jr.conns[0].asked)
 	}
-	// Typing while following: the connection counted a dropped keystroke; the notice is the app's, with Ask for control.
+	// Typing while following: the connection counted a dropped keystroke; the notice offers Ask for control.
 	jr.conns[0].st.Blocked = 1
 	jr.conns[0].onChange()
 	jr.tt.Frame()
@@ -203,13 +203,13 @@ func TestAJoinedTabIsNotSavedAndTakesNoSnippetOrSplit(t *testing.T) {
 	if strings.Contains(string(b), "r1") || strings.Contains(string(b), "join") || len(jr.w.snapshot().Tabs) != 1 {
 		t.Errorf("snapshot %s", b)
 	}
-	// Approve before type: refused for a joined pane, with the app's words, and nothing is typed.
+	// Approve before type: refused for a joined pane, and nothing is typed.
 	jr.w.typeSnippet("sn1")
 	jr.tt.Frame()
 	if jr.w.approve != nil || !jr.tt.HasText("Open a session first") || len(jr.conns[0].injected) != 0 || len(jr.conns[0].directs) != 0 {
 		t.Errorf("approve %v injected %v directs %v", jr.w.approve != nil, jr.conns[0].injected, jr.conns[0].directs)
 	}
-	// Split: the app's refusal.
+	// Split: refused.
 	jr.w.splitFocused(1)
 	jr.tt.Frame()
 	if !jr.tt.HasText("Split needs a local host session") || len(jr.w.tab().panes) != 1 {
@@ -232,7 +232,7 @@ func TestPastingTheSameLinkAgainShowsTheTabAndAFailedOneJoinsAgain(t *testing.T)
 	if len(jr.links) != 1 || !jr.w.tab().remote || len(jr.w.tabs) != 2 {
 		t.Fatalf("joins %d tabs %d: the same link opens no second tab", len(jr.links), len(jr.w.tabs))
 	}
-	// A denied or lost join shows the app's error and Leave; pasting the link again retries in a new tab.
+	// A denied or lost join shows its error and Leave; pasting the link again retries in a new tab.
 	jr.conns[0].st = &keelclient.State{Status: "error", Message: "The host declined your request to join."}
 	jr.tt.Frame()
 	if !jr.tt.HasText("The host declined your request to join.") || !jr.has("Leave") || jr.has("Reconnect") || jr.has("Edit host") {

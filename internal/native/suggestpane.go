@@ -9,9 +9,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// In-pane suggestions in the window (docs/ui-redesign.md §5.5, plan 019): the glue between a pane's terminal, its
-// suggestion machine (suggest.go) and keel serve. The page's twin is cmd/keel/web/js/ui/suggest.js and term.js
-// (wirePaneSuggest, insertSuggestion, restoreWords).
+// In-pane suggestions in the window (docs/ui-redesign.md §5.5): the glue between a pane's terminal, its
+// suggestion machine (suggest.go) and keel serve.
 //
 // Nothing here builds a frame or writes a byte. The questions go through keelclient SuggestDetect and SuggestAsk, the
 // insert through SuggestInsert (insertSuggestion, below, is its one caller) and the put-back of the user's words through
@@ -62,8 +61,7 @@ func (p *pane) promptLine() *promptLine {
 	return pl
 }
 
-// canSuggest: the client drives a ready local session in the pane that has the keyboard, with no dialog open (term.js
-// canSuggestIn and ptyWritesBlocked). A follower, a joined pane, a session that is not ready and a pane in the
+// canSuggest: the client drives a ready local session in the pane that has the keyboard, with no dialog open. A follower, a joined pane, a session that is not ready and a pane in the
 // background get no notice, no card and no frame.
 func (w *workspace) canSuggest(p *pane) bool {
 	t := w.tabOf(p)
@@ -250,8 +248,7 @@ func (w *workspace) suggestFrame(c *ui.Context) {
 }
 
 // suggestInsert is the machine's insert: right before the write, the pane must still be at a prompt with the words the
-// suggestion was for and no dialog holding the keyboard; otherwise the card is dropped and nothing is written
-// (term.js insertSuggestion).
+// suggestion was for and no dialog holding the keyboard; otherwise the card is dropped and nothing is written.
 func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int, shift bool, words string, done func(insertResult)) {
 	if !w.canSuggest(p) {
 		done(insertResult{Message: "You follow this pane. Suggestions are for the driver."})

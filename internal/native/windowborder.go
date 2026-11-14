@@ -4,7 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The window's border (plan 037 part C, addition): with no shadow the window's edge is lost against what is behind it, most of
+// The window's border: with no shadow the window's edge is lost against what is behind it, most of
 // all a translucent window over a similar colour. A 1 pt line is drawn round the whole window in the root view, above the
 // grounds and under the dialogs' own chrome, in the strong line token (the one token that shows against a light and a dark
 // desktop in both themes) at full alpha: it is not made translucent with the grounds.

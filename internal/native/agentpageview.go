@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The Agent page drawn (internal/ui/agentpage.templ and the k-agentpage* rules of keel.css): the conversation list on the
+// The Agent page drawn: the conversation list on the
 // left, the conversation in the middle (the panel's thread and cards), and what it may read, has read and proposed on the
 // right. Colours and sizes are tokens.
 
@@ -23,7 +23,7 @@ func (w *workspace) agentPageView(c *ui.Context, p *agentPage) {
 	layout := pageLayout(p.width)
 	// MinWidth(0): the page takes the room the window leaves beside the panel, whatever its content would like. Without it the
 	// page was 975 px wide in a 1028 px space beside the 380 px panel on Ubuntu (a wider UI font), pushing the panel 327 px out of
-	// the window, and it never chose the narrower layouts (issue #140, plan 037 round 2).
+	// the window, and it never chose the narrower layouts (issue #140).
 	root := ui.Row(c).Grow(1).FillWidth().FillHeight().MinWidth(0).Background(w.ground(surface)).Label("agent page")
 	p.width = root.Bounds().W
 	root.Children(func() {
@@ -232,7 +232,7 @@ func (w *workspace) pageComposer(c *ui.Context, p *agentPage) {
 	a := w.agent
 	ui.Column(c).FillWidth().Shrink(0).Padding(0, space6, space4).Children(func() {
 		ui.Column(c).FillWidth().MaxWidth(sizeAgentPageThread-2*space6).Padding(space2, space3, space3).Gap(space2).Radius(radiusMd).Background(controlFill(raised)).Border(1, line).Children(func() {
-			if len(a.attached) > 0 { // the page's chips are the attached notebooks (agentpage.js paintChips)
+			if len(a.attached) > 0 { // the page's chips are the attached notebooks
 				ui.Row(c).FillWidth().Wrap().Gap(space1_5).Children(func() { w.nbChips(c) })
 			}
 			w.nbHint(c)

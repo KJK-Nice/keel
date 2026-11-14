@@ -60,7 +60,6 @@ func TestSettingsNavIsTheApps(t *testing.T) {
 		t.Error("the tab is not named Settings")
 	}
 	r.texts(t, "Display", "Theme", "Light, dark, or follow the system.", "Window opacity")
-	// What is in the app and not here is not drawn.
 	for _, s := range []string{"Font smoothing"} {
 		if r.has("setting " + s) {
 			t.Errorf("%q is drawn; this client has no counterpart", s)
@@ -179,7 +178,7 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 }
 
-// Plan 037 part C: the Window shadow setting is gone. An old file that has it still loads, the page has no such row, and the
+// There is no Window shadow setting. An old file that has it still loads, the page has no such row, and the
 // next save leaves the key out.
 func TestAnOldWindowShadowKeyIsIgnoredAndDropped(t *testing.T) {
 	dir := t.TempDir()
@@ -239,7 +238,7 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
-	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the app's five, chosen by default
+	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the five, chosen by default
 	r.w.openHost(testHosts[1])                                                 // a pane to change live
 	r.w.openPage("settings")
 	r.tt.Frame()
@@ -300,7 +299,7 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	if !r.has("Toggle agent panel") || !r.has("keys ⌘I") {
 		t.Error("Toggle agent panel ⌘I is not listed")
 	}
-	if !r.has("Ask the agent (from the palette)") || !r.has("keys ⌘↵") { // the palette's ⌘↵ row is built (plan 025)
+	if !r.has("Ask the agent (from the palette)") || !r.has("keys ⌘↵") { // the palette's ⌘↵ row is built
 		t.Error("Ask the agent (from the palette) ⌘↵ is not listed")
 	}
 	if !r.has("Put back your words after an inserted suggestion") || !r.has("keys ⌘Z") {

@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// ---- the model: cases of cmd/keel/web/js/test/palette.test.mjs for matching, ordering, cursor, highlight ----
+// ---- the model: matching, ordering, cursor, highlight ----
 
 var palSample = []palItem{
 	{group: "Actions", title: "New tab", keys: "⌘T"},
@@ -183,7 +183,7 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 			t.Errorf("the palette does not show %q", s)
 		}
 	}
-	// The Ask the agent row is built (plan 025): the last row, with no group heading of its own, whatever the query matches.
+	// The Ask the agent row is built: the last row, with no group heading of its own, whatever the query matches.
 	rows := r.w.pal.visible()
 	if last := rows[len(rows)-1]; last.title != "Ask the agent" || !last.bare || last.keys != askKeys() {
 		t.Errorf("last row %+v", last)
@@ -193,7 +193,7 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 	}
 }
 
-// term.js askAgentFromPalette: ⌘↵ from any row opens the panel with the query typed and sends nothing; Search hosts gives
+// ⌘↵ from any row opens the panel with the query typed and sends nothing; Search hosts gives
 // the sidebar filter the keyboard.
 func TestPaletteAskTheAgentRowAndSearchHosts(t *testing.T) {
 	r := palRig(t)

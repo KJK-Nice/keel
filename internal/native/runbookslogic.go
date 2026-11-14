@@ -11,8 +11,7 @@ import (
 )
 
 // The pure rules of runbooks (docs/ui-redesign.md §16): the words and states the screens show for a saved runbook, a
-// runbook in use in a conversation and a runbook the agent proposes. They are cmd/keel/web/js/lib/runbooks.js, pinned there
-// by test/runbooks.test.mjs and here by runbookslogic_test.go, without the parts that belong to group runs (§17: roles,
+// runbook in use in a conversation and a runbook the agent proposes (runbookslogic_test.go pins them), without the parts that belong to group runs (§17: roles,
 // "one host only", captures) and to notebooks. Nothing here talks to keel serve, draws or types.
 
 const maxRunbookSteps = limits.MaxRunbookSteps
@@ -351,7 +350,6 @@ func currentStep(run *keelclient.ChatRunbook) int {
 // runRow is one row of the progress list: its state for the marks, the mark, and a short note.
 type runRow struct{ state, mark, note string }
 
-// stepRow is runbooks.js stepRow.
 func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 	st := run.Steps[i]
 	cur := currentStep(run)
@@ -414,7 +412,7 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 	return runRow{"next", n, ""}
 }
 
-// runAction is what the run card offers for the current step (runbooks.js nextAction).
+// runAction is what the run card offers for the current step.
 type runAction struct {
 	kind string // propose | proposed | confirm | waiting | noexit | failed | check | finished | stopped | none
 	step runStepRef

@@ -237,7 +237,7 @@ func TestKeychainPageListsTwoGroupsWithSubtitlesAndTheFirstDetail(t *testing.T) 
 	r.tt.Frame()
 	r.texts(t, "Keychain", "New identity", "Filter identities", "SSH keys", "Passwords",
 		"deploy key", "SSH key · deploy · 2 hosts", "plain key", "SSH key · 0 hosts", "ops password", "Password · ops · 0 hosts", "passphrase")
-	// The detail shows the first identity (term.js syncIdentityPage).
+	// The detail shows the first identity.
 	r.texts(t, "SSH key · added Mar 4, 2026", "Username", "deploy", "Private key", "Encrypted in the vault", "Passphrase", "Stored in the vault",
 		"Used by 2 hosts", "pg-primary", "api-1", "Edit", "Delete identity", "Remove it from 2 hosts before you can delete it.")
 	if r.tt.HasText("Not stored") {
@@ -449,7 +449,7 @@ func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 	if !r.tt.HasText("Remove deploy key from 2 hosts first") || r.w.confirm != nil {
 		t.Errorf("toast shown %v, confirm %v", r.tt.HasText("Remove deploy key from 2 hosts first"), r.w.confirm)
 	}
-	// An unused one asks with the webview's words, and Cancel deletes nothing.
+	// An unused one asks first, and Cancel deletes nothing.
 	r.click(t, "identity plain key")
 	r.click(t, "Delete identity")
 	if r.w.confirm == nil || !r.tt.HasText("Delete identity “plain key”?") {

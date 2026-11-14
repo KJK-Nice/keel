@@ -51,7 +51,6 @@ func TestRemoveLastLeafIsNil(t *testing.T) {
 	}
 }
 
-// lib/layout.js swapLeaves and insertBeside, as lib/workspace.js movePane uses them (test/workspace.test.mjs).
 func TestSwapKeepsEachPlace(t *testing.T) {
 	r := Leaf("a").Split("a", "b", Row).Split("b", "c", Col)
 	r.B.Ratio = 0.3

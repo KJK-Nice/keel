@@ -312,7 +312,7 @@ func TestFirstRunKeyPassphraseIsClearedWhenSentAndNeverPrinted(t *testing.T) {
 	if len(fb.imports) != 1 || fb.imports[0].Keys[0].Passphrase != scratchKey {
 		t.Fatalf("%+v", fb.imports)
 	}
-	// The refusal is shown under the key it names, with the webview's words, and stays on step 2.
+	// The refusal is shown under the key it names, and stays on step 2.
 	r.texts(t, "That passphrase doesn't open id_db.")
 	if f.step != stepHosts || !r.tt.Focused("Passphrase for id_db") {
 		t.Errorf("step %d", f.step)

@@ -117,8 +117,8 @@ func choose(t *testing.T, r *rig, label string) {
 }
 
 func TestPaneMenuItems(t *testing.T) {
-	// The labels, order and visibility of PaneMenu (internal/ui/rowmenus.templ) for a terminal pane opened from
-	// its bar (lib/termmenu.js paneMenuItems): Focus is for a sidebar row, Focus view needs another pane or
+	// The labels, order and visibility of the pane menu for a terminal pane opened from
+	// its bar: Focus is for a sidebar row, Focus view needs another pane or
 	// a zoom, Reconnect a failed session, Share a live local session.
 	one := openTabs(t, 1)
 	split := splitRig(t)
@@ -254,7 +254,7 @@ func TestTabMenuClosesExactlyTheSessionsNamed(t *testing.T) {
 	}
 }
 
-// lib/tabstrip.js k-tab-close: the close button is there for the pointer over a tab (room kept when it is hidden), closes
+// The tab's close button is there for the pointer over a tab (room kept when it is hidden), closes
 // that tab and kills its sessions, and a click on a tab's body selects it and closes nothing.
 func TestTheTabsCloseButtonClosesThatTabAndOnlyWhenShown(t *testing.T) {
 	r := named(t, 3)
@@ -284,7 +284,7 @@ func TestTheTabsCloseButtonClosesThatTabAndOnlyWhenShown(t *testing.T) {
 }
 
 func TestTabMenuDisabledItems(t *testing.T) {
-	// ui/tabmenu.js: Close others needs another tab, Close to the right a tab to the right.
+	// Close others needs another tab, Close to the right a tab to the right.
 	for _, tc := range []struct {
 		name string
 		n    int
@@ -428,7 +428,7 @@ func TestDraggingATabReordersAndNumberKeysFollow(t *testing.T) {
 	}
 }
 
-// ui/drag.js: a tab dropped on the strip past the last tab goes last; the tab shown stays shown.
+// A tab dropped on the strip past the last tab goes last; the tab shown stays shown.
 func TestDroppingATabOnTheEmptyStripPutsItLast(t *testing.T) {
 	r := named(t, 4)
 	a, _ := r.tt.Find("tab a")
@@ -566,7 +566,7 @@ func TestReopenClosedIsANewSessionOnTheSameHost(t *testing.T) {
 }
 
 func TestClosedListRules(t *testing.T) {
-	// lib/newtab.js: newest first, one entry per host and kind, at most 10; a pane is "pane" in a split tab.
+	// Newest first, one entry per host and kind, at most 10; a pane is "pane" in a split tab.
 	w := newWorkspace(okBackend())
 	mk := func(id string) *pane { return &pane{host: keelclient.Host{ID: id, Name: id}} }
 	for i := 0; i < 12; i++ {

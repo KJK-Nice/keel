@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 032 section 11: the terminal's cursor is its text colour, the selection is the system accent's, not brass.
+// The terminal's cursor is its text colour, the selection is the system accent's, not brass.
 
 var macAccents = map[string]ui.Color{
 	"blue": ui.RGB(0, 122, 255), "purple": ui.RGB(149, 61, 150), "pink": ui.RGB(247, 79, 158), "red": ui.RGB(224, 56, 62),

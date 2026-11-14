@@ -9,14 +9,13 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Agent tab page (docs/ui-redesign.md §5.4.2). The feature is cmd/keel/web/js/ui/agentpage.js, internal/ui/agentpage.templ
-// and the k-agentpage* rules of keel.css; its words and rules are lib/agent.js (agentconvlogic.go).
+// The Agent tab page (docs/ui-redesign.md §5.4.2); its words and rules are in agentconvlogic.go.
 //
 // The page has no conversation of its own. It shows the window's one conversation (agent.go) in a second thread, so every
 // change (resume, ask, rename, delete, Propose again, Type) goes through that conversation and the panel shows the same
 // thing. Like the panel it never writes to a pane: a card's Type goes to typeAgentProposal, as in the panel.
 //
-// Not built, as the app does not build them (§5.4.2 "Not built"): a run mode, pinning, sharing a conversation, exporting
+// Not built (§5.4.2 "Not built"): a run mode, pinning, sharing a conversation, exporting
 // one, and search inside a conversation. The composer has the notebook chips and the Attach notebook picker of the panel
 // (agentnotebooksview.go), and the thread the notebook cards.
 
@@ -58,7 +57,7 @@ func (p *agentPage) newItem(w *workspace)             { w.newAgentConversation()
 // openAgentPage is the palette's Agent conversations and the panel's Open all in a tab.
 func (w *workspace) openAgentPage() { w.openPage(pageAgent) }
 
-// agentLayout is how the three columns sit for a tab of this width (the app's container queries).
+// agentLayout is how the three columns sit for a tab of this width.
 type agentLayout int
 
 const (

@@ -8,10 +8,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The pure helpers of Settings, ported from cmd/keel/web/js/lib/settingspages.js and lib/shortcutmap.js (their tests are
-// ported in settingshelpers_test.go). No UI here.
+// The pure helpers of Settings (tested in settingshelpers_test.go). No UI here.
 
-// uptimeText is settingspages.js uptimeText: "45 s", "12 min", "3 h 05 min", "2 d 4 h".
+// uptimeText formats a runtime's uptime: "45 s", "12 min", "3 h 05 min", "2 d 4 h".
 func uptimeText(sec int64) string {
 	s := max(sec, 0)
 	if s < 60 {
@@ -56,7 +55,7 @@ func displayName(custom, fallback string) string {
 	return "guest"
 }
 
-// nameMax is the display name's length (term.js setDisplayName: slice(0, 40); the field's maxlength).
+// nameMax is the display name's length.
 const nameMax = 40
 
 // vaultMode is settingspages.js vaultModeText: how the vault is unlocked, from GET /api/vault.

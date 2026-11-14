@@ -13,15 +13,14 @@ import (
 )
 
 // Saved conversations (docs/ui-redesign.md §5.4.1, the panel's title button) and the Agent tab page's use of the same
-// one conversation (§5.4.2). The feature is cmd/keel/web/js/ui/agentpanel.js (openSessions, resume, renameSession,
-// deleteSession, deleteAllSessions, proposeAgain) and agentthread.js (renderTranscript, paintExpired).
+// one conversation (§5.4.2).
 //
 // What this file does and does not do:
 //   - keel serve saves the conversation in the vault, redacted as sent. This client reads the list and a transcript into
 //     memory when the user asks to see them and writes none of it anywhere: not to keel-native.json, not to the saved
 //     workspace (which may hold the page tab's name and nothing of what was said).
 //   - A resumed conversation carries on under its own id; the ask sends exactly what any other ask sends.
-//   - A proposal keel serve no longer holds comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
+//   - A proposal keel serve does not hold any more comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
 //     and nothing in this file sends either request for it: Propose again asks keel serve for a new proposal, which is
 //     handled like any other (typeAgentProposal, the Approve before type dialog).
 //   - Delete and Delete all ask first.
@@ -135,7 +134,7 @@ func (w *workspace) closeSessions() {
 
 // resumeConversation opens a saved conversation in the window's one conversation, which the panel and the page both show.
 // Nothing is read or sent: the transcript comes from keel serve, and the next ask reads the panes in scope as they are
-// then (agentpanel.js resume).
+// then.
 func (w *workspace) resumeConversation(id string) {
 	a := w.agent
 	if id == "" {
@@ -207,7 +206,7 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 }
 
 // resumedAfter is the index of the last turn read from keel serve, which the "Resumed" divider and its note follow, or -1
-// when the conversation was not resumed. A later ask appends below it, as agentthread.js does.
+// when the conversation was not resumed. A later ask appends below it.
 func (a *agentPanel) resumedAfter() int {
 	if a.resumedAt.IsZero() {
 		return -1
@@ -255,8 +254,8 @@ func (w *workspace) renameConversation(id, title string) {
 	})
 }
 
-// deleteConversation is Delete on a row or on the page: at once, as the app does (agentpanel.js deleteSession asks
-// nothing; only Delete all and Disconnect ask), on the id keel serve gave. The toast is the app's.
+// deleteConversation is Delete on a row or on the page: at once, asking nothing (only Delete all and Disconnect
+// ask), on the id keel serve gave.
 func (w *workspace) deleteConversation(id string) {
 	if id == "" {
 		return
@@ -276,7 +275,7 @@ func (w *workspace) deleteConversation(id string) {
 	})
 }
 
-// askDeleteAll is Delete all (Recent conversations, Settings · Agent's Delete all history): it asks first, with the app's words.
+// askDeleteAll is Delete all (Recent conversations, Settings · Agent's Delete all history): it asks first.
 func (w *workspace) askDeleteAll() {
 	w.closeSessions()
 	w.askConfirm(&hostConfirm{title: deleteAllTitle, message: deleteAllText, action: deleteAllAction, run: w.deleteAllConversations})

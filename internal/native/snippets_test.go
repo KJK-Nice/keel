@@ -35,7 +35,6 @@ func snippetRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
-// The preview is lib/vaultview.js snippetPreview, with the cases of its test.
 func TestSnippetPreviewIsTheBytesTypedWithTheirEnters(t *testing.T) {
 	for _, c := range []struct {
 		in      string
@@ -96,13 +95,12 @@ func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 	if e.id != "sn-1" || e.name != "disk usage" || e.command != "df -h" {
 		t.Fatalf("editor %+v", e)
 	}
-	// What the webview does not have is not here.
 	for _, s := range []string{"Offer on hosts tagged", "Read-only", "Changes state"} {
 		if r.tt.HasText(s) {
 			t.Errorf("the page shows %q, which the app does not have", s)
 		}
 	}
-	// What it has is (pages.templ): the preview of the bytes with the count, and the agent switch, on for this snippet.
+	// The preview of the bytes with the count, and the agent switch, on for this snippet.
 	r.texts(t, "Preview of what gets typed", "1 line · 6 bytes. Typing always goes through Approve before type.", "Let the agent suggest this snippet",
 		"⇥ can offer it when your words match. One-line commands without {{var}} fields only. When on, its text is sent, redacted, to TypeSafe Jev.")
 	if !e.agent || e.dirty() {
@@ -307,7 +305,7 @@ func TestTypeIntoPaneFromAPageNamesThePaneYouCanSeeAndSendsTheSnippet(t *testing
 }
 
 func TestSnippetBracesAreTypedAsTheyAreSaved(t *testing.T) {
-	// {{var}} fields are not in the app: a snippet with braces is typed with them, unchanged.
+	// There are no {{var}} fields: a snippet with braces is typed with them, unchanged.
 	fb := snippetBackend()
 	fb.snippets = []keelclient.Snippet{{ID: "sn-v", Name: "braces", Command: "echo {{name}} {{greeting}}\n"}}
 	r := snippetRig(t, fb)
@@ -380,7 +378,7 @@ func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *test
 	var rows []string
 	for _, it := range r.rows() {
 		if it.group == "Snippets" {
-			// "Approve first" only where the dialog is certain (term.js snippetBadge): two lines. The one-line read-only
+			// "Approve first" only where the dialog is certain: two lines. The one-line read-only
 			// ones may type with no dialog.
 			wantBadge := ""
 			if it.title == "Type snippet: two steps" {

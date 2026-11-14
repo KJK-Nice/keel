@@ -17,7 +17,7 @@ func shellRows(es []menuEntry) (out []string) {
 	return out
 }
 
-// The labels and chords are those of the webview app's menus (internal/desktop/desktop.go fileMenu and viewMenu).
+// The labels and chords of the File and View menus.
 func TestShellMenusAreTheWebviewsMenus(t *testing.T) {
 	file := "New Tab CmdOrCtrl+t|Close Tab CmdOrCtrl+w|Reopen Tab CmdOrCtrl+Shift+t|-|New Host CmdOrCtrl+n|" +
 		"Quick Connect CmdOrCtrl+Shift+o|Join Session CmdOrCtrl+j|-|Split Right CmdOrCtrl+Shift+d|" +

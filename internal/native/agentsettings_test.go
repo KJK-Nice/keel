@@ -90,7 +90,7 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 	if strings.Contains(strings.ToLower(strings.Join(r.tt.Texts(), "\n")), "coming soon") {
 		t.Error("a setting is marked coming soon")
 	}
-	// Notes for the agent sit after Claude Code and before Safety, as in the app (notes_test.go has the rest).
+	// Notes for the agent sit after Claude Code and before Safety (notes_test.go has the rest).
 	all := strings.Join(r.tt.Texts(), "\n")
 	if !(strings.Index(all, "Claude Code") < strings.Index(all, "Notes for the agent") && strings.Index(all, "Notes for the agent") < strings.Index(all, "Safety")) {
 		t.Error("Notes for the agent is not between Claude Code and Safety")
@@ -222,7 +222,7 @@ func TestSettingsAgentKeepConversationsAndDeleteAllHistoryAsksFirst(t *testing.T
 	if r.w.agent.savedNote() != "Not saved · kept while open" {
 		t.Errorf("the panel says %q", r.w.agent.savedNote())
 	}
-	// Delete all history asks first, with the app's words, and Cancel keeps everything.
+	// Delete all history asks first, and Cancel keeps everything.
 	r.click(t, "Delete all history…")
 	r.settleFrames()
 	cf := r.w.confirm

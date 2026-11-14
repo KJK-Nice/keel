@@ -12,9 +12,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Share (docs/ui-redesign.md §5.6), as the app has it: features/share.md. The rules are the pure functions of
-// lib/share.js; the Share popover is ui/sharepop.js, the Allow / Deny prompt ui/joinprompt.js, the control request
-// ui/sharecontrol.js. Nothing here decides who may watch or type: admission is keel serve's (internal/share), and
+// Share (docs/ui-redesign.md §5.6, docs/sharing.md). Nothing here decides who may watch or type: admission is keel serve's (internal/share), and
 // the only calls that answer a join request are the Allow and Deny buttons (answerJoin); the only call that hands
 // control over is the Hand over button and the Pass control buttons (sendControl with GrantControl).
 
@@ -59,7 +57,7 @@ func (s *sharePrompt) key() string {
 	return "join\n" + s.peerID
 }
 
-// ---- the pure rules of lib/share.js ----
+// ---- the pure rules ----
 
 // roleOf is a client's role in a session as the share hub reports it: the driver drives, the owner may take control
 // back, everyone else follows. It is wire.RoleOf, except that id 0 (no client) is a follower and never matches an unset
@@ -110,7 +108,7 @@ func initials(name string) string {
 	return strings.ToUpper(string(out))
 }
 
-// sharePeople lists who is attached, you first, then whoever drives, then by arrival (lib/share.js sharePeople).
+// sharePeople lists who is attached, you first, then whoever drives, then by arrival.
 func sharePeople(st keelclient.State, now time.Time) []person {
 	rows := make([]person, 0, len(st.Attached))
 	for _, c := range st.Attached {
@@ -188,7 +186,7 @@ func seatOf(st keelclient.State) seat {
 	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Driving()}
 }
 
-// followState is lib/share.js followState: who owns and who drives, by name, and whether that is you.
+// followState says who owns and who drives, by name, and whether that is you.
 func followState(st keelclient.State) (owner, driver string, driving bool, host string) {
 	owner = "the host"
 	if st.OwnerID != 0 {
@@ -208,7 +206,7 @@ func followState(st keelclient.State) (owner, driver string, driving bool, host 
 	return owner, driver, driving, host
 }
 
-// popoverAction is the one button at the foot of the popover (lib/share.js sharePopoverHTML): Pass control to the one
+// popoverAction is the one button at the foot of the popover: Pass control to the one
 // person who can be handed it, else Take control for the owner, else Ask for control. who is the grantee for pass.
 func popoverAction(rows []person, s seat) (kind string, who person) {
 	var grantable []person
@@ -341,7 +339,7 @@ func (w *workspace) syncShare() {
 // ---- announcements: the prompts ----
 
 // drainEvents reads what the share hub and the runtime announced on every pane's socket: a join request becomes a
-// prompt, a control request becomes a prompt for whoever may hand over, everything else is the app's toast.
+// prompt, a control request becomes a prompt for whoever may hand over, everything else is a toast.
 func (w *workspace) drainEvents() {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
@@ -435,7 +433,6 @@ func (w *workspace) passControl(p *pane, to uint64) {
 	w.sendControl(func() error { return p.conn.GrantControl(to) }, "pass control")
 }
 
-// The words of ui/sharecontrol.js and ui/joinprompt.js.
 func controlDesc(p *pane, owner bool) string {
 	title := p.host.Name
 	if title == "" {

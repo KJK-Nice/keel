@@ -759,7 +759,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	if a.hasLabel("banner following") || b.hasLabel("Take control") {
 		t.Error("the driver shows the follower banner, or a non-owner offers Take control")
 	}
-	if !b.hasLabel("role glyph eye") || !a.hasLabel("role glyph steering") { // the chips' glyphs (lib/share.js ROLE_GLYPH)
+	if !b.hasLabel("role glyph eye") || !a.hasLabel("role glyph steering") {
 		t.Error("a role chip has no glyph: eye for the follower, steering for the driver")
 	}
 	b.shot("TestE2EFollowerAndTakeControl-following")
@@ -1300,7 +1300,7 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.shot("TestE2ENewTabPage")
 }
 
-// Plan 032 item 8b: cards of hosts with long names and addresses keep their text inside the card, in both themes.
+// Cards of hosts with long names and addresses keep their text inside the card, in both themes.
 func TestE2ENewTabLongHostCards(t *testing.T) {
 	addr, dir := startServe(t, true)
 	tok, err := authtoken.Read(dir)
@@ -1420,7 +1420,7 @@ func TestE2EPalette(t *testing.T) {
 		}
 	}
 	// A new vault is seeded with four snippets, so the Snippets group follows Actions. The last row, Ask the agent, is
-	// the app's (plan 025) and has no group heading.
+	// has no group heading.
 	if !slices.Equal(groups, []string{"Open now", "Hosts", "Actions", "Snippets", "Notebooks", "Agent"}) {
 		t.Fatalf("groups %q", groups)
 	}

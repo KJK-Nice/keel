@@ -13,10 +13,8 @@ import (
 )
 
 // First run (docs/ui-redesign.md §5.15): step 1 creates the vault (or shows the one that exists), step 2 brings
-// the hosts of the ssh config, step 3 says what the agent promises. The words and the order are firstRunScreen
-// and agentStep in internal/ui/gate.templ; the flow is cmd/keel/web/js/ui/gate.js (showVaultStep, submitVault,
-// showHostsStep, runImport, finish), and step 2 is also what the palette's "Import hosts from ~/.ssh/config"
-// opens on its own. Like the Unlock screen it replaces the window while it shows.
+// the hosts of the ssh config, step 3 says what the agent promises. Step 2 is also what the palette's
+// "Import hosts from ~/.ssh/config" opens on its own. Like the Unlock screen it replaces the window while it shows.
 //
 // Secrets. The passphrase of a new vault and the passphrase of a key to copy are typed into masked fields, go
 // only in the one request that needs them, are cleared when it is sent (and when the screen closes), and are in
@@ -52,11 +50,11 @@ type firstRun struct {
 	lead      string
 	keyErrs   map[string]string // by key path
 	notesOpen bool
-	notice    string // the import's result or refusal, shown under the step (the webview's toast)
+	notice    string // the import's result or refusal, shown under the step
 	noticeBad bool
 	gen       int // the preview read in flight; a stale answer is dropped
 
-	// Step 3 (gate.js agentChoice): the provider chosen ("none" or "gemini"), the key typed (masked; emptied as it is sent),
+	// Step 3: the provider chosen ("none" or "gemini"), the key typed (masked; emptied as it is sent),
 	// the switch "Suggest commands when I type plain language", and the provider's own words (GET /api/agent/providers).
 	agentGemini  bool
 	agentKey     string
@@ -101,12 +99,12 @@ func (f *firstRun) handleFor(path string) *ui.Handle {
 	return h
 }
 
-// usesKeychain: the vault exists and keel serve opened it with the keychain (gate.js showVaultStep).
+// usesKeychain: the vault exists and keel serve opened it with the keychain.
 func (f *firstRun) usesKeychain() bool { return !f.vault.NeedsSetup && f.vault.Mode == "keychain" }
 
 // ---- opening and closing ----
 
-// showFirstRun puts step 1 over the window: gate.update for a vault that needs setup or whose first run is open.
+// showFirstRun puts step 1 over the window, for a vault that needs setup or whose first run is open.
 func (w *workspace) showFirstRun(v keelclient.Vault) {
 	w.blocked = ""
 	w.first = &firstRun{flow: flowFirstRun, step: stepVault, vault: v}
@@ -116,7 +114,6 @@ func (w *workspace) showFirstRun(v keelclient.Vault) {
 	}
 }
 
-// closeFirstRun takes the screen away and forgets its secrets.
 func (w *workspace) closeFirstRun() {
 	if f := w.first; f != nil {
 		f.clearSecrets()
@@ -164,7 +161,7 @@ func (w *workspace) submitVault() {
 		err = w.be.SetupVault(c, pass)
 		pass = ""
 		if err == nil {
-			v, err = w.be.Vault(c) // gate.update: the first run goes on only while it is open
+			v, err = w.be.Vault(c) // the first run goes on only while it is open
 		}
 		return v, err
 	}, func(v keelclient.Vault, err error) {
@@ -178,7 +175,7 @@ func (w *workspace) submitVault() {
 			w.showHostsStep(f)
 			return
 		}
-		w.closeFirstRun() // nothing to set up: the webview's gate hides itself
+		w.closeFirstRun() // nothing to set up
 		w.start()
 	})
 }
@@ -197,7 +194,7 @@ func vaultError(err error) string {
 
 var vaultFileSuffix = regexp.MustCompile(`[\\/]keel\.vault$`)
 
-// dataFolder is the folder of the vault file (gate.js onb-data-dir).
+// dataFolder is the folder of the vault file.
 func dataFolder(path string) string {
 	if d := vaultFileSuffix.ReplaceAllString(path, ""); d != "" {
 		return d
@@ -205,7 +202,7 @@ func dataFolder(path string) string {
 	return "the Keel data folder"
 }
 
-// keychainDesc is the Keychain card's text (gate.js showVaultStep).
+// keychainDesc is the Keychain card's text.
 func keychainDesc(f *firstRun, keychain string) string {
 	switch {
 	case f.usesKeychain():
@@ -243,7 +240,7 @@ func firstRunKeychain() string { return keychainName() }
 
 // ---- step 2 ----
 
-// showHostsStep is gate.js showHostsStep: it reads the preview and shows the table.
+// showHostsStep reads the preview and shows the table.
 func (w *workspace) showHostsStep(f *firstRun) {
 	f.step, f.preview, f.sel, f.notice, f.keyErrs, f.notesOpen = stepHosts, nil, nil, "", nil, false
 	f.gen++
@@ -272,7 +269,6 @@ func (f *firstRun) addCount() int {
 	return selectedCount(*f.preview, f.sel)
 }
 
-// toggleHost ticks or unticks one host.
 func (f *firstRun) toggleHost(alias string) {
 	if f.sel == nil {
 		return
@@ -310,7 +306,6 @@ func (f *firstRun) toggleNoJump(alias string) {
 	}
 }
 
-// toggleKey turns one key's copy switch.
 func (f *firstRun) toggleKey(k keelclient.ConfigKey) {
 	if f.sel == nil || !copyable(k) {
 		return
@@ -323,7 +318,7 @@ func (f *firstRun) toggleKey(k keelclient.ConfigKey) {
 	}
 }
 
-// runImport is Add hosts and ↵ in a key's passphrase field (gate.js runImport).
+// runImport is Add hosts and ↵ in a key's passphrase field.
 func (w *workspace) runImport() {
 	f := w.first
 	if f == nil || f.step != stepHosts || f.busy || f.preview == nil || f.sel == nil {
@@ -406,8 +401,8 @@ func (w *workspace) afterHosts(f *firstRun) {
 
 // ---- step 3 ----
 
-// showAgentStep is gate.js showAgentStep: Not now is chosen, the key is empty, the switch is on, and the provider's own
-// words are read once (the descriptor of Google Gemini; a failed read leaves the card's defaults, as the webview does).
+// showAgentStep chooses Not now, empties the key, turns the switch on, and reads the provider's own
+// words once (the descriptor of Google Gemini; a failed read leaves the card's defaults).
 func (w *workspace) showAgentStep(f *firstRun) {
 	f.step = stepAgent
 	f.agentGemini, f.agentKey, f.agentErr, f.agentOff = false, "", "", false
@@ -428,7 +423,7 @@ func (w *workspace) showAgentStep(f *firstRun) {
 	})
 }
 
-// pickAgentProvider is gate.js pickAgent: choosing Gemini shows the key field and gives it the keyboard.
+// pickAgentProvider: choosing Gemini shows the key field and gives it the keyboard.
 func (f *firstRun) pickAgentProvider(gemini bool) {
 	f.agentGemini, f.agentErr = gemini, ""
 	if gemini {
@@ -436,7 +431,7 @@ func (f *firstRun) pickAgentProvider(gemini bool) {
 	}
 }
 
-// openKeel is Open Keel (gate.js openKeel): a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
+// openKeel is Open Keel: a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
 // against the provider, so nothing is sent anywhere), the switch is saved either way, and then the first run ends. A
 // failed save keeps the step open with the reason. The key is emptied the moment it is sent and is in no log or error.
 func (w *workspace) openKeel(f *firstRun) {
@@ -474,7 +469,7 @@ func (w *workspace) openKeel(f *firstRun) {
 			f.agentErr = keyError(err)
 			return
 		}
-		w.refreshSuggestSettings() // the switch just saved (suggestions on or off)
+		w.refreshSuggestSettings()
 		w.finishFirstRun(f)
 	})
 }
@@ -487,7 +482,7 @@ func (w *workspace) finishFirstRun(f *firstRun) {
 	f.busy = true
 	callErrIf(w, func() bool { return w.first == f }, w.be.FirstRunDone, func(err error) {
 		w.closeFirstRun()
-		if err != nil { // the webview hides the screen anyway
+		if err != nil {
 			w.fail("finish first run", err)
 		}
 		w.start()

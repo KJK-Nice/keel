@@ -6,11 +6,11 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Control fills under window opacity (plan 028 step 2). The grounds take the window's alpha (workspace.ground); a control
+// Control fills under window opacity. The grounds take the window's alpha (workspace.ground); a control
 // drawn on them (an input, a segment, a tab pill, a button, a card, a hover fill) takes a milder one, so with opacity
 // below 1 it reads as part of the glass and not as a sticker on it: controlAlpha = 1 - (1 - alpha) * controlShare, never
-// below controlFloor. Plan 030: a control over the ground covers 1 - (1-alpha)(1-controlAlpha) of the backdrop, and the
-// share is set so that is 0.8 at window opacity 0.7 (plan 028's 0.6 gave 0.95, too opaque). At alpha 1 it is 1 and nothing
+// below controlFloor. A control over the ground covers 1 - (1-alpha)(1-controlAlpha) of the backdrop, and the
+// share is set so that is 0.8 at window opacity 0.7 (a share of 0.6 gave 0.95, too opaque). At alpha 1 it is 1 and nothing
 // changes. Text, icons, borders, the primary and destructive buttons, dialogs, menus, popovers, toasts, the palette, key
 // caps and the terminal never go through it.
 const (
@@ -105,11 +105,11 @@ func luminance(c ui.Color) float64 {
 	return 0.2126*f(c.R) + 0.7152*f(c.G) + 0.0722*f(c.B)
 }
 
-// Native-only values (plan 028). They are deliberate departures from the webview's look that the maintainer asked
+// Native-only values: deliberate departures from the design that the maintainer asked
 // for, so they are not in docs/design/tokens.json (TestTokensMatchJSON keeps that file and tokens.go in step). Each
 // is derived from a token where it can be; there is no colour literal here.
 const (
-	ringWidth      = 1.5  // the focused pane tile's border (the webview draws a 3 px band)
+	ringWidth      = 1.5  // the focused pane tile's border
 	tileLineWidth  = 1    // every other split tile's border, in `line`
 	glowBlur       = 8    // the focused tile's soft outer glow
 	glowAlphaDark  = 0.18 // focus at this alpha on a dark stage

@@ -47,7 +47,7 @@ func TestTokensMatchJSON(t *testing.T) {
 			return v
 		}
 		p := th.p
-		// Plan 030: the look is MyGo's (TestPaletteIsMyGos); what still has to match tokens.json is what is Keel's own: the
+		// The look is MyGo's (TestPaletteIsMyGos); what still has to match tokens.json is what is Keel's own: the
 		// meaning colours, the terminal's theme, the stage behind it, the scrim.
 		colors := map[string]string{
 			"stage": p.stage, "tide": p.tide, "signal": p.signal, "flare": p.flare,
@@ -55,7 +55,7 @@ func TestTokensMatchJSON(t *testing.T) {
 			"on-flare": p.onFlare, "haze": p.haze, "haze-soft": p.hazeSoft, "scrim": p.scrim, "tide-soft": p.tideSoft,
 			"term-fg": p.termFg, "term-bg": p.termBg,
 			// term-cursor and term-selection are not compared: the terminal's cursor and selection follow the system
-			// accent now (theme.go terminalTheme, plan 032 section 11), so tokens.json's brass values are no longer used.
+			// accent (theme.go terminalColors), so tokens.json's brass values are not used.
 		}
 		for i, h := range p.ansi {
 			colors[fmt.Sprintf("ansi-%d", i)] = h

@@ -207,7 +207,7 @@ func TestE2EFolders(t *testing.T) {
 	e.drag("host fx-host", "folder fx-sub")
 	e.pump(func() bool { h, _ := e.hostNamed("fx-host"); return h.GroupID == sub.ID }, "the host in fx-sub after the drag")
 
-	// A folder dragged onto its own descendant is refused with the app's words and nothing changes.
+	// A folder dragged onto its own descendant is refused and nothing changes.
 	e.drag("folder fx-top", "folder fx-sub")
 	e.pump(func() bool { return e.hasLabel("toast " + msgGroupCycle) }, "the refusal")
 	if g, _ := e.apiGroupNamed("fx-top"); g.ParentID != "" {
@@ -728,7 +728,7 @@ func TestE2EAnsibleExport(t *testing.T) {
 	if inv.Name != "inventory.ini" || !strings.Contains(inv.Content, "an-1") || !strings.Contains(inv.Content, "k8s_version") {
 		t.Fatalf("inventory %+v", inv)
 	}
-	// What the server withheld is not in the export. (The page's own variables list still shows the value, as the app's does:
+	// What the server withheld is not in the export. (The page's own variables list still shows the value:
 	// a variable is config until the vault holds the same value, and the list is not the export.)
 	if strings.Contains(inv.Content, old) {
 		t.Fatal("a withheld value is in the export")

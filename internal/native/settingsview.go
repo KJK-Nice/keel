@@ -9,17 +9,16 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Settings page drawn as SettingsPage (internal/ui/pages.templ) with .k-rail, .k-settings-main, .settings-group and
-// .pref-row of keel.css. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
+// The Settings page. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
 
 const (
-	settingsMaxWidth = 667 // .k-settings-form: max-width 90ch, which measures 616 px at the default UI size (a ch is 0.57 em)
+	settingsMaxWidth = 667 // max-width 90ch, which measures 616 px at the default UI size (a ch is 0.57 em)
 	sliderPx         = 117 // w-36: 9rem, which is 9 UI-size px (Tailwind spacing is rem)
 	prefInputWidth   = sizeRail
-	leadWidth        = 496 // .k-settings-lead: the reference wraps its lines at 458 px (between 452 and 465)
+	leadWidth        = 496 // the lead wraps its lines at 458 px in the design (between 452 and 465)
 )
 
-// prefRow is a .pref-row: a title and a line under it on the left, the control on the right.
+// prefRow is a title and a line under it on the left, the control on the right.
 type prefRow struct {
 	title, desc string
 	extra       string // more text the search reads (data-search)
@@ -137,7 +136,7 @@ func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 
 func (w *workspace) settingsPanel(c *ui.Context, s settingsSection, p *settingsPage) {
 	ui.Column(c).FillWidth().Gap(space6).Key(s.id).Label("settings " + s.title).Children(func() {
-		ui.Column(c).FillWidth().Gap(space3).Children(func() { // .k-settings-lead sits half a gap under the title
+		ui.Column(c).FillWidth().Gap(space3).Children(func() { // the lead sits half a gap under the title
 			ui.Text(c, s.title).TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold)
 			if s.lead != "" {
 				ui.Text(c, s.lead).TextColor(inkMuted).FontSize(uiFontSize).MaxWidth(rem(leadWidth))
@@ -200,15 +199,14 @@ func alwaysOn(c *ui.Context) {
 	})
 }
 
-// outlineBadge is a neutral badge with a text (.k-badge--outline in the app).
 func outlineBadge(c *ui.Context, s string) { neutralBadge(c, s) }
 
-// statValue is .k-mono.k-pref-value: a value on the right, in the mono face, wrapping.
+// statValue is a value on the right, in the mono face, wrapping.
 func statValue(c *ui.Context, s string) {
 	ui.Text(c, s).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxWidth(60 * 7).Label("value " + s).Shrink(1).MinWidth(0)
 }
 
-// sliderCtl is .pref-slider: the slider and its value.
+// sliderCtl is the slider and its value.
 func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int, over ...func()) func(*ui.Context) {
 	return func(c *ui.Context) {
 		ui.Row(c).Gap(space3).AlignItems(ui.Center).Shrink(0).Children(func() {
@@ -223,7 +221,7 @@ func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int
 	}
 }
 
-// copyBtn is a small k-btn that copies a text and says so.
+// copyBtn is a small button that copies a text and says so.
 func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 	if value == "" {
 		return
@@ -280,7 +278,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.prefs.TermSize, func() { w.keyCap(c, "+ − 0") })(c) // the app's hint shows only while ⌘ is held
+			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.prefs.TermSize, func() { w.keyCap(c, "+ − 0") })(c) // the hint shows only while ⌘ is held
 		}},
 		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
 			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {

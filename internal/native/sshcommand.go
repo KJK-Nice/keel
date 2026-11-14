@@ -9,7 +9,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// sshCommand is the host menu's "Copy SSH command" text (internal/ui/menus.go sshCommand, with its cases): ssh, the port when
+// sshCommand is the host menu's "Copy SSH command" text: ssh, the port when
 // it is not 22, the saved jump host as -J, and user@address. It is built from the address fields only, never from a password,
 // key, passphrase or any other vault value (a keelclient.Host has none). The Local Shell has none (""). A user name or address
 // that ssh could read as an option (a leading "-", which quoting does not stop) or that holds whitespace or a control or

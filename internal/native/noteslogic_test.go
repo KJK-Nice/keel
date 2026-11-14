@@ -9,8 +9,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Every case of cmd/keel/web/js/test/notes.test.mjs (6 tests), in the same order.
-
 func TestNoteSourceLineSaysWhoWroteItAndFromWhichPane(t *testing.T) {
 	at := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	for _, c := range []struct {

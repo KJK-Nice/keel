@@ -7,16 +7,15 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Keeping the host list current. The webview learns of vault changes from the Datastar stream (/ui/stream); the
-// native client has no stream, so it reads the hosts again after every write it makes, and polls GET /api/vault
-// for its rev while the window is open. If keel serve later gets a JSON event stream, switch to it; do not grow
+// Keeping the host list current. The native client has no event stream, so it reads the hosts
+// again after every write it makes, and polls GET /api/vault for its rev while the window is open. If keel serve later gets a JSON event stream, switch to it; do not grow
 // the poll (docs/native.md).
 
 const pollEvery = 3 * time.Second
 
 // setHosts replaces the host list. The filter, the collapsed groups and the open tabs are not touched; a pane
 // takes its host's new name and colour, and a pane whose host was deleted keeps its session and its last known
-// host (the webview's panes do the same: they look the host up by id and fall back to the session's title).
+// host.
 func (w *workspace) setHosts(hosts []keelclient.Host) {
 	w.hosts = hosts
 	for _, t := range w.tabs {

@@ -9,8 +9,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The group run page drawn as GroupRunPage (internal/ui/groupspage.templ) and paint in cmd/keel/web/js/ui/grouprun.js with the
-// k-gx-* rules of keel.css: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
+// The group run page: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
 // runbook; on the right the current step (the mode, the proposal card with the saved command and its {{names}}, the halt
 // banner, the hosts that need a pane), the captured values as a mask and a length, and the Results matrix. Every command is
 // drawn with variable names; a value never reaches this page (keelclient/grouprun_types.go).
@@ -23,8 +22,7 @@ func (w *workspace) groupRunView(c *ui.Context, p *groupRunPage) {
 		})
 		return
 	}
-	// .k-gx-split: the steps (size-agentpage-context wide) beside the detail; under 760 px of page width (#page-grouprun's
-	// container query) they go above it, at most 40% of the height, with their border below instead of at the right.
+	// The steps (size-agentpage-context wide) beside the detail; under 760 px of page width they go above it, at most 40% of the height, with their border below instead of at the right.
 	narrow := p.width > 0 && p.width < groupRunNarrow
 	var root ui.Element
 	if narrow {
@@ -74,7 +72,6 @@ func markColor(state string) ui.Color {
 	return inkMuted
 }
 
-// runSteps is the steps column: the head (runbook, title, counts), the steps and the foot.
 func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	changes := 0
 	for _, s := range run.Steps {
@@ -128,7 +125,6 @@ func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.Gro
 	})
 }
 
-// runBanner is a k-review: a line with a glyph, and buttons after it.
 func runBanner(c *ui.Context, glyph string, col ui.Color, label string, text func(), buttons func()) {
 	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusSm).Background(hoverGround).AlignItems(ui.Center).Wrap().Label(label).Children(func() {
 		icon(c, glyph, col)
@@ -384,7 +380,6 @@ func bytesNamesView(c *ui.Context, bytes string) {
 	ui.RichText(c, spans...).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0).Label(bytesText(bytes))
 }
 
-// textBtnOffAs is textBtnAs that ignores a press and dims while off.
 func textBtnOffAs(c *ui.Context, name, shown string, kind btnKind, off bool) bool {
 	return ctlButton(c, name, shown, kind).Disabled(off).Clicked() && !off
 }

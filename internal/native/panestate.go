@@ -11,9 +11,7 @@ import (
 )
 
 // What a pane's session is doing, as the user sees it (docs/ui-redesign.md §5.1): a failure or
-// connecting banner, a follower banner, a role chip, and the host key dialog. The words are the
-// webview's: term.js failHeadline/failEndpoint, hostKeyDialog in internal/ui/dialogs.templ,
-// lib/share.js ROLE_LABEL.
+// connecting banner, a follower banner, a role chip, and the host key dialog.
 
 type btnKind int
 
@@ -24,7 +22,7 @@ const (
 	btnDanger
 )
 
-// textBtn is a small k-btn; it reports a click.
+// textBtn is a small button; it reports a click.
 func textBtn(c *ui.Context, name string, kind btnKind) bool { return textBtnAs(c, name, name, kind) }
 
 // textBtnAs is textBtn with a name of its own: several of a kind on one page (a Disconnect on each provider card) need names
@@ -33,7 +31,7 @@ func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 	return ctlButton(c, name, shown, kind).Clicked()
 }
 
-// failHeadline is term.js failHeadline for a session that is down.
+// failHeadline is the banner's headline for a session that is down.
 func failHeadline(st keelclient.State) string {
 	switch {
 	case st.Status == wire.StatusExited:
@@ -44,7 +42,6 @@ func failHeadline(st keelclient.State) string {
 	return "Connection failed"
 }
 
-// failEndpoint is term.js failEndpoint.
 func failEndpoint(h keelclient.Host, st keelclient.State) string {
 	if h.IsLocal() {
 		if st.Subtitle != "" {
@@ -55,7 +52,7 @@ func failEndpoint(h keelclient.Host, st keelclient.State) string {
 	return "SSH " + h.Address + ":" + strconv.Itoa(h.SSHPort())
 }
 
-// connectLog is term.js seedConnectLog followed by what keel serve reported (State.Log): the lines a failed or connecting
+// connectLog is the connecting lines followed by what keel serve reported (State.Log): the lines a failed or connecting
 // pane lists and Copy logs copies.
 func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	var seed []keelclient.LogLine
@@ -73,7 +70,7 @@ func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	return append(seed, st.Log...)
 }
 
-// logText is term.js copyPaneFailLog's text: the lines, one to a line.
+// logText is the text Copy logs copies: the lines, one to a line.
 func logText(lines []keelclient.LogLine) string {
 	var out []string
 	for _, l := range lines {
@@ -110,8 +107,8 @@ func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) 
 	})
 }
 
-// bannerRow is a k-pane-banner: a soft ground with its text colour, a headline with the endpoint (and a
-// message under it) on the left, the buttons on the right. The soft ground sits on stage, as in the webview.
+// bannerRow is a pane banner: a soft ground with its text colour, a headline with the endpoint (and a
+// message under it) on the left, the buttons on the right. The soft ground sits on stage.
 func (w *workspace) bannerRow(c *ui.Context, name string, soft, fg ui.Color, head, endpoint, msg string, buttons func()) {
 	ui.Box(c).FillWidth().Shrink(0).Background(w.ground(stage)).Children(func() {
 		hairline(ui.Row(c).FillWidth().Padding(space1_5, space3).Gap(space2).Background(soft).Label(name), 0, 0, 1, 0).Children(func() {
@@ -137,7 +134,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		w.joinBanner(c, t, p, st)
 		return
 	}
-	// The buttons the failure and the connecting banners share, in the app's order (term.js pane-fail-banner): Copy logs,
+	// The buttons the failure and the connecting banners share, in order: Copy logs,
 	// Close and Edit host; Reconnect follows on a failure only.
 	common := func() {
 		if textBtn(c, "Copy logs", btnGhost) {
@@ -168,7 +165,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 				who = a.Name + " is driving"
 			}
 		}
-		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control (term.js syncFollowBanner)
+		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control
 		w.bannerRow(c, "banner following", hazeSoft, haze, "Following · "+who+" · read-only", "", "", func() {
 			switch {
 			case owner && textBtn(c, "Take control", btnDefault):
@@ -180,7 +177,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 	}
 }
 
-// chip is a k-role chip with its own words: the driving one, or the quiet one with a ring (the owner's).
+// chip is a role chip with its own words: the driving one, or the quiet one with a ring (the owner's).
 func chip(c *ui.Context, text string, driving bool) {
 	bg, fg := ui.Transparent, inkMuted
 	if driving {
@@ -193,25 +190,25 @@ func chip(c *ui.Context, text string, driving bool) {
 	r.Children(func() { roleChipFace(c, "steering", text, fg) })
 }
 
-// roleChipBox is the k-role pill: 0 8 0 6 padding, a gap of 4 between the glyph and the words (keel.css .k-role).
+// roleChipBox is the role pill: 0 8 0 6 padding, a gap of 4 between the glyph and the words.
 func roleChipBox(c *ui.Context, name string, bg ui.Color) ui.Element {
 	return ui.Row(c).Height(roleChipHeight).Padding(0, space2, 0, space1_5).Gap(space1).Radius(radiusFull).Justify(ui.Center).
 		AlignItems(ui.Center).Shrink(0).Background(bg).Label(name)
 }
 
-// roleChipFace is the glyph and the words of a role chip: steering for who drives and owns, eye for a follower
-// (lib/share.js ROLE_GLYPH), at 0.923rem.
+// roleChipFace is the glyph and the words of a role chip: steering for who drives and owns, eye for a follower,
+// at 0.923rem.
 func roleChipFace(c *ui.Context, glyph, words string, fg ui.Color) {
 	iconSized(c, glyph, fg, iconSizeSm).Label("role glyph " + glyph)
 	ui.Text(c, words).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1)
 }
 
-// chipFollow is the k-role--follower chip.
+// chipFollow is the follower's chip.
 func chipFollow(c *ui.Context, text string) {
 	roleChipBox(c, "role "+text, hazeSoft).Children(func() { roleChipFace(c, "eye", text, haze) })
 }
 
-// roleChip is the k-role chip of a shared session's pane bar; it never shrinks.
+// roleChip is the chip of a shared session's pane bar; it never shrinks.
 func roleChip(c *ui.Context, role wire.Role) {
 	text, glyph, bg, fg := "", "steering", ui.Transparent, inkMuted
 	switch role {

@@ -28,7 +28,7 @@ var fontFiles embed.FS
 // eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
 	if platform == "linux" {
-		// Not on Linux (issue #140, plan 037 round 2): on Ubuntu a registered family measured about 1.8 times too wide (29
+		// Not on Linux (issue #140): on Ubuntu a registered family measured about 1.8 times too wide (29
 		// characters of JetBrains Mono at 13 px came out 399 px, the system monospace 232 and the font's own advance gives
 		// about 226), which made the terminal's cells about twice as wide as its glyphs, and JetBrains Mono and IBM Plex Mono
 		// rendered alike. The stacks fall back to the system monospace until MyGo's Linux registration is understood.
@@ -172,7 +172,7 @@ func RunWith(o Options) error {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name, CreateDirectories: true})
 		}
 		w.cornerR = windowCornerRadius()
-		// The window has no shadow (plan 037 part C).
+		// The window has no shadow.
 		win.OnShow(func() { setWindowHasShadow(win, false) })
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
 			blur := func(radius int) { blurOnce(win, radius)() }

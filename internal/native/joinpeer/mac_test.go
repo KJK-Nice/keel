@@ -25,7 +25,7 @@ const sampleSDP = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\n" +
 func hostMAC(k, sdp string) string { return sharelink.MAC(k, wire.SignalRoleHost, sdp) }
 func joinMAC(k, sdp string) string { return sharelink.MAC(k, wire.SignalRoleJoin, sdp) }
 
-// fakePC is the JS test's fakePeer.
+// fakePC records the calls a peer connection gets.
 type fakePC struct {
 	calls  []string
 	answer string

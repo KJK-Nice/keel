@@ -43,7 +43,7 @@ func (e *win) shotOn(name string, back ui.Color) {
 	}
 }
 
-// Plan 028 step 2: the window at 70% opacity with the sidebar, a pane, the New tab page, Settings and the agent panel, in
+// The window at 70% opacity with the sidebar, a pane, the New tab page, Settings and the agent panel, in
 // both themes, over opacityBackdrop.
 func TestE2EControlsUnderWindowOpacity(t *testing.T) {
 	addr, dir := startServe(t, true)

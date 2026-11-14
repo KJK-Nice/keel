@@ -1,6 +1,5 @@
 // Package sshparse reads a pasted `ssh …` command, an ssh:// URL or `user@host:port` into the few fields
-// Keel's host model has (host, port, user). It is a port of cmd/keel/web/js/lib/sshparse.js and must
-// agree with it (a change to one needs the other; the table test mirrors test/sshparse.test.mjs).
+// Keel's host model has (host, port, user).
 //
 // Pure functions of a string: nothing here starts a process, opens a file, expands a variable or looks a
 // name up, and the package imports only the standard library (never os, os/exec or net). The text is split

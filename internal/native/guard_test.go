@@ -14,8 +14,7 @@ import (
 )
 
 // The guards of docs/ui-redesign.md §6 rule 1 for keel-native: two ways to put bytes into a terminal for the user, one
-// file that writes them, and one caller of each. They read the source of every non-test .go file under internal/native,
-// as cmd/keel/web/js/test/approve.test.mjs does for the page.
+// file that writes them, and one caller of each. They read the source of every non-test .go file under internal/native.
 //
 //	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject)
 //	ApprovedInject(        called once, from approve.go: the Approve before type dialog's Type action
@@ -240,7 +239,7 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 	}
 }
 
-// DirectCheck was a question to keel serve about typing (the type-check frame). keel serve no longer answers it, so no
+// DirectCheck was a question to keel serve about typing (the type-check frame). keel serve does not answer it, so no
 // file may ask it or name the frame, keelclient/inject.go included.
 func TestNoFileAsksATypeCheck(t *testing.T) {
 	for name, src := range sourceFiles(t) {
@@ -285,7 +284,7 @@ func TestConnWriteIsOnlyTheTerminalViewsConnection(t *testing.T) {
 	}
 }
 
-// ---- sync input (plan 026) ----
+// ---- sync input ----
 //
 // The fifth writer is the user's own keys, fanned out to the other terminals of a tab with sync on. It lives in syncinput.go
 // alone, behind the terminal view's own write, and nothing that types for the user can reach it.
@@ -437,7 +436,7 @@ func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	}
 }
 
-// The third way (plan 019): a suggestion's ⇥ / ⇧⇥. The frames are built only in keelclient/inject.go; SuggestInsert has one
+// The third way: a suggestion's ⇥ / ⇧⇥. The frames are built only in keelclient/inject.go; SuggestInsert has one
 // caller, (*workspace).insertSuggestion; the restore of the user's words (the only other thing in a suggestion that
 // writes bytes) one, (*workspace).restoreWords; and the two questions that go with it (detect, ask) are asked only by
 // the pane's suggestion code. Nothing hands SuggestInsert bytes: its argument names the suggestion, the option and ⇧.
@@ -500,7 +499,7 @@ func TestNoSuggestionCodeAddsAnEnter(t *testing.T) {
 	}
 }
 
-// Notes and runbooks (plan 020). The agent never writes either: a proposal is kept by one request, sent by one function,
+// Notes and runbooks. The agent never writes either: a proposal is kept by one request, sent by one function,
 // reached only from the card's Save button; a runbook step is an ordinary proposal and is typed only by the Type path that
 // every proposal takes. None of the files of these two features holds a writer, a way to open the Approve dialog, or a
 // second route to the typing path.
@@ -559,7 +558,7 @@ func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 	}
 }
 
-// ---- Groups (plan 021; docs/ui-redesign.md §6 rules 10 and 11) ----
+// ---- Groups (docs/ui-redesign.md §6 rules 10 and 11) ----
 //
 // One approval may type into several hosts' terminals, so the guards below are the ones a reviewer reads first. There is still
 // exactly one writer for a dialog's approval, ApprovedInject, called from the one place it was (approveType in approve.go);
@@ -751,7 +750,7 @@ func TestGroupCodeHasNoWriterAndNoWayToTypeExceptOpeningTheDialog(t *testing.T) 
 	}
 }
 
-// groupvars.test.mjs "run page: fill before approve, type the approved bytes": the fill is asked for after Type into N panes, its
+// Fill before approve, type the approved bytes: the fill is asked for after Type into N panes, its
 // answer goes onto the rows, and only then does the dialog open; Copy writes the saved command with the names in, never a value.
 func TestTheRunPageFillsBeforeTheDialogOpensAndCopyNeverWritesAValue(t *testing.T) {
 	src := sourceFiles(t)["grouprun.go"]
@@ -822,7 +821,7 @@ func TestTheClientNeverSubstitutesAValue(t *testing.T) {
 	}
 }
 
-// ---- notebooks (plan 023) ----
+// ---- notebooks ----
 
 var notebookFiles = []string{"notebooks.go", "notebookslogic.go", "notebooksview.go", "notebookpane.go", "notebookdialogs.go", "notebooktype.go"}
 
@@ -902,7 +901,7 @@ func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
 	}
 }
 
-// ---- notebooks and the agent (plan 024) ----
+// ---- notebooks and the agent ----
 
 var agentNotebookFiles = []string{"agentnotebooks.go", "agentnotebookslogic.go", "agentnotebooksview.go"}
 

@@ -34,7 +34,7 @@ func agentRig(t *testing.T) *rig {
 	return r
 }
 
-// ui/agentpanel.js width: the sash on the panel's left edge widens it by dragging left, keeps the width in keel-native.json,
+// The panel's width: the sash on the panel's left edge widens it by dragging left, keeps the width in keel-native.json,
 // steps with the arrow keys, goes back to the default on a double click, and the panel is never narrower than size-agent
 // nor wider than half the window.
 func TestTheAgentPanelsSashResizesItAndTheWidthIsKept(t *testing.T) {

@@ -4,8 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The group approve dialog drawn as groupApproveDialog (internal/ui/groupspage.templ) and paintApprove (cmd/keel/web/js/ui/
-// grouprun.js) with the .k-gx-approve rules of keel.css (docs/ui-redesign.md §17, §6 rule 10): the exact bytes once with their
+// The group approve dialog (docs/ui-redesign.md §17, §6 rule 10): the exact bytes once with their
 // line and byte count, then one row per host with a tick, the pane's tab and Production and ⇧ badges. Nothing is ticked in
 // advance unless there is only one host. The keyboard starts on Cancel, so a stray ↵ never types. Type is a click (⇧ held
 // when a ticked host needs it), or Tab and ↵ on it.
@@ -13,7 +12,6 @@ import (
 // After a Type each row that was reached shows what happened to it: "Typed." or keel serve's refusal, in its words. A row
 // that was reached is final: it cannot be ticked again and nothing is retried.
 
-// The webview's words.
 const (
 	groupApproveTitle = "Type into these panes?"
 	groupApproveHint  = "Tick each host to type into. Each one is checked and typed on its own. The current line in each pane is cleared first."
@@ -76,7 +74,7 @@ func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
 		ui.Row(c).FillWidth().Gap(space2).Justify(ui.End).Children(func() {
 			cancel := "Cancel"
 			if attempted {
-				cancel = "Close" // something was typed: the dialog no longer cancels anything
+				cancel = "Close"
 			}
 			if dialogBtn(c, cancel, btnGhost, &d.cancelH, false) {
 				open = false
@@ -108,7 +106,7 @@ func anyUsed(rows []*groupRow) bool {
 	return false
 }
 
-// groupApproveRow is one host: its tick, name, pane, badges and, as the app has them, its own bytes when they differ and
+// groupApproveRow is one host: its tick, name, pane, badges and its own bytes when they differ and
 // where its values came from.
 func (w *workspace) groupApproveRow(c *ui.Context, d *approveDialog, r *groupRow, same, sameUsed bool) {
 	g := d.group()

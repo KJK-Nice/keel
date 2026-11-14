@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 1 in real shells: two panes in each theme and three in a mixed split, the ring on the focused one.
+// In real shells: two panes in each theme and three in a mixed split, the ring on the focused one.
 func TestE2EPaneRing(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)

@@ -9,8 +9,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings · Agent drawn (internal/ui/pages.templ agentSettingsPanel, cmd/keel/web/js/lib/agentsettings.js and the
-// k-agent-card* rules of keel.css) as prefRows: the groups, controls, labels and help texts are the app's, in its order.
+// Settings · Agent drawn as prefRows.
 //
 // "Notes for the agent" (Your notes, Delete all notes) is notes.go's: the list saves each change at once, and Delete all notes
 // asks first.
@@ -137,7 +136,7 @@ func onOff(on bool) string {
 	return "off"
 }
 
-// switchCtl is a k-switch row control: the switch shows the saved value, and a press sends the new one.
+// switchCtl is a row control: the switch shows the saved value, and a press sends the new one.
 func (w *workspace) switchCtl(name string, value bool, set func(bool)) func(*ui.Context) {
 	return func(c *ui.Context) {
 		on := value
@@ -156,7 +155,7 @@ func sliderCtlStep(c *ui.Context, name string, v *float64, lo, hi, step float64,
 	})
 }
 
-// radioGroup is a k-radios group: one choice is on; a badge sits beside a choice's words; off greys the group.
+// radioGroup is a group of radios: one choice is on; a badge sits beside a choice's words; off greys the group.
 func radioGroup(c *ui.Context, name string, opts [][2]string, current string, off bool, badges map[string]string, pick func(string)) {
 	sel := current
 	ui.RadioGroup(c, func() {
@@ -190,7 +189,7 @@ func (w *workspace) providerCards(c *ui.Context, p *settingsPage, s keelclient.A
 	})
 }
 
-// providerCard is one provider as a card (agentsettings.js providerCardHTML): its name and role, what it is for, whether
+// providerCard is one provider as a card: its name and role, what it is for, whether
 // it is connected, Change key and Disconnect when it is, and the masked key field when it is not (or when Change key opens it).
 func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d keelclient.AgentProvider, configured bool) {
 	card := p.card(d.ID)

@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The group run page (docs/ui-redesign.md §17, board GroupRunbook; cmd/keel/web/js/ui/grouprun.js, internal/ui/groupspage.templ):
+// The group run page (docs/ui-redesign.md §17, board GroupRunbook):
 // one runbook walked across a folder's hosts, rolling or parallel. keel serve holds the run (at most 8, in its memory only) and
 // makes every proposal; this window shows it, asks keel serve every 1.5 s to read the shells' results and to make the current
 // step's due proposals for the panes this window has open and drives, and types — never by itself. Typing is the user's:
@@ -27,10 +27,9 @@ import (
 // Not built: one click typing a read-only one-line step into every pane with no dialog (§6 rule 13, "for review, not yet
 // accepted" in the spec): every group step goes through the dialog, which is the stricter path and always available.
 
-// groupRunEvery is how often the page asks keel serve to propose and to read results (grouprun.js POLL_MS).
+// groupRunEvery is how often the page asks keel serve to propose and to read results.
 const groupRunEvery = 1500 * time.Millisecond
 
-// The words of the page.
 const (
 	msgRunEnded     = "keel serve no longer holds this run (it ended with keel serve). Start a runbook from a group's page: Run a runbook on this group."
 	stopTitle       = "Stop this runbook?"
@@ -56,7 +55,7 @@ type groupRunPage struct {
 	width   float32 // the page's width as last drawn: under groupRunNarrow the steps go above the detail
 }
 
-// groupRunNarrow is #page-grouprun's container query (keel.css): under this width the steps sit above the detail.
+// groupRunNarrow: under this page width the steps sit above the detail.
 const groupRunNarrow = 760
 
 func (p *groupRunPage) load(w *workspace)                 { w.loadGroupRunPage() }
@@ -88,7 +87,7 @@ func (w *workspace) openGroupRun(run keelclient.GroupRun) {
 }
 
 // loadGroupRunPage reads the run the page is on again (the page was selected, or the vault changed): keel serve first reads
-// the results of typed steps from their panes' shell marks. A run keel serve no longer holds is said so.
+// the results of typed steps from their panes' shell marks. A run keel serve does not hold is said so.
 func (w *workspace) loadGroupRunPage() {
 	p := w.groupRunPageState()
 	if p == nil || p.id == "" {
@@ -129,7 +128,7 @@ func (w *workspace) groupPaneIDs() (out []string) {
 }
 
 // groupRunTick is one tick of the 1.5 s propose: it runs only while a run is active and shown by a tab, never while a call,
-// a fill or a Type is out, and never while the approve dialog is open (grouprun.js tick).
+// a fill or a Type is out, and never while the approve dialog is open.
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
 	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.typing || p.busy > 0 || w.approve != nil {
@@ -156,8 +155,8 @@ func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id 
 	if p.run == nil {
 		return
 	}
-	// Like the app's page, a second press while one call is out is a call of its own (keel serve takes them one at a time and
-	// refuses what no longer applies); only the newest answer is shown, which holds the earlier ones' effects.
+	// A second press while one call is out is a call of its own (keel serve takes them one at a time and
+	// refuses what does not apply); only the newest answer is shown, which holds the earlier ones' effects.
 	p.calls++
 	seq := p.calls
 	p.busy++
@@ -191,7 +190,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 	})
 }
 
-// askStopRun is Stop runbook: it asks first, with the app's words.
+// askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
 	w.askConfirm(&hostConfirm{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
 		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
@@ -208,7 +207,7 @@ func (w *workspace) openRunHost(hostID string) {
 	w.warn("Host not found")
 }
 
-// startGroupRun starts a run of the runbook on this folder, rolling (the app's default), and opens its page. keel serve fixes
+// startGroupRun starts a run of the runbook on this folder, rolling, and opens its page. keel serve fixes
 // the hosts per step; nothing is typed and no pane is read.
 func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	if p.run.busy {
@@ -283,7 +282,7 @@ func (w *workspace) typeGroupRun() {
 }
 
 // groupTyped takes the answers of a group Type: each reached row shows what happened to it, in keel serve's words, and is
-// final. When every row typed the dialog closes, as the app's does; when one was refused it stays, with that row's reason and
+// final. When every row typed the dialog closes; when one was refused it stays, with that row's reason and
 // the others' "Typed.", so the user sees each.
 func (w *workspace) groupTyped(d *approveDialog, g *approveGroup, jobs []typeJob, errs []error) {
 	typed := 0

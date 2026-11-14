@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 031 step 2, group 6: a wait that does not end at the model shows MyGo's spinner, named by the wait, and none shows
+// A wait that does not end at the model shows MyGo's spinner, named by the wait, and none shows
 // when nothing waits.
 func TestWaitsShowASpinner(t *testing.T) {
 	r := approveRig(t)
@@ -26,7 +26,7 @@ func TestWaitsShowASpinner(t *testing.T) {
 	}
 }
 
-// Plan 030 step 2: the theme is MyGo's, with the system accent and Keel's meaning colours.
+// The theme is MyGo's, with the system accent and Keel's meaning colours.
 
 // The palette's chrome, text and lines are MyGo's own themes' values, so a MyGo update that moves them is seen here.
 func TestPaletteIsMyGos(t *testing.T) {

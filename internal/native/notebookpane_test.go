@@ -103,8 +103,8 @@ func TestACopyPutsExactlyTheFencesCodeOnTheClipboard(t *testing.T) {
 	}
 }
 
-// The app's fence bar always has the Type button on a shell fence (notebook-editor.mjs: "Type into pane" with no terminal);
-// pressing it with no terminal beside the notebook says so and sends nothing (plan 025 changed this from "no button").
+// The fence bar always has the Type button on a shell fence ("Type into pane" with no terminal);
+// pressing it with no terminal beside the notebook says so and sends nothing.
 func TestWithNoTerminalBesideItAShellFenceHasATypeButtonThatSaysSplitATerminalFirst(t *testing.T) {
 	r := nbRig(t, twoFences)
 	r.w.openPage("notebooks")
@@ -122,7 +122,7 @@ func TestWithNoTerminalBesideItAShellFenceHasATypeButtonThatSaysSplitATerminalFi
 	if len(r.copyBtns()) != 3 {
 		t.Errorf("Copy buttons %q: Copy stays", r.copyBtns())
 	}
-	// Pressing it says what the app says and sends nothing.
+	// Pressing it says to split a terminal first and sends nothing.
 	r.click(t, fenceName("Type into pane", fs[0].Index))
 	r.frames(1)
 	if !r.tt.HasText("Split a terminal beside this notebook first") || len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approve != nil {
@@ -325,7 +325,7 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	}
 	r.click(t, "Cancel")
 	r.frames(2)
-	// The banner is there, with View changes, Undo and Mark reviewed (plan 024).
+	// The banner is there, with View changes, Undo and Mark reviewed.
 	if miss := r.lacks("Edited by the agent", agentEditReview, "Mark reviewed", "badge Edited by agent", "View changes", "Undo"); len(miss) > 0 {
 		t.Fatalf("banner lacks %q", miss)
 	}
@@ -624,7 +624,7 @@ func TestTheViewsCodeIsTheFencesCodeForTheSameBlock(t *testing.T) {
 	}
 }
 
-// A 256 KiB notebook in the text area: typing a character must not take more than 100 ms (plan 023 STOP 4).
+// A 256 KiB notebook in the text area: typing a character must not take more than 100 ms.
 func TestAHugeDocumentIsUsableInTheTextArea(t *testing.T) {
 	var sb strings.Builder
 	for sb.Len() < limits.MaxNotebookBytes-64 {

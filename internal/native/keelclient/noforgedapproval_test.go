@@ -11,8 +11,7 @@ import (
 
 // docs/ui-redesign.md §6 rule 1: the only grant to write a PTY for the user is the one-time nonce keel serve issues.
 // A client flag "approved" in a frame is never a grant (keel serve ignores it: httpapi's TestInjectNonceOneShotRejectsClientApprovedReplay),
-// and this client never sends one. This holds for the native client what the webview's test held for pty.js
-// ("client must not forge approved:true").
+// and this client never sends one.
 func TestNoFrameOfAnApprovedInjectCarriesAnApprovedFlag(t *testing.T) {
 	for _, opts := range [][]InjectOption{nil, {FromNotebook}} {
 		c, s := dialInject(t, "ready", "driver", nonceAnswer)

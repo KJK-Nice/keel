@@ -9,8 +9,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Recent conversations drawn (internal/ui/agent.templ #agent-sessions, agentthread.js sessionRowHTML and
-// sessionGroupsHTML; the k-agent-sessions* and k-agent-sess-* rules of keel.css): a popover under the header with a
+// Recent conversations drawn: a popover under the header with a
 // search, the Today / Yesterday / Older groups with counts, rows with title, host badges, time and "N proposals", Rename
 // and Delete on each row, and a footer with Open all in a tab, the retention note and Delete all.
 

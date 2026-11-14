@@ -7,13 +7,11 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11): the words and decisions of
-// cmd/keel/web/js/lib/grouprun.js and of fillRows and approveGroups in lib/groupvars.js, pinned there by
-// test/grouprun.test.mjs and test/groupvars.test.mjs and here by grouprunlogic_test.go and grouprun_test.go. Nothing here
+// The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11), pinned by grouprunlogic_test.go and
+// grouprun_test.go. Nothing here
 // talks to keel serve, draws or types. A row of the approve dialog holds bytes keel serve gave (the proposal's, or the
 // fill's); nothing here builds, edits or substitutes into them.
 
-// The words of the page (lib/grouprun.js).
 const (
 	modeHelpRolling  = "Rolling: one host at a time, in order. The first failure stops the step before the next host."
 	modeHelpParallel = "Parallel: every host at once. A failure does not stop the others. Best for read-only steps."
@@ -65,7 +63,7 @@ type cellText struct{ glyph, text, kind, state string }
 
 var cellGlyph = map[string]string{"done": "✓", "failed": "✗", "typed": "◌", "typing": "◌", "proposed": "·", "waiting": "·", "skipped": "–"}
 
-// cellView never says more than the shell reported (lib/grouprun.js cellView).
+// cellView never says more than the shell reported.
 func cellView(c *keelclient.GroupRunCell) cellText {
 	if c == nil {
 		return cellText{kind: "wait", state: "none"}

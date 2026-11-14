@@ -15,12 +15,12 @@ import (
 )
 
 // The New tab page (docs/ui-redesign.md §5.3): one input, the recent host cards, the Start actions and the
-// recently closed rows. The rules are lib/newtab.js and term.js (paintStartPage, openSession, submitStartInput).
+// recently closed rows.
 // Typing filters the saved hosts; a pasted ssh command, ssh:// URL or user@host:port is parsed by sshparse and
 // offered, never run. A New tab is not written to the saved workspace.
 
 const (
-	recentCards = 6 // lib/newtab.js RECENT_CARDS
+	recentCards = 6
 	closedShown = 3 // CLOSED_SHOWN
 	maxInput    = sshparse.MaxInput
 )
@@ -58,7 +58,7 @@ func (w *workspace) addStartTab() {
 	w.selectTab(len(w.tabs) - 1)
 }
 
-// settle keeps a tab in the window: with none left it shows a New tab (term.js settleTabs). It does nothing
+// settle keeps a tab in the window: with none left it shows a New tab. It does nothing
 // before the first listing has been read, or while the window says why it cannot work.
 func (w *workspace) settle() {
 	if len(w.tabs) == 0 && w.live && !w.closed && w.blocked == "" {
@@ -66,7 +66,7 @@ func (w *workspace) settle() {
 	}
 }
 
-const newTabLock = 300 * time.Millisecond // holding ⌘T must not open a tab per key repeat (term.js newTab)
+const newTabLock = 300 * time.Millisecond // holding ⌘T must not open a tab per key repeat
 
 // newTabKey is ⌘T, which a held key repeats: one tab per newTabLock.
 func (w *workspace) newTabKey() {
@@ -87,8 +87,8 @@ func (w *workspace) localHost() (keelclient.Host, bool) {
 	return keelclient.Host{}, false
 }
 
-// hostMatches is term.js hostMatches: the query is one needle, looked for in the host's name, group, the names of every
-// folder above it, address, user and tags (lib/groups.js hostSearchHay).
+// hostMatches: the query is one needle, looked for in the host's name, group, the names of every
+// folder above it, address, user and tags.
 func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 	needle := strings.ToLower(strings.TrimSpace(q))
 	if needle == "" {
@@ -97,7 +97,7 @@ func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 	return strings.Contains(hostSearchHay(groups, h), needle)
 }
 
-// pickCards is lib/newtab.js recentCards: up to six hosts. With no query they are the recent hosts and the
+// pickCards is up to six hosts. With no query they are the recent hosts and the
 // local shell first; with a query, every host that matches, recent ones first.
 func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []string, query string, local *keelclient.Host) []keelclient.Host {
 	byID := map[string]keelclient.Host{}
@@ -145,7 +145,7 @@ func (w *workspace) cards(p *startPage) []keelclient.Host {
 	return pickCards(w.folders, w.hosts, w.prefs.RecentHosts, p.query, local)
 }
 
-// ageLabel is lib/newtab.js ageLabel: "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".
+// ageLabel is "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".
 func ageLabel(at, now time.Time) string {
 	s := max(0, int(now.Sub(at).Seconds()))
 	if s < 60 {
@@ -194,7 +194,7 @@ func (w *workspace) closedRow(e closedEntry) string {
 
 // ---- the pasted command ----
 
-// targetText is lib/newtab.js targetText: "deploy@10.0.4.21:2222" (IPv6 gets brackets).
+// targetText is "deploy@10.0.4.21:2222" (IPv6 gets brackets).
 func targetText(r *sshparse.Result) string {
 	host := keelclient.BracketIPv6(r.Host)
 	port := ""
@@ -209,7 +209,7 @@ func targetText(r *sshparse.Result) string {
 }
 
 // offer is what the page shows under the input for the typed text: a read command (OK), an error, or nothing.
-// A half-typed user@host is not an error yet; ↵ makes it one (term.js startOfferHTML).
+// A half-typed user@host is not an error yet; ↵ makes it one.
 func (p *startPage) offer() (r *sshparse.Result, errText string) {
 	r = sshparse.ParseConnect(p.query)
 	switch {
@@ -223,7 +223,7 @@ func (p *startPage) offer() (r *sshparse.Result, errText string) {
 	return nil, r.Error
 }
 
-// sync resets what the typing resets (term.js: tab.pick = "", showError = false).
+// sync resets the pick and the error when the typing changes.
 func (p *startPage) sync(cards []keelclient.Host) {
 	if p.query != p.seen {
 		p.seen, p.pick, p.showError = p.query, "", false
@@ -238,7 +238,7 @@ func (p *startPage) sync(cards []keelclient.Host) {
 
 // ---- opening ----
 
-// openHost starts a session on h in a new tab, or in the New tab that is showing (term.js fillableStartTab).
+// openHost starts a session on h in a new tab, or in the New tab that is showing.
 func (w *workspace) openHost(h keelclient.Host) {
 	fill := w.tab()
 	if fill != nil && !fill.isNew() {
@@ -302,7 +302,7 @@ func (w *workspace) openCard(t *tab, n int) {
 	}
 }
 
-// submitStart is ↵ in the page's input (term.js submitStartInput): a read command opens New host filled from it
+// submitStart is ↵ in the page's input: a read command opens New host filled from it
 // (nothing is saved or connected until Save), a refused one shows its error, and otherwise the highlighted card, or
 // the first, opens.
 func (w *workspace) submitStart(t *tab) {

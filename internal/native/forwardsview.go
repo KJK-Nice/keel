@@ -9,8 +9,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Port forwarding page, the sidebar's Forwards section and the forward dialog, drawn as ForwardsPage,
-// tunnelRow, SidebarForwards and tunnelDialog (internal/ui) with the Logs page's table layout (logsview.go).
+// The Port forwarding page, the sidebar's Forwards section and the forward dialog, with the Logs page's table layout
+// (logsview.go).
 
 const (
 	fwdTypeCol    = 56
@@ -21,7 +21,7 @@ const (
 
 var fwdChips = [][2]string{{tunnelAll, "All"}, {tunnelRunning, "Running"}, {tunnelStopped, "Stopped"}}
 
-// tunnelMenu is tunnelRowMenu: Start or Stop, Copy local address, Edit, Delete.
+// tunnelMenu is Start or Stop, Copy local address, Edit, Delete.
 func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if tunnelState(t).on {
@@ -47,7 +47,7 @@ func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Me
 	}
 }
 
-// tunnelSwitch is the k-switch of a row: on while the forward runs or connects. A click starts or stops it; the
+// tunnelSwitch is the switch of a row: on while the forward runs or connects. A click starts or stops it; the
 // state shown is the server's, which the next read confirms.
 func (w *workspace) tunnelSwitch(c *ui.Context, t keelclient.Tunnel) {
 	on := tunnelState(t).on
@@ -70,7 +70,7 @@ func everyInterface(c *ui.Context) {
 func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 	ui.Column(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Children(func() {
 		pageHead(c, "Port forwarding", "Each forward opens its own SSH connection. It keeps running when you close the window.", func() {
-			if textBtnIcon(c, "add-01", "New forward", btnPrimary) { // k-btn--primary in the reference
+			if textBtnIcon(c, "add-01", "New forward", btnPrimary) {
 				w.act(w.newForward)
 			}
 		})
@@ -130,13 +130,13 @@ func (w *workspace) forwardsView(c *ui.Context, p *forwardsPage) {
 	})
 }
 
-// sideMatches is term.js sideMatches: every sidebar filter reads a text for the query, any case; blank keeps all.
+// sideMatches: every sidebar filter reads a text for the query, any case; blank keeps all.
 func sideMatches(text, q string) bool {
 	q = strings.ToLower(strings.TrimSpace(q))
 	return q == "" || strings.Contains(strings.ToLower(text), q)
 }
 
-// forwardRow is tunnelRow: the name, the -L / -R / -D badge, the route (and the Every interface badge), the host it
+// forwardRow is the name, the -L / -R / -D badge, the route (and the Every interface badge), the host it
 // goes through, the state (with Retry after a failure), the switch and the row menu.
 func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 	st := tunnelState(t)
@@ -178,7 +178,7 @@ func (w *workspace) shownSideTunnels() (out []keelclient.Tunnel) {
 	return out
 }
 
-// sidebarForwards is SidebarForwards: a row per forward (dot, name, route, switch, menu) and the two links.
+// sidebarForwards is a row per forward (dot, name, route, switch, menu) and the two links.
 func (w *workspace) sidebarForwards(c *ui.Context) {
 	ui.Column(c).FillWidth().Gap(space0_5).Children(func() {
 		shown := w.shownSideTunnels()
@@ -204,7 +204,7 @@ func (w *workspace) sidebarForwards(c *ui.Context) {
 
 func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
 	st := tunnelState(t)
-	// k-side-row: the item that opens the page, then the switch and the menu beside it (they are not inside the item).
+	// The item that opens the page, then the switch and the menu beside it (they are not inside the item).
 	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(t.ID)
 	hover := r.Hovered()
 	if hover {
@@ -222,7 +222,7 @@ func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
 			})
 		})
 		if item.Clicked() {
-			w.act(func() { w.openPage("forwards") }) // data-open-page="forwards"
+			w.act(func() { w.openPage("forwards") })
 		}
 		w.tunnelSwitch(c, t)
 	})
@@ -270,7 +270,7 @@ func (w *workspace) forwardDialogView(c *ui.Context) {
 				labeled(c, "Bind port", &d.bindPortH, func() { inputBox(c, "Bind port", &d.bindPort, "0", &d.bindPortH, true, false, 5, nil) })
 			})
 		})
-		if d.kind != "dynamic" { // data-tunnel-dest is hidden for SOCKS5
+		if d.kind != "dynamic" { // SOCKS5 has no target
 			ui.Row(c).FillWidth().Gap(space3).Children(func() {
 				ui.Column(c).Grow(1).Basis(0).Children(func() {
 					labeled(c, "Dest host", &d.destHostH, func() { inputBox(c, "Dest host", &d.destHost, "127.0.0.1", &d.destHostH, true, false, 0, nil) })
@@ -303,7 +303,7 @@ func (w *workspace) forwardDialogView(c *ui.Context) {
 	}
 }
 
-// forwardKeyView is the "Unknown host key" dialog of a forward that could not start (promptHostKey with a tunnel id).
+// forwardKeyView is the "Unknown host key" dialog of a forward that could not start.
 func (w *workspace) forwardKeyView(c *ui.Context) {
 	o := w.fwdKey
 	if o == nil {

@@ -50,7 +50,7 @@ import (
 // moment of the write. Restoring the user's own words after an insert (⌘Z) is RestoreWords, called only by
 // (*workspace).restoreWords.
 
-// The refusals, in the app's words.
+// The refusals, in the words shown to the user.
 var (
 	ErrNotDriver  = errors.New("You are following — take or request control to type") // this client is following
 	ErrNotReady   = errors.New("Session is not connected")                            // the session is not ready

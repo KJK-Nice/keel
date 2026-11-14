@@ -9,8 +9,8 @@ import (
 // The sidebar's width: a whole number of pixels from size-rail up to twice the default, 0 for the default (size-sidebar,
 // grown with the UI size), stepped by space-4, kept as sidebarWidth in keel-native.json.
 
-// sidebarMin is size-rail (208) in the app. Here the four section labels (Hosts, Panes 2, Snippets, Forwards) do not fit in
-// 208 at any UI size (plan 031 step 1), so the minimum is the width they need (measured: 246 at the default UI size, only a
+// sidebarLabelsMin: the four section labels (Hosts, Panes 2, Snippets, Forwards) do not fit in size-rail (208) at any UI
+// size, so the minimum is the width they need (measured: 246 at the default UI size, only a
 // little under the default 252), growing with the UI size as the labels do. The sidebar can be widened to twice the default
 // but hardly narrowed; TestSidebarSegmentLabelsFitAtEveryUISize holds the number.
 const sidebarLabelsMin = 246
@@ -59,7 +59,7 @@ func (w *workspace) sidebarSash(c *ui.Context) {
 	})
 }
 
-// The one sash (.k-agent-sash, sidebarresize.js): a strip on the edge of a panel whose width the user sets. The agent panel
+// The one sash: a strip on the edge of a panel whose width the user sets. The agent panel
 // has it on its left edge and the vault sidebar on its right. It is MyGo's drag and focus on a plain box because ui.Split
 // keeps only 40 DIPs from each edge and has no key steps, Home / End or saved width of the panel's own.
 

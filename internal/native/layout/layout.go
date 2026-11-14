@@ -1,5 +1,5 @@
 // Package layout is the split tree of one tab: a binary tree whose leaves are
-// panes, the same model as cmd/keel/web/js/lib/layout.js. It has no UI.
+// panes. It has no UI.
 package layout
 
 // Dir is how a split lays out its two children.
@@ -73,7 +73,7 @@ func (n *Node) Remove(pane string) *Node {
 	return n
 }
 
-// Swap exchanges the places of two panes of the tree (lib/layout.js swapLeaves): each keeps its split and ratio.
+// Swap exchanges the places of two panes of the tree: each keeps its split and ratio.
 func (n *Node) Swap(a, b string) {
 	if n == nil || a == b {
 		return
@@ -98,8 +98,7 @@ const (
 	Left, Right, Top, Bottom Edge = "left", "right", "top", "bottom"
 )
 
-// Beside takes pane out of the tree and puts it on an edge of target at ratio 0.5, as lib/workspace.js movePane does
-// (removeLeaf, then insertBeside): left and right split side by side, top and bottom stack, left and top put it first. It
+// Beside takes pane out of the tree and puts it on an edge of target at ratio 0.5: left and right split side by side, top and bottom stack, left and top put it first. It
 // returns the new root, or the tree unchanged and false when pane is the only leaf, pane is target, or either is unknown.
 func Beside(root *Node, pane, target string, edge Edge) (*Node, bool) {
 	has := func(id string) bool {
@@ -141,8 +140,7 @@ func Beside(root *Node, pane, target string, edge Edge) (*Node, bool) {
 	return put(rest), true
 }
 
-// Dock puts the whole tree in beside target's pane of root, on edge, at ratio 0.5 (lib/workspace.js dockTab: insertBeside with
-// the source tab's layout; "center" or no edge docks to the right). It returns the new root, or root unchanged and false when
+// Dock puts the whole tree in beside target's pane of root, on edge, at ratio 0.5 ("center" or no edge docks to the right). It returns the new root, or root unchanged and false when
 // target is not a leaf of root, in is nil or the two share a pane.
 func Dock(root, in *Node, target string, edge Edge) (*Node, bool) {
 	if root == nil || in == nil {

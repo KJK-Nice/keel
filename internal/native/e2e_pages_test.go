@@ -301,7 +301,7 @@ func TestE2EFirstRunSkipAndKeyCopy(t *testing.T) {
 		t.Fatal("Set up later left the first run open")
 	}
 
-	// The import comes back from the palette, as it does in the webview ("Import hosts from ~/.ssh/config").
+	// The import comes back from the palette ("Import hosts from ~/.ssh/config").
 	e.key(ui.Cmd, ui.KeyK)
 	e.pump(func() bool { return e.w.pal != nil }, "the palette")
 	e.tt.Type("Import hosts")

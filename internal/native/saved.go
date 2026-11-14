@@ -15,8 +15,7 @@ import (
 // The workspace comes back: the tabs, how each is split, the custom titles, the focused and zoomed pane
 // of each and the active tab are kept in <dataDir>/keel-native-workspace.json. It names sessions by their
 // keel serve id and holds nothing else: no host, address, user or secret, and no terminal content. It is
-// read and written only in the data dir. The webview keeps the same idea in localStorage
-// (cmd/keel/web/js/lib/savedworkspace.js).
+// read and written only in the data dir.
 
 const (
 	savedFile    = "keel-native-workspace.json"
@@ -35,8 +34,7 @@ type savedDoc struct {
 	// content is kept: a page reads the server when it opens.
 	Pages      []string `json:"pages,omitempty"`
 	ActivePage string   `json:"activePage,omitempty"`
-	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids, as the
-	// webview keeps them in localStorage): the pages open on them again while keel serve holds them.
+	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids): the pages open on them again while keel serve holds them.
 	GroupID string `json:"groupId,omitempty"`
 	RunID   string `json:"runId,omitempty"`
 }

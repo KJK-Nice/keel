@@ -8,8 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Every case of cmd/keel/web/js/test/suggest.test.mjs (16 tests), as Go. The card tests that asserted HTML are in
-// suggestview_test.go (the words and look of the card in the window).
+// The suggestion machine's cases. The words and look of the card in the window are in suggestview_test.go.
 
 func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) { // JS 1
 	cases := []struct {
@@ -149,7 +148,7 @@ type insertCall struct {
 func newHarness(t *testing.T) *harness {
 	// The machine's tests are written with ⌘.
 	usePlatform(t, "darwin")
-	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥ (plan 036)
+	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥
 	ok := insertResult{OK: true}
 	h.auto = &ok
 	h.m = newSugMachine(sugDeps{
@@ -292,7 +291,7 @@ func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) { // JS 9
 	}
 }
 
-// Esc on the notice is Keel's (the webview also passes it to the shell, which then eats the next key as Meta+key); the
+// Esc on the notice is Keel's, not the shell's (a shell given it would eat the next key as Meta+key); the
 // key typed right after goes to the session, and Esc with nothing showing stays the shell's.
 func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	h := newHarness(t)
@@ -451,7 +450,7 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // J
 	}
 }
 
-// Plan 036, "Only lines starting with #": a typed line without # is never sent anywhere; a # line is, and its notice
+// "Only lines starting with #": a typed line without # is never sent anywhere; a # line is, and its notice
 // takes ⇥. Nothing is asked while suggestions are off, and nothing is asked again after a pause for a line that was.
 func TestPrivacyOnlyHashLinesAreSentInHashMode(t *testing.T) {
 	h := newHarness(t)
@@ -583,7 +582,7 @@ func TestOffAtOnceDropsEverythingAndTheKeySaysSo(t *testing.T) {
 }
 
 // A request whose answer is lost does not stay loading: past suggestWait the card shows the error, ⇥ dismisses it, and a
-// late answer for it shows nothing (plan 036; before, nothing but a key ended the wait).
+// late answer for it shows nothing.
 func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")

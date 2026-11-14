@@ -6,8 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Keychain page drawn as KeychainPage and IdentityList (internal/ui) with .k-split, .k-item and .k-detail-* of
-// keel.css, and the detail of lib/vaultview.js identityDetailHTML.
+// The Keychain page: the identity list beside the selected identity's detail.
 
 // splitHead is the list column's head: the title with its New button, and the filter.
 func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *string, filterLabel string, h *ui.Handle, onNew func()) {
@@ -22,7 +21,7 @@ func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *str
 	})
 }
 
-// textBtnIcon is a small k-btn with an icon before its name.
+// textBtnIcon is a small button with an icon before its name.
 func textBtnIcon(c *ui.Context, glyph, name string, kind btnKind) bool {
 	b := ctlButton(c, name, "", kind)
 	fg := ink
@@ -127,7 +126,7 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 	}
 }
 
-// identityMenu is the row menu (rowmenus.templ identityRowMenu): Edit and Delete. Nothing in it shows or copies a
+// identityMenu is the row menu: Edit and Delete. Nothing in it shows or copies a
 // secret, and an identity a host still uses cannot be deleted.
 func (w *workspace) identityMenu(id keelclient.Identity) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
@@ -246,7 +245,7 @@ func (w *workspace) identityDialogView(c *ui.Context) {
 			segControl(c, "Kind", f.kind, [][2]string{{"password", "Password"}, {"key", "Private key"}}, func(v string) { f.kind = v })
 		})
 		if f.kind == "key" {
-			// A text area has no mask, and the webview's shows the key too: it is cleared when the dialog closes or
+			// A text area has no mask and shows the key: it is cleared when the dialog closes or
 			// the request is sent.
 			labeled(c, "Private key", &d.keyH, func() {
 				ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {

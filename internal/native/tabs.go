@@ -6,9 +6,8 @@ import (
 	"time"
 )
 
-// Tab and pane handling the webview has: focus view, closing tabs, the tab order, the recently closed
-// list and tab names. The words and rules are the webview's: lib/workspace.js, term.js, ui/tabmenu.js,
-// ui/tabrename.js, lib/newtab.js.
+// Tab and pane handling: focus view, closing tabs, the tab order, the recently closed
+// list and tab names.
 
 // dropPane ends p's session (Kill) and frees its terminal and connection. The caller removes it from its tab.
 func (w *workspace) dropPane(p *pane) {
@@ -83,7 +82,7 @@ func (w *workspace) closeTabs(ts []*tab) {
 	}
 }
 
-// Which tabs each item of the tab menu closes for tab i (ui/tabmenu.js run).
+// Which tabs each item of the tab menu closes for tab i.
 func (w *workspace) tabsOthers(t *tab) []*tab {
 	return slices.DeleteFunc(slices.Clone(w.tabs), func(o *tab) bool { return o == t })
 }
@@ -96,7 +95,7 @@ func (w *workspace) tabsRight(t *tab) []*tab {
 	return slices.Clone(w.tabs[i+1:])
 }
 
-// cycleTab shows the tab delta steps from the active one, wrapping at both ends (lib/keys.js tabCycleTarget).
+// cycleTab shows the tab delta steps from the active one, wrapping at both ends.
 func (w *workspace) cycleTab(delta int) {
 	if n := len(w.tabs); n > 0 {
 		w.selectTab((w.active + delta%n + n) % n)
@@ -171,15 +170,15 @@ func (w *workspace) endRename(ok bool) {
 
 // ---- recently closed ----
 
-const closedMax = 10 // lib/newtab.js CLOSED_MAX
+const closedMax = 10
 
-// closedEntry is a closed tab or pane: the host, the name and the time, nothing else (lib/newtab.js).
+// closedEntry is a closed tab or pane: the host, the name and the time, nothing else.
 type closedEntry struct {
 	hostID, title, kind string // kind is "tab" or "pane"
 	at                  time.Time
 }
 
-// recordClosed puts p first. An older entry for the same host and kind goes (lib/newtab.js pushClosed).
+// recordClosed puts p first. An older entry for the same host and kind goes.
 func (w *workspace) recordClosed(p *pane, kind string) {
 	if p == nil || p.host.ID == "" {
 		return
@@ -193,7 +192,7 @@ func (w *workspace) recordClosed(p *pane, kind string) {
 	w.keepClosed()
 }
 
-// keepClosed saves the recently closed list in keel-native.json (the app keeps it in localStorage, so the New tab page and
+// keepClosed saves the recently closed list in keel-native.json (so the New tab page and
 // ⌘⇧T know it after the window was closed): host ids, titles and times, off the UI thread.
 func (w *workspace) keepClosed() {
 	w.savePref("recently closed", keyClosedTabs, closedJSON(w.prefs.ClosedTabs))
@@ -203,7 +202,7 @@ func (w *workspace) keepClosed() {
 func (w *workspace) reopenClosed() { w.reopenClosedAt(w.tab(), 0) }
 
 // reopenClosedAt opens entry i of the closed list (the live ones, newest first): in the New tab t when that
-// is one, else in a new tab. The entry leaves the list (term.js reopenClosed).
+// is one, else in a new tab. The entry leaves the list.
 func (w *workspace) reopenClosedAt(t *tab, i int) {
 	list := w.closedList()
 	if i < 0 || i >= len(list) {
@@ -227,10 +226,9 @@ func (w *workspace) reopenClosedAt(t *tab, i int) {
 
 // ---- recent hosts ----
 
-const recentMax = 12 // term.js RECENT_MAX
+const recentMax = 12
 
-// rememberRecent puts a host first in the recent hosts and keeps the list in keel-native.json: ids only
-// (term.js rememberRecent).
+// rememberRecent puts a host first in the recent hosts and keeps the list in keel-native.json: ids only.
 func (w *workspace) rememberRecent(id string) {
 	if id == "" {
 		return
@@ -243,7 +241,7 @@ func (w *workspace) rememberRecent(id string) {
 // ---- terminal text size ----
 
 const (
-	termSizeMin, termSizeMax, termSizeDefault = 10, 22, 12 // term.js SIZE_MIN, SIZE_MAX, SIZE_DEFAULT
+	termSizeMin, termSizeMax, termSizeDefault = 10, 22, 12
 )
 
 // setTermSize sets the terminal font size of every pane, clamped, and keeps it in keel-native.json.

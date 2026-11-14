@@ -7,8 +7,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The rules of cmd/keel/web/js/lib/grouprun.js, case for case from test/grouprun.test.mjs, and fillRows / approveGroups /
-// sameSources from test/groupvars.test.mjs.
+// The rules of a group run, plus fillRows / approveGroups / sameSources.
 
 func tcell(hostID, state string, mut func(*keelclient.GroupRunCell)) keelclient.GroupRunCell {
 	c := keelclient.GroupRunCell{HostID: hostID, Host: strings.Replace(hostID, "h", "wk-", 1), State: state}
@@ -163,7 +162,7 @@ func TestRollingHaltSaysWhichHostsWereNotTouched(t *testing.T) { // "rolling hal
 	}
 }
 
-func TestFillRowsExactFilledBytesPerHostAFailedFillCannotBeTicked(t *testing.T) { // groupvars.test.mjs "fillRows: …"
+func TestFillRowsExactFilledBytesPerHostAFailedFillCannotBeTicked(t *testing.T) {
 	mk := func(id, host string, checked bool) *groupRow {
 		return &groupRow{proposalID: id, host: host, bytes: "\x15x {{t}}\n", checked: checked}
 	}

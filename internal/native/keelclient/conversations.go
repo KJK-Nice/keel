@@ -98,7 +98,7 @@ func (c *Client) ProposeAgain(ctx context.Context, conversationID, proposalID st
 	return out, err
 }
 
-// AgentRedact is the redaction options Settings · Agent sends whole, as the app does ({secrets, ips, hostnames}).
+// AgentRedact is the redaction options Settings · Agent sends whole ({secrets, ips, hostnames}).
 type AgentRedact struct {
 	Secrets   bool `json:"secrets"`
 	IPs       bool `json:"ips"`

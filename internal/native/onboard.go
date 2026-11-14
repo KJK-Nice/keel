@@ -10,8 +10,7 @@ import (
 )
 
 // The host import's rules (docs/ui-redesign.md §5.15): which hosts start ticked, what the table says about each,
-// what the request carries and the words around it. They are cmd/keel/web/js/lib/onboard.js, function by
-// function, with the cases of test/onboard.test.mjs in onboard_test.go. Nothing here reads a file or a key: keel
+// what the request carries and the words around it (onboard_test.go pins them). Nothing here reads a file or a key: keel
 // serve parses the ssh config and copies a key into the vault only when the request names it.
 
 // keyState is one key's copy switch and the passphrase typed for it. String leaves the passphrase out.

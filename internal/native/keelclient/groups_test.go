@@ -73,7 +73,7 @@ func TestRolesVariablesNotesAndTheExportAreTheAppsRequests(t *testing.T) {
 	if got, body := r.last(); got != "POST /api/agent/notes" || body != `{"groupId":"g1","hostId":"","text":"t"}` {
 		t.Fatalf("group note: %s %s", got, body)
 	}
-	// The export: the query is the app's, in its order.
+	// The export: the query is in a fixed order.
 	r.reply = `{"files":[{"name":"inventory.ini","kind":"inventory","content":"[g]\n","lines":1}]}`
 	files, err := r.c.GroupAnsible(ctx, "g1", AnsibleQuery{Format: "yaml", RunbookID: "rb 1", Mode: "parallel", Jump: true})
 	if err != nil || len(files) != 1 || files[0].Name != "inventory.ini" {

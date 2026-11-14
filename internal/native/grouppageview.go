@@ -8,7 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Group page drawn as GroupPage (internal/ui/groupspage.templ) with the k-gx-* rules of keel.css and groups.js: the head
+// The Group page: the head
 // (the folder's name, "Folder · N hosts · production", Run a runbook on this group, Export to Ansible), the role chips, the
 // hosts table (host, address, role, tags, agent), the group notes and the variables, and the export drawer beside the page.
 
@@ -94,7 +94,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 	})
 }
 
-// runbookGroupSub is "3 steps · Roles worker, control-plane" or "2 steps · Every host" (groups.js openMenu).
+// runbookGroupSub is "3 steps · Roles worker, control-plane" or "2 steps · Every host".
 func runbookGroupSub(b keelclient.Runbook) string {
 	var roles []string
 	seen := map[string]bool{}
@@ -345,7 +345,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 						ex.runbook = v
 						ex.file = 0
 						if v != "" {
-							ex.file = 1 // the playbook, as the app shows it
+							ex.file = 1 // the playbook
 						}
 						w.exportRefresh(p)
 					})
@@ -411,7 +411,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 					}
 				})
 			}
-			// Download (groups.js): the shown file's text, saved where the system's save dialog says. Nothing is written by
+			// Download: the shown file's text, saved where the system's save dialog says. Nothing is written by
 			// keel serve and nothing runs.
 			if textBtnOff(c, "Download", btnPrimary, ex.file >= len(ex.files)) {
 				w.act(func() {

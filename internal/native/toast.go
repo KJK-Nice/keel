@@ -9,10 +9,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Toasts: the results the webview shows with toast() (term.js, which calls tui.toast.add). The app's Toaster
-// (components/toast/toast.templ) sits at the bottom right, shows the newest three, keeps each for 5 s, and draws a
+// Toasts sit at the bottom right, show the newest three, keep each for 5 s, and draw a
 // failure with a status icon. MyGo keeps the queue, the timers (they stop while the pointer rests on a toast) and
-// the limit of three; this draws them with the Keel tokens. An action toast is the k-toast of actiontoast.js: a
+// the limit of three; this draws them with the Keel tokens. An action toast is a
 // title and one button that runs and closes it.
 
 const (

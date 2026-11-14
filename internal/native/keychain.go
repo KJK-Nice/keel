@@ -11,13 +11,12 @@ import (
 )
 
 // The Keychain page (docs/ui-redesign.md §5.11): the identities in the vault, SSH keys then passwords, with the
-// selected one beside the list. The words and rules are KeychainPage and IdentityList in internal/ui, identityDialog
-// in dialogs.templ, identityDetailHTML in lib/vaultview.js and the identity handlers in term.js.
+// selected one beside the list.
 //
 // What the page can show is what GET /api/identities says: the kind, the user, when it was added and whether a
 // secret is stored. It never holds or shows a private key, a passphrase or a password (keelclient.Identity has no
-// field for one). The fingerprint, public key, comment and algorithm badge of §5.11 are not in that answer and
-// not in the webview; they wait for a server change (docs/native.md).
+// field for one). The fingerprint, public key, comment and algorithm badge of §5.11 are not in that answer, so they
+// wait for a server change (docs/native.md).
 
 // keychainPage is the state of the Keychain tab.
 type keychainPage struct {
@@ -39,7 +38,7 @@ func (p *keychainPage) String() string {
 
 func (p *keychainPage) GoString() string { return p.String() }
 
-// identityKind is vaultview.js identityKind: anything but a key is a password.
+// identityKind is "Key" or "Password": anything but a key is a password.
 func identityKind(id keelclient.Identity) string {
 	if id.Kind == "key" {
 		return "key"
@@ -54,7 +53,7 @@ func identityKindLabel(id keelclient.Identity) string {
 	return "Password"
 }
 
-// identitiesOfKind is lists.templ identitiesOfKind.
+// identitiesOfKind lists the identities of one kind.
 func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Identity {
 	var out []keelclient.Identity
 	for _, id := range ids {
@@ -65,7 +64,7 @@ func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Ident
 	return out
 }
 
-// identityHostsOf are the hosts that sign in with id (vaultview.js identityHosts).
+// identityHostsOf are the hosts that sign in with id.
 func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	var out []keelclient.Host
 	for _, h := range hosts {
@@ -76,7 +75,7 @@ func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	return out
 }
 
-// identitySubtitle is the list line under an identity: kind, user, hosts (lists.templ identitySubtitle).
+// identitySubtitle is the list line under an identity: kind, user, hosts.
 func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
 	parts := []string{identityKindLabel(id)}
 	if id.Username != "" {
@@ -101,7 +100,7 @@ func (p *keychainPage) shown() []keelclient.Identity {
 	return out
 }
 
-// current is the identity the detail shows: the selected one, else the first (term.js syncIdentityPage).
+// current is the identity the detail shows: the selected one, else the first.
 func (p *keychainPage) current() (keelclient.Identity, bool) {
 	for _, id := range p.idents {
 		if id.ID == p.selected {
@@ -114,7 +113,7 @@ func (p *keychainPage) current() (keelclient.Identity, bool) {
 	return keelclient.Identity{}, false
 }
 
-// dateLabel is vaultview.js dateLabel in the form of logDateLabel: "Jan 2, 2006".
+// dateLabel is a date in the form of logDateLabel: "Jan 2, 2006".
 func dateLabel(id keelclient.Identity) string {
 	if id.CreatedAt.IsZero() {
 		return ""
@@ -251,8 +250,8 @@ func (w *workspace) saveIdentity() {
 
 // ---- delete ----
 
-// askDeleteIdentity is Delete identity: it asks first, with the webview's words. An identity a host still uses is
-// not asked about: the server would clear it from those hosts, so the page refuses (vaultview.js identityDetailHTML).
+// askDeleteIdentity is Delete identity: it asks first. An identity a host still uses is
+// not asked about: the server would clear it from those hosts, so the page refuses.
 func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 	if n := len(identityHostsOf(w.hosts, id.ID)); n > 0 {
 		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")

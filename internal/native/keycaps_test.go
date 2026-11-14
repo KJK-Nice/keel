@@ -91,7 +91,7 @@ func TestKeyCapsCoverTheElementsOfTheApp(t *testing.T) {
 		got[k]++
 	}
 	// Tabs 1 and 2, the sidebar toggle, + tab, New host, Settings, the focused pane's three tools (one pane each) and the
-	// W of the selected tab's close button (plan 025).
+	// W of the selected tab's close button.
 	for _, k := range []string{"1", "2", "B", "T", "N", ",", "⇧D", "⇧E", "⇧↵", "W"} {
 		if got[k] != 1 {
 			t.Errorf("cap %q drawn %d times, want 1 (all: %v)", k, got[k], got)

@@ -18,7 +18,7 @@ type iceAdder interface {
 }
 
 // iceQueue holds the host's ICE candidates until the offer has been applied (adding one fails before there is a
-// remote description); flush, which answerOffer calls, releases them (lib/sharemac.js createIceQueue).
+// remote description); flush, which answerOffer calls, releases them.
 type iceQueue struct {
 	pc    iceAdder
 	ready bool
@@ -54,7 +54,7 @@ type answerer interface {
 	LocalDescription() *webrtc.SessionDescription
 }
 
-// ErrUnverified is the refusal of an offer the key does not vouch for. Its words are the app's.
+// ErrUnverified is the refusal of an offer the key does not vouch for.
 var ErrUnverified = errors.New("host could not be verified: the link is wrong or the signal server tampered with the connection")
 
 // offer is the host's offer with its MAC; answer is what the joiner sends back.
@@ -62,8 +62,7 @@ type offer struct{ SDP, MAC string }
 type answer struct{ SDP, MAC string }
 
 // answerOffer is the joiner's half of the exchange: it refuses an offer whose MAC does not match the key (a signal
-// server in the middle) before it touches the peer, then answers and returns the answer to send, MAC included
-// (lib/sharemac.js answerOffer).
+// server in the middle) before it touches the peer, then answers and returns the answer to send, MAC included.
 func answerOffer(pc answerer, key string, o offer, ice *iceQueue) (answer, error) {
 	if !sharelink.CheckMAC(key, wire.SignalRoleHost, o.SDP, o.MAC) {
 		return answer{}, ErrUnverified

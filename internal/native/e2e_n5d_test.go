@@ -403,7 +403,7 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 		r.Body.Close()
 		return r.StatusCode == 200
 	}
-	// Stop asks first with the app's words; Cancel changes nothing.
+	// Stop asks first; Cancel changes nothing.
 	e.click("Stop runtime…")
 	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
 	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.") {

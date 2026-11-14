@@ -48,7 +48,7 @@ func NewAt(addr, token string) *Client {
 		slow: &http.Client{CheckRedirect: authtoken.NoRedirect}}
 }
 
-// Vault is GET /api/vault. Rev changes with every vault or tunnel change (the webview's stream carries it too).
+// Vault is GET /api/vault. Rev changes with every vault or tunnel change.
 type Vault struct {
 	Locked     bool   `json:"locked"`
 	NeedsSetup bool   `json:"needsSetup"`

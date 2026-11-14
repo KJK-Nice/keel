@@ -128,12 +128,12 @@ func TestRenameInlineEnterSendsAndEscLeavesTheTitle(t *testing.T) {
 func TestDeleteActsAtOnceAndDeleteAllAsksFirst(t *testing.T) {
 	r := savedRig(t)
 	r.openRecent(t)
-	r.click(t, "Delete Disk full") // as the app: one conversation is deleted without asking
+	r.click(t, "Delete Disk full") // one conversation is deleted without asking
 	r.tt.Frame()
 	if r.w.confirm != nil || !slices.Equal(r.fb.convs.deleted, []string{"c-old"}) || !r.tt.HasText("Conversation deleted") {
 		t.Fatalf("deleted %v, confirm %v", r.fb.convs.deleted, r.w.confirm)
 	}
-	if !r.w.agent.sessOpen { // the list stays open and repaints, as the app's does
+	if !r.w.agent.sessOpen { // the list stays open and repaints
 		t.Fatal("the list closed after a delete")
 	}
 
