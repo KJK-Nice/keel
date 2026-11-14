@@ -58,15 +58,6 @@ type hostTest struct {
 	res                *keelclient.TestResult
 }
 
-// hostConfirm is the confirm dialog that replaces the host dialog while it asks; the host dialog
-// comes back after.
-type hostConfirm struct {
-	title, message, action string
-	run                    func()
-	cancelH, actionH       ui.Handle
-	focused                bool // the keyboard has been put on Cancel
-}
-
 type hostDialog struct {
 	id     string           // "" for New host
 	saved  *keelclient.Host // the host being edited, as listed
@@ -78,10 +69,9 @@ type hostDialog struct {
 	key    *keelclient.KnownKey // the saved host key (Edit host)
 	nb     *notesEditor         // Notes for the agent: this host's (notes.go); empty until the host is saved
 
-	test    hostTest
-	confirm *hostConfirm
-	saving  bool
-	focus   bool
+	test   hostTest
+	saving bool
+	focus  bool
 
 	nameH, tagsH, addrH, portH, userH, startH, keepH, passH, keyH, phraseH ui.Handle
 }
@@ -313,7 +303,7 @@ func validStartup(cmd string) string { return limits.StartupCommandProblem(cmd) 
 // the line under the fields.
 func (w *workspace) saveHost() {
 	d := w.hostDlg
-	if d == nil || d.saving || d.confirm != nil {
+	if d == nil || d.saving || w.confirm != nil {
 		return
 	}
 	if msg := d.f.validate(); msg != "" {
@@ -379,12 +369,7 @@ func (w *workspace) askDeleteHost(h keelclient.Host) {
 		w.warn("Local Shell is part of the workspace and cannot be removed")
 		return
 	}
-	run := func() { w.deleteHost(h) }
-	if d := w.hostDlg; d != nil && d.id == h.ID {
-		d.confirm = &hostConfirm{title: "Confirm", message: "Remove " + h.Name + "?", action: "Remove", run: run}
-		return
-	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Remove " + h.Name + "?", action: "Remove", run: run})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Remove " + h.Name + "?", action: "Remove", run: func() { w.deleteHost(h) }})
 }
 
 // deleteHost deletes the host. Its open sessions are left as they are: they keep
@@ -434,11 +419,6 @@ func (w *workspace) setAgentReadable(h keelclient.Host, on bool) {
 	})
 }
 
-// ---- the confirm dialog ----
-
-// askConfirm shows a confirm dialog on its own (no host dialog under it).
-func (w *workspace) askConfirm(c *hostConfirm) { w.confirm = c }
-
 // ---- the host key line ----
 
 // askForgetKey is Forget host key: it asks first.
@@ -448,12 +428,12 @@ func (w *workspace) askForgetKey() {
 		return
 	}
 	name, host := d.saved.Name, d.key.Hostname
-	d.confirm = &hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Forget host key?",
 		message: "Keel forgets the saved key for " + name + " (" + host + "). The next connect shows the server's key and asks you to trust it again.",
 		action:  "Forget key",
 		run:     func() { w.forgetKey(d) },
-	}
+	})
 }
 
 func (w *workspace) forgetKey(d *hostDialog) {
@@ -637,11 +617,11 @@ func (w *workspace) trustTest() {
 		})
 	}
 	if replace {
-		d.confirm = &hostConfirm{
+		w.askConfirm(&confirmDialog{
 			title:   "Replace host key?",
 			message: "Replace the saved key for " + offer.Hostname + " with " + offer.Fingerprint + "? Only do this if you know the server was reinstalled.",
 			action:  "Replace key", run: send,
-		}
+		})
 		return
 	}
 	send()

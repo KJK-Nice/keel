@@ -48,7 +48,7 @@ func (w *workspace) setTermFont(v string) {
 		return
 	}
 	w.prefs.TermFont = v
-	w.savePref(keyTermFont, keyTermFont, v)
+	w.setPref(keyTermFont)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.fontFamily = termStack(v)

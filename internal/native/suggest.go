@@ -121,7 +121,7 @@ func insertGate(o *keelclient.SuggestOption, shift bool) (ok bool, reason string
 	switch {
 	case o == nil:
 		return false, "none"
-	case shiftMissing(o.NeedsShift, shift):
+	case o.NeedsShift && !shift:
 		return false, needsShiftReason
 	}
 	return true, ""

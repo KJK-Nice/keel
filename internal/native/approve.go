@@ -1,6 +1,7 @@
 package native
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -58,11 +59,23 @@ type approveDialog struct {
 	cancelH, typeH ui.Handle
 }
 
-// approveSource is where the dialog's bytes come from: exactly one of approveSnippet, approveNotebook, *approveAgent and
-// *approveGroup.
+// approveSource is where the dialog's bytes come from, and what differs between the sources: exactly one of
+// approveSnippet, approveNotebook, *approveAgent and *approveGroup. The group dialog has no pane of its own, draws its
+// own view (groupapproveview.go) and makes its own jobs (groupJobs), so words, prepare and answered are the one-pane
+// dialog's.
 type approveSource interface {
 	// shown is the text the dialog previews and Type sends, as it is now; false when it is gone (deleted elsewhere).
 	shown() (string, bool)
+	// words are the sentence under the title, the note under the bytes, and whether the bytes are drawn as glyphs.
+	words() (hint, note string, glyphs bool)
+	// sessionLine is the line after "Session:" for pane p.
+	sessionLine(p *pane) string
+	// prepare turns the one-pane job (Ctrl-U and the bytes shown) into this source's, or says why it cannot be typed.
+	prepare(j *typeJob, shown string) string
+	// answered takes keel serve's answer to a Type, and reports that the dialog closes whatever it was.
+	answered(err error) bool
+	// dropped is told the dialog closed with nothing typed; busy: a Type was still waiting.
+	dropped(busy bool)
 }
 
 // approveSnippet is a snippet's command (or any text the user chose to type): it is sent behind Ctrl-U.
@@ -78,6 +91,12 @@ func (s approveSnippet) shown() (string, bool) {
 	return cmd, ok
 }
 
+func (approveSnippet) words() (string, string, bool)   { return approveHint, "", false }
+func (approveSnippet) sessionLine(p *pane) string      { return paneSession(p) }
+func (approveSnippet) prepare(*typeJob, string) string { return "" }
+func (approveSnippet) answered(error) bool             { return false }
+func (approveSnippet) dropped(bool)                    {}
+
 // approveNotebook is a notebook fence (notebooktype.go): the bytes are the fence's line and a newline, with no Ctrl-U
 // and the inject carries notebook:true. note is the line under the bytes
 // when the agent edited the notebook and the user has not reviewed it (§6 rule 12).
@@ -86,14 +105,50 @@ type approveNotebook struct {
 	note string
 }
 
+func (n approveNotebook) words() (string, string, bool) { return approveHintNotebook, n.note, false }
+
+// prepare: a fence's bytes are the line and a newline, no Ctrl-U.
+func (approveNotebook) prepare(j *typeJob, shown string) string {
+	if cmdrule.HasPlaceholder(shown) { // keel serve refuses it too (the notebook-labelled inject)
+		return placeholderRefused
+	}
+	j.command, j.opts = shown, []keelclient.InjectOption{keelclient.FromNotebook}
+	return ""
+}
+
 // shown is the proposal's bytes as keel serve holds them: nothing is added, not even a newline.
 func (a *approveAgent) shown() (string, bool) { return a.source() }
 
-// shown is nothing: a group has no bytes of its own, each row has (groupRow.bytes).
-func (g *approveGroup) shown() (string, bool) { return "", true }
+// words: the bytes as the proposal card draws them, ^U, the command, ↵.
+func (a *approveAgent) words() (string, string, bool) { return approveHint, "", true }
+func (a *approveAgent) sessionLine(*pane) string      { return a.session }
 
-// agent and group are the source when it is an agent proposal or a group run, else nil.
-func (d *approveDialog) agent() *approveAgent { a, _ := d.src.(*approveAgent); return a }
+// prepare: the proposal's bytes already start with Ctrl-U and end with the newline.
+func (a *approveAgent) prepare(j *typeJob, shown string) string {
+	j.command = shown
+	j.ref = &keelclient.AgentRef{ConversationID: a.conv, ProposalID: a.proposal, Shift: a.shift}
+	return ""
+}
+
+// answered: keel serve's answer is final, shown on the card.
+func (a *approveAgent) answered(err error) bool { a.done(err); return true }
+func (a *approveAgent) dropped(bool)            { a.cancelled() }
+
+// shown is nothing: a group has no bytes of its own, each row has (groupRow.bytes).
+func (g *approveGroup) shown() (string, bool)           { return "", true }
+func (g *approveGroup) words() (string, string, bool)   { return "", "", false }
+func (g *approveGroup) sessionLine(*pane) string        { return "" }
+func (g *approveGroup) prepare(*typeJob, string) string { return "" }
+func (g *approveGroup) answered(error) bool             { return false }
+
+// dropped: the run is told only when no Type is out.
+func (g *approveGroup) dropped(busy bool) {
+	if g.cancelled != nil && !busy {
+		g.cancelled()
+	}
+}
+
+// group is the source when it is a group run, else nil.
 func (d *approveDialog) group() *approveGroup { g, _ := d.src.(*approveGroup); return g }
 
 // approveGroup is what the group approve dialog adds (docs/ui-redesign.md §6 rule 10, §17): one row per host, none ticked in
@@ -146,15 +201,12 @@ func (d *approveDialog) has() bool {
 	return ok
 }
 
-// session is the line after "Session:": the pane's subtitle, else its title.
-func (d *approveDialog) session() string {
-	if d.group() != nil {
-		return ""
-	}
-	if ag := d.agent(); ag != nil {
-		return ag.session
-	}
-	st := d.p.conn.Snapshot()
+// session is the line after "Session:".
+func (d *approveDialog) session() string { return d.src.sessionLine(d.p) }
+
+// paneSession is a pane's subtitle, else its title.
+func paneSession(p *pane) string {
+	st := p.conn.Snapshot()
 	switch {
 	case st.Subtitle != "":
 		return st.Subtitle
@@ -181,22 +233,16 @@ func (d *approveDialog) blocked() string {
 	return ""
 }
 
-// openApprove opens the dialog for pane p. It sends nothing. Opening it again replaces it.
-func (w *workspace) openApprove(p *pane, source func() (string, bool)) {
-	w.approve = &approveDialog{p: p, src: approveSnippet{source}, focus: true}
-}
-
-// fromNotebook says the dialog's text is a notebook fence's line, with the note under the bytes ("" for none).
-func (d *approveDialog) fromNotebook(note string) {
-	d.src = approveNotebook{d.src.(approveSnippet), note}
+// openApprove opens the dialog for pane p: a snippet's or a notebook fence's bytes. It sends nothing. Opening it again
+// replaces it.
+func (w *workspace) openApprove(p *pane, src approveSource) {
+	w.approve = &approveDialog{p: p, src: src, focus: true}
 }
 
 // openApproveAgent opens the dialog for an agent proposal in pane p, showing that pane's tab first so the approval names
 // the pane you can see. It sends nothing.
 func (w *workspace) openApproveAgent(p *pane, ag *approveAgent) {
-	if t := w.tabOf(p); t != nil && t != w.tab() {
-		w.selectTab(w.tabIndex(t))
-	}
+	w.showPane(p)
 	w.approve = &approveDialog{p: p, src: ag, focus: true}
 }
 
@@ -206,7 +252,7 @@ func (w *workspace) typeTarget() (*pane, string) {
 	t := w.tab()
 	if t == nil || len(t.panes) == 0 {
 		t = w.lastSession
-		if t == nil || !w.hasTab(t) || len(t.panes) == 0 {
+		if t == nil || !slices.Contains(w.tabs, t) || len(t.panes) == 0 {
 			return nil, msgNoSession
 		}
 	}
@@ -228,23 +274,14 @@ func (w *workspace) askType(source func() (string, bool)) {
 		w.say(why)
 		return
 	}
-	if t := w.tabOf(p); t != nil && t != w.tab() {
-		w.selectTab(w.tabIndex(t)) // the approval names the pane you can see
-	}
-	w.openApprove(p, source)
+	w.showPane(p) // the approval names the pane you can see
+	w.openApprove(p, approveSnippet{source})
 }
 
 // cancelApprove is Escape, Cancel and a click outside: the dialog closes, nothing is sent, and an agent card is told.
 func (w *workspace) cancelApprove() {
 	if d := w.approve; d != nil {
-		switch s := d.src.(type) {
-		case *approveAgent:
-			s.cancelled()
-		case *approveGroup:
-			if s.cancelled != nil && !d.busy {
-				s.cancelled()
-			}
-		}
+		d.src.dropped(d.busy)
 	}
 	w.closeApprove()
 }
@@ -287,16 +324,9 @@ func (w *workspace) approveType(shift bool) {
 			return
 		}
 		job := typeJob{conn: d.p.conn, command: clearLine + d.shown()}
-		switch s := d.src.(type) {
-		case approveNotebook: // a fence's bytes: the line and a newline, no Ctrl-U
-			if cmdrule.HasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
-				d.err = placeholderRefused
-				return
-			}
-			job.command, job.opts = d.shown(), []keelclient.InjectOption{keelclient.FromNotebook}
-		case *approveAgent:
-			job.command = d.shown() // the proposal's bytes already start with Ctrl-U and end with the newline
-			job.ref = &keelclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}
+		if msg := d.src.prepare(&job, d.shown()); msg != "" {
+			d.err = msg
+			return
 		}
 		jobs = []typeJob{job}
 	}
@@ -318,9 +348,7 @@ func (w *workspace) approveType(shift bool) {
 				return
 			}
 			err := errs[0]
-			if ag := d.agent(); ag != nil && w.approve == d {
-				// keel serve's answer is final, shown on the card: the dialog closes either way.
-				ag.done(err)
+			if w.approve == d && d.src.answered(err) {
 				w.closeApprove()
 				return
 			}
@@ -383,7 +411,7 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 	if len(pick) == 0 {
 		return nil
 	}
-	if shiftMissing(rowsNeedShift(pick), shift) {
+	if rowsNeedShift(pick) && !shift {
 		g.shiftHint = true
 		return nil
 	}
@@ -394,25 +422,4 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 			ref: &keelclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
 	}
 	return jobs
-}
-
-// hasTab, tabOf and tabIndex find where a pane or tab is.
-func (w *workspace) hasTab(t *tab) bool { return w.tabIndex(t) >= 0 }
-
-func (w *workspace) tabIndex(t *tab) int {
-	for i, o := range w.tabs {
-		if o == t {
-			return i
-		}
-	}
-	return -1
-}
-
-func (w *workspace) tabOf(p *pane) *tab {
-	for _, t := range w.tabs {
-		if t.panes[p.id] == p {
-			return t
-		}
-	}
-	return nil
 }

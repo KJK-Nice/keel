@@ -7,6 +7,15 @@ import (
 	"keel/internal/native/keelclient"
 )
 
+// A command whose group the Keyboard page does not list would have no row there.
+func TestEveryKeyboardPageGroupIsListed(t *testing.T) {
+	for _, c := range commands {
+		if c.help != nil && !slices.Contains(shortcutGroupNames, c.help.group) {
+			t.Errorf("%s is in group %q, which shortcutGroupNames does not list", c.id, c.help.group)
+		}
+	}
+}
+
 func TestSettingsFormatting(t *testing.T) {
 	for sec, want := range map[int64]string{5: "5 s", 125: "2 min", 3*3600 + 300: "3 h 05 min", 2*86400 + 4*3600: "2 d 4 h", -3: "0 s", 59: "59 s", 60: "1 min"} {
 		if got := uptimeText(sec); got != want {

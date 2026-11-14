@@ -136,7 +136,7 @@ func TestAJoinedTabAndATabWithNoTerminalCannotTurnSyncOn(t *testing.T) {
 	if nbOnly.sync {
 		t.Error("a tab of notebooks turned sync on")
 	}
-	if nbOnly.canSync() || (&tab{page: &startPage{}}).canSync() {
+	if nbOnly.canSync() || (&tab{start: &startPage{}}).canSync() {
 		t.Error("canSync is true where there is nothing to sync")
 	}
 	// Not offered in the palette either; offered in a session tab.

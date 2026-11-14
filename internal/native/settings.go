@@ -34,9 +34,7 @@ type settingsPage struct {
 	loaded   bool
 	loadFail string // the read failed: the sections show what they have
 
-	// The sliders are bound to floats; a change is told from the value last applied.
-	opacityV, blurV, sizeV, uiV                         float64
-	opacityApplied, blurApplied, sizeApplied, uiApplied int
+	sliders map[string]*sliderPos // by pref key (sliderSpecs)
 
 	name, signal         string // the two inputs while they are edited
 	nameH, signalH       ui.Handle
@@ -63,6 +61,14 @@ func newSettingsPage() *settingsPage {
 	return &settingsPage{section: "appearance", notes: notesEditor{user: true}}
 }
 
+// settingsPage is the open Settings tab's page, or nil.
+func (w *workspace) settingsPage() *settingsPage {
+	return pageAs[*settingsPage](w.pageTab(pageSettings))
+}
+
+// showSection shows section id, with the search cleared.
+func (p *settingsPage) showSection(id string) { p.section, p.search = id, "" }
+
 func (p *settingsPage) load(w *workspace) {
 	w.loadSettings()
 	if p.section == "agent" {
@@ -87,11 +93,10 @@ func (w *workspace) loadSettings() {
 		r.v, r.verr = w.be.Vault(c)
 		return r, nil
 	}, func(r read, _ error) {
-		t := w.pageTab("settings")
-		if t == nil {
+		p := w.settingsPage()
+		if p == nil {
 			return
 		}
-		p := pageAs[*settingsPage](t)
 		if r.rerr == nil {
 			p.rt = &r.rt
 		}
@@ -125,7 +130,7 @@ func (w *workspace) setOpacity(n int) {
 		return
 	}
 	w.prefs.Opacity = n
-	w.savePref(keyOpacity, keyOpacity, n)
+	w.setPref(keyOpacity)
 	if w.translucentWin {
 		w.alpha = alphaFor(n)
 	}
@@ -139,7 +144,7 @@ func (w *workspace) setUIPref(n int) {
 		return
 	}
 	w.prefs.UISize = n
-	w.savePref(keyUISize, keyUISize, n)
+	w.setPref(keyUISize)
 }
 
 func (w *workspace) setBlur(n int) {
@@ -148,7 +153,7 @@ func (w *workspace) setBlur(n int) {
 		return
 	}
 	w.prefs.Blur = n
-	w.savePref(keyBlur, keyBlur, n)
+	w.setPref(keyBlur)
 	w.applyBlur()
 }
 
@@ -170,7 +175,7 @@ func (w *workspace) setCopyOnSelect(on bool) {
 		return
 	}
 	w.prefs.CopyOnSelect = on
-	w.savePref(keyCopyOnSelect, keyCopyOnSelect, on)
+	w.setPref(keyCopyOnSelect)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.copyOnSelect = on
@@ -187,7 +192,7 @@ func (w *workspace) setRightClick(mode string) {
 		return
 	}
 	w.prefs.RightClick = mode
-	w.savePref(keyRightClick, keyRightClick, mode)
+	w.setPref(keyRightClick)
 }
 
 // setDisplayName: trimmed and cut to 40 characters; empty uses the default.
@@ -200,7 +205,7 @@ func (w *workspace) setDisplayName(v string) {
 		return
 	}
 	w.prefs.Name = v
-	w.savePref(keyDisplayName, keyDisplayName, v)
+	w.setPref(keyDisplayName)
 }
 
 // defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else
@@ -257,10 +262,10 @@ func (w *workspace) commitSignal(p *settingsPage) {
 // askStopRuntime is Stop runtime…: it asks first, with the session count it knows.
 func (w *workspace) askStopRuntime() {
 	n := w.paneCount()
-	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil && p.rt != nil {
+	if p := w.settingsPage(); p != nil && p.rt != nil {
 		n = p.rt.Sessions
 	}
-	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
+	w.askConfirm(&confirmDialog{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
 // staleRuntimeNotice is the warning shown when keel serve is from another build.
@@ -298,22 +303,48 @@ func (w *workspace) stopRuntime() {
 
 // ---- the sliders ----
 
-// syncSliders tells a slider the user moved from a value changed elsewhere (⌘+ for the text size) and applies the first.
-func (w *workspace) syncSliders(p *settingsPage) {
-	step := func(v *float64, applied *int, current int, apply func(int)) {
-		if n := int(math.Round(*v)); n != *applied { // the user moved it: applied when the frame is built, so the next one paints it
-			*applied = n
-			w.act(func() { apply(n) })
-			return
-		}
-		if current != *applied { // changed elsewhere
-			*applied, *v = current, float64(current)
+// sliderSpecs are the Settings sliders: the integer pref each shows (its range and value, intPrefs) and the setter a move
+// calls, in the order a frame applies them.
+var sliderSpecs = []struct {
+	key string
+	set func(w *workspace, n int)
+}{
+	{keyOpacity, (*workspace).setOpacity},
+	{keyBlur, (*workspace).setBlur},
+	{keyTermSize, (*workspace).setTermSize},
+	{keyUISize, (*workspace).setUIPref},
+}
+
+// sliderPos is where a slider is: it is bound to a float, and a move is told from the value last applied.
+type sliderPos struct {
+	v       float64
+	applied int
+}
+
+// intPref is the integer pref with that key.
+func intPref(key string) (lo, hi int, field func(*prefsDoc) *int) {
+	for _, e := range intPrefs {
+		if e.key == key {
+			return e.min, e.max, e.field
 		}
 	}
-	step(&p.opacityV, &p.opacityApplied, w.prefs.Opacity, w.setOpacity)
-	step(&p.blurV, &p.blurApplied, w.prefs.Blur, w.setBlur)
-	step(&p.sizeV, &p.sizeApplied, w.prefs.TermSize, w.setTermSize)
-	step(&p.uiV, &p.uiApplied, w.prefs.UISize, w.setUIPref)
+	panic("no int pref " + key)
+}
+
+// syncSliders tells a slider the user moved from a value changed elsewhere (⌘+ for the text size) and applies the first.
+func (w *workspace) syncSliders(p *settingsPage) {
+	for _, s := range sliderSpecs {
+		pos := p.sliders[s.key]
+		_, _, field := intPref(s.key)
+		if n := int(math.Round(pos.v)); n != pos.applied { // the user moved it: applied when the frame is built, so the next one paints it
+			pos.applied = n
+			w.act(func() { s.set(w, n) })
+			continue
+		}
+		if current := *field(&w.prefs); current != pos.applied { // changed elsewhere
+			pos.applied, pos.v = current, float64(current)
+		}
+	}
 }
 
 // hasBlur reports a window that has the blur row (macOS only, as data-blur-only).
@@ -321,8 +352,16 @@ func hasBlur() bool { return isMac() }
 
 // initSliders gives the sliders the current values when the page is made.
 func (w *workspace) initSliders(p *settingsPage) {
-	p.opacityV, p.opacityApplied = float64(w.prefs.Opacity), w.prefs.Opacity
-	p.blurV, p.blurApplied = float64(w.prefs.Blur), w.prefs.Blur
-	p.sizeV, p.sizeApplied = float64(w.prefs.TermSize), w.prefs.TermSize
-	p.uiV, p.uiApplied = float64(w.prefs.UISize), w.prefs.UISize
+	p.sliders = map[string]*sliderPos{}
+	for _, s := range sliderSpecs {
+		_, _, field := intPref(s.key)
+		n := *field(&w.prefs)
+		p.sliders[s.key] = &sliderPos{float64(n), n}
+	}
+}
+
+// prefSlider is the slider of an integer pref, named name; over draws over its value (a key cap while ⌘ is held).
+func (w *workspace) prefSlider(c *ui.Context, p *settingsPage, key, name string, over ...func()) {
+	lo, hi, field := intPref(key)
+	sliderCtl(c, name, &p.sliders[key].v, float64(lo), float64(hi), *field(&w.prefs), over...)(c)
 }

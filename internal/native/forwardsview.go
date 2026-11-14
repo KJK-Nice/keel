@@ -197,7 +197,7 @@ func (w *workspace) sidebarForwards(c *ui.Context) {
 			w.act(w.newForward)
 		}
 		if textBtn(c, "Manage forwards", btnGhost) {
-			w.act(func() { w.openPage("forwards") })
+			w.act(func() { w.openPage(pageForwards) })
 		}
 	})
 }
@@ -222,7 +222,7 @@ func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
 			})
 		})
 		if item.Clicked() {
-			w.act(func() { w.openPage("forwards") })
+			w.act(func() { w.openPage(pageForwards) })
 		}
 		w.tunnelSwitch(c, t)
 	})

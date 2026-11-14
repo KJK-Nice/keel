@@ -137,7 +137,7 @@ func (p *groupPage) restore(w *workspace, d *savedDoc) {
 }
 
 // groupPageState is the page of the Group tab, or nil.
-func (w *workspace) groupPageState() *groupPage { return pageAs[*groupPage](w.pageTab("group")) }
+func (w *workspace) groupPageState() *groupPage { return pageAs[*groupPage](w.pageTab(pageGroup)) }
 
 // openGroupPage opens the folder's page (the folder menu's Roles and runbooks, the palette's Group …), or shows it in the
 // tab that is open: one instance. runMenu also opens its "Run a runbook on this group" list.
@@ -146,9 +146,9 @@ func (w *workspace) openGroupPage(id string, runMenu bool) {
 		w.warn("Group not found")
 		return
 	}
-	t := w.pageTab("group")
+	t := w.pageTab(pageGroup)
 	if t == nil {
-		t = w.addPageTab("group")
+		t = w.addPageTab(pageGroup)
 	}
 	p := pageAs[*groupPage](t)
 	if p.id != id {

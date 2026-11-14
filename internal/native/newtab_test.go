@@ -120,7 +120,7 @@ func (r *rig) onPage(t *testing.T) {
 }
 
 func cardNames(r *rig) (out []string) {
-	for _, h := range r.w.cards(r.w.activeTab().page) {
+	for _, h := range r.w.cards(r.w.activeTab().start) {
 		out = append(out, h.Name)
 	}
 	return
@@ -138,7 +138,7 @@ func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 			setUISize(size)
 			r.w.prefs.UISize = size
 			r.tt.SetSize(width, 720)
-			r.w.activeTab().page.query = "production" // the card of a host that is not a recent one
+			r.w.activeTab().start.query = "production" // the card of a host that is not a recent one
 			r.tt.Frame()
 			r.tt.Frame()
 			card, ok := r.tt.Find("start card " + long.Name)
@@ -285,10 +285,10 @@ func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
 	r.tt.Key(ui.Alt, ui.Key6)
 	r.tt.Type("º")
 	r.tt.Frame()
-	if len(r.fb.spawned) != 0 || r.w.activeTab().page.query != "ab" {
-		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.activeTab().page.query)
+	if len(r.fb.spawned) != 0 || r.w.activeTab().start.query != "ab" {
+		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.activeTab().start.query)
 	}
-	r.w.activeTab().page.query = ""
+	r.w.activeTab().start.query = ""
 	r.tt.Frame()
 	r.tt.Key(ui.Alt, ui.Key2)
 	r.tt.Type("™")
@@ -318,8 +318,8 @@ func TestTypingFiltersTheCardsAndEnterOpensTheHighlightedOne(t *testing.T) {
 	r.press(0, ui.KeyBackspace)
 	r.press(0, ui.KeyBackspace)
 	r.press(0, ui.KeyDown) // srv-1, srv-2, ...: ↓ highlights the next card
-	if r.w.activeTab().page.pick != "h2" {
-		t.Fatalf("pick %q", r.w.activeTab().page.pick)
+	if r.w.activeTab().start.pick != "h2" {
+		t.Fatalf("pick %q", r.w.activeTab().start.pick)
 	}
 	r.press(0, ui.KeyEnter)
 	if !slices.Equal(r.fb.spawned, []string{"h2"}) {

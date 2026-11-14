@@ -17,11 +17,14 @@ func (w *workspace) activeTab() *tab { return w.tab() }
 func (w *workspace) approveOpen() bool          { return w.approve != nil }
 func (w *workspace) approveDlg() *approveDialog { return w.approve }
 
+// agent is the dialog's source when it is an agent proposal, else nil.
+func (d *approveDialog) agent() *approveAgent { a, _ := d.src.(*approveAgent); return a }
+
 // confirmOpen is whether a confirm dialog (the host menu's Delete, a delete in the agent panel...) is showing;
 // confirmDlg is it, nil when it is not; dismissConfirm closes it without running its action.
-func (w *workspace) confirmOpen() bool        { return w.confirm != nil }
-func (w *workspace) confirmDlg() *hostConfirm { return w.confirm }
-func (w *workspace) dismissConfirm()          { w.confirm = nil }
+func (w *workspace) confirmOpen() bool          { return w.confirm != nil }
+func (w *workspace) confirmDlg() *confirmDialog { return w.confirm }
+func (w *workspace) dismissConfirm()            { w.confirm = nil }
 
 // allTabs is every tab, left to right; appendTab adds one a test built by hand, without selecting it.
 func (w *workspace) allTabs() []*tab  { return w.tabs }

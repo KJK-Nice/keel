@@ -1262,7 +1262,7 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.key(ui.Cmd, ui.KeyT)
 	e.pump(func() bool { return e.w.tabCount() == 2 && e.w.tabAt(1).isNew() && e.onStartPage() }, "a New tab")
 	local, _ := e.w.localHost()
-	if cards := e.w.cards(e.w.activeTab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
+	if cards := e.w.cards(e.w.activeTab().start); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
 		t.Fatalf("cards %v recents %v", cards, e.w.prefs.RecentHosts)
 	}
 	e.pump(func() bool { return slices.Equal(loadPrefs(dir).RecentHosts, []string{local.ID}) }, "the recent hosts in keel-native.json")
@@ -1321,7 +1321,7 @@ func TestE2ENewTabLongHostCards(t *testing.T) {
 	}
 	e := newWin(t, addr, dir, nil)
 	e.pump(e.onStartPage, "the New tab page")
-	e.w.activeTab().page.query = "eu-central"
+	e.w.activeTab().start.query = "eu-central"
 	for _, th := range []string{themeDark, themeLight} {
 		e.w.setTheme(th)
 		e.pump(func() bool {

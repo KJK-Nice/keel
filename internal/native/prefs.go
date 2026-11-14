@@ -32,7 +32,7 @@ const (
 )
 
 // prefsDoc is the whole of keel-native.json, loaded once when the window starts. The workspace owns it as w.prefs and
-// changes a field with the setter for it, which writes the key through savePref.
+// changes a field with the setter for it, which writes the key through setPref.
 type prefsDoc struct {
 	Opacity int // 30–100; 100 is opaque
 	Blur    int // 0–64, macOS only, used below 100
@@ -199,18 +199,79 @@ func (p prefsDoc) collapsedList() []string {
 
 func (p prefsDoc) alpha() float32 { return float32(p.Opacity) / 100 }
 
-// savePref writes one key of keel-native.json off the UI thread, leaving every other key as it is; what names the
-// setting in the toast shown when the write fails ("save <what>"). Nothing is written without a data directory.
-func (w *workspace) savePref(what, key string, v any) {
-	dir := w.dataDir
-	if dir == "" {
+// prefKeys is what each key writes, read from w.prefs, and the setting it names in the toast shown when the write fails
+// ("save <title>").
+var prefKeys = map[string]struct {
+	title string
+	value func(*prefsDoc) any
+}{
+	keyOpacity:      {"the window opacity", func(p *prefsDoc) any { return p.Opacity }},
+	keyBlur:         {"the blur", func(p *prefsDoc) any { return p.Blur }},
+	keyTermSize:     {"the text size", func(p *prefsDoc) any { return p.TermSize }},
+	keyUISize:       {"the UI size", func(p *prefsDoc) any { return p.UISize }},
+	keyTheme:        {"the theme", func(p *prefsDoc) any { return p.Theme }},
+	keyTermFont:     {"the terminal font", func(p *prefsDoc) any { return p.TermFont }},
+	keyCopyOnSelect: {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
+	keyRightClick:   {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
+	keyDisplayName:  {"the display name", func(p *prefsDoc) any { return p.Name }},
+	keySidebarWidth: {"the sidebar width", func(p *prefsDoc) any { return p.SidebarWidth }},
+	keyAgentWidth:   {"the agent panel width", func(p *prefsDoc) any { return p.AgentWidth }},
+	keyAgentPanel:   {"the agent panel", func(p *prefsDoc) any { return p.AgentPanel }},
+	keyCollapsed:    {"the closed folders", func(p *prefsDoc) any { return p.collapsedList() }},
+	keyRecentHosts:  {"recent hosts", func(p *prefsDoc) any { return slices.Clone(p.RecentHosts) }},
+	keyClosedTabs:   {"recently closed", func(p *prefsDoc) any { return closedJSON(p.ClosedTabs) }},
+}
+
+// prefWrites holds the keys set since the last write. One write at a time takes all of them, so the file always ends
+// with the value set last, and a burst of sets (a slider, a sash drag) is one write.
+type prefWrites struct {
+	write   sync.Mutex // held from taking the keys to the end of their write
+	mu      sync.Mutex // guards pending
+	pending map[string]any
+}
+
+// setPref writes key of keel-native.json, as w.prefs holds it now, off the UI thread, leaving every other key as it
+// is. Nothing is written without a data directory.
+func (w *workspace) setPref(key string) {
+	if w.dataDir == "" {
 		return
 	}
-	w.work(func() {
-		if err := savePrefs(dir, map[string]any{key: v}); err != nil {
-			w.post(func() { w.fail("save "+what, err) })
-		}
-	})
+	v := prefKeys[key].value(&w.prefs)
+	s := &w.prefWrites
+	s.mu.Lock()
+	queued := s.pending != nil
+	if !queued {
+		s.pending = map[string]any{}
+	}
+	s.pending[key] = v
+	s.mu.Unlock()
+	if !queued {
+		w.work(func() {
+			if what, err := w.flushPrefs(); err != nil {
+				w.post(func() { w.fail(what, err) })
+			}
+		})
+	}
+}
+
+// flushPrefs writes the keys set since the last write, now. what names them for a failed write.
+func (w *workspace) flushPrefs() (what string, err error) {
+	s := &w.prefWrites
+	s.write.Lock()
+	defer s.write.Unlock()
+	s.mu.Lock()
+	set := s.pending
+	s.pending = nil
+	s.mu.Unlock()
+	if len(set) == 0 {
+		return "", nil
+	}
+	titles := []string{}
+	for k := range set {
+		titles = append(titles, prefKeys[k].title)
+	}
+	slices.Sort(titles)
+	return "save " + strings.Join(titles, ", "), savePrefs(w.dataDir, set)
 }
 
 var prefsMu sync.Mutex

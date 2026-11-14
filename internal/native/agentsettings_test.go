@@ -176,7 +176,7 @@ func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
 
 func TestSettingsAgentScrollbackLinesRangeAndRequest(t *testing.T) {
 	r := agentSettingsRig(t)
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
+	p := r.w.settingsPage()
 	if p.linesV != 200 {
 		t.Fatalf("the slider starts at %v: it shows what keel serve holds", p.linesV)
 	}
@@ -277,7 +277,7 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 	r.click(t, "Anthropic API key input")
 	r.tt.Type(fakeProviderKey)
 	r.tt.Frame()
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
+	p := r.w.settingsPage()
 	if p.card("anthropic").field != fakeProviderKey {
 		t.Fatal("the field did not take the key")
 	}

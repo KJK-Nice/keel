@@ -260,20 +260,18 @@ func (w *workspace) paletteItems() []palItem {
 	// a second session.
 	for i, t := range w.tabs {
 		n := i + 1
-		keys := ""
-		switch {
-		case i < 8:
-			keys = tabKeyLabel(n)
-		case i == len(w.tabs)-1:
-			keys = tabKeyLabel(9)
-		}
+		keys := tabKeyLabel(i, len(w.tabs))
 		focusTab := func() { w.selectTab(i) }
 		switch t.mode() {
 		case modeNew:
 			items = append(items, palItem{group: "Open now", title: "New tab", hint: fmt.Sprintf("tab %d", n), keys: keys, icon: "add-01", run: func(bool) { focusTab() }})
 			continue
 		case modePage:
-			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: t.pg.paletteTag, run: func(bool) { focusTab() }})
+			glyph := ""
+			if t.pg.openNowIcon {
+				glyph = t.pg.tabIcon
+			}
+			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: glyph, run: func(bool) { focusTab() }})
 			continue
 		}
 		leaves := t.root.Leaves()

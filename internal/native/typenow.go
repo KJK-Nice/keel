@@ -40,9 +40,7 @@ const reviewHold = 1500 * time.Millisecond
 
 // typeNow types s.line into p without the dialog when keel serve allows it, and opens the dialog otherwise.
 func (w *workspace) typeNow(p *pane, s typeSource) {
-	if t := w.tabOf(p); t != nil && t != w.tab() {
-		w.selectTab(w.tabIndex(t)) // the pane you can see
-	}
+	w.showPane(p)               // the pane you can see
 	alt, promptLine := true, "" // a pane whose screen is unknown is read as the alternate screen, never as a prompt
 	if p.screen != nil {
 		alt, promptLine = p.screen()

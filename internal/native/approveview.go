@@ -34,16 +34,11 @@ func (w *workspace) approveView(c *ui.Context) {
 	if d == nil {
 		return
 	}
-	hint, note, glyphs := approveHint, "", false
-	switch s := d.src.(type) {
-	case *approveGroup:
+	if d.group() != nil {
 		w.groupApproveView(c, d)
 		return
-	case approveNotebook:
-		hint, note = approveHintNotebook, s.note
-	case *approveAgent: // the bytes as the proposal card draws them: ^U, the command, ↵
-		glyphs = true
 	}
+	hint, note, glyphs := d.src.words()
 	open := true
 	why := d.blocked() // driver only, and the session ready: else Type is off and this says why
 	shown := d.shown() // what is typed after Ctrl-U: the same call as Type makes

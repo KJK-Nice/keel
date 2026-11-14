@@ -240,7 +240,7 @@ func (t *tab) onlyNotebooks() bool { return len(t.panes) > 0 && t.firstTerm() ==
 // placeNotebook shows a notebook pane: beside the terminal of a session tab, else in a tab of its own.
 func (w *workspace) placeNotebook(np *pane) {
 	t := w.tab()
-	if t != nil && (t.mode() == modeSession || t.mode() == modeNotebooks) && t.root != nil && len(t.panes) > 0 {
+	if t != nil && t.mode().local() && t.root != nil && len(t.panes) > 0 {
 		sibling := t.firstTerm()
 		if sibling == nil {
 			sibling = t.panes[t.focused]
@@ -409,13 +409,18 @@ func (w *workspace) flushNotebooksNow() {
 		}
 		n.auto.begin()
 		c, cancel := ctx()
+		var err error
 		if n.id == "" {
-			_, _ = w.be.CreateNotebook(c, n.payload())
+			_, err = w.be.CreateNotebook(c, n.payload())
 		} else {
-			_, _ = w.be.SaveNotebook(c, n.id, n.payload())
+			_, err = w.be.SaveNotebook(c, n.id, n.payload())
 		}
 		cancel()
 		n.auto.end()
+		if err != nil {
+			n.failed = true
+			w.warn(nbErr(err, "Could not save notebook"))
+		}
 	}
 }
 
@@ -523,7 +528,7 @@ func (w *workspace) askDeleteNotebook(id string) {
 	if !ok {
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete notebook “" + notebookName(rec) + "”?", action: "Remove", run: func() { w.deleteNotebook(id, false) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete notebook “" + notebookName(rec) + "”?", action: "Remove", run: func() { w.deleteNotebook(id, false) }})
 }
 
 // deleteNotebook deletes after the user confirmed. Pending edits land first (a save after the delete would put the notebook
@@ -536,7 +541,7 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 			case err == nil:
 				w.removeNotebook(id)
 			case !permanent && keelclient.IsHistoryRefusal(err):
-				w.askConfirm(&hostConfirm{title: "Delete permanently", action: "Delete permanently",
+				w.askConfirm(&confirmDialog{title: "Delete permanently", action: "Delete permanently",
 					message: "Keel cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
 					run:     func() { w.deleteNotebook(id, true) }})
 			default:

@@ -687,7 +687,7 @@ func TestStopRunbookAsksFirstWithTheAppsWords(t *testing.T) {
 	if cf == nil || cf.action != stopAction || cf.title != stopTitle {
 		t.Fatalf("confirm %+v", cf)
 	}
-	r.w.endConfirm(true)
+	r.w.endConfirm()
 	cf.run()
 	r.tt.Frame()
 	if !slices.Contains(r.fb.grp.runReqs, "stop") || !r.tt.HasText("Runbook stopped at step 1.") {

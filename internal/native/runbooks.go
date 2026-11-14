@@ -495,7 +495,9 @@ func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
 	return e
 }
 
-func (w *workspace) runbooksPage() *runbooksPage { return pageAs[*runbooksPage](w.pageTab("runbooks")) }
+func (w *workspace) runbooksPage() *runbooksPage {
+	return pageAs[*runbooksPage](w.pageTab(pageRunbooks))
+}
 
 // loadRunbooks reads the list (GET /api/agent/runbooks). The editor is read again from it unless the user has changed it.
 func (w *workspace) loadRunbooks() {
@@ -549,7 +551,7 @@ func (w *workspace) leaveEditor(p *runbooksPage, then func()) {
 		then()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
+	w.askConfirm(&confirmDialog{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
 }
 
 func (w *workspace) newRunbook() {
@@ -619,7 +621,7 @@ func (w *workspace) askDeleteRunbook() {
 		p.closeEditor()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
+	w.askConfirm(&confirmDialog{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
 		run: func() { w.deleteRunbook(e.id) }})
 }
 
@@ -772,4 +774,4 @@ func (w *workspace) rbKeys(ev ui.InputEvent) {
 }
 
 // openRunbooksPage is the palette's Runbooks.
-func (w *workspace) openRunbooksPage() { w.openPage("runbooks") }
+func (w *workspace) openRunbooksPage() { w.openPage(pageRunbooks) }

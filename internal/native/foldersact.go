@@ -147,7 +147,7 @@ func (w *workspace) askDeleteFolder(id string) {
 	if !ok {
 		return
 	}
-	w.askConfirm(&hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Confirm",
 		message: "Remove group " + g.Name + "? Hosts and subgroups move up one level.",
 		action:  "Remove",
@@ -176,7 +176,7 @@ func (w *workspace) setCollapsed(key string, on bool) {
 	} else {
 		delete(w.prefs.Collapsed, key)
 	}
-	w.savePref("the closed folders", keyCollapsed, w.prefs.collapsedList())
+	w.setPref(keyCollapsed)
 }
 
 // ---- host and folder drops ----

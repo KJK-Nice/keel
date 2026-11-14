@@ -126,7 +126,7 @@ func dateLabel(id keelclient.Identity) string {
 // loadIdentities reads the identities (and with them the hosts, so that "Used by" is as the server has it).
 func (w *workspace) loadIdentities() {
 	call(w, w.be.Identities, func(ids []keelclient.Identity, err error) {
-		t := w.pageTab("keychain")
+		t := w.pageTab(pageKeychain)
 		if t == nil {
 			return
 		}
@@ -240,7 +240,7 @@ func (w *workspace) saveIdentity() {
 		if w.identDlg == d {
 			w.closeIdentityDialog()
 		}
-		if t := w.pageTab("keychain"); t != nil && d.id == "" {
+		if t := w.pageTab(pageKeychain); t != nil && d.id == "" {
 			pageAs[*keychainPage](t).selected = saved.ID
 		}
 		w.say("Identity saved")
@@ -257,7 +257,7 @@ func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
 }
 
 func (w *workspace) deleteIdentity(id keelclient.Identity) {

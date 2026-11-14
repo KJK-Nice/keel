@@ -3,7 +3,6 @@ package native
 import (
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -209,14 +208,14 @@ func init() {
 					continue
 				}
 				keys := ""
-				if k.name == "settings" {
-					keys = commandByID("settings").keyLabel()
+				if k.cmd != "" {
+					keys = commandKeyLabel(k.cmd)
 				}
 				rows = append(rows, vaultRow(k.title, keys, "", func(w *workspace) { w.openPage(k.name) }, w))
 			}
 			return rows
 		}}},
-		{id: "settings", key: &chord{mods: ui.Cmd, key: ui.KeyComma, glyph: ","}, run: func(w *workspace) { w.openPage("settings") }, help: &helpSpec{"Vault", "Settings"}},
+		{id: "settings", key: &chord{mods: ui.Cmd, key: ui.KeyComma, glyph: ","}, run: func(w *workspace) { w.openPage(pageSettings) }, help: &helpSpec{"Vault", "Settings"}},
 		{id: "pane.splitr", key: cmdShiftKey(ui.KeyD, "D"), run: func(w *workspace) { w.splitFocused(layout.Row) },
 			menuSep: true, menu: &menuSpec{"File", "Split Right", 7}, pal: &palSpec{section: "Panes", title: "Split right", icon: "split-h"}, help: &helpSpec{"Panes", "Split right"}},
 		{id: "pane.splitd", key: cmdShiftKey(ui.KeyE, "E"), run: func(w *workspace) { w.splitFocused(layout.Col) },
@@ -256,6 +255,19 @@ func commandByID(id string) *command {
 		}
 	}
 	panic("no command " + id)
+}
+
+// capLabel is a command's key as the cap shows it while ⌘ is held: the key, with ⇧ or ⌥ when they are part of it ("B", "⇧D").
+func capLabel(id string) string {
+	k := commandByID(id).key
+	s := ""
+	if k.mods&ui.Shift != 0 && !k.shiftImplied {
+		s += "⇧"
+	}
+	if k.mods&ui.Alt != 0 {
+		s += "⌥"
+	}
+	return s + k.glyph
 }
 
 // commandKeyLabel is the key cap text of a command on this platform.
@@ -314,5 +326,10 @@ func (c *command) accel() string {
 	return ""
 }
 
-// tabKeyLabel is the cap of the key that selects tab number n (1 to 9).
-func tabKeyLabel(n int) string { return (&chord{mods: ui.Cmd, glyph: strconv.Itoa(n)}).label() }
+// tabKeyLabel is the cap of the key that selects tab i of n, "" when none does (tabKey).
+func tabKeyLabel(i, n int) string {
+	if d := tabKey(i, n); d != "" {
+		return (&chord{mods: ui.Cmd, glyph: d}).label()
+	}
+	return ""
+}

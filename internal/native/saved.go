@@ -83,7 +83,7 @@ func (s *saveState) stop() {
 func (w *workspace) snapshot() savedDoc {
 	d := savedDoc{V: savedVersion, Tabs: []savedTab{}}
 	for i, t := range w.tabs {
-		if t.pg != nil {
+		if t.isPage() {
 			d.Pages = append(d.Pages, t.pg.name)
 			if i == w.active {
 				d.ActivePage = t.pg.name

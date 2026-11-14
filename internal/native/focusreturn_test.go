@@ -16,13 +16,13 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := approveRig(t)
 			ran := false
-			cf := &hostConfirm{title: "Confirm", message: "Remove x?", action: "Remove", run: func() { ran = true }}
+			cf := &confirmDialog{title: "Confirm", message: "Remove x?", action: "Remove", run: func() { ran = true }}
 			if name == "standalone" {
 				r.w.askConfirm(cf)
 			} else {
 				r.w.newHost()
 				r.tt.Frame()
-				r.w.hostDlg.confirm = cf
+				r.w.askConfirm(cf)
 			}
 			r.tt.Frame()
 			r.tt.Frame()
@@ -36,7 +36,7 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 			if ran {
 				t.Fatal("↵ on open ran the destructive action")
 			}
-			if r.w.confirmOpen() || (r.w.hostDlg != nil && r.w.hostDlg.confirm != nil) {
+			if r.w.confirmOpen() {
 				t.Error("↵ on Cancel did not close the confirm")
 			}
 		})
@@ -114,7 +114,7 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 		r.tt.Frame()
 		r.tt.Frame()
 		if len(r.fb.conns) < 2 {
-			t.Skip("the split opened no second session in this rig")
+			t.Fatal("the split opened no second session")
 		}
 		r.tt.Frame()
 		if !r.tt.Focused("body 2") {

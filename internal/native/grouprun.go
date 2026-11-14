@@ -66,7 +66,7 @@ func (p *groupRunPage) restore(_ *workspace, d *savedDoc) { p.id = d.RunID }
 
 // groupRunPageState is the page of the Group run tab, or nil.
 func (w *workspace) groupRunPageState() *groupRunPage {
-	return pageAs[*groupRunPage](w.pageTab("grouprun"))
+	return pageAs[*groupRunPage](w.pageTab(pageGroupRun))
 }
 
 // openGroupRun opens the run's page, or shows it in the tab that is open: one instance.
@@ -74,16 +74,16 @@ func (w *workspace) openGroupRun(run keelclient.GroupRun) {
 	if run.ID == "" {
 		return
 	}
-	t := w.pageTab("grouprun")
+	t := w.pageTab(pageGroupRun)
 	if t == nil {
-		t = w.addPageTab("grouprun")
+		t = w.addPageTab(pageGroupRun)
 	}
 	p := pageAs[*groupRunPage](t)
 	if p.id != run.ID {
 		*p = groupRunPage{}
 	}
 	p.id, p.title, p.run, p.loaded, p.err = run.ID, "Run · "+run.Name, &run, true, ""
-	w.openPage("grouprun")
+	w.openPage(pageGroupRun)
 }
 
 // loadGroupRunPage reads the run the page is on again (the page was selected, or the vault changed): keel serve first reads
@@ -192,7 +192,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 
 // askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
-	w.askConfirm(&hostConfirm{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
+	w.askConfirm(&confirmDialog{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
 		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
 	}})
 }

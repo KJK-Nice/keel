@@ -129,12 +129,12 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	wantPixel(t, "title bar at 66", r.tt.Image(), 900, 10, chrome, 0.66)
 	r.w.showPage("settings")
 	r.tt.Frame()
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
-	if p.opacityV != 66 || p.blurV != 20 || p.sizeV != 12 {
-		t.Fatalf("the sliders start at %v %v %v", p.opacityV, p.blurV, p.sizeV)
+	p := r.w.settingsPage()
+	if p.sliders[keyOpacity].v != 66 || p.sliders[keyBlur].v != 20 || p.sliders[keyTermSize].v != 12 {
+		t.Fatalf("the sliders start at %v %v %v", p.sliders[keyOpacity].v, p.sliders[keyBlur].v, p.sliders[keyTermSize].v)
 	}
 	// Window opacity 80: the grounds repaint at 0.8 at once, the file has opacity 80 and every other field.
-	p.opacityV = 80
+	p.sliders[keyOpacity].v = 80
 	r.tt.Frame()
 	wantPixel(t, "title bar at 80", r.tt.Image(), 900, 10, chrome, 0.8)
 	f := r.prefsFile(t)
@@ -146,20 +146,20 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 	// Blur 40: saved, applied.
 	if hasBlur() {
-		p.blurV = 40
+		p.sliders[keyBlur].v = 40
 		r.tt.Frame()
 		if string(r.prefsFile(t)["blur"]) != "40" || blurs[len(blurs)-1] != 40 {
 			t.Errorf("blur %v %v", r.prefsFile(t)["blur"], blurs)
 		}
 	}
 	// Crossing 100 paints the grounds opaque and clears the blur; going back brings both again.
-	p.opacityV = 100
+	p.sliders[keyOpacity].v = 100
 	r.tt.Frame()
 	wantPixel(t, "title bar at 100", r.tt.Image(), 900, 10, chrome, 1)
 	if blurs[len(blurs)-1] != 0 || r.w.alpha != 1 {
 		t.Errorf("at 100: alpha %v blurs %v", r.w.alpha, blurs)
 	}
-	p.opacityV = 50
+	p.sliders[keyOpacity].v = 50
 	r.tt.Frame()
 	wantPixel(t, "title bar at 50", r.tt.Image(), 900, 10, chrome, 0.5)
 	if r.w.alpha != 0.5 || blurs[len(blurs)-1] == 0 {
@@ -168,10 +168,10 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	// Text size is shared with ⌘+ and ⌘-: the slider follows them and they follow it.
 	r.tt.Key(ui.Cmd, ui.KeyEqual)
 	r.tt.Frame()
-	if p.sizeV != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
-		t.Errorf("after ⌘+: slider %v file %s", p.sizeV, r.prefsFile(t)["termSize"])
+	if p.sliders[keyTermSize].v != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
+		t.Errorf("after ⌘+: slider %v file %s", p.sliders[keyTermSize].v, r.prefsFile(t)["termSize"])
 	}
-	p.sizeV = 18
+	p.sliders[keyTermSize].v = 18
 	r.tt.Frame()
 	if r.w.prefs.TermSize != 18 || r.w.tabAt(0).panes["1"].fontSize != 18 {
 		t.Errorf("the slider left the text size at %d (pane %v)", r.w.prefs.TermSize, r.w.tabAt(0).panes["1"].fontSize)
@@ -217,8 +217,8 @@ func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
 func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	r := settingsRig(t, settingsBackend()) // translucentWin is false: the window started opaque
 	r.w.prefs.Opacity = 100
-	p := pageAs[*settingsPage](r.w.pageTab("settings"))
-	p.opacityV = 70
+	p := r.w.settingsPage()
+	p.sliders[keyOpacity].v = 70
 	r.tt.Frame()
 	if r.w.alpha != 1 {
 		t.Errorf("an opaque window painted translucent grounds: alpha %v", r.w.alpha)

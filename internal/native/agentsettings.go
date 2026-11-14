@@ -49,7 +49,7 @@ func (p *settingsPage) card(id string) *keyCard {
 // loadAgentSettings reads the settings and the providers (GET /api/agent/settings, /api/agent/providers).
 func (w *workspace) loadAgentSettings() {
 	a := w.agent
-	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+	if p := w.settingsPage(); p != nil {
 		w.loadNotes(&p.notes) // Notes for the agent: the user's own
 	}
 	type read struct {
@@ -223,7 +223,7 @@ func (w *workspace) askDisconnect(id string) {
 	if d, ok := w.providerFor(id); ok {
 		name = d.Name
 	}
-	w.askConfirm(&hostConfirm{title: "Disconnect " + name + "?", message: disconnectMessage(id, name), action: "Disconnect", run: func() { w.disconnect(id, name) }})
+	w.askConfirm(&confirmDialog{title: "Disconnect " + name + "?", message: disconnectMessage(id, name), action: "Disconnect", run: func() { w.disconnect(id, name) }})
 }
 
 func (w *workspace) disconnect(id, name string) {
@@ -232,7 +232,7 @@ func (w *workspace) disconnect(id, name string) {
 			w.warn(errText("Could not disconnect", err))
 			return
 		}
-		if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		if p := w.settingsPage(); p != nil {
 			*p.card(id) = keyCard{}
 		}
 		w.say(name + " disconnected")
@@ -242,7 +242,7 @@ func (w *workspace) disconnect(id, name string) {
 
 // askDeleteHistory is Settings · Agent's Delete all history: it asks first.
 func (w *workspace) askDeleteHistory() {
-	w.askConfirm(&hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Delete all history?",
 		message: "Every agent conversation is forgotten, including the ones saved in the vault, in every window. The log entries that say what the agent read stay in Logs.",
 		action:  "Delete all history", run: w.deleteHistory,

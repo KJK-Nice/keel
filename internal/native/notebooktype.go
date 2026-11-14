@@ -56,6 +56,5 @@ func (w *workspace) askNotebookType(term, np *pane, line string) {
 	if rec, ok := w.notebook(np.nb.id); ok && rec.AgentUnreviewed {
 		note = unreviewedNote
 	}
-	w.openApprove(term, func() (string, bool) { return line, true })
-	w.approve.fromNotebook(note)
+	w.openApprove(term, approveNotebook{approveSnippet{func() (string, bool) { return line, true }}, note})
 }

@@ -18,7 +18,7 @@ func callIf[T any](w *workspace, wanted func() bool, do func(context.Context) (T
 		defer cancel()
 		v, err := do(c)
 		w.post(func() {
-			if w.closed || (wanted != nil && !wanted()) {
+			if fresh := wanted == nil || wanted(); w.closed || !fresh { // wanted is asked even after close: callOnce clears its flag there
 				return
 			}
 			done(v, err)
@@ -33,18 +33,10 @@ func callOnce[T any](w *workspace, busy *bool, wanted func() bool, do func(conte
 		return
 	}
 	*busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		v, err := do(c)
-		w.post(func() {
-			*busy = false
-			if w.closed || (wanted != nil && !wanted()) {
-				return
-			}
-			done(v, err)
-		})
-	})
+	callIf(w, func() bool {
+		*busy = false
+		return wanted == nil || wanted()
+	}, do, done)
 }
 
 // callErr is call for a request that answers with an error only.

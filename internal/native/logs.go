@@ -177,7 +177,7 @@ func (w *workspace) loadLogs() { w.readLogs(new(bool), false) }
 // unreported.
 func (w *workspace) readLogs(busy *bool, quiet bool) {
 	callOnce(w, busy, nil, func(c context.Context) ([]keelclient.LogEntry, error) { return w.be.Logs(c, logsLimit) }, func(entries []keelclient.LogEntry, err error) {
-		t := w.pageTab("logs")
+		t := w.pageTab(pageLogs)
 		switch {
 		case t == nil:
 		case err == nil:

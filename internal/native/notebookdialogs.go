@@ -180,7 +180,7 @@ func (w *workspace) nbAskPurge(d *nbDialog) {
 	if trash {
 		title, msg = "Delete forever", purgeNotebook
 	}
-	w.askConfirm(&hostConfirm{title: title, message: msg, action: "Delete", run: func() { w.nbPurge(d, vid) }})
+	w.askConfirm(&confirmDialog{title: title, message: msg, action: "Delete", run: func() { w.nbPurge(d, vid) }})
 }
 
 func (w *workspace) nbPurge(d *nbDialog, vid string) {

@@ -25,7 +25,7 @@ const (
 
 // startPageView is the stage for a New tab.
 func (w *workspace) startPageView(c *ui.Context, t *tab) {
-	p := t.page
+	p := t.start
 	cards := w.cards(p)
 	p.sync(cards)
 	offer, offerErr := p.offer()
@@ -73,7 +73,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 					})
 				case q != "" && offer == nil && offerErr == "":
 					if emptySide(c, emptySpec{icon: "search-01", title: "No saved host matches “" + q + "”", desc: "Paste an ssh command to connect, or save it as a host.", action: "Clear filter"}) {
-						w.act(func() { t.page.query = "" })
+						w.act(func() { t.start.query = "" })
 					}
 				}
 				w.section(c, "Start", "", func() {
@@ -103,7 +103,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 }
 
 func (w *workspace) startHead(c *ui.Context, t *tab) {
-	p := t.page
+	p := t.start
 	ui.Column(c).FillWidth().Gap(space2).Children(func() {
 		ui.Text(c, "Where to?").TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold).MaxLines(1)
 		ui.Row(c).FillWidth().Height(startInputH).Padding(0, space2, 0, space3).Gap(space3).Radius(radiusMd).
@@ -162,7 +162,7 @@ func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 
 // card is one recent host: its tile, name and address, the live count and the ⌥ number.
 func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
-	p := t.page
+	p := t.start
 	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(surface)).Label("start card " + h.Name).Cursor(ui.CursorPointer)
 	border := line
 	switch {

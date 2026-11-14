@@ -1,6 +1,7 @@
 package native
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -73,7 +74,7 @@ func (w *workspace) joinRemote(l joinpeer.Link) {
 					w.closeTab(t)
 					goto open
 				}
-				w.selectTab(w.tabIndex(t))
+				w.selectTab(slices.Index(w.tabs, t))
 				return
 			}
 		}

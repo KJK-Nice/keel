@@ -215,7 +215,7 @@ func (w *workspace) deleteNote(e *notesEditor, id string) {
 
 // askDeleteAllNotes is Delete all notes: it asks first.
 func (w *workspace) askDeleteAllNotes() {
-	w.askConfirm(&hostConfirm{
+	w.askConfirm(&confirmDialog{
 		title:   "Delete all notes?",
 		message: "Every host note and every note about you is deleted from the vault. Conversations and the log stay.",
 		action:  "Delete all notes",
@@ -234,7 +234,7 @@ func (w *workspace) deleteAllNotes() {
 			return
 		}
 		w.say("Notes deleted")
-		if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil {
+		if p := w.settingsPage(); p != nil {
 			w.loadNotes(&p.notes)
 		}
 		if d := w.hostDlg; d != nil && d.nb != nil {
