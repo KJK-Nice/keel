@@ -16,11 +16,11 @@ func (c *Conn) ApplyFrame(data []byte) { c.control(data) }
 func (c *Conn) Notify(e Event) { c.push(e) }
 
 // Mark sets the status and its message as they are, empty included (a frame never clears them).
-func (c *Conn) Mark(status, message string) {
+func (c *Conn) Mark(status wire.Status, message string) {
 	c.mu.Lock()
 	changed := c.state.Status != status || c.state.Message != message
 	c.state.Status, c.state.Message = status, message
-	if status == string(wire.StatusReady) {
+	if status == wire.StatusReady {
 		c.state.WasReady = true
 	}
 	fn := c.onChange

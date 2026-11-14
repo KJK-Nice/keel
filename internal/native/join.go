@@ -9,6 +9,7 @@ import (
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 	"keel/internal/sharelink"
+	"keel/internal/wire"
 )
 
 // Join a session (docs/ui-redesign.md §5.7), as the app has it: features/share.md. The dialog is joinDialog in
@@ -70,7 +71,7 @@ func (w *workspace) joinRemote(l joinpeer.Link) {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			if p.remote && p.joinKey == k {
-				if p.conn.Snapshot().Status == "error" {
+				if p.conn.Snapshot().Status == wire.StatusError {
 					w.closeTab(t)
 					goto open
 				}

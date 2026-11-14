@@ -2,6 +2,8 @@ package native
 
 import (
 	"testing"
+
+	"keel/internal/wire"
 )
 
 // Issue #139 (plan 037 part A): while a pane's session is not ready (connecting, failed, lost) its terminal view is not in the
@@ -16,7 +18,7 @@ func TestTheTerminalViewIsAbsentWhileTheSessionIsNotReadyAndBackWhenItIs(t *test
 	if !r.tt.Focused("body 1") {
 		t.Fatal("the ready pane does not have the keyboard to begin with")
 	}
-	for _, status := range []string{"connecting", "error", "exited"} {
+	for _, status := range []wire.Status{wire.StatusConnecting, wire.StatusError, wire.StatusExited} {
 		st := drivingState
 		st.Status = status
 		r.c.st = &st

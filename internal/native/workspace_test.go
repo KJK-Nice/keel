@@ -18,6 +18,7 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 type fakeConn struct {
@@ -74,7 +75,7 @@ func (c *fakeConn) state() keelclient.State {
 	if c.st != nil {
 		return *c.st
 	}
-	return keelclient.State{Status: c.status}
+	return keelclient.State{Status: wire.Status(c.status)}
 }
 
 func (c *fakeConn) Read([]byte) (int, error) { return 0, io.EOF }

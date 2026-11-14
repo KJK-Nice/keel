@@ -198,7 +198,7 @@ func (p *Peer) attach(dc *webrtc.DataChannel) {
 		p.mu.Lock()
 		p.open = true
 		p.mu.Unlock()
-		p.frames.Mark(string(wire.StatusReady), "")
+		p.frames.Mark(wire.StatusReady, "")
 	})
 	dc.OnClose(func() {
 		p.mu.Lock()
@@ -250,7 +250,7 @@ func (p *Peer) fail(msg string, toast bool) {
 	p.queue = nil
 	p.cond.Broadcast()
 	p.mu.Unlock()
-	p.frames.Mark(string(wire.StatusError), msg)
+	p.frames.Mark(wire.StatusError, msg)
 	if toast {
 		p.notice(keelclient.EventNoticeError, msg)
 	}

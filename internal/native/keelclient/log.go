@@ -28,8 +28,8 @@ var (
 // recordLog is term.js recordFailStatus and lib/workspace.js logPane: a status frame adds a line to the log. A pane that
 // is ready forgets its log; a pane that starts connecting again after a failure begins a new one; noise (attached, joined,
 // …) and a repeat of the last line add nothing; the last 40 lines are kept. prev is the status before this frame.
-func (s *State) recordLog(prev, status, message string) {
-	if wire.Status(status) == wire.StatusReady {
+func (s *State) recordLog(prev, status wire.Status, message string) {
+	if status == wire.StatusReady {
 		s.Log = nil
 		return
 	}
@@ -38,9 +38,9 @@ func (s *State) recordLog(prev, status, message string) {
 		return
 	}
 	kind := "fail"
-	switch wire.Status(status) {
+	switch status {
 	case wire.StatusConnecting:
-		if p := wire.Status(prev); p == wire.StatusError || p == wire.StatusExited { // a reconnect begins a new log
+		if prev == wire.StatusError || prev == wire.StatusExited { // a reconnect begins a new log
 			s.Log = nil
 		}
 		if kind = "work"; logFail.MatchString(line) {

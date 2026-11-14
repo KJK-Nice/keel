@@ -217,7 +217,7 @@ func (w *workspace) agentPanes() (out []agentPane) {
 				// The server decides; this only shapes the picker. A host it does not know is not readable there either.
 				readable:   known && host.AgentMayRead(),
 				production: known && host.IsProduction(),
-				driving:    p.conn.Snapshot().Role == "driver",
+				driving:    p.conn.Snapshot().Driving(),
 				remote:     p.remote || t.remote,
 				p:          p, t: t,
 			})

@@ -86,17 +86,27 @@ const (
 
 // State is what the socket's control frames say about a session.
 type State struct {
-	Status, Title, Subtitle, Message string
-	Role                             string // owner | driver | follower; "" before ready
-	Attached                         []Peer
-	DriverID                         uint64
-	OwnerID                          uint64    // the client that may take control back
-	YouID                            uint64    // this client's id (Peer.ID of the Attached entry that is us)
-	Blocked                          uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
-	HostKey                          HostKey   // zero when there is no host-key problem
-	WasReady                         bool      // the session was ready at some point (a later failure is a lost connection)
-	Log                              []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
+	Status                   wire.Status
+	Title, Subtitle, Message string
+	Role                     wire.Role // "" before ready
+	Attached                 []Peer
+	DriverID                 uint64
+	OwnerID                  uint64    // the client that may take control back
+	YouID                    uint64    // this client's id (Peer.ID of the Attached entry that is us)
+	Blocked                  uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
+	HostKey                  HostKey   // zero when there is no host-key problem
+	WasReady                 bool      // the session was ready at some point (a later failure is a lost connection)
+	Log                      []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
 }
+
+// Ready reports a connected session.
+func (s State) Ready() bool { return s.Status == wire.StatusReady }
+
+// Driving reports that this client is the driver: the one whose keys keel serve writes.
+func (s State) Driving() bool { return s.Role == wire.RoleDriver }
+
+// CanType is the one rule for typing into a session for the user: it is ready and this client drives it.
+func (s State) CanType() bool { return s.Ready() && s.Driving() }
 
 func dialWS(u, token string) (*Conn, error) {
 	h := http.Header{authtoken.Header: {token}} // a native client sends no origin header
@@ -163,16 +173,18 @@ func (c *Conn) control(data []byte) {
 	if m.Type == wire.TypeReady && m.ID != "" {
 		c.id = m.ID
 	}
-	status := string(m.Status)
+	status := m.Status
 	if status == "" && m.Type == wire.TypeError {
-		status = string(wire.StatusError)
+		status = wire.StatusError
 	}
 	s.recordLog(before.Status, status, m.Message)
-	set(&s.Status, string(m.Status))
+	if m.Status != "" {
+		s.Status = m.Status
+	}
 	set(&s.Title, m.Title)
 	if m.Type != wire.TypeError {
 		if m.You != nil {
-			s.Role = string(m.You.Role)
+			s.Role = m.You.Role
 			s.Attached, s.DriverID, s.OwnerID, s.YouID = peers(m.Attached), m.DriverID, m.OwnerID, m.You.ID
 		}
 	}
@@ -232,7 +244,7 @@ func (c *Conn) Write(p []byte) (int, error) {
 // dropped, and counted as blocked if the client was told it follows (before the ready frame nothing is counted).
 func (c *Conn) KeysGo() bool {
 	c.mu.Lock()
-	role := wire.Role(c.state.Role)
+	role := c.state.Role
 	c.mu.Unlock()
 	if role == wire.RoleDriver {
 		return true
@@ -248,9 +260,9 @@ func (c *Conn) KeysGo() bool {
 func (c *Conn) typingReady() error {
 	st := c.Snapshot()
 	switch {
-	case st.Status != string(wire.StatusReady):
+	case !st.Ready():
 		return ErrNotReady
-	case st.Role != string(wire.RoleDriver):
+	case !st.Driving():
 		return ErrNotDriver
 	}
 	return nil

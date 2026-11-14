@@ -117,13 +117,13 @@ func (w *workspace) loadGroupRunPage() {
 // groupPaneOpen reports a pane this window has open for the session and drives: the only kind a proposal is offered for.
 func (w *workspace) groupPaneOpen(sessionID string) bool {
 	p := w.agentPaneBySession(sessionID)
-	return p != nil && p.p != nil && !p.remote && p.driving
+	return p.drives()
 }
 
 // groupPaneIDs are the sessions this window has open and drives, for the propose: keel serve resolves each pane's host itself.
 func (w *workspace) groupPaneIDs() (out []string) {
 	for _, p := range w.agentPanes() {
-		if p.p != nil && !p.remote && p.driving {
+		if p.drives() {
 			out = append(out, p.sessionID)
 		}
 	}

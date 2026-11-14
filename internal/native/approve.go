@@ -177,9 +177,9 @@ func (d *approveDialog) blocked() string {
 	switch {
 	case !d.has():
 		return msgGone
-	case st.Status != "ready":
+	case !st.Ready():
 		return msgNotConnected
-	case st.Role != "driver":
+	case !st.Driving():
 		return msgFollowing
 	}
 	return ""
@@ -360,7 +360,7 @@ func (g *approveGroup) rowBlocked(r *groupRow) string {
 		return msgGroupPaneGone
 	case !p.driving:
 		return msgGroupPaneFollow
-	case p.p.conn.Snapshot().Status != "ready":
+	case !p.p.conn.Snapshot().Ready():
 		return msgNotConnected
 	}
 	return ""
@@ -387,7 +387,7 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 	if len(pick) == 0 {
 		return nil
 	}
-	if rowsNeedShift(pick) && !shift {
+	if shiftMissing(rowsNeedShift(pick), shift) {
 		g.shiftHint = true
 		return nil
 	}

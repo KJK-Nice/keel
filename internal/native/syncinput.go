@@ -57,7 +57,7 @@ func (s *syncConn) Write(b []byte) (int, error) {
 // fanOut writes b to each peer that is ready and driven by this client. A failed write is not retried and stops nobody else.
 func fanOut(to []session, b []byte) {
 	for _, c := range to {
-		if st := c.Snapshot(); st.Status != "ready" || st.Role != "driver" {
+		if !c.Snapshot().CanType() {
 			continue
 		}
 		_, _ = c.Write(b)

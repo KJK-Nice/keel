@@ -67,11 +67,10 @@ func (p *pane) promptLine() *promptLine {
 // background get no notice, no card and no frame.
 func (w *workspace) canSuggest(p *pane) bool {
 	t := w.tabOf(p)
-	if p.remote || p.sg.cursor == nil || p.typing || t == nil || t != w.tab() || t.remote || t.focused != p.id || w.modalOpen() || w.gate != nil || w.first != nil {
+	if p.sg.cursor == nil || p.typing || t == nil || t != w.tab() || t.remote || t.focused != p.id || w.modalOpen() || w.gate != nil || w.first != nil {
 		return false
 	}
-	st := p.conn.Snapshot()
-	return st.Status == "ready" && st.Role == "driver"
+	return p.canType()
 }
 
 func (w *workspace) redraw() {
