@@ -198,7 +198,7 @@ func (w *workspace) setTheme(choice string) {
 		return
 	}
 	w.prefs.Theme = choice
-	w.savePref(keyTheme, keyTheme, choice)
+	w.setPref(keyTheme)
 	if w.appearanceHook != nil {
 		w.appearanceHook(choice)
 	}

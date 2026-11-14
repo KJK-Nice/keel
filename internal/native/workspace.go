@@ -435,7 +435,8 @@ type workspace struct {
 	findFocus  bool
 	findHandle ui.Handle
 
-	saved saveState
+	saved      saveState
+	prefWrites prefWrites
 
 	pal  *palette // the open command palette
 	palH ui.Handle
@@ -842,6 +843,9 @@ func (w *workspace) release(p *pane) {
 // closeWindow detaches: every connection closes and no session is killed.
 func (w *workspace) closeWindow() {
 	w.saveNow()
+	if what, err := w.flushPrefs(); err != nil {
+		w.fail(what, err)
+	}
 	w.flushNotebooksNow() // what was typed in a notebook is saved before the window goes
 	w.closed = true
 	if w.agent.busy != nil { // an ask in flight stops with the window

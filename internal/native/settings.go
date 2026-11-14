@@ -125,7 +125,7 @@ func (w *workspace) setOpacity(n int) {
 		return
 	}
 	w.prefs.Opacity = n
-	w.savePref(keyOpacity, keyOpacity, n)
+	w.setPref(keyOpacity)
 	if w.translucentWin {
 		w.alpha = alphaFor(n)
 	}
@@ -139,7 +139,7 @@ func (w *workspace) setUIPref(n int) {
 		return
 	}
 	w.prefs.UISize = n
-	w.savePref(keyUISize, keyUISize, n)
+	w.setPref(keyUISize)
 }
 
 func (w *workspace) setBlur(n int) {
@@ -148,7 +148,7 @@ func (w *workspace) setBlur(n int) {
 		return
 	}
 	w.prefs.Blur = n
-	w.savePref(keyBlur, keyBlur, n)
+	w.setPref(keyBlur)
 	w.applyBlur()
 }
 
@@ -170,7 +170,7 @@ func (w *workspace) setCopyOnSelect(on bool) {
 		return
 	}
 	w.prefs.CopyOnSelect = on
-	w.savePref(keyCopyOnSelect, keyCopyOnSelect, on)
+	w.setPref(keyCopyOnSelect)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.copyOnSelect = on
@@ -187,7 +187,7 @@ func (w *workspace) setRightClick(mode string) {
 		return
 	}
 	w.prefs.RightClick = mode
-	w.savePref(keyRightClick, keyRightClick, mode)
+	w.setPref(keyRightClick)
 }
 
 // setDisplayName: trimmed and cut to 40 characters; empty uses the default.
@@ -200,7 +200,7 @@ func (w *workspace) setDisplayName(v string) {
 		return
 	}
 	w.prefs.Name = v
-	w.savePref(keyDisplayName, keyDisplayName, v)
+	w.setPref(keyDisplayName)
 }
 
 // defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else

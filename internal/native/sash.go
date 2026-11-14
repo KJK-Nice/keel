@@ -47,7 +47,7 @@ func (w *workspace) setSidebarWidth(v float32) {
 		v = clampSidebarWidth(v)
 	}
 	w.prefs.SidebarWidth = v
-	w.savePref("the sidebar width", keySidebarWidth, v)
+	w.setPref(keySidebarWidth)
 }
 
 // sidebarSash is the handle on the sidebar's right edge.

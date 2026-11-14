@@ -176,7 +176,7 @@ func (w *workspace) setCollapsed(key string, on bool) {
 	} else {
 		delete(w.prefs.Collapsed, key)
 	}
-	w.savePref("the closed folders", keyCollapsed, w.prefs.collapsedList())
+	w.setPref(keyCollapsed)
 }
 
 // ---- host and folder drops ----

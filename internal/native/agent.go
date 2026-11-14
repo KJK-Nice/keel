@@ -182,7 +182,7 @@ func clampAgentWidth(width, windowW float32) float32 {
 // setAgentWidth keeps a new width (0 puts the default back) in keel-native.json.
 func (w *workspace) setAgentWidth(width float32) {
 	w.prefs.AgentWidth = width
-	w.savePref("the agent panel width", keyAgentWidth, width)
+	w.setPref(keyAgentWidth)
 }
 
 // ---- the panes in scope ----
@@ -267,7 +267,7 @@ func (w *workspace) toggleAgent() {
 func (w *workspace) setAgentOpen(open bool) {
 	a := w.agent
 	w.prefs.AgentPanel = open
-	w.savePref("the agent panel", keyAgentPanel, open)
+	w.setPref(keyAgentPanel)
 	if open {
 		a.focusInput = true
 		w.loadAgent()
