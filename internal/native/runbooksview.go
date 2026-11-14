@@ -12,14 +12,13 @@ import (
 	"keel/internal/runvars"
 )
 
-// The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes, drawn as
-// internal/ui/runbookspage.templ, cmd/keel/web/js/ui/runbooks.js and ui/agentthread.js (placeRun, paintRun, paintBookProp)
-// do. Colours and sizes are tokens.go's.
+// The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes. Colours and sizes are
+// tokens.go's.
 //
-// In the app and not here: the "," that ends a host chip (↵ ends it).
+// A host chip ends with ↵, not ",".
 // A step's role, "One host only" and captures (group runs, §17) are edited in runbookStepTarget.
 
-// badgeColors are a k-badge's ground and ink for a kind ("" is the plain one).
+// badgeColors are a badge's ground and ink for a kind ("" is the plain one).
 func badgeColors(kind string) (bg, fg ui.Color) {
 	switch kind {
 	case "tide":
@@ -369,7 +368,7 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 }
 
 // runbookStepTarget is where a step runs in a group run (§17): a role, One host only and the values it captures
-// (ui/runbooks.js step-target and capturesHTML). A single-host run ignores all of it.
+// A single-host run ignores all of it.
 func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
@@ -459,7 +458,7 @@ func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook
 	})
 }
 
-// addHostChip ends the host being typed as a chip: "," ends it too in the app, ↵ here.
+// addHostChip ends the host being typed as a chip: ↵ ends it, "," does not.
 func (e *rbEditor) addHostChip() {
 	e.hosts, e.hostInput, e.focusHost = addHost(e.hosts, e.hostInput), "", true
 }
@@ -479,7 +478,7 @@ func stepMarkColor(state string) ui.Color {
 	return inkFaint
 }
 
-// runCard is the runbook in use, under "Agent" of the turn that started it (agentthread.js paintRun): the runbook, why it was
+// runCard is the runbook in use, under "Agent" of the turn that started it: the runbook, why it was
 // picked, every step's progress and what the user can do now. Every step is still a proposal card of its own, typed through
 // Approve before type; the card only asks (Propose step N), marks (done, skip, retry), moves or stops.
 func (w *workspace) runCard(c *ui.Context, runID string) {
@@ -607,7 +606,6 @@ func (w *workspace) runOthers(c *ui.Context, u *runUse) {
 	})
 }
 
-// runActions is what the run card offers for the current step (agentthread.js runActionsHTML).
 func (w *workspace) runActions(c *ui.Context, run *keelclient.ChatRunbook, act runAction) {
 	busy := w.agent.runs.busy
 	btn := func(name string, primary bool, do func()) {
@@ -680,7 +678,7 @@ func (w *workspace) runActions(c *ui.Context, run *keelclient.ChatRunbook, act r
 
 // ---- the card of a runbook the agent proposes ----
 
-// agentBookCard is "Save as a runbook?" (agentthread.js paintBookProp): nothing is saved until Save is pressed, and what is
+// agentBookCard is "Save as a runbook?": nothing is saved until Save is pressed, and what is
 // saved starts with Agent may pick off.
 func (w *workspace) agentBookCard(c *ui.Context, id string) {
 	rec := w.agent.books[id]

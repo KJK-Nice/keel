@@ -11,8 +11,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions of
-// cmd/keel/web/js/lib/agentsettings.js, pinned there by test/agentsettings.test.mjs and here by agentsettingshelpers_test.go.
+// The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions
+// (agentsettingshelpers_test.go pins them).
 // A key never comes back from keel serve, so nothing here can show one: a provider is only ever configured or not.
 
 // providerPurpose is what each provider is for, in one line: Keel's own wording (the descriptor carries the name,

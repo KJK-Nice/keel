@@ -12,9 +12,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The agent panel (docs/ui-redesign.md §5.4, phase 6b): ask about the panes in scope, read the trace, and type a
-// proposal only through Approve before type. The feature is cmd/keel/web/js/ui/agentpanel.js and agentthread.js, its
-// words and rules in lib/agent.js (agentlogic.go).
+// The agent panel (docs/ui-redesign.md §5.4): ask about the panes in scope, read the trace, and type a
+// proposal only through Approve before type (words and rules in agentlogic.go).
 //
 // What this file does and does not do:
 //   - keel serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
@@ -28,8 +27,8 @@ import (
 //     is sent and nothing keeps it.
 //
 // Saved conversations (agentconv.go), the Agent page (agentpage.go) and Settings · Agent (agentsettings.go) show and keep
-// the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Not here, and
-// in the app: Claude Code's mcp (docs/native.md).
+// the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Claude Code's
+// mcp is not here (docs/native.md).
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 
@@ -71,7 +70,7 @@ type agentTurn struct {
 	notes        []string // the notes it proposed (agentPanel.notes), shown after the proposals
 	books        []string // the runbooks it proposed (agentPanel.books)
 	nbs          []string // what the agent did to notebooks, and the deletes it proposed (agentPanel.nbProps), shown last
-	runID        string   // the runbook in use that started here: its card sits under "Agent" (agentthread.js placeRun)
+	runID        string   // the runbook in use that started here: its card sits under "Agent"
 }
 
 type agentPanel struct {
@@ -143,7 +142,7 @@ func newAgentPanel() *agentPanel {
 }
 
 const (
-	msgAgentJoined     = "The agent is off in joined sessions" // term.js toggleAgentPanel
+	msgAgentJoined     = "The agent is off in joined sessions"
 	msgAgentNotOpen    = "That pane is not open in this window."
 	msgAgentFollowing  = "You follow this pane. The agent cannot type into it."
 	titleNewConv       = "New conversation"
@@ -156,7 +155,7 @@ const (
 	agentNoModelDetail = "Add a key to ask the agent."
 )
 
-// shiftWord is how the app names the key in its sentences.
+// shiftWord is how the sentences name the ⇧ key.
 func shiftWord() string {
 	if isMac() {
 		return "⇧"
@@ -167,7 +166,7 @@ func shiftWord() string {
 // agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+Shift+I elsewhere (Ctrl+I is Tab in a terminal).
 func agentKeys() string { return commandKeyLabel("agent.toggle") }
 
-// The panel's width (ui/agentpanel.js "width"): at least --size-agent and at most half the window, kept as agentWidth in
+// The panel's width: at least --size-agent and at most half the window, kept as agentWidth in
 // keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).
 
 // clampAgentWidth is applyWidth: a width of 0 is the default, else between size-agent and half the window (never below
@@ -189,7 +188,7 @@ func (w *workspace) setAgentWidth(width float32) {
 // ---- the panes in scope ----
 
 // agentPanes lists the panes of this window as the panel sees them: the terminal panes with a session, in every tab but
-// a New tab or a page (term.js agentPanes). "Focused" and "this tab" mean the tab shown, or the session tab shown last
+// a New tab or a page. "Focused" and "this tab" mean the tab shown, or the session tab shown last
 // when a page is.
 func (w *workspace) agentPanes() (out []agentPane) {
 	sessionTab := w.tab()
@@ -236,10 +235,10 @@ func (w *workspace) agentPaneBySession(id string) *agentPane {
 }
 
 // agentSync keeps the scope true to the panes that are open and readable, every frame: it follows the setting until the
-// user picks, then only drops what closed or can no longer be read (agentpanel.js refresh).
+// user picks, then only drops what closed or can no longer be read.
 func (w *workspace) agentSync() {
 	a := w.agent
-	a.attached = reconcileAttached(a.attached, w.notebooks) // a notebook deleted or made private is no longer attached
+	a.attached = reconcileAttached(a.attached, w.notebooks) // a notebook deleted or made private is detached
 	all := w.agentPanes()
 	if a.scopeAuto && a.settings != nil {
 		a.scope = defaultScope(a.settings.Settings.DefaultScope, all)
@@ -331,7 +330,7 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	}
 	a.picker, a.sessOpen, a.nbPicker = false, false, ""
 	w.agentSync()
-	// A resumed conversation carries on under its own id: that is all a continued ask changes (agentpanel.js ask).
+	// A resumed conversation carries on under its own id: that is all a continued ask changes.
 	panes := append([]string{}, a.scope...)
 	turn := &agentTurn{question: q, at: time.Now(), scoped: len(panes), pending: true}
 	a.turns = append(a.turns, turn)
@@ -428,7 +427,7 @@ func typedStatus(p keelclient.Proposal) *agentStatus {
 	return &agentStatus{ok: true, text: "Typed into " + orElse(p.Host, "the pane") + " at " + stampLabel(*p.TypedAt, time.Now()) + "."}
 }
 
-// agentStop is Stop: it cancels the ask in flight, as the app's AbortController does.
+// agentStop is Stop: it cancels the ask in flight.
 func (w *workspace) agentStop() {
 	if w.agent.busy != nil {
 		w.agent.busy()
@@ -520,7 +519,7 @@ func (w *workspace) editAgentProposal(id string) {
 	})
 }
 
-// typeAgentProposal is a card's Type into pane (term.js typeAgentProposal, agentpanel.js typeProposal). It never types:
+// typeAgentProposal is a card's Type into pane. It never types:
 // it opens the Approve before type dialog, whose Type action is the only thing that does.
 func (w *workspace) typeAgentProposal(id string, shift bool) {
 	a := w.agent
@@ -585,8 +584,7 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 	})
 }
 
-// paneTarget names a pane with its tab ("prod-db-01 · deploy"); the tab is left out when it only repeats the name
-// (lib/agent.js paneTarget).
+// paneTarget names a pane with its tab ("prod-db-01 · deploy"); the tab is left out when it only repeats the name.
 func paneTarget(label, tab string) string {
 	l, t := strings.TrimSpace(label), strings.TrimSpace(tab)
 	switch {

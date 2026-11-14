@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// workingBlocks is the mark of the model at work (plan 030 step 4): MyGo's loading.Blocks, sized to the line it sits in, in
+// workingBlocks is the mark of the model at work: MyGo's loading.Blocks, sized to the line it sits in, in
 // the accent or, in muted text, that colour, and named for assistive technology. It means "the model is working" and nothing
 // else: a wait on keel serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
 // asks for no frames where the desktop asks for less motion, and it takes no input, so Stop stays clickable.
@@ -15,7 +15,7 @@ func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
 	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
 }
 
-// The shared control layer (plan 030 step 3): Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
+// The shared control layer: Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
 // two looks MyGo has no variant for: quiet (no face until hovered) and destructive (the flare colours of the Destructive
 // badge). Colours come from the theme MyGo sets from the tokens (theme.go), so a control follows the system accent.
 
@@ -139,7 +139,7 @@ func searchField(c *ui.Context, value *string, name string, h *ui.Handle) ui.Ele
 	return ui.SearchField(c, value).Label(name).Placeholder(name).MinWidth(0).Bind(h)
 }
 
-// inputBox is a single-line input in a bordered box (k-input).
+// inputBox is a single-line input in a bordered box.
 func inputBox(c *ui.Context, name string, value *string, placeholder string, h *ui.Handle, mono, masked bool, maxLen int, onKey func(ui.TextKey) bool) {
 	in := ui.TextInput(c, value).Label(name).Placeholder(placeholder).FillWidth().MinWidth(0).Bind(h)
 	if mono {
@@ -156,7 +156,7 @@ func inputBox(c *ui.Context, name string, value *string, placeholder string, h *
 	}
 }
 
-// labeled is a k-field: the label above, the control below. Clicking the label gives h (when there is one) the
+// labeled is a field: the label above, the control below. Clicking the label gives h (when there is one) the
 // keyboard, as a <label for> does.
 func labeled(c *ui.Context, name string, h *ui.Handle, control func()) {
 	ui.Column(c).FillWidth().MinWidth(0).Gap(space1).Children(func() {
@@ -173,7 +173,6 @@ func help(c *ui.Context, s string) ui.Element {
 	return ui.Text(c, s).TextColor(inkMuted).FontSize(captionSize)
 }
 
-// menuLabel is a k-menu-label: a group heading.
 func menuLabel(c *ui.Context, s string) { text(c, s, inkFaint, captionSize, weightSemibold) }
 
 // picker is a select: the chosen label and a chevron; the menu lists the entries (their second line is muted).
@@ -204,7 +203,7 @@ func picker(c *ui.Context, name, current string, entries []pickEntry, onPick fun
 	})
 }
 
-// segControl is k-seg: one option is on.
+// segControl is a segmented control: one option is on.
 func segControl(c *ui.Context, name string, current string, opts [][2]string, onPick func(string)) {
 	segControlSized(c, name, current, opts, onPick, c.Theme().FontSize, space1)
 }
@@ -256,7 +255,7 @@ func segControlSized(c *ui.Context, name string, current string, opts [][2]strin
 	}
 }
 
-// switchRow is a k-field--row: the text on the left, the switch on the right.
+// switchRow is a field row: the text on the left, the switch on the right.
 func switchRow(c *ui.Context, name, note string, on *bool) {
 	ui.Row(c).FillWidth().Gap(space3).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {

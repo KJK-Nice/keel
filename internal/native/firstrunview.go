@@ -9,21 +9,17 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The First run screens, drawn as firstRunScreen and agentStep in internal/ui/gate.templ with the .k-onb-*,
-// .k-choice-card, .k-imp-* and .k-promise rules of keel.css. The import table is lib/onboard.js's markup.
-
 const (
-	onbWidth     = sizeSidebar * 5 / 2 // .k-onb-col: size-sidebar · 2.5, inside its padding
-	onbWideWidth = sizeSidebar * 3     // data-step="hosts": size-sidebar · 3
+	onbWidth     = sizeSidebar * 5 / 2 // 2.5 sidebar widths, inside its padding
+	onbWideWidth = sizeSidebar * 3     // 3 sidebar widths, for the hosts step
 	stepDotSize  = 20
-	kvKeyWidth   = space8*3 + space4 // .k-onb .k-kv first column
-	impCheckCol  = space6 + space4   // the table's first column
+	kvKeyWidth   = space8*3 + space4
+	impCheckCol  = space6 + space4 // the table's first column
 	impRowHeight = sizeControlLg + space1_5
 	impTableRows = 8
 	maxPassLen   = 1024
 )
 
-// firstRunView is the window while the first run shows: the title bar's drag strip, the column and the status line.
 func (w *workspace) firstRunView(c *ui.Context) {
 	f := w.first
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).DragWindow()
@@ -89,7 +85,7 @@ func (w *workspace) firstRunFocus(c *ui.Context, f *firstRun) {
 	c.Invalidate()
 }
 
-// stepper is the progress row: Vault, Hosts, Agent (k-steps).
+// stepper is the progress row: Vault, Hosts, Agent.
 func (w *workspace) stepper(c *ui.Context, f *firstRun) {
 	ui.Row(c).Gap(space2 + space0_5).Label("Setup progress").Children(func() {
 		for i, name := range []string{"Vault", "Hosts", "Agent"} {
@@ -122,7 +118,7 @@ func (w *workspace) stepper(c *ui.Context, f *firstRun) {
 	})
 }
 
-// head is k-gate-head: an optional mark, the title and the lead.
+// head is an optional mark, the title and the lead.
 func head(c *ui.Context, withMark bool, title, lead string) {
 	ui.Column(c).FillWidth().Gap(space1_5).Children(func() {
 		if withMark {
@@ -135,12 +131,10 @@ func head(c *ui.Context, withMark bool, title, lead string) {
 	})
 }
 
-// box is k-box: a surface with a hairline and a radius.
 func box(c *ui.Context) ui.Element {
 	return ui.Column(c).FillWidth().Padding(space4).Gap(space3).Radius(radiusMd).Background(surface).Border(1, line)
 }
 
-// kv is one row of a k-kv list.
 func kv(c *ui.Context, key, value string, monospace bool) {
 	ui.Row(c).FillWidth().Gap(space4).AlignItems(ui.Start).Children(func() {
 		body(c, key, inkMuted).Width(kvKeyWidth).Shrink(0)
@@ -161,22 +155,21 @@ func accentBadge(c *ui.Context, s string) ui.Element {
 	return neutralBadge(c, s).Background(accentSoft).TextColor(accentInk)
 }
 
-// tag is a k-badge that means something (Edited by agent, a failure, Already saved): a small label on a soft ground, in
+// tag is a badge that means something (Edited by agent, a failure, Already saved): a small label on a soft ground, in
 // the meaning's colour. Neutral labels and counts are neutralBadge.
 func tag(c *ui.Context, s string, bg, fg ui.Color) {
 	neutralBadge(c, s).Background(bg).TextColor(fg)
 }
 
-// foot is k-onb-foot: a hairline above the buttons. It stays at the bottom of the window while the step scrolls
-// (the webview scrolls it with the step; a long import table would push the buttons out of sight).
+// foot is the buttons under a hairline. It stays at the bottom of the window while the step scrolls
+// (a long import table would push the buttons out of sight).
 func (f *firstRun) foot(kids func()) { f.footFn = kids }
 
-// bigPrimary is k-btn--primary k-btn--lg with the ↵ key cap. It reports a click and ignores one while off.
+// bigPrimary is the large primary button with the ↵ key cap. It reports a click and ignores one while off.
 func bigPrimary(c *ui.Context, name string, enabled bool) bool {
 	return capButton(c, name, "↵", !enabled).Clicked() && enabled
 }
 
-// radio is k-radio.
 func radio(c *ui.Context, on bool) {
 	r := ui.Row(c).Size(radioSize, radioSize).Radius(radiusFull).Justify(ui.Center).Shrink(0).Background(stage)
 	if on {
@@ -187,7 +180,7 @@ func radio(c *ui.Context, on bool) {
 	r.Border(1, lineStrong)
 }
 
-// choiceCard is button.k-choice-card: a radio, a title with an optional badge, and the description. It reports a click.
+// choiceCard is a radio, a title with an optional badge, and the description. It reports a click.
 func choiceCard(c *ui.Context, name string, on, disabled bool, title, badgeText, desc string) bool {
 	selected := on
 	r := ui.RadioBase(c, &selected, true).Row().FillWidth().Padding(space3, space4).Gap(space3).AlignItems(ui.Start).Radius(radiusMd).Background(surface).Label(name)
@@ -623,8 +616,8 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 	})
 }
 
-// agentChoice is the k-box of step 3: the provider (Google Gemini or Not now), the key field and the provider's words
-// when Gemini is chosen, the switch, and the line under them (gate.templ agentStep).
+// agentChoice is the box of step 3: the provider (Google Gemini or Not now), the key field and the provider's words
+// when Gemini is chosen, the switch, and the line under them.
 func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
 	d := keelclient.AgentProvider{Name: "Google Gemini", KeyLabel: "Gemini API key"}
 	if f.agentProv != nil {

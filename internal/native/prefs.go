@@ -80,7 +80,7 @@ var intPrefs = []struct {
 	{keyUISize, uiSizeMin, uiSizeMax, uiSizeDefault, func(p *prefsDoc) *int { return &p.UISize }},
 }
 
-// defaultPrefs is what a window starts with when there is no file: the defaults of the app.
+// defaultPrefs is what a window starts with when there is no file.
 func defaultPrefs() prefsDoc {
 	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {

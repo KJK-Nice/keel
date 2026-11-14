@@ -6,10 +6,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The host row menu: right-click on a row, or its "…" control. The items, order and words are hostRowMenu in
-// internal/ui/rowmenus.templ: Connect, Open in split, Edit, Duplicate (not the local shell), Agent can read,
-// Move to folder…, Delete (not the local shell). "Move to folder…" opens Edit host on its Folder field (term.js
-// moveHostToFolder). "Copy SSH command" waits for a later phase (docs/native.md).
+// The host row menu: right-click on a row, or its "…" control: Connect, Open in split, Edit, Duplicate (not the local
+// shell), Agent can read, Move to folder…, Delete (not the local shell). "Move to folder…" opens Edit host on its Folder
+// field. "Copy SSH command" is not built (docs/native.md).
 // A menu never types into a session.
 
 // hostMenu fills the menu of a host row.

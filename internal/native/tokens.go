@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// hexPalette is one theme's colours as hex. Plan 030: the chrome's grounds, controls, text and lines are MyGo's own light
+// hexPalette is one theme's colours as hex. The chrome's grounds, controls, text and lines are MyGo's own light
 // and dark themes (TestPaletteIsMyGos keeps them equal); what stays Keel's is the meaning colours (tide, signal, flare,
 // haze: Read-only, Changes state, Destructive, Production, live, failure), the terminal's theme and the stage behind it.
 // The accent is not here: it is the system's (theme.go useAccent). This file is the only place that names a hex value.
@@ -112,15 +112,15 @@ const (
 	weightSemibold   = 600
 	monoFamily       = "JetBrains Mono"
 	monoFallback     = "monospace"
-	statusbarSize    = 24   // not a token: "about 24" in the plan
+	statusbarSize    = 24   // not a token
 	dimAlpha         = 0.70 // unfocused terminals in a split tab
-	disabledAlpha    = 0.32 // .pane-bar .icon-btn:disabled
-	tileTintAlpha    = 0.16 // k-tile: 16% of the host colour
-	paneDropAlpha    = 0.38 // .pane-drop-region: 38% of the accent ink
+	disabledAlpha    = 0.32 // a disabled pane-bar icon button
+	tileTintAlpha    = 0.16 // 16% of the host colour
+	paneDropAlpha    = 0.38 // 38% of the accent ink
 	minTileWidth     = 240  // not a token: narrowest a split tile may be dragged to
 	minTileHeight    = 120  // not a token: shortest a stacked tile may be dragged to
-	dialogWidth      = 420  // .modal width in keel.css
-	paletteTop       = 0.16 // .cmd-palette top: 16vh
+	dialogWidth      = 420
+	paletteTop       = 0.16 // 16vh
 	termShareLight   = 0.3  // vibrancy-term-share, light: the share of the chrome's see-through the terminal body keeps (dark is 1)
 )
 
@@ -128,33 +128,33 @@ const (
 // as they are. The design px are at 13, MyGo's body size on macOS, and are 1:1 at the default UI size (12), so the theme's
 // FontSize (13 × size ÷ 12) and the hand-set text agree.
 const (
-	uiSizeMin, uiSizeMax, uiSizeDefault = 11, 16, 12 // term.js UI_SIZE_MIN, UI_SIZE_MAX, UI_SIZE_DEFAULT
+	uiSizeMin, uiSizeMax, uiSizeDefault = 11, 16, 12
 	uiSizeBase                          = uiSizeDefault
 )
 
 // Design values in px at uiSizeBase.
 const (
-	bodyPx                            = 13         // type body
-	captionPx                         = 12         // type label / caption
-	titlePx                           = 15         // type title
-	displayPx                         = 28         // type display
-	kbdPx                             = 11         // type kbd
-	roleChipFontPx                    = 11         // k-role font size
-	iconPx                            = 16         // .k-i svg
-	iconSmPx                          = 12         // k-tile--sm svg, 0.923rem
-	tileSmPx                          = 20         // k-tile--sm, 1.538rem
-	roleChipHeightPx                  = 20         // k-role, components.css
-	kbdBoxPx                          = 18         // k-kbd min-width and height
-	dotPx                             = 7          // k-dot, components.css
-	dotRingPx                         = 3          // k-dot--live ring
-	paletteWidthPx                    = 560        // k-palette, 43rem
-	paletteSearchPx                   = 46         // k-palette-search height, 3.538rem
+	bodyPx                            = 13 // type body
+	captionPx                         = 12 // type label / caption
+	titlePx                           = 15 // type title
+	displayPx                         = 28 // type display
+	kbdPx                             = 11 // type kbd
+	roleChipFontPx                    = 11 // role chip font size
+	iconPx                            = 16
+	iconSmPx                          = 12 // small tile glyph, 0.923rem
+	tileSmPx                          = 20 // small tile, 1.538rem
+	roleChipHeightPx                  = 20
+	kbdBoxPx                          = 18 // key cap min-width and height
+	dotPx                             = 7
+	dotRingPx                         = 3          // live dot ring
+	paletteWidthPx                    = 560        // 43rem
+	paletteSearchPx                   = 46         // search height, 3.538rem
 	tabMaxPx                          = 200        // tab max-width 15.4rem
-	barMetaPx                         = 11.9       // .bar-meta, 0.917rem
-	tabCountPx, tabCountFontPx        = 16, 10     // .tab-count: height 1.231rem, font 0.769rem
-	radioPx, radioDotPx               = 15, 7      // k-radio 1.154rem, its dot 0.538rem
-	tileLgPx, tileLgIconPx, titleLgPx = 44, 22, 18 // k-tile--lg 3.385rem, its glyph 1.692rem, .k-detail-title 1.385rem
-	itemSubPx, keyhintPx              = 11, 10     // .k-item-sub 0.846rem, k-keyhint
+	barMetaPx                         = 11.9       // 0.917rem
+	tabCountPx, tabCountFontPx        = 16, 10     // height 1.231rem, font 0.769rem
+	radioPx, radioDotPx               = 15, 7      // 1.154rem, its dot 0.538rem
+	tileLgPx, tileLgIconPx, titleLgPx = 44, 22, 18 // large tile 3.385rem, its glyph 1.692rem, detail title 1.385rem
+	itemSubPx, keyhintPx              = 11, 10     // item sub line 0.846rem, key hint
 )
 
 // The scaled sizes views draw with: setUISize sets them.
@@ -174,7 +174,7 @@ func uiScale(n int) float32 { return float32(n) / uiSizeBase }
 // rem is a design px at the UI size in use.
 func rem(px float32) float32 { return px * uiScale(uiSize) }
 
-// setUISize makes the scaled sizes those of a UI size, clamped to the app's bounds.
+// setUISize makes the scaled sizes those of a UI size, clamped to the UI size bounds.
 func setUISize(n int) {
 	n = min(max(n, uiSizeMin), uiSizeMax)
 	uiSize = n
@@ -198,7 +198,7 @@ var (
 	ansi                                                                                   [16]ui.Color
 )
 
-// The accent family (plan 030): the system accent colour, set by useAccent. accentFill is the fill (primary buttons, selected
+// The accent family: the system accent colour, set by useAccent. accentFill is the fill (primary buttons, selected
 // marks), accentStrong its hover, onAccent the text on it, accentInk the accent as text or an icon on the page, accentSoft a
 // wash of it, focus the focus ring. Keel's brass is the app icon only.
 var accentFill, accentInk, accentSoft, accentStrong, onAccent, focus ui.Color

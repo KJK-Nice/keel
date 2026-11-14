@@ -238,7 +238,7 @@ func init() {
 			menu: &menuSpec{"View", "Actual Size", 7}, pal: &palSpec{section: "Terminal", title: "Reset text size"}, help: &helpSpec{"Terminal", "Reset text size"}},
 		{id: "share", run: (*workspace).openShare, pal: &palSpec{section: "Terminal", title: "Share session (join link)"}},
 		{id: "share.stop", run: (*workspace).stopShare, pal: &palSpec{section: "Terminal", title: "Stop sharing this session"}},
-		// The webview stops the runtime from here at once; this client asks first, as Settings · Runtime does.
+		// This asks first, as Settings · Runtime does.
 		{id: "runtime.stop", run: (*workspace).askStopRuntime, menu: &menuSpec{"Stop", "Stop Keel runtime", 1}, pal: &palSpec{section: "Terminal", title: "Stop Keel runtime"}},
 	}
 }

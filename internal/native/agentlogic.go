@@ -11,15 +11,15 @@ import (
 )
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
-// offers. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs and here by agentlogic_test.go),
-// (the notebook and runbook words are agentnotebookslogic.go and runbookslogic.go); the saved-conversation rules are
+// offers (agentlogic_test.go pins them;
+// the notebook and runbook words are agentnotebookslogic.go and runbookslogic.go); the saved-conversation rules are
 // agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
 // open the Approve before type dialog; keel serve checks the same rules again before it writes (agent service
 // AuthorizeType).
 
-// agentPane is a pane as the panel sees it (term.js agentPanes): the session, how the picker and the card name it, and
+// agentPane is a pane as the panel sees it: the session, how the picker and the card name it, and
 // what the rules need. p and t are the window's own pane and tab; the rules never read them.
 type agentPane struct {
 	sessionID, label, sub                                       string
@@ -124,7 +124,7 @@ func countLabel(bytes string) string {
 	return countWord(lineCount(bytes), "line", "lines") + " · " + countWord(len(bytes), "byte", "bytes")
 }
 
-// bytesRun is a stretch of the bytes Type sends: plain text, or a control character drawn as a glyph (k-ctl).
+// bytesRun is a stretch of the bytes Type sends: plain text, or a control character drawn as a glyph.
 type bytesRun struct {
 	text string
 	ctl  bool
@@ -133,8 +133,7 @@ type bytesRun struct {
 var ctlGlyphs = map[rune]string{'\n': "↵", '\t': "⇥", '\r': "⏎", 0x1b: "⎋", 0x7f: "⌫"}
 
 // bytesRuns shows the exact bytes Type will send, every control character as a visible glyph: ↵ newline, ⇥ tab, ⎋ escape,
-// ^X for the rest. A newline still breaks the line after its glyph, and the last one does not start another (agent.js
-// bytesHTML).
+// ^X for the rest. A newline still breaks the line after its glyph, and the last one does not start another.
 func bytesRuns(bytes string) (out []bytesRun) {
 	plain := func(r rune) {
 		if n := len(out); n > 0 && !out[n-1].ctl {
@@ -253,7 +252,6 @@ const (
 	offerPlaceholder = "placeholder"       // no Type: it holds [secret:N], which a shell would read as a pattern
 )
 
-// typeOffer is agent.js typeOffer.
 func typeOffer(p keelclient.Proposal, pane *agentPane) string {
 	switch {
 	case p.Expired:
@@ -277,7 +275,7 @@ func typeOffer(p keelclient.Proposal, pane *agentPane) string {
 // gateShift is typeGate's reason when a proposal needs ⇧ and it was not held.
 const gateShift = "needs-shift"
 
-// typeGate says whether a Type press may open the Approve before type dialog, and if not why (agent.js typeGate).
+// typeGate says whether a Type press may open the Approve before type dialog, and if not why.
 func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reason string) {
 	switch offer := typeOffer(p, pane); {
 	case offer == offerType:

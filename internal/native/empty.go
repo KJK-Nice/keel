@@ -6,11 +6,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// One empty state for everything that can be empty (plan 028 step 4), in two sizes: the page size for a tab page or the
-// stage, the side size for a sidebar list, a panel, a picker or a drawer. It stands for the app's k-empty and k-side-empty
-// (docs/design/components.css, internal/ui/lists.templ sideEmpty) and says which of three states a list is in:
+// One empty state for everything that can be empty, in two sizes: the page size for a tab page or the
+// stage, the side size for a sidebar list, a panel, a picker or a drawer. It says which of three states a list is in:
 //
-//	nothing yet     the title and the words of the app's own empty list, and the action that makes the first item
+//	nothing yet     the title and the words of the list's own empty line, and the action that makes the first item
 //	no match        "Nothing matches “<filter>”" and Clear filter
 //	cannot load     "Cannot load <what>", the error line and Try again
 //
@@ -23,34 +22,31 @@ type emptySpec struct {
 	keys              string // the page's key cap, beside the primary action
 }
 
-// The words of the app's own empty lists (internal/ui/lists.templ, the line of each is in its comment).
+// The words of each list's empty line.
 const (
-	snippetsNone   = "Save commands you type often. Typing one always goes through Approve before type."                               // lists.templ:251
-	notebooksNone  = "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm." // lists.templ:283
-	forwardsNone   = "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host."                                      // lists.templ:184
-	identitiesNone = "Add an SSH key or a password and attach it to hosts."                                                            // lists.templ:124
-	logsNone       = "Sessions, forwards and vault changes show up here."                                                              // lists.templ:326
-	runbooksNone   = "Write the steps you take for a known problem. The agent can walk you through them, one proposal at a time."      // runbooksview.go, the app's runbooks page
+	snippetsNone   = "Save commands you type often. Typing one always goes through Approve before type."
+	notebooksNone  = "Write markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm."
+	forwardsNone   = "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host."
+	identitiesNone = "Add an SSH key or a password and attach it to hosts."
+	logsNone       = "Sessions, forwards and vault changes show up here."
+	runbooksNone   = "Write the steps you take for a known problem. The agent can walk you through them, one proposal at a time."
 )
 
-// emptyNone is the list with nothing in it yet; action is what makes the first item.
 func emptyNone(icon, title, desc, action string) emptySpec {
 	return emptySpec{icon: icon, title: title, desc: desc, action: action}
 }
 
-// emptySentences is emptyNone for the app's one-line empty words ("No hosts in this folder yet. Drag hosts onto it in the
+// emptySentences is emptyNone for a one-line empty text ("No hosts in this folder yet. Drag hosts onto it in the
 // sidebar."): the first sentence is the title, the rest the description.
 func emptySentences(icon, words, action string) emptySpec {
 	title, desc, _ := strings.Cut(words, ". ")
 	return emptyNone(icon, strings.TrimSuffix(title, "."), desc, action)
 }
 
-// emptyNoMatch is a list with items that its filter hides.
 func emptyNoMatch(icon, filter string) emptySpec {
 	return emptySpec{icon: icon, title: "Nothing matches “" + filter + "”", desc: "Try other words, or clear the filter.", action: "Clear filter"}
 }
 
-// emptyFailed is a list that could not be read.
 func emptyFailed(icon, what, err string) emptySpec {
 	return emptySpec{icon: icon, title: "Cannot load " + what, desc: err, action: "Try again"}
 }

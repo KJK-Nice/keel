@@ -11,12 +11,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Rename notebook dialog, a notebook's History and Notebooks · Recently deleted: internal/ui/dialogs.templ
-// notebookRenameDialog and notebookHistoryDialog, with cmd/keel/web/js/ui/notebookhistory.js and term.js
-// saveNotebookRename. History and Recently deleted are one dialog: the versions on the left, the lines that changed from
+// The Rename notebook dialog, a notebook's History and Notebooks · Recently deleted.
+// History and Recently deleted are one dialog: the versions on the left, the lines that changed from
 // the selected version to now (or the deleted notebook as text) on the right.
 
-// The dialog's words (ui/notebookhistory.js).
 const (
 	historyDesc   = "Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days."
 	historyNone   = "No earlier versions yet. Keel keeps one before every agent edit and restore, and when you start editing again."
@@ -67,7 +65,7 @@ func (w *workspace) openRenameNotebook(id string) {
 func (w *workspace) openNotebookHistory(id string) { w.openNotebookHistoryAt(id, "") }
 
 // openNotebookHistoryAt is History that selects the newest version of an event ("before-agent-edit" for the banner's View
-// changes, term.js openHistory with agentEdit); "" selects the newest version.
+// changes); "" selects the newest version.
 func (w *workspace) openNotebookHistoryAt(id, event string) {
 	rec, ok := w.notebook(id)
 	if !ok {

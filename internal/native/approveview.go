@@ -2,9 +2,8 @@ package native
 
 import "github.com/egoist/mygo/ui"
 
-// The Approve before type dialog drawn as ptyInjectDialog (internal/ui/dialogs.templ) with .modal and
-// .pty-inject-preview (keel.css): the title and its sentence, the session, the exact text in the mono font, an error
-// line, Cancel and Type. As in the webview the keyboard starts on Cancel, so a stray ↵ never types; Type is a click, or
+// The Approve before type dialog drawn: the title and its sentence, the session, the exact text in the mono font, an error
+// line, Cancel and Type. The keyboard starts on Cancel, so a stray ↵ never types; Type is a click, or
 // Tab and ↵. Esc, Cancel and a click outside close it and send nothing.
 
 // dialogBtn is textBtn that takes the keyboard (↵ presses it) and can be switched off.
@@ -64,7 +63,7 @@ func (w *workspace) approveView(c *ui.Context) {
 				ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 			}
 		})
-		if note != "" { // .k-review.pty-inject-agent, after the preview as the app has it
+		if note != "" { // after the preview
 			ui.Row(c).FillWidth().Padding(space2, space3).Radius(radiusMd).Background(hoverGround).Label("approve note").Children(func() {
 				ui.Text(c, note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 			})

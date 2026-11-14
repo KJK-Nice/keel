@@ -13,12 +13,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show. They are the parts of
-// cmd/keel/web/js/lib/notebooks.js, lib/autosave.js and notebook-editor.mjs (SHELL_LANGS) that the native client uses,
-// pinned there by test/notebooks.test.mjs, test/notebookhistory.test.mjs and test/autosave.test.mjs and here by
+// The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show, pinned by
 // notebookslogic_test.go. Nothing here talks to keel serve, draws or types.
 
-// The app's sentences (lib/notebooks.js).
 const (
 	placeholderRefused = "Not typed: this block holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Edit it to the real value or an environment variable first."
 	agentEditReview    = "The agent edited this notebook. Check what changed before you type a command from it: Keel kept the version before the edit."
@@ -27,7 +24,7 @@ const (
 // byAgent is Notebook.LastBy and Notebook.Source of the agent's work (a constant: guard_test.go keeps the quoted key).
 const byAgent = "agent"
 
-// privateLabel is the meta line's toggle (lib/notebooks.js privateLabel).
+// privateLabel is the meta line's toggle.
 func privateLabel(nb keelclient.Notebook) string {
 	if nb.Private {
 		return "Private"
@@ -35,7 +32,7 @@ func privateLabel(nb keelclient.Notebook) string {
 	return "Agent can read"
 }
 
-// ---- sorting and previews (internal/ui/data.go vaultNotebooks, notebookPreview) ----
+// ---- sorting and previews ----
 
 // sortedNotebooks is the list the sidebar and the page show: pinned first, then newest, then name.
 func sortedNotebooks(nbs []keelclient.Notebook) []keelclient.Notebook {
@@ -69,7 +66,7 @@ func notebookPreview(nb keelclient.Notebook) string {
 	return "Empty notebook"
 }
 
-// notebookName is a notebook's name as a row shows it (internal/ui/menus.go sideNotebookName).
+// notebookName is a notebook's name as a row shows it.
 func notebookName(nb keelclient.Notebook) string {
 	if nb.Name == "" {
 		return "Notebook"
@@ -84,15 +81,15 @@ func notebookName(nb keelclient.Notebook) string {
 type fence struct {
 	Index int    // the block's index in the parsed document, which markdown.View reports as CodeBlockView.Index
 	Lang  string // the first word of the info string, lower case
-	Code  string // the lines joined with "\n", with no newline at the end (notebook-editor.mjs nodeText)
-	Shell bool   // sh, bash or shell: only these get Type (SHELL_LANGS); every fence gets Copy
+	Code  string // the lines joined with "\n", with no newline at the end
+	Shell bool   // sh, bash or shell: only these get Type; every fence gets Copy
 }
 
 // markdownExt is the syntax markdown.View reads when Options.Extensions is zero: fences are parsed the same way, so a
 // block has the same index in both.
 const markdownExt = parser.Default
 
-// shellLangs are the fence languages that offer Type (notebook-editor.mjs SHELL_LANGS).
+// shellLangs are the fence languages that offer Type.
 var shellLangs = []string{"sh", "bash", "shell"}
 
 // fences lists the code blocks of md in document order, those in a quote or a list item too.
@@ -127,13 +124,13 @@ func fenceAt(fs []fence, index int) (fence, bool) {
 }
 
 // directable reports whether a fence may be typed with no dialog: a shell fence of exactly one line that holds no
-// placeholder (term.js runNotebookFence: TD.directHint(line) && !hasPlaceholder(line); keel serve decides again).
+// placeholder (keel serve decides again).
 func directable(f fence) bool {
 	line := strings.TrimSpace(f.Code)
 	return f.Shell && line != "" && !strings.Contains(line, "\n") && !cmdrule.HasPlaceholder(line)
 }
 
-// ---- autosave (lib/autosave.js) ----
+// ---- autosave ----
 
 // autosave decides when an edited notebook saves: idle after the last edit, and at least every maxWait while edits keep
 // coming, one save at a time, and an edit made during a save runs one more right after it, so an older text never lands
@@ -198,7 +195,7 @@ func (a *autosave) end() (again bool) {
 	return a.dirty
 }
 
-// ---- History (lib/notebooks.js, ui/notebookhistory.js) ----
+// ---- History ----
 
 var eventLabel = map[string]string{
 	"before-agent-edit": "Before the agent's edit",
@@ -211,7 +208,7 @@ var eventLabel = map[string]string{
 // versionRow is a History row: who, what, when, and the agent's summary under it.
 type versionRow struct{ Who, What, When, Summary string }
 
-// versionLabel is lib/notebooks.js versionLabel.
+// versionLabel is a version's who and what.
 func versionLabel(v keelclient.NotebookVersion, now time.Time) versionRow {
 	who := "You"
 	if v.By == byAgent {
@@ -228,12 +225,12 @@ func versionLabel(v keelclient.NotebookVersion, now time.Time) versionRow {
 	return r
 }
 
-// whenText is lib/notebooks.js whenText: "just now", "2 min ago", "today 14:05", "Oct 19 14:05".
+// whenText is "just now", "2 min ago", "today 14:05", "Oct 19 14:05".
 func whenText(at, now time.Time) string {
 	if at.IsZero() {
 		return ""
 	}
-	mins := int(now.Sub(at).Minutes() + 0.5) // Math.round
+	mins := int(now.Sub(at).Minutes() + 0.5) // rounded
 	if mins < 1 {
 		return "just now"
 	}
@@ -247,14 +244,14 @@ func whenText(at, now time.Time) string {
 	return clockMD(at) + " " + clockHM(at)
 }
 
-// versionText is a version's text (lib/notebooks.js versionText).
+// versionText is a version's text.
 func versionText(v keelclient.NotebookVersion) string { return v.Markdown() }
 
 // diffLine is a line of a diff: op is "same", "add" or "del".
 type diffLine struct{ Op, Text string }
 
 // diffLines compares two texts line by line (longest common subsequence): b's lines are added, a's removed. Past maxCells
-// line pairs it gives up on alignment and shows a as removed and b as added (lib/notebooks.js diffLines).
+// line pairs it gives up on alignment and shows a as removed and b as added.
 func diffLines(a, b string, maxCells int) []diffLine {
 	x, y := strings.Split(a, "\n"), strings.Split(b, "\n")
 	head := 0
@@ -322,7 +319,7 @@ func diffLines(a, b string, maxCells int) []diffLine {
 
 const diffMaxCells = 250000
 
-// diffSummary counts a diff's added and removed lines (lib/notebooks.js diffSummary).
+// diffSummary counts a diff's added and removed lines.
 func diffSummary(d []diffLine) string {
 	add, del := 0, 0
 	for _, l := range d {

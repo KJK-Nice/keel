@@ -9,9 +9,8 @@ import (
 	"keel/internal/native/sshparse"
 )
 
-// Quick connect, and "Connect once" on the New tab page, which is the same dialog (term.js openQuick,
-// saveQuick; quickDialog in internal/ui/dialogs.templ). It saves a password host under the group "Quick
-// connect" with POST /api/hosts, as the webview does, and opens a session on it; the host key dialog and the
+// Quick connect, and "Connect once" on the New tab page, which is the same dialog. It saves a password host under the group "Quick
+// connect" with POST /api/hosts and opens a session on it; the host key dialog and the
 // failure banner then work as for any host. The password is typed here, never read from the pasted command.
 
 type quickDialog struct {
@@ -32,7 +31,7 @@ func (w *workspace) closeQuick() {
 	w.returnKeyboard(true)
 }
 
-// quickColor is the colour the webview gives a quick host.
+// quickColor is the colour of a quick host.
 const quickColor = "var(--ansi-12)"
 
 // submitQuick saves the host and opens it. The target must read as user@host (or user@host:port): the same

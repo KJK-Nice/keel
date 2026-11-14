@@ -13,16 +13,12 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Port forwarding (docs/ui-redesign.md §5.10): what the app has, and so what this has. The words and rules are
-// ForwardsPage, TunnelList and tunnelRow (internal/ui/pages.templ, lists.templ), tunnelDialog (dialogs.templ), the
-// row menu (rowmenus.templ), the sidebar's Forwards section (sidebarlists.templ), the status bar's forwards count
-// (page.templ, term.js renderStatusBar) and the handlers in cmd/keel/web/js/term.js. The helpers below are
-// internal/ui/data.go's. Each forward opens its own SSH connection from keel serve and keeps running when the window
-// closes.
+// Port forwarding (docs/ui-redesign.md §5.10). Each forward opens its own SSH connection from keel serve and keeps
+// running when the window closes.
 //
-// Not in the app and so not here: traffic counters, a per-row Edit shortcut on a failed forward (a failed row has
-// Retry; Edit is in the row menu), a "Missing host" repair other than the dialog's own entry. The webview learns of
-// a forward's state from its Datastar stream; this client reads GET /api/tunnels after every action, when the vault
+// Not here: traffic counters, a per-row Edit shortcut on a failed forward (a failed row has
+// Retry; Edit is in the row menu), a "Missing host" repair other than the dialog's own entry. This client reads
+// GET /api/tunnels after every action, when the vault
 // rev changes, and every 2 s while the page or the sidebar's Forwards section shows (forwardsEvery).
 //
 // A forward's bind address defaults to 127.0.0.1 and the dialog says "Bind 0.0.0.0 exposes the port on every
@@ -46,7 +42,7 @@ func (p *forwardsPage) load(w *workspace)                { w.reloadTunnels() }
 func (p *forwardsPage) view(w *workspace, c *ui.Context) { w.forwardsView(c, p) }
 func (p *forwardsPage) newItem(w *workspace)             { w.newForward() }
 
-// tunnelStateInfo is internal/ui/data.go tunnelStatus: how a forward's state reads, a dot and a word.
+// tunnelStateInfo is how a forward's state reads, a dot and a word.
 type tunnelStateInfo struct {
 	label  string
 	dot    string // the palette's dot: live | connecting | dead | idle
@@ -54,7 +50,6 @@ type tunnelStateInfo struct {
 	on     bool
 }
 
-// tunnelState is data.go tunnelState.
 func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
 	switch t.Status {
 	case "ready":
@@ -71,7 +66,7 @@ func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
 	return tunnelStateInfo{"Stopped", "idle", tunnelStopped, false}
 }
 
-// tunnelFlag is data.go tunnelFlag: the ssh flag a kind maps to.
+// tunnelFlag is the ssh flag a kind maps to.
 func tunnelFlag(kind string) string {
 	switch kind {
 	case "remote":
@@ -82,7 +77,6 @@ func tunnelFlag(kind string) string {
 	return "-L"
 }
 
-// tunnelDest is data.go tunnelDest.
 func tunnelDest(t keelclient.Tunnel) string {
 	if t.Kind == "dynamic" {
 		return "SOCKS5"
@@ -90,7 +84,6 @@ func tunnelDest(t keelclient.Tunnel) string {
 	return fmt.Sprintf("%s:%d", t.DestHost, t.DestPort)
 }
 
-// tunnelListen is data.go tunnelListen.
 func tunnelListen(t keelclient.Tunnel) string {
 	if t.ListenAddr != "" {
 		return t.ListenAddr
@@ -101,7 +94,7 @@ func tunnelListen(t keelclient.Tunnel) string {
 	return fmt.Sprintf("%s:%d", t.BindAddr, t.BindPort)
 }
 
-// tunnelEveryInterface is data.go tunnelEveryInterface: a wildcard bind, not loopback only. These are display
+// tunnelEveryInterface reports a wildcard bind, not loopback only. These are display
 // strings for the badge; nothing here binds.
 func tunnelEveryInterface(t keelclient.Tunnel) bool {
 	switch strings.TrimSpace(t.BindAddr) {
@@ -111,7 +104,7 @@ func tunnelEveryInterface(t keelclient.Tunnel) bool {
 	return false
 }
 
-// tunnelLocalAddress is menus.go tunnelLocalAddress: what "Copy local address" copies, "" when there is none.
+// tunnelLocalAddress is what "Copy local address" copies, "" when there is none.
 func tunnelLocalAddress(t keelclient.Tunnel) string {
 	if t.Kind == "remote" {
 		if t.DestHost == "" || t.DestPort == 0 {
@@ -132,7 +125,6 @@ func tunnelLocalAddress(t keelclient.Tunnel) string {
 	return fmt.Sprintf("%s:%d", addr, t.BindPort)
 }
 
-// tunnelHostName is data.go hostNameByID: the host's name, else its id.
 func (w *workspace) tunnelHostName(id string) string {
 	if h, ok := hostByID(w.hosts, id); ok {
 		return h.Name
@@ -140,12 +132,10 @@ func (w *workspace) tunnelHostName(id string) string {
 	return id
 }
 
-// tunnelFilterText is what the page's filter reads: the name, the host's name, the listen address and the target.
 func (w *workspace) tunnelFilterText(t keelclient.Tunnel) string {
 	return t.Name + " " + w.tunnelHostName(t.HostID) + " " + tunnelListen(t) + " " + tunnelDest(t)
 }
 
-// shownTunnels is the page's rows: the filter text and the chip.
 func (w *workspace) shownTunnels(p *forwardsPage) (out []keelclient.Tunnel) {
 	q := strings.ToLower(strings.TrimSpace(p.filter))
 	for _, t := range w.tunnels {
@@ -160,7 +150,6 @@ func (w *workspace) shownTunnels(p *forwardsPage) (out []keelclient.Tunnel) {
 	return out
 }
 
-// tunnelCounts is the chips' counts (syncTunnelPage counts every row).
 func (w *workspace) tunnelCounts() (all, running, stopped int) {
 	for _, t := range w.tunnels {
 		all++
@@ -173,7 +162,7 @@ func (w *workspace) tunnelCounts() (all, running, stopped int) {
 	return
 }
 
-// runningForwards is the status bar's count: forwards that are ready (term.js renderStatusBar).
+// runningForwards is the status bar's count: forwards that are ready.
 func (w *workspace) runningForwards() (n int) {
 	for _, t := range w.tunnels {
 		if t.Status == "ready" {
@@ -183,7 +172,6 @@ func (w *workspace) runningForwards() (n int) {
 	return n
 }
 
-// forwardsLabel is the status bar's "1 forward" / "2 forwards".
 func forwardsLabel(n int) string {
 	return countWord(n, "forward", "forwards")
 }
@@ -201,7 +189,6 @@ func (w *workspace) forwardsShown() bool {
 
 // ---- reading ----
 
-// reloadTunnels reads the forwards again.
 func (w *workspace) reloadTunnels() { w.readTunnels(new(bool), false) }
 
 // tunnelTick is one tick of the 2 s read: it reads only while the forwards show and no read is out.
@@ -245,7 +232,7 @@ func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
 	}, func(err error) {
 		if err != nil {
 			var se *keelclient.StatusError
-			if on && errors.As(err, &se) && se.Offer.Kind != "" { // promptHostKey(err, {tunnelId})
+			if on && errors.As(err, &se) && se.Offer.Kind != "" {
 				w.fwdKey = &fwdKeyOffer{tunnelID: t.ID, key: se.Offer}
 			} else {
 				w.warn(errText("forward", err))
@@ -274,7 +261,7 @@ func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	})
 }
 
-// askDeleteTunnel is Delete: it asks first (term.js: askConfirm `Delete forward “name”?`).
+// askDeleteTunnel is Delete: it asks first.
 func (w *workspace) askDeleteTunnel(t keelclient.Tunnel) {
 	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete forward “" + t.Name + "”?", action: "Remove", run: func() { w.deleteTunnel(t) }})
 }
@@ -290,7 +277,7 @@ func (w *workspace) deleteTunnel(t keelclient.Tunnel) {
 
 // ---- the dialog ----
 
-// forwardDialog is New forward / Edit forward (tunnelDialog in dialogs.templ). The values are strings, as the form's.
+// forwardDialog is New forward / Edit forward. The values are strings, as the form's.
 type forwardDialog struct {
 	id                                                string // "" for New forward
 	name, hostID, kind                                string
@@ -300,12 +287,11 @@ type forwardDialog struct {
 	nameH, bindAddrH, bindPortH, destHostH, destPortH ui.Handle
 }
 
-// newForward is fillTunnelForm(null): local, 127.0.0.1, port 0, a target of 127.0.0.1:5432.
+// newForward opens the dialog with: local, 127.0.0.1, port 0, a target of 127.0.0.1:5432.
 func (w *workspace) newForward() {
 	w.fwdDlg = &forwardDialog{kind: "local", bindAddr: "127.0.0.1", bindPort: "0", destHost: "127.0.0.1", destPort: "5432", focus: true}
 }
 
-// editForward is fillTunnelForm(t).
 func (w *workspace) editForward(t keelclient.Tunnel) {
 	d := &forwardDialog{id: t.ID, name: t.Name, hostID: t.HostID, kind: t.Kind, bindAddr: t.BindAddr,
 		bindPort: strconv.Itoa(t.BindPort), destHost: t.DestHost, destPort: strconv.Itoa(t.DestPort), focus: true}
@@ -326,7 +312,7 @@ func (w *workspace) editForward(t keelclient.Tunnel) {
 
 func (w *workspace) closeForwardDialog() { w.fwdDlg = nil }
 
-// sshHosts is the host picker's list: every host but the local shell (term.js sshHosts).
+// sshHosts is the host picker's list: every host but the local shell.
 func (w *workspace) sshHosts() (out []keelclient.Host) {
 	for _, h := range w.hosts {
 		if !h.IsLocal() {
@@ -336,7 +322,7 @@ func (w *workspace) sshHosts() (out []keelclient.Host) {
 	return out
 }
 
-// hostPickEntries is fillTunnelHosts: each SSH host with its address, and "Missing host — pick another" for a saved
+// hostPickEntries is each SSH host with its address, and "Missing host — pick another" for a saved
 // host that is gone.
 func (w *workspace) hostPickEntries(selected string) (out []pickEntry) {
 	found := selected == ""
@@ -352,7 +338,7 @@ func (w *workspace) hostPickEntries(selected string) (out []pickEntry) {
 	return out
 }
 
-// request is what /ui/forms/tunnel makes of the form: a blank bind address is 127.0.0.1, a port that is not a number
+// request is what the form makes of its values: a blank bind address is 127.0.0.1, a port that is not a number
 // is 0. The kind's own rules (a target for -L and -R, a loopback bind for -D) are the server's.
 func (d *forwardDialog) request() keelclient.TunnelInput {
 	bind := strings.TrimSpace(d.bindAddr)
@@ -364,14 +350,13 @@ func (d *forwardDialog) request() keelclient.TunnelInput {
 		BindPort: n(d.bindPort), DestHost: strings.TrimSpace(d.destHost), DestPort: n(d.destPort)}
 }
 
-// saveForward is Save forward.
 func (w *workspace) saveForward() {
 	d := w.fwdDlg
 	if d == nil || d.saving {
 		return
 	}
 	if d.hostID == "" {
-		d.err = "Pick an SSH host first" // forms.go
+		d.err = "Pick an SSH host first"
 		return
 	}
 	in := d.request()

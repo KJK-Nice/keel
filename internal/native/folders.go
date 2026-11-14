@@ -11,9 +11,7 @@ import (
 
 // Folders (docs/ui-redesign.md §9 Group, §17): a vault folder is a keelclient.Group with a parent, a host points at one with
 // its GroupID, and a folder's members are the hosts in it and in every folder below it. This file is the pure rules of
-// cmd/keel/web/js/lib/groups.js (pinned there by test/groups.test.mjs and here by folders_test.go), the tree the sidebar
-// draws (nestGroupTree in internal/ui/data.go) and the requests the folder menus make (term.js createGroup, renameGroup,
-// deleteGroup, assignHostsGroup and the drop handlers). Every walk up a parent chain stops at a cycle, so bad data cannot
+// folders (pinned by folders_test.go), the tree the sidebar draws and the refusals the folder menus make. Every walk up a parent chain stops at a cycle, so bad data cannot
 // hang the window. Nothing here talks to a session.
 
 // maxGroupDepth is how many folders may nest, and the two refusals of a folder that would nest wrongly: keel serve's
@@ -156,7 +154,7 @@ type folderNode struct {
 	depth int
 }
 
-// hostMatchesFolderQuery is internal/ui/data.go hostMatchesGroupQuery: the sidebar's filter reads the host's own fields,
+// hostMatchesFolderQuery: the sidebar's filter reads the host's own fields,
 // its tags and the names of the folders above it.
 func hostMatchesFolderQuery(h keelclient.Host, byID map[string]keelclient.Group, q string) bool {
 	blob := strings.ToLower(h.Name + " " + h.Address + " " + h.Username + " " + h.Group + " " + strings.Join(h.Tags, " "))
@@ -179,7 +177,7 @@ func byHostName(hs []keelclient.Host) []keelclient.Host {
 	return out
 }
 
-// nestFolderTree is nestGroupTree: the folders by name, each with its hosts and subfolders. A folder with nothing in it
+// nestFolderTree nests the folders by name, each with its hosts and subfolders. A folder with nothing in it
 // that the filter did not name is left out while filtering.
 func nestFolderTree(groups []keelclient.Group, hosts []keelclient.Host, query string) []folderNode {
 	byID := map[string]keelclient.Group{}
@@ -256,14 +254,13 @@ func looseHosts(groups []keelclient.Group, hosts []keelclient.Host, query string
 	return byHostName(out)
 }
 
-// folderTreeEmpty is vaultTreeEmpty: nothing to draw.
 func folderTreeEmpty(tree []folderNode, loose []keelclient.Host) bool {
 	return len(tree) == 0 && len(loose) == 0
 }
 
-// ---- what a drop or a menu may do (term.js drop handler, createGroup) ----
+// ---- what a drop or a menu may do ----
 
-// folderMoveRefusal says why folder id cannot go under dest ("" is the root): the app's own words, or "".
+// folderMoveRefusal says why folder id cannot go under dest ("" is the root), or "".
 func folderMoveRefusal(groups []keelclient.Group, id, dest string) string {
 	if id == "" || id == dest || isGroupUnder(groups, dest, id) {
 		return msgGroupCycle
@@ -274,7 +271,7 @@ func folderMoveRefusal(groups []keelclient.Group, id, dest string) string {
 	return ""
 }
 
-// folderCreateRefusal says why a new folder cannot go under parent (term.js createGroup), or "".
+// folderCreateRefusal says why a new folder cannot go under parent, or "".
 func folderCreateRefusal(groups []keelclient.Group, parent string) string {
 	if parent == "" {
 		return ""

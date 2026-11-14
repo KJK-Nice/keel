@@ -8,10 +8,10 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Rearranging the panes of a tab by dragging a pane bar (ui/drag.js, lib/workspace.js movePane): a pane dragged by its bar
+// Rearranging the panes of a tab by dragging a pane bar: a pane dragged by its bar
 // and dropped on an edge of another pane of the same tab moves next to it, on the centre swaps the two. The tab leaves focus
-// view and the moved pane has the focus. A pane dropped on the tab strip becomes a tab of its own there (extractPane, term.js
-// extractPaneToTab), and a whole tab dropped on a pane of another tab docks beside it (dockTab, term.js dockTabIntoPane), the
+// view and the moved pane has the focus. A pane dropped on the tab strip becomes a tab of its own there (extractPane),
+// and a whole tab dropped on a pane of another tab docks beside it (dockTab), the
 // docked tab's sync flag kept if either had it. Nothing here opens, closes or types into a session: a pane keeps its
 // connection wherever it goes.
 
@@ -88,10 +88,10 @@ func (w *workspace) extractPane(t *tab, id string, slot int) {
 // paneDropInset is .pane-drop-region's inset: 6 px from the pane's edge.
 const paneDropInset = space1_5
 
-// paneDropCentre is how far in a point must be, as a share of the pane, to be "centre" (drag.js dropEdgeForRect: 0.28).
+// paneDropCentre is how far in a point must be, as a share of the pane, to be "centre".
 const paneDropCentre = 0.28
 
-// dropEdge is drag.js dropEdgeForRect for a point at relX, relY (0 to 1) of a pane: the nearest edge, or "center" when the
+// dropEdge returns, for a point at relX, relY (0 to 1) of a pane, the nearest edge, or "center" when the
 // point is well inside.
 func dropEdge(relX, relY float32) string {
 	edge, best := "left", relX

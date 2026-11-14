@@ -10,8 +10,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Plain language → command in a pane (docs/ui-redesign.md §5.5): the state machine and the pure rules, a port of
-// cmd/keel/web/js/lib/suggest.js function for function, held by suggest_test.go (every case of test/suggest.test.mjs).
+// Plain language → command in a pane (docs/ui-redesign.md §5.5): the state machine and the pure rules, held by suggest_test.go.
 // Nothing here writes to a pane or sends a frame: the pane's code (suggestpane.go) does the I/O the deps name, and keel
 // serve decides whether a line is noticed, writes a suggestion only after the user's ⇥ / ⇧⇥, and checks the ⇧ rule again.
 
@@ -49,7 +48,7 @@ type promptLine struct {
 	Row           int // the screen row the line is on (0-based); set by the pane, not by promptInput
 }
 
-// promptInput is lib/suggest.js promptInput; nil when no prompt is found.
+// promptInput is nil when no prompt is found.
 func promptInput(text string) *promptLine {
 	m := promptRe.FindStringSubmatch(text)
 	if m == nil {
@@ -61,7 +60,7 @@ func promptInput(text string) *promptLine {
 
 func isControl(r rune) bool { return r <= 0x1f || r == 0x7f }
 
-// worthDetecting is lib/suggest.js worthDetecting: a #-line, or two or more words, within suggestMaxLen.
+// worthDetecting is true for a #-line, or two or more words, within suggestMaxLen.
 func worthDetecting(input string) bool {
 	s := strings.TrimSpace(input)
 	if len(s) < 3 || len(s) > suggestMaxLen || strings.IndexFunc(s, isControl) >= 0 {
@@ -94,7 +93,7 @@ const (
 	sugAuto
 )
 
-// applyRisk merges a later, stricter rating into a suggestion (lib/suggest.js applyRisk). It returns a new suggestion,
+// applyRisk merges a later, stricter rating into a suggestion. It returns a new suggestion,
 // or sug itself when the update is for another one. It never loosens what is shown: it can only add ⇧.
 func applyRisk(sug *keelclient.Suggestion, id string, upd []keelclient.SuggestOption) *keelclient.Suggestion {
 	if sug == nil || id != sug.ID || upd == nil {

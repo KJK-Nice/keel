@@ -11,20 +11,19 @@ import (
 	"keel/internal/wire"
 )
 
-// The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"; term.js panesTab, applySidebarSeg,
-// revealPanes, pickPane, paneRowInfo, paintPanesSection). The segment exists only while the active tab has two or more
+// The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"). The segment exists only while the active tab has two or more
 // panes; its count follows the label; when that ends (a pane closed, another tab selected) the sidebar falls back to
 // Hosts. A map of the tab's split tree (each cell sized like its pane, the focused one with an accent line on top) and
 // "This tab" with one row per pane. A row or a cell focuses its pane and leaves focus view first. Clicking into a
 // pane of a split tab shows this section without moving the keyboard out of the terminal. The filter reads the rows,
 // never the map.
 //
-// A notebook pane is a row and a map cell like a terminal's, named by its title (term.js paneRowInfo for a notebook). The row
+// A notebook pane is a row and a map cell like a terminal's, named by its title. The row
 // menu is the pane menu without Focus view (the bar has that) and without Share (a notebook has no session).
 
 const (
-	paneMapHeight = sizeRow + sizeControlLg // .k-panemap: calc(var(--size-row) + var(--size-control-lg))
-	paneRowHeight = sizeControlLg + space2  // button.k-pane-row
+	paneMapHeight = sizeRow + sizeControlLg
+	paneRowHeight = sizeControlLg + space2
 )
 
 // panesTab is the tab the Panes section lists: the active session tab, only while it has two or more panes.
@@ -77,7 +76,6 @@ type paneRow struct {
 	notebook      bool // a notebook pane: no host, no session
 }
 
-// statusWord is term.js dotFor's label for a session's state.
 func statusWord(status wire.Status) string {
 	switch status {
 	case wire.StatusReady:
@@ -136,7 +134,7 @@ func (w *workspace) sidebarPanes(c *ui.Context, t *tab) {
 		focused = rows[0].id
 	}
 	ui.Column(c).FillWidth().Gap(space1).Children(func() {
-		// .k-panemap: a 1px line-coloured frame whose gutters are the lines between cells.
+		// The map: a 1px line-coloured frame whose gutters are the lines between cells.
 		ui.Box(c).FillWidth().Height(paneMapHeight).Padding(1).Radius(radiusSm).Background(line).Label("Layout of this tab").Children(func() {
 			w.paneMapNode(c, t, t.root, rows, focused, layout.Row, true, 1)
 		})
@@ -189,7 +187,7 @@ func (w *workspace) paneMapNode(c *ui.Context, t *tab, n *layout.Node, rows []pa
 	})
 }
 
-// paneMapCell is button.k-panemap-cell in its slot: the number and the name; the focused cell is on surface with a
+// paneMapCell is a map cell in its slot: the number and the name; the focused cell is on surface with a
 // 2px accent line on top.
 func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current bool, fit func(ui.Element) ui.Element) {
 	fit(ui.Box(c)).Padding(1).Children(func() {
@@ -220,7 +218,7 @@ func (w *workspace) paneMapCell(c *ui.Context, t *tab, r paneRow, n int, current
 	})
 }
 
-// paneRowView is button.k-pane-row: the host's tile, the name and sub line, and the meta icons (steering when you
+// paneRowView is a pane's row: the host's tile, the name and sub line, and the meta icons (steering when you
 // drive a shared pane, the agent's mark when it can read the pane).
 func (w *workspace) paneRowView(c *ui.Context, t *tab, r paneRow, current bool) {
 	row := ui.Row(c).FillWidth().Height(paneRowHeight).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(r.id).

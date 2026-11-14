@@ -10,9 +10,8 @@ import (
 	"keel/internal/runvars"
 )
 
-// The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17): the words and decisions
-// of cmd/keel/web/js/lib/grouprun.js (roles) and lib/groupvars.js, pinned there by test/grouprun.test.mjs and
-// test/groupvars.test.mjs and here by grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
+// The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by
+// grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
 // shape what the window shows and decide whether a request is worth sending. Nothing here talks to keel serve, draws or
 // types, and nothing here ever holds a variable's value except the one the user is typing.
 
@@ -93,7 +92,7 @@ func groupLine(members []keelclient.GroupMember, hosts []keelclient.Host) string
 	return strings.Join(parts, " · ")
 }
 
-// ---- group variables (lib/groupvars.js) ----
+// ---- group variables ----
 
 // The limits and the reference syntax are internal/runvars's.
 const (
@@ -141,7 +140,7 @@ type varSeg struct {
 	isName bool // text is "{{name}}" or "{{name|q}}"
 }
 
-// splitVars cuts bytes at every {{name}}: the references are drawn as chips and every other piece as the app's bytes.
+// splitVars cuts bytes at every {{name}}: the references are drawn as chips and every other piece as bytes.
 func splitVars(bytes string) (out []varSeg) {
 	last := 0
 	for _, r := range runvars.Refs(bytes) {
@@ -289,7 +288,7 @@ func checkCaptures(steps []keelclient.RunbookStepInput) string {
 				return fmt.Sprintf("Step %d: a capture's name is lower-case letters, digits and _ (for example join_token).", i+1)
 			case c.Pattern == "":
 				return fmt.Sprintf("Step %d: %s needs a pattern with a group around the value, such as --token\\s+(\\S+).", i+1, c.Name)
-			case utf8.RuneCountInString(c.Pattern) > maxPattern: // JS .length counts UTF-16 units; keel serve checks bytes
+			case utf8.RuneCountInString(c.Pattern) > maxPattern: // keel serve checks bytes
 				return fmt.Sprintf("Step %d: a pattern is at most %d characters.", i+1, maxPattern)
 			case seen[c.Name]:
 				return fmt.Sprintf("Step %d: %s is captured by another step already.", i+1, c.Name)

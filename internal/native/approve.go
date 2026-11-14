@@ -12,9 +12,7 @@ import (
 // Approve before type (docs/ui-redesign.md §6): keel-native types nothing on the user's behalf until the user has seen
 // the exact bytes and pressed Type, except one plainly read-only line that keel serve agrees to type with no dialog and
 // no Enter (typenow.go, rule 13). This file is the only caller of keelclient.ApprovedInject, and Type is its only
-// trigger (guard_test.go keeps both true). Words, bytes and rules are the webview's: ptyInjectDialog in
-// internal/ui/dialogs.templ and approveBeforeType, settlePtyInject and paletteRunSnippet in cmd/keel/web/js/term.js,
-// and sendApprovedInject in pty.js.
+// trigger (guard_test.go keeps both true).
 //
 // The group approve dialog (docs/ui-redesign.md §6 rule 10, §17; groupapproveview.go) is this same dialog and this same Type
 // action: its Type presses approveType, which makes one job per ticked row (groupJobs) and runs them in one loop through the
@@ -22,12 +20,12 @@ import (
 // for the user unless there is only one host; only ticked rows are typed; a refusal for one row is that row's and does not
 // stop the others; nothing is retried. A row's bytes are keel serve's: the proposal's, or the fill's with the values in (rule 11).
 //
-// The bytes: the command gets a trailing newline if it has none (term.js paletteRunSnippet), the dialog shows that
+// The bytes: the command gets a trailing newline if it has none, the dialog shows that
 // text, and what is sent is Ctrl-U (it clears the line first, as the dialog says) followed by exactly that text.
 // keel serve writes the bytes it is given and adds nothing (runtime.Session.InjectTicket). Nothing is kept: the
 // dialog asks its source for the command every time it draws and every time Type is pressed.
 //
-// There is no production or ⇧ rule for snippets: the webview has none. An agent proposal is typed through the same
+// There is no production or ⇧ rule for snippets. An agent proposal is typed through the same
 // dialog (agent.go typeAgentProposal): the dialog then shows the proposal's own bytes, as keel serve holds them (Ctrl-U,
 // the command, a newline, the control characters drawn as glyphs), sends exactly those with the reference to the
 // proposal, and shows keel serve's answer: a refusal types nothing and is never retried. The ⇧ rule is keel serve's, and
@@ -38,11 +36,10 @@ const clearLine = "\x15"
 
 const approvePreviewMax = 130 // not a token: .pty-inject-preview max-height, 10rem
 
-// The webview's words for the dialog (ptyInjectDialog) and for a refusal (pty.js).
 const (
 	approveTitle = "Type into the terminal?"
 	approveHint  = "This sends keystrokes to the focused session. The current line is cleared first. Nothing is typed until you approve."
-	// A notebook fence's bytes carry no Ctrl-U (term.js confirmTermInput), so the dialog does not say the line is cleared.
+	// A notebook fence's bytes carry no Ctrl-U, so the dialog does not say the line is cleared.
 	approveHintNotebook = "This sends keystrokes to the focused session. Nothing is typed until you approve."
 	msgNoSession        = "Open a session first"
 	msgNotConnected     = "Session is not connected"
@@ -73,7 +70,6 @@ type approveSnippet struct {
 	text func() (string, bool)
 }
 
-// shown is the command, with a newline if it has none (term.js paletteRunSnippet).
 func (s approveSnippet) shown() (string, bool) {
 	cmd, ok := s.text()
 	if !strings.HasSuffix(cmd, "\n") {
@@ -83,7 +79,7 @@ func (s approveSnippet) shown() (string, bool) {
 }
 
 // approveNotebook is a notebook fence (notebooktype.go): the bytes are the fence's line and a newline, with no Ctrl-U
-// (term.js confirmTermInput sends line + "\n"), and the inject carries notebook:true. note is the line under the bytes
+// and the inject carries notebook:true. note is the line under the bytes
 // when the agent edited the notebook and the user has not reviewed it (§6 rule 12).
 type approveNotebook struct {
 	approveSnippet
@@ -121,7 +117,7 @@ type typeJob struct {
 	row     *groupRow                 // nil for the one-pane dialogs
 }
 
-// The words of a row that cannot be typed (term.js typeGroupProposal).
+// The words of a row that cannot be typed.
 const (
 	msgGroupPaneGone   = "that pane is not open in this window"
 	msgGroupPaneFollow = "you follow this pane"
@@ -150,7 +146,7 @@ func (d *approveDialog) has() bool {
 	return ok
 }
 
-// session is the line after "Session:" (term.js: the pane's subtitle, else its title).
+// session is the line after "Session:": the pane's subtitle, else its title.
 func (d *approveDialog) session() string {
 	if d.group() != nil {
 		return ""
@@ -168,7 +164,7 @@ func (d *approveDialog) session() string {
 	return "session"
 }
 
-// blocked is why Type cannot type into the pane now, in the webview's words, or "" (rule: driver only).
+// blocked is why Type cannot type into the pane now, or "" (rule: driver only).
 func (d *approveDialog) blocked() string {
 	if d.group() != nil { // every row says for itself why it cannot be typed
 		return ""
@@ -205,7 +201,7 @@ func (w *workspace) openApproveAgent(p *pane, ag *approveAgent) {
 }
 
 // typeTarget is the pane a snippet types into: the focused pane of the tab shown, else of the session tab shown
-// last (term.js paletteRunSnippet selects that tab first). It says why there is none.
+// last. It says why there is none.
 func (w *workspace) typeTarget() (*pane, string) {
 	t := w.tab()
 	if t == nil || len(t.panes) == 0 {
@@ -215,7 +211,7 @@ func (w *workspace) typeTarget() (*pane, string) {
 		}
 	}
 	p := t.panes[t.focused]
-	if p != nil && p.nb != nil { // a notebook is not a terminal: the tab's first terminal takes it (term.js termTarget)
+	if p != nil && p.nb != nil { // a notebook is not a terminal: the tab's first terminal takes it
 		p = t.firstTerm()
 	}
 	if p == nil || p.remote || t.remote { // a joined pane takes no snippet: Approve before type is for a local session
@@ -292,7 +288,7 @@ func (w *workspace) approveType(shift bool) {
 		}
 		job := typeJob{conn: d.p.conn, command: clearLine + d.shown()}
 		switch s := d.src.(type) {
-		case approveNotebook: // the app's bytes for a fence: the line and a newline (confirmTermInput), no Ctrl-U
+		case approveNotebook: // a fence's bytes: the line and a newline, no Ctrl-U
 			if cmdrule.HasPlaceholder(d.shown()) { // keel serve refuses it too (the notebook-labelled inject)
 				d.err = placeholderRefused
 				return
@@ -323,7 +319,7 @@ func (w *workspace) approveType(shift bool) {
 			}
 			err := errs[0]
 			if ag := d.agent(); ag != nil && w.approve == d {
-				// keel serve's answer is final, shown on the card as the webview shows it: the dialog closes either way.
+				// keel serve's answer is final, shown on the card: the dialog closes either way.
 				ag.done(err)
 				w.closeApprove()
 				return
@@ -343,7 +339,7 @@ func (w *workspace) openApproveGroup(g *approveGroup) {
 	w.approve = &approveDialog{src: g, focus: true}
 }
 
-// rowBlocked is why a row cannot be ticked or typed now, in the app's words, or "": a failed fill, a Type that already
+// rowBlocked is why a row cannot be ticked or typed now, or "": a failed fill, a Type that already
 // reached it, and a pane that closed or became a followed one since the dialog opened.
 func (g *approveGroup) rowBlocked(r *groupRow) string {
 	switch {

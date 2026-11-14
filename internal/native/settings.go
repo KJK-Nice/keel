@@ -12,17 +12,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings (docs/ui-redesign.md §5.9): what the app has, and so what this has. The page is SettingsPage and the panels of
-// internal/ui/pages.templ and settings_sections.templ; the words and rules are theirs, the helpers are
-// lib/settingspages.js and lib/shortcutmap.js (settingshelpers.go), and the handlers are term.js (setOpacity, setBlur,
-// setFontSize, the Copy on select and Right-click rows) and ui/settingspages.js.
+// Settings (docs/ui-redesign.md §5.9). The helpers are in settingshelpers.go and the agent's own settings in agentsettings.go.
 //
-// In the app and not here, each for a reason:
-//   - Appearance · Font smoothing: the webview's -webkit-font-smoothing; MyGo draws its own text.
-//   - Agent · Notes for the agent (Your notes, Delete all notes): the notes are the notes feature, a later phase. The rest of
-//     Agent is here (agentsettings.go), saved as it is made.
-//   - Sharing · Display name is stored in keel-native.json ("name"), not in the webview's localStorage; it is read by the
-//     share phase (N6).
+// There is no Appearance · Font smoothing row: MyGo draws its own text. Sharing · Display name is stored in
+// keel-native.json ("name").
 //
 // Window opacity and Window blur apply live while the window was created translucent (Transparent cannot change on an open
 // MyGo window): the grounds repaint at the new alpha, crossing 100 paints them opaque, and the blur is set again (0 at
@@ -124,7 +117,7 @@ func alphaFor(opacity int) float32 {
 	return float32(opacity) / 100
 }
 
-// setOpacity is term.js setOpacity: it keeps the value and, in a window that started translucent, repaints the grounds at
+// setOpacity keeps the value and, in a window that started translucent, repaints the grounds at
 // the new alpha and sets the blur again.
 func (w *workspace) setOpacity(n int) {
 	n = min(max(n, opacityMin), opacityMax)
@@ -139,7 +132,7 @@ func (w *workspace) setOpacity(n int) {
 	w.applyBlur()
 }
 
-// setUIPref is term.js setUiSize: the size is kept and every view draws at it from the next frame (setUISize).
+// setUIPref keeps the size; every view draws at it from the next frame (setUISize).
 func (w *workspace) setUIPref(n int) {
 	n = min(max(n, uiSizeMin), uiSizeMax)
 	if n == w.prefs.UISize {
@@ -149,7 +142,6 @@ func (w *workspace) setUIPref(n int) {
 	w.savePref(keyUISize, keyUISize, n)
 }
 
-// setBlur is term.js setBlur.
 func (w *workspace) setBlur(n int) {
 	n = min(max(n, blurMin), blurMax)
 	if n == w.prefs.Blur {
@@ -198,7 +190,7 @@ func (w *workspace) setRightClick(mode string) {
 	w.savePref(keyRightClick, keyRightClick, mode)
 }
 
-// setDisplayName is term.js setDisplayName: trimmed and cut to 40 characters; empty uses the default.
+// setDisplayName: trimmed and cut to 40 characters; empty uses the default.
 func (w *workspace) setDisplayName(v string) {
 	v = strings.TrimSpace(v)
 	if utf8.RuneCountInString(v) > nameMax {
@@ -262,7 +254,7 @@ func (w *workspace) commitSignal(p *settingsPage) {
 	})
 }
 
-// askStopRuntime is Stop runtime…: it asks first, with the app's words and the session count it knows.
+// askStopRuntime is Stop runtime…: it asks first, with the session count it knows.
 func (w *workspace) askStopRuntime() {
 	n := w.paneCount()
 	if p := pageAs[*settingsPage](w.pageTab("settings")); p != nil && p.rt != nil {
@@ -271,17 +263,17 @@ func (w *workspace) askStopRuntime() {
 	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
-// staleRuntimeNotice is the webview's banner (ui/stalebanner.js), word for word.
+// staleRuntimeNotice is the warning shown when keel serve is from another build.
 const staleRuntimeNotice = "The Keel runtime that's running is from a different build than this app, so you're seeing its version of Keel. " +
 	"Stop the runtime and reopen Keel to update. Open sessions will end."
 
-// runtimeIsStale is runtimecheck.js: a window opened without a build id never warns; a runtime that reports none is older.
+// runtimeIsStale: a window opened without a build id never warns; a runtime that reports none is older.
 func runtimeIsStale(appBuild, runtimeBuild string) bool {
 	return appBuild != "" && appBuild != runtimeBuild
 }
 
-// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the app. The
-// webview showed a banner with Stop runtime; here it is a toast whose button asks the same Stop runtime question.
+// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the window. It
+// is a toast whose button asks the Stop runtime question.
 func (w *workspace) checkRuntimeBuild() {
 	if w.appBuild == "" {
 		return

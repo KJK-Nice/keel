@@ -12,8 +12,7 @@ import (
 )
 
 // The app shell around the window: the menu bar, the menu bar item (tray) and keeping Keel there when the window is
-// closed. They are internal/desktop/desktop.go and tray.go of the webview app: the same items, labels and chords.
-// Every item runs a workspace function the window already has (as the chord does), and none types into a session.
+// closed. Every item runs a workspace function the window already has (as the chord does), and none types into a session.
 
 //go:embed macos/tray-template.png
 var trayIcon []byte
@@ -83,7 +82,7 @@ func (s *shell) items(entries []menuEntry) []*mygo.MenuItem {
 	return out
 }
 
-// menu is desktop.go appMenu: the app menu, File, View and the Window menu. No Edit menu: its ⌘C and ⌘V would
+// menu is the app menu, File, View and the Window menu. No Edit menu: its ⌘C and ⌘V would
 // take the keys from the terminal's own copy and paste (the editing roles are for a page's text).
 func (s *shell) menu() *mygo.Menu {
 	file := s.items(menuEntries("File"))
@@ -120,7 +119,7 @@ func (s *shell) show() {
 	s.refreshTray()
 }
 
-// start installs the menu bar, and on macOS the menu bar item and keep-in-menu-bar. Called when the app is ready.
+// start installs the menu bar, and on macOS the menu bar item and keep-in-menu-bar.
 func (s *shell) start() {
 	mygo.App.SetMenu(s.menu())
 	s.menuBar = isMac() // Keel lives in the menu bar on macOS

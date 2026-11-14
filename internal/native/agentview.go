@@ -13,20 +13,19 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The agent panel drawn (internal/ui/agent.templ, cmd/keel/web/js/ui/agentpanel.js and agentthread.js; the k-agent* and
-// k-prop* rules of keel.css): a right-hand panel of size-agent, a header, the scope chip, the thread (your question, the
+// The agent panel drawn: a right-hand panel of size-agent, a header, the scope chip, the thread (your question, the
 // trace, the answer, proposal cards), and the composer. Colours and sizes are tokens.go's.
 //
 // A card's buttons ask the workspace (agent.go); none of them types. Type into pane opens Approve before type.
 
-// pill is a k-badge with a text.
+// pill is a badge with a text.
 func pill(c *ui.Context, s string, bg, fg ui.Color) ui.Element {
 	return ui.Row(c).Height(space4).Padding(0, space1_5).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(bg).Children(func() {
 		text(c, s, fg, kbdSize, weightSemibold)
 	})
 }
 
-// bytesView draws the exact bytes Type sends, the control characters as glyphs (k-ctl).
+// bytesView draws the exact bytes Type sends, the control characters as glyphs.
 func bytesView(c *ui.Context, bytes string) {
 	var spans []ui.Span
 	for _, r := range bytesRuns(bytes) {
@@ -47,7 +46,7 @@ func (w *workspace) agentShown() bool { return w.prefs.AgentPanel && !w.joinedAc
 
 func (w *workspace) agentView(c *ui.Context) {
 	a := w.agent
-	if atTrigger(a.input) { // "@" at the start of a word opens the pane picker and is not typed (agentpanel.js)
+	if atTrigger(a.input) { // "@" at the start of a word opens the pane picker and is not typed
 		a.input, a.picker = strings.TrimSuffix(a.input, "@"), true
 	}
 	if a.settings == nil && !a.loading && !a.loadTried { // open at start: read the settings once the window is shown
@@ -78,7 +77,7 @@ func (w *workspace) agentHead(c *ui.Context) {
 	a := w.agent
 	hairline(ui.Row(c).FillWidth().Height(sizeControlLg+space2).Shrink(0).Padding(0, space1_5, 0, space3).Gap(space2), 0, 0, 1, 0).Children(func() {
 		icon(c, "ai-magic", accentInk)
-		// The title is the button that opens Recent conversations (agent.templ #agent-sessions-btn).
+		// The title is the button that opens Recent conversations.
 		t := ui.Row(c).Height(sizeControlSm).Padding(0, space1_5).Gap(space1).Radius(radiusSm).Shrink(1).MinWidth(0).
 			Label("Recent conversations").Cursor(ui.CursorPointer).Focusable().Selected(a.sessOpen)
 		if t.Hovered() || a.sessOpen {
@@ -153,7 +152,7 @@ func pickLabel(p agentPane, all []agentPane) string {
 }
 
 // agentPicker is the pane picker, a popover under the scope chip: every pane the panel counts, a host with reading off
-// marked "Agent can't read" and not pickable, and the presets (agentpanel.js paintPicker).
+// marked "Agent can't read" and not pickable, and the presets.
 func (w *workspace) agentPicker(c *ui.Context, anchor ui.Element) {
 	a := w.agent
 	open := true
@@ -372,7 +371,7 @@ func (w *workspace) agentWho(c *ui.Context, who string, ai bool) {
 func traceRow(c *ui.Context, glyph string, col ui.Color, s string) {
 	ui.Row(c).FillWidth().Gap(space2).Children(func() {
 		icon(c, glyph, col)
-		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0) // a long line wraps, as the app's does
+		text(c, s, inkMuted, captionSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0).MaxLines(0) // a long line wraps
 	})
 }
 
@@ -408,7 +407,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 					if s.Status == "read" {
 						traceRow(c, "tick", tide, traceText(s))
 					} else if s.Status == "notebook" || s.Status == "notebook-index" {
-						traceRow(c, "notebook", inkFaint, traceText(s)) // agentthread.js stepHTML: the notebook glyph
+						traceRow(c, "notebook", inkFaint, traceText(s)) // the notebook glyph
 					} else if s.Status == "notes" || s.Status == "runbook" {
 						traceRow(c, "agent-info", inkFaint, traceText(s))
 					} else {
@@ -440,7 +439,6 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 	})
 }
 
-// agentError is the app's error block (agentthread.js errorHTML).
 func (w *workspace) agentError(c *ui.Context, err error) {
 	title, detail := "The agent could not answer.", err.Error()
 	var se *keelclient.StatusError
@@ -495,7 +493,7 @@ func (w *workspace) agentAnswer(c *ui.Context, answer string) {
 // ---- a proposal card ----
 
 // agentCard draws a proposal. onPage is the Agent page's thread, which is away from the panes: Type names the pane it types
-// into (agentpage.js typeLabel).
+// into.
 func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	a := w.agent
 	rec := a.props[id]
@@ -602,7 +600,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	}
 }
 
-// agentExpiredCard is a proposal saved from an earlier run (agentthread.js paintExpired). keel serve no longer holds it,
+// agentExpiredCard is a proposal saved from an earlier run. keel serve does not hold it any more,
 // so it cannot be typed and cannot be edited: the card has Copy and Propose again and nothing else. Propose again asks
 // keel serve for a new proposal, which is a live card like any other.
 func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
@@ -665,7 +663,7 @@ func paneLabel(p *agentPane, fallback string) string {
 	return fallback
 }
 
-// cardNote is a k-prop-note: the icon carries the colour, the words are muted, except a status, which is its colour's.
+// cardNote is a card's note line: the icon carries the colour, the words are muted, except a status, which is its colour's.
 func cardNote(c *ui.Context, glyph string, col ui.Color, s string) ui.Element {
 	words := inkMuted
 	if col == flare || col == tide {
@@ -687,7 +685,7 @@ func (w *workspace) startEdit(rec *agentProp) {
 }
 
 // typeButton is Type into pane, with its key: ↵, or ⇧↵ when the proposal needs ⇧. It ends in "…" when a dialog will
-// follow and not when the proposal looks typeable with one click (agentpanel.js typeLabel). A press asks the workspace,
+// follow and not when the proposal looks typeable with one click. A press asks the workspace,
 // which types it directly or opens Approve before type; the card never types. ⇧ held on the click is the ⇧ of the ⇧ rule.
 func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	rec := w.agent.props[id]
@@ -723,7 +721,7 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	}
 }
 
-// agentCardMenu is the card menu (agentcardmenu.js): the card's own buttons, each doing what its button does.
+// agentCardMenu is the card menu: the card's own buttons, each doing what its button does.
 func (w *workspace) agentCardMenu(m *ui.Menu, id, offer string) {
 	rec := w.agent.props[id]
 	if rec == nil {
@@ -819,7 +817,7 @@ func (w *workspace) agentComposer(c *ui.Context) {
 	}
 }
 
-// agentSash is .k-agent-sash: a strip on the panel's left edge (8 px wide, an accent line while hovered, focused or dragged).
+// agentSash is a strip on the panel's left edge (8 px wide, an accent line while hovered, focused or dragged).
 // Dragging it left widens the panel; ← and → step it by size-agent-step (⇧ four times that), Home and End go to the narrowest
 // and widest, a double click puts the default back. The width is kept when the pointer lets go and after each key.
 func (w *workspace) agentSash(c *ui.Context, winW float32) {

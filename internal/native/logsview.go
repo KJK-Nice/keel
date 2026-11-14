@@ -6,16 +6,13 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Logs page drawn as LogsPage and logRow (internal/ui) with .k-page-head, .k-toolbar, .k-chip and
-// .k-table--log of keel.css.
-
 const (
 	logTimeCol = 68  // the Time column: the reference puts Kind 80 px after Time, Target 108 after Kind and Event 116 after Target; the row's gap is 12
 	logKindCol = 96  // the Kind column
 	logTargCol = 104 // the Target column
 )
 
-// pageHead is k-page-head: the title and its line, and the page's actions on the right.
+// pageHead is the title and its line, and the page's actions on the right.
 func pageHead(c *ui.Context, title, desc string, actions func()) {
 	ui.Row(c).FillWidth().Padding(space6, space8, space4).Gap(space3).AlignItems(ui.End).Shrink(0).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1).Children(func() {

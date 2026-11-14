@@ -8,9 +8,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notes for the agent (docs/ui-redesign.md §15). The feature is cmd/keel/web/js/ui/notes.js (the list in Edit host and in
-// Settings · Agent), the note cards of ui/agentthread.js and ui/agentpanel.js, and internal/httpapi/agentnotes.go; its words
-// and rules are lib/notes.js (noteslogic.go).
+// Notes for the agent (docs/ui-redesign.md §15). The feature is the list in Edit host and in
+// Settings · Agent, the note cards of the agent panel, and internal/httpapi/agentnotes.go; its words
+// and rules are in noteslogic.go.
 //
 // What this file does and does not do:
 //   - Notes live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none of them to
@@ -58,8 +58,7 @@ func (e *notesEditor) mine(all []keelclient.Note) []keelclient.Note {
 
 func (e *notesEditor) saved() bool { return e.user || e.hostID != "" || (e.group && e.groupID != "") }
 
-// loadNotes reads the notes (GET /api/agent/notes) and keeps this list's. It forgets what was being typed, as the app's load
-// does.
+// loadNotes reads the notes (GET /api/agent/notes) and keeps this list's. It forgets what was being typed.
 func (w *workspace) loadNotes(e *notesEditor) {
 	e.gen++
 	gen := e.gen
@@ -183,7 +182,7 @@ func (w *workspace) saveNoteEdit(e *notesEditor) {
 	})
 }
 
-// deleteNote is the row's Delete: at once, as the app does (only Delete all notes asks).
+// deleteNote is the row's Delete: at once (only Delete all notes asks).
 func (w *workspace) deleteNote(e *notesEditor, id string) {
 	if e.busy {
 		return
@@ -214,7 +213,7 @@ func (w *workspace) deleteNote(e *notesEditor, id string) {
 	})
 }
 
-// askDeleteAllNotes is Delete all notes: it asks first, with the app's words (agentsettings.js deleteNotes).
+// askDeleteAllNotes is Delete all notes: it asks first.
 func (w *workspace) askDeleteAllNotes() {
 	w.askConfirm(&hostConfirm{
 		title:   "Delete all notes?",

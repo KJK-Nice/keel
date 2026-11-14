@@ -10,8 +10,7 @@ import (
 )
 
 // The pure rules of saved conversations (docs/ui-redesign.md §5.4.1, §5.4.2): the groups of the list, its labels, the
-// Agent page's host chips and context column. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs
-// and here by agentconvlogic_test.go). Times are the local ones, as the app shows them.
+// Agent page's host chips and context column (agentconvlogic_test.go pins them). Times are the local ones.
 
 // dayDiff is how many calendar days a is after b, by local date.
 func dayDiff(a, b time.Time) int {

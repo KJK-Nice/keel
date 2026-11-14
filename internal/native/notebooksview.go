@@ -6,8 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Notebooks page, the sidebar's Notebooks section and the row menu, drawn as NotebooksPage, NotebookList,
-// SidebarSnippets (its Notebooks half) and notebookCardMenu (internal/ui) with the Logs page's layout (logsview.go). The
+// The Notebooks page, the sidebar's Notebooks section and the row menu, in the Logs page's layout (logsview.go). The
 // document itself is the notebook pane (notebookpane.go).
 
 const notebooksSubtitle = "Markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm."

@@ -18,10 +18,7 @@ import (
 	"keel/internal/native/sshparse"
 )
 
-// New host and Edit host (docs/ui-redesign.md §5.8): one dialog, laid out as hostDialog in
-// internal/ui/dialogs.templ, with the rules of term.js (fillHostForm, hostDraft, forgetHostKey, the host-delete
-// handler) and ui/hosttest.js + lib/hosttest.js for Test connection. The webview posts a form to
-// /ui/forms/host (httpapi/forms.go hostFromForm); the native client sends the same values as JSON to
+// New host and Edit host (docs/ui-redesign.md §5.8): one dialog. It sends the values as JSON to
 // POST /api/hosts or PUT /api/hosts/{id}.
 //
 // Secrets. The password, the private key and its passphrase are typed into masked fields, go only in the one
@@ -50,7 +47,7 @@ func (d hostDialog) String() string { return fmt.Sprintf("hostDialog{%s %s}", d.
 
 func (d hostDialog) GoString() string { return d.String() }
 
-// hostTest is Test connection's state (ui/hosttest.js createHostTest).
+// hostTest is Test connection's state.
 type hostTest struct {
 	running, cancelled bool
 	cancel             context.CancelFunc
@@ -61,8 +58,8 @@ type hostTest struct {
 	res                *keelclient.TestResult
 }
 
-// hostConfirm is the confirm dialog that replaces the host dialog while it asks (term.js askConfirm: the host
-// dialog closes while it asks, and opens again after).
+// hostConfirm is the confirm dialog that replaces the host dialog while it asks; the host dialog
+// comes back after.
 type hostConfirm struct {
 	title, message, action string
 	run                    func()
@@ -90,8 +87,8 @@ type hostDialog struct {
 }
 
 const (
-	hostDialogWidth = 760 // .modal--host
-	hostColsMax     = 620 // .k-host-cols max-height
+	hostDialogWidth = 760
+	hostColsMax     = 620 // the columns' max height
 	defaultColor    = "var(--ansi-10)"
 	maxStartup      = limits.MaxStartupCommand
 	maxPort         = limits.MaxPort
@@ -102,12 +99,12 @@ const (
 // hostColors is the palette keel serve offers (limits.HostColors), in picker order.
 var hostColors = limits.HostColors
 
-// authKinds is the Authentication control's options, in the webview's order.
+// authKinds is the Authentication control's options.
 var authKinds = []struct{ value, label string }{
 	{keelclient.AuthPassword, "Password"}, {keelclient.AuthKey, "Private key"}, {keelclient.AuthIdentity, "Identity"}, {keelclient.AuthLocal, "Local shell"},
 }
 
-// isProductionGroup: the group's own name is production, any case (term.js isProductionGroup).
+// isProductionGroup: the group's own name is production, any case.
 func isProductionGroup(groups []keelclient.Group, id string) bool {
 	for _, g := range groups {
 		if g.ID == id {
@@ -117,7 +114,7 @@ func isProductionGroup(groups []keelclient.Group, id string) bool {
 	return false
 }
 
-// newHostForm is term.js fillHostForm: the defaults of a new host, or the values of a saved one.
+// newHostForm is the defaults of a new host, or the values of a saved one.
 func newHostForm(h *keelclient.Host) hostForm {
 	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: keelclient.AuthPassword, keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
 		autoReconnect: true, agentReadable: true, agentNotes: true}
@@ -142,7 +139,7 @@ func newHostForm(h *keelclient.Host) hostForm {
 	return f
 }
 
-// hostPrefill is lib/newtab.js hostPrefill: the fields a pasted command fills. The name is the host; the user
+// hostPrefill is the fields a pasted command fills. The name is the host; the user
 // edits it. Auth stays the form's default: nothing about keys or passwords is carried over.
 func hostPrefill(r *sshparse.Result) keelclient.Host {
 	return keelclient.Host{Name: r.Host, Address: r.Host, Port: r.Port, Username: r.User}
@@ -162,7 +159,7 @@ func (w *workspace) saveAsHost(r *sshparse.Result) {
 // editHost opens Edit host for a saved host.
 func (w *workspace) editHost(h keelclient.Host) { w.openHostDialog(&h, nil, h.ID) }
 
-// editPaneHost is the failure banner's Edit host (term.js editPaneHost): the pane's host, as saved now.
+// editPaneHost is the failure banner's Edit host: the pane's host, as saved now.
 func (w *workspace) editPaneHost(p *pane) {
 	if h, ok := hostByID(w.hosts, p.host.ID); ok {
 		w.editHost(h)
@@ -186,7 +183,7 @@ func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, i
 		key    *keelclient.KnownKey
 	}
 	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (r read, _ error) {
-		r.groups, _ = w.be.Groups(c) // a failed list leaves the picker with "No group", as the webview's catch does
+		r.groups, _ = w.be.Groups(c) // a failed list leaves the picker with "No group"
 		r.idents, _ = w.be.Identities(c)
 		if id != "" && !h.IsLocal() {
 			if k, err := w.be.HostKey(c, id); err == nil {
@@ -212,7 +209,7 @@ func (w *workspace) closeHostDialog() {
 	w.returnKeyboard(true)
 }
 
-// defaultIdentity picks the first identity for a new Identity host, as fillIdentitySelect does ({first: !saved}):
+// defaultIdentity picks the first identity for a new Identity host:
 // a saved Identity host with none must not be shown, and saved, with the first one instead.
 func (d *hostDialog) defaultIdentity() {
 	if d.f.auth != keelclient.AuthIdentity || d.f.identityID != "" || len(d.idents) == 0 {
@@ -234,7 +231,7 @@ func atoiClamp(s string, def, lo, hi int) int {
 	return min(max(n, lo), hi)
 }
 
-// detail is hostFromForm: the host the form says.
+// detail is the host the form says.
 func (f hostForm) detail(id string) keelclient.HostDetail {
 	local := f.auth == keelclient.AuthLocal
 	h := keelclient.HostDetail{
@@ -266,7 +263,7 @@ func (f hostForm) detail(id string) keelclient.HostDetail {
 	return h
 }
 
-// testDetail is hostDraft: the values Test connection sends and an edit is compared with.
+// testDetail is the values Test connection sends and an edit is compared with.
 func (f hostForm) testDetail(id string) keelclient.HostDetail {
 	h := f.detail(id)
 	h.GroupID, h.Tags, h.Color, h.StartupCommand, h.NoAutoReconnect = "", nil, "", "", false
@@ -276,7 +273,7 @@ func (f hostForm) testDetail(id string) keelclient.HostDetail {
 
 func boolp(b bool) *bool { return &b }
 
-// parseTags is lib/groups.js parseHostTags.
+// parseTags splits the tags field.
 func parseTags(s string) []string {
 	var out []string
 	for _, t := range strings.Split(s, ",") {
@@ -376,8 +373,7 @@ func (w *workspace) afterHostWrite(saved keelclient.Host) {
 	w.reloadHosts()
 }
 
-// askDeleteHost is the Delete host button and the host menu's Delete: it asks first (term.js: askConfirm
-// `Remove ${host.name}?`). The local shell cannot be removed.
+// askDeleteHost is the Delete host button and the host menu's Delete: it asks first. The local shell cannot be removed.
 func (w *workspace) askDeleteHost(h keelclient.Host) {
 	if h.IsLocal() {
 		w.warn("Local Shell is part of the workspace and cannot be removed")
@@ -391,7 +387,7 @@ func (w *workspace) askDeleteHost(h keelclient.Host) {
 	w.askConfirm(&hostConfirm{title: "Confirm", message: "Remove " + h.Name + "?", action: "Remove", run: run})
 }
 
-// deleteHost deletes the host. Its open sessions are left as they are, as the webview leaves them: they keep
+// deleteHost deletes the host. Its open sessions are left as they are: they keep
 // running, and a pane keeps the host it had (setHosts).
 func (w *workspace) deleteHost(h keelclient.Host) {
 	callErr(w, func(c context.Context) error { return w.be.DeleteHost(c, h.ID) }, func(err error) {
@@ -410,7 +406,7 @@ func (w *workspace) deleteHost(h keelclient.Host) {
 // duplicateHost is the host menu's Duplicate: the server copies the host as "name (copy)".
 func (w *workspace) duplicateHost(h keelclient.Host) {
 	if h.IsLocal() {
-		w.say("Local Shell cannot be duplicated") // toast(…) without the error flag, as term.js
+		w.say("Local Shell cannot be duplicated")
 		return
 	}
 	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.DuplicateHost(c, h.ID) }, func(dup keelclient.Host, err error) {
@@ -445,7 +441,7 @@ func (w *workspace) askConfirm(c *hostConfirm) { w.confirm = c }
 
 // ---- the host key line ----
 
-// askForgetKey is Forget host key: it asks first, with the webview's words.
+// askForgetKey is Forget host key: it asks first.
 func (w *workspace) askForgetKey() {
 	d := w.hostDlg
 	if d == nil || d.key == nil || !d.key.Known || d.saved == nil {
@@ -486,7 +482,7 @@ func (w *workspace) loadHostKey(d *hostDialog) {
 		})
 }
 
-// keyTypeLabel is lib/hosttest.js keyTypeLabel: the short name ssh-keygen -l prints.
+// keyTypeLabel is the short name ssh-keygen -l prints.
 func keyTypeLabel(t string) string {
 	switch {
 	case t == "ssh-ed25519" || strings.HasPrefix(t, "sk-ssh-ed25519"):
@@ -503,7 +499,7 @@ func keyTypeLabel(t string) string {
 
 // ---- Test connection ----
 
-// testText is lib/hosttest.js hostTestText: the dot (state), its label (short) and the explanation (detail).
+// testText is the dot (state), its label (short) and the explanation (detail).
 func testText(res keelclient.TestResult) (state, short, detail string) {
 	where := ""
 	switch res.Hop {
@@ -533,7 +529,7 @@ func testText(res keelclient.TestResult) (state, short, detail string) {
 	return "dead", "Could not connect", where + res.Message
 }
 
-// fingerprintText is lib/hosttest.js fingerprintText: the offered key as the dialog shows it, or "".
+// fingerprintText is the offered key as the dialog shows it, or "".
 func fingerprintText(res keelclient.TestResult) string {
 	if _, ok := res.HostKeyOffer(); !ok {
 		return ""
@@ -554,7 +550,7 @@ func (d *hostDialog) draftHash() [sha256.Size]byte {
 	return sha256.Sum256(b)
 }
 
-// stopTest cancels a test under way and drops its result (ui/hosttest.js reset).
+// stopTest cancels a test under way and drops its result.
 func (d *hostDialog) stopTest() {
 	if d.test.cancel != nil {
 		d.test.cancel()
@@ -563,7 +559,7 @@ func (d *hostDialog) stopTest() {
 }
 
 // dropStaleTest drops the result once the values differ from what the test sent, so that Trust and save never
-// applies to values the test did not use (ui/hosttest.js edited).
+// applies to values the test did not use.
 func (d *hostDialog) dropStaleTest() {
 	t := &d.test
 	if !t.running && t.res == nil && t.short == "" {
@@ -655,7 +651,7 @@ func (w *workspace) trustTest() {
 
 type pickEntry struct{ value, label, desc string }
 
-// folderEntries is groupOptionEntries: "No group" and every folder as "Parent / Child", by name.
+// folderEntries is "No group" and every folder as "Parent / Child", by name.
 func folderEntries(groups []keelclient.Group) []pickEntry {
 	byID := map[string]keelclient.Group{}
 	for _, g := range groups {
@@ -683,8 +679,8 @@ func folderEntries(groups []keelclient.Group) []pickEntry {
 	return append(out, rest...)
 }
 
-// jumpEntries is fillJumpSelect: None, or a saved SSH host with no jump host of its own (one hop), not this host.
-// A jump host that no longer exists stays listed, so saving cannot quietly turn a jump connect into a direct one.
+// jumpEntries is None, or a saved SSH host with no jump host of its own (one hop), not this host.
+// A jump host that has been deleted stays listed, so saving cannot quietly turn a jump connect into a direct one.
 func jumpEntries(hosts []keelclient.Host, self, current string) []pickEntry {
 	out := []pickEntry{{"", "None", ""}}
 	found := current == ""
@@ -711,7 +707,7 @@ func jumpEntries(hosts []keelclient.Host, self, current string) []pickEntry {
 	return out
 }
 
-// identityEntries is fillIdentitySelect: every identity with its kind and user, and a missing one kept listed.
+// identityEntries is every identity with its kind and user, and a missing one kept listed.
 func identityEntries(ids []keelclient.Identity, current string) []pickEntry {
 	var out []pickEntry
 	found := current == ""

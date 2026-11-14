@@ -11,15 +11,14 @@ import (
 )
 
 // The Unlock screen (docs/ui-redesign.md §5.14): the vault exists and keel serve could not open it, or the poll
-// found it locked again. The layout and words are unlockScreen in internal/ui/gate.templ, with the rules of
-// cmd/keel/web/js/ui/gate.js (showUnlock, submitUnlock). It replaces the window while it shows; tabs and
+// found it locked again. It replaces the window while it shows; tabs and
 // sessions stay as they are underneath.
 //
 // The passphrase is typed into a masked field and sent in the one POST /api/vault/unlock. It is cleared from the
 // field when the request is sent, and is in no log, error or file.
 //
-// The webview's "Try the keychain again next time" is a checked, disabled box with no effect (keel serve always
-// asks the keychain first at start), so it is not drawn; its note ("Keel always asks … first") is.
+// There is no "Try the keychain again next time" box: it would have no effect (keel serve always asks the keychain
+// first at start); its note ("Keel always asks … first") is drawn.
 
 // unlockGate is the Unlock screen's state.
 type unlockGate struct {
@@ -38,12 +37,12 @@ func (g *unlockGate) String() string { return fmt.Sprintf("unlockGate{err=%q bus
 func (g *unlockGate) GoString() string { return g.String() }
 
 const (
-	unlockCardWidth = sizeList + space6*2 + space3 // .k-unlock-card: size-list + 2·space-6 + space-3
+	unlockCardWidth = sizeList + space6*2 + space3 // size-list + 2·space-6 + space-3
 	markSize        = 48
 	sizeList        = 360 // size-list, docs/design/tokens.json
 )
 
-// keychainName is internal/ui.KeychainName: what this OS calls the keychain.
+// keychainName is what this OS calls the keychain.
 func keychainName() string {
 	switch platform {
 	case "darwin":
@@ -218,8 +217,7 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 		TextColor(inkMuted).FontSize(captionSize)
 }
 
-// markSVG is the Keel mark (internal/ui keelMark): the keel on a tile. The webview draws a white tile and a dark
-// keel as supplied; here the tile is ink and the keel is stage, so no colour literal is added.
+// markPath is the Keel mark: the keel on a tile. The tile is ink and the keel is stage, so no colour literal is added.
 const markPath = `m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z`
 
 var markSVG *ui.SVG

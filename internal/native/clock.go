@@ -8,7 +8,7 @@ import (
 )
 
 // The window writes times in the system's regional formats (the order of day and month, 12 or 24 hours, the month
-// names), as the app's toLocaleTimeString / toLocaleDateString(undefined, ...) does in the browser. MyGo reads them
+// names). MyGo reads them
 // (App.Region) and writes them (i18n.FormatDate); a test sets regionFn.
 var regionFn = func() i18n.Region { return mygo.App.Region() }
 

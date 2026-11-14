@@ -6,13 +6,11 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The host dialog, drawn as hostDialog in internal/ui/dialogs.templ (760px, two columns: General and Connection;
-// Authentication, Session and Agent; the footer) with the .k-host-* rules of keel.css. "Notes for the agent"
-// (§15) waits for a later phase (docs/native.md).
+// The host dialog (760px, two columns: General and Connection; Authentication, Session and Agent; the footer).
 
 func (w *workspace) hostDialogView(c *ui.Context) {
 	d := w.hostDlg
-	if d == nil || d.confirm != nil { // the confirm dialog replaces it while it asks (term.js closes the modal first)
+	if d == nil || d.confirm != nil { // the confirm dialog replaces it while it asks
 		return
 	}
 	d.dropStaleTest()
@@ -126,7 +124,7 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 			inputBox(c, "Host password", &f.password, "Leave blank to keep saved password", &d.passH, false, true, 0, nil)
 		})
 	case keelclient.AuthKey:
-		// A text area has no mask (Password is ignored on it), and the webview's shows the key too: it is cleared
+		// A text area has no mask (Password is ignored on it) and shows the key: it is cleared
 		// when the dialog closes or the request is sent.
 		labeled(c, "Private key", &d.keyH, func() {
 			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
@@ -313,7 +311,7 @@ func (w *workspace) confirmView(c *ui.Context) {
 	}
 }
 
-// endConfirm closes the confirm dialog; the host dialog under it comes back with its values.
+// endConfirm closes the confirm dialog; the host dialog comes back with its values.
 func (w *workspace) endConfirm(standalone bool) {
 	if standalone {
 		w.confirm = nil

@@ -11,19 +11,17 @@ import (
 )
 
 // The pure rules of notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12): the words of the trace, the picker,
-// the cards and their buttons. They are cmd/keel/web/js/lib/notebooks.js (the parts above "history", which
-// notebookslogic.go has), pinned there by test/notebooks.test.mjs and here by agentnotebookslogic_test.go. keel serve
+// the cards and their buttons (agentnotebookslogic_test.go pins them; notebookslogic.go has the rest). keel serve
 // decides everything; nothing here talks to it, draws or types.
 
-// maxAttached is how many notebooks one question may carry (lib/notebooks.js MAX_ATTACHED; keel serve refuses more).
+// maxAttached is how many notebooks one question may carry (keel serve refuses more).
 const maxAttached = limits.MaxAttachedNotebooks
 
 var attachLimit = fmt.Sprintf("Attach at most %d notebooks to a question", maxAttached)
 
-// Texts of the app (lib/notebooks.js).
 const (
 	privateRefused = "This notebook is private: the agent cannot read it. Turn Private off on the notebook first."
-	// saveFirst is what "Ask the agent about this notebook" says for a notebook that is not saved (term.js).
+	// saveFirst is what "Ask the agent about this notebook" says for a notebook that is not saved.
 	saveFirst = "Save the notebook first, then ask the agent about it"
 )
 
@@ -35,13 +33,12 @@ func redactedCount(counts map[string]int) (n int) {
 	return n
 }
 
-// isNotebookStep reports a trace step about notebooks (lib/notebooks.js isNotebookStep).
 func isNotebookStep(s keelclient.TraceStep) bool {
 	return s.Status == "notebook" || s.Status == "notebook-index" || strings.HasPrefix(s.Reason, "notebook-")
 }
 
 // notebookStepText is a trace line about notebooks: the titles sent, a notebook sent (attached) or read (the agent
-// asked), or why one was not (lib/notebooks.js notebookStepText).
+// asked), or why one was not.
 func notebookStepText(s keelclient.TraceStep) string {
 	if s.Status == "notebook-index" {
 		return "Sent the titles of " + countWord(s.Count, "notebook", "notebooks") + " (not private)"
@@ -70,7 +67,7 @@ func notebookStepText(s keelclient.TraceStep) string {
 // ---- attaching ----
 
 // attachable are the notebooks the picker lists: saved ones, pinned first, then by name. Private ones are listed but
-// cannot be ticked (lib/notebooks.js attachable).
+// cannot be ticked.
 func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
 	var out []keelclient.Notebook
 	for _, n := range nbs {
@@ -91,8 +88,7 @@ func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
 	return out
 }
 
-// reconcileAttached keeps the attached ids that still name a notebook the agent may read (not private), once each
-// (lib/notebooks.js reconcileAttached).
+// reconcileAttached keeps the attached ids that still name a notebook the agent may read (not private), once each.
 func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
 	for _, id := range ids {
 		if slices.Contains(out, id) {
@@ -105,8 +101,7 @@ func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
 	return out
 }
 
-// toggleAttached adds or removes one notebook; never more than maxAttached, never a private one (lib/notebooks.js
-// toggleAttached).
+// toggleAttached adds or removes one notebook; never more than maxAttached, never a private one.
 func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string {
 	list := slices.Clone(ids)
 	if id == "" {
@@ -126,7 +121,6 @@ func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string
 	return append(list, id)
 }
 
-// attachHint is the line under the chips (lib/notebooks.js attachHint).
 func attachHint(n int) string {
 	if n == 0 {
 		return ""
@@ -139,10 +133,9 @@ func attachHint(n int) string {
 
 // ---- what the agent did to a notebook (the cards) ----
 
-// warned: a change written after reading a pane gets the warning look (lib/notebooks.js warned).
+// warned: a change written after reading a pane gets the warning look.
 func warned(p keelclient.NotebookProposal) bool { return p.FromPane || len(p.PanesRead) > 0 }
 
-// paneWarning is the warning's text (lib/notebooks.js paneWarning).
 func paneWarning(p keelclient.NotebookProposal) string {
 	where := ""
 	if p.FromPane && p.SeenIn != "" {
@@ -165,7 +158,6 @@ var refusedTexts = map[string]string{
 	"history":   "Keel could not keep the previous version, so it made no change.",
 }
 
-// refusedText says why an edit was refused (lib/notebooks.js refusedText).
 func refusedText(reason string) string {
 	if t, ok := refusedTexts[reason]; ok {
 		return t
@@ -173,7 +165,6 @@ func refusedText(reason string) string {
 	return "The agent's edit was not valid. Nothing changed."
 }
 
-// cardHead is the card's title line (lib/notebooks.js cardHead).
 func cardHead(p keelclient.NotebookProposal) string {
 	switch p.Kind {
 	case "create":
@@ -195,7 +186,7 @@ func cardHead(p keelclient.NotebookProposal) string {
 	return "Notebook draft"
 }
 
-// cardStatus is the line under the title, or "" for none (lib/notebooks.js cardStatus).
+// cardStatus is the line under the title, or "" for none.
 func cardStatus(p keelclient.NotebookProposal) string {
 	k, s := p.Kind, p.Status
 	switch k {
@@ -240,7 +231,7 @@ func cardStatus(p keelclient.NotebookProposal) string {
 	return ""
 }
 
-// The buttons of a card (lib/notebooks.js cardActions).
+// The buttons of a card.
 const (
 	actOpen    = "open"
 	actUndo    = "undo"
@@ -295,7 +286,6 @@ func cardActions(p keelclient.NotebookProposal) []string {
 	return nil
 }
 
-// deleteConfirmText is the question a proposed delete asks before it posts (lib/notebooks.js deleteConfirmText).
 func deleteConfirmText(p keelclient.NotebookProposal) string {
 	return fmt.Sprintf("Delete the notebook “%s”? The agent asked for this. It goes to Notebooks · Recently deleted, where you can restore it for 30 days.", orElse(p.Title, "Notebook"))
 }

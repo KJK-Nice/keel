@@ -229,7 +229,7 @@ type pane struct {
 	// What the terminal shows, for a direct type (typenow.go): whether it is on the alternate screen and the line the
 	// cursor is on. nil for a placeholder body: then the screen is unknown, which is read as the alternate screen.
 	screen func() (altScreen bool, promptLine string)
-	typing bool // a direct type is on its way: another press gets the app's message
+	typing bool // a direct type is on its way: another press gets a message instead
 
 	sg      paneSuggest                              // in-pane suggestions (suggestpane.go)
 	keyHook func(mods ui.Modifiers, key ui.Key) bool // the terminal's OnKey: set by newPane
@@ -334,13 +334,13 @@ func (t *tab) name() string {
 	if t.isNew() {
 		return "New Tab"
 	}
-	if t.onlyNotebooks() { // a tab of notebooks is named after the one in front (term.js createNotebookTab)
+	if t.onlyNotebooks() { // a tab of notebooks is named after the one in front
 		if p := t.panes[t.focused]; p != nil {
 			return strings.TrimSpace(p.nb.title)
 		}
 	}
 	if p := t.panes[t.focused]; p != nil {
-		if t.remote { // a joined tab says so, whoever drives (term.js tabName)
+		if t.remote { // a joined tab says so, whoever drives
 			return p.title() + " · joined"
 		}
 		return p.host.Name
@@ -365,7 +365,7 @@ type workspace struct {
 	snippets       []keelclient.Snippet
 	notebooks      []keelclient.Notebook // GET /api/notebooks (notebooks.go)
 	nbDlg          *nbDialog             // Rename notebook, History, Recently deleted (notebookdialogs.go)
-	sideSeg        string                // the sidebar's section: "hosts" or "snippets" (term.js SIDEBAR_SEGS)
+	sideSeg        string                // the sidebar's section: "hosts" or "snippets"
 	snipQuery      string                // the sidebar's Snippets filter
 	snipH          ui.Handle
 	snipDlg        *snippetDialog                    // New snippet / Edit snippet
@@ -421,7 +421,7 @@ type workspace struct {
 
 	alpha float32 // the window's opacity, 0–1; grounds are painted at it (see ground)
 
-	appBuild string // the build id of the app that opened the window (Options.AppBuild); "" never warns of an older runtime
+	appBuild string // the build id of the client that opened the window (Options.AppBuild); "" never warns of an older runtime
 	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
 
 	renaming   *tab // the tab whose name is being edited
@@ -646,7 +646,7 @@ func (w *workspace) selectTab(i int) {
 	}
 }
 
-// newLocalTab opens the first local host in a new tab (term.js newLocalTab).
+// newLocalTab opens the first local host in a new tab.
 func (w *workspace) newLocalTab() {
 	if h, ok := w.localHost(); ok {
 		w.openHost(h)
@@ -661,7 +661,7 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 	if p == nil {
 		return
 	}
-	if p.nb != nil { // a notebook splits into a session on the host of the tab's terminal, else the local shell (term.js splitPane)
+	if p.nb != nil { // a notebook splits into a session on the host of the tab's terminal, else the local shell
 		if term := t.firstTerm(); term != nil {
 			w.splitOn(t, target, term.host, d)
 			return
@@ -682,7 +682,7 @@ func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.D
 		return
 	}
 	if t.remote || t.panes[target].remote {
-		w.say("Split needs a local host session") // term.js splitPane
+		w.say("Split needs a local host session")
 		return
 	}
 	w.work(func() {
@@ -722,7 +722,7 @@ func (w *workspace) closePane(t *tab, id string) {
 	}
 	kind := "pane"
 	if len(t.panes) == 1 {
-		kind = "tab" // the last pane is recorded as the tab (term.js closePane)
+		kind = "tab" // the last pane is recorded as the tab
 	}
 	w.recordClosed(p, kind)
 	w.dropPane(p)
@@ -814,7 +814,7 @@ func (w *workspace) killWhenNamed(conn session) {
 }
 
 // closeFocused is ⌘W: the focused pane, whose last one closes the tab. The lone New tab is what an empty
-// window shows: closing it would only open another (term.js closeActivePaneOrTab).
+// window shows: closing it would only open another.
 func (w *workspace) closeFocused() {
 	t := w.tab()
 	if t == nil {

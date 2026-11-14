@@ -11,23 +11,20 @@ import (
 	"keel/internal/wire"
 )
 
-// The pane menu and the tab menu. Their items, order and words are the webview's: PaneMenu in
-// internal/ui/rowmenus.templ with which items show from lib/termmenu.js paneMenuItems (for a terminal pane
-// of this window, opened from its bar), and #tab-ctx in internal/ui/parts.templ with which are disabled
-// from ui/tabmenu.js. A menu never types into a session.
+// The pane menu and the tab menu. A menu never types into a session.
 
 // paneMenu fills the menu of pane p of tab t, opened from its bar.
 func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) { return w.paneMenuFor(t, p, false) }
 
 // paneMenuFor is paneMenu for a bar (row false) or for a row of the sidebar's Panes section (row true): a row has
-// Focus and no Focus view (lib/termmenu.js paneMenuItems).
+// Focus and no Focus view.
 func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		st := p.conn.Snapshot()
 		if row && menuItem(m, "Focus").Chosen() {
 			w.act(func() { w.pickPane(t, p.id) })
 		}
-		if !p.remote { // splits need a pane of this window, not a joined one (lib/termmenu.js paneMenuItems)
+		if !p.remote { // splits need a pane of this window, not a joined one
 			if menuItem(m, "Split right").Shortcut(shortcutOf("pane.splitr")).Chosen() {
 				w.act(func() { w.split(t, p.id, layout.Row) })
 			}
@@ -78,7 +75,7 @@ func (w *workspace) tabMenu(t *tab) func(m *ui.Menu) {
 	}
 }
 
-// menuIconFor names the icon of each menu entry, by its label; the webview's menus had a leading icon on every entry.
+// menuIconFor names the icon of each menu entry, by its label; every entry has a leading icon.
 var menuIconFor = map[string]string{
 	"Roles and runbooks": "group", "Run a runbook…": "group-run", "New host": "add-01", "New subgroup": "add-01",
 	"Edit": "agent-pencil", "Rename": "agent-pencil", "Rename tab": "agent-pencil", "Edit command": "agent-pencil",

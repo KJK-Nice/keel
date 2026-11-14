@@ -13,7 +13,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Group page (docs/ui-redesign.md §17, board GroupRoles; cmd/keel/web/js/ui/groups.js, internal/ui/groupspage.templ): one
+// The Group page (docs/ui-redesign.md §17, board GroupRoles): one
 // folder's hosts with their roles, its notes for the agent, its variables, "Run a runbook on this group" and the Ansible
 // export drawer. A tab page, one instance, named after the folder; the folder it shows is kept in the saved workspace
 // (saved.go). Roles and variables are saved one at a time by keel serve, which checks them; this client holds what keel
@@ -49,7 +49,6 @@ func (w *workspace) downloadFile(name, content string) {
 	})
 }
 
-// The page's words (internal/ui/groupspage.templ, ui/groups.js).
 const (
 	groupRoleHelp   = "Roles tell runbooks and the agent what each host is. A step for a role runs on every host with it."
 	groupNoHosts    = "No hosts in this folder yet. Drag hosts onto it in the sidebar."

@@ -12,7 +12,7 @@ import (
 )
 
 // The pure rules of notes for the agent (docs/ui-redesign.md §15): the words a note and a proposed note carry. They are
-// cmd/keel/web/js/lib/notes.js, pinned there by test/notes.test.mjs and here by noteslogic_test.go. Nothing here talks to
+// pinned by noteslogic_test.go. Nothing here talks to
 // keel serve, draws or types.
 
 const maxNoteBytes = limits.MaxAgentNoteBytes
@@ -222,7 +222,7 @@ func redactedToast(n int) string {
 	return fmt.Sprintf("%d secret-looking values were replaced before saving.", n)
 }
 
-// savedRedactedToast is the toast after a proposal's Save or a runbook's Save (agentpanel.js saveNote).
+// savedRedactedToast is the toast after a proposal's Save or a runbook's Save.
 func savedRedactedToast(n int) string {
 	switch {
 	case n <= 0:

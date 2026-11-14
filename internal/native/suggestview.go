@@ -6,8 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The notice, the card and the inserted look drawn over a pane's terminal (cmd/keel/web/js/ui/suggest.js render, the
-// k-sug-* rules of keel.css). The text on the line stays the terminal's: marks sit over its cells, the hint after the
+// The notice, the card and the inserted look drawn over a pane's terminal. The text on the line stays the terminal's: marks sit over its cells, the hint after the
 // words, the card under the line (above it when it does not fit). Cell rects come from gridFor (suggestgeom.go).
 
 const (

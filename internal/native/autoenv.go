@@ -9,7 +9,7 @@ import (
 	"keel/internal/paths"
 )
 
-// CheckAutomationEnv is the run-time half of plan 029's guard. Only the test builds (tag keelautomation) call it,
+// CheckAutomationEnv is the run-time half of the automation guard. Only the test builds (tag keelautomation) call it,
 // from an init in package main. It returns an error unless the automation socket (MYGO_AUTOMATION) is in a private
 // directory and KEEL_DATA names a directory other than the default data directory, so a socket that can type into
 // the app never meets real data. MyGo's plugin listens in its own init, before any main-package init, but it

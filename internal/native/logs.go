@@ -12,12 +12,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. The words and rules are
-// LogsPage and LogList in internal/ui, and logGroup, logFacts, logTarget, logBadgeClass and logTimeLabel in
-// internal/ui/data.go. Entries carry counts, never content: nothing here could show a secret.
+// The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. Entries carry counts, never
+// content: nothing here could show a secret.
 //
-// The webview's chips are All, Sessions, Forwards, Vault and Agent (pages.templ LogsPage). §5.13 also lists
-// Sharing; the webview has no such chip, so there is none here either.
+// The chips are All, Sessions, Forwards, Vault and Agent. §5.13 also lists Sharing; there is no such chip.
 
 const logsLimit = 200 // GET /api/logs' own default, asked for by name
 
@@ -41,7 +39,7 @@ func (p *logsPage) String() string {
 
 func (p *logsPage) GoString() string { return p.String() }
 
-// logChips are the filter chips, in the webview's order.
+// logChips are the filter chips.
 var logChips = [][2]string{{"all", "All"}, {"sessions", "Sessions"}, {"forwards", "Forwards"}, {"vault", "Vault"}, {"agent", "Agent"}}
 
 // logGroup is the chip a log kind belongs to (data.go logGroup).
@@ -94,8 +92,8 @@ func logBadgeFailed(kind string) bool {
 	return false
 }
 
-// logTarget names what an entry is about: its host, or a dash. The webview also names a forward; the native
-// client reads no forwards yet (docs/native.md).
+// logTarget names what an entry is about: its host, or a dash. It names no forward
+// (docs/native.md).
 func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 	if e.HostID != "" {
 		if h, ok := hostByID(hosts, e.HostID); ok {
@@ -152,9 +150,8 @@ func logFactsTitle(e keelclient.LogEntry) string {
 	return "Redacted: " + strings.Join(parts, ", ")
 }
 
-// logsEvery is how often the Logs page reads GET /api/logs while it is the selected tab. The webview's Datastar stream
-// pushes server-rendered HTML (LogList), which this client cannot consume as data; the endpoint has no since
-// parameter, so a read is the newest logsLimit entries. 2 s is the forwards page's rate (forwardsEvery).
+// logsEvery is how often the Logs page reads GET /api/logs while it is the selected tab. The endpoint has no since
+// parameter and no stream, so a read is the newest logsLimit entries. 2 s is the forwards page's rate (forwardsEvery).
 const logsEvery = 2 * time.Second
 
 // logsTick is one tick of that read: it reads only while the Logs page is the selected tab and no read is out. A
