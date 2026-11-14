@@ -11,8 +11,8 @@ import (
 	"keel/internal/store"
 )
 
-// The gate of a direct type (§6 rule 13) after the review of #95: the
-// strict allowlist (agent.DirectSafe), Jev for agent proposals, the
+// The gate of a direct type (§6 rule 13): the strict allowlist
+// (cmdrule.DirectSafe), Jev for agent proposals, the
 // prompt state, the alternate screen from both sides, notebook blocks
 // read as fences, and the extra check only for group runs.
 

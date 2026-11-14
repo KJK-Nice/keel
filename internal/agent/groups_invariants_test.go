@@ -43,6 +43,7 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 	// their steps are called only by the gate (and by each other).
 	subjects := map[string]bool{"convSubject": true, "groupSubject": true, "suggestionSubject": true}
 	gateSteps := map[string]bool{"find": true, "fill": true, "host": true, "askJev": true, "claim": true}
+	built, stepped := map[string]int{}, map[string]int{}
 	for _, f := range parseModule(t) {
 		if f.test || f.pkg != module+"/internal/agent/service" {
 			continue
@@ -66,6 +67,7 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 				switch n := n.(type) {
 				case *ast.CompositeLit:
 					if id, ok := n.Type.(*ast.Ident); ok && subjects[id.Name] {
+						built[id.Name]++
 						if where := recv + "." + fd.Name.Name; where != "TypeRequest.subject" && where != "Service.AuthorizeInsert" {
 							t.Errorf("%s: %s built in %s; only TypeRequest.subject and Service.AuthorizeInsert may", f.rel, id.Name, where)
 						}
@@ -76,6 +78,9 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 						return true
 					}
 					if x, ok := sel.X.(*ast.Ident); ok && (x.Name == "sub" || x.Name == "c" || x.Name == "g" || x.Name == "u") {
+						if fd.Name.Name == "authorize" {
+							stepped[sel.Sel.Name]++
+						}
 						if fd.Name.Name != "authorize" && !subjects[recv] {
 							t.Errorf("%s: a gate step (%s) is called in %s.%s; only Service.authorize may", f.rel, sel.Sel.Name, recv, fd.Name.Name)
 						}
@@ -83,6 +88,17 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 				}
 				return true
 			})
+		}
+	}
+	// The rule above looks at things that exist: each subject is built and each step is called by the gate.
+	for name := range subjects {
+		if built[name] == 0 {
+			t.Errorf("%s is never built: the check is out of date", name)
+		}
+	}
+	for name := range gateSteps {
+		if stepped[name] == 0 {
+			t.Errorf("the gate never calls %s on its subject: the check is out of date", name)
 		}
 	}
 	seen := map[string]int{}
@@ -135,6 +151,7 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
 	// A runbook step's proposal is built only in the two places that turn
 	// a saved step into a proposal (and in expiredView, which shows a saved
 	// one that can no longer be typed).

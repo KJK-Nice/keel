@@ -13,14 +13,18 @@ import (
 	"testing"
 )
 
-// The guards of docs/ui-redesign.md §6 rule 1 for keel-native: two ways to put bytes into a terminal for the user, one
-// file that writes them, and one caller of each. They read the source of every non-test .go file under internal/native.
+// The guards of docs/ui-redesign.md §6 rule 1 for keel-native: the five writers, one file that builds their frames, and
+// one caller of each. They read the source of every non-test .go file under internal/native; writers_security_test.go
+// holds the same rules checked on what each name refers to (method values, interfaces, io.Writer, the wire's names).
 //
-//	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject)
+//	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject, the suggestion frames)
 //	ApprovedInject(        called once, from approve.go: the Approve before type dialog's Type action
 //	DirectType(            called once, from (*workspace).typeNow in typenow.go
-//	typeNow(               called by the entry points only: a snippet (snippets.go) and an agent card (agent.go)
-//	DirectCheck, type-check  gone (keel serve has no such frame any more): no file may name either
+//	SuggestInsert(         called once, from (*workspace).insertSuggestion in suggestpane.go
+//	RestoreWords(          called once, from (*workspace).restoreWords in suggestpane.go
+//	newSyncConn(           called once, from run.go: the terminal view's connection, the user's own keys
+//	typeNow(               called by the entry points only: a snippet, an agent card and a notebook fence
+//	DirectCheck, type-check  no such frame exists: no file may name either
 
 // sourceFiles are the non-test .go files under internal/native, by path relative to it ("/" separated).
 func sourceFiles(t *testing.T) map[string]string {
@@ -70,7 +74,7 @@ var jsonTag = regexp.MustCompile("`json:\"[^\"`]*\"`")
 // their wire names or as strings.
 func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	frame := regexp.MustCompile(`"(inject|inject-challenge|type-check|direct)"|\\"(inject|inject-challenge|type-check|direct)\\"`)
-	name := regexp.MustCompile(`\bTypeInject(Challenge)?\b|\bwire\.(DirectType|AgentType|AgentInsert)\b`)
+	name := regexp.MustCompile(`\bTypeInject(Challenge)?\b|\bwire\.(DirectType|AgentType|AgentInsert|Type(AgentDetect|AgentSuggest|AgentSuggestRisk|AgentType|AgentInsert|TypeDirect))\b`)
 	for file, src := range sourceFiles(t) {
 		for _, line := range strings.Split(src, "\n") {
 			if l := strings.TrimSpace(line); strings.HasSuffix(l, `"keel/internal/wire"`) && l != `"keel/internal/wire"` && l != `import "keel/internal/wire"` {
@@ -89,7 +93,8 @@ func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	}
 	// And it names them, and they are the frames' names: the guard is looking for the right things.
 	src := sourceFiles(t)["keelclient/inject.go"]
-	for _, want := range []string{"wire.Control{Type: wire.TypeInjectChallenge, Command: command}", "wire.TypeInject, command, n", "wire.DirectType{", "wire.AgentType{", "wire.AgentInsert{"} {
+	for _, want := range []string{"wire.Control{Type: wire.TypeInjectChallenge, Command: command}", "wire.TypeInject, command, n", "wire.DirectType{", "wire.AgentType{", "wire.AgentInsert{",
+		"wire.TypeAgentDetect", "wire.TypeAgentSuggest", "wire.TypeAgentSuggestRisk", "wire.TypeAgentType", "wire.TypeAgentInsert", "wire.TypeTypeDirect"} {
 		if !strings.Contains(src, want) {
 			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
 		}
@@ -178,6 +183,28 @@ func callSites(t *testing.T, file, src, name string) (out []callSite) {
 			return true
 		})
 	}
+	return out
+}
+
+// featureFiles is a feature's files: those listed, which must all exist, and every other window file whose name starts
+// with one of prefixes, so a file the feature gains is held to the same rules without a change here.
+func featureFiles(t *testing.T, listed []string, prefixes ...string) []string {
+	t.Helper()
+	src := sourceFiles(t)
+	out := slices.Clone(listed)
+	for _, name := range listed {
+		if src[name] == "" {
+			t.Fatalf("%s is gone; update the guard", name)
+		}
+	}
+	for name := range src {
+		for _, p := range prefixes {
+			if !strings.Contains(name, "/") && strings.HasPrefix(name, p) && !slices.Contains(out, name) {
+				out = append(out, name)
+			}
+		}
+	}
+	slices.Sort(out)
 	return out
 }
 
@@ -419,8 +446,8 @@ func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
 }
 
 // The panel asks and shows; it never reads a pane for the agent. keel serve reads and redacts, so no file of the
-// window or the client may call the scrollback or the mcp read routes. type-check is the direct type's own question,
-// asked by keelclient/inject.go alone.
+// window or the client may call the scrollback or the mcp read routes, and only keelclient/inject.go names a suggestion
+// frame (TestOnlyInjectGoUsesTheTypingNamesOfTheWire checks the wire's constants for them).
 func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback", "agent-insert", "agent-suggest", "agent-detect", "type-check"} {
@@ -486,7 +513,7 @@ func TestInsertSuggestionIsReachedOnlyFromTheCardsKeyHandling(t *testing.T) {
 // An insert never ends with Enter: the code that hands it over holds no newline or carriage return of its own, and the
 // restore drops every control character from the user's words.
 func TestNoSuggestionCodeAddsAnEnter(t *testing.T) {
-	for _, name := range []string{"suggestpane.go", "suggest.go"} {
+	for _, name := range featureFiles(t, []string{"suggestpane.go", "suggest.go"}, "suggest") {
 		src := sourceFiles(t)[name]
 		if src == "" {
 			t.Fatalf("%s is gone; update the guard", name)
@@ -507,7 +534,7 @@ var memoryFiles = []string{"notes.go", "notesview.go", "noteslogic.go", "runbook
 
 func TestNoteAndRunbookCodeHasNoWriterAndNoWayToType(t *testing.T) {
 	banned := []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "openApprove", "typeNow", "typeAgentProposal", "AgentRef{", "DirectRef{"}
-	for _, name := range memoryFiles {
+	for _, name := range featureFiles(t, memoryFiles, "notes", "runbooks") {
 		src := sourceFiles(t)[name]
 		if src == "" {
 			t.Fatalf("%s is gone; update the guard", name)
@@ -548,7 +575,7 @@ func TestAProposalIsKeptOnlyByItsCardsSaveButton(t *testing.T) {
 
 // Runbook steps are proposals made by keel serve: this client holds no step's bytes and builds no proposal.
 func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
-	for _, name := range memoryFiles {
+	for _, name := range featureFiles(t, memoryFiles, "notes", "runbooks") {
 		src := sourceFiles(t)[name]
 		for _, bad := range []string{"keelclient.Proposal{", "Bytes:", "\\x15"} {
 			if strings.Contains(src, bad) {
@@ -721,11 +748,8 @@ func TestOnlyTheTwoDialogsTypeButtonsPressType(t *testing.T) {
 func TestGroupCodeHasNoWriterAndNoWayToTypeExceptOpeningTheDialog(t *testing.T) {
 	banned := []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "pressType", "typeNow", "typeAgentProposal",
 		"AgentRef{", "DirectRef{", "SuggestionRef{", "clearLine", "DirectLine"}
-	for _, name := range groupFiles {
+	for _, name := range featureFiles(t, groupFiles, "group", "folders") {
 		src := sourceFiles(t)[name]
-		if src == "" {
-			t.Fatalf("%s is gone; update the guard", name)
-		}
 		for _, bad := range banned {
 			if name == "groupapproveview.go" && bad == "pressType" {
 				continue
@@ -777,7 +801,7 @@ func TestTheRunPageFillsBeforeTheDialogOpensAndCopyNeverWritesAValue(t *testing.
 // §6 rule 11: the client never puts a value into a command. A row's bytes are set from keel serve's answers only (the proposal's
 // own bytes, or the fill's), and no group file or the dialog replaces, expands or formats text around a {{name}}.
 func TestTheClientNeverSubstitutesAValue(t *testing.T) {
-	for _, name := range append(slices.Clone(groupFiles), "approve.go") {
+	for _, name := range append(featureFiles(t, groupFiles, "group", "folders"), "approve.go") {
 		src := sourceFiles(t)[name]
 		for _, bad := range []string{"strings.Replace", "strings.NewReplacer", "ReplaceAll", "ReplaceAllString", ".Expand", "ReplaceAllStringFunc", "text/template"} {
 			if strings.Contains(src, bad) {
@@ -829,15 +853,11 @@ var notebookFiles = []string{"notebooks.go", "notebookslogic.go", "notebooksview
 // none of the four writers, build no agent or direct reference, and name neither the Approve action nor Ctrl-U.
 func TestNotebookCodeHasNoWriterAndNoCallSiteOfItsOwn(t *testing.T) {
 	src := sourceFiles(t)
-	for _, name := range notebookFiles {
+	files := featureFiles(t, notebookFiles, "notebook")
+	for _, name := range files {
 		s := src[name]
-		if s == "" {
-			t.Fatalf("%s is gone; update the guard", name)
-		}
+		// nbConn (notebooks.go) declares a Write that refuses; a declaration is not a call, so no file is excused.
 		for _, w := range []string{"ApprovedInject", "DirectType", "SuggestInsert", "RestoreWords", "DirectCheck", "Write", "approveType"} {
-			if name == "notebooks.go" && w == "Write" { // WriteClipboard is not this; nbConn defines Write, it does not call it
-				continue
-			}
 			for _, c := range calls(t, name, s, w) {
 				t.Errorf("%s calls %s: a notebook reaches a terminal only through typeNow and the Approve dialog", c, w)
 			}
@@ -850,7 +870,7 @@ func TestNotebookCodeHasNoWriterAndNoCallSiteOfItsOwn(t *testing.T) {
 	}
 	// The only notebook call into the typing paths is typeNotebookFence -> typeNow, and askNotebookType -> openApprove.
 	var got []string
-	for _, name := range notebookFiles {
+	for _, name := range files {
 		for _, w := range []string{"typeNow", "openApprove", "askType", "openApproveAgent"} {
 			for _, c := range callSites(t, name, src[name], w) {
 				got = append(got, c.in+"->"+w)
@@ -910,11 +930,8 @@ var agentNotebookFiles = []string{"agentnotebooks.go", "agentnotebookslogic.go",
 // scrollback, and never reaches keel mcp's routes. It also holds no notebook text to send: an ask names ids.
 func TestAgentNotebookCodeHasNoWriterNoPaneReadAndSendsNoText(t *testing.T) {
 	src := sourceFiles(t)
-	for _, name := range agentNotebookFiles {
+	for _, name := range featureFiles(t, agentNotebookFiles, "agentnotebooks") {
 		s := src[name]
-		if s == "" {
-			t.Fatalf("%s is gone; update the guard", name)
-		}
 		for _, w := range []string{"ApprovedInject", "DirectType", "DirectCheck", "SuggestInsert", "RestoreWords", "approveType", "openApprove", "openApproveAgent",
 			"typeNow", "typeAgentProposal", "typeNotebookFence", "Write", "Inject", "Snapshot"} {
 			for _, c := range calls(t, name, s, w) {

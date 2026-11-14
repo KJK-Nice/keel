@@ -121,7 +121,7 @@ func TestAuthOpenRoutesAndNoUI(t *testing.T) {
 			}
 		}
 	}
-	// The herd socket is gone too: the token gets a 404, no token a 401.
+	// No other socket exists: the token gets a 404, no token a 401.
 	herd := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
 	if got := wsStatus(t, herd, h); got != http.StatusNotFound {
 		t.Errorf("/ws/herd with the token = %d, want 404", got)

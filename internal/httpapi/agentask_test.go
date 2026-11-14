@@ -424,12 +424,14 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 }
 
 // §6.1 at the source: the agent routes cannot write to a session. The
-// files that hold them (the ask, the runbooks of §16, and keel mcp's
-// routes) call no write, inject, spawn or resize method, and touch the
-// runtime only through Get, List, ReadScrollback, LastCommand,
-// CommandsAfter and CommandOutput (reads).
+// files that hold them (the ask, the settings and conversations, notes,
+// runbooks, groups and notebooks, and keel mcp's routes) call no write,
+// inject, spawn or resize method, and touch the runtime only through Get,
+// List, ReadScrollback, LastCommand, CommandsAfter and CommandOutput
+// (reads). TestAgentAndMCPRoutesReachNoWriter follows every handler, in
+// any file, by type.
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
-	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go", "mcp.go"} {
+	for _, file := range []string{"agent.go", "agentask.go", "agentnotes.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go", "mcp.go"} {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, file, nil, 0)
 		if err != nil {
