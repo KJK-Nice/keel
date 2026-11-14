@@ -21,8 +21,8 @@ const (
 	// can pile up (presence, status, control).
 	clientMaxQueuedEvents = 4096
 	// clientMergeBytes caps one merged output event at the size of one PTY
-	// read (runtime reads 32 KB), so no consumer sees a larger message than
-	// before: a share viewer's WebRTC data channel has a message size limit.
+	// read (runtime reads 32 KB): a share viewer's WebRTC data channel has a
+	// message size limit.
 	clientMergeBytes = 32 << 10
 	// clientChanCap is the hand-off channel between the queue and the
 	// consumer; the queue does the buffering.

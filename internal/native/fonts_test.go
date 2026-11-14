@@ -33,7 +33,7 @@ func TestFontLicencesShip(t *testing.T) {
 // Each shipped family, once registered as run.go does, renders differently from a missing family and from the other.
 func TestShippedFamiliesRenderDifferently(t *testing.T) {
 	if runtime.GOOS == "linux" {
-		t.Skip("registerFonts registers nothing on Linux (run.go): on Ubuntu CI a registered JetBrains Mono file gave every glyph an advance of 25 px at 6.5 px, 15 at 13 and 23 at 26 (the system monospace 4, 8, 16), so the advance does not follow the size and the glyphs likely do not come from the file (a missing-glyph box: the runner's FreeType may not decode the woff2); see TestDiagRegisteredFontMetrics and docs/native.md Linux")
+		t.Skip("registerFonts registers nothing on Linux (run.go; docs/native.md, Linux)")
 	}
 	t.Cleanup(func() {
 		if t.Failed() { // issue #140: the widths in the default, the bundled and a missing family (linuxdiag_test.go)

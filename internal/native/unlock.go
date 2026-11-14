@@ -53,7 +53,7 @@ func keychainName() string {
 	return "the system keyring"
 }
 
-// unlockLead is the line under the title (gate.js showUnlock).
+// unlockLead is the line under the title.
 func unlockLead(n int) string {
 	switch {
 	case n == 1:
@@ -76,7 +76,7 @@ func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
 	return kc + " doesn't hold this vault's key, so Keel needs your passphrase.", false
 }
 
-// gateSessions is the status line's count (gate.js sessionsText).
+// gateSessions is the status line's count.
 func gateSessions(n int) string {
 	switch {
 	case n == 0:

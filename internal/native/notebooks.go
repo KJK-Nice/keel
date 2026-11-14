@@ -39,15 +39,14 @@ const (
 	msgAgentTyping  = "The agent edited a notebook you are typing in. Your typing is kept; the agent's version is in History."
 )
 
-// notebookPane is the state of one open notebook.
 type notebookPane struct {
 	id      string // "" until the first save
-	title   string // the Rename notebook field
-	md      string // the document: the Markdown as typed
+	title   string
+	md      string
 	cellID  string
 	rev     int // the revision this pane loaded or saved last
 	pinned  bool
-	editing bool // the text area is shown instead of the rendered document
+	editing bool
 
 	titleSeen, mdSeen string // what the last frame saw, to find an edit
 	auto              *autosave
@@ -57,7 +56,7 @@ type notebookPane struct {
 	waiters           []func(ok bool)
 	toldRev           int // the server revision the typing-over-an-edit toast was shown for
 
-	focusEdit bool // give the text area the keyboard on the next frame
+	focusEdit bool
 	titleH    ui.Handle
 	editH     ui.Handle
 	opts      *markdown.Options
@@ -68,7 +67,6 @@ func newNotebookState() *notebookPane {
 	return &notebookPane{auto: newAutosave(), clicked: map[int]time.Time{}}
 }
 
-// load takes a notebook record as the pane's text, title, revision and pin.
 func (n *notebookPane) load(rec keelclient.Notebook) {
 	n.id, n.title, n.rev, n.pinned = rec.ID, notebookName(rec), rec.Rev, rec.Pinned
 	n.md = rec.Markdown()
@@ -77,7 +75,7 @@ func (n *notebookPane) load(rec keelclient.Notebook) {
 		n.cellID = rec.Cells[0].ID
 	}
 	if len(rec.Cells) == 0 {
-		n.md = defaultNotebookMD // a notebook with no text starts from the starter
+		n.md = defaultNotebookMD
 	}
 	n.titleSeen, n.mdSeen = n.title, n.md
 	n.failed = false
@@ -86,7 +84,6 @@ func (n *notebookPane) load(rec keelclient.Notebook) {
 // dirty is typing that keel serve does not have: a save is pending or running, or the last one failed.
 func (n *notebookPane) dirty() bool { return n.auto.pending() || n.failed }
 
-// payload is the whole state a save sends.
 func (n *notebookPane) payload() keelclient.NotebookSave {
 	name := strings.TrimSpace(n.title)
 	if name == "" {
@@ -157,7 +154,6 @@ func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 	w.notebooks = append([]keelclient.Notebook{rec}, w.notebooks...)
 }
 
-// reloadNotebooks reads the list again, and lets the open panes follow it.
 func (w *workspace) reloadNotebooks() {
 	call(w, w.be.Notebooks, func(nbs []keelclient.Notebook, err error) {
 		if err != nil {
@@ -169,7 +165,6 @@ func (w *workspace) reloadNotebooks() {
 	})
 }
 
-// notebookPanes lists the open notebook panes.
 func (w *workspace) notebookPanes() (out []*pane) {
 	for _, t := range w.tabs {
 		for _, id := range t.root.Leaves() {
@@ -234,7 +229,6 @@ func (t *tab) firstTerm() *pane {
 	return nil
 }
 
-// onlyNotebooks is a tab whose panes are all notebooks.
 func (t *tab) onlyNotebooks() bool { return len(t.panes) > 0 && t.firstTerm() == nil }
 
 // placeNotebook shows a notebook pane: beside the terminal of a session tab, else in a tab of its own.
@@ -257,7 +251,6 @@ func (w *workspace) placeNotebook(np *pane) {
 	w.selectTab(len(w.tabs) - 1)
 }
 
-// openNotebook shows notebook id: its pane when one is open, else a new pane.
 func (w *workspace) openNotebook(id string) {
 	rec, ok := w.notebook(id)
 	if !ok {
@@ -285,7 +278,6 @@ func (w *workspace) newNotebook() {
 	w.nbPump(np)
 }
 
-// splitNotebook is the palette's Split notebook: the same as New notebook.
 func (w *workspace) splitNotebook() { w.newNotebook() }
 
 // ---- saving ----
@@ -340,7 +332,6 @@ func (w *workspace) nbPump(p *pane) {
 	})
 }
 
-// nbSettle answers the callers waiting for p's saves once nothing is left to save.
 func (w *workspace) nbSettle(p *pane) {
 	n := p.nb
 	if n.saving || n.auto.pending() {
@@ -369,7 +360,6 @@ func (w *workspace) nbFlush(p *pane, done func(ok bool)) {
 	w.nbPump(p)
 }
 
-// nbFlushID flushes every open pane of notebook id, then calls done.
 func (w *workspace) nbFlushID(id string, done func()) {
 	var open []*pane
 	for _, p := range w.notebookPanes() {
@@ -424,7 +414,6 @@ func (w *workspace) flushNotebooksNow() {
 	}
 }
 
-// nbErr is the server's reason for a refused save or write, else the fallback.
 func nbErr(err error, fallback string) string {
 	var se *keelclient.StatusError
 	if errors.As(err, &se) && se.Msg != "" {
@@ -551,7 +540,6 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 	})
 }
 
-// removeNotebook drops a deleted notebook from the list and closes its panes.
 func (w *workspace) removeNotebook(id string) {
 	w.notebooks = slices.DeleteFunc(w.notebooks, func(n keelclient.Notebook) bool { return n.ID == id })
 	for _, p := range w.notebookPanes() {

@@ -18,7 +18,7 @@ import (
 	"unicode/utf16"
 )
 
-// MaxInput is the longest text ParseConnect reads (UTF-16 units, as the JS counts them).
+// MaxInput is the longest text ParseConnect reads (UTF-16 units).
 const MaxInput = 2048
 
 // Dropped is one option that was left out, and why.
@@ -39,7 +39,7 @@ type Result struct {
 	Notes        []string // strings the user should read (for example the key file to pick)
 }
 
-// ws is JavaScript's \s: the characters a regular expression there treats as white space.
+// ws is the white space ParseConnect trims and splits on: the set JavaScript's \s matches.
 const ws = `\t\n\v\f\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}`
 
 var (
@@ -98,7 +98,7 @@ func ValidPort(port string) bool {
 
 func isOperator(r rune) bool { return strings.ContainsRune(";|&<>()`\n\r", r) }
 
-// jsSpace is what JavaScript's String.prototype.trim removes.
+// jsSpace is the white space ParseConnect trims, the same set as ws.
 func jsSpace(r rune) bool {
 	switch r {
 	case '\t', '\n', '\v', '\f', '\r', 0xfeff, 0x2028, 0x2029:
@@ -418,7 +418,7 @@ func portOr22(s string) int {
 	return n
 }
 
-// opt is a string that may be unset (JavaScript's null), because "" is a value there: -p ” is refused.
+// opt is a string that may be unset, because "" is a value here: -p ” is refused.
 type opt struct {
 	v   string
 	set bool

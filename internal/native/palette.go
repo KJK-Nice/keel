@@ -24,11 +24,10 @@ type palItem struct {
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
 	badge                    string // an accent label before the keys ("Approve first" on snippets)
-	bare                     bool   // no group heading above it
+	bare                     bool
 	run                      func(split bool)
 }
 
-// searchHosts: the sidebar shows its Hosts section and its filter has the keyboard.
 func (w *workspace) searchHosts() {
 	w.sidebar, w.sideSeg, w.focusHosts, w.wantFocus = true, "hosts", true, ""
 }
@@ -58,20 +57,18 @@ func (w *workspace) askFromPalette(query string) {
 	w.agent.focusInput = true
 }
 
-// palette is the open palette: the items as they were when it opened, what is typed and the selection.
 type palette struct {
 	items  []palItem
 	query  string
 	seen   string // the query the cursor was last reset for
 	cursor int
 	reveal bool // scroll the selected row into view in the next frame
-	focus  bool // the input has had the keyboard
+	focus  bool
 	ask    func(query string) palItem
 }
 
 func palWords(q string) []string { return strings.Fields(strings.ToLower(q)) }
 
-// paletteMatches reports whether every word of q appears in the item's title, hint, group or keys.
 func paletteMatches(it palItem, q string) bool {
 	hay := strings.ToLower(it.title + " " + it.hint + " " + it.group + " " + it.keys)
 	for _, w := range palWords(q) {
@@ -111,7 +108,6 @@ func filterPalette(items []palItem, q string) []palItem {
 	return orderGroups(keep)
 }
 
-// moveCursor steps the selection by delta, wrapping at both ends.
 func moveCursor(cursor, delta, count int) int {
 	if count <= 0 {
 		return 0
@@ -119,16 +115,13 @@ func moveCursor(cursor, delta, count int) int {
 	return ((cursor+delta)%count + count) % count
 }
 
-// clampCursor keeps a cursor inside a list that may have shrunk.
 func clampCursor(cursor, count int) int { return max(0, min(cursor, count-1)) }
 
-// span is a run of a title, marked when it matches a query word.
 type span struct {
 	text string
 	mark bool
 }
 
-// highlight splits text into runs, marking every part that matches a word of q (overlaps merge).
 func highlight(text, q string) []span {
 	rs := []rune(text)
 	low := make([]rune, len(rs))
@@ -221,7 +214,6 @@ func (t *tab) dot() string {
 	return "idle"
 }
 
-// hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
 	if h.IsLocal() {
 		return "this machine"
@@ -237,10 +229,9 @@ func hostSubtitle(h keelclient.Host) string {
 	return h.Username + "@" + h.Address + port + ident
 }
 
-// paletteItems is the palette's list as the workspace is now: Open now, Hosts and Actions.
 func (w *workspace) paletteItems() []palItem {
 	var items []palItem
-	for i := range commands { // the actions are the table's, in its order
+	for i := range commands {
 		c, p := &commands[i], commands[i].pal
 		switch {
 		case p == nil:
@@ -359,7 +350,6 @@ func (w *workspace) openPalette() {
 	w.pal = &palette{items: w.paletteItems(), ask: w.askRow}
 }
 
-// closePalette closes it and gives the keyboard back to the focused pane.
 func (w *workspace) closePalette() {
 	if w.pal == nil {
 		return
@@ -376,10 +366,9 @@ func (w *workspace) togglePalette() {
 	w.openPalette()
 }
 
-// visible is the rows for the typed query; the cursor is kept inside them.
 func (p *palette) visible() []palItem {
 	rows := filterPalette(p.items, p.query)
-	if p.ask != nil { // the last row, whatever the query matches
+	if p.ask != nil {
 		rows = append(rows, p.ask(p.query))
 	}
 	if p.query != p.seen {
@@ -389,7 +378,6 @@ func (p *palette) visible() []palItem {
 	return rows
 }
 
-// choose closes the palette and runs the selected row (nothing when no row matches).
 func (w *workspace) choose(split bool) {
 	p := w.pal
 	if p == nil {

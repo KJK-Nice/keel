@@ -15,11 +15,11 @@ import (
 // serve decides whether a line is noticed, writes a suggestion only after the user's ⇥ / ⇧⇥, and checks the ⇧ rule again.
 
 const (
-	detectPause   = 350 * time.Millisecond // DETECT_PAUSE_MS: the typing pause before the prompt line is checked
-	detectCache   = 2 * time.Minute        // DETECT_CACHE_MS: an answer for the same words is kept
-	offBackoff    = 15 * time.Second       // OFF_BACKOFF_MS: after "off", wait before asking again
-	suggestMaxLen = 300                    // MAX_LINE
-	insertedSeen  = 3 * time.Second        // how long an inserted command may stay unseen on the line
+	detectPause   = 350 * time.Millisecond // the typing pause before the prompt line is checked
+	detectCache   = 2 * time.Minute        // an answer for the same words is kept
+	offBackoff    = 15 * time.Second
+	suggestMaxLen = 300
+	insertedSeen  = 3 * time.Second // how long an inserted command may stay unseen on the line
 	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
 	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
 	// request it accepted, so this is for an answer that was lost.
@@ -41,7 +41,6 @@ const (
 // A shell prompt ends at the first "$ ", "# ", "% ", "> ", "❯ " or "» " on the line.
 var promptRe = regexp.MustCompile(`^(.*?[$#%>❯»] )`)
 
-// promptLine is the cursor's line split into the prompt and what was typed after it.
 type promptLine struct {
 	Prompt, Input string
 	Start         int // the index of the input in the line (a cell column for ASCII)
@@ -72,7 +71,6 @@ func worthDetecting(input string) bool {
 	return len(strings.Fields(s)) >= 2
 }
 
-// hashLine is a line the user marked as a request by starting it with #.
 func hashLine(input string) bool { return strings.HasPrefix(strings.TrimSpace(input), "#") }
 
 // askable is a line the user's own request (the suggest key) may send: some words, within suggestMaxLen, with no
@@ -187,7 +185,7 @@ func keyLabels() keyLabelSet {
 }
 
 // shiftTab is ⇧⇥ written for the platform: the glyphs run together on macOS, the words are joined with + elsewhere ("Shift+Tab",
-// not "ShiftTab": a defect a Linux user saw in v0.2.0).
+// not "ShiftTab": a defect a Linux user saw).
 func shiftTab(k keyLabelSet) string {
 	if isMac() {
 		return k.Shift + k.Tab
@@ -209,7 +207,6 @@ func riskWords(o keelclient.SuggestOption) string {
 	return label
 }
 
-// sourceLabel is the card's head: where the command came from.
 func sourceLabel(source string) string {
 	switch source {
 	case "history":
@@ -227,7 +224,6 @@ type insertResult struct {
 	Message     string
 }
 
-// sugView is what the pane draws.
 type sugView struct {
 	State    sugState
 	Words    string
@@ -235,7 +231,7 @@ type sugView struct {
 	Selected int
 	Note     string
 	Message  string
-	Command  string // the inserted command
+	Command  string
 	Seen     bool
 	Hash     bool // a notice for a # line: ⇥ is taken there; a line noticed without # leaves ⇥ to the shell
 	Seq      int
@@ -313,7 +309,6 @@ func (m *sugMachine) live() bool {
 	return m.can() && (m.mode() != sugOff || m.st.State == sugError)
 }
 
-// offMessage is what the suggest key says while suggestions are off.
 const offMessage = "Suggestions in panes are off. Turn them on in Settings · Agent."
 
 // ModeChanged follows a change of the settings: nothing asked before counts any more. The cache of plain lines, a
@@ -383,7 +378,6 @@ func (m *sugMachine) Due() (time.Time, bool) {
 	return due, !due.IsZero()
 }
 
-// Tick runs the detection when the typing pause has passed, and ends a request that has waited too long (the page's timer).
 func (m *sugMachine) Tick() {
 	now := m.d.now()
 	if m.st.State == sugLoading && !now.Before(m.loadDue) {
@@ -401,7 +395,7 @@ func (m *sugMachine) detectNow() {
 		m.idle()
 		return
 	}
-	if m.mode() == sugOff { // off is known here: nothing is asked
+	if m.mode() == sugOff {
 		if m.st.State == sugNotice {
 			m.idle()
 		}
@@ -483,7 +477,7 @@ func (m *sugMachine) doInsert(shift bool) {
 
 // OnInput: the user typed. data is what went to the shell.
 func (m *sugMachine) OnInput(data string) {
-	if strings.ContainsRune(data, 13) { // the user pressed Enter
+	if strings.ContainsRune(data, 13) {
 		m.dueAt = time.Time{}
 		m.dismissed = ""
 		m.idle()
@@ -497,7 +491,6 @@ func (m *sugMachine) OnInput(data string) {
 	}
 }
 
-// OnRender: the terminal redrew; follow the line or let go of it.
 func (m *sugMachine) OnRender() {
 	if m.st.State == sugIdle {
 		return
@@ -614,7 +607,6 @@ func (m *sugMachine) Undo() bool {
 	return true
 }
 
-// Select picks option i of the card (a click on it).
 func (m *sugMachine) Select(i int) {
 	if m.st.State == sugCard && i >= 0 && i < len(m.st.Sug.Options) {
 		st := m.st
@@ -623,7 +615,6 @@ func (m *sugMachine) Select(i int) {
 	}
 }
 
-// OnDetect takes keel serve's answer to a detection.
 func (m *sugMachine) OnDetect(seq int, plain bool, source string) {
 	if m.pendSeq == 0 || seq != m.pendSeq {
 		return
@@ -652,7 +643,6 @@ func (m *sugMachine) OnDetect(seq int, plain bool, source string) {
 	}
 }
 
-// OnSuggest takes keel serve's answer to a suggestion.
 func (m *sugMachine) OnSuggest(seq int, ok bool, sug *keelclient.Suggestion, message, reason string) {
 	if m.st.State != sugLoading || seq != m.st.Seq {
 		return
@@ -685,7 +675,6 @@ func (m *sugMachine) OnRisk(id string, opts []keelclient.SuggestOption) {
 	m.set(st)
 }
 
-// Reset drops everything in flight and goes idle.
 func (m *sugMachine) Reset() {
 	m.dueAt = time.Time{}
 	m.pendSeq = 0

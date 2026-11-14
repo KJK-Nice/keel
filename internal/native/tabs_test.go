@@ -456,7 +456,7 @@ func TestDroppingATabOnTheEmptyStripPutsItLast(t *testing.T) {
 	}
 }
 
-// drag.js dropEdgeForRect: the nearest edge, or the centre when the point is well inside.
+// The nearest edge, or the centre when the point is well inside.
 func TestDropEdgeIsTheNearestEdgeOrTheCentre(t *testing.T) {
 	for _, c := range []struct {
 		x, y float32

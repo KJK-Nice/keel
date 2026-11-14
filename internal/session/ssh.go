@@ -160,8 +160,6 @@ func hopName(h store.Host) string {
 	return store.HostKeyName(h)
 }
 
-// dialHost connects to host directly, or through via (an open SSH client)
-// when via is set.
 func dialHost(ctx context.Context, via *ssh.Client, host store.Host, checkKey CheckKey) (*ssh.Client, error) {
 	auth, err := sshAuth(host)
 	if err != nil {

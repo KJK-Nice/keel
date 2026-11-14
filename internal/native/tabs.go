@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-// Tab and pane handling: focus view, closing tabs, the tab order, the recently closed
-// list and tab names.
-
-// tabOf is the tab that holds p, or nil.
 func (w *workspace) tabOf(p *pane) *tab {
 	for _, t := range w.tabs {
 		if t.panes[p.id] == p {
@@ -19,7 +15,6 @@ func (w *workspace) tabOf(p *pane) *tab {
 	return nil
 }
 
-// showPane selects the tab that holds p when another is shown.
 func (w *workspace) showPane(p *pane) {
 	if t := w.tabOf(p); t != nil && t != w.tab() {
 		w.selectTab(slices.Index(w.tabs, t))
@@ -92,7 +87,6 @@ func (w *workspace) closeTab(t *tab) {
 	w.removeTab(t)
 }
 
-// closeTabs closes these tabs (the tab menu's Close, Close others, Close to the right and Close all).
 func (w *workspace) closeTabs(ts []*tab) {
 	for _, t := range ts {
 		w.closeTab(t)
@@ -112,7 +106,6 @@ func (w *workspace) tabsRight(t *tab) []*tab {
 	return slices.Clone(w.tabs[i+1:])
 }
 
-// cycleTab shows the tab delta steps from the active one, wrapping at both ends.
 func (w *workspace) cycleTab(delta int) {
 	if n := len(w.tabs); n > 0 {
 		w.selectTab((w.active + delta%n + n) % n)
@@ -136,7 +129,7 @@ func (w *workspace) moveTab(t *tab, slot int) {
 }
 
 // toggleZoom is focus view for pane id: it fills the tab, or the tab shows all its panes again. A tab of
-// one pane does not zoom. The zoomed pane has focus (workspace.js zoom).
+// one pane does not zoom. The zoomed pane has focus.
 func (w *workspace) toggleZoom(t *tab, id string) {
 	if t.zoomed != "" {
 		t.zoomed = ""
@@ -189,7 +182,6 @@ func (w *workspace) endRename(ok bool) {
 
 const closedMax = 10
 
-// closedEntry is a closed tab or pane: the host, the name and the time, nothing else.
 type closedEntry struct {
 	hostID, title, kind string // kind is "tab" or "pane"
 	at                  time.Time
@@ -215,7 +207,6 @@ func (w *workspace) keepClosed() {
 	w.setPref(keyClosedTabs)
 }
 
-// reopenClosed opens the newest closed entry whose host still exists as a new session (⌘⇧T).
 func (w *workspace) reopenClosed() { w.reopenClosedAt(w.tab(), 0) }
 
 // reopenClosedAt opens entry i of the closed list (the live ones, newest first): in the New tab t when that

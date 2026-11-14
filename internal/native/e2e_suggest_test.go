@@ -318,7 +318,7 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 	addr, dir := startServe(t, true)
 	a := newWin(t, addr, dir, nil)
 	a.suggestSetup("auto")
-	sid := a.openLocal()
+	a.openLocal()
 	a.clickBody("1")
 
 	// Suggestions in panes off: nothing.
@@ -404,10 +404,9 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 		t.Error("the follower's pane left idle")
 	}
 	a.key(ui.Ctrl, ui.KeyU)
-	_ = sid
 }
 
-func TestE2ESuggestDoesNotDelayTyping(t *testing.T) {
+func TestE2ETypingKeepsItsOrderWhileSuggestionsAreOn(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
 	e.suggestSetup("auto")

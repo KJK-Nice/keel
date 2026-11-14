@@ -18,7 +18,6 @@ import (
 // A host chip ends with ↵, not ",".
 // A step's role, "One host only" and captures (group runs, §17) are edited in runbookStepTarget.
 
-// badgeColors are a badge's ground and ink for a kind ("" is the plain one).
 func badgeColors(kind string) (bg, fg ui.Color) {
 	switch kind {
 	case "tide":
@@ -68,7 +67,6 @@ func (w *workspace) runbooksView(c *ui.Context, p *runbooksPage) {
 	})
 }
 
-// runbooksHead is the list's head: the title with New, "From a conversation…" and its menu, and the filter.
 func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 	hairline(ui.Column(c).FillWidth().Shrink(0).Padding(space6, space4, space3).Gap(space3), 0, 0, 1, 0).Children(func() {
 		ui.Row(c).FillWidth().Gap(space2).Children(func() {
@@ -188,7 +186,6 @@ func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
 	}
 }
 
-// runbookRow is a list row: its name, where it came from, Use when and its hosts, and the Agent may pick switch.
 func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Runbook) {
 	selected := rb.ID == p.selected
 	row := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Key(rb.ID).Selected(selected), 0, 0, 1, 0)
@@ -237,7 +234,7 @@ func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Run
 func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 	saved := e.id != ""
 	ui.Column(c).FillWidth().Gap(space4).Label("Runbook").Children(func() {
-		ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
+		ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
 				inputBox(c, "Runbook name", &e.name, "Name this runbook", &e.nameH, false, false, limits.MaxRunbookNameBytes, nil)
 			})
@@ -338,7 +335,7 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 	ui.Row(c).FillWidth().Key(s).Gap(space3).AlignItems(ui.Start).Label("runbook step " + n).Children(func() {
 		text(c, n, inkMuted, uiFontSize, weightSemibold).Shrink(0).Width(space6)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1_5).Children(func() {
-			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
+			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
 					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, limits.MaxRunbookTitleBytes, nil)
 				})
@@ -405,7 +402,6 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	}
 }
 
-// runbookBox is the box beside the steps: Agent may pick, the hosts, the meta lines and the rule for steps.
 func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook) {
 	ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Padding(space3).Gap(space3).Radius(radiusMd).Border(1, line).Label("Runbook settings").Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).Children(func() {
@@ -465,7 +461,6 @@ func (e *rbEditor) addHostChip() {
 
 // ---- the card of a runbook in use ----
 
-// stepMarkColor is a progress row's mark.
 func stepMarkColor(state string) ui.Color {
 	switch state {
 	case "done":

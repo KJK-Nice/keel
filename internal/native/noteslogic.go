@@ -55,7 +55,7 @@ func noteSourceLabel(n keelclient.Note) string {
 	return joinNonEmpty(" · ", from, day, state)
 }
 
-// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character counts as JavaScript counts it (UTF-16).
+// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character is a UTF-16 unit, as keel serve counts it.
 func notesCountLabel(notes []keelclient.Note) string {
 	chars := 0
 	for _, n := range notes {

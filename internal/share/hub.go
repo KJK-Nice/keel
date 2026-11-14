@@ -84,7 +84,6 @@ const (
 	// without bound. Past sendHigh the attach loop waits for it to drain to
 	// sendLow, so unread output waits in the runtime's per-client queue,
 	// and the runtime drops the viewer once that passes its byte budget.
-	// The two buffers no longer stack up to twice the budget.
 	sendHigh = 1 << 20
 	sendLow  = 256 << 10
 	// sendStall drops a viewer whose data channel drains nothing for this

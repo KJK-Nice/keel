@@ -16,12 +16,10 @@ func (w *workspace) copy(text, what string) {
 	w.clips = append(w.clips, clipItem{text: text, what: what})
 }
 
-// copyQuiet puts text on the clipboard and says nothing.
 func (w *workspace) copyQuiet(text string) {
 	w.clips = append(w.clips, clipItem{text: text, quiet: true})
 }
 
-// flushClipboard writes what copy queued.
 func (w *workspace) flushClipboard(c *ui.Context) {
 	for _, it := range w.clips {
 		c.WriteClipboard(it.text)

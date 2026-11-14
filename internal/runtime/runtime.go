@@ -940,12 +940,9 @@ func (s *Session) runLoop() {
 		// a command the old shell left open is abandoned.
 		s.marks.Reset(s.buf.Mark())
 		s.alt.Reset()
-		// A driver may have resized while the bridge was connecting (an SSH
-		// connect takes seconds; the client fits and sends its size as soon
-		// as it attaches). Resize only recorded that size, since there was
-		// no bridge, and later resizes to the same size are skipped, so the
-		// PTY stayed at the size it was opened with (80x24) while xterm
-		// showed the fitted grid: shells redrew lines for the wrong width.
+		// A driver may have resized while connecting (SSH takes seconds).
+		// Resize only recorded that size, and later same-size resizes are
+		// skipped, so the PTY would stay at its opening size: apply it below.
 		wantCols, wantRows := s.cols, s.rows
 		s.reconnectN = 0
 		s.forceReconnect = false
@@ -1079,9 +1076,7 @@ func (s *Session) kickWaitLocked() {
 const maxReconnectDelay = 15 * time.Second
 
 // reconnectDelay returns unit doubled n times, capped at maxReconnectDelay.
-// It doubles step by step instead of shifting by n: a host that stays down
-// keeps n growing, and unit<<n overflows time.Duration (negative or zero)
-// after ~34 attempts, which turned the wait into a busy retry loop.
+// It doubles step by step: unit<<n overflows time.Duration after ~34 attempts.
 func reconnectDelay(unit time.Duration, n int) time.Duration {
 	if unit <= 0 {
 		unit = time.Second

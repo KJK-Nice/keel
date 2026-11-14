@@ -26,7 +26,6 @@ import (
 // shows a saved secret: a blank field on an update means "keep the saved one" (store.putSecretLocked). Nothing
 // here logs, stores or formats a secret; Test connection's key offer is trusted only by the user's click.
 
-// hostForm is what the fields hold. Text fields are strings as typed.
 type hostForm struct {
 	name, tags, address, port, username, startup, keepSec string
 	groupID, jump, identityID, color, auth                string
@@ -47,7 +46,6 @@ func (d hostDialog) String() string { return fmt.Sprintf("hostDialog{%s %s}", d.
 
 func (d hostDialog) GoString() string { return d.String() }
 
-// hostTest is Test connection's state.
 type hostTest struct {
 	running, cancelled bool
 	cancel             context.CancelFunc
@@ -59,8 +57,8 @@ type hostTest struct {
 }
 
 type hostDialog struct {
-	id     string           // "" for New host
-	saved  *keelclient.Host // the host being edited, as listed
+	id     string // "" for New host
+	saved  *keelclient.Host
 	f      hostForm
 	err    string // the server's reason, or a field's (host-form-error)
 	notes  *sshparse.Result
@@ -78,7 +76,7 @@ type hostDialog struct {
 
 const (
 	hostDialogWidth = 760
-	hostColsMax     = 620 // the columns' max height
+	hostColsMax     = 620
 	defaultColor    = "var(--ansi-10)"
 	maxStartup      = limits.MaxStartupCommand
 	maxPort         = limits.MaxPort
@@ -86,10 +84,8 @@ const (
 	defaultKeep     = limits.DefaultKeepAliveSec
 )
 
-// hostColors is the palette keel serve offers (limits.HostColors), in picker order.
 var hostColors = limits.HostColors
 
-// authKinds is the Authentication control's options.
 var authKinds = []struct{ value, label string }{
 	{keelclient.AuthPassword, "Password"}, {keelclient.AuthKey, "Private key"}, {keelclient.AuthIdentity, "Identity"}, {keelclient.AuthLocal, "Local shell"},
 }
@@ -137,7 +133,6 @@ func hostPrefill(r *sshparse.Result) keelclient.Host {
 
 // ---- opening and closing ----
 
-// newHost opens New host.
 func (w *workspace) newHost() { w.openHostDialog(nil, nil, "") }
 
 // saveAsHost is the New tab page's "Save as host": New host filled from a pasted command, with its notes.
@@ -146,7 +141,6 @@ func (w *workspace) saveAsHost(r *sshparse.Result) {
 	w.openHostDialog(&h, r, "")
 }
 
-// editHost opens Edit host for a saved host.
 func (w *workspace) editHost(h keelclient.Host) { w.openHostDialog(&h, nil, h.ID) }
 
 // editPaneHost is the failure banner's Edit host: the pane's host, as saved now.
@@ -221,7 +215,6 @@ func atoiClamp(s string, def, lo, hi int) int {
 	return min(max(n, lo), hi)
 }
 
-// detail is the host the form says.
 func (f hostForm) detail(id string) keelclient.HostDetail {
 	local := f.auth == keelclient.AuthLocal
 	h := keelclient.HostDetail{
@@ -263,7 +256,6 @@ func (f hostForm) testDetail(id string) keelclient.HostDetail {
 
 func boolp(b bool) *bool { return &b }
 
-// parseTags splits the tags field.
 func parseTags(s string) []string {
 	var out []string
 	for _, t := range strings.Split(s, ",") {
@@ -294,7 +286,6 @@ func (f hostForm) validate() string {
 	return validStartup(strings.TrimSpace(f.startup))
 }
 
-// validStartup is the server's rule for a startup command (limits.StartupCommandProblem).
 func validStartup(cmd string) string { return limits.StartupCommandProblem(cmd) }
 
 // ---- Save, Delete ----
@@ -408,7 +399,6 @@ func (w *workspace) duplicateHost(h keelclient.Host) {
 	})
 }
 
-// setAgentReadable is the host menu's "Agent can read".
 func (w *workspace) setAgentReadable(h keelclient.Host, on bool) {
 	callErr(w, func(c context.Context) error { return w.be.SetAgentReadable(c, h.ID, on) }, func(err error) {
 		if err != nil {
@@ -421,7 +411,6 @@ func (w *workspace) setAgentReadable(h keelclient.Host, on bool) {
 
 // ---- the host key line ----
 
-// askForgetKey is Forget host key: it asks first.
 func (w *workspace) askForgetKey() {
 	d := w.hostDlg
 	if d == nil || d.key == nil || !d.key.Known || d.saved == nil {
@@ -449,7 +438,6 @@ func (w *workspace) forgetKey(d *hostDialog) {
 	})
 }
 
-// loadHostKey reads the saved key again (after a key was trusted).
 func (w *workspace) loadHostKey(d *hostDialog) {
 	if d.id == "" || d.saved == nil || d.saved.IsLocal() {
 		return
@@ -479,7 +467,6 @@ func keyTypeLabel(t string) string {
 
 // ---- Test connection ----
 
-// testText is the dot (state), its label (short) and the explanation (detail).
 func testText(res keelclient.TestResult) (state, short, detail string) {
 	where := ""
 	switch res.Hop {
@@ -530,7 +517,6 @@ func (d *hostDialog) draftHash() [sha256.Size]byte {
 	return sha256.Sum256(b)
 }
 
-// stopTest cancels a test under way and drops its result.
 func (d *hostDialog) stopTest() {
 	if d.test.cancel != nil {
 		d.test.cancel()
@@ -711,7 +697,6 @@ func identityEntries(ids []keelclient.Identity, current string) []pickEntry {
 	return out
 }
 
-// setAuth changes the Authentication option.
 func (d *hostDialog) setAuth(a string) {
 	d.f.auth = a
 	d.defaultIdentity()

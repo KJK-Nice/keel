@@ -36,7 +36,7 @@ type shell struct {
 	claude   *mygo.MenuItem
 }
 
-// Tray labels (desktop/tray.go).
+// Tray labels.
 const (
 	trayShow       = "Show Keel"
 	trayHide       = "Hide Keel"

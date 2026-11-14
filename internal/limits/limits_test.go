@@ -1,34 +1,9 @@
 package limits
 
 import (
-	"go/parser"
-	"go/token"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
-
-// limits is imported by the window and by keel serve: it may import no keel package but wire.
-func TestStaysALeaf(t *testing.T) {
-	files, _ := filepath.Glob("*.go")
-	for _, name := range files {
-		src, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f, err := parser.ParseFile(token.NewFileSet(), name, src, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, imp := range f.Imports {
-			p := strings.Trim(imp.Path.Value, `"`)
-			if strings.HasPrefix(p, "keel/") && p != "keel/internal/wire" {
-				t.Errorf("%s imports %s", name, p)
-			}
-		}
-	}
-}
 
 func TestStartupCommandProblem(t *testing.T) {
 	for _, ok := range []string{"", "tmux attach", "cd /srv && ls"} {

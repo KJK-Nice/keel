@@ -77,7 +77,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
-			if p.nb != nil && p.nb.editing { // the text being edited takes the keyboard
+			if p.nb != nil && p.nb.editing {
 				p.nb.editH.Focus(c)
 			} else {
 				p.handle.Focus(c)
@@ -107,7 +107,6 @@ func (w *workspace) view(c *ui.Context) {
 	w.persist()
 }
 
-// runLater runs what the view queued, now that the frame is built.
 func (w *workspace) runLater(c *ui.Context) {
 	if len(w.later) > 0 {
 		run := w.later
@@ -134,7 +133,6 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	if w.findPane != nil {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
 		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
-		// Escape closes the bar from anywhere in the window.
 		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
 	}
 }
@@ -148,7 +146,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if !w.joinedActive() && w.capBtn(c, capLabel("sidebar"), "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no button in a joined tab
+		if !w.joinedActive() && w.capBtn(c, capLabel("sidebar"), "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) {
 			w.act(func() { w.runCommand("sidebar") })
 		}
 		for i, t := range w.tabs {
@@ -167,13 +165,13 @@ func (w *workspace) titlebar(c *ui.Context) {
 				w.act(func() { w.dropPaneOnStrip(m, len(w.tabs)) })
 			}
 		}
-		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
+		if s := w.barStatus(); s != "" {
 			if s == "Connecting…" {
 				ui.Spinner(c).Label("Connecting").Shrink(0)
 			}
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
-		w.shareControls(c) // the watchers badge and the Share button of a session tab
+		w.shareControls(c)
 		w.agentButton(c)
 	})
 }
@@ -238,7 +236,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 			lead = icon(c, "computer-terminal-01", inkMuted)
 		case modePage:
 			lead = icon(c, t.pg.tabIcon, inkMuted)
-		case modeRemote: // the joined-share link
+		case modeRemote:
 			lead = icon(c, "link", inkMuted)
 		case modeNotebooks: // no session to have a state
 			lead = icon(c, "notebook-pen", inkMuted)
@@ -278,8 +276,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		}
 		if n := len(t.panes); n > 1 {
 			ui.Spacer(c)
-			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround). // the tab's pane count
-																			Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
+			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround).
+				Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
 		}
 		if !renaming {
 			w.tabClose(c, t, selected, r.Hovered())
@@ -319,13 +317,13 @@ func (w *workspace) dropPaneOnStrip(p *pane, slot int) {
 // on the selected tab, where the W cap stands in for its glyph. Its room is kept when it is hidden, so the pill does not
 // change width. It closes the tab as the tab menu's Close does.
 func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) {
-	// .tab .close is 16 px, not rem.
+	// 16 px, not rem.
 	b := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).
 		Label("Close " + t.name()).Tooltip("Close " + t.name()).Cursor(ui.CursorPointer)
 	capped := selected && w.capAlpha > 0
 	show := pillHovered || capped
 	if !show {
-		b.Opacity(0).Disabled(true) // pointer-events: none
+		b.Opacity(0).Disabled(true)
 	}
 	hov := show && b.Hovered()
 	if hov {
@@ -349,7 +347,6 @@ func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) 
 // sideSnippets is the sidebar's Snippets section showing (Hosts is the default).
 func (w *workspace) sideSnippets() bool { return w.sideSeg == "snippets" }
 
-// sideForwards is the sidebar's Forwards section showing.
 func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
 
 // sidebarWidth is size-sidebar at the default UI size and under it, and grows with the UI size above it.
@@ -358,13 +355,12 @@ func sidebarWidth() float32 { return max(sizeSidebar, rem(sizeSidebar)) }
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Column(c).Width(w.sidebarNow()).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		w.sidebarSash(c)
-		// The head: padding 12 8 8, the tools row and the section switch 8 apart.
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
-			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
+			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() {
 				switch {
 				case w.sidePanes():
 					searchField(c, &w.paneQuery, "Filter panes", &w.paneH).Grow(1).Shrink(1)
-				case w.sideSnippets(): // each section has its own filter
+				case w.sideSnippets():
 					searchField(c, &w.snipQuery, "Filter snippets", &w.snipH).Grow(1).Shrink(1)
 				case w.sideForwards():
 					searchField(c, &w.fwdQuery, "Filter forwards", &w.fwdH).Grow(1).Shrink(1)
@@ -389,7 +385,6 @@ func (w *workspace) sidebarView(c *ui.Context) {
 			}
 			segControlSized(c, "Vault section", cur, segs, func(v string) { w.sideSeg = v }, captionSize, space0_5)
 		})
-		// The body: padding 0 6 8, scrolling.
 		body := func(label string, kids func()) {
 			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label(label).Bind(&w.sideListH).Children(func() {
 				ui.Column(c).FillWidth().Padding(0, space1_5, space2).Children(kids)
@@ -423,8 +418,6 @@ func (w *workspace) sidebarView(c *ui.Context) {
 	})
 }
 
-// hostActionsMenu is the "More host actions" menu next to New host: Quick connect, Join session, New
-// group and Local terminal.
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
 	if menuItem(m, "Quick connect").Shortcut(shortcutOf("host.quick")).Chosen() {
 		w.act(func() { w.runCommand("host.quick") })
@@ -697,7 +690,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
 				focused := t.focused == p.id // only the focused pane's tools have caps
-				if !t.remote {               // hidden in a joined tab
+				if !t.remote {
 					tip := "Sync input"
 					if t.sync {
 						tip = "Stop syncing input"
@@ -788,7 +781,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 			}
 			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
-		if n := w.runningForwards(); n > 0 { // #sb-forwards is hidden with none running
+		if n := w.runningForwards(); n > 0 {
 			ui.Row(c).Gap(space1_5).Label("status forwards").Children(func() {
 				iconSized(c, "forwards", inkMuted, iconSizeSm)
 				caption(c, forwardsLabel(n), inkMuted)
@@ -798,7 +791,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 		if p := w.focusedPane(); p != nil && p.nb == nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
-			if t := w.tab(); t != nil && !t.remote { // sync is hidden in a joined tab
+			if t := w.tab(); t != nil && !t.remote {
 				word := "Sync off"
 				if t.sync {
 					word = "Sync on"
@@ -815,7 +808,7 @@ func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel) // one cap
+	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel)
 	if b.Clicked() {
 		w.act(w.toggleAgent)
 	}

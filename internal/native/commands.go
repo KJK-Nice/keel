@@ -15,7 +15,6 @@ import (
 // native appearance, kerning) read it too; the font registration in run.go asks the OS itself.
 var platform = runtime.GOOS
 
-// isMac is whether this is macOS: ⌘ is the command key, and keys are written as glyphs.
 func isMac() bool { return platform == "darwin" }
 
 // digitKeys are the keys 1 to 9: the tab keys (⌘1 to ⌘9), the New tab page's cards (⌥1 to ⌥6) and a suggestion's options.
@@ -31,7 +30,6 @@ type chord struct {
 	shiftImplied bool
 }
 
-// cmdKey is ⌘ and a key; cmdShiftKey is ⌘⇧ and a key.
 func cmdKey(key ui.Key, glyph string) *chord { return &chord{mods: ui.Cmd, key: key, glyph: glyph} }
 func cmdShiftKey(key ui.Key, glyph string) *chord {
 	return &chord{mods: ui.Cmd | ui.Shift, key: key, glyph: glyph}
@@ -93,7 +91,7 @@ type command struct {
 	also       []chord
 	run        func(w *workspace) // nil: the key is written down but handled elsewhere (⌘↵ in the palette, ⌘Z in the card)
 	enabled    func(w *workspace) bool
-	menuSep    bool // a separator before its menu item
+	menuSep    bool
 	menu       *menuSpec
 	pal        *palSpec
 	help       *helpSpec
@@ -101,7 +99,7 @@ type command struct {
 
 type menuSpec struct {
 	section, title string
-	pos            int // the order in the section
+	pos            int
 }
 
 type palSpec struct {
@@ -113,7 +111,6 @@ type palSpec struct {
 
 type helpSpec struct{ group, title string }
 
-// chordHere is the key of this platform, nil when the command has none.
 func (c *command) chordHere() *chord {
 	if !isMac() && c.other != nil {
 		return c.other
@@ -121,7 +118,6 @@ func (c *command) chordHere() *chord {
 	return c.key
 }
 
-// keyLabel is the key cap text of this platform; "" when there is no key.
 func (c *command) keyLabel() string {
 	if k := c.chordHere(); k != nil {
 		return k.label()
@@ -129,7 +125,6 @@ func (c *command) keyLabel() string {
 	return ""
 }
 
-// chords are the keys that run the command on this platform.
 func (c *command) chords() []chord {
 	var out []chord
 	if k := c.chordHere(); k != nil {
@@ -138,7 +133,6 @@ func (c *command) chords() []chord {
 	return append(out, c.also...)
 }
 
-// invoke runs the command if it is available now.
 func (c *command) invoke(w *workspace) {
 	if c.run != nil && (c.enabled == nil || c.enabled(w)) {
 		c.run(w)
@@ -186,7 +180,7 @@ func init() {
 		{id: "agent.undo", key: cmdKey(ui.KeyZ, "Z"), other: cmdShiftKey(ui.KeyZ, "Z"), help: &helpSpec{"Agent", "Put back your words after an inserted suggestion"}},
 		{id: "agent.conversations", run: (*workspace).openAgentPage, pal: &palSpec{section: "Agent", title: "Agent conversations", icon: "ai-magic"}},
 		{id: "agent.runbooks", run: (*workspace).openRunbooksPage, pal: &palSpec{section: "Agent", title: "Runbooks", icon: "ai-magic"}},
-		{id: "folders", pal: &palSpec{many: func(w *workspace) (rows []palItem) { // a folder's roles, notes and runs
+		{id: "folders", pal: &palSpec{many: func(w *workspace) (rows []palItem) {
 			for _, g := range w.folders {
 				id := g.ID
 				rows = append(rows, vaultRow("Group "+g.Name+" · roles and runbooks", "", "", func(w *workspace) { w.openGroupPage(id, false) }, w))
@@ -202,7 +196,7 @@ func init() {
 		{id: "host.join", key: cmdKey(ui.KeyJ, "J"), run: (*workspace).openJoin,
 			menu: &menuSpec{"File", "Join Session", 6}, pal: &palSpec{section: "Vault", title: "Join session", icon: "link"}, help: &helpSpec{"Vault", "Join session"}},
 		{id: "hosts.import", run: (*workspace).openImport, pal: &palSpec{section: "Vault", title: "Import hosts from ~/.ssh/config"}},
-		{id: "pages", pal: &palSpec{many: func(w *workspace) (rows []palItem) { // Keychain, Port forwarding, Snippets, Notebooks, Logs, Settings
+		{id: "pages", pal: &palSpec{many: func(w *workspace) (rows []palItem) {
 			for _, k := range pageKinds {
 				if !k.listed {
 					continue
@@ -242,12 +236,10 @@ func init() {
 	}
 }
 
-// vaultRow is a palette row of the Actions group under Vault.
 func vaultRow(title, keys, icon string, run func(w *workspace), w *workspace) palItem {
 	return palItem{group: "Actions", title: title, hint: "Vault", keys: keys, icon: icon, run: func(bool) { run(w) }}
 }
 
-// commandByID is the command with that id; the id is always one of the table's.
 func commandByID(id string) *command {
 	for i := range commands {
 		if commands[i].id == id {
@@ -270,16 +262,13 @@ func capLabel(id string) string {
 	return s + k.glyph
 }
 
-// commandKeyLabel is the key cap text of a command on this platform.
 func commandKeyLabel(id string) string { return commandByID(id).keyLabel() }
 
-// shortcutOf is the key of a command, for a menu item that shows it.
 func shortcutOf(id string) (ui.Modifiers, ui.Key) {
 	k := commandByID(id).chordHere()
 	return k.mods, k.key
 }
 
-// runCommand runs a command by id if it is available now (the title bar's button).
 func (w *workspace) runCommand(id string) { commandByID(id).invoke(w) }
 
 // commandShortcuts declares the window shortcuts of every command in the table, and ⌘2 to ⌘8 for the tabs. A window shortcut
@@ -299,7 +288,6 @@ func (w *workspace) commandShortcuts(c *ui.Context) {
 	}
 }
 
-// menuEntries are the items of a menu bar section, as the table has them.
 func menuEntries(section string) []menuEntry {
 	var specs []*command
 	for i := range commands {
@@ -318,7 +306,6 @@ func menuEntries(section string) []menuEntry {
 	return out
 }
 
-// accel is the accelerator of the menu item: "" when the command has no key.
 func (c *command) accel() string {
 	if k := c.chordHere(); k != nil {
 		return k.accelerator()

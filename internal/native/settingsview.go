@@ -12,18 +12,17 @@ import (
 // The Settings page. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
 
 const (
-	settingsMaxWidth = 667 // max-width 90ch, which measures 616 px at the default UI size (a ch is 0.57 em)
-	sliderPx         = 117 // w-36: 9rem, which is 9 UI-size px (Tailwind spacing is rem)
+	settingsMaxWidth = 667 // 616 px at the default UI size, plus margin
+	sliderPx         = 117 // 9 UI-size px
 	prefInputWidth   = sizeRail
 	leadWidth        = 496 // the lead wraps its lines at 458 px in the design (between 452 and 465)
 )
 
-// prefRow is a title and a line under it on the left, the control on the right.
 type prefRow struct {
 	title, desc string
-	extra       string // more text the search reads (data-search)
-	stack       bool   // .pref-row-stack: the control under the text
-	preview     bool   // .pref-row-preview: not searched
+	extra       string // more text the search reads
+	stack       bool
+	preview     bool // not searched
 	ctl         func(c *ui.Context)
 }
 
@@ -93,7 +92,6 @@ func (w *workspace) settingsView(c *ui.Context, p *settingsPage) {
 	})
 }
 
-// settingsRail is the section list: the label, the search, the sections, and About Keel under a spacer.
 func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 	hairline(ui.Column(c).Width(sizeRail).Shrink(0).FillHeight().Padding(space3, space2).Gap(space0_5).Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		ui.Row(c).Padding(space1, space2).Children(func() { menuLabel(c, "Settings") })
@@ -155,7 +153,7 @@ func (w *workspace) settingsPanel(c *ui.Context, s settingsSection, p *settingsP
 	})
 }
 
-// prefRowView is .pref-row: the rows of a group have a hairline under them but the last.
+// prefRowView draws a row: the rows of a group have a hairline under them but the last.
 func (w *workspace) prefRowView(c *ui.Context, r prefRow, last bool) {
 	bottom := float32(1)
 	if last {
@@ -191,7 +189,6 @@ func (w *workspace) prefRowView(c *ui.Context, r prefRow, last bool) {
 
 // ---- controls ----
 
-// alwaysOn is the outline badge with a lock.
 func alwaysOn(c *ui.Context) {
 	ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Border(1, lineStrong).Label("badge Always on").Children(func() {
 		iconSized(c, "lock", inkMuted, iconSizeSm)
@@ -201,12 +198,10 @@ func alwaysOn(c *ui.Context) {
 
 func outlineBadge(c *ui.Context, s string) { neutralBadge(c, s) }
 
-// statValue is a value on the right, in the mono face, wrapping.
 func statValue(c *ui.Context, s string) {
 	ui.Text(c, s).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxWidth(60 * 7).Label("value " + s).Shrink(1).MinWidth(0)
 }
 
-// sliderCtl is the slider and its value.
 func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int, over ...func()) func(*ui.Context) {
 	return func(c *ui.Context) {
 		ui.Row(c).Gap(space3).AlignItems(ui.Center).Shrink(0).Children(func() {
@@ -221,7 +216,6 @@ func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int
 	}
 }
 
-// copyBtn is a small button that copies a text and says so.
 func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 	if value == "" {
 		return
@@ -245,7 +239,7 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	if !w.translucentWin && w.prefs.Opacity < opacityMax {
 		opacity.desc += " The window turns see-through the next time Keel starts."
 	}
-	if !w.themeNative { // .pref-desc-os is hidden where the window takes the theme as its appearance
+	if !w.themeNative { // where the window takes the theme as its appearance there is no system theme to differ from
 		opacity.desc += " When the theme differs from the system's, the window stays opaque."
 	}
 	theme := prefRow{title: "Theme", desc: "Light, dark, or follow the system.", ctl: func(c *ui.Context) {
@@ -260,7 +254,7 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
 			ctl: func(c *ui.Context) { w.prefSlider(c, p, keyBlur, "Window blur") }})
 	}
-	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, UI size
+	rows = append(rows, uiSizeRow)
 	return settingsSection{id: "appearance", title: "Appearance", groups: []prefGroup{{title: "Display", rows: rows}}}
 }
 
@@ -278,7 +272,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
 			w.prefSlider(c, p, keyTermSize, "Text size", func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
 		}},
-		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
+		{preview: true, ctl: func(c *ui.Context) {
 			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
 				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.prefs.TermSize)).Font(termStack(w.prefs.TermFont))
 			})
@@ -359,7 +353,7 @@ func (w *workspace) sharingSection(p *settingsPage) settingsSection {
 					p.signal = k.Text()
 					w.act(func() { w.commitSignal(p) })
 					return true
-				case k.Key == ui.KeyEscape && k.Mods == 0: // the saved server comes back
+				case k.Key == ui.KeyEscape && k.Mods == 0:
 					w.act(func() { p.signalSeen = false })
 					return true
 				}

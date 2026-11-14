@@ -8,9 +8,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The suggestion machine's cases. The words and look of the card in the window are in suggestview_test.go.
+// The suggestion machine's cases.
 
-func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) { // JS 1
+func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) {
 	cases := []struct {
 		in, prompt, input string
 		start             int
@@ -37,7 +37,7 @@ func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) { // JS 1
 	}
 }
 
-func TestWorthDetecting(t *testing.T) { // JS 2
+func TestWorthDetecting(t *testing.T) {
 	for in, want := range map[string]bool{
 		"show the files": true, "# restart": true, "#": false, "uptime": false,
 		strings.Repeat("x", suggestMaxLen+1) + " y": false, "a\x03 b": false,
@@ -48,7 +48,7 @@ func TestWorthDetecting(t *testing.T) { // JS 2
 	}
 }
 
-func TestInsertGate(t *testing.T) { // JS 3
+func TestInsertGate(t *testing.T) {
 	if ok, why := insertGate(&keelclient.SuggestOption{NeedsShift: true}, false); ok || why != needsShiftReason {
 		t.Errorf("plain on a ⇧ option: %v %q", ok, why)
 	}
@@ -63,7 +63,7 @@ func TestInsertGate(t *testing.T) { // JS 3
 	}
 }
 
-func TestUndoKey(t *testing.T) { // JS 4
+func TestUndoKey(t *testing.T) {
 	for _, c := range []struct {
 		k    sugKey
 		mac  bool
@@ -86,7 +86,7 @@ func TestUndoKey(t *testing.T) { // JS 4
 	}
 }
 
-func TestCardWordsAndRiskRules(t *testing.T) { // the logic of JS 6 (the card's words are checked in suggestview_test.go)
+func TestCardWordsAndRiskRules(t *testing.T) {
 	if got := riskWords(keelclient.SuggestOption{Risk: "destructive", Command: "rm -rf /tmp/x"}); got != "Deletes files" {
 		t.Errorf("rm: %q", got)
 	}
@@ -96,7 +96,7 @@ func TestCardWordsAndRiskRules(t *testing.T) { // the logic of JS 6 (the card's 
 	if got := riskWords(keelclient.SuggestOption{Risk: "readonly"}); got != "Read-only" {
 		t.Errorf("readonly: %q", got)
 	}
-	for src, want := range map[string]string{"history": "From this pane's scrollback", "snippet": "From your snippets", "generated": "Suggested from your words", "": "Suggested from your words"} { // JS 16
+	for src, want := range map[string]string{"history": "From this pane's scrollback", "snippet": "From your snippets", "generated": "Suggested from your words", "": "Suggested from your words"} {
 		if got := sourceLabel(src); got != want {
 			t.Errorf("sourceLabel(%q) = %q", src, got)
 		}
@@ -117,7 +117,7 @@ func TestOptionKeys(t *testing.T) {
 	}
 }
 
-// harness is JS machine(): a machine with a fake clock, fake I/O and a pending insert the test completes.
+// harness is a machine with a fake clock, fake I/O and a pending insert the test completes.
 type harness struct {
 	t        *testing.T
 	m        *sugMachine
@@ -195,7 +195,7 @@ func opts(cmds ...string) *keelclient.Suggestion {
 	return s
 }
 
-func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
+func TestNoticeSuggestInsertUndo(t *testing.T) {
 	h := newHarness(t)
 	if h.m.OnKey(kd("Tab")) { // ⇥ is the shell's until a line is noticed
 		t.Fatal("⇥ taken while idle")
@@ -247,7 +247,7 @@ func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
 	h.state(sugIdle)
 }
 
-func TestDestructiveNeedsShift(t *testing.T) { // JS 8
+func TestDestructiveNeedsShift(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -267,7 +267,7 @@ func TestDestructiveNeedsShift(t *testing.T) { // JS 8
 	}
 }
 
-func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) { // JS 9
+func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -311,7 +311,7 @@ func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	}
 }
 
-func TestAFollowerGetsNothing(t *testing.T) { // JS 10
+func TestAFollowerGetsNothing(t *testing.T) {
 	h := newHarness(t)
 	h.driving = false
 	h.m.OnInput("x")
@@ -331,7 +331,7 @@ func TestAFollowerGetsNothing(t *testing.T) { // JS 10
 	h.state(sugIdle)
 }
 
-func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) { // JS 11
+func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) {
 	h := newHarness(t)
 	h.line = nil // full-screen app or no prompt
 	h.m.OnInput("x")
@@ -366,7 +366,7 @@ func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) { // JS 11
 	h.state(sugIdle) // Enter runs the words; the notice goes
 }
 
-func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) { // JS 12
+func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -386,7 +386,7 @@ func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) { // JS 12
 	h.state(sugNotice)
 }
 
-func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) { // JS 13
+func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) {
 	h := newHarness(t)
 	h.auto = &insertResult{Message: "the insert expired; press ⇥ again"}
 	h.m.OnInput("x")
@@ -401,7 +401,7 @@ func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) { // JS 13
 	}
 }
 
-func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) { // JS 14
+func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) {
 	h := newHarness(t)
 	h.auto = &insertResult{Dropped: true}
 	h.m.OnInput("x")
@@ -416,7 +416,7 @@ func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) { // JS 14
 	h.state(sugIdle)
 }
 
-func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // JS 15
+func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -613,7 +613,7 @@ func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
 	h.state(sugIdle)
 }
 
-// Beyond the JS cases: the pieces the page has in other files.
+// The stale answer, and typing while it loads.
 func TestStaleSuggestAnswerAndTypingWhileLoading(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")

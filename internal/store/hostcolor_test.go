@@ -58,6 +58,6 @@ func TestHostColorsAreTokens(t *testing.T) {
 		}
 	}
 	if DefaultHostColor != HostColors[0].Value {
-		t.Error("the default must be the first swatch: term.js picks the first radio for a new host")
+		t.Error("the default must be the first swatch: a new host starts on it")
 	}
 }

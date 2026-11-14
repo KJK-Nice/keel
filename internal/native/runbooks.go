@@ -32,7 +32,6 @@ import (
 
 // ---- a runbook the agent proposes ----
 
-// agentBook is a runbook proposal on the thread: what keel serve holds, and what the card is doing.
 type agentBook struct {
 	b    keelclient.RunbookProposal
 	busy bool
@@ -41,7 +40,6 @@ type agentBook struct {
 
 func (a *agentPanel) registerBook(b keelclient.RunbookProposal) { a.books[b.ID] = &agentBook{b: b} }
 
-// resetMemory forgets the notes, runbooks and the run of the conversation that was left.
 func (a *agentPanel) resetMemory() {
 	a.notes, a.books, a.runs = map[string]*agentNote{}, map[string]*agentBook{}, runUse{}
 	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, ""
@@ -112,8 +110,6 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 
 // ---- a runbook in use ----
 
-// runUse is the runbook in use in the conversation: keel serve owns the run, this
-// shows it and tells keel serve what the user decides.
 type runUse struct {
 	run   *keelclient.ChatRunbook
 	none  bool // the user's "Don't use": the agent is not offered runbooks again here
@@ -130,7 +126,6 @@ type runUse struct {
 	polling   bool
 }
 
-// runOther is a row of "Use a different runbook".
 type runOther struct {
 	id, name, when string
 	ok             bool
@@ -228,7 +223,6 @@ func (w *workspace) runTick() {
 		})
 }
 
-// scopeRbPanes are the panes in scope as a runbook's offer sees them.
 func (w *workspace) scopeRbPanes() (out []rbPane) {
 	for _, p := range w.pageScopePanes() {
 		h := p.p.host
@@ -304,7 +298,6 @@ func (w *workspace) moveRun() {
 	})
 }
 
-// runCall is a call on the conversation's run that takes no body (Don't use, Move the run).
 func (w *workspace) runCall(do func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
 	a := w.agent
 	u := &a.runs
@@ -382,7 +375,6 @@ func (w *workspace) toggleChoose() {
 
 // ---- the Runbooks page ----
 
-// runbooksPage is the state of the Runbooks tab: the list, and the one editor.
 type runbooksPage struct {
 	filter  string
 	filterH ui.Handle
@@ -393,7 +385,7 @@ type runbooksPage struct {
 	loaded     bool
 
 	listState ui.ListState // the list's keyboard choice (Up, Down, Home, End), MyGo's ui.List
-	choice    int          // the row of listState.Selected
+	choice    int
 
 	selected string // the saved runbook open in the editor
 	ed       *rbEditor
@@ -420,7 +412,6 @@ type rbStepState struct {
 	capH                      [][2]ui.Handle // the name and pattern fields of each capture
 }
 
-// rbEditor is the editor beside the list.
 type rbEditor struct {
 	id           string // "" for a new runbook or a draft
 	name, when   string
@@ -463,7 +454,6 @@ func (e *rbEditor) sig() string {
 
 func (e *rbEditor) dirty() bool { return e.forced || e.sig() != e.orig }
 
-// asRunbook is the editor as a runbook, for the lines that describe it (source, last used, steps).
 func (e *rbEditor) asRunbook() keelclient.Runbook {
 	rb := keelclient.Runbook{ID: e.id, Name: e.name, Source: e.source, SourceRef: e.sourceRef, FromPane: e.fromPane, AgentMayPick: e.agentMayPick,
 		CreatedAt: e.createdAt, LastUsedAt: e.lastUsedAt, LastUsedOn: e.lastUsedOn}
@@ -610,7 +600,6 @@ func (w *workspace) saveRunbook() {
 	})
 }
 
-// askDeleteRunbook is Delete (or Discard on an unsaved one): Delete asks first.
 func (w *workspace) askDeleteRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil {
@@ -668,7 +657,6 @@ func (w *workspace) setRunbookPick(id string, on bool) {
 	})
 }
 
-// openConversationMenu is From a conversation…: the saved conversations to make a draft from.
 func (w *workspace) openConversationMenu() {
 	p := w.runbooksPage()
 	if p == nil {
@@ -678,7 +666,7 @@ func (w *workspace) openConversationMenu() {
 		p.menu = false
 		return
 	}
-	p.menuNB = false // one source menu at a time
+	p.menuNB = false
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
 	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l keelclient.ConversationList, err error) {
 		p.menuLoad = false
@@ -693,7 +681,6 @@ func (w *workspace) openConversationMenu() {
 	})
 }
 
-// openNotebookMenu is From a notebook…: the notebooks to make a draft from.
 func (w *workspace) openNotebookMenu() {
 	p := w.runbooksPage()
 	if p == nil {
@@ -757,7 +744,6 @@ func (w *workspace) showDraft(p *runbooksPage, d keelclient.RunbookDraft, err er
 	p.ed.focusName = true
 }
 
-// useEditedRunbook is Use in agent: it starts the saved runbook in the agent panel.
 func (w *workspace) useEditedRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil || p.ed.id == "" {
@@ -766,12 +752,10 @@ func (w *workspace) useEditedRunbook() {
 	w.useRunbook(p.ed.id, p.ed.name)
 }
 
-// rbKeys is ⌘S on the page.
 func (w *workspace) rbKeys(ev ui.InputEvent) {
 	if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyS && ev.Mods == ui.Cmd {
 		w.act(w.saveRunbook)
 	}
 }
 
-// openRunbooksPage is the palette's Runbooks.
 func (w *workspace) openRunbooksPage() { w.openPage(pageRunbooks) }

@@ -102,7 +102,6 @@ func Start(opts Options) (*Server, error) {
 	return s, nil
 }
 
-// Fingerprint is the server key's SHA256 fingerprint.
 func (s *Server) Fingerprint() string { return ssh.FingerprintSHA256(s.Key) }
 
 func (s *Server) Forwards() int64 { return s.forwards.Load() }

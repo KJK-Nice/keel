@@ -11,10 +11,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Rename notebook dialog, a notebook's History and Notebooks · Recently deleted.
-// History and Recently deleted are one dialog: the versions on the left, the lines that changed from
-// the selected version to now (or the deleted notebook as text) on the right.
-
 const (
 	historyDesc   = "Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days."
 	historyNone   = "No earlier versions yet. Keel keeps one before every agent edit and restore, and when you start editing again."
@@ -28,14 +24,13 @@ const (
 	purgeNotebook = "Delete this notebook for good? It cannot be restored."
 )
 
-// nbDialog is the open dialog: kind "rename", "history" or "trash".
 type nbDialog struct {
 	kind string
 	id   string // the notebook, for rename and history
 	pick string // the event of the version History selects first; "" is the newest
 
-	name  string // rename: the field
-	focus bool   // the field has been given the keyboard
+	name  string
+	focus bool
 
 	title, desc string
 	versions    []keelclient.NotebookVersion
@@ -61,7 +56,6 @@ func (w *workspace) openRenameNotebook(id string) {
 
 // ---- History and Recently deleted ----
 
-// openNotebookHistory saves what was typed, then lists the notebook's versions and selects the newest.
 func (w *workspace) openNotebookHistory(id string) { w.openNotebookHistoryAt(id, "") }
 
 // openNotebookHistoryAt is History that selects the newest version of an event ("before-agent-edit" for the banner's View
@@ -110,7 +104,6 @@ func (w *workspace) nbLoaded(d *nbDialog, vs []keelclient.NotebookVersion, err e
 	}
 }
 
-// nbSelect selects a version and reads its text.
 func (w *workspace) nbSelect(d *nbDialog, vid string) {
 	d.selected = vid
 	if _, ok := d.texts[vid]; ok {
@@ -169,7 +162,6 @@ func (w *workspace) nbRestore(d *nbDialog) {
 	})
 }
 
-// nbAskPurge is Delete this version or Delete forever: it asks first.
 func (w *workspace) nbAskPurge(d *nbDialog) {
 	vid := d.selected
 	if vid == "" || d.busy {
@@ -269,7 +261,6 @@ func (w *workspace) notebookDialogView(c *ui.Context) {
 	}
 }
 
-// versionRows is the list of versions, or what stands in for it.
 func (w *workspace) versionRows(c *ui.Context, d *nbDialog) {
 	if d.empty != "" {
 		if d.empty == loadingWord {
@@ -312,7 +303,6 @@ func (w *workspace) versionRows(c *ui.Context, d *nbDialog) {
 	}
 }
 
-// versionDiff is the right side: the lines that changed from the selected version to now, or a deleted notebook's text.
 func (w *workspace) versionDiff(c *ui.Context, d *nbDialog) {
 	if d.selected == "" {
 		return
@@ -355,7 +345,6 @@ func (w *workspace) versionDiff(c *ui.Context, d *nbDialog) {
 	}
 }
 
-// renameNotebookView is Rename notebook: the name and Rename.
 func (w *workspace) renameNotebookView(c *ui.Context, d *nbDialog) {
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {

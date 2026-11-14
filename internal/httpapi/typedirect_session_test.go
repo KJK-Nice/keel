@@ -15,11 +15,10 @@ import (
 	"keel/internal/wire"
 )
 
-// The third review of #95, end to end over the session socket: the lines
-// it found typed without the dialog now go to it, a Jev call that got no
-// answer fails closed, and agent.type is logged only after the write.
+// Over the session socket: lines that need the approve dialog go to it, a Jev call that got no
+// answer fails closed, a joined driver is refused, and agent.type is logged only after the write.
 
-func TestDirectTypeReview95Refuses(t *testing.T) {
+func TestDirectTypeRefusesLinesThatNeedTheDialog(t *testing.T) {
 	f := newAskFixture(t, true)
 	web := f.open(t, f.webID, "$ ")
 	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")

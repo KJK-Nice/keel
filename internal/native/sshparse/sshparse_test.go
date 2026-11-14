@@ -7,19 +7,19 @@ import (
 	"testing"
 )
 
-// The table of cases. Each row's js field names its case in the test output.
+// The table of cases. Each row's name field names its case in the test output.
 
 type kind int
 
 const (
 	isNil     kind = iota // ParseConnect gives nil: the text is only a filter for saved hosts
 	isOK                  // a connection
-	isRefused             // nil or not OK (the JS test's refused())
-	isFailed              // not OK, with an error and a source (the JS test's refused() plus .ok === false)
+	isRefused             // nil or not OK
+	isFailed              // not OK, with an error and a source
 )
 
 type row struct {
-	js   string
+	name string
 	in   string
 	kind kind
 	chk  func(*testing.T, *Result) // extra assertions on an OK or failed result
@@ -131,11 +131,11 @@ func identityIs(file string) func(*testing.T, *Result) {
 	}
 }
 
-func okRow(js, in string, chk func(*testing.T, *Result)) row { return row{js, in, isOK, chk} }
-func nilRow(js, in string) row                               { return row{js, in, isNil, nil} }
-func failedRow(js, in string) row                            { return row{js, in, isFailed, nil} }
+func okRow(name, in string, chk func(*testing.T, *Result)) row { return row{name, in, isOK, chk} }
+func nilRow(name, in string) row                               { return row{name, in, isNil, nil} }
+func failedRow(name, in string) row                            { return row{name, in, isFailed, nil} }
 
-// rows is every parseConnect case of the JS test file, in its order.
+// rows is every parseConnect case, in order.
 var rows = []row{
 	// "plain words and empty input are filters, not connections"
 	nilRow("plain words and empty input are filters, not connections", ""),
@@ -339,11 +339,11 @@ var rows = []row{
 	nilRow("newlines inside the text yield no host", "deploy@host\nid"),
 }
 
-// refusedInputs are the JS tests whose every input must be refused with ok === false.
+// refusedInputs are the cases whose every input must be refused with ok === false.
 var refusedInputs = []struct {
-	js     string
+	name   string
 	inputs []string
-	source string // when set, the failed result's source (the JS asserts "command" for the operators)
+	source string // when set, the failed result's source ("command" for the operators)
 }{
 	{"shell operators yield no host", []string{
 		"ssh host; rm -rf /", "ssh host;ls", "ssh host && id", "ssh host || id", "ssh host | sh", "ssh host & id",
@@ -375,27 +375,27 @@ func TestParseConnectRows(t *testing.T) {
 		switch rw.kind {
 		case isNil:
 			if r != nil {
-				t.Errorf("[%s] %q: want nil, got %+v", rw.js, rw.in, r)
+				t.Errorf("[%s] %q: want nil, got %+v", rw.name, rw.in, r)
 			}
 			continue
 		case isOK:
 			if r == nil || !r.OK {
-				t.Errorf("[%s] %q: expected to parse, got %+v", rw.js, rw.in, r)
+				t.Errorf("[%s] %q: expected to parse, got %+v", rw.name, rw.in, r)
 				continue
 			}
 		case isRefused:
 			if r != nil && r.OK {
-				t.Errorf("[%s] %q: expected to be refused, got %+v", rw.js, rw.in, r)
+				t.Errorf("[%s] %q: expected to be refused, got %+v", rw.name, rw.in, r)
 			}
 			continue
 		case isFailed:
 			if r == nil || r.OK || r.Error == "" {
-				t.Errorf("[%s] %q: expected a failure, got %+v", rw.js, rw.in, r)
+				t.Errorf("[%s] %q: expected a failure, got %+v", rw.name, rw.in, r)
 			}
 			continue
 		}
 		if rw.chk != nil {
-			t.Run(rw.js, func(t *testing.T) { rw.chk(t, r) })
+			t.Run(rw.name, func(t *testing.T) { rw.chk(t, r) })
 		}
 	}
 	for _, g := range refusedInputs {
@@ -403,12 +403,12 @@ func TestParseConnectRows(t *testing.T) {
 			n++
 			r := ParseConnect(in)
 			if r != nil && r.OK {
-				t.Errorf("[%s] %q: expected to be refused, got %+v", g.js, in, r)
+				t.Errorf("[%s] %q: expected to be refused, got %+v", g.name, in, r)
 				continue
 			}
 			if g.source != "" {
 				if r == nil || r.Source != g.source || r.Host != "" {
-					t.Errorf("[%s] %q: want a %s failure with no host, got %+v", g.js, in, g.source, r)
+					t.Errorf("[%s] %q: want a %s failure with no host, got %+v", g.name, in, g.source, r)
 				}
 			}
 		}
@@ -443,24 +443,23 @@ func TestDescribeDroppedListsEachEntryOnALine(t *testing.T) {
 // "validHost", "validPort", "validUser"
 func TestValidators(t *testing.T) {
 	n := 0
-	check := func(js string, f func(string) bool, good, bad []string) {
+	check := func(name string, f func(string) bool, good, bad []string) {
 		for _, s := range good {
 			n++
 			if !f(s) {
-				t.Errorf("[%s] %q should be valid", js, s)
+				t.Errorf("[%s] %q should be valid", name, s)
 			}
 		}
 		for _, s := range bad {
 			n++
 			if f(s) {
-				t.Errorf("[%s] %q should be invalid", js, s)
+				t.Errorf("[%s] %q should be invalid", name, s)
 			}
 		}
 	}
 	check("validHost", ValidHost,
 		[]string{"host", "a.b-c.example", "10.0.4.21", "::1", "2001:db8::5", "fe80::1", "a_b.example", "H1"},
 		[]string{"", "-host", "host-", "ho st", "host;", ":::", "1:2:3:4:5:6:7:8:9", strings.Repeat("a", 254), strings.Repeat("a", 64) + ".com", "host:22", "g:z"})
-	// The JS passes the number 2222 as well as strings; null and undefined read as "".
 	check("validPort", ValidPort,
 		[]string{"1", "22", "65535", strconv.Itoa(2222)},
 		[]string{"", "0", "65536", "-1", "1e3", "22.5", " 22", "0x16", "123456"})

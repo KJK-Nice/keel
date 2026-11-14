@@ -895,7 +895,7 @@ func TestE2ECopySSHCommand(t *testing.T) {
 	}
 }
 
-// ---- N3b: tabs, panes and the workspace ----
+// ---- tabs, panes and the workspace ----
 
 // sessionIDs is the ids keel serve lists.
 func (e *win) sessionIDs() (ids []string) {
@@ -1582,7 +1582,7 @@ func TestE2EPastedSSHCommand(t *testing.T) {
 	e.shot("TestE2EPastedSSHCommand")
 }
 
-// ---- N5a: Unlock and the host dialog ----
+// ---- Unlock and the host dialog ----
 
 // raw is one request to the daemon with the token (a test that creates or reads state behind the window's back).
 // It returns the status and the body.

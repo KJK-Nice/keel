@@ -151,7 +151,7 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 	}
 }
 
-// An unlocked vault whose first run is open starts at step 1 with Continue, as gate.js does (it shows the vault
+// An unlocked vault whose first run is open starts at step 1 with Continue, (it shows the vault
 // the keychain already made).
 func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
@@ -490,7 +490,7 @@ func TestVaultErrorsUseTheServersWords(t *testing.T) {
 	}
 }
 
-// ---- step 3: the provider, the key and the switch (gate.js showAgentStep, openKeel) ----
+// ---- step 3: the provider, the key and the switch ----
 
 const fakeFirstRunKey = "made-up-key-for-the-first-run-test"
 

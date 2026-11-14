@@ -51,7 +51,6 @@ type session interface {
 	RestoreWords(words string) error
 }
 
-// backend is keel serve as the workspace uses it.
 type backend interface {
 	Vault(ctx context.Context) (keelclient.Vault, error)
 	Hosts(ctx context.Context) ([]keelclient.Host, error)
@@ -211,9 +210,8 @@ func (b clientBackend) Attach(id string, cols, rows int) (session, error) {
 	return c, nil
 }
 
-// pane is one terminal of a tab.
 type pane struct {
-	id   string // local id
+	id   string
 	host keelclient.Host
 	conn session
 	sid  string // session id when known before the ready frame (an attached session)
@@ -231,8 +229,8 @@ type pane struct {
 	screen func() (altScreen bool, promptLine string)
 	typing bool // a direct type is on its way: another press gets a message instead
 
-	sg      paneSuggest                              // in-pane suggestions (suggestpane.go)
-	keyHook func(mods ui.Modifiers, key ui.Key) bool // the terminal's OnKey: set by newPane
+	sg      paneSuggest // in-pane suggestions (suggestpane.go)
+	keyHook func(mods ui.Modifiers, key ui.Key) bool
 
 	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
 	joinKey     string // which join it is (the origin and the room, never the key)
@@ -245,7 +243,7 @@ type pane struct {
 	zoom       func(steps int, reset bool)
 	search     *termSearch
 	setFont    func(size float32)
-	setTheme   func() // gives the terminal the colours of the theme in use
+	setTheme   func()
 
 	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
 	// Right-click in the terminal (read when the terminal is made).
@@ -289,7 +287,6 @@ type tab struct {
 	remote bool // the tab joined someone else's share: a terminal and nothing else, never saved
 }
 
-// isNew reports the New tab page.
 func (t *tab) isNew() bool { return t.start != nil }
 
 // tabMode is what a tab is: the New tab page, a page, someone else's share, notebooks only, or sessions. A tab is exactly
@@ -369,16 +366,16 @@ type workspace struct {
 	notebooks      []keelclient.Notebook // GET /api/notebooks (notebooks.go)
 	nbDlg          *nbDialog             // Rename notebook, History, Recently deleted (notebookdialogs.go)
 	sideSeg        string                // the sidebar's section: "hosts" or "snippets"
-	snipQuery      string                // the sidebar's Snippets filter
+	snipQuery      string
 	snipH          ui.Handle
-	snipDlg        *snippetDialog                    // New snippet / Edit snippet
-	folders        []keelclient.Group                // the vault's folders, as GET /api/groups lists them (folders.go)
-	folderDlg      *folderDialog                     // New group / Edit group
-	folderRen      *folderRename                     // the folder whose name is being edited in the tree
-	tunnels        []keelclient.Tunnel               // the forwards, as GET /api/tunnels lists them (forwards.go)
-	tunReading     bool                              // the 2 s read of them is in flight
-	fwdQuery       string                            // the sidebar's Forwards filter
-	paneQuery      string                            // the sidebar's Panes filter
+	snipDlg        *snippetDialog
+	folders        []keelclient.Group // the vault's folders, as GET /api/groups lists them (folders.go)
+	folderDlg      *folderDialog
+	folderRen      *folderRename       // the folder whose name is being edited in the tree
+	tunnels        []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
+	tunReading     bool                // the 2 s read of them is in flight
+	fwdQuery       string
+	paneQuery      string
 	prefs          prefsDoc                          // keel-native.json, loaded once (prefs.go); its setters write it back
 	translucentWin bool                              // the window was created Transparent: only then can opacity change live
 	blurHook       func(radius int)                  // sets the window's blur; nil in tests
@@ -386,34 +383,34 @@ type workspace struct {
 	saveDialog     func(name string) (string, error) // the system's save dialog for a file name: the path, "" when cancelled; nil in tests that set none
 	appearanceHook func(choice string)               // gives the window the theme as its own appearance (macOS chrome); nil where it cannot
 	dark, osDark   bool                              // the theme in use, and whether the OS appearance is dark (theme.go)
-	themeSeen      bool                              // the first frame has set the theme
-	termAccent     accentSet                         // the accent the terminals were last given their cursor and selection from
-	themeNative    bool                              // the window takes the theme as its own appearance: no opaque rule (theme.go)
+	themeSeen      bool
+	termAccent     accentSet // the accent the terminals were last given their cursor and selection from
+	themeNative    bool      // the window takes the theme as its own appearance: no opaque rule (theme.go)
 	paneH          ui.Handle
-	hostsH         ui.Handle // the Hosts filter's field
-	focusHosts     bool      // Search hosts: give the Hosts filter the keyboard in the next frame
+	hostsH         ui.Handle
+	focusHosts     bool // Search hosts: give the Hosts filter the keyboard in the next frame
 	fwdH           ui.Handle
-	fwdDlg         *forwardDialog // New forward / Edit forward
-	fwdKey         *fwdKeyOffer   // "Unknown host key" for a forward that could not start
+	fwdDlg         *forwardDialog
+	fwdKey         *fwdKeyOffer // "Unknown host key" for a forward that could not start
 	tabs           []*tab
 	active         int
 	filter         string
 	sidebar        bool
-	sideSash       sashState   // the sidebar's resize handle
-	sideListH      ui.Handle   // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
-	queued         []ui.Toast  // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked        string      // a message that replaces the workspace (locked vault, no keel serve)
-	gate           *unlockGate // the Unlock screen, over the whole window
-	first          *firstRun   // the First run screens (or the palette's host import), over the whole window
+	sideSash       sashState
+	sideListH      ui.Handle  // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
+	queued         []ui.Toast // toasts asked for, handed to MyGo by the next frame (toast.go)
+	blocked        string     // a message that replaces the workspace (locked vault, no keel serve)
+	gate           *unlockGate
+	first          *firstRun // the First run screens (or the palette's host import), over the whole window
 	closed         bool
 	sugNow         time.Time // the frame's time, the suggestion machines' clock
 	sugMode        sugMode   // what the settings let a pane do on its own, as the machines last heard it
 	sugModeSeen    bool
 	sugSet         sugSettings // the agent settings the machines follow
 
-	rev      string        // GET /api/vault's rev at the last read: a change reads the hosts again
-	polling  bool          // a poll is in flight
-	pollStop chan struct{} // closed when the window closes
+	rev      string // GET /api/vault's rev at the last read: a change reads the hosts again
+	polling  bool
+	pollStop chan struct{}
 
 	seq       int
 	wantFocus string                      // pane to give the keyboard to once it is on screen
@@ -427,12 +424,12 @@ type workspace struct {
 	appBuild string // the build id of the client that opened the window (Options.AppBuild); "" never warns of an older runtime
 	dataDir  string // where keel-native.json and keel-native-workspace.json live; "" keeps nothing
 
-	renaming   *tab // the tab whose name is being edited
+	renaming   *tab
 	renameText string
-	renameSeen bool // the rename field has had the keyboard
+	renameSeen bool
 	renameH    ui.Handle
 
-	findPane   *pane // the pane whose find bar is open
+	findPane   *pane
 	findText   string
 	findDone   string // the text the terminal's search was last given
 	findFocus  bool
@@ -441,26 +438,26 @@ type workspace struct {
 	saved      saveState
 	prefWrites prefWrites
 
-	pal  *palette // the open command palette
+	pal  *palette
 	palH ui.Handle
 
 	live            bool      // the first listing has been read: the window keeps a tab from now on
 	newTabLockUntil time.Time // ⌘T repeats inside this are ignored
 	quick           *quickDialog
-	hostDlg         *hostDialog     // New host / Edit host
-	identDlg        *identityDialog // New identity / Edit identity (the Keychain page)
-	confirm         *confirmDialog  // the confirm dialog, over the dialog or page that asked
-	approve         *approveDialog  // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
-	agent           *agentPanel     // the agent panel and its conversation (agent.go)
-	clips           []clipItem      // copies the frame writes to the clipboard (clipboard.go)
-	lastSession     *tab            // the session tab shown last: where a snippet typed from a page goes
+	hostDlg         *hostDialog
+	identDlg        *identityDialog
+	confirm         *confirmDialog // the confirm dialog, over the dialog or page that asked
+	approve         *approveDialog // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
+	agent           *agentPanel    // the agent panel and its conversation (agent.go)
+	clips           []clipItem     // copies the frame writes to the clipboard (clipboard.go)
+	lastSession     *tab           // the session tab shown last: where a snippet typed from a page goes
 
-	joinDlg       *joinDialog                                         // Join a session (join.go)
-	joiner        func(l joinpeer.Link, name string) (session, error) // opens the peer of a joined share
-	share         *sharePop                                           // the open Share popover (share.go)
-	shareLinks    map[string]shareLink                                // the join link this window was given, by session id; never saved
-	promptPressed bool                                                // a press this frame landed on a prompt: it does not dismiss the Share popover
-	prompts       []*sharePrompt                                      // the region "Share requests"
+	joinDlg       *joinDialog // Join a session (join.go)
+	joiner        func(l joinpeer.Link, name string) (session, error)
+	share         *sharePop            // the open Share popover (share.go)
+	shareLinks    map[string]shareLink // the join link this window was given, by session id; never saved
+	promptPressed bool                 // a press this frame landed on a prompt: it does not dismiss the Share popover
+	prompts       []*sharePrompt       // the region "Share requests"
 }
 
 // ground is c at the window's alpha: what every ground the view paints goes through. At 1 it is c.
@@ -518,7 +515,6 @@ func (w *workspace) paneCount() (n int) {
 	return n
 }
 
-// fail shows a failed call as a toast (toast(err.message, true)).
 func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
 // start asks keel serve what exists. The vault answers first: a locked vault stops here.
@@ -536,7 +532,7 @@ func (w *workspace) start() {
 			w.post(func() { w.blocked = ""; w.showUnlock(v) })
 			return
 		}
-		if v.NeedsSetup || v.FirstRun { // gate.js update: step 1 of First run
+		if v.NeedsSetup || v.FirstRun { // step 1 of First run
 			w.post(func() { w.showFirstRun(v) })
 			return
 		}
@@ -627,7 +623,6 @@ func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	return p
 }
 
-// addTab puts p alone in a new tab and shows it.
 func (w *workspace) addTab(p *pane) {
 	w.tabs = append(w.tabs, &tab{root: layout.Leaf(p.id), panes: map[string]*pane{p.id: p}, focused: p.id})
 	w.selectTab(len(w.tabs) - 1)
@@ -643,14 +638,13 @@ func (w *workspace) selectTab(i int) {
 	}
 	w.wantFocus = w.tabs[i].focused
 	if p := w.tabs[i].start; p != nil {
-		p.focus = true // the New tab page's input has the keyboard
+		p.focus = true
 	}
 	if w.tabs[i].isPage() {
-		w.loadPage(w.tabs[i]) // a page shows what the server has now
+		w.loadPage(w.tabs[i])
 	}
 }
 
-// newLocalTab opens the first local host in a new tab.
 func (w *workspace) newLocalTab() {
 	if h, ok := w.localHost(); ok {
 		w.openHost(h)
@@ -659,7 +653,6 @@ func (w *workspace) newLocalTab() {
 	w.warn("Local shell is not available")
 }
 
-// split starts another session to the same host as target and inserts it after target.
 func (w *workspace) split(t *tab, target string, d layout.Dir) {
 	p := t.panes[target]
 	if p == nil {
@@ -680,7 +673,6 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 	w.splitOn(t, target, p.host, d)
 }
 
-// splitOn starts a session on h and inserts it after target.
 func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.Dir) {
 	if t.panes[target] == nil {
 		return
@@ -704,7 +696,7 @@ func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.D
 			t.root = t.root.Split(target, np.id, d)
 			t.panes[np.id] = np
 			t.focused = np.id
-			t.zoomed = "" // a split leaves focus view (workspace.js splitPane)
+			t.zoomed = "" // a split leaves focus view
 			if t == w.tab() {
 				w.wantFocus = np.id
 			}
@@ -726,7 +718,7 @@ func (w *workspace) closePane(t *tab, id string) {
 	}
 	kind := "pane"
 	if len(t.panes) == 1 {
-		kind = "tab" // the last pane is recorded as the tab
+		kind = "tab"
 	}
 	w.recordClosed(p, kind)
 	w.dropPane(p)
@@ -851,7 +843,7 @@ func (w *workspace) closeWindow() {
 	}
 	w.flushNotebooksNow() // what was typed in a notebook is saved before the window goes
 	w.closed = true
-	if w.agent.busy != nil { // an ask in flight stops with the window
+	if w.agent.busy != nil {
 		w.agent.busy()
 	}
 	if w.pollStop != nil {
@@ -866,7 +858,6 @@ func (w *workspace) closeWindow() {
 	}
 }
 
-// hostGroup is one group of the host tree.
 type hostGroup struct {
 	name  string
 	hosts []keelclient.Host
@@ -902,7 +893,6 @@ func (w *workspace) groups() []hostGroup {
 	return out
 }
 
-// panesOn counts the open panes on a host.
 func (w *workspace) panesOn(hostID string) (n int) {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
