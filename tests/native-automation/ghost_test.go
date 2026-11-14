@@ -2,12 +2,10 @@
 
 package nativeautomation
 
-// Ghosting under a low Window opacity. A translucent window's shadow is cut from its content's alpha and
-// shows through its grounds; if the shadow of the first page (the New tab page) outlived it, "Where to?" and the cards
-// would stay faintly visible under the terminal. The socket's capture does not show it (it is not the
-// compositor's picture), so the scenario photographs the screen with screencapture(1) over a solid window of its own
-// (backdrop.swift), where nothing else can show through, and checks that a part of the terminal pane with nothing in it is
-// one flat colour.
+// Ghosting under a low Window opacity: an earlier page (the New tab page) must not show faintly through a translucent
+// window under the terminal. The socket's capture is not the compositor's picture, so the scenario photographs the screen
+// with screencapture(1) over a solid window of its own (backdrop.swift), where nothing else can show through, and checks
+// that a part of the terminal pane with nothing in it is one flat colour.
 
 import (
 	"image"
@@ -89,7 +87,6 @@ func (r *rig) requireBackdrop(margin int) {
 func (r *rig) captureAround(name string, margin int) (image.Image, bounds, float64) {
 	r.t.Helper()
 	r.settle()
-	time.Sleep(700 * time.Millisecond)
 	var ws struct {
 		Windows []struct {
 			Bounds struct{ X, Y, Width, Height float64 }
@@ -216,8 +213,8 @@ func abs(n int) int {
 	return n
 }
 
-// ghostFlatMax is what an empty part of the pane may differ by: its own shadow's soft edge. A ghost of the New tab page is
-// 20 to 60 in this measure (see the captures ghost-*).
+// ghostFlatMax is what an empty part of the pane may differ by. A ghost of the New tab page is 20 to 60 in this measure
+// (see the captures ghost-*).
 const ghostFlatMax = 8
 
 // TestNoGhostUnderLowOpacity: at Window opacity 30 (the lowest), with the blur off and with the default, in both themes, the
@@ -255,7 +252,6 @@ func TestNoGhostUnderLowOpacity(t *testing.T) {
 			check := func(step string) {
 				t.Helper()
 				r.settle()
-				time.Sleep(700 * time.Millisecond) // the shadow is cut again 150 ms after the last frame
 				f, err := os.Open(r.screenPicture(name + "-" + step))
 				if err != nil {
 					t.Fatal(err)
