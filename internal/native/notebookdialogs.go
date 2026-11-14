@@ -223,7 +223,7 @@ func (w *workspace) nbPurge(d *nbDialog, vid string) {
 
 func (w *workspace) notebookDialogView(c *ui.Context) {
 	d := w.nbDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	if d.kind == "rename" {

@@ -230,7 +230,7 @@ func (w *workspace) sideSnippetRow(c *ui.Context, s keelclient.Snippet) {
 
 func (w *workspace) snippetDialogView(c *ui.Context) {
 	d := w.snipDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	title := "New snippet"

@@ -2,31 +2,35 @@ package native
 
 import "github.com/egoist/mygo/ui"
 
-// The dialogs, in one table. A dialog's state is a pointer on the workspace (hostDlg, approve, confirm, …); its row here
-// says when it is up and how it is drawn. The view draws the rows in order, back to front, and modalOpen is "some row
-// is up", so adding a dialog is one row and nothing else keeps a list.
+// The dialog stack, in one table. A dialog's state is a pointer on the workspace (hostDlg, approve, confirm, …); its row
+// here says when it is up, how it is drawn and which dialog stands in for it. The view draws the rows in order, back to
+// front, and modalOpen is "some row is up", so adding a dialog is one row and nothing else keeps a list.
 
 type dialogSlot struct {
 	open func() bool // nil: drawn every frame but not a modal (the pane's host key prompt decides for itself)
 	view func(*ui.Context)
+	// covered reports a dialog that asks on this one's behalf (Delete? Trust this key?): this one stays up but is not
+	// drawn meanwhile, so its fields come back as they were. nil: never.
+	covered func() bool
 }
 
 // dialogSlots are the dialogs, back to front.
 func (w *workspace) dialogSlots() []dialogSlot {
+	confirm := func() bool { return w.confirm != nil }
 	return []dialogSlot{
-		{nil, w.hostKeyDialog},
-		{func() bool { return w.quick != nil }, w.quickDialogView},
-		{func() bool { return w.joinDlg != nil }, w.joinDialogView},
-		{func() bool { return w.hostDlg != nil }, w.hostDialogView},
-		{func() bool { return w.identDlg != nil }, w.identityDialogView},
-		{func() bool { return w.snipDlg != nil }, w.snippetDialogView},
-		{func() bool { return w.nbDlg != nil }, w.notebookDialogView},
-		{func() bool { return w.folderDlg != nil }, w.folderDialogView},
-		{func() bool { return w.fwdDlg != nil }, w.forwardDialogView},
-		{func() bool { return w.fwdKey != nil }, w.forwardKeyView},
-		{func() bool { return w.approve != nil }, w.approveView},
-		{func() bool { return w.confirm != nil }, w.confirmView},
-		{func() bool { return w.pal != nil }, w.paletteView},
+		{open: nil, view: w.hostKeyDialog},
+		{open: func() bool { return w.quick != nil }, view: w.quickDialogView},
+		{open: func() bool { return w.joinDlg != nil }, view: w.joinDialogView},
+		{open: func() bool { return w.hostDlg != nil }, view: w.hostDialogView},
+		{open: func() bool { return w.identDlg != nil }, view: w.identityDialogView, covered: confirm},
+		{open: func() bool { return w.snipDlg != nil }, view: w.snippetDialogView, covered: confirm},
+		{open: func() bool { return w.nbDlg != nil }, view: w.notebookDialogView, covered: confirm},
+		{open: func() bool { return w.folderDlg != nil }, view: w.folderDialogView, covered: confirm},
+		{open: func() bool { return w.fwdDlg != nil }, view: w.forwardDialogView, covered: func() bool { return w.confirm != nil || w.fwdKey != nil }},
+		{open: func() bool { return w.fwdKey != nil }, view: w.forwardKeyView},
+		{open: func() bool { return w.approve != nil }, view: w.approveView},
+		{open: func() bool { return w.confirm != nil }, view: w.confirmView},
+		{open: func() bool { return w.pal != nil }, view: w.paletteView},
 	}
 }
 
@@ -43,7 +47,9 @@ func (w *workspace) modalOpen() bool {
 // dialogsView draws the dialogs.
 func (w *workspace) dialogsView(c *ui.Context) {
 	for _, d := range w.dialogSlots() {
-		d.view(c)
+		if d.covered == nil || !d.covered() {
+			d.view(c)
+		}
 	}
 }
 
