@@ -43,7 +43,6 @@ func convPart(id string) map[string]any {
 	return map[string]any{"conversationId": askConv, "proposalId": id}
 }
 
-// wantDialog fails unless the answer sends the user to the dialog.
 func wantDialog(t *testing.T, what string, r map[string]any, reason string) {
 	t.Helper()
 	if r["ok"] != false || r["dialog"] != true || !strings.Contains(r["reason"].(string), reason) {
@@ -51,7 +50,6 @@ func wantDialog(t *testing.T, what string, r map[string]any, reason string) {
 	}
 }
 
-// nothingWritten fails if the PTY got bytes within a short wait.
 func nothingWritten(t *testing.T, got <-chan string, what string) {
 	t.Helper()
 	select {

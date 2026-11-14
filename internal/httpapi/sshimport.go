@@ -17,7 +17,6 @@ import (
 // itself, reading ~/.ssh/config (KEEL_SSH_DIR in keel serve) and adding
 // the hosts the user picks, is internal/hostimport.
 
-// WithSSHDir sets the folder that holds the ssh config to import (~/.ssh).
 func (s *Server) WithSSHDir(dir string) *Server {
 	s.sshDir = dir
 	return s

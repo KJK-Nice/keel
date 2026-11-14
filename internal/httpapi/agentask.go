@@ -166,7 +166,6 @@ func (s *Server) agentEditProposal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// agentSessions lists the saved conversations (the panel's session list).
 func (s *Server) agentSessions(w http.ResponseWriter, _ *http.Request) {
 	if s.agent == nil {
 		writeJSON(w, http.StatusOK, service.Sessions{Sessions: []store.AgentChatSummary{}})
@@ -223,7 +222,6 @@ func (s *Server) agentProposeAgain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// agentReset deletes one conversation, in memory and in the vault.
 func (s *Server) agentReset(w http.ResponseWriter, r *http.Request) {
 	if s.agent != nil {
 		if err := s.agent.Delete(r.PathValue("id")); err != nil {

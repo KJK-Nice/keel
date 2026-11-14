@@ -136,7 +136,6 @@ func otherwise(err error, status int) error {
 	return fallbackError{err, status}
 }
 
-// answerFor is the status and the body of a failed request.
 func answerFor(err error) (int, any) {
 	if key, ok := store.RefusedHostKey(err); ok {
 		return http.StatusConflict, struct {

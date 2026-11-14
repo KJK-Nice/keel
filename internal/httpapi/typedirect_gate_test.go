@@ -16,7 +16,6 @@ import (
 // prompt state, the alternate screen from both sides, notebook blocks
 // read as fences, and the extra check only for group runs.
 
-// emit writes text to the pane as its output and waits until ok holds.
 func emit(t *testing.T, f *askFixture, hostID, sessionID, text string, ok func(*runtime.Session) bool) {
 	t.Helper()
 	b := f.bridge(t, hostID)

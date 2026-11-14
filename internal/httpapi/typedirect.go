@@ -50,7 +50,6 @@ const (
 // above all). Case-insensitive, on the last line with spaces trimmed.
 var inputPromptRe = regexp.MustCompile(`(?i)pass(word|phrase|code)|\bpin\b|one-time|verification code|\botp\b|\[sudo\]|'s password|are you sure|\[y/n\]|\(y/n\)|\(yes/no|\[yes/no|\byes/no\b|\b(continue|proceed|overwrite|replace|delete)\?|\benter\b[^:]*:$|\b(login|username|user name|token|passcode|secret|key)\s*:$|^(mysql|mariadb|sqlite|redis[^>]*|ftp|sftp|irb[^>]*|\(gdb\)|\(pdb\)|>>>|\.\.\.|in \[\d+\]:)\s*>?$|^[\w-]+[=-][#>]$|^>$`)
 
-// looksLikeInput reports whether a terminal line is an input prompt.
 func looksLikeInput(line string) bool {
 	line = strings.TrimSpace(line)
 	return line != "" && inputPromptRe.MatchString(line)
@@ -277,7 +276,6 @@ func (s *Server) typeDirect(ctx context.Context, c *sessionsock.Conn, command, n
 	mark := sess.StreamMark()
 	if err := sess.InjectTicket(clientID, command, nonce); err != nil {
 		if group {
-			// The host goes back to proposed: nothing was written.
 			s.agent.GroupTypeFailed(am.GroupRunID, am.ProposalID)
 		}
 		s.note(logKind(d.Kind), "a command was not typed: "+err.Error(), info.HostID, info.ID, "")
