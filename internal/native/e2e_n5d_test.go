@@ -376,8 +376,8 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	}
 	e2.key(ui.Cmd, ui.KeyComma)
 	e2.pump(func() bool { return e2.hasLabel("Window opacity slider") }, "Settings in the second window")
-	if e2.w.settingsPage().opacityV != 80 {
-		t.Errorf("the slider starts at %v", e2.w.settingsPage().opacityV)
+	if e2.w.settingsPage().sliders[keyOpacity].v != 80 {
+		t.Errorf("the slider starts at %v", e2.w.settingsPage().sliders[keyOpacity].v)
 	}
 	e2.w.closeWindow()
 }

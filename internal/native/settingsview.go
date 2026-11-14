@@ -241,9 +241,7 @@ func (w *workspace) settingsSections(p *settingsPage) []settingsSection {
 
 func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	opacity := prefRow{title: "Window opacity", desc: "How much of the desktop the window covers. 30–100; 100 is opaque.",
-		ctl: func(c *ui.Context) {
-			sliderCtl(c, "Window opacity", &p.opacityV, opacityMin, opacityMax, w.prefs.Opacity)(c)
-		}}
+		ctl: func(c *ui.Context) { w.prefSlider(c, p, keyOpacity, "Window opacity") }}
 	if !w.translucentWin && w.prefs.Opacity < opacityMax {
 		opacity.desc += " The window turns see-through the next time Keel starts."
 	}
@@ -256,11 +254,11 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 		})
 	}}
 	uiSizeRow := prefRow{title: "UI size", desc: "Tabs, settings, and chrome. 11–16px. Terminal size is separate.",
-		ctl: func(c *ui.Context) { sliderCtl(c, "UI size", &p.uiV, uiSizeMin, uiSizeMax, w.prefs.UISize)(c) }}
+		ctl: func(c *ui.Context) { w.prefSlider(c, p, keyUISize, "UI size") }}
 	rows := []prefRow{theme, opacity}
 	if hasBlur() {
 		rows = append(rows, prefRow{title: "Window blur", desc: "How much the desktop behind the window is blurred. 0–64; 0 is clear.",
-			ctl: func(c *ui.Context) { sliderCtl(c, "Window blur", &p.blurV, blurMin, blurMax, w.prefs.Blur)(c) }})
+			ctl: func(c *ui.Context) { w.prefSlider(c, p, keyBlur, "Window blur") }})
 	}
 	rows = append(rows, uiSizeRow) // Theme, Window opacity, Window blur, UI size
 	return settingsSection{id: "appearance", title: "Appearance", groups: []prefGroup{{title: "Display", rows: rows}}}
@@ -278,7 +276,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			sliderCtl(c, "Text size", &p.sizeV, termSizeMin, termSizeMax, w.prefs.TermSize, func() { w.keyCap(c, "+ − 0") })(c) // the hint shows only while ⌘ is held
+			w.prefSlider(c, p, keyTermSize, "Text size", func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
 		}},
 		{preview: true, ctl: func(c *ui.Context) { // the .pref-preview box: a prompt in the terminal's face at the text size
 			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
