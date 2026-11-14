@@ -19,6 +19,7 @@ func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 	}
 	root := filepath.Join(wd, "..", "..")
 	ownNew := regexp.MustCompile(`(^|[^.\w])New\(`)
+	seen := 0 // stores the tests open: the rule must be reading them
 	err = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -59,6 +60,9 @@ func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 		lines := strings.Split(src, "\n")
 		for i, l := range lines {
 			opens := strings.Contains(l, "store.New(") || (inStore && ownNew.MatchString(l) && !strings.HasPrefix(strings.TrimSpace(l), "//"))
+			if opens {
+				seen++
+			}
 			if !opens || strings.Contains(l, "TestVault()") {
 				continue
 			}
@@ -71,6 +75,9 @@ func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if seen < 20 {
+		t.Fatalf("the rule saw %d stores opened by tests: it no longer reads them", seen)
 	}
 }
 
