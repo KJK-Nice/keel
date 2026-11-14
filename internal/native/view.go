@@ -155,7 +155,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 			w.tabPill(c, i, t)
 		}
 		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
-			w.act(w.newTab)
+			w.act(w.addStartTab)
 		}
 		// The empty strip past the last tab: a tab dropped here goes last (ui/drag.js: a drop on the strip).
 		gap := ui.Box(c).Grow(1).FillHeight().Label("tab strip end")

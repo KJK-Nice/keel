@@ -68,9 +68,6 @@ func (w *workspace) settle() {
 
 const newTabLock = 300 * time.Millisecond // holding ⌘T must not open a tab per key repeat (term.js newTab)
 
-// newTab is the + button and the palette's New tab: a New tab.
-func (w *workspace) newTab() { w.addStartTab() }
-
 // newTabKey is ⌘T, which a held key repeats: one tab per newTabLock.
 func (w *workspace) newTabKey() {
 	now := time.Now()
@@ -78,7 +75,7 @@ func (w *workspace) newTabKey() {
 		return
 	}
 	w.newTabLockUntil = now.Add(newTabLock)
-	w.newTab()
+	w.addStartTab()
 }
 
 func (w *workspace) localHost() (keelclient.Host, bool) {
