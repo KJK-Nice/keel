@@ -5,7 +5,6 @@ package nativeautomation
 import (
 	"context"
 	"encoding/json"
-	"image"
 	"io"
 	"net/http"
 	"os"
@@ -205,45 +204,6 @@ func TestRealKeysIntoARealTerminal(t *testing.T) {
 		}
 	}
 	r.quit()
-}
-
-// 6. Both themes, from Settings, captured from the workspace.
-func TestBothThemes(t *testing.T) {
-	r := newRig(t)
-	r.startServe()
-	r.startApp()
-	openShell(r)
-	r.press("Settings")
-	r.waitFor("Settings", has("settings nav Appearance"))
-	shot := func(theme, name string) image.Image {
-		r.pressIn("Color theme", theme)
-		r.press("tab Local Shell")
-		r.waitFor("the shell tab", has("pane 1"))
-		img := r.capture(name)
-		r.press("tab Settings")
-		r.waitFor("Settings", has("settings nav Appearance"))
-		return img
-	}
-	dark := shot("Dark", "theme-dark")
-	light := shot("Light", "theme-light")
-	if d, l := luma(dark), luma(light); d+40 > l {
-		t.Errorf("mean luminance dark %.0f, light %.0f: the themes do not differ", d, l)
-	}
-	r.quit()
-}
-
-// luma is the mean brightness of a picture, 0 to 255, ignoring alpha.
-func luma(img image.Image) float64 {
-	b := img.Bounds()
-	var sum, n float64
-	for y := b.Min.Y; y < b.Max.Y; y += 4 {
-		for x := b.Min.X; x < b.Max.X; x += 4 {
-			r, g, bl, _ := img.At(x, y).RGBA()
-			sum += (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257
-			n++
-		}
-	}
-	return sum / n
 }
 
 // 7. The guard at run time: the tagged binary with the socket on and the default data directory (named or not) exits

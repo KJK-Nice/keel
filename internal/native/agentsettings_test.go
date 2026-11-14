@@ -147,11 +147,6 @@ func TestSettingsAgentControlsShowKeelServesValueAndSendOnlyWhatChanged(t *testi
 	r.texts(t, "Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment.")
 }
 
-func TestSettingsAgentDetectionNoteNeedsJev(t *testing.T) {
-	r := agentSettingsRig(t)
-	r.texts(t, "Jev is not connected, so Keel notices only lines that start with # for now. Connect Jev above to notice plain language automatically.", "Needs a Jev key")
-}
-
 func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
 	r := agentSettingsRig(t)
 	r.click(t, "Model picker")

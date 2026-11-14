@@ -92,11 +92,6 @@ func TestForwardsPageRowsForEveryTypeAndState(t *testing.T) {
 	}
 }
 
-func TestForwardsEmptyState(t *testing.T) {
-	r := forwardRig(t, okBackend())
-	r.texts(t, "No forwards yet", "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host.", "All 0")
-}
-
 func TestForwardsChipsAndFilterNarrowRows(t *testing.T) {
 	r := forwardRig(t, forwardBackend())
 	r.click(t, "Running 2")

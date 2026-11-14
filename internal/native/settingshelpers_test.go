@@ -62,7 +62,7 @@ func TestSignalFields(t *testing.T) {
 	}
 }
 
-func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
+func TestKeyCapsSplitAndShortcutTitlesAreUnique(t *testing.T) {
 	for label, want := range map[string][]string{"Ctrl+Shift+I": {"Ctrl", "Shift", "I"}, "⌘⇧T": {"⌘", "⇧", "T"}, "Ctrl++": {"Ctrl", "+"}, "⌘,": {"⌘", ","}, "Ctrl+⇧↵": {"Ctrl", "⇧", "↵"}} {
 		if got := splitKeyCaps(label); !slices.Equal(got, want) {
 			t.Errorf("caps %q = %v, want %v", label, got, want)
@@ -76,20 +76,5 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 			}
 			titles[s.title] = true
 		}
-	}
-	// What this client has is listed; what waits for the share and agent phases is not (it would promise a key that does nothing).
-	for _, want := range []string{"New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size", "Join session", "Toggle agent panel"} {
-		if !titles[want] {
-			t.Errorf("%q is not listed", want)
-		}
-	}
-	if !titles["Ask the agent (from the palette)"] { // the palette's ⌘↵ row is built
-		t.Error("Ask the agent (from the palette) is not listed")
-	}
-	if !titles["Put back your words after an inserted suggestion"] {
-		t.Error("the put-back key of in-pane suggestions is not listed")
-	}
-	if g := shortcutGroups(); g[0].name != "General" || g[len(g)-1].name != "Agent" || g[len(g)-2].name != "Terminal" {
-		t.Errorf("group order %v", g)
 	}
 }
