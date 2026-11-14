@@ -1,9 +1,7 @@
 package signal
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"keel/internal/randid"
 	"keel/internal/wire"
 )
 
@@ -396,9 +395,5 @@ func addrKey(host string) string {
 
 // newID returns 128 random bits: a room ID is the only secret in a join link.
 func newID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return hex.EncodeToString([]byte("fallback"))
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(16)
 }

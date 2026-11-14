@@ -1,9 +1,7 @@
 package store
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +17,7 @@ import (
 	"filippo.io/age"
 
 	"keel/internal/limits"
+	"keel/internal/randid"
 	"keel/internal/wire"
 )
 
@@ -1385,9 +1384,5 @@ func syncDir(dir string) {
 }
 
 func newID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(8)
 }

@@ -21,8 +21,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -34,6 +32,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/randid"
 	"keel/internal/runvars"
 	"keel/internal/store"
 )
@@ -920,7 +919,5 @@ func uniq(ids []string) []string {
 }
 
 func newID(prefix string) string {
-	var b [8]byte
-	_, _ = rand.Read(b[:])
-	return prefix + hex.EncodeToString(b[:])
+	return prefix + randid.Hex(8)
 }

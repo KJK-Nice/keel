@@ -1,14 +1,14 @@
 package store
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"keel/internal/randid"
 )
 
 // KnownHosts holds one SHA256 fingerprint (ssh.FingerprintSHA256, the
@@ -109,11 +109,7 @@ func (s *Store) offerLocked(o hostKeyOffer) string {
 		}
 		delete(s.offers, oldest)
 	}
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	tok := hex.EncodeToString(b)
+	tok := randid.Hex(16)
 	o.expires = now.Add(OfferTTL)
 	s.offers[tok] = o
 	return tok
