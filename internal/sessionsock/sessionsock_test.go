@@ -116,7 +116,6 @@ func (r *recorder) SendJSON(v any) error {
 
 func (r *recorder) SendBytes([]byte) error { return nil }
 
-// since hands over the frames sent after the first n.
 func (r *recorder) since(n int) []map[string]any {
 	r.mu.Lock()
 	defer r.mu.Unlock()

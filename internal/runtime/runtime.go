@@ -358,7 +358,7 @@ func (s *Session) SubscribeSince(join Join, mark uint64) (Client, <-chan Event, 
 	return s.subscribe(join, mark, true)
 }
 
-// Mark returns the current output position for SubscribeSince.
+// Mark is the output position SubscribeSince takes.
 func (s *Session) Mark() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()

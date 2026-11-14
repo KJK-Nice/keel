@@ -268,7 +268,6 @@ func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {
 	}
 }
 
-// hostKeyCallback checks the key's type and fingerprint.
 func hostKeyCallback(check CheckKey) ssh.HostKeyCallback {
 	return func(hostname string, _ net.Addr, key ssh.PublicKey) error {
 		return check(hostname, key.Type(), ssh.FingerprintSHA256(key))

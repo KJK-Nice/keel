@@ -717,7 +717,6 @@ func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name strin
 		c := sessionsock.Attach(sess, t, sessionsock.Options{Name: name, Kind: wire.KindJoined, Caps: sessionsock.Joined, Since: &mark})
 		go func() {
 			if c.Forward() {
-				// The viewer is not reading: it is dropped.
 				c.Detach()
 				_ = dc.Close()
 			}

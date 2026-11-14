@@ -74,7 +74,6 @@ func newShareRig(t *testing.T) *shareRig {
 	return r
 }
 
-// output writes to the fake PTY and waits until the session has it.
 func (r *shareRig) output(s string) {
 	r.t.Helper()
 	if _, err := r.fb.outW.Write([]byte(s)); err != nil {

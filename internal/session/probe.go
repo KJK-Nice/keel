@@ -64,7 +64,6 @@ func Probe(ctx context.Context, host store.Host, checkKey CheckKey) ProbeResult 
 	return ClassifyProbe(ctx, err)
 }
 
-// ClassifyProbe turns a connect error into a ProbeResult.
 func ClassifyProbe(ctx context.Context, err error) ProbeResult {
 	out := ProbeResult{Kind: ProbeError, Message: err.Error()}
 	var hop *HopError

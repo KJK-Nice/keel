@@ -105,7 +105,6 @@ func Start(opts Options) (*Server, error) {
 // Fingerprint is the server key's SHA256 fingerprint.
 func (s *Server) Fingerprint() string { return ssh.FingerprintSHA256(s.Key) }
 
-// Forwards counts direct-tcpip channels opened through this server.
 func (s *Server) Forwards() int64 { return s.forwards.Load() }
 
 func (s *Server) Sessions() int64 { return s.sessions.Load() }
