@@ -410,7 +410,7 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 	if len(pick) == 0 {
 		return nil
 	}
-	if shiftMissing(rowsNeedShift(pick), shift) {
+	if rowsNeedShift(pick) && !shift {
 		g.shiftHint = true
 		return nil
 	}
