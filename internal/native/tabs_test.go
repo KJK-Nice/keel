@@ -20,8 +20,8 @@ func splitRig(t *testing.T) *rig {
 	r.click(t, "host api-1")
 	r.w.splitFocused(layout.Row)
 	r.tt.Frame()
-	if len(r.w.tab().panes) != 2 {
-		t.Fatalf("%d panes after a split", len(r.w.tab().panes))
+	if len(r.w.activeTab().panes) != 2 {
+		t.Fatalf("%d panes after a split", len(r.w.activeTab().panes))
 	}
 	return r
 }
@@ -41,7 +41,7 @@ func visible(r *rig, id string) bool { _, ok := r.tt.Find("pane " + id); return 
 
 func TestFocusViewByKeyAndByTool(t *testing.T) {
 	r := splitRig(t)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	if !visible(r, "1") || !visible(r, "2") {
 		t.Fatal("both panes should show before focus view")
 	}
@@ -71,7 +71,7 @@ func TestFocusViewByKeyAndByTool(t *testing.T) {
 
 func TestFocusViewLeavesOnSplitAndOnClosingTheZoomedPane(t *testing.T) {
 	r := splitRig(t)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	r.w.zoomFocused()
 	r.w.splitFocused(layout.Col)
 	if tb.zoomed != "" || len(tb.panes) != 3 {
@@ -88,7 +88,7 @@ func TestFocusViewIgnoresAOnePaneTab(t *testing.T) {
 	r := openTabs(t, 1)
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.tab().zoomed != "" {
+	if r.w.activeTab().zoomed != "" {
 		t.Error("a tab of one pane zoomed")
 	}
 }
@@ -148,7 +148,7 @@ func TestPaneMenuItems(t *testing.T) {
 
 func TestPaneMenuItemsAct(t *testing.T) {
 	r := openTabs(t, 1)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	menuLabels(t, r, "pane bar 1")
 	choose(t, r, "Split right")
 	if len(tb.panes) != 2 || tb.root.Dir != layout.Row {
@@ -212,7 +212,7 @@ func TestMoreToolAndRightClickOpenTheSameMenu(t *testing.T) {
 func named(t *testing.T, n int) *rig {
 	t.Helper()
 	r := openTabs(t, n)
-	for i, tb := range r.w.tabs {
+	for i, tb := range r.w.allTabs() {
 		tb.title = string(rune('a' + i))
 	}
 	r.tt.Frame()
@@ -220,7 +220,7 @@ func named(t *testing.T, n int) *rig {
 }
 
 func tabTitles(r *rig) (out []string) {
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		out = append(out, tb.name())
 	}
 	return
@@ -271,8 +271,8 @@ func TestTheTabsCloseButtonClosesThatTabAndOnlyWhenShown(t *testing.T) {
 	r.tt.Frame()
 	r.tt.ClickAt(cb.X+cb.W/2, cb.Y+cb.H/2)
 	r.tt.Frame()
-	if len(r.w.tabs) != 3 || len(r.fb.killed) != 0 {
-		t.Fatalf("a hidden close button closed a tab: %d tabs, killed %v", len(r.w.tabs), r.fb.killed)
+	if r.w.tabCount() != 3 || len(r.fb.killed) != 0 {
+		t.Fatalf("a hidden close button closed a tab: %d tabs, killed %v", r.w.tabCount(), r.fb.killed)
 	}
 	// Over the pill the button closes tab b, and only that one.
 	r.tt.Move(b.X+b.W/2, b.Y+b.H/2)
@@ -303,7 +303,7 @@ func TestTabMenuDisabledItems(t *testing.T) {
 			if err := r.tt.ChooseMenuItem(item); err == nil {
 				t.Errorf("%s: %q should be disabled", tc.name, item)
 			}
-			if len(r.w.tabs) != tc.n || len(r.fb.killed) != 0 {
+			if r.w.tabCount() != tc.n || len(r.fb.killed) != 0 {
 				t.Errorf("%s: a disabled %q closed something", tc.name, item)
 			}
 		}
@@ -331,8 +331,8 @@ func TestTabRename(t *testing.T) {
 	r.tt.Type("logs")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.renaming != nil || r.w.tabs[0].title != "logs" || !r.tt.HasText("logs") {
-		t.Fatalf("Enter: renaming %v, title %q", r.w.renaming != nil, r.w.tabs[0].title)
+	if r.w.renaming != nil || r.w.tabAt(0).title != "logs" || !r.tt.HasText("logs") {
+		t.Fatalf("Enter: renaming %v, title %q", r.w.renaming != nil, r.w.tabAt(0).title)
 	}
 	// Escape puts the old name back.
 	menuLabels(t, r, "tab logs")
@@ -340,8 +340,8 @@ func TestTabRename(t *testing.T) {
 	r.tt.Type("zzz")
 	r.tt.Key(0, ui.KeyEscape)
 	r.tt.Frame()
-	if r.w.renaming != nil || r.w.tabs[0].title != "logs" {
-		t.Fatalf("Escape: renaming %v, title %q", r.w.renaming != nil, r.w.tabs[0].title)
+	if r.w.renaming != nil || r.w.tabAt(0).title != "logs" {
+		t.Fatalf("Escape: renaming %v, title %q", r.w.renaming != nil, r.w.tabAt(0).title)
 	}
 	// An empty name clears the custom title: the host name is back.
 	menuLabels(t, r, "tab logs")
@@ -349,15 +349,15 @@ func TestTabRename(t *testing.T) {
 	r.tt.Key(0, ui.KeyBackspace)
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.tabs[0].title != "" || r.w.tabs[0].name() != "api-1" {
-		t.Fatalf("empty: title %q, name %q", r.w.tabs[0].title, r.w.tabs[0].name())
+	if r.w.tabAt(0).title != "" || r.w.tabAt(0).name() != "api-1" {
+		t.Fatalf("empty: title %q, name %q", r.w.tabAt(0).title, r.w.tabAt(0).name())
 	}
 	// A click elsewhere keeps what was typed.
 	rename()
 	r.tt.Type("kept")
 	r.click(t, "New tab")
-	if r.w.renaming != nil || r.w.tabs[0].title != "kept" {
-		t.Fatalf("blur: renaming %v, title %q", r.w.renaming != nil, r.w.tabs[0].title)
+	if r.w.renaming != nil || r.w.tabAt(0).title != "kept" {
+		t.Fatalf("blur: renaming %v, title %q", r.w.renaming != nil, r.w.tabAt(0).title)
 	}
 }
 
@@ -402,17 +402,17 @@ func TestDraggingATabReordersAndNumberKeysFollow(t *testing.T) {
 	if got := tabTitles(r); !slices.Equal(got, []string{"d", "a", "b", "c"}) {
 		t.Fatalf("order %q", got)
 	}
-	if r.w.tab().title != "d" {
-		t.Errorf("the active tab changed to %q", r.w.tab().title)
+	if r.w.activeTab().title != "d" {
+		t.Errorf("the active tab changed to %q", r.w.activeTab().title)
 	}
 	r.tt.Key(ui.Cmd, ui.Key1)
 	r.tt.Frame()
-	if r.w.tab().title != "d" {
-		t.Errorf("⌘1 shows %q, want d", r.w.tab().title)
+	if r.w.activeTab().title != "d" {
+		t.Errorf("⌘1 shows %q, want d", r.w.activeTab().title)
 	}
 	r.tt.Key(ui.Cmd, ui.Key2)
-	if r.w.tab().title != "a" {
-		t.Errorf("⌘2 shows %q, want a", r.w.tab().title)
+	if r.w.activeTab().title != "a" {
+		t.Errorf("⌘2 shows %q, want a", r.w.activeTab().title)
 	}
 	// The right half of a tab puts the dragged one after it.
 	a, _ = r.tt.Find("tab a")
@@ -436,7 +436,7 @@ func TestDroppingATabOnTheEmptyStripPutsItLast(t *testing.T) {
 	if !ok {
 		t.Fatal("no empty strip after the tabs")
 	}
-	shown := r.w.tab().title
+	shown := r.w.activeTab().title
 	r.tt.Press(a.X+a.W/2, a.Y+a.H/2)
 	r.tt.Move(a.X+a.W/2+20, a.Y+a.H/2)
 	r.tt.Move(end.X+end.W/2, end.Y+end.H/2)
@@ -446,13 +446,13 @@ func TestDroppingATabOnTheEmptyStripPutsItLast(t *testing.T) {
 	if got := tabTitles(r); !slices.Equal(got, []string{"b", "c", "d", "a"}) {
 		t.Fatalf("order %q", got)
 	}
-	if r.w.tab().title != shown {
-		t.Errorf("the tab shown changed from %q to %q", shown, r.w.tab().title)
+	if r.w.activeTab().title != shown {
+		t.Errorf("the tab shown changed from %q to %q", shown, r.w.activeTab().title)
 	}
 	r.tt.Key(ui.Cmd, ui.Key4)
 	r.tt.Frame()
-	if r.w.tab().title != "a" {
-		t.Errorf("⌘4 shows %q, want a", r.w.tab().title)
+	if r.w.activeTab().title != "a" {
+		t.Errorf("⌘4 shows %q, want a", r.w.activeTab().title)
 	}
 }
 
@@ -493,21 +493,21 @@ func TestDraggingAPaneBarRearrangesThePanesOfTheTab(t *testing.T) {
 		r.tt.Frame()
 		r.tt.Frame()
 	}
-	leaves := func(r *rig) []string { return r.w.tab().root.Leaves() }
+	leaves := func(r *rig) []string { return r.w.activeTab().root.Leaves() }
 	r := splitRig(t)
 	if !slices.Equal(leaves(r), []string{"1", "2"}) {
 		t.Fatalf("leaves %v", leaves(r))
 	}
 	spawned, killed := len(r.fb.spawned), len(r.fb.killed)
 	drag(r, "1", "2", 0.5, 0.5) // the centre swaps
-	if got := leaves(r); !slices.Equal(got, []string{"2", "1"}) || r.w.tab().focused != "1" {
-		t.Fatalf("after the swap: leaves %v, focused %q", got, r.w.tab().focused)
+	if got := leaves(r); !slices.Equal(got, []string{"2", "1"}) || r.w.activeTab().focused != "1" {
+		t.Fatalf("after the swap: leaves %v, focused %q", got, r.w.activeTab().focused)
 	}
 	drag(r, "1", "2", 0.5, 0.04) // the top edge of pane 2 puts pane 1 above it
-	if got := leaves(r); !slices.Equal(got, []string{"1", "2"}) || r.w.tab().root.Dir != layout.Col {
-		t.Fatalf("after the top drop: leaves %v, dir %v", got, r.w.tab().root.Dir)
+	if got := leaves(r); !slices.Equal(got, []string{"1", "2"}) || r.w.activeTab().root.Dir != layout.Col {
+		t.Fatalf("after the top drop: leaves %v, dir %v", got, r.w.activeTab().root.Dir)
 	}
-	if len(r.fb.spawned) != spawned || len(r.fb.killed) != killed || len(r.w.tab().panes) != 2 {
+	if len(r.fb.spawned) != spawned || len(r.fb.killed) != killed || len(r.w.activeTab().panes) != 2 {
 		t.Errorf("a drag opened or closed a session: spawned %d killed %d", len(r.fb.spawned)-spawned, len(r.fb.killed)-killed)
 	}
 	for i, cn := range r.fb.conns {
@@ -530,7 +530,7 @@ func TestMoveTabSlots(t *testing.T) {
 		{3, 0, "dabc"}, {0, 4, "bcda"}, {0, 1, "abcd"}, {0, 2, "bacd"}, {2, 9, "abdc"}, {1, -3, "bacd"},
 	} {
 		r := named(t, 4)
-		r.w.moveTab(r.w.tabs[tc.from], tc.slot)
+		r.w.moveTab(r.w.tabAt(tc.from), tc.slot)
 		if got := strings.Join(tabTitles(r), ""); got != tc.want {
 			t.Errorf("move %d to slot %d: %s, want %s", tc.from, tc.slot, got, tc.want)
 		}
@@ -544,18 +544,18 @@ func TestReopenClosedIsANewSessionOnTheSameHost(t *testing.T) {
 	r.click(t, "host pg-primary")
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyT)
 	r.tt.Frame()
-	if len(r.w.tabs) != 2 || !r.tt.HasText("Nothing to reopen") {
-		t.Fatalf("nothing is closed yet: %d tabs", len(r.w.tabs))
+	if r.w.tabCount() != 2 || !r.tt.HasText("Nothing to reopen") {
+		t.Fatalf("nothing is closed yet: %d tabs", r.w.tabCount())
 	}
 	r.tt.Key(ui.Cmd, ui.KeyW) // closes pg-primary, s2
 	r.tt.Frame()
 	spawned := len(r.fb.spawned)
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyT)
 	r.tt.Frame()
-	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-pg" || len(r.w.tabs) != 2 {
-		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
+	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-pg" || r.w.tabCount() != 2 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, r.w.tabCount())
 	}
-	if id := r.w.tab().panes[r.w.tab().focused].sessionID(); id == "s2" || id == "" {
+	if id := r.w.activeTab().panes[r.w.activeTab().focused].sessionID(); id == "s2" || id == "" {
 		t.Errorf("reopened session id %q: it must be a new session", id)
 	}
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyT) // the entry was used

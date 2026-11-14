@@ -36,8 +36,8 @@ func nbRig(t *testing.T, mds ...string) *rig {
 // nbPane is the open notebook pane of the tab shown.
 func (r *rig) nbPane(t *testing.T) *pane {
 	t.Helper()
-	for _, id := range r.w.tab().root.Leaves() {
-		if p := r.w.tab().panes[id]; p != nil && p.nb != nil {
+	for _, id := range r.w.activeTab().root.Leaves() {
+		if p := r.w.activeTab().panes[id]; p != nil && p.nb != nil {
 			return p
 		}
 	}
@@ -89,7 +89,7 @@ func TestTheNotebooksPageShowsRowsBadgesAndTheEmptyState(t *testing.T) {
 	r := nbRig(t, "first line here\nmore", "b", "c")
 	r.fb.nb.list[0].Private, r.fb.nb.list[1].AgentUnreviewed, r.fb.nb.list[2].Source = true, true, "agent"
 	r.fb.nb.list[2].Pinned = true
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(3)
 	if miss := r.lacks("Notebooks", notebooksSubtitle, "Recently deleted", "New notebook", "Filter notebooks", "notebook Deploy", "first line here",
 		"badge Private", "badge Edited by agent", "badge From agent", "badge Pinned"); len(miss) > 0 {
@@ -104,7 +104,7 @@ func TestTheNotebooksPageShowsRowsBadgesAndTheEmptyState(t *testing.T) {
 
 func TestEveryRowMenuItemDoesItsOneThing(t *testing.T) {
 	r := nbRig(t, "text a", "text b")
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(3)
 	if err := r.tt.RightClick("notebook Deploy"); err != nil {
 		t.Fatal(err)
@@ -147,14 +147,14 @@ func TestEveryRowMenuItemDoesItsOneThing(t *testing.T) {
 	r.tt.Frame()
 	r.tt.ChooseMenuItem("Open")
 	r.frames(2)
-	if t2 := r.w.tab(); t2.isPage() || t2.name() != "Backups" || !t2.onlyNotebooks() {
+	if t2 := r.w.activeTab(); t2.isPage() || t2.name() != "Backups" || !t2.onlyNotebooks() {
 		t.Fatalf("Open from a page: tab %q only notebooks %v", t2.name(), t2.onlyNotebooks())
 	}
 }
 
 func TestRenameAsksForANameAndPatchesOnlyTheName(t *testing.T) {
 	r := nbRig(t, "text a")
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(2)
 	r.tt.RightClick("notebook Deploy")
 	r.tt.Frame()
@@ -178,7 +178,7 @@ func TestRenameAsksForANameAndPatchesOnlyTheName(t *testing.T) {
 
 func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 	r := nbRig(t, "text a", "text b")
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(2)
 	r.tt.RightClick("notebook Deploy")
 	r.tt.Frame()
@@ -189,7 +189,7 @@ func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 	}
 	r.click(t, "Cancel")
 	r.frames(2)
-	if r.fb.nb.reqsWith("delete") != 0 || r.w.confirm != nil {
+	if r.fb.nb.reqsWith("delete") != 0 || r.w.confirmOpen() {
 		t.Fatal("Cancel deleted")
 	}
 	r.tt.RightClick("notebook Deploy")
@@ -215,7 +215,7 @@ func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 	if r.fb.nb.reqsWith("delete nb2 permanent") != 0 {
 		t.Fatal("deleted for good before the answer")
 	}
-	if cf := r.w.confirm; cf == nil || cf.title != "Delete permanently" || cf.action != "Delete permanently" { // its title and its button share words: the question is checked, then its action is run
+	if cf := r.w.confirmDlg(); cf == nil || cf.title != "Delete permanently" || cf.action != "Delete permanently" { // its title and its button share words: the question is checked, then its action is run
 		t.Fatalf("confirm %+v", cf)
 	} else {
 		r.w.endConfirm(true)
@@ -236,7 +236,7 @@ func TestANotebookOpensBesideTheTerminalOfASessionTab(t *testing.T) {
 	r.frames(2)
 	r.click(t, "sidebar notebook Deploy")
 	r.frames(3)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	if len(tb.panes) != 2 || tb.onlyNotebooks() || r.nbPane(t).nb.id != "nb1" {
 		t.Fatalf("panes %d", len(tb.panes))
 	}

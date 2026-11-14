@@ -544,13 +544,13 @@ func TestDeleteHostAsksFirst(t *testing.T) {
 func TestDeletedHostKeepsItsOpenSession(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1")
-	if len(r.w.tabs) != 1 || r.w.tab().isNew() {
+	if r.w.tabCount() != 1 || r.w.activeTab().isNew() {
 		t.Fatal("no session")
 	}
 	r.w.askDeleteHost(testHosts[1])
 	r.tt.Frame()
 	r.click(t, "Remove")
-	if len(r.w.tabs) != 1 || len(r.fb.killed) != 0 || r.w.focusedPane().host.Name != "api-1" || r.fb.conns[0].closed {
+	if r.w.tabCount() != 1 || len(r.fb.killed) != 0 || r.w.focusedPane().host.Name != "api-1" || r.fb.conns[0].closed {
 		t.Error("deleting the host touched its open session")
 	}
 	// Edit host from that pane's banner says the host is gone.

@@ -391,8 +391,8 @@ func TestFirstRunOpenKeelEndsTheFirstRunAndOpensTheWorkspace(t *testing.T) {
 		if r.w.first != nil || !r.w.live || !r.tt.HasText("Filter hosts") || !r.tt.HasText("Local Shell") {
 			t.Errorf("%s: first %v live %v", button, r.w.first != nil, r.w.live)
 		}
-		if len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() {
-			t.Errorf("%s: tabs %d", button, len(r.w.tabs))
+		if r.w.tabCount() != 1 || !r.w.tabAt(0).isNew() {
+			t.Errorf("%s: tabs %d", button, r.w.tabCount())
 		}
 	}
 }
@@ -468,7 +468,7 @@ func TestFirstRunHidesTheWorkspaceAndTakesNoShortcut(t *testing.T) {
 	r := firstRunRig(t, setupBackend())
 	r.press(ui.Cmd, ui.KeyT)
 	r.press(ui.Cmd, ui.KeyK)
-	if len(r.w.tabs) != 0 || r.w.pal != nil || r.tt.HasText("Filter hosts") {
+	if r.w.tabCount() != 0 || r.w.pal != nil || r.tt.HasText("Filter hosts") {
 		t.Error("the window behind First run acts")
 	}
 }

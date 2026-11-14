@@ -27,7 +27,7 @@ func settingsRig(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
 	dir := t.TempDir()
 	r := newRigIn(t, fb, dir)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	return r
 }
@@ -94,9 +94,9 @@ func TestSettingsOpensFromTheKeyTheFooterAndThePalette(t *testing.T) {
 	if r.w.pageTab("settings") == nil {
 		t.Error("the palette did not open Settings")
 	}
-	r.w.openPage("settings") // one instance
+	r.w.showPage("settings") // one instance
 	n := 0
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		if tb.isPage() && tb.pg.name == "settings" {
 			n++
 		}
@@ -127,7 +127,7 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	wantPixel(t, "title bar at 66", r.tt.Image(), 900, 10, chrome, 0.66)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	p := pageAs[*settingsPage](r.w.pageTab("settings"))
 	if p.opacityV != 66 || p.blurV != 20 || p.sizeV != 12 {
@@ -173,8 +173,8 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 	p.sizeV = 18
 	r.tt.Frame()
-	if r.w.prefs.TermSize != 18 || r.w.tabs[0].panes["1"].fontSize != 18 {
-		t.Errorf("the slider left the text size at %d (pane %v)", r.w.prefs.TermSize, r.w.tabs[0].panes["1"].fontSize)
+	if r.w.prefs.TermSize != 18 || r.w.tabAt(0).panes["1"].fontSize != 18 {
+		t.Errorf("the slider left the text size at %d (pane %v)", r.w.prefs.TermSize, r.w.tabAt(0).panes["1"].fontSize)
 	}
 }
 
@@ -240,11 +240,11 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	}
 	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the five, chosen by default
 	r.w.openHost(testHosts[1])                                                 // a pane to change live
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
 	var offs []bool
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
 			p.setCopy = func(on bool) { offs = append(offs, on) }
 		}
@@ -265,7 +265,7 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	if got := loadPrefs(r.w.dataDir); got.RightClick != "paste" || got.CopyOnSelect {
 		t.Errorf("read back %+v", got)
 	}
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.click(t, "Nothing")
 	if r.w.prefs.RightClick != "nothing" {
@@ -390,7 +390,7 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	fb := settingsBackend()
 	r := settingsRig(t, fb)
 	r.w.openHost(testHosts[1])
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Runtime")
 	r.texts(t, "keel serve owns your sessions and serves this window. It keeps running when the window closes.",
@@ -405,12 +405,12 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 		t.Fatal("stopped before the confirm")
 	}
 	r.click(t, "Cancel")
-	if fb.runtimeStops != 0 || r.w.confirm != nil {
+	if fb.runtimeStops != 0 || r.w.confirmOpen() {
 		t.Fatalf("Cancel stopped: %d", fb.runtimeStops)
 	}
 	r.click(t, "Stop runtime…")
 	r.click(t, "alertdialog Stop the Keel runtime?")
-	r.w.confirm.run()
+	r.w.confirmDlg().run()
 	r.tt.Frame()
 	if fb.runtimeStops != 1 || !r.tt.HasText("Keel runtime stopped") {
 		t.Errorf("stops %d", fb.runtimeStops)
@@ -419,14 +419,14 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	fb.stopErr = errors.New("nope")
 	r.w.askStopRuntime()
 	r.tt.Frame()
-	r.w.confirm.run()
+	r.w.confirmDlg().run()
 	r.tt.Frame()
 	r.texts(t, "stop runtime: nope")
 	// A runtime that cannot be stopped says no.
 	fb.runtime.CanStop = false
 	r.w.loadSettings()
 	r.tt.Frame()
-	if err := r.tt.Click("Stop runtime…"); err == nil && r.w.confirm != nil {
+	if err := r.tt.Click("Stop runtime…"); err == nil && r.w.confirmOpen() {
 		t.Error("Stop opened its confirm for a runtime that cannot stop")
 	}
 }
@@ -444,7 +444,7 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	rows[0].run(false)
 	r.w.closePalette()
 	r.tt.Frame()
-	if fb.runtimeStops != 0 || r.w.confirm == nil {
+	if fb.runtimeStops != 0 || !r.w.confirmOpen() {
 		t.Fatalf("the palette stopped the runtime without asking: stops %d", fb.runtimeStops)
 	}
 	r.texts(t, "Stop the Keel runtime?")
@@ -476,7 +476,7 @@ func TestSettingsPageIsSavedWithTheTabs(t *testing.T) {
 	fb := settingsBackend()
 	dir := t.TempDir()
 	r := newRigIn(t, fb, dir)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.w.closeWindow()
 	r2 := newRigIn(t, settingsBackend(), dir)
 	if r2.w.pageTab("settings") == nil {

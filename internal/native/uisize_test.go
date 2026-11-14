@@ -86,12 +86,12 @@ func TestUISizeLabelsAndWordsAreTheApps(t *testing.T) {
 func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.w.openHost(testHosts[1]) // a pane to change live
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
 	var sizes []float32
 	var fams []string
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
 			p.setFont = func(s float32) { sizes = append(sizes, s); fams = append(fams, p.fontFamily) }
 		}

@@ -113,7 +113,7 @@ func TestSplitsTileTheStage(t *testing.T) {
 					r.tt = ui.NewTester(r.w.view, int(sz[0]), int(sz[1]))
 					r.tt.Frame()
 					r.click(t, "host api-1")
-					tb := r.w.tabs[0]
+					tb := r.w.tabAt(0)
 					for _, s := range tc.steps {
 						r.w.split(tb, s.target, s.d)
 						r.tt.Frame()
@@ -134,7 +134,7 @@ func TestDraggingANestedGapChangesOnlyThatSplit(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "host api-1")
-	tb := r.w.tabs[0]
+	tb := r.w.tabAt(0)
 	r.w.split(tb, "1", R)
 	r.w.split(tb, "2", R)
 	r.tt.Frame()

@@ -57,7 +57,7 @@ func (r *rig) closePopover() {
 func (r *rig) openNbPicker(t *testing.T) {
 	t.Helper()
 	r.click(t, "Attach notebook")
-	if r.w.agent.nbPicker != "panel" || !r.tt.HasText("Notebooks to send with your question") {
+	if r.w.agentState().nbPicker != "panel" || !r.tt.HasText("Notebooks to send with your question") {
 		t.Fatalf("the picker is not open: %q", r.tt.Texts())
 	}
 }
@@ -94,8 +94,8 @@ func TestThePickersArrowKeysWalkBetweenRowsAndTickNothing(t *testing.T) {
 	if !r.tt.Focused(rows[3]) {
 		t.Fatalf("↑ from the first row did not wrap to the last")
 	}
-	if len(r.w.agent.attached) != 0 {
-		t.Errorf("walking ticked %v", r.w.agent.attached)
+	if len(r.w.agentState().attached) != 0 {
+		t.Errorf("walking ticked %v", r.w.agentState().attached)
 	}
 }
 
@@ -118,21 +118,21 @@ func TestThePickerListsSavedNotebooksAndATickedOneIsSentByIdWithEachQuestion(t *
 	}
 	// A private notebook is listed and cannot be ticked: it says why and attaches nothing.
 	r.click(t, "pick notebook Keys")
-	if len(r.w.agent.attached) != 0 || !r.tt.HasText(privateRefused) {
-		t.Fatalf("a private notebook was attached %v or no reason shown", r.w.agent.attached)
+	if len(r.w.agentState().attached) != 0 || !r.tt.HasText(privateRefused) {
+		t.Fatalf("a private notebook was attached %v or no reason shown", r.w.agentState().attached)
 	}
 	r.click(t, "pick notebook Deploy")
 	r.click(t, "pick notebook Backups")
-	if !slices.Equal(r.w.agent.attached, []string{"nb1", "nb2"}) {
-		t.Fatalf("attached %v", r.w.agent.attached)
+	if !slices.Equal(r.w.agentState().attached, []string{"nb1", "nb2"}) {
+		t.Fatalf("attached %v", r.w.agentState().attached)
 	}
 	// A third is refused, and the two stay.
 	r.click(t, "pick notebook Scratch")
-	if !slices.Equal(r.w.agent.attached, []string{"nb1", "nb2"}) || !r.tt.HasText("Attach at most 2 notebooks to a question") {
-		t.Fatalf("a third notebook was attached %v or no reason shown", r.w.agent.attached)
+	if !slices.Equal(r.w.agentState().attached, []string{"nb1", "nb2"}) || !r.tt.HasText("Attach at most 2 notebooks to a question") {
+		t.Fatalf("a third notebook was attached %v or no reason shown", r.w.agentState().attached)
 	}
 	r.closePopover()
-	if r.w.agent.nbPicker != "" {
+	if r.w.agentState().nbPicker != "" {
 		t.Fatal("the picker stays open")
 	}
 
@@ -170,7 +170,7 @@ func TestThePickerListsSavedNotebooksAndATickedOneIsSentByIdWithEachQuestion(t *
 	}
 	// A new conversation starts with none.
 	r.w.newAgentConversation()
-	if len(r.w.agent.attached) != 0 {
+	if len(r.w.agentState().attached) != 0 {
 		t.Fatal("a new conversation keeps the attached notebooks")
 	}
 }
@@ -180,15 +180,15 @@ func TestANotebookDeletedOrMadePrivateAfterItWasAttachedIsNotNamed(t *testing.T)
 	r.w.attachNotebook("nb1")
 	r.w.attachNotebook("nb2")
 	r.w.attachNotebook("nb-unknown") // not a notebook: not attached
-	if !slices.Equal(r.w.agent.attached, []string{"nb1", "nb2"}) {
-		t.Fatalf("attached %v", r.w.agent.attached)
+	if !slices.Equal(r.w.agentState().attached, []string{"nb1", "nb2"}) {
+		t.Fatalf("attached %v", r.w.agentState().attached)
 	}
 	r.fb.nb.list = r.fb.nb.list[1:] // nb1 deleted elsewhere
 	r.fb.nb.list[0].Private = true  // nb2 made private elsewhere
 	r.w.reloadNotebooks()
 	r.frames(2)
-	if len(r.w.agent.attached) != 0 {
-		t.Fatalf("still attached: %v", r.w.agent.attached)
+	if len(r.w.agentState().attached) != 0 {
+		t.Fatalf("still attached: %v", r.w.agentState().attached)
 	}
 	r.ask(t, "q")
 	if a := r.lastAsk(t); a.Notebooks != nil {
@@ -229,7 +229,7 @@ func TestTheAskSavesTypingFirstAndNamesNotebooksStillUnsaved(t *testing.T) {
 func TestAskTheAgentAboutThisNotebookFromTheRowMenuAttachesOneAndSendsNothing(t *testing.T) {
 	r := nbAgentRig(t)
 	r.w.setAgentOpen(false)
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(3)
 	r.tt.RightClick("notebook Backups")
 	r.tt.Frame()
@@ -240,8 +240,8 @@ func TestAskTheAgentAboutThisNotebookFromTheRowMenuAttachesOneAndSendsNothing(t 
 		t.Fatal(err)
 	}
 	r.frames(2)
-	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agent.attached, []string{"nb2"}) || len(r.fb.agent.asks) != 0 {
-		t.Fatalf("open %v attached %v asks %d: the panel opens with the notebook attached and nothing is asked", r.w.prefs.AgentPanel, r.w.agent.attached, len(r.fb.agent.asks))
+	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agentState().attached, []string{"nb2"}) || len(r.fb.agent.asks) != 0 {
+		t.Fatalf("open %v attached %v asks %d: the panel opens with the notebook attached and nothing is asked", r.w.prefs.AgentPanel, r.w.agentState().attached, len(r.fb.agent.asks))
 	}
 	// A private notebook is never offered to the agent.
 	r.tt.RightClick("notebook Keys")
@@ -256,19 +256,19 @@ func TestTheNotebookPaneBarAsksTheAgentOnlyForASavedNotebookThatIsNotPrivate(t *
 	r.w.setAgentOpen(false)
 	r.openNB(t, "nb1")
 	r.click(t, "Ask the agent about this notebook")
-	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agent.attached, []string{"nb1"}) {
-		t.Fatalf("open %v attached %v", r.w.prefs.AgentPanel, r.w.agent.attached)
+	if !r.w.prefs.AgentPanel || !slices.Equal(r.w.agentState().attached, []string{"nb1"}) {
+		t.Fatalf("open %v attached %v", r.w.prefs.AgentPanel, r.w.agentState().attached)
 	}
 
 	// Not saved yet: nothing attached.
 	r2 := nbAgentRig(t)
-	r2.w.agent.attached = nil
+	r2.w.agentState().attached = nil
 	np := r2.w.newNotebookPane(nil)
 	r2.w.placeNotebook(np)
 	r2.frames(2)
 	r2.click(t, "Ask the agent about this notebook")
-	if len(r2.w.agent.attached) != 0 || !r2.tt.HasText("Save the notebook first, then ask the agent about it") {
-		t.Fatalf("attached %v: an unsaved notebook has no id to send", r2.w.agent.attached)
+	if len(r2.w.agentState().attached) != 0 || !r2.tt.HasText("Save the notebook first, then ask the agent about it") {
+		t.Fatalf("attached %v: an unsaved notebook has no id to send", r2.w.agentState().attached)
 	}
 
 	// Private: not offered at all.
@@ -279,8 +279,8 @@ func TestTheNotebookPaneBarAsksTheAgentOnlyForASavedNotebookThatIsNotPrivate(t *
 	}
 	r3.w.askAboutNotebook("nb4") // and if it is asked anyway, the client refuses before the server does
 	r3.frames(1)
-	if len(r3.w.agent.attached) != 0 || !r3.tt.HasText(privateRefused) {
-		t.Fatalf("attached %v", r3.w.agent.attached)
+	if len(r3.w.agentState().attached) != 0 || !r3.tt.HasText(privateRefused) {
+		t.Fatalf("attached %v", r3.w.agentState().attached)
 	}
 }
 
@@ -310,8 +310,8 @@ func TestTheAgentPageComposerHasTheSamePickerAndChips(t *testing.T) {
 	r.w.setAgentOpen(false)
 	r.frames(2)
 	r.click(t, "Attach notebook")
-	if r.w.agent.nbPicker != "page" || !r.tt.HasText("Notebooks to send with your question") {
-		t.Fatalf("picker %q", r.w.agent.nbPicker)
+	if r.w.agentState().nbPicker != "page" || !r.tt.HasText("Notebooks to send with your question") {
+		t.Fatalf("picker %q", r.w.agentState().nbPicker)
 	}
 	r.click(t, "pick notebook Scratch")
 	r.closePopover()

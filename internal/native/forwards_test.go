@@ -26,7 +26,7 @@ func forwardRig(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
 	r := newRig(t, fb)
 	r.tt.Frame()
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	return r
 }
@@ -380,7 +380,7 @@ func TestForwardsReadEveryTwoSecondsOnlyWhileShown(t *testing.T) {
 	if fb.tunCalls != n {
 		t.Fatal("read with nothing showing")
 	}
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	n = fb.tunCalls
 	fb.setTunnel("t2", "ready")

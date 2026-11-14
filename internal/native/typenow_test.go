@@ -50,8 +50,8 @@ func TestAOneLineReadOnlySnippetIsTypedWithNoDialogAndTheBareCommand(t *testing.
 	if d.ref.Kind != "snippet" || d.ref.SnippetID != "sn-1" || d.ref.AltScreen || d.ref.PromptLine != "user@h $" {
 		t.Errorf("ref %+v", d.ref)
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
-		t.Errorf("a dialog or another writer was used: approve %v typed %v wrote %d", r.w.approve != nil, r.typed(), r.fb.conns[0].wrote)
+	if r.w.approveOpen() || len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
+		t.Errorf("a dialog or another writer was used: approve %v typed %v wrote %d", r.w.approveOpen(), r.typed(), r.fb.conns[0].wrote)
 	}
 	if !r.tt.HasText("Typed into api-1. Press Enter to run.") {
 		t.Errorf("no note: %v", r.tt.Texts())
@@ -79,11 +79,11 @@ func TestEveryEntryPointOfASnippetGoesThroughTheSameDirectPath(t *testing.T) {
 		t.Fatal("no palette row")
 	}
 	run(false)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.click(t, "Type into pane…") // the page's button, for the selected snippet
-	if got := r.directs(); len(got) != 2 || got[0].command != "df -h" || got[1].command != "df -h" || r.w.approve != nil {
-		t.Fatalf("directs %v approve %v", got, r.w.approve != nil)
+	if got := r.directs(); len(got) != 2 || got[0].command != "df -h" || got[1].command != "df -h" || r.w.approveOpen() {
+		t.Fatalf("directs %v approve %v", got, r.w.approveOpen())
 	}
 }
 
@@ -92,7 +92,7 @@ func TestASnippetOutsideTheGrammarOrOnSeveralLinesOpensTheDialogAndAsksNothing(t
 	for _, id := range []string{"sn-2", "sn-4", "sn-5"} { // two lines; echo; a home directory
 		r.w.typeSnippet(id)
 		r.tt.Frame()
-		if r.w.approve == nil || !r.has("dialog "+approveTitle) {
+		if !r.w.approveOpen() || !r.has("dialog "+approveTitle) {
 			t.Fatalf("%s: no dialog", id)
 		}
 		r.click(t, "Cancel")
@@ -114,8 +114,8 @@ func TestAServerDialogAnswerOpensTheDialogAndTypesNothingItself(t *testing.T) {
 	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "Keel cannot check this command here"}
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
-	if len(r.directs()) != 1 || r.w.approve == nil || len(r.typed()) != 0 {
-		t.Fatalf("directs %v approve %v typed %v", r.directs(), r.w.approve != nil, r.typed())
+	if len(r.directs()) != 1 || !r.w.approveOpen() || len(r.typed()) != 0 {
+		t.Fatalf("directs %v approve %v typed %v", r.directs(), r.w.approveOpen(), r.typed())
 	}
 	if r.tt.HasText("Press Enter to run.") {
 		t.Error("it says it typed")
@@ -127,8 +127,8 @@ func TestAServerRefusalShowsItsMessageAndNothingElseHappens(t *testing.T) {
 	r.fb.conns[0].directRes = keelclient.DirectResult{Message: "you follow this pane: take or request control to type"}
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
-	if !r.tt.HasText("you follow this pane: take or request control to type") || r.w.approve != nil || len(r.typed()) != 0 || len(r.directs()) != 1 {
-		t.Errorf("approve %v typed %v directs %v: %v", r.w.approve != nil, r.typed(), r.directs(), r.tt.Texts())
+	if !r.tt.HasText("you follow this pane: take or request control to type") || r.w.approveOpen() || len(r.typed()) != 0 || len(r.directs()) != 1 {
+		t.Errorf("approve %v typed %v directs %v: %v", r.w.approveOpen(), r.typed(), r.directs(), r.tt.Texts())
 	}
 }
 
@@ -140,8 +140,8 @@ func TestNoAnswerShowsThePagesMessageOpensNoDialogAndIsNotRetried(t *testing.T) 
 	if !r.tt.HasText("keel serve did not answer. Check the pane before you press Type again.") {
 		t.Errorf("%v", r.tt.Texts())
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 || len(r.directs()) != 1 {
-		t.Errorf("approve %v typed %v directs %v: a dialog could type it a second time", r.w.approve != nil, r.typed(), r.directs())
+	if r.w.approveOpen() || len(r.typed()) != 0 || len(r.directs()) != 1 {
+		t.Errorf("approve %v typed %v directs %v: a dialog could type it a second time", r.w.approveOpen(), r.typed(), r.directs())
 	}
 	r.tt.Frame()
 	if len(r.directs()) != 1 {
@@ -154,15 +154,15 @@ func TestAFullScreenProgramOrAnUnknownScreenGoesToTheDialogWithoutAskingKeelServ
 	r.screen(true, "")
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
-	if r.w.approve == nil || len(r.directs()) != 0 {
-		t.Fatalf("alternate screen: approve %v directs %v", r.w.approve != nil, r.directs())
+	if !r.w.approveOpen() || len(r.directs()) != 0 {
+		t.Fatalf("alternate screen: approve %v directs %v", r.w.approveOpen(), r.directs())
 	}
 	r.click(t, "Cancel")
 	r.w.focusedPane().screen = nil // a terminal that cannot say is never read as a prompt
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
-	if r.w.approve == nil || len(r.directs()) != 0 {
-		t.Fatalf("unknown screen: approve %v directs %v", r.w.approve != nil, r.directs())
+	if !r.w.approveOpen() || len(r.directs()) != 0 {
+		t.Fatalf("unknown screen: approve %v directs %v", r.w.approveOpen(), r.directs())
 	}
 }
 
@@ -218,8 +218,8 @@ func TestAFollowerAndASessionThatIsNotReadyGoToTheDialogsRefusalAsBefore(t *test
 		r.tt.Frame()
 		r.w.typeSnippet("sn-1")
 		r.tt.Frame()
-		if len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approve == nil {
-			t.Errorf("%s: directs %v typed %v approve %v", name, r.directs(), r.typed(), r.w.approve != nil)
+		if len(r.directs()) != 0 || len(r.typed()) != 0 || !r.w.approveOpen() {
+			t.Errorf("%s: directs %v typed %v approve %v", name, r.directs(), r.typed(), r.w.approveOpen())
 			continue
 		}
 		r.click(t, "Type")
@@ -261,7 +261,7 @@ func TestAReadOnlyProposalOfOneLineIsTypedDirectWithTheAgentReference(t *testing
 	if d.ref.Kind != "agent" || d.ref.SnippetID != "" {
 		t.Errorf("direct part %+v", d.ref)
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Error("a dialog opened or the dialog's writer was used")
 	}
 	if !r.tt.HasText("Typed into api-1. Press Enter to run.") {
@@ -278,8 +278,8 @@ func TestAProposalOutsideTheGrammarKeepsTheDialogAndItsEllipsis(t *testing.T) {
 		t.Fatalf("no ellipsis: %v", r.tt.Texts())
 	}
 	r.click(t, "Type into pane…")
-	if r.w.approve == nil || len(r.directs()) != 0 {
-		t.Fatalf("approve %v directs %v", r.w.approve != nil, r.directs())
+	if !r.w.approveOpen() || len(r.directs()) != 0 {
+		t.Fatalf("approve %v directs %v", r.w.approveOpen(), r.directs())
 	}
 }
 
@@ -301,7 +301,7 @@ func TestADestructiveOrStateChangingProposalNeverGoesDirect(t *testing.T) {
 		r.ask(t, "q")
 		r.click(t, "Type into pane…")
 		if p.NeedsShift {
-			if r.w.approve != nil {
+			if r.w.approveOpen() {
 				t.Errorf("%s: a plain press opened the dialog", name)
 			}
 			if err := r.tt.ClickWith(ui.Shift, "Type into pane…"); err != nil {
@@ -309,8 +309,8 @@ func TestADestructiveOrStateChangingProposalNeverGoesDirect(t *testing.T) {
 			}
 			r.tt.Frame()
 		}
-		if len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approve == nil {
-			t.Errorf("%s: directs %v typed %v approve %v", name, r.directs(), r.typed(), r.w.approve != nil)
+		if len(r.directs()) != 0 || len(r.typed()) != 0 || !r.w.approveOpen() {
+			t.Errorf("%s: directs %v typed %v approve %v", name, r.directs(), r.typed(), r.w.approveOpen())
 		}
 	}
 }
@@ -322,8 +322,8 @@ func TestAProposalRefusedByTheServerShowsItsWordsOnTheCard(t *testing.T) {
 	r.answers(directProposal())
 	r.ask(t, "q")
 	r.click(t, "Type into pane")
-	if len(r.directs()) != 1 || !r.tt.HasText("the bytes are not the ones shown") || r.tt.HasText("Press Enter to run.") || r.w.approve != nil {
-		t.Errorf("directs %v approve %v: %v", r.directs(), r.w.approve != nil, r.tt.Texts())
+	if len(r.directs()) != 1 || !r.tt.HasText("the bytes are not the ones shown") || r.tt.HasText("Press Enter to run.") || r.w.approveOpen() {
+		t.Errorf("directs %v approve %v: %v", r.directs(), r.w.approveOpen(), r.tt.Texts())
 	}
 	// A server dialog answer opens the dialog with the proposal's own bytes.
 	r2 := agentRig(t)
@@ -332,10 +332,10 @@ func TestAProposalRefusedByTheServerShowsItsWordsOnTheCard(t *testing.T) {
 	r2.answers(directProposal())
 	r2.ask(t, "q")
 	r2.click(t, "Type into pane")
-	if r2.w.approve == nil || r2.w.approve.agent() == nil || len(r2.typed()) != 0 {
+	if !r2.w.approveOpen() || r2.w.approveDlg().agent() == nil || len(r2.typed()) != 0 {
 		t.Fatal("the dialog did not open for the proposal")
 	}
-	if got := r2.w.approve.shown(); got != "\x15df -h\n" {
+	if got := r2.w.approveDlg().shown(); got != "\x15df -h\n" {
 		t.Errorf("shown %q", got)
 	}
 }

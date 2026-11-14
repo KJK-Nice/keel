@@ -53,7 +53,7 @@ func (e *win) openAgent() {
 	e.t.Helper()
 	e.key(agentMods(), ui.KeyI)
 	e.pump(func() bool {
-		return e.w.prefs.AgentPanel && e.w.agent.keyConfigured != nil && e.hasLabel("Message the agent")
+		return e.w.prefs.AgentPanel && e.w.agentState().keyConfigured != nil && e.hasLabel("Message the agent")
 	}, "the agent panel with its settings")
 }
 
@@ -130,7 +130,7 @@ func TestE2EAgentAskAndType(t *testing.T) {
 		t.Fatal("opening the dialog typed")
 	}
 	e.click("Cancel")
-	e.pump(func() bool { return e.w.approve == nil }, "Cancel to close the dialog")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel to close the dialog")
 	e.settle(500 * time.Millisecond)
 	if strings.Contains(e.scrollback(sid), "keel-agent-ok") || e.logKinds()["agent.type"] != 0 {
 		t.Fatal("Cancel typed, or logged a Type")
@@ -139,7 +139,7 @@ func TestE2EAgentAskAndType(t *testing.T) {
 	e.click("Type into pane…")
 	e.waitApprove()
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close after Type")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close after Type")
 	e.waitScrollback(sid, "\nkeel-agent-ok") // the output line: the echoed command line has "echo " before it
 	e.pump(func() bool { return e.tt.HasText("Typed into Local Shell.") }, "the card to say it typed")
 	if k := e.logKinds(); k["agent.type"] != 1 {
@@ -154,7 +154,7 @@ func TestE2EAgentScope(t *testing.T) {
 	e.putAgentKey()
 	e.openLocal()
 	e.newSession()
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" }, "a second tab with a session")
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.sidOf(1) != "" }, "a second tab with a session")
 	e.openAgent()
 	e.pump(func() bool { return e.tt.HasText("Reads 1 of 2 panes") }, "the chip: the focused pane of two")
 
@@ -173,14 +173,14 @@ func TestE2EAgentScope(t *testing.T) {
 	}
 	for _, l := range pickLabels { // the row of the pane that is not in scope yet (two rows read the same: the session id tells them apart)
 		inScope := false
-		for _, sid := range e.w.agent.scope {
+		for _, sid := range e.w.agentState().scope {
 			inScope = inScope || strings.HasSuffix(l, sid)
 		}
 		if !inScope {
 			e.click(l)
 		}
 	}
-	e.pump(func() bool { return len(e.w.agent.scope) == 2 }, "both panes in scope")
+	e.pump(func() bool { return len(e.w.agentState().scope) == 2 }, "both panes in scope")
 	e.click("Choose what the agent can read")
 	e.agentAsk("what should I run?")
 	e.waitCard(1)
@@ -238,8 +238,8 @@ func TestE2EAgentScope(t *testing.T) {
 			e.click(l)
 		}
 	}
-	if len(e.w.agent.scope) != 0 {
-		t.Fatalf("a host the agent cannot read was picked: %v", e.w.agent.scope)
+	if len(e.w.agentState().scope) != 0 {
+		t.Fatalf("a host the agent cannot read was picked: %v", e.w.agentState().scope)
 	}
 	e.click("Choose what the agent can read")
 	before = reads()
@@ -297,7 +297,7 @@ func TestE2EAgentShiftRule(t *testing.T) {
 	e.shot("TestE2EAgentShiftRule-destructive")
 	e.click("Type into pane…")
 	e.settle(300 * time.Millisecond)
-	if e.w.approve != nil || !e.tt.HasText("Not typed. Destructive: hold "+shiftWord()+" and press Type.") {
+	if e.w.approveOpen() || !e.tt.HasText("Not typed. Destructive: hold "+shiftWord()+" and press Type.") {
 		t.Fatalf("a plain Type on a destructive proposal was not refused in the card: %v", e.tt.Texts())
 	}
 	if _, err := os.Stat(agentScratchDir); err != nil || strings.Contains(e.scrollback(sid), "rm -rf") {
@@ -313,7 +313,7 @@ func TestE2EAgentShiftRule(t *testing.T) {
 		t.Fatal("opening the dialog typed")
 	}
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close after Type")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close after Type")
 	e.waitScrollback(sid, "rm -rf "+agentScratchDir)
 	e.pump(func() bool { _, err := os.Stat(agentScratchDir); return os.IsNotExist(err) }, "the shell to remove its own scratch folder")
 	if _, err := os.Stat(agentScratchFile); err == nil {
@@ -333,7 +333,7 @@ func TestE2EAgentShiftRule(t *testing.T) {
 	}
 	e.click("Type into pane…")
 	e.settle(300 * time.Millisecond)
-	if e.w.approve != nil {
+	if e.w.approveOpen() {
 		t.Fatal("a plain Type on a state change on a production host opened the dialog")
 	}
 	if _, err := os.Stat(agentScratchFile); err == nil {
@@ -391,7 +391,9 @@ func TestE2EAgentEditAndCopy(t *testing.T) {
 	e.tt.Type("echo edited-ok")
 	e.step()
 	e.click("Save command")
-	e.pump(func() bool { return e.tt.HasText("1 line · 16 bytes") && !e.w.agent.props[e.firstProposal()].editing }, "the card to show what keel serve holds")
+	e.pump(func() bool {
+		return e.tt.HasText("1 line · 16 bytes") && !e.w.agentState().props[e.firstProposal()].editing
+	}, "the card to show what keel serve holds")
 	if e.tt.HasText("keel-agent-ok") {
 		t.Fatal("the card still shows the original command")
 	}
@@ -406,7 +408,7 @@ func TestE2EAgentEditAndCopy(t *testing.T) {
 		t.Fatalf("the dialog does not show the edited bytes: %v", e.tt.Texts())
 	}
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	e.waitScrollback(sid, "\nedited-ok")
 	if strings.Contains(e.scrollback(sid), "keel-agent-ok") {
 		t.Fatal("the original command was typed")
@@ -414,7 +416,7 @@ func TestE2EAgentEditAndCopy(t *testing.T) {
 }
 
 func (e *win) firstProposal() string {
-	for id := range e.w.agent.props {
+	for id := range e.w.agentState().props {
 		return id
 	}
 	return ""
@@ -427,10 +429,10 @@ func TestE2EAgentFollowerHasNoType(t *testing.T) {
 	sid := a.openLocal()
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
-	pumpAll(t, both, func() bool { return len(b.w.tabs) == 1 && b.snap().Role == "follower" && b.paneSID("1") == sid }, "B following A's session")
+	pumpAll(t, both, func() bool { return b.w.tabCount() == 1 && b.snap().Role == "follower" && b.paneSID("1") == sid }, "B following A's session")
 	b.key(agentMods(), ui.KeyI)
 	pumpAll(t, both, func() bool {
-		return b.w.prefs.AgentPanel && b.w.agent.keyConfigured != nil && b.hasLabel("Message the agent")
+		return b.w.prefs.AgentPanel && b.w.agentState().keyConfigured != nil && b.hasLabel("Message the agent")
 	}, "B's agent panel")
 	b.agentAsk("what should I run?")
 	pumpAll(t, both, func() bool { return b.cards() >= 1 }, "a proposal card in B")
@@ -505,7 +507,7 @@ func TestE2EAgentNoKey(t *testing.T) {
 		t.Fatal("the key is drawn in the clear")
 	}
 	e.click("Connect")
-	e.pump(func() bool { return e.tt.HasText("Ask about your sessions") && e.w.agent.keyField == "" }, "the card to give way to the thread, the field emptied")
+	e.pump(func() bool { return e.tt.HasText("Ask about your sessions") && e.w.agentState().keyField == "" }, "the card to give way to the thread, the field emptied")
 	e.agentAsk("what should I run?")
 	e.waitCard(1)
 	e.settle(300 * time.Millisecond)

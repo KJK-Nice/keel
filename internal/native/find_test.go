@@ -109,7 +109,7 @@ func TestFindBarIsInOnePaneAndGoesWithIt(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(ui.Cmd, ui.KeyF)
 	r.tt.Frame()
-	if r.w.findPane != r.w.tab().panes["2"] {
+	if r.w.findPane != r.w.activeTab().panes["2"] {
 		t.Fatal("find opened in a pane that is not the focused one")
 	}
 	r.w.closeFocused()
@@ -118,7 +118,7 @@ func TestFindBarIsInOnePaneAndGoesWithIt(t *testing.T) {
 		t.Error("closing the pane left its find open")
 	}
 	// A pane with no search (a terminal that failed to start) opens nothing.
-	r.w.tab().panes["1"].search = nil
+	r.w.activeTab().panes["1"].search = nil
 	r.tt.Key(ui.Cmd, ui.KeyF)
 	r.tt.Frame()
 	if r.w.findPane != nil {
@@ -147,7 +147,7 @@ func TestTextSizeKeysClampAndSave(t *testing.T) {
 	if r.w.prefs.TermSize != 14 {
 		t.Errorf("after two ⌘+: %d", r.w.prefs.TermSize)
 	}
-	for _, p := range r.w.tab().panes {
+	for _, p := range r.w.activeTab().panes {
 		if p.fontSize != 14 {
 			t.Errorf("pane %s font %v", p.id, p.fontSize)
 		}

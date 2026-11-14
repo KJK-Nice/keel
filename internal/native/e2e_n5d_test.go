@@ -142,7 +142,7 @@ func TestE2ELocalForward(t *testing.T) {
 	e.click("Trust and connect")
 	e.pump(func() bool { return e.snap().Status == "ready" }, "the session to be ready")
 	e.click("Close pane")
-	e.pump(func() bool { return len(e.w.tabs) == 1 && e.w.tabs[0].isNew() }, "the pane to close")
+	e.pump(func() bool { return e.w.tabCount() == 1 && e.w.tabAt(0).isNew() }, "the pane to close")
 
 	e.openForwardsPage()
 	e.click("New forward")
@@ -275,8 +275,8 @@ func TestE2EPanesSection(t *testing.T) {
 	// A click into a terminal of the split tab shows Panes and leaves the keyboard in the terminal.
 	e.clickBody("1")
 	e.pump(func() bool { return e.hasLabel("Filter panes") }, "the Panes section after a click into a pane")
-	if !e.tt.Focused("pane 1") && e.w.tab().focused != "1" {
-		t.Errorf("focused %q", e.w.tab().focused)
+	if !e.tt.Focused("pane 1") && e.w.activeTab().focused != "1" {
+		t.Errorf("focused %q", e.w.activeTab().focused)
 	}
 	n := 0
 	for _, i := range []string{"1", "2", "3"} {
@@ -297,8 +297,8 @@ func TestE2EPanesSection(t *testing.T) {
 	}
 	e.tt.ClickAt(row.X+row.W/2, row.Y+(paneRowHeight+space1)+row.H/2)
 	e.step()
-	if e.w.tab().focused != "2" {
-		t.Fatalf("the second row focused pane %q", e.w.tab().focused)
+	if e.w.activeTab().focused != "2" {
+		t.Fatalf("the second row focused pane %q", e.w.activeTab().focused)
 	}
 	e.typeLine("echo row-$((2+3))")
 	e.waitScrollback(e.paneSID("2"), "row-5")

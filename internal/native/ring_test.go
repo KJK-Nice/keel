@@ -62,7 +62,7 @@ func TestTileRingByState(t *testing.T) {
 			r.tt.Frame()
 
 			// zoomed: one tile, no ring
-			r.w.toggleZoom(r.w.tabs[0], "1")
+			r.w.toggleZoom(r.w.tabAt(0), "1")
 			r.tt.Frame()
 			z, _ := r.tt.Find("pane 1")
 			if got := r.pixel(z.X+0.5, z.Y+z.H/2); is(got, focus) || is(got, line) {

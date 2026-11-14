@@ -719,8 +719,8 @@ func TestClickingAHostSpawnsOnceAndAddsATab(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "host api-1")
-	if !slices.Equal(r.fb.spawned, []string{"h-api"}) || len(r.w.tabs) != 1 {
-		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
+	if !slices.Equal(r.fb.spawned, []string{"h-api"}) || r.w.tabCount() != 1 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, r.w.tabCount())
 	}
 	if !r.tt.HasText("deploy@10.0.0.1") {
 		t.Error("the pane bar does not show user@address")
@@ -742,8 +742,8 @@ func TestPlusOpensANewTabPage(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1") // fills the New tab the empty window showed
 	r.click(t, "New tab")
-	if len(r.fb.spawned) != 1 || len(r.w.tabs) != 2 || !r.w.tabs[1].isNew() || r.w.active != 1 {
-		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
+	if len(r.fb.spawned) != 1 || r.w.tabCount() != 2 || !r.w.tabAt(1).isNew() || r.w.active != 1 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, r.w.tabCount())
 	}
 }
 
@@ -759,8 +759,8 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 	if !slices.Equal(fb.attached, []string{"s-a", "s-b", "s-c"}) || len(fb.spawned) != 0 {
 		t.Fatalf("attached %v spawned %v", fb.attached, fb.spawned)
 	}
-	if len(r.w.tabs) != 3 || r.w.tabs[1].name() != "old host" {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 3 || r.w.tabAt(1).name() != "old host" {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
 	if r.w.paneCount() != 3 {
 		t.Errorf("panes %d", r.w.paneCount())
@@ -802,8 +802,8 @@ func TestSinglePaneIsFullBleedAndSplitHasARingOnTheFocusedTileOnly(t *testing.T)
 	}
 
 	r.click(t, "Split right")
-	if len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("panes %d", len(r.w.tabs[0].panes))
+	if len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("panes %d", len(r.w.tabAt(0).panes))
 	}
 	a, _ := r.tt.Find("pane 1")
 	b, _ := r.tt.Find("pane 2")
@@ -829,7 +829,7 @@ func TestSplitRightSpawnsOnTheSameHost(t *testing.T) {
 	if !slices.Equal(r.fb.spawned, []string{"h-web", "h-web", "h-web"}) {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
-	tb := r.w.tabs[0]
+	tb := r.w.tabAt(0)
 	if len(tb.panes) != 3 || !slices.Equal(tb.root.Leaves(), []string{"1", "3", "2"}) {
 		// "Split down" acts on the first pane's bar (the first match), so it lands between 1 and 2.
 		t.Fatalf("panes %d leaves %v", len(tb.panes), tb.root.Leaves())
@@ -842,18 +842,18 @@ func TestClosingPanesKillsTheirSessions(t *testing.T) {
 	r.click(t, "host api-1")
 	r.click(t, "Split right") // s1 and s2
 	r.click(t, "Close pane")  // the first bar's button: pane 1 = s1
-	if !slices.Equal(r.fb.killed, []string{"s1"}) || len(r.w.tabs[0].panes) != 1 {
-		t.Fatalf("killed %v panes %d", r.fb.killed, len(r.w.tabs[0].panes))
+	if !slices.Equal(r.fb.killed, []string{"s1"}) || len(r.w.tabAt(0).panes) != 1 {
+		t.Fatalf("killed %v panes %d", r.fb.killed, len(r.w.tabAt(0).panes))
 	}
 	if !r.fb.conns[0].closed || r.fb.conns[1].closed {
 		t.Error("only the closed pane's connection should be closed")
 	}
-	if r.w.tabs[0].focused != "2" {
-		t.Errorf("focus %q after closing pane 1", r.w.tabs[0].focused)
+	if r.w.tabAt(0).focused != "2" {
+		t.Errorf("focus %q after closing pane 1", r.w.tabAt(0).focused)
 	}
 	r.click(t, "Close pane")
-	if len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
-		t.Fatalf("tabs %d killed %v", len(r.w.tabs), r.fb.killed)
+	if r.w.tabCount() != 1 || !r.w.tabAt(0).isNew() || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
+		t.Fatalf("tabs %d killed %v", r.w.tabCount(), r.fb.killed)
 	}
 	if !r.tt.HasText("Where to?") {
 		t.Error("the empty window does not show the New tab page")
@@ -902,7 +902,7 @@ func TestDraggingAGapChangesThatSplitsRatioWithinTheClamp(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	r.click(t, "Split right")
-	root := r.w.tabs[0].root
+	root := r.w.tabAt(0).root
 	a, _ := r.tt.Find("pane 1")
 	g, ok := r.tt.Find("split handle")
 	if !ok || g.W != space1_5 {
@@ -936,7 +936,7 @@ func TestStackedGapDragsVertically(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	r.click(t, "Split down")
-	root := r.w.tabs[0].root
+	root := r.w.tabAt(0).root
 	if root.Dir != layout.Col {
 		t.Fatalf("dir %v", root.Dir)
 	}
@@ -978,18 +978,18 @@ func TestShortcuts(t *testing.T) {
 	}
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyD)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 2 || r.fb.spawned[len(r.fb.spawned)-1] != "h-web" {
-		t.Errorf("Cmd+Shift+D: panes %d spawned %v", len(r.w.tabs[2].panes), r.fb.spawned)
+	if len(r.w.tabAt(2).panes) != 2 || r.fb.spawned[len(r.fb.spawned)-1] != "h-web" {
+		t.Errorf("Cmd+Shift+D: panes %d spawned %v", len(r.w.tabAt(2).panes), r.fb.spawned)
 	}
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyE)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 3 {
-		t.Errorf("Cmd+Shift+E: panes %d", len(r.w.tabs[2].panes))
+	if len(r.w.tabAt(2).panes) != 3 {
+		t.Errorf("Cmd+Shift+E: panes %d", len(r.w.tabAt(2).panes))
 	}
 	r.tt.Key(ui.Cmd, ui.KeyW)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 2 || len(r.fb.killed) != 1 {
-		t.Errorf("Cmd+W: panes %d killed %v", len(r.w.tabs[2].panes), r.fb.killed)
+	if len(r.w.tabAt(2).panes) != 2 || len(r.fb.killed) != 1 {
+		t.Errorf("Cmd+W: panes %d killed %v", len(r.w.tabAt(2).panes), r.fb.killed)
 	}
 	r.tt.Key(ui.Cmd, ui.KeyB)
 	r.tt.Frame()

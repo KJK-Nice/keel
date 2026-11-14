@@ -49,11 +49,11 @@ func TestE2EEmptyStates(t *testing.T) {
 		// The pages.
 		for _, p := range []struct{ page, wait string }{{"keychain", "No identities yet"}, {"snippets", "No snippets yet"}, {"notebooks", "No notebooks yet"},
 			{"runbooks", "No runbooks yet"}, {"forwards", "No forwards yet"}} {
-			e.w.openPage(p.page)
+			e.w.showPage(p.page)
 			e.pump(func() bool { return e.tt.HasText(p.wait) }, p.wait)
 			shot("page-" + p.page)
 		}
-		e.w.openPage("logs")
+		e.w.showPage("logs")
 		e.pump(func() bool { return e.hasLabel("Search events") }, "the Logs page")
 		e.fillField("Search events", "zzzqqq")
 		shot("page-logs")

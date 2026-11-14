@@ -32,7 +32,7 @@ func (e *win) typeFromPalette(name string) {
 // noDialog fails when the Approve before type dialog is open or the window is about to open it.
 func (e *win) noDialog(what string) {
 	e.t.Helper()
-	if e.w.approve != nil || e.hasLabel("dialog "+approveTitle) {
+	if e.w.approveOpen() || e.hasLabel("dialog "+approveTitle) {
 		e.t.Fatalf("%s: the Approve before type dialog is open", what)
 	}
 }
@@ -111,7 +111,7 @@ func TestE2EDirectTypeMeetsDialog(t *testing.T) {
 		t.Fatal("something was typed before Type")
 	}
 	e.click("Cancel")
-	e.pump(func() bool { return e.w.approve == nil }, "Cancel")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel")
 
 	e.typeFromPalette("e2e two lines")
 	e.waitApprove()
@@ -121,7 +121,7 @@ func TestE2EDirectTypeMeetsDialog(t *testing.T) {
 	}
 	e.shot("TestE2EDirectTypeMeetsDialog-dialog")
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	e.waitScrollback(sid, "\nsecond-2")
 	if e.directLogged("snippet") {
 		t.Error("a snippet that went through the dialog is logged as direct")
@@ -137,10 +137,10 @@ func TestE2EDirectTypeAppendsToThePromptLine(t *testing.T) {
 	e.step()
 	e.waitScrollback(sid, "# ")
 	e.typeFromPalette("disk")
-	e.pump(func() bool { return strings.Contains(e.scrollback(sid), "df -h") || e.w.approve != nil }, "df -h on the line, or the dialog")
+	e.pump(func() bool { return strings.Contains(e.scrollback(sid), "df -h") || e.w.approveOpen() }, "df -h on the line, or the dialog")
 	e.settle(700 * time.Millisecond)
 	sb := e.scrollback(sid)
-	if e.w.approve != nil {
+	if e.w.approveOpen() {
 		t.Fatalf("keel serve chose the dialog for a prompt line that holds text: it should append (no Ctrl-U): %q", sb)
 	}
 	if !strings.Contains(sb, "# df -h") {
@@ -172,7 +172,7 @@ func TestE2EDirectTypeInFullScreenProgram(t *testing.T) {
 	}
 	e.shot("TestE2EDirectTypeInFullScreenProgram")
 	e.click("Cancel")
-	e.pump(func() bool { return e.w.approve == nil }, "Cancel")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel")
 	e.clickBody("1")
 	e.tt.Type("q")
 	e.step()
@@ -199,7 +199,7 @@ func TestE2EDirectTypeAgentProposal(t *testing.T) {
 		t.Fatal("opening the dialog typed")
 	}
 	e.click("Cancel")
-	e.pump(func() bool { return e.w.approve == nil }, "Cancel")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel")
 
 	// The fake cannot propose a command in the grammar, so edit the proposal into one: keel serve rates the edit again.
 	e.click("Edit command")
@@ -208,7 +208,9 @@ func TestE2EDirectTypeAgentProposal(t *testing.T) {
 	e.tt.Type("df -h")
 	e.step()
 	e.click("Save command")
-	e.pump(func() bool { return !e.w.agent.props[e.firstProposal()].editing && e.tt.HasText("1 line · 7 bytes") }, "the card to show what keel serve holds")
+	e.pump(func() bool {
+		return !e.w.agentState().props[e.firstProposal()].editing && e.tt.HasText("1 line · 7 bytes")
+	}, "the card to show what keel serve holds")
 	e.pump(func() bool { return e.hasLabel("Type into pane") && !e.hasLabel("Type into pane…") }, "the button to name a one-click type")
 	e.shot("TestE2EDirectTypeAgentProposal-card")
 	e.click("Type into pane")
@@ -236,7 +238,7 @@ func TestE2EDirectTypeFollower(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.inWindow("disk")
+		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.inWindow("disk")
 	}, "B following with the snippets loaded")
 	a.settle(300 * time.Millisecond)
 	before := a.scrollback(sid)
@@ -247,7 +249,7 @@ func TestE2EDirectTypeFollower(t *testing.T) {
 	b.step()
 	b.key(0, ui.KeyEnter)
 	// B is refused: the dialog is the existing refusal and says why; nothing was asked of keel serve, nothing typed.
-	pumpAll(t, both, func() bool { return b.w.approve != nil && b.tt.HasText(msgFollowing) }, "B to be refused")
+	pumpAll(t, both, func() bool { return b.w.approveOpen() && b.tt.HasText(msgFollowing) }, "B to be refused")
 	for end := time.Now().Add(700 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
 		a.step()
 		b.step()

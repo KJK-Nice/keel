@@ -367,7 +367,7 @@ func TestE2EKeychainPage(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.pump(e.onStartPage, "the New tab page")
 	e.click("Keychain") // the sidebar footer
-	e.pump(func() bool { return e.w.tab().pg != nil && e.tt.HasText("No identities yet") }, "the Keychain page")
+	e.pump(func() bool { return e.w.activeTab().pg != nil && e.tt.HasText("No identities yet") }, "the Keychain page")
 	e.click("New identity")
 	e.pump(func() bool { return e.hasLabel("dialog New identity") && e.tt.Focused("Identity name") }, "the New identity dialog")
 	e.fillField("Identity name", "e2e-password")
@@ -418,7 +418,7 @@ func TestE2EKeychainPage(t *testing.T) {
 	}
 	e.click("Delete identity")
 	e.settle(300 * time.Millisecond)
-	if e.w.confirm != nil || len(e.identities()) != 1 {
+	if e.w.confirmOpen() || len(e.identities()) != 1 {
 		t.Fatal("an in-use identity was asked about or deleted")
 	}
 	e.noSecretDrawn(f.password)
@@ -498,7 +498,7 @@ func TestE2ELogsPage(t *testing.T) {
 	e.step()
 	e.key(0, ui.KeyEnter)
 	e.pump(func() bool {
-		return e.w.tab().pg != nil && pageAs[*logsPage](e.w.tab()) != nil && pageAs[*logsPage](e.w.tab()).loaded
+		return e.w.activeTab().pg != nil && pageAs[*logsPage](e.w.activeTab()) != nil && pageAs[*logsPage](e.w.activeTab()).loaded
 	}, "the Logs page")
 	for _, s := range []string{"Logs", "Refresh", "All", "Sessions", "Forwards", "Vault", "Agent", "Time", "Kind", "Target", "Event"} {
 		if !e.tt.HasText(s) {
@@ -510,7 +510,7 @@ func TestE2ELogsPage(t *testing.T) {
 	}
 	e.noSecretDrawn(f.password)
 	// Newest first: the log's own order on screen.
-	p := pageAs[*logsPage](e.w.tab())
+	p := pageAs[*logsPage](e.w.activeTab())
 	rows := p.rows()
 	all := e.logEntries()
 	if len(rows) == 0 || rows[0].Message != all[0].Message || rows[0].Time.Before(rows[len(rows)-1].Time) {
@@ -532,9 +532,9 @@ func TestE2EPagesComeBack(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	sid := e.openLocal()
 	e.click("Keychain")
-	e.pump(func() bool { return e.w.pageTab("keychain") != nil && e.w.tab().name() == "Keychain" }, "the Keychain tab")
+	e.pump(func() bool { return e.w.pageTab("keychain") != nil && e.w.activeTab().name() == "Keychain" }, "the Keychain tab")
 	e.click("Logs")
-	e.pump(func() bool { return e.w.pageTab("logs") != nil && e.w.tab().name() == "Logs" }, "the Logs tab")
+	e.pump(func() bool { return e.w.pageTab("logs") != nil && e.w.activeTab().name() == "Logs" }, "the Logs tab")
 	if got := tabTitles(&rig{w: e.w}); !slices.Equal(got, []string{"Local Shell", "Keychain", "Logs"}) {
 		t.Fatalf("tabs %v", got)
 	}
@@ -545,12 +545,12 @@ func TestE2EPagesComeBack(t *testing.T) {
 	}
 
 	e2 := newWin(t, addr, dir, nil)
-	e2.pump(func() bool { return len(e2.w.tabs) == 3 && e2.tt.HasText("Keychain") }, "the new window's tabs")
+	e2.pump(func() bool { return e2.w.tabCount() == 3 && e2.tt.HasText("Keychain") }, "the new window's tabs")
 	if got := tabTitles(&rig{w: e2.w}); !slices.Equal(got, []string{"Local Shell", "Keychain", "Logs"}) {
 		t.Fatalf("restored tabs %v", got)
 	}
-	if e2.w.tab().name() != "Logs" {
-		t.Errorf("the page that was shown is not shown again: %s", e2.w.tab().name())
+	if e2.w.activeTab().name() != "Logs" {
+		t.Errorf("the page that was shown is not shown again: %s", e2.w.activeTab().name())
 	}
 	if e2.sidOf(0) != sid {
 		t.Errorf("the session tab came back as %q, want %q", e2.sidOf(0), sid)

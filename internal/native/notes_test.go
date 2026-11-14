@@ -82,8 +82,8 @@ func TestHostNotesInEditHostAddEditDeleteAreSavedAtOnce(t *testing.T) {
 	}
 	// Delete asks nothing.
 	r.click(t, "Delete note")
-	if got := r.fb.mem.noteReqs; got[len(got)-1] != "delete n1" || r.w.confirm != nil {
-		t.Fatalf("requests %v, confirm %v", got, r.w.confirm)
+	if got := r.fb.mem.noteReqs; got[len(got)-1] != "delete n1" || r.w.confirmOpen() {
+		t.Fatalf("requests %v, confirm %v", got, r.w.confirmDlg())
 	}
 	if !r.tt.HasText("No notes. Add what the agent should know about this host.") || r.w.hostDlg == nil {
 		t.Error("the list is not empty, or the dialog closed")
@@ -172,7 +172,7 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	// Delete all notes asks first; Cancel keeps them.
 	r.click(t, "Delete all notes…")
 	r.settle()
-	cf := r.w.confirm
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Delete all notes?" || cf.action != "Delete all notes" ||
 		cf.message != "Every host note and every note about you is deleted from the vault. Conversations and the log stay." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
@@ -182,12 +182,12 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	}
 	r.click(t, "Cancel")
 	r.settle()
-	if r.fb.mem.gone != 0 || r.w.confirm != nil || len(r.fb.mem.notes) != 3 {
+	if r.fb.mem.gone != 0 || r.w.confirmOpen() || len(r.fb.mem.notes) != 3 {
 		t.Fatalf("Cancel: deleted %d, notes %d", r.fb.mem.gone, len(r.fb.mem.notes))
 	}
 	r.click(t, "Delete all notes…")
 	r.settle()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the row's)
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the row's)
 	r.settle()
 	if r.fb.mem.gone != 1 || len(r.fb.mem.notes) != 0 || !r.tt.HasText("Notes deleted") {
 		t.Fatalf("deleted %d, notes %v", r.fb.mem.gone, r.fb.mem.notes)
@@ -334,7 +334,7 @@ func TestNotesAndRunbooksAreNeverWrittenToDisk(t *testing.T) {
 	r.tt.Frame()
 	r.addNoteTo(t, "a host note nobody writes down")
 	r.w.closeHostDialog()
-	r.w.openPage("runbooks")
+	r.w.showPage("runbooks")
 	r.tt.Frame()
 	r.w.newRunbook()
 	r.tt.Frame()

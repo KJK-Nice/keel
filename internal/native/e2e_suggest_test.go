@@ -385,7 +385,7 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 	// A pane that follows gets nothing: window B follows A's session.
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
-	pumpAll(t, both, func() bool { return len(b.w.tabs) == 1 && b.snap().Role == "follower" && a.snap().Role == "driver" }, "B following")
+	pumpAll(t, both, func() bool { return b.w.tabCount() == 1 && b.snap().Role == "follower" && a.snap().Role == "driver" }, "B following")
 	a.clickBody("1")
 	a.typeKeys("show the files here")
 	for end := time.Now().Add(1500 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {

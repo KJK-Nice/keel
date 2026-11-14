@@ -62,7 +62,7 @@ func TestAccentChangeRetintsTerminals(t *testing.T) {
 	r.w.openHost(testHosts[1])
 	r.tt.Frame()
 	n := 0
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
 			p.setTheme = func() { n++ }
 		}

@@ -271,8 +271,8 @@ func twoSessionRig(t *testing.T) *rig {
 
 func TestTheScopeChipCountsAndThePickerRefusesAHostTheAgentCannotRead(t *testing.T) {
 	r := twoSessionRig(t)
-	if !r.tt.HasText("Reads 1 of 2 panes") || !slices.Equal(r.w.agent.scope, []string{"s2"}) {
-		t.Fatalf("chip %v, scope %v: the default is the focused pane", r.tt.Texts(), r.w.agent.scope)
+	if !r.tt.HasText("Reads 1 of 2 panes") || !slices.Equal(r.w.agentState().scope, []string{"s2"}) {
+		t.Fatalf("chip %v, scope %v: the default is the focused pane", r.tt.Texts(), r.w.agentState().scope)
 	}
 	r.click(t, "Choose what the agent can read")
 	if !r.has("dialog Panes the agent reads") {
@@ -284,15 +284,15 @@ func TestTheScopeChipCountsAndThePickerRefusesAHostTheAgentCannotRead(t *testing
 		}
 	}
 	r.click(t, "pick api-1 · api-1")
-	if !slices.Equal(r.w.agent.scope, []string{"s2", "s1"}) && !slices.Equal(r.w.agent.scope, []string{"s1", "s2"}) {
-		t.Errorf("scope %v after picking the first", r.w.agent.scope)
+	if !slices.Equal(r.w.agentState().scope, []string{"s2", "s1"}) && !slices.Equal(r.w.agentState().scope, []string{"s1", "s2"}) {
+		t.Errorf("scope %v after picking the first", r.w.agentState().scope)
 	}
 	if !r.tt.HasText("Reads 2 of 2 panes") {
 		t.Error("the chip did not follow")
 	}
 	r.click(t, "None")
-	if len(r.w.agent.scope) != 0 || !r.tt.HasText("Reads 0 of 2 panes") {
-		t.Errorf("None: %v", r.w.agent.scope)
+	if len(r.w.agentState().scope) != 0 || !r.tt.HasText("Reads 0 of 2 panes") {
+		t.Errorf("None: %v", r.w.agentState().scope)
 	}
 	// Reading turned off for staging-web: it is marked, it cannot be picked, and the scope drops it.
 	off := false
@@ -309,8 +309,8 @@ func TestTheScopeChipCountsAndThePickerRefusesAHostTheAgentCannotRead(t *testing
 	}
 	r.click(t, "pick staging-web · staging-web")
 	r.click(t, "Choose what the agent can read")
-	if slices.Contains(r.w.agent.scope, "s2") {
-		t.Fatalf("a host the agent cannot read was picked: %v", r.w.agent.scope)
+	if slices.Contains(r.w.agentState().scope, "s2") {
+		t.Fatalf("a host the agent cannot read was picked: %v", r.w.agentState().scope)
 	}
 }
 
@@ -326,13 +326,13 @@ func TestEveryPaneInTabAndFocusedPanePresets(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "Choose what the agent can read")
 	r.click(t, "Every pane in tab")
-	if len(r.w.agent.scope) != 2 || !r.tt.HasText("Reads 2 of 2 panes") {
-		t.Errorf("tab preset: %v", r.w.agent.scope)
+	if len(r.w.agentState().scope) != 2 || !r.tt.HasText("Reads 2 of 2 panes") {
+		t.Errorf("tab preset: %v", r.w.agentState().scope)
 	}
 	r.click(t, "Choose what the agent can read")
 	r.click(t, "Focused pane")
-	if len(r.w.agent.scope) != 1 {
-		t.Errorf("focused preset: %v", r.w.agent.scope)
+	if len(r.w.agentState().scope) != 1 {
+		t.Errorf("focused preset: %v", r.w.agentState().scope)
 	}
 }
 
@@ -419,7 +419,7 @@ func TestStopCancelsTheAskInFlight(t *testing.T) {
 		t.Fatal("the ask never started")
 	}
 	r.tt.Frame()
-	if r.w.agent.busy == nil || !r.tt.HasText("Asking without reading a pane") && !r.tt.HasText("Reading 1 pane and asking") || !r.has("Stop") {
+	if r.w.agentState().busy == nil || !r.tt.HasText("Asking without reading a pane") && !r.tt.HasText("Reading 1 pane and asking") || !r.has("Stop") {
 		t.Fatalf("no Stop while asking: %v", r.tt.Texts())
 	}
 	r.click(t, "Stop")
@@ -430,7 +430,7 @@ func TestStopCancelsTheAskInFlight(t *testing.T) {
 		t.Fatal("Stop did not cancel the ask")
 	}
 	r.tt.Frame()
-	if r.w.agent.busy != nil || !r.tt.HasText("Stopped") || r.has("Stop") {
+	if r.w.agentState().busy != nil || !r.tt.HasText("Stopped") || r.has("Stop") {
 		t.Errorf("after Stop: %v", r.tt.Texts())
 	}
 }
@@ -441,7 +441,7 @@ func TestNewConversationStartsOverWithANewId(t *testing.T) {
 	r.ask(t, "one")
 	first := r.fb.agent.asks[0].ConversationID
 	r.click(t, "New conversation")
-	if len(r.w.agent.turns) != 0 || r.w.agent.title != "" || r.tt.HasText("one") {
+	if len(r.w.agentState().turns) != 0 || r.w.agentState().title != "" || r.tt.HasText("one") {
 		t.Error("the conversation was not cleared")
 	}
 	r.ask(t, "two")
@@ -469,7 +469,7 @@ func TestTypeOpensApproveBeforeTypeAndDoesNotTypeItself(t *testing.T) {
 	r.answers(okProposal())
 	r.ask(t, "q")
 	r.click(t, "Type into pane…")
-	if r.w.approve == nil || !r.has("dialog "+approveTitle) {
+	if !r.w.approveOpen() || !r.has("dialog "+approveTitle) {
 		t.Fatal("no Approve before type dialog")
 	}
 	if len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
@@ -485,8 +485,8 @@ func TestTypeOpensApproveBeforeTypeAndDoesNotTypeItself(t *testing.T) {
 	}
 	// Cancel: nothing sent, the card says nothing.
 	r.click(t, "Cancel")
-	if r.w.approve != nil || len(r.typed()) != 0 || r.w.agent.props["p1"].status != nil {
-		t.Fatalf("cancel: approve %v typed %v", r.w.approve, r.typed())
+	if r.w.approveOpen() || len(r.typed()) != 0 || r.w.agentState().props["p1"].status != nil {
+		t.Fatalf("cancel: approve %v typed %v", r.w.approveDlg(), r.typed())
 	}
 	// Type: exactly the proposal's bytes, with the reference to it and no ⇧.
 	r.click(t, "Type into pane…")
@@ -498,7 +498,7 @@ func TestTypeOpensApproveBeforeTypeAndDoesNotTypeItself(t *testing.T) {
 	if ref == nil || ref.ConversationID != r.fb.agent.asks[0].ConversationID || ref.ProposalID != "p1" || ref.Shift {
 		t.Fatalf("reference %+v", ref)
 	}
-	if r.w.approve != nil || !r.tt.HasText("Typed into api-1.") {
+	if r.w.approveOpen() || !r.tt.HasText("Typed into api-1.") {
 		t.Errorf("the card does not say it typed: %v", r.tt.Texts())
 	}
 	if r.fb.conns[0].wrote != 0 {
@@ -517,7 +517,7 @@ func TestAServerRefusalIsShownOnTheCardAndNeverRetried(t *testing.T) {
 		t.Fatalf("typed %v", r.typed())
 	}
 	r.tt.Frame()
-	if !r.tt.HasText("the bytes are not the ones shown") || r.tt.HasText("Typed into api-1.") || r.w.approve != nil {
+	if !r.tt.HasText("the bytes are not the ones shown") || r.tt.HasText("Typed into api-1.") || r.w.approveOpen() {
 		t.Errorf("%v", r.tt.Texts())
 	}
 	r.settle()
@@ -574,7 +574,7 @@ func TestAnEditThatKeelServeRefusesLeavesTheCardAndTheBytesAlone(t *testing.T) {
 	r.tt.Key(ui.Cmd, ui.KeyA)
 	r.tt.Type("x")
 	r.click(t, "Save command")
-	if !r.tt.HasText("a command is 1 to 4096 bytes") || !r.w.agent.props["p1"].editing || r.w.agent.props["p1"].p.Bytes != "\x15echo keel-agent-ok\n" {
+	if !r.tt.HasText("a command is 1 to 4096 bytes") || !r.w.agentState().props["p1"].editing || r.w.agentState().props["p1"].p.Bytes != "\x15echo keel-agent-ok\n" {
 		t.Errorf("%v", r.tt.Texts())
 	}
 	r.click(t, "Cancel")
@@ -599,7 +599,7 @@ func TestPlainTypeIsRefusedInTheCardForADestructiveProposalAndShiftTypeOpensTheD
 		t.Errorf("%v", r.tt.Texts())
 	}
 	r.click(t, "Type into pane…")
-	if r.w.approve != nil || len(r.typed()) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Fatal("a plain Type on a destructive proposal opened the dialog")
 	}
 	if !r.tt.HasText("Not typed. Destructive: hold " + shiftWord() + " and press Type.") {
@@ -609,7 +609,7 @@ func TestPlainTypeIsRefusedInTheCardForADestructiveProposalAndShiftTypeOpensTheD
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.approve == nil || len(r.typed()) != 0 {
+	if !r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Fatal("⇧ + Type did not open the dialog, or typed")
 	}
 	r.click(t, "Type")
@@ -626,12 +626,12 @@ func TestAKeyboardPressOfTypeNeverCarriesTheShift(t *testing.T) {
 	r.click(t, "Type into pane…") // refused; the button has the keyboard now
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.approve != nil {
+	if r.w.approveOpen() {
 		t.Fatal("a plain ↵ opened the dialog for a destructive proposal")
 	}
 	r.tt.Key(ui.Shift, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.approve != nil || len(r.typed()) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Fatal("a keyboard press opened the dialog or typed: only ⇧ held on a click may")
 	}
 	if !r.has("Type into pane…") || !r.tt.HasText(shiftWord()) {
@@ -649,7 +649,7 @@ func TestAProductionHostMakesAStateChangeNeedShift(t *testing.T) {
 		t.Errorf("%v", r.tt.Texts())
 	}
 	r.click(t, "Type into pane…")
-	if r.w.approve != nil || !r.tt.HasText("Not typed. Changes state on a production host: hold "+shiftWord()+" and press Type.") {
+	if r.w.approveOpen() || !r.tt.HasText("Not typed. Changes state on a production host: hold "+shiftWord()+" and press Type.") {
 		t.Errorf("%v", r.tt.Texts())
 	}
 }
@@ -687,7 +687,7 @@ func TestNoTypeButtonForAFollowedPaneAClosedPaneOrAProposalWithNoPane(t *testing
 	if r.has("Type into pane…") || !r.tt.HasText("You follow this pane. The agent cannot type into it.") {
 		t.Errorf("a followed pane offers Type: %v", r.tt.Texts())
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Error("something opened or typed")
 	}
 }
@@ -720,8 +720,8 @@ func TestNoKeyShowsTheConnectCardAndTheKeyIsSentOnceAndTheFieldCleared(t *testin
 	if len(r.fb.agent.keys) != 1 || r.fb.agent.keys[0].Key != fake || r.fb.agent.keys[0].Provider != "gemini" {
 		t.Fatalf("keys %v", r.fb.agent.keys)
 	}
-	if r.w.agent.keyField != "" || r.tt.HasText("Connect Gemini") || !r.tt.HasText("Ask about your sessions") {
-		t.Errorf("the field was not cleared or the card stays: %q %v", r.w.agent.keyField, r.tt.Texts())
+	if r.w.agentState().keyField != "" || r.tt.HasText("Connect Gemini") || !r.tt.HasText("Ask about your sessions") {
+		t.Errorf("the field was not cleared or the card stays: %q %v", r.w.agentState().keyField, r.tt.Texts())
 	}
 	if !r.tt.HasText("Gemini connected. The key is in the vault.") {
 		t.Error("no confirmation")
@@ -763,8 +763,8 @@ func TestAKeyKeelServeRefusesIsReportedAndTheFieldIsAlreadyEmpty(t *testing.T) {
 	r.tt.Type("fake-key-for-tests-only-0000")
 	r.tt.Frame()
 	r.click(t, "Connect")
-	if !r.tt.HasText("the key is empty, too long, or has spaces") || r.w.agent.keyField != "" || !r.tt.HasText("Connect Gemini") {
-		t.Errorf("%q %v", r.w.agent.keyField, r.tt.Texts())
+	if !r.tt.HasText("the key is empty, too long, or has spaces") || r.w.agentState().keyField != "" || !r.tt.HasText("Connect Gemini") {
+		t.Errorf("%q %v", r.w.agentState().keyField, r.tt.Texts())
 	}
 }
 
@@ -776,13 +776,13 @@ func TestTheComposerSendsOnEnterAndBreaksTheLineOnShiftEnter(t *testing.T) {
 	r.tt.Key(ui.Shift, ui.KeyEnter)
 	r.tt.Type("line two")
 	r.tt.Frame()
-	if len(r.fb.agent.asks) != 0 || !strings.Contains(r.w.agent.input, "\n") {
-		t.Fatalf("⇧↵ sent or did not break the line: %q", r.w.agent.input)
+	if len(r.fb.agent.asks) != 0 || !strings.Contains(r.w.agentState().input, "\n") {
+		t.Fatalf("⇧↵ sent or did not break the line: %q", r.w.agentState().input)
 	}
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if len(r.fb.agent.asks) != 1 || r.fb.agent.asks[0].Question != "line one\nline two" || r.w.agent.input != "" {
-		t.Fatalf("asks %+v input %q", r.fb.agent.asks, r.w.agent.input)
+	if len(r.fb.agent.asks) != 1 || r.fb.agent.asks[0].Question != "line one\nline two" || r.w.agentState().input != "" {
+		t.Fatalf("asks %+v input %q", r.fb.agent.asks, r.w.agentState().input)
 	}
 }
 
@@ -793,30 +793,30 @@ func TestAtOpensThePickerAndIsNotTypedAndAChipRemovesAPane(t *testing.T) {
 	r.click(t, "Choose what the agent can read")
 	r.click(t, "pick api-1 · api-1")
 	r.click(t, "Choose what the agent can read")
-	if len(r.w.agent.scope) == 0 {
+	if len(r.w.agentState().scope) == 0 {
 		t.Fatal("setup: no scope")
 	}
 	r.tt.Click("Message the agent")
 	r.tt.Type("look at @")
 	r.tt.Frame()
 	r.tt.Frame()
-	if !r.w.agent.picker || r.w.agent.input != "look at " {
-		t.Fatalf("picker %v input %q", r.w.agent.picker, r.w.agent.input)
+	if !r.w.agentState().picker || r.w.agentState().input != "look at " {
+		t.Fatalf("picker %v input %q", r.w.agentState().picker, r.w.agentState().input)
 	}
 	r.tt.Key(0, ui.KeyEscape)
 	r.tt.Frame()
-	r.w.agent.picker = false
+	r.w.agentState().picker = false
 	r.tt.Frame()
-	before := len(r.w.agent.scope)
+	before := len(r.w.agentState().scope)
 	r.click(t, "Stop reading api-1")
-	if len(r.w.agent.scope) != before-1 {
-		t.Errorf("a chip's × did not remove the pane: %v", r.w.agent.scope)
+	if len(r.w.agentState().scope) != before-1 {
+		t.Errorf("a chip's × did not remove the pane: %v", r.w.agentState().scope)
 	}
 	// user@host is not a trigger.
 	r.tt.Click("Message the agent")
 	r.tt.Type("deploy@")
 	r.tt.Frame()
-	if r.w.agent.picker {
+	if r.w.agentState().picker {
 		t.Error("an @ inside a word opened the picker")
 	}
 }

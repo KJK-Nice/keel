@@ -59,17 +59,17 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	r := newRigIn(t, okBackend(), dir)
 	r.click(t, "host api-1")
 	r.w.splitFocused(layout.Row) // s2 beside s1
-	r.w.tab().focused = "1"
+	r.w.activeTab().focused = "1"
 	r.w.splitFocused(layout.Col) // s3 under s1
 	r.tt.Frame()
-	r.w.tab().root.Ratio = 0.30
-	r.w.tab().root.A.Ratio = 0.65
+	r.w.activeTab().root.Ratio = 0.30
+	r.w.activeTab().root.A.Ratio = 0.65
 	r.click(t, "host api-1") // tab 2: s4
-	r.w.tabs[1].title = "logs"
+	r.w.tabAt(1).title = "logs"
 	r.w.selectTab(0)
-	r.w.tabs[0].focused, r.w.wantFocus = "1", "1"
+	r.w.tabAt(0).focused, r.w.wantFocus = "1", "1"
 	r.tt.Frame()
-	want := []string{shape(r.w.tabs[0]), shape(r.w.tabs[1])}
+	want := []string{shape(r.w.tabAt(0)), shape(r.w.tabAt(1))}
 	if want[0] != "R0.30(C0.65(s1 s3) s2)" {
 		t.Fatalf("the layout under test is %s", want[0])
 	}
@@ -79,17 +79,17 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, sessions: sessionsOf(r.fb)}
 	slices.Reverse(fb.sessions) // the order the server lists them in does not matter
 	r2 := newRigIn(t, fb, dir)
-	if len(r2.w.tabs) != 2 {
-		t.Fatalf("%d tabs came back", len(r2.w.tabs))
+	if r2.w.tabCount() != 2 {
+		t.Fatalf("%d tabs came back", r2.w.tabCount())
 	}
-	got := []string{shape(r2.w.tabs[0]), shape(r2.w.tabs[1])}
+	got := []string{shape(r2.w.tabAt(0)), shape(r2.w.tabAt(1))}
 	if !slices.Equal(got, want) {
 		t.Errorf("tabs %v, want %v", got, want)
 	}
-	if r2.w.tabs[1].title != "logs" || r2.w.tabs[0].title != "" || r2.w.active != 0 {
-		t.Errorf("titles %q %q, active %d", r2.w.tabs[0].title, r2.w.tabs[1].title, r2.w.active)
+	if r2.w.tabAt(1).title != "logs" || r2.w.tabAt(0).title != "" || r2.w.active != 0 {
+		t.Errorf("titles %q %q, active %d", r2.w.tabAt(0).title, r2.w.tabAt(1).title, r2.w.active)
 	}
-	if f := r2.w.tabs[0].panes[r2.w.tabs[0].focused].sessionID(); f != "s1" {
+	if f := r2.w.tabAt(0).panes[r2.w.tabAt(0).focused].sessionID(); f != "s1" {
 		t.Errorf("focused session %s, want s1", f)
 	}
 	if !r2.tt.HasText("logs") {
@@ -116,7 +116,7 @@ func TestWorkspaceRestoresZoomAndTheActiveTab(t *testing.T) {
 	}
 	r2.w.selectTab(0)
 	r2.tt.Frame()
-	z := r2.w.tabs[0]
+	z := r2.w.tabAt(0)
 	if z.zoomed == "" || z.panes[z.zoomed].sessionID() != "s2" || visible(r2, "1") {
 		t.Errorf("zoomed %q", z.zoomed)
 	}
@@ -145,7 +145,7 @@ func TestRestorePrunesAndAppendsUnknownSessions(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}, {ID: "s3", HostID: "h-api"}, {ID: "s9", HostID: "h-api"}}}
 	r := newRigIn(t, fb, dir)
 	var got []string
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		got = append(got, shape(tb))
 	}
 	// The tree closes up where "gone" was (the sibling takes the parent's place); the tab of only a dead
@@ -154,14 +154,14 @@ func TestRestorePrunesAndAppendsUnknownSessions(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("tabs %v, want %v", got, want)
 	}
-	if r.w.tabs[1].title != "x" || r.w.tabs[0].title != "" {
-		t.Errorf("titles %q %q", r.w.tabs[0].title, r.w.tabs[1].title)
+	if r.w.tabAt(1).title != "x" || r.w.tabAt(0).title != "" {
+		t.Errorf("titles %q %q", r.w.tabAt(0).title, r.w.tabAt(1).title)
 	}
 	// The saved active tab (index 1) was the dead one: the last tab shows, as without a file.
 	if r.w.active != 2 {
 		t.Errorf("active %d", r.w.active)
 	}
-	if f := r.w.tabs[0].panes[r.w.tabs[0].focused].sessionID(); f != "s1" {
+	if f := r.w.tabAt(0).panes[r.w.tabAt(0).focused].sessionID(); f != "s1" {
 		t.Errorf("a focus on a session that is gone must fall back to the first pane: %s", f)
 	}
 }
@@ -179,7 +179,7 @@ func TestBadOrOtherVersionFilesAreIgnored(t *testing.T) {
 		fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
 		r := newRigIn(t, fb, dir)
 		var got []string
-		for _, tb := range r.w.tabs {
+		for _, tb := range r.w.allTabs() {
 			got = append(got, shape(tb))
 		}
 		if !slices.Equal(got, []string{"s1", "s2"}) || r.w.active != 1 {
@@ -198,7 +198,7 @@ func TestSavedFileHoldsOnlyIdsTitlesAndLayout(t *testing.T) {
 	r := newRigIn(t, &fakeBackend{hosts: hosts}, dir)
 	r.click(t, "host prod-db")
 	r.w.splitFocused(layout.Row)
-	r.w.tabs[0].title = "my tab"
+	r.w.tabAt(0).title = "my tab"
 	r.tt.Frame()
 	r.w.closeWindow()
 
@@ -262,13 +262,13 @@ func TestSavingFollowsChangesAndWaitsForTheStart(t *testing.T) {
 		t.Fatalf("saved %s", first)
 	}
 	// A ratio, a title, a focus and the order are changes too.
-	r.w.tab().root.Ratio = 0.25
+	r.w.activeTab().root.Ratio = 0.25
 	r.tt.Frame()
 	r.w.flush()
 	if got := read(); !strings.Contains(got, `"ratio":0.25`) {
 		t.Errorf("a dragged ratio was not saved: %s", got)
 	}
-	r.w.tab().title = "renamed"
+	r.w.activeTab().title = "renamed"
 	r.tt.Frame()
 	r.w.flush()
 	if got := read(); !strings.Contains(got, `"title":"renamed"`) {
@@ -301,7 +301,7 @@ func TestSavedWorkspaceFixtureComesBackAndSavesTheSame(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
 	r := newRigIn(t, fb, dir)
 	var names []string
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		if tb.isPage() {
 			names = append(names, tb.pg.name)
 		} else {
@@ -312,7 +312,7 @@ func TestSavedWorkspaceFixtureComesBackAndSavesTheSame(t *testing.T) {
 	if !slices.Equal(names, wantTabs) {
 		t.Fatalf("tabs %q, want %q", names, wantTabs)
 	}
-	if r.w.tab() != r.w.pageTab("snippets") {
+	if r.w.activeTab() != r.w.pageTab("snippets") {
 		t.Errorf("active tab %d, want the Snippets page", r.w.active)
 	}
 	if g, run := r.w.groupPageState(), r.w.groupRunPageState(); g.id != "g-fixture" || g.notes.groupID != "g-fixture" || run.id != "run-fixture" {

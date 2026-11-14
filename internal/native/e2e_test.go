@@ -291,17 +291,17 @@ func (e *win) scrollback(id string) string {
 
 // paneSID is the session id of pane id in the active tab.
 func (e *win) paneSID(id string) string {
-	if t := e.w.tab(); t != nil && t.panes[id] != nil {
+	if t := e.w.activeTab(); t != nil && t.panes[id] != nil {
 		return t.panes[id].sessionID()
 	}
 	return ""
 }
 
 func (e *win) sidOf(tabIdx int) string {
-	if tabIdx >= len(e.w.tabs) {
+	if tabIdx >= e.w.tabCount() {
 		return ""
 	}
-	t := e.w.tabs[tabIdx]
+	t := e.w.tabAt(tabIdx)
 	if t.panes[t.focused] == nil { // a New tab has no session
 		return ""
 	}
@@ -318,7 +318,7 @@ func (e *win) openLocal() string {
 	e.t.Helper()
 	e.pump(func() bool { return e.tt.HasText("Local Shell") }, "the host tree")
 	e.click("host Local Shell")
-	e.pump(func() bool { return len(e.w.tabs) == 1 && e.sidOf(0) != "" }, "a tab with a session id")
+	e.pump(func() bool { return e.w.tabCount() == 1 && e.sidOf(0) != "" }, "a tab with a session id")
 	sid := e.sidOf(0)
 	e.waitScrollback(sid, "$ ")
 	return sid
@@ -328,7 +328,7 @@ func (e *win) openLocal() string {
 // button opens.
 func (e *win) newSession() {
 	e.t.Helper()
-	if t := e.w.tab(); t == nil || !t.isNew() {
+	if t := e.w.activeTab(); t == nil || !t.isNew() {
 		e.click("New tab")
 	}
 	e.pump(func() bool { return e.tt.HasText("Where to?") && e.hasLabel("start card Local Shell") }, "the New tab page")
@@ -377,14 +377,14 @@ func (e *win) openPanes(n int) {
 	e.t.Helper()
 	e.openLocal()
 	for i := 1; i < n; i++ {
-		was := e.w.tab().focused
+		was := e.w.activeTab().focused
 		e.key(ui.Cmd|ui.Shift, ui.KeyD)
 		e.pump(func() bool { return len(e.sessions()) == i+1 && e.w.paneCount() == i+1 }, fmt.Sprintf("%d sessions", i+1))
 		// The new pane takes the keyboard once its terminal is on screen: a click before that loses to it.
-		e.pump(func() bool { return e.w.tab().focused != was }, "the new pane to take focus")
+		e.pump(func() bool { return e.w.activeTab().focused != was }, "the new pane to take focus")
 	}
 	e.pump(func() bool {
-		for _, p := range e.w.tab().panes {
+		for _, p := range e.w.activeTab().panes {
 			if p.sessionID() == "" || p.conn.Snapshot().Status != "ready" {
 				return false
 			}
@@ -417,12 +417,12 @@ func TestE2ESplitAndFocus(t *testing.T) {
 	}
 	e.key(ui.Cmd|ui.Shift, ui.KeyE)
 	e.pump(func() bool { return len(e.sessions()) == 3 && e.w.paneCount() == 3 }, "3 sessions")
-	e.pump(func() bool { return e.w.tab().panes["3"].sessionID() != "" }, "pane 3 named")
+	e.pump(func() bool { return e.w.activeTab().panes["3"].sessionID() != "" }, "pane 3 named")
 
 	// Click inside the first terminal's body: the first pane takes focus and the ring.
 	e.clickBody("1")
-	if e.w.tab().focused != "1" {
-		t.Fatalf("focused %q after clicking pane 1's body", e.w.tab().focused)
+	if e.w.activeTab().focused != "1" {
+		t.Fatalf("focused %q after clicking pane 1's body", e.w.activeTab().focused)
 	}
 	a, _ := e.tt.Find("pane 1")
 	b, _ := e.tt.Find("pane 2")
@@ -437,8 +437,8 @@ func TestE2ESplitAndFocus(t *testing.T) {
 	bars, _ := e.tt.Find("pane 2")
 	e.tt.ClickAt(bars.X+bars.W/2, bars.Y+8) // the bar, above the body
 	e.step()
-	if e.w.tab().focused != "2" {
-		t.Fatalf("focused %q after clicking pane 2's bar", e.w.tab().focused)
+	if e.w.activeTab().focused != "2" {
+		t.Fatalf("focused %q after clicking pane 2's bar", e.w.activeTab().focused)
 	}
 	e.typeLine("echo bar-$((1+1))")
 	sid2 := e.paneSID("2")
@@ -536,9 +536,9 @@ func TestE2ECloseKillsAndWindowCloseDetaches(t *testing.T) {
 	e.typeLine("echo before-detach")
 	e.waitScrollback(first, "before-detach")
 	e.newSession()
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" && len(e.sessions()) == 2 }, "a second tab")
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.sidOf(1) != "" && len(e.sessions()) == 2 }, "a second tab")
 	e.key(ui.Cmd, ui.KeyW)
-	e.pump(func() bool { return len(e.sessions()) == 1 && len(e.w.tabs) == 1 }, "the second session killed and its tab gone")
+	e.pump(func() bool { return len(e.sessions()) == 1 && e.w.tabCount() == 1 }, "the second session killed and its tab gone")
 	if got := e.sessions()[0].ID; got != first {
 		t.Fatalf("surviving session %s, want %s", got, first)
 	}
@@ -550,7 +550,7 @@ func TestE2ECloseKillsAndWindowCloseDetaches(t *testing.T) {
 	}
 
 	e2 := newWin(t, addr, dir, nil)
-	e2.pump(func() bool { return len(e2.w.tabs) == 1 && e2.sidOf(0) == first }, "the surviving session reattached")
+	e2.pump(func() bool { return e2.w.tabCount() == 1 && e2.sidOf(0) == first }, "the surviving session reattached")
 	e2.waitScrollback(first, "before-detach")
 	e2.pump(func() bool { r, _ := e2.tt.Find("pane 1"); return e2.inked(r) > 200 }, "the reattached terminal to show earlier output")
 	e2.shot("TestE2ECloseKillsAndWindowCloseDetaches")
@@ -576,7 +576,7 @@ func TestE2ETabs(t *testing.T) {
 	e.pump(func() bool { return e.tt.HasText("Local Shell") }, "the host tree")
 	for i := 1; i <= 3; i++ {
 		e.newSession()
-		e.pump(func() bool { return len(e.w.tabs) == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d with a session", i))
+		e.pump(func() bool { return e.w.tabCount() == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d with a session", i))
 	}
 	sids := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2)}
 	for _, c := range []struct {
@@ -748,7 +748,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("role Following") &&
+		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("role Following") &&
 			b.hasLabel("banner following") && b.hasLabel("Ask for control") && a.hasLabel("role Driving")
 	}, "B following with Ask for control, A driving")
 	if a.hasLabel("banner following") || b.hasLabel("Take control") {
@@ -813,7 +813,7 @@ func TestE2EUnknownHostKeyTrustAndConnect(t *testing.T) {
 
 	// The same host again connects with no dialog.
 	e.click("host e2e-ssh")
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.snap().Status == "ready" }, "the second session to be ready")
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.snap().Status == "ready" }, "the second session to be ready")
 	if e.hasLabel("dialog Unknown host key") || e.hasLabel("dialog Host key changed") {
 		t.Error("the dialog came back for a trusted host")
 	}
@@ -857,7 +857,7 @@ func TestE2EFailedSessionShowsBannerAndReconnects(t *testing.T) {
 	e.pump(func() bool { return e.hasLabel("banner failed") && e.hasLabel("Close") }, "the failure banner again")
 	e.shot("TestE2EFailedSessionShowsBannerAndReconnects")
 	e.click("Close")
-	e.pump(func() bool { return len(e.w.tabs) == 1 && e.w.tabs[0].isNew() }, "the pane to go and the New tab to take its place")
+	e.pump(func() bool { return e.w.tabCount() == 1 && e.w.tabAt(0).isNew() }, "the pane to go and the New tab to take its place")
 	e.pump(func() bool {
 		for _, s := range e.sessions() {
 			if s.ID == sid {
@@ -871,7 +871,7 @@ func TestE2EFailedSessionShowsBannerAndReconnects(t *testing.T) {
 func TestE2EFailedSessionAtStart(t *testing.T) {
 	addr, dir, _, sid := failedSSH(t)
 	e2 := newWin(t, addr, dir, nil)
-	e2.pump(func() bool { return len(e2.w.tabs) == 1 && e2.hasLabel("banner failed") && e2.hasLabel("Reconnect") }, "the failed session as a tab with its banner")
+	e2.pump(func() bool { return e2.w.tabCount() == 1 && e2.hasLabel("banner failed") && e2.hasLabel("Reconnect") }, "the failed session as a tab with its banner")
 	if e2.sidOf(0) != sid {
 		t.Errorf("tab shows session %s, want %s", e2.sidOf(0), sid)
 	}
@@ -920,7 +920,7 @@ func (e *win) tabRect(i int) ui.Rect {
 func (e *win) namePanes() {
 	e.t.Helper()
 	e.pump(func() bool {
-		for _, t := range e.w.tabs {
+		for _, t := range e.w.allTabs() {
 			for _, p := range t.panes {
 				if p.sessionID() == "" {
 					return false
@@ -964,12 +964,12 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 	e.tt.Move(x+120, y)
 	e.tt.Release(x+120, y)
 	e.step()
-	if r := e.w.tabs[0].root.Ratio; r < 0.55 {
+	if r := e.w.tabAt(0).root.Ratio; r < 0.55 {
 		t.Fatalf("the gap did not move: ratio %v", r)
 	}
 	// Tab 2: one pane, renamed logs.
 	e.newSession()
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" }, "tab 2")
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.sidOf(1) != "" }, "tab 2")
 	p2 := e.tabRect(1)
 	e.tt.RightClickAt(p2.X+p2.W/2, p2.Y+p2.H/2)
 	e.step()
@@ -979,19 +979,19 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 	e.step()
 	e.tt.Type("logs")
 	e.key(0, ui.KeyEnter)
-	if e.w.tabs[1].title != "logs" {
-		t.Fatalf("tab 2 is %q", e.w.tabs[1].title)
+	if e.w.tabAt(1).title != "logs" {
+		t.Fatalf("tab 2 is %q", e.w.tabAt(1).title)
 	}
 	// Back to tab 1 with its first pane focused.
 	e.key(ui.Cmd, ui.Key1)
 	e.clickBody("1")
-	if e.w.tab().focused != "1" || e.w.active != 0 {
-		t.Fatalf("focused %q, active %d", e.w.tab().focused, e.w.active)
+	if e.w.activeTab().focused != "1" || e.w.active != 0 {
+		t.Fatalf("focused %q, active %d", e.w.activeTab().focused, e.w.active)
 	}
 	assertFits(t, e.w, e.tt, 1280, 800)
 	e.shot("TestE2EWorkspaceComesBack-before")
-	wantTree, wantRatios := structure(e.w.tabs[0])
-	wantFocus := e.w.tab().panes[e.w.tab().focused].sessionID()
+	wantTree, wantRatios := structure(e.w.tabAt(0))
+	wantFocus := e.w.activeTab().panes[e.w.activeTab().focused].sessionID()
 	wantTab2 := e.sidOf(1)
 	before := e.sessionIDs()
 	if len(before) != 4 {
@@ -1005,8 +1005,8 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 	}
 
 	e2 := newWin(t, addr, dir, nil)
-	e2.pump(func() bool { return len(e2.w.tabs) == 2 && e2.w.paneCount() == 4 }, "two tabs with four panes")
-	gotTree, gotRatios := structure(e2.w.tabs[0])
+	e2.pump(func() bool { return e2.w.tabCount() == 2 && e2.w.paneCount() == 4 }, "two tabs with four panes")
+	gotTree, gotRatios := structure(e2.w.tabAt(0))
 	if gotTree != wantTree {
 		t.Errorf("tab 1 tree %s, want %s", gotTree, wantTree)
 	}
@@ -1018,11 +1018,11 @@ func TestE2EWorkspaceComesBack(t *testing.T) {
 			t.Errorf("ratio %d: %v, want %v", i, gotRatios[i], wantRatios[i])
 		}
 	}
-	if got := e2.w.tab().panes[e2.w.tab().focused].sessionID(); got != wantFocus || e2.w.active != 0 {
+	if got := e2.w.activeTab().panes[e2.w.activeTab().focused].sessionID(); got != wantFocus || e2.w.active != 0 {
 		t.Errorf("focused session %s (want %s), active %d (want 0)", got, wantFocus, e2.w.active)
 	}
-	if e2.w.tabs[1].title != "logs" || e2.sidOf(1) != wantTab2 || e2.w.tabs[0].title != "" {
-		t.Errorf("tab 2: %q on %s, want logs on %s", e2.w.tabs[1].title, e2.sidOf(1), wantTab2)
+	if e2.w.tabAt(1).title != "logs" || e2.sidOf(1) != wantTab2 || e2.w.tabAt(0).title != "" {
+		t.Errorf("tab 2: %q on %s, want logs on %s", e2.w.tabAt(1).title, e2.sidOf(1), wantTab2)
 	}
 	e2.pump(func() bool { return e2.tt.HasText("logs") }, "the tab titled logs")
 	if got := e2.sessionIDs(); len(got) != 4 {
@@ -1040,8 +1040,8 @@ func TestE2EFocusViewAndPaneMenu(t *testing.T) {
 	s1, s2 := e.paneSID("1"), e.paneSID("2")
 	e.clickBody("1")
 	e.key(ui.Cmd|ui.Shift, ui.KeyEnter)
-	if e.w.tab().zoomed != "1" || e.hasLabel("pane 2") {
-		t.Fatalf("zoomed %q, pane 2 on screen %v", e.w.tab().zoomed, e.hasLabel("pane 2"))
+	if e.w.activeTab().zoomed != "1" || e.hasLabel("pane 2") {
+		t.Fatalf("zoomed %q, pane 2 on screen %v", e.w.activeTab().zoomed, e.hasLabel("pane 2"))
 	}
 	for _, s := range e.sessions() {
 		if (s.ID == s1 || s.ID == s2) && s.Status != "ready" {
@@ -1071,8 +1071,8 @@ func TestE2EFocusViewAndPaneMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.step()
-	if e.w.tab().zoomed != "" || !e.hasLabel("pane 1") || !e.hasLabel("pane 2") {
-		t.Fatalf("still zoomed: %q", e.w.tab().zoomed)
+	if e.w.activeTab().zoomed != "" || !e.hasLabel("pane 1") || !e.hasLabel("pane 2") {
+		t.Fatalf("still zoomed: %q", e.w.activeTab().zoomed)
 	}
 
 	// Close pane from the menu of pane 2 kills that session and no other.
@@ -1093,7 +1093,7 @@ func TestE2ETabMenuAndKeys(t *testing.T) {
 	e.openLocal()
 	for i := 2; i <= 4; i++ {
 		e.newSession()
-		e.pump(func() bool { return len(e.w.tabs) == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d", i))
+		e.pump(func() bool { return e.w.tabCount() == i && e.sidOf(i-1) != "" }, fmt.Sprintf("tab %d", i))
 	}
 	sids := []string{e.sidOf(0), e.sidOf(1), e.sidOf(2), e.sidOf(3)}
 
@@ -1134,12 +1134,12 @@ func TestE2ETabMenuAndKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.step()
-	e.pump(func() bool { return len(e.w.tabs) == 2 && slices.Equal(sorted(e.sessionIDs()), sorted(order[:2])) }, "tabs 3 and 4 and only their sessions gone")
+	e.pump(func() bool { return e.w.tabCount() == 2 && slices.Equal(sorted(e.sessionIDs()), sorted(order[:2])) }, "tabs 3 and 4 and only their sessions gone")
 
 	// ⌘⇧T opens a new session on the closed tab's host.
 	before := e.sessionIDs()
 	e.key(ui.Cmd|ui.Shift, ui.KeyT)
-	e.pump(func() bool { return len(e.sessions()) == len(before)+1 && len(e.w.tabs) == 3 }, "a new session in a new tab")
+	e.pump(func() bool { return len(e.sessions()) == len(before)+1 && e.w.tabCount() == 3 }, "a new session in a new tab")
 	for _, id := range e.sessionIDs() {
 		if !slices.Contains(before, id) && (id == order[2] || id == order[3]) {
 			t.Errorf("reopened as the old session %s", id)
@@ -1246,23 +1246,23 @@ func TestE2ENewTabPage(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
 	e.pump(e.onStartPage, "the New tab page of a window with no session")
-	if len(e.w.tabs) != 1 || !e.w.tabs[0].isNew() || len(e.sessions()) != 0 {
-		t.Fatalf("tabs %d, sessions %d", len(e.w.tabs), len(e.sessions()))
+	if e.w.tabCount() != 1 || !e.w.tabAt(0).isNew() || len(e.sessions()) != 0 {
+		t.Fatalf("tabs %d, sessions %d", e.w.tabCount(), len(e.sessions()))
 	}
 	e.shot("TestE2ENewTabPage-empty")
 
 	// The Local Shell card starts a session in this tab.
 	e.click("start card Local Shell")
 	e.pump(func() bool {
-		return len(e.w.tabs) == 1 && !e.w.tabs[0].isNew() && e.sidOf(0) != "" && len(e.sessions()) == 1
+		return e.w.tabCount() == 1 && !e.w.tabAt(0).isNew() && e.sidOf(0) != "" && len(e.sessions()) == 1
 	}, "a session tab")
 	e.waitScrollback(e.sidOf(0), "$ ")
 
 	// ⌘T: a New tab, with Local Shell first among the recent hosts (and kept in keel-native.json as an id).
 	e.key(ui.Cmd, ui.KeyT)
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.w.tabs[1].isNew() && e.onStartPage() }, "a New tab")
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.w.tabAt(1).isNew() && e.onStartPage() }, "a New tab")
 	local, _ := e.w.localHost()
-	if cards := e.w.cards(e.w.tab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
+	if cards := e.w.cards(e.w.activeTab().page); len(cards) == 0 || cards[0].ID != local.ID || len(e.w.prefs.RecentHosts) == 0 || e.w.prefs.RecentHosts[0] != local.ID {
 		t.Fatalf("cards %v recents %v", cards, e.w.prefs.RecentHosts)
 	}
 	e.pump(func() bool { return slices.Equal(loadPrefs(dir).RecentHosts, []string{local.ID}) }, "the recent hosts in keel-native.json")
@@ -1270,16 +1270,16 @@ func TestE2ENewTabPage(t *testing.T) {
 	// ⌥1 opens the first card in this tab: a second session.
 	e.key(ui.Alt, ui.Key1)
 	e.pump(func() bool {
-		return len(e.sessions()) == 2 && len(e.w.tabs) == 2 && !e.w.tabs[1].isNew() && e.sidOf(1) != ""
+		return len(e.sessions()) == 2 && e.w.tabCount() == 2 && !e.w.tabAt(1).isNew() && e.sidOf(1) != ""
 	}, "two sessions in two tabs")
 	e.waitScrollback(e.sidOf(1), "$ ")
 
 	// Closing both tabs leaves a New tab and no session.
 	e.key(ui.Cmd, ui.KeyW)
-	e.pump(func() bool { return len(e.sessions()) == 1 && len(e.w.tabs) == 1 }, "the second session closed")
+	e.pump(func() bool { return len(e.sessions()) == 1 && e.w.tabCount() == 1 }, "the second session closed")
 	e.key(ui.Cmd, ui.KeyW)
 	e.pump(func() bool {
-		return len(e.sessions()) == 0 && len(e.w.tabs) == 1 && e.w.tabs[0].isNew() && e.onStartPage()
+		return len(e.sessions()) == 0 && e.w.tabCount() == 1 && e.w.tabAt(0).isNew() && e.onStartPage()
 	}, "no session and the New tab page")
 
 	// Recently closed lists what was closed; a row starts a new session on that host.
@@ -1287,7 +1287,7 @@ func TestE2ENewTabPage(t *testing.T) {
 	e.shot("TestE2ENewTabPage-closed")
 	e.click("reopen Local Shell")
 	e.pump(func() bool {
-		return len(e.sessions()) == 1 && len(e.w.tabs) == 1 && !e.w.tabs[0].isNew() && e.sidOf(0) != ""
+		return len(e.sessions()) == 1 && e.w.tabCount() == 1 && !e.w.tabAt(0).isNew() && e.sidOf(0) != ""
 	}, "a new session from Recently closed")
 	e.waitScrollback(e.sidOf(0), "$ ")
 	e.click("New tab") // the + button: ⌘T pressed again so soon would be held back as a key repeat
@@ -1321,7 +1321,7 @@ func TestE2ENewTabLongHostCards(t *testing.T) {
 	}
 	e := newWin(t, addr, dir, nil)
 	e.pump(e.onStartPage, "the New tab page")
-	e.w.tab().page.query = "eu-central"
+	e.w.activeTab().page.query = "eu-central"
 	for _, th := range []string{themeDark, themeLight} {
 		e.w.setTheme(th)
 		e.pump(func() bool {
@@ -1354,7 +1354,7 @@ func TestE2EDraggingAPaneBarSwapsThePanes(t *testing.T) {
 		return true
 	}, "both prompts")
 	sids := sorted(e.sessionIDs())
-	before, _ := structure(e.w.tab())
+	before, _ := structure(e.w.activeTab())
 	bar, _ := e.tt.Find("pane bar 1")
 	to, _ := e.tt.Find("pane 2")
 	bx, by := bar.X+bar.W/2, bar.Y+bar.H/2
@@ -1366,7 +1366,7 @@ func TestE2EDraggingAPaneBarSwapsThePanes(t *testing.T) {
 	e.shot("TestE2EDraggingAPaneBarSwapsThePanes-over")
 	e.tt.Release(tx, ty)
 	e.step()
-	after, _ := structure(e.w.tab())
+	after, _ := structure(e.w.activeTab())
 	if after == before || !slices.Equal(sorted(e.sessionIDs()), sids) {
 		t.Fatalf("structure %q → %q, sessions %v → %v", before, after, sids, sorted(e.sessionIDs()))
 	}
@@ -1374,10 +1374,10 @@ func TestE2EDraggingAPaneBarSwapsThePanes(t *testing.T) {
 	e.w.closeWindow()
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool {
-		if len(e2.w.tabs) != 1 || e2.w.tab() == nil || e2.w.tab().root == nil {
+		if e2.w.tabCount() != 1 || e2.w.activeTab() == nil || e2.w.activeTab().root == nil {
 			return false
 		}
-		got, _ := structure(e2.w.tab())
+		got, _ := structure(e2.w.activeTab())
 		return got == after
 	}, "the swapped order to come back")
 }
@@ -1387,8 +1387,8 @@ func TestE2EPalette(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.openPanes(2) // tab 1, split
 	e.newSession() // tab 2
-	e.pump(func() bool { return len(e.w.tabs) == 2 && e.sidOf(1) != "" && len(e.sessions()) == 3 }, "two tabs, three sessions")
-	e.w.tabs[1].title = "logs"
+	e.pump(func() bool { return e.w.tabCount() == 2 && e.sidOf(1) != "" && len(e.sessions()) == 3 }, "two tabs, three sessions")
+	e.w.tabAt(1).title = "logs"
 	e.step()
 	allPrompts := func() bool {
 		ids := e.sessionIDs()
@@ -1450,7 +1450,7 @@ func TestE2EPalette(t *testing.T) {
 	e.tt.Type("session on Local Shell")
 	e.step()
 	e.key(ui.Alt, ui.KeyEnter)
-	e.pump(func() bool { return len(e.sessions()) == 4 && len(e.w.tabs) == 2 && len(e.w.tabs[1].panes) == 2 }, "a new pane in the focused tab")
+	e.pump(func() bool { return len(e.sessions()) == 4 && e.w.tabCount() == 2 && len(e.w.tabAt(1).panes) == 2 }, "a new pane in the focused tab")
 
 	// An action: Split down.
 	e.key(ui.Cmd, ui.KeyK)
@@ -1458,9 +1458,9 @@ func TestE2EPalette(t *testing.T) {
 	e.tt.Type("Split down")
 	e.step()
 	e.key(0, ui.KeyEnter)
-	e.pump(func() bool { return len(e.sessions()) == 5 && len(e.w.tabs[1].panes) == 3 }, "Split down: one more pane")
+	e.pump(func() bool { return len(e.sessions()) == 5 && len(e.w.tabAt(1).panes) == 3 }, "Split down: one more pane")
 	e.pump(func() bool {
-		for _, tb := range e.w.tabs {
+		for _, tb := range e.w.allTabs() {
 			for _, p := range tb.panes {
 				if p.sessionID() == "" {
 					return false
@@ -1489,7 +1489,7 @@ func TestE2EPalette(t *testing.T) {
 			t.Errorf("session %s changed while the palette was used", id)
 		}
 	}
-	if strings.Contains(e.scrollback(e.paneSID(e.w.tab().focused)), "qzxvkw") {
+	if strings.Contains(e.scrollback(e.paneSID(e.w.activeTab().focused)), "qzxvkw") {
 		t.Error("the palette's text reached a terminal")
 	}
 
@@ -1501,8 +1501,8 @@ func TestE2EPalette(t *testing.T) {
 	e.key(ui.Cmd, ui.KeyEnter)
 	// No key is stored in this daemon, so the panel shows its Connect card and the words wait in the composer's state.
 	e.pump(func() bool { return e.w.pal == nil && e.w.prefs.AgentPanel && e.hasLabel("agent panel") }, "the agent panel")
-	if e.w.agent.input != "qzxvkw" {
-		t.Errorf("the composer holds %q", e.w.agent.input)
+	if e.w.agentState().input != "qzxvkw" {
+		t.Errorf("the composer holds %q", e.w.agentState().input)
 	}
 	e.settle(300 * time.Millisecond)
 	for _, id := range e.sessionIDs() { // the panel narrows the panes and sh redraws its prompt: look for the words, not equality
@@ -1763,9 +1763,11 @@ func TestE2EHostDialogCreateTestEditDelete(t *testing.T) {
 	e.click("Save host")
 	e.pump(func() bool { _, ok := e.hostNamed("e2e-renamed"); return e.w.hostDlg == nil && ok }, "the renamed host on the server")
 	e.pump(func() bool { return e.hasLabel("host e2e-renamed") && !e.hasLabel("host e2e-new") }, "the renamed host in the tree")
-	n := len(e.w.tabs)
+	n := e.w.tabCount()
 	e.click("host e2e-renamed")
-	e.pump(func() bool { return len(e.w.tabs) == n+1 && (e.snap().Status == "ready" || e.snap().Status == "error") }, "the second session")
+	e.pump(func() bool {
+		return e.w.tabCount() == n+1 && (e.snap().Status == "ready" || e.snap().Status == "error")
+	}, "the second session")
 	if e.snap().Status != "ready" {
 		t.Fatalf("after the rename the host no longer connects: %q %q", e.snap().Status, e.snap().Message)
 	}

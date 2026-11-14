@@ -135,7 +135,7 @@ func TestE2ENotebookTypeOneLineFence(t *testing.T) {
 	sid := e.openLocal()
 	id := e.apiNotebook("Disk check", "Look at the disk.\n\n```sh\ndf -h\n```\n")
 	np := e.openNotebookFromSidebar("Disk check")
-	e.pump(func() bool { return len(e.w.tab().panes) == 2 && e.tt.HasText("df -h") }, "the notebook beside the shell")
+	e.pump(func() bool { return len(e.w.activeTab().panes) == 2 && e.tt.HasText("df -h") }, "the notebook beside the shell")
 	fs := fences(np.nb.md)
 	e.click(fenceName("Type into Local Shell", fs[0].Index))
 	e.pump(func() bool { return strings.Contains(e.scrollback(sid), "df -h") }, "df -h on the prompt line")
@@ -174,8 +174,8 @@ func TestE2ENotebookTypeTwoLineFenceThroughTheDialog(t *testing.T) {
 	e.pump(func() bool { return e.tt.HasText("second-line") }, "the notebook")
 	fs := fences(np.nb.md)
 	e.click(fenceName("Type into Local Shell", fs[0].Index))
-	e.pump(func() bool { return e.w.approve != nil && e.hasLabel("dialog "+approveTitle) }, "the dialog")
-	if got := e.w.approve.shown(); got != "echo nb-$((40+2))\necho second-line\n" {
+	e.pump(func() bool { return e.w.approveOpen() && e.hasLabel("dialog "+approveTitle) }, "the dialog")
+	if got := e.w.approveDlg().shown(); got != "echo nb-$((40+2))\necho second-line\n" {
 		t.Fatalf("the dialog shows %q", got)
 	}
 	e.settle(time.Second)
@@ -186,11 +186,11 @@ func TestE2ENotebookTypeTwoLineFenceThroughTheDialog(t *testing.T) {
 	before := e.scrollback(sid)
 	e.click("Cancel")
 	e.settle(500 * time.Millisecond)
-	if e.w.approve != nil || strings.Contains(e.scrollback(sid), "nb-42") || len(e.scrollback(sid)) != len(before) {
+	if e.w.approveOpen() || strings.Contains(e.scrollback(sid), "nb-42") || len(e.scrollback(sid)) != len(before) {
 		t.Fatal("Cancel typed, or the dialog stayed")
 	}
 	e.click(fenceName("Type into Local Shell", fs[0].Index))
-	e.pump(func() bool { return e.w.approve != nil && e.hasLabel("dialog "+approveTitle) }, "the dialog again")
+	e.pump(func() bool { return e.w.approveOpen() && e.hasLabel("dialog "+approveTitle) }, "the dialog again")
 	e.click("Type")
 	e.waitScrollback(sid, "nb-42")
 	e.waitScrollback(sid, "second-line")
@@ -242,7 +242,7 @@ func TestE2ENotebookPrivatePinRenameDelete(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.pump(func() bool { return e.tt.HasText("Local Shell") }, "the host tree")
 	id := e.apiNotebook("Ops", "keep this text\n")
-	e.w.openPage("notebooks")
+	e.w.showPage("notebooks")
 	e.pump(func() bool { return e.hasLabel("notebook Ops") }, "the Notebooks page row")
 	menu := func(item string) {
 		e.t.Helper()
@@ -338,7 +338,7 @@ func TestE2ENotebookRestoredWithTheWorkspace(t *testing.T) {
 	sid := e.openLocal()
 	e.apiNotebook("Kept", "a sentence that only the server may keep\n\n```sh\ndf -h\n```\n")
 	e.openNotebookFromSidebar("Kept")
-	e.pump(func() bool { return len(e.w.tab().panes) == 2 }, "the notebook beside the shell")
+	e.pump(func() bool { return len(e.w.activeTab().panes) == 2 }, "the notebook beside the shell")
 	e.w.closeWindow()
 	b, err := os.ReadFile(filepath.Join(dir, "keel-native-workspace.json"))
 	if err != nil {
@@ -348,7 +348,7 @@ func TestE2ENotebookRestoredWithTheWorkspace(t *testing.T) {
 		t.Fatalf("the workspace file: %s", b)
 	}
 	e2 := newWin(t, addr, dir, nil)
-	e2.pump(func() bool { return len(e2.w.tabs) == 1 && len(e2.w.tab().panes) == 2 }, "the tab with its two panes")
+	e2.pump(func() bool { return e2.w.tabCount() == 1 && len(e2.w.activeTab().panes) == 2 }, "the tab with its two panes")
 	e2.pump(func() bool { return e2.tt.HasText("a sentence that only the server may keep") }, "the notebook text, read from the server")
 	if got := e2.sidOf(0); got != sid && !slices.Contains(e2.sessionIDs(), sid) {
 		t.Errorf("the shell did not come back: %s", got)
