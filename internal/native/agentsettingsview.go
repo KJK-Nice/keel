@@ -1,6 +1,7 @@
 package native
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
@@ -65,7 +66,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 		{title: "Default panes per conversation", desc: "Which panes the agent may read when you start a conversation.", stack: true, ctl: func(c *ui.Context) {
 			radioGroup(c, "Default panes per conversation", agentScopes, v.DefaultScope, false, nil, func(sc string) { save(keelclient.AgentSettingsPatch{DefaultScope: str(sc)}) })
 		}},
-		{title: "Scrollback lines per pane", desc: "50–1000. How much of each pane the agent reads. Default 200.", ctl: func(c *ui.Context) {
+		{title: "Scrollback lines per pane", desc: fmt.Sprintf("%d–%d. How much of each pane the agent reads. Default %d.", linesMin, linesMax, linesDefault), ctl: func(c *ui.Context) {
 			sliderCtlStep(c, "Scrollback lines", &p.linesV, linesMin, linesMax, linesStep, clampLines(int(p.linesV+0.5)))
 		}},
 	}}
