@@ -3,7 +3,6 @@ package native
 import (
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -314,5 +313,10 @@ func (c *command) accel() string {
 	return ""
 }
 
-// tabKeyLabel is the cap of the key that selects tab number n (1 to 9).
-func tabKeyLabel(n int) string { return (&chord{mods: ui.Cmd, glyph: strconv.Itoa(n)}).label() }
+// tabKeyLabel is the cap of the key that selects tab i of n, "" when none does (tabKey).
+func tabKeyLabel(i, n int) string {
+	if d := tabKey(i, n); d != "" {
+		return (&chord{mods: ui.Cmd, glyph: d}).label()
+	}
+	return ""
+}

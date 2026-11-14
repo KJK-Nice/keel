@@ -260,13 +260,7 @@ func (w *workspace) paletteItems() []palItem {
 	// a second session.
 	for i, t := range w.tabs {
 		n := i + 1
-		keys := ""
-		switch {
-		case i < 8:
-			keys = tabKeyLabel(n)
-		case i == len(w.tabs)-1:
-			keys = tabKeyLabel(9)
-		}
+		keys := tabKeyLabel(i, len(w.tabs))
 		focusTab := func() { w.selectTab(i) }
 		switch t.mode() {
 		case modeNew:
