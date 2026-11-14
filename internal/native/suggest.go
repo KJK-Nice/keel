@@ -15,10 +15,10 @@ import (
 // serve decides whether a line is noticed, writes a suggestion only after the user's ⇥ / ⇧⇥, and checks the ⇧ rule again.
 
 const (
-	detectPause   = 350 * time.Millisecond // DETECT_PAUSE_MS: the typing pause before the prompt line is checked
-	detectCache   = 2 * time.Minute        // DETECT_CACHE_MS: an answer for the same words is kept
-	offBackoff    = 15 * time.Second       // OFF_BACKOFF_MS: after "off", wait before asking again
-	suggestMaxLen = 300                    // MAX_LINE
+	detectPause   = 350 * time.Millisecond // the typing pause before the prompt line is checked
+	detectCache   = 2 * time.Minute        // an answer for the same words is kept
+	offBackoff    = 15 * time.Second       // after "off", wait before asking again
+	suggestMaxLen = 300                    // the longest prompt line that is sent
 	insertedSeen  = 3 * time.Second        // how long an inserted command may stay unseen on the line
 	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
 	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
@@ -187,7 +187,7 @@ func keyLabels() keyLabelSet {
 }
 
 // shiftTab is ⇧⇥ written for the platform: the glyphs run together on macOS, the words are joined with + elsewhere ("Shift+Tab",
-// not "ShiftTab": a defect a Linux user saw in v0.2.0).
+// not "ShiftTab": a defect a Linux user saw).
 func shiftTab(k keyLabelSet) string {
 	if isMac() {
 		return k.Shift + k.Tab
@@ -383,7 +383,7 @@ func (m *sugMachine) Due() (time.Time, bool) {
 	return due, !due.IsZero()
 }
 
-// Tick runs the detection when the typing pause has passed, and ends a request that has waited too long (the page's timer).
+// Tick runs the detection when the typing pause has passed, and ends a request that has waited too long.
 func (m *sugMachine) Tick() {
 	now := m.d.now()
 	if m.st.State == sugLoading && !now.Before(m.loadDue) {

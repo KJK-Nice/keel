@@ -329,7 +329,7 @@ func (w *workspace) stopShare() {
 	})
 }
 
-// syncShare closes the popover when focus moved to another pane or to a joined one (sharepop.js follow).
+// syncShare closes the popover when focus moved to another pane or to a joined one.
 func (w *workspace) syncShare() {
 	if s := w.share; s != nil && (w.tabOf(s.p) == nil || w.shareTarget() != s.p) {
 		w.share = nil

@@ -536,7 +536,7 @@ func (w *workspace) start() {
 			w.post(func() { w.blocked = ""; w.showUnlock(v) })
 			return
 		}
-		if v.NeedsSetup || v.FirstRun { // gate.js update: step 1 of First run
+		if v.NeedsSetup || v.FirstRun { // step 1 of First run
 			w.post(func() { w.showFirstRun(v) })
 			return
 		}
@@ -704,7 +704,7 @@ func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.D
 			t.root = t.root.Split(target, np.id, d)
 			t.panes[np.id] = np
 			t.focused = np.id
-			t.zoomed = "" // a split leaves focus view (workspace.js splitPane)
+			t.zoomed = "" // a split leaves focus view
 			if t == w.tab() {
 				w.wantFocus = np.id
 			}

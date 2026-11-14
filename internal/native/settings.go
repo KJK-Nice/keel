@@ -80,7 +80,7 @@ func (p *settingsPage) view(w *workspace, c *ui.Context) { w.settingsView(c, p) 
 
 // ---- reading ----
 
-// loadSettings reads what Sharing, Vault & security, Runtime and About show (settingspages.js refresh). Neither call
+// loadSettings reads what Sharing, Vault & security, Runtime and About show. Neither call
 // holds a secret.
 func (w *workspace) loadSettings() {
 	type read struct {
@@ -233,7 +233,7 @@ func (p *settingsPage) signalSavedValue() string {
 	return v
 }
 
-// commitSignal is settingspages.js commitSignal: PUT /api/share/signal when the field differs from the saved server.
+// commitSignal does PUT /api/share/signal when the field differs from the saved server.
 // keel serve validates the address; its words show in a toast.
 func (w *workspace) commitSignal(p *settingsPage) {
 	url := strings.TrimSpace(p.signal)

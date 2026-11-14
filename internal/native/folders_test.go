@@ -15,7 +15,7 @@ import (
 // The folder rules, and the folder tree, menus, dialog
 // and drops of the window.
 
-// infra > db > replicas ; apps (the JS test's forest)
+// infra > db > replicas ; apps (the forest the tests use)
 var jsGroups = []keelclient.Group{
 	{ID: "infra", Name: "Infra"},
 	{ID: "db", Name: "db", ParentID: "infra"},

@@ -47,7 +47,7 @@ type savedTab struct {
 	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
 	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
 	Layout          *savedNode `json:"layout"`
-	Sync            bool       `json:"sync,omitempty"` // Sync input is on (savedworkspace.js)
+	Sync            bool       `json:"sync,omitempty"` // Sync input is on
 }
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).

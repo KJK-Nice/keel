@@ -136,7 +136,7 @@ func (w *workspace) moveTab(t *tab, slot int) {
 }
 
 // toggleZoom is focus view for pane id: it fills the tab, or the tab shows all its panes again. A tab of
-// one pane does not zoom. The zoomed pane has focus (workspace.js zoom).
+// one pane does not zoom. The zoomed pane has focus.
 func (w *workspace) toggleZoom(t *tab, id string) {
 	if t.zoomed != "" {
 		t.zoomed = ""

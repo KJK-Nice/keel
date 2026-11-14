@@ -653,7 +653,7 @@ func (r *rig) click(t *testing.T, name string) {
 
 func TestLockedOrUnsetVaultMakesNoOtherCall(t *testing.T) {
 	// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says; setup, and an unlocked
-	// first run, show First run's step 1 (gate.js update). None of them reads the hosts or the sessions.
+	// first run, show First run's step 1. None of them reads the hosts or the sessions.
 	for _, c := range []struct {
 		v      keelclient.Vault
 		unlock bool

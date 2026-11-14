@@ -27,7 +27,7 @@ func uptimeText(sec int64) string {
 	return fmt.Sprintf("%d d %d h", h/24, h%24)
 }
 
-// versionOf is settingspages.js versionOf: the revision part of a build id "<revision>-<web hash>", shortened to 7
+// versionOf is the revision part of a build id "<revision>-<web hash>", shortened to 7
 // characters ("dev" when the binary has no VCS info).
 func versionOf(build string) string {
 	rev, _, _ := strings.Cut(build, "-")
@@ -44,7 +44,7 @@ func versionOf(build string) string {
 	return base
 }
 
-// displayName is settingspages.js displayName: the custom name when set, else the default, else "guest".
+// displayName is the custom name when set, else the default, else "guest".
 func displayName(custom, fallback string) string {
 	if s := strings.TrimSpace(custom); s != "" {
 		return s
@@ -58,7 +58,7 @@ func displayName(custom, fallback string) string {
 // nameMax is the display name's length.
 const nameMax = 40
 
-// vaultMode is settingspages.js vaultModeText: how the vault is unlocked, from GET /api/vault.
+// vaultMode is how the vault is unlocked, from GET /api/vault.
 func vaultMode(v keelclient.Vault) (label, help string) {
 	switch v.Mode {
 	case "keychain":
@@ -72,7 +72,7 @@ func vaultMode(v keelclient.Vault) (label, help string) {
 	return "Not set up", "The vault is created on first run."
 }
 
-// signalFields is settingspages.js signalText: the Signal server field from /api/runtime or PUT /api/share/signal: the
+// signalFields is the Signal server field from /api/runtime or PUT /api/share/signal: the
 // input's value (the saved server), its placeholder and the help line.
 func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
 	url, saved := strings.TrimSpace(info.SignalURL), strings.TrimSpace(info.SignalSaved)
@@ -89,7 +89,7 @@ func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
 	return saved, placeholder, "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you."
 }
 
-// stopMessage is settingspages.js stopMessage: the alertdialog text for Stop runtime.
+// stopMessage is the alertdialog text for Stop runtime.
 func stopMessage(sessions int) string {
 	what := "every running session"
 	switch {
@@ -129,7 +129,7 @@ func shortcutGroups() (out []shortcutGroup) {
 	return out
 }
 
-// splitKeyCaps is shortcutmap.js keyCaps: a label split into the caps to draw: "Ctrl+Shift+I" is Ctrl, Shift, I; "⌘⇧T" is
+// splitKeyCaps splits a label split into the caps to draw: "Ctrl+Shift+I" is Ctrl, Shift, I; "⌘⇧T" is
 // ⌘, ⇧, T; "Ctrl++" is Ctrl, +.
 func splitKeyCaps(label string) (caps []string) {
 	rest := label
