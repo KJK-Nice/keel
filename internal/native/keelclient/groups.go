@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	"keel/internal/wire"
 )
 
 // Groups (docs/ui-redesign.md §17; internal/httpapi/agentgroups.go, groupvars.go): a folder's members with their roles,
@@ -64,15 +66,15 @@ type AnsibleQuery struct {
 
 // Values is the query string in this order (format, runbookId, mode, user, jump).
 func (q AnsibleQuery) Values() string {
-	format := "ini"
-	if q.Format == "yaml" {
-		format = "yaml"
+	format := wire.FormatINI
+	if q.Format == wire.FormatYAML {
+		format = wire.FormatYAML
 	}
 	out := "format=" + format
 	if q.RunbookID != "" {
-		mode := "rolling"
-		if q.Mode == "parallel" {
-			mode = "parallel"
+		mode := wire.ModeRolling
+		if q.Mode == wire.ModeParallel {
+			mode = wire.ModeParallel
 		}
 		out += "&runbookId=" + url.QueryEscape(q.RunbookID) + "&mode=" + mode
 	}

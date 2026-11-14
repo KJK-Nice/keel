@@ -344,7 +344,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 		}
 		switch rn.For {
 		case "user", "me", "you":
-			np.For = "user"
+			np.For = wire.NoteUser
 		default:
 			var target *agent.Excerpt
 			switch {
@@ -360,7 +360,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 			if !ok || !h.ProposeNotes {
 				continue
 			}
-			np.For, np.HostID, np.Host = "host", h.ID, h.Name
+			np.For, np.HostID, np.Host = wire.NoteHost, h.ID, h.Name
 		}
 		if shingles == nil {
 			shingles = buildShingles(excerpts)
@@ -661,7 +661,7 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 	if !edited {
 		text = snap.Text
 	}
-	if snap.For == "host" {
+	if snap.For == wire.NoteHost {
 		h, err := s.noteHost(snap.HostID)
 		if err != nil {
 			release()

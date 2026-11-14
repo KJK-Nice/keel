@@ -117,7 +117,7 @@ func userNotesOf(notes []keelclient.Note) (out []keelclient.Note) {
 
 // noteProposalTarget is the badge on a proposed note: whose notes it joins.
 func noteProposalTarget(p keelclient.NoteProposal) string {
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		return "Your notes · every host"
 	}
 	return "Host notes · " + orElse(p.Host, "this host")
@@ -136,7 +136,7 @@ func noteProposalSource(p keelclient.NoteProposal) string {
 
 // noteProposalScope says when a saved note would be sent.
 func noteProposalScope(p keelclient.NoteProposal) string {
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		return "Sent with questions that read a pane the agent may read"
 	}
 	return "Sent when " + orElse(p.Host, "this host") + " is in scope"
@@ -146,7 +146,7 @@ func noteProposalScope(p keelclient.NoteProposal) string {
 func noteProposalDone(p keelclient.NoteProposal) string {
 	switch p.Status {
 	case wire.CardSaved:
-		if p.For == "user" {
+		if p.For == wire.NoteUser {
 			return "Saved to your notes"
 		}
 		return "Saved to host notes · " + orElse(p.Host, "")
@@ -170,7 +170,7 @@ func noteProposalWarning(p keelclient.NoteProposal) string {
 	switch {
 	case !noteProposalWarn(p):
 		return ""
-	case p.For == "user":
+	case p.For == wire.NoteUser:
 		return "The agent read terminal output for this answer, and this note may come from it, not from you. A note about you is sent with questions on every host the agent may read. Save it only if you would have written it yourself."
 	case p.FromPane:
 		return noteFromPaneWarning
@@ -194,7 +194,7 @@ func noteProposalOrigin(p keelclient.NoteProposal) string {
 	case len(read) == 1:
 		list = read[0]
 	}
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		if list == "" {
 			return ""
 		}
