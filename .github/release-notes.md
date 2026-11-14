@@ -1,12 +1,11 @@
-## What's new in v0.2.1
+## What's new in v0.2.2
 
-- **Suggestions in panes start only when you ask.** A line you start with `#` (press ⇥ on its notice) or **Suggest a command for this line**, ⌘Y (Ctrl+⇧Y off macOS), also in the palette and on the Keyboard page. Nothing else you type is sent anywhere, and ⇥ stays the shell's. **Notice automatically** is now opt-in in Settings · Agent and, when on, its notice names ⌘Y instead of taking ⇥. Installs that stored the old default are moved once to "Only lines starting with #".
-- **A suggestion request can no longer hang.** It ends with the card or an error ("No suggestion came back." after 37 s at the latest).
-- **Turning suggestions off takes effect at once** in every open pane, also when it is changed in another window; ⌘Y then says they are off.
-- **⌥1–⌥6 on the New tab page** open the card with the caret in the input too, without typing the Option character.
-- **A disconnected pane** no longer shows the terminal and a blinking caret behind its overlay; the terminal comes back when the session does.
-- **Linux fixes** found by running the window's tests on Ubuntu: the hint after a plain Tab on a destructive suggestion reads "Shift+Tab" (it read "ShiftTab"); the Agent page no longer pushes the Agent panel out of the window beside it; the narrowest sidebar is a little wider so its four labels fit; and the bundled JetBrains Mono and IBM Plex Mono are not used on Linux for now (see docs/native.md, Linux), the system monospace is. The window's own tests now run on Linux in CI too.
-- **No window shadow.** The Window shadow setting is gone; the window has a thin border instead (macOS).
+- **`keel serve stop` keeps its token safe.** It sends the token only to a server that proves it holds it, and never follows a redirect with it.
+- **Settings keep the last value you set.** Moving a slider or the sidebar edge quickly could leave an older value in `keel-native.json`; the last one now always wins, and a change still waiting when the window closes is saved.
+- **A notebook that cannot be saved when the window closes now says so.**
+- **Logs has a Sharing filter** for share events, which showed only under All before.
+- **Terminal sizes are capped at 1000 columns and rows** instead of wrapping to a wrong size.
+- **Under the hood:** the daemon and the window now share one vocabulary package, and the code that decides when Keel may type for you, the approve dialog, the command table, preferences and pages each live in one place. The security tests were tightened so a moved name cannot quietly disable them. Nothing else should look different; tell us if something does.
 
 ## Install
 
