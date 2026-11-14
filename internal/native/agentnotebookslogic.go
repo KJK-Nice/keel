@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12): the words of the trace, the picker,
@@ -34,22 +35,22 @@ func redactedCount(counts map[string]int) (n int) {
 }
 
 func isNotebookStep(s keelclient.TraceStep) bool {
-	return s.Status == "notebook" || s.Status == "notebook-index" || strings.HasPrefix(s.Reason, "notebook-")
+	return s.Status == wire.TraceNotebook || s.Status == wire.TraceNotebookIndex || strings.HasPrefix(s.Reason, "notebook-")
 }
 
 // notebookStepText is a trace line about notebooks: the titles sent, a notebook sent (attached) or read (the agent
 // asked), or why one was not.
 func notebookStepText(s keelclient.TraceStep) string {
-	if s.Status == "notebook-index" {
+	if s.Status == wire.TraceNotebookIndex {
 		return "Sent the titles of " + countWord(s.Count, "notebook", "notebooks") + " (not private)"
 	}
-	if s.Status == "skipped" {
+	if s.Status == wire.TraceSkipped {
 		switch s.Reason {
-		case "notebook-missing":
+		case wire.SkipNotebookMissing:
 			return "Skipped a notebook · it was deleted"
-		case "notebook-private":
+		case wire.SkipNotebookPrivate:
 			return "Not sent · a private notebook (the agent cannot read it)"
-		case "notebook-limit":
+		case wire.SkipNotebookLimit:
 			return "Stopped reading notebooks · Keel's limit for one question"
 		}
 	}
@@ -145,17 +146,17 @@ func paneWarning(p keelclient.NotebookProposal) string {
 }
 
 var refusedTexts = map[string]string{
-	"conflict":  "You changed it after the agent read it, so Keel did not apply the agent's edit. Your text is as you left it.",
-	"editing":   "You were typing in it, so Keel did not apply the agent's edit.",
-	"private":   "It is private, so the agent cannot change it.",
-	"not-read":  "The agent had not read it in this question, so Keel did not apply the edit.",
-	"not-found": "It is not a notebook the agent may change.",
-	"deleted":   "It was deleted.",
-	"no-match":  "The text the agent meant to change was not found exactly once, so nothing changed.",
-	"redacted":  "Keel had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
-	"truncated": "Keel had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
-	"too-large": "The edit would make the notebook larger than Keel allows. Nothing changed.",
-	"history":   "Keel could not keep the previous version, so it made no change.",
+	wire.RefusedConflict:  "You changed it after the agent read it, so Keel did not apply the agent's edit. Your text is as you left it.",
+	wire.RefusedEditing:   "You were typing in it, so Keel did not apply the agent's edit.",
+	wire.RefusedPrivate:   "It is private, so the agent cannot change it.",
+	wire.RefusedNotRead:   "The agent had not read it in this question, so Keel did not apply the edit.",
+	wire.RefusedNotFound:  "It is not a notebook the agent may change.",
+	wire.RefusedDeleted:   "It was deleted.",
+	wire.RefusedNoMatch:   "The text the agent meant to change was not found exactly once, so nothing changed.",
+	wire.RefusedRedacted:  "Keel had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTruncated: "Keel had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTooLarge:  "The edit would make the notebook larger than Keel allows. Nothing changed.",
+	wire.RefusedHistory:   "Keel could not keep the previous version, so it made no change.",
 }
 
 func refusedText(reason string) string {
@@ -167,18 +168,18 @@ func refusedText(reason string) string {
 
 func cardHead(p keelclient.NotebookProposal) string {
 	switch p.Kind {
-	case "create":
-		if p.Status == "refused" {
+	case wire.NotebookCreate:
+		if p.Status == wire.CardRefused {
 			return "Notebook not created"
 		}
 		return "Created notebook"
-	case "edit":
-		if p.Status == "refused" {
+	case wire.NotebookEdit:
+		if p.Status == wire.CardRefused {
 			return "Notebook not changed"
 		}
 		return "Edited notebook"
-	case "delete":
-		if p.Status == "proposed" {
+	case wire.NotebookDelete:
+		if p.Status == wire.CardProposed {
 			return "Delete notebook?"
 		}
 		return "Delete notebook"
@@ -190,40 +191,40 @@ func cardHead(p keelclient.NotebookProposal) string {
 func cardStatus(p keelclient.NotebookProposal) string {
 	k, s := p.Kind, p.Status
 	switch k {
-	case "create":
+	case wire.NotebookCreate:
 		switch s {
-		case "created":
+		case wire.CardCreated:
 			return "Created by the agent and saved to Notebooks, marked From agent."
-		case "undone":
+		case wire.CardUndone:
 			return "Undone. The notebook is in Notebooks · Recently deleted."
-		case "refused":
+		case wire.CardRefused:
 			return refusedText(p.Reason)
 		}
-	case "edit":
+	case wire.NotebookEdit:
 		switch s {
-		case "edited":
+		case wire.CardEdited:
 			return "The agent changed this notebook. Keel kept the version before it: Undo puts it back, and History has every version."
-		case "undone":
+		case wire.CardUndone:
 			return "Undone. The notebook is back to the version before the agent's edit."
-		case "refused":
+		case wire.CardRefused:
 			return refusedText(p.Reason)
 		}
-	case "delete":
+	case wire.NotebookDelete:
 		switch s {
-		case "proposed":
+		case wire.CardProposed:
 			return "The agent asks to delete this notebook. Nothing is deleted unless you confirm."
-		case "deleted":
+		case wire.CardDeleted:
 			return "Deleted. It is in Notebooks · Recently deleted."
-		case "dismissed":
+		case wire.CardDismissed:
 			return "Kept. Nothing was deleted."
-		case "restored":
+		case wire.CardRestored:
 			return "Restored to Notebooks."
 		}
 	case "":
 		switch s {
-		case "saved":
+		case wire.CardSaved:
 			return "Saved to Notebooks as a new notebook, marked From agent."
-		case "dismissed":
+		case wire.CardDismissed:
 			return "Dismissed. Nothing was saved."
 		}
 		return "A draft from an earlier version of Keel. It was not saved; ask the agent again."
@@ -244,42 +245,42 @@ const (
 func cardActions(p keelclient.NotebookProposal) []string {
 	k, s := p.Kind, p.Status
 	if p.Expired {
-		if p.NotebookID != "" && (s == "created" || s == "edited" || s == "undone" || s == "saved") && k != "delete" {
+		if p.NotebookID != "" && (s == wire.CardCreated || s == wire.CardEdited || s == wire.CardUndone || s == wire.CardSaved) && k != wire.NotebookDelete {
 			return []string{actOpen}
 		}
 		return nil
 	}
 	switch k {
-	case "create":
-		if s == "created" {
+	case wire.NotebookCreate:
+		if s == wire.CardCreated {
 			return []string{actOpen, actUndo}
 		}
-		if s == "undone" && p.VersionID != "" {
+		if s == wire.CardUndone && p.VersionID != "" {
 			return []string{actRestore}
 		}
-	case "edit":
+	case wire.NotebookEdit:
 		switch s {
-		case "edited":
+		case wire.CardEdited:
 			return []string{actOpen, actUndo}
-		case "undone", "refused":
-			if p.NotebookID != "" && p.Reason != "private" && p.Reason != "not-found" && p.Reason != "deleted" {
+		case wire.CardUndone, wire.CardRefused:
+			if p.NotebookID != "" && p.Reason != wire.RefusedPrivate && p.Reason != wire.RefusedNotFound && p.Reason != wire.RefusedDeleted {
 				return []string{actOpen}
 			}
 			return nil
 		}
-	case "delete":
+	case wire.NotebookDelete:
 		switch s {
-		case "proposed":
+		case wire.CardProposed:
 			return []string{actOpen, actKeep, actDelete}
-		case "deleted":
+		case wire.CardDeleted:
 			if p.VersionID != "" {
 				return []string{actRestore}
 			}
-		case "restored", "dismissed":
+		case wire.CardRestored, wire.CardDismissed:
 			return []string{actOpen}
 		}
 	case "":
-		if s == "saved" && p.NotebookID != "" {
+		if s == wire.CardSaved && p.NotebookID != "" {
 			return []string{actOpen}
 		}
 	}

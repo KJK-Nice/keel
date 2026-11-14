@@ -19,6 +19,9 @@ const (
 	SkipNotReadable   = "not-readable"   // Agent can read is off for its host
 	SkipReadFailed    = "read-failed"    // the read failed, or could not be logged
 	SkipNotebookLimit = "notebook-limit" // the agent asked for more notebooks than one ask reads
+
+	SkipNotebookMissing = "notebook-missing" // the notebook is gone
+	SkipNotebookPrivate = "notebook-private" // the notebook is private
 )
 
 // A card's Status. A note's and a runbook's card is open, saved or
@@ -109,4 +112,11 @@ const (
 	StepDone     = "done"
 	StepFailed   = "failed"
 	StepSkipped  = "skipped"
+)
+
+// What a TraceNotes step's NoteKind says the notes were about.
+const (
+	NoteHost  = "host"
+	NoteUser  = "user"
+	NoteGroup = "group"
 )

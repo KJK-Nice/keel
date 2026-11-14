@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of saved conversations (docs/ui-redesign.md §5.4.1, §5.4.2): the groups of the list, its labels, the
@@ -187,7 +188,7 @@ func conversationHosts(turns []convTurn) []string {
 	}
 	for _, t := range turns {
 		for _, st := range t.trace {
-			if st.Status == "read" {
+			if st.Status == wire.TraceRead {
 				add(st.Host)
 			}
 		}
@@ -211,7 +212,7 @@ func readSummary(turns []convTurn) []readRow {
 	var out []readRow
 	for _, t := range turns {
 		for _, st := range t.trace {
-			if st.Status != "read" {
+			if st.Status != wire.TraceRead {
 				continue
 			}
 			host := orElse(st.Host, "a pane")

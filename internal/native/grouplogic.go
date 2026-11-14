@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/runvars"
+	"keel/internal/wire"
 )
 
 // The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by
@@ -201,14 +202,14 @@ func usesLine(step keelclient.GroupRunStep, steps []keelclient.GroupRunStep, i i
 }
 
 var captureText = map[string]string{
-	"captured":  "captured",
-	"no-match":  "no match in the output",
-	"blocked":   "not kept: it holds a value from the vault",
-	"refused":   "not kept: a line break, control character or over 512 bytes",
-	"too-short": "not kept: under 3 bytes, too short to keep from the agent",
-	"full":      "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
-	"no-output": "not captured: the shell sent no command marks (OSC 133)",
-	"expired":   "expired",
+	wire.CaptureCaptured: "captured",
+	wire.CaptureNoMatch:  "no match in the output",
+	wire.CaptureBlocked:  "not kept: it holds a value from the vault",
+	wire.CaptureRefused:  "not kept: a line break, control character or over 512 bytes",
+	wire.CaptureTooShort: "not kept: under 3 bytes, too short to keep from the agent",
+	wire.CaptureFull:     "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
+	wire.CaptureNoOutput: "not captured: the shell sent no command marks (OSC 133)",
+	wire.CaptureExpired:  "expired",
 }
 
 // captureMask is what stands where a captured value would: never the value.
@@ -219,7 +220,7 @@ func captureView(cv *keelclient.CaptureView) (mask, text, state string) {
 	if cv == nil {
 		return "", "not captured yet", "waiting"
 	}
-	if cv.State == "captured" {
+	if cv.State == wire.CaptureCaptured {
 		return captureMask, countWord(cv.Bytes, "byte", "bytes"), "captured"
 	}
 	if t, ok := captureText[cv.State]; ok {
@@ -234,7 +235,7 @@ func expiryLine(step keelclient.GroupRunStep) string {
 	for _, c := range step.Cells {
 		for i := range c.Captures {
 			cv := &c.Captures[i]
-			if cv.State != "captured" || cv.ExpiresAt == nil {
+			if cv.State != wire.CaptureCaptured || cv.ExpiresAt == nil {
 				continue
 			}
 			if first == nil || cv.ExpiresAt.Before(*first.ExpiresAt) {

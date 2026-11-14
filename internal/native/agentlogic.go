@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
@@ -208,11 +209,11 @@ func redactedNote(counts map[string]int) string {
 // traceText is one line of the trace: what the agent read, or why not.
 func traceText(s keelclient.TraceStep) string {
 	switch s.Status {
-	case "notes":
+	case wire.TraceNotes:
 		switch s.NoteKind {
-		case "user":
+		case wire.NoteUser:
 			return fmt.Sprintf("Used your notes (%d)", s.Notes)
-		case "group":
+		case wire.NoteGroup:
 			return fmt.Sprintf("Used group notes · %s (%d)", orElse(s.Host, "a group"), s.Notes)
 		}
 		return fmt.Sprintf("Used host notes · %s (%d)", orElse(s.Host, "a host"), s.Notes)
@@ -220,22 +221,22 @@ func traceText(s keelclient.TraceStep) string {
 	if isNotebookStep(s) { // §18: the titles sent, a notebook sent or read, or why not
 		return notebookStepText(s)
 	}
-	if s.Status == "runbook" {
+	if s.Status == wire.TraceRunbook {
 		return "Used runbook · " + orElse(s.Runbook, "a runbook")
 	}
 	host := orElse(s.Host, "a pane")
 	switch {
-	case s.Status == "read" && s.Command != "": // from the shell's OSC 133 marks
+	case s.Status == wire.TraceRead && s.Command != "": // from the shell's OSC 133 marks
 		return fmt.Sprintf("Read %s · last command, %s · %d %s of output%s", host, s.Command, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
-	case s.Status == "read":
+	case s.Status == wire.TraceRead:
 		return fmt.Sprintf("Read %s · last %d %s%s", host, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
-	case s.Status != "skipped":
+	case s.Status != wire.TraceSkipped:
 		return "Used " + s.Status // a step this client has no words for: shown, never hidden
 	}
 	switch s.Reason {
-	case "not-readable":
+	case wire.SkipNotReadable:
 		return fmt.Sprintf("Skipped %s · the agent can't read this host", host)
-	case "not-open":
+	case wire.SkipNotOpen:
 		return "Skipped a pane · it is closed"
 	}
 	return fmt.Sprintf("Skipped %s · could not read it", host)

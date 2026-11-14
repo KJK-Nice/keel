@@ -679,7 +679,7 @@ func identityEntries(ids []keelclient.Identity, current string) []pickEntry {
 	found := current == ""
 	for _, id := range ids {
 		kind := "Password"
-		if id.Kind == "key" {
+		if id.Kind == keelclient.AuthKey {
 			kind = "Private key"
 		}
 		desc := kind

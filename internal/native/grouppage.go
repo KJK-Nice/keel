@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The Group page (docs/ui-redesign.md §17, board GroupRoles): one
@@ -120,7 +121,7 @@ type ansibleDrawer struct {
 }
 
 func newGroupPage() *groupPage {
-	return &groupPage{ex: ansibleDrawer{format: "ini", mode: "rolling", user: true}}
+	return &groupPage{ex: ansibleDrawer{format: wire.FormatINI, mode: wire.ModeRolling, user: true}}
 }
 
 func (p *groupPage) load(w *workspace)                { w.loadGroupPage() }

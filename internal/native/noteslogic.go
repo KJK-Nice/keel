@@ -9,6 +9,7 @@ import (
 
 	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of notes for the agent (docs/ui-redesign.md §15): the words a note and a proposed note carry. They are
@@ -144,12 +145,12 @@ func noteProposalScope(p keelclient.NoteProposal) string {
 // noteProposalDone is the line a closed proposal leaves.
 func noteProposalDone(p keelclient.NoteProposal) string {
 	switch p.Status {
-	case "saved":
+	case wire.CardSaved:
 		if p.For == "user" {
 			return "Saved to your notes"
 		}
 		return "Saved to host notes · " + orElse(p.Host, "")
-	case "dismissed":
+	case wire.CardDismissed:
 		return "Dismissed. Nothing was saved."
 	}
 	return ""

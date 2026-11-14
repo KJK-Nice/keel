@@ -15,8 +15,12 @@ func TestVocabularyValues(t *testing.T) {
 			[]string{"read", "skipped", "notes", "runbook", "notebook", "notebook-index"},
 		},
 		"skip": {
-			[]string{SkipNotOpen, SkipNotReadable, SkipReadFailed, SkipNotebookLimit},
-			[]string{"not-open", "not-readable", "read-failed", "notebook-limit"},
+			[]string{SkipNotOpen, SkipNotReadable, SkipReadFailed, SkipNotebookLimit, SkipNotebookMissing, SkipNotebookPrivate},
+			[]string{"not-open", "not-readable", "read-failed", "notebook-limit", "notebook-missing", "notebook-private"},
+		},
+		"note kind": {
+			[]string{NoteHost, NoteUser, NoteGroup},
+			[]string{"host", "user", "group"},
 		},
 		"card": {
 			[]string{CardOpen, CardSaved, CardDismissed, CardCreated, CardEdited, CardRefused, CardUndone, CardProposed, CardDeleted, CardRestored},

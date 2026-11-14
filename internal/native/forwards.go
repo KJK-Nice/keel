@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Port forwarding (docs/ui-redesign.md §5.10). Each forward opens its own SSH connection from keel serve and keeps
@@ -50,11 +51,11 @@ type tunnelStateInfo struct {
 
 func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
 	switch t.Status {
-	case "ready":
+	case wire.TunnelReady:
 		return tunnelStateInfo{"Running", "live", tunnelRunning, true}
-	case "connecting":
+	case wire.TunnelConnecting:
 		return tunnelStateInfo{"Connecting", "connecting", tunnelRunning, true}
-	case "error":
+	case wire.TunnelError:
 		label := "Failed"
 		if t.Error != "" {
 			label = "Failed · " + t.Error
@@ -66,16 +67,16 @@ func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
 
 func tunnelFlag(kind string) string {
 	switch kind {
-	case "remote":
+	case wire.TunnelRemote:
 		return "-R"
-	case "dynamic":
+	case wire.TunnelDynamic:
 		return "-D"
 	}
 	return "-L"
 }
 
 func tunnelDest(t keelclient.Tunnel) string {
-	if t.Kind == "dynamic" {
+	if t.Kind == wire.TunnelDynamic {
 		return "SOCKS5"
 	}
 	return fmt.Sprintf("%s:%d", t.DestHost, t.DestPort)
@@ -103,7 +104,7 @@ func tunnelEveryInterface(t keelclient.Tunnel) bool {
 
 // tunnelLocalAddress is what "Copy local address" copies, "" when there is none.
 func tunnelLocalAddress(t keelclient.Tunnel) string {
-	if t.Kind == "remote" {
+	if t.Kind == wire.TunnelRemote {
 		if t.DestHost == "" || t.DestPort == 0 {
 			return ""
 		}
@@ -161,7 +162,7 @@ func (w *workspace) tunnelCounts() (all, running, stopped int) {
 
 func (w *workspace) runningForwards() (n int) {
 	for _, t := range w.tunnels {
-		if t.Status == "ready" {
+		if t.Status == wire.TunnelReady {
 			n++
 		}
 	}
@@ -279,7 +280,7 @@ type forwardDialog struct {
 }
 
 func (w *workspace) newForward() {
-	w.fwdDlg = &forwardDialog{kind: "local", bindAddr: "127.0.0.1", bindPort: "0", destHost: "127.0.0.1", destPort: "5432", focus: true}
+	w.fwdDlg = &forwardDialog{kind: wire.TunnelLocal, bindAddr: "127.0.0.1", bindPort: "0", destHost: "127.0.0.1", destPort: "5432", focus: true}
 }
 
 func (w *workspace) editForward(t keelclient.Tunnel) {
@@ -295,7 +296,7 @@ func (w *workspace) editForward(t keelclient.Tunnel) {
 		d.destPort = "5432"
 	}
 	if d.kind == "" {
-		d.kind = "local"
+		d.kind = wire.TunnelLocal
 	}
 	w.fwdDlg = d
 }

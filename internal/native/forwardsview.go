@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The Port forwarding page, the sidebar's Forwards section and the forward dialog, with the Logs page's table layout
@@ -158,7 +159,7 @@ func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 		ui.Row(c).Width(fwdStatusCol).Shrink(0).Gap(space2).AlignItems(ui.Center).Children(func() {
 			stateDot(c, st.dot)
 			ui.Text(c, st.label).TextColor(ink).FontSize(captionSize).Grow(1).Shrink(1).MinWidth(0)
-			if t.Status == "error" && textBtn(c, "Retry", btnGhost) {
+			if t.Status == wire.TunnelError && textBtn(c, "Retry", btnGhost) {
 				w.act(func() { w.setTunnelOn(t, true) })
 			}
 		})
@@ -230,7 +231,7 @@ func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
 
 // ---- the dialog ----
 
-var fwdKinds = [][2]string{{"local", "Local (−L)"}, {"remote", "Remote (−R)"}, {"dynamic", "SOCKS5 (−D)"}}
+var fwdKinds = [][2]string{{wire.TunnelLocal, "Local (−L)"}, {wire.TunnelRemote, "Remote (−R)"}, {wire.TunnelDynamic, "SOCKS5 (−D)"}}
 
 func (w *workspace) forwardDialogView(c *ui.Context) {
 	d := w.fwdDlg
@@ -270,7 +271,7 @@ func (w *workspace) forwardDialogView(c *ui.Context) {
 				labeled(c, "Bind port", &d.bindPortH, func() { inputBox(c, "Bind port", &d.bindPort, "0", &d.bindPortH, true, false, 5, nil) })
 			})
 		})
-		if d.kind != "dynamic" { // SOCKS5 has no target
+		if d.kind != wire.TunnelDynamic { // SOCKS5 has no target
 			ui.Row(c).FillWidth().Gap(space3).Children(func() {
 				ui.Column(c).Grow(1).Basis(0).Children(func() {
 					labeled(c, "Dest host", &d.destHostH, func() { inputBox(c, "Dest host", &d.destHost, "127.0.0.1", &d.destHostH, true, false, 0, nil) })

@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The agent's notebooks drawn: the chips and the picker of the composer, and the card of what the agent did to a notebook. A card's buttons ask the workspace (agentnotebooks.go); none of them changes a
@@ -198,10 +199,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 		return
 	}
 	p := rec.p
-	live := p.Status == "created" || p.Status == "edited" || p.Status == "proposed"
+	live := p.Status == wire.CardCreated || p.Status == wire.CardEdited || p.Status == wire.CardProposed
 	warn := warned(p) && live && !p.Expired
 	border := line
-	if warn || (p.Kind == "delete" && p.Status == "proposed" && !p.Expired) {
+	if warn || (p.Kind == wire.NotebookDelete && p.Status == wire.CardProposed && !p.Expired) {
 		border = signal
 	}
 	head := cardHead(p)
@@ -214,16 +215,16 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	card.Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
 			glyph := "notebook"
-			if p.Kind == "delete" {
+			if p.Kind == wire.NotebookDelete {
 				glyph = "agent-trash"
 			}
 			icon(c, glyph, inkMuted)
 			label(c, head, ink)
 			ui.Spacer(c)
-			if p.Kind == "create" && p.Status == "created" {
+			if p.Kind == wire.NotebookCreate && p.Status == wire.CardCreated {
 				outlineBadge(c, "From agent")
 			}
-			if p.Kind == "edit" && p.Status == "edited" {
+			if p.Kind == wire.NotebookEdit && p.Status == wire.CardEdited {
 				outlineBadge(c, "Edited by agent")
 			}
 			if warn {
@@ -243,7 +244,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			switch {
 			case p.Expired && live:
 				cardNote(c, "agent-info", inkMuted, "Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
-			case status != "" && p.Status == "refused":
+			case status != "" && p.Status == wire.CardRefused:
 				cardNote(c, "alert", signal, status)
 			case status != "":
 				cardNote(c, "agent-info", inkMuted, status)
@@ -253,10 +254,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 					ui.Text(c, p.Body).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 				})
 			}
-			if p.Summary != "" && p.Kind != "delete" {
+			if p.Summary != "" && p.Kind != wire.NotebookDelete {
 				ui.Text(c, p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
-			if p.Summary != "" && p.Kind == "delete" {
+			if p.Summary != "" && p.Kind == wire.NotebookDelete {
 				ui.Text(c, "Why: "+p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
 			if warn {
@@ -273,7 +274,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			}
 		})
 		hairline(ui.Row(c).FillWidth().Margin(space3, 0, 0).Padding(space2, space3).Gap(space1_5).Background(w.ground(surface)), 1, 0, 0, 0).Children(func() {
-			if p.Kind != "delete" && p.Bytes > 0 {
+			if p.Kind != wire.NotebookDelete && p.Bytes > 0 {
 				size := countWord(p.Bytes, "byte", "bytes")
 				if p.Rev > 0 {
 					size += " · rev " + strconv.Itoa(p.Rev)

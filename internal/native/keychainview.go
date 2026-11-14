@@ -84,7 +84,7 @@ func (w *workspace) identityList(c *ui.Context, p *keychainPage, current string)
 			}
 			return
 		}
-		for _, g := range []struct{ kind, name string }{{"key", "SSH keys"}, {"password", "Passwords"}} {
+		for _, g := range []struct{ kind, name string }{{keelclient.AuthKey, "SSH keys"}, {keelclient.AuthPassword, "Passwords"}} {
 			ids := identitiesOfKind(shown, g.kind)
 			if len(ids) == 0 {
 				continue
@@ -107,7 +107,7 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 	r.PopoverMenu(w.identityMenu(id))
 	r.Children(func() {
 		tileIcon := "key-01"
-		if identityKind(id) != "key" {
+		if identityKind(id) != keelclient.AuthKey {
 			tileIcon = "square-lock-password"
 		}
 		ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).Background(inkMuted.Alpha(tileTintAlpha)).Children(func() {
@@ -117,7 +117,7 @@ func (w *workspace) identityRow(c *ui.Context, p *keychainPage, id keelclient.Id
 			bodyStrong(c, id.Name, ink).MinWidth(0)
 			text(c, identitySubtitle(w.hosts, id), inkMuted, itemSub, weightRegular).Font(monoStack).MinWidth(0)
 		})
-		if identityKind(id) == "key" && id.HasPassphrase {
+		if identityKind(id) == keelclient.AuthKey && id.HasPassphrase {
 			neutralBadge(c, "passphrase")
 		}
 	})
@@ -150,7 +150,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		sub += " · added " + d
 	}
 	tileIcon := "key-01"
-	if kind != "key" {
+	if kind != keelclient.AuthKey {
 		tileIcon = "square-lock-password"
 	}
 	ui.Row(c).FillWidth().Gap(space3).Children(func() {
@@ -171,7 +171,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 			user = "—"
 		}
 		kv(c, "Username", user, true)
-		if kind == "key" {
+		if kind == keelclient.AuthKey {
 			kv(c, "Private key", stored(id.HasPrivateKey, "Encrypted in the vault", "Not stored"), false)
 			kv(c, "Passphrase", stored(id.HasPassphrase, "Stored in the vault", "None"), false)
 		} else {
@@ -242,9 +242,9 @@ func (w *workspace) identityDialogView(c *ui.Context) {
 		labeled(c, "Name", &d.nameH, func() { inputBox(c, "Identity name", &f.name, "deploy key", &d.nameH, false, false, 0, nil) })
 		labeled(c, "Username", &d.userH, func() { inputBox(c, "Identity username", &f.username, "ubuntu", &d.userH, false, false, 0, nil) })
 		labeled(c, "Kind", nil, func() {
-			segControl(c, "Kind", f.kind, [][2]string{{"password", "Password"}, {"key", "Private key"}}, func(v string) { f.kind = v })
+			segControl(c, "Kind", f.kind, [][2]string{{keelclient.AuthPassword, "Password"}, {keelclient.AuthKey, "Private key"}}, func(v string) { f.kind = v })
 		})
-		if f.kind == "key" {
+		if f.kind == keelclient.AuthKey {
 			// A text area has no mask and shows the key: it is cleared when the dialog closes or
 			// the request is sent.
 			labeled(c, "Private key", &d.keyH, func() {

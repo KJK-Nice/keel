@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Runbooks (docs/ui-redesign.md §16): the page, the cards and the walk. The service is internal/httpapi/agentrunbooks.go;
@@ -50,7 +51,7 @@ func (a *agentPanel) resetMemory() {
 func (w *workspace) saveBookProposal(id string) {
 	a := w.agent
 	rec := a.books[id]
-	if rec == nil || rec.busy || rec.b.Expired || rec.b.Status != "open" {
+	if rec == nil || rec.busy || rec.b.Expired || rec.b.Status != wire.CardOpen {
 		return
 	}
 	conv := a.conv
@@ -67,7 +68,7 @@ func (w *workspace) saveBookProposal(id string) {
 		if res.Proposal != nil {
 			rec.b = *res.Proposal
 		} else {
-			rec.b.Status, rec.b.RunbookID = "saved", res.Runbook.ID
+			rec.b.Status, rec.b.RunbookID = wire.CardSaved, res.Runbook.ID
 		}
 		if t := savedRedactedToast(res.Redacted); t != "" {
 			w.say(t)

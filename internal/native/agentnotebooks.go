@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). keel serve decides everything:
@@ -202,7 +203,7 @@ func (w *workspace) nbPropAction(id, action string) {
 				rec.err = nbCardMessage(err)
 				return
 			}
-			gone := (action == actDelete || (action == actUndo && was.Kind == "create")) && was.NotebookID != ""
+			gone := (action == actDelete || (action == actUndo && was.Kind == wire.NotebookCreate)) && was.NotebookID != ""
 			if res.Proposal.ID != "" {
 				rec.p = res.Proposal
 				rec.p.Record = nil

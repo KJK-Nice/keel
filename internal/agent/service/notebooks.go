@@ -344,9 +344,9 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		if !ok {
 			// Not in the agent's list: private, or gone. Nothing of it
 			// is read or sent.
-			reason := "notebook-missing"
+			reason := wire.SkipNotebookMissing
 			if _, err := s.nbs.AgentGetNotebook(id); errors.Is(err, store.ErrNotebookPrivate) {
-				reason = "notebook-private"
+				reason = wire.SkipNotebookPrivate
 			}
 			steps = append(steps, TraceStep{Status: TraceSkipped, Reason: reason, Host: "a notebook", NotebookID: id})
 			continue
