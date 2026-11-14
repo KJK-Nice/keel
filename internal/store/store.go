@@ -380,6 +380,9 @@ type Store struct {
 	// HTTP request calls (httpapi withVault): it must not wait behind a save.
 	locked    atomic.Bool
 	needSetup bool
+	// unsavedMigration is set while what a load-time migration changed is
+	// only in memory: the vault was locked, so it is saved at the unlock.
+	unsavedMigration bool
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
 	fromEnv bool
@@ -468,38 +471,45 @@ func New(path string, opts ...Option) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
+	// Old formats are brought up to date here, once, and nowhere else:
+	// loadPlain reads an old file's shape (secrets in the clear, agent
+	// flags, the detection default) and migrateGroups its group names.
+	// What they changed is saved now, or at the unlock when the vault is
+	// locked: no read writes.
+	var pending map[string]hostSecret
 	b, err := os.ReadFile(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
+	switch {
+	case os.IsNotExist(err):
 		s.data = seed()
-		if err := s.bootstrap(); err != nil {
+	case err != nil:
+		return nil, err
+	default:
+		plain, err := loadPlain(b)
+		if err != nil {
 			return nil, err
 		}
-		return s, nil
+		s.data, pending = plain.data, plain.secrets
 	}
-	plain, err := loadPlain(b)
-	if err != nil {
-		return nil, err
-	}
-	s.data = plain.data
-	pending := plain.secrets
+	s.unsavedMigration = migrateGroups(&s.data)
 	if err := s.bootstrap(); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.locked.Load() && len(pending) > 0 {
-		for id, sec := range pending {
-			s.secrets[id] = sec
+	if s.locked.Load() {
+		if len(pending) > 0 {
+			s.secrets = pending
+			s.needSetup = true
 		}
+		return s, nil
+	}
+	for id, sec := range pending {
+		s.secrets[id] = sec
+	}
+	if len(pending) > 0 || s.unsavedMigration {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}
-	} else if s.locked.Load() && len(pending) > 0 {
-		s.secrets = pending
-		s.needSetup = true
 	}
 	return s, nil
 }
@@ -697,8 +707,15 @@ func (s *Store) Unlock(passphrase string) error {
 	if err := s.unlockScryptLocked(passphrase, false); err != nil {
 		return err
 	}
-	// Unlocking saves nothing, but every list goes from "Vault locked" to
-	// its contents.
+	if s.unsavedMigration {
+		if err := s.saveLocked(); err != nil {
+			s.changed()
+			return err
+		}
+		return nil
+	}
+	// Unlocking saves nothing else, but every list goes from "Vault
+	// locked" to its contents.
 	s.changed()
 	return nil
 }
@@ -778,15 +795,9 @@ func (s *Store) ListHosts() ([]Host, error) {
 	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	dirty := s.migrateGroupsLocked()
 	out := make([]Host, len(s.data.Hosts))
 	for i, h := range s.data.Hosts {
 		out[i] = s.viewLocked(h)
-	}
-	if dirty {
-		if err := s.saveLocked(); err != nil {
-			return nil, err
-		}
 	}
 	return out, nil
 }
@@ -866,7 +877,6 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if h.Port == 0 && !h.IsLocal() {
 		h.Port = 22
 	}
-	s.migrateGroupsLocked()
 	gid, err := s.resolveGroupRefLocked(h.GroupID, h.Group)
 	if err != nil {
 		return Host{}, err
@@ -1191,6 +1201,7 @@ func (s *Store) saveLocked() error {
 	s.mu.Lock()
 	s.noteVaultLocked(job, wroteVault)
 	if werr == nil {
+		s.unsavedMigration = false
 		s.changed()
 	}
 	return werr
@@ -1207,6 +1218,7 @@ func (s *Store) saveDurableLocked() error {
 	wroteVault, werr := s.writeSnapshot(job)
 	s.noteVaultLocked(job, wroteVault)
 	if werr == nil {
+		s.unsavedMigration = false
 		s.changed()
 	}
 	return werr

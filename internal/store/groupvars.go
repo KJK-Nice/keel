@@ -65,7 +65,6 @@ func (s *Store) SetGroupVar(groupID, name, value string) (Group, error) {
 	if s.locked.Load() {
 		return Group{}, ErrLocked
 	}
-	s.migrateGroupsLocked()
 	idx := -1
 	for i, g := range s.data.Groups {
 		if g.ID == groupID {

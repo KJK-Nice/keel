@@ -69,7 +69,6 @@ func (s *Store) GroupMembers(groupID string) (Group, []GroupMember, error) {
 	if s.locked.Load() {
 		return Group{}, nil, ErrLocked
 	}
-	s.migrateGroupsLocked()
 	g, ok := s.groupByIDLocked(groupID)
 	if !ok {
 		return Group{}, nil, ErrNotFound
@@ -125,7 +124,6 @@ func (s *Store) SetGroupRole(groupID, hostID, role string) (Group, error) {
 	if s.locked.Load() {
 		return Group{}, ErrLocked
 	}
-	s.migrateGroupsLocked()
 	idx := -1
 	for i, g := range s.data.Groups {
 		if g.ID == groupID {
