@@ -60,7 +60,7 @@ type RunbookList struct {
 	Unreadable bool      `json:"unreadable"`
 }
 
-// RunbookStepInput is a step as the editor sends it (lib/runbooks.js toInput): no risk, which keel serve rates itself.
+// RunbookStepInput is a step as the editor sends it: no risk, which keel serve rates itself.
 type RunbookStepInput struct {
 	ID          string        `json:"id"`
 	Title       string        `json:"title"`

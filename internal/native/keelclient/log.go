@@ -10,7 +10,6 @@ import (
 // LogLine is one line of a pane's connection log: Kind is "user" (what the user asked for), "work" (a step) or "fail".
 type LogLine struct{ Kind, Text string }
 
-// logMax is lib/workspace.js FAIL_LOG_MAX.
 const logMax = 40
 
 var (
@@ -25,7 +24,7 @@ var (
 	logFail = regexp.MustCompile(`(?i)fail|error|refused|timed out|timeout`)
 )
 
-// recordLog is term.js recordFailStatus and lib/workspace.js logPane: a status frame adds a line to the log. A pane that
+// recordLog: a status frame adds a line to the log. A pane that
 // is ready forgets its log; a pane that starts connecting again after a failure begins a new one; noise (attached, joined,
 // …) and a repeat of the last line add nothing; the last 40 lines are kept. prev is the status before this frame.
 func (s *State) recordLog(prev, status wire.Status, message string) {

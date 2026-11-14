@@ -27,7 +27,7 @@ func (c *Client) GroupRun(ctx context.Context, id string) (out GroupRun, err err
 	return out, err
 }
 
-// StopGroupRun is DELETE /api/agent/groupruns/{id}: its live proposals can no longer be typed. Call it only after the user
+// StopGroupRun is DELETE /api/agent/groupruns/{id}: its live proposals can then not be typed. Call it only after the user
 // confirmed.
 func (c *Client) StopGroupRun(ctx context.Context, id string) (out GroupRun, err error) {
 	err = c.do(ctx, http.MethodDelete, groupRunPath(id), nil, &out)

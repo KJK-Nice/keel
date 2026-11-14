@@ -17,18 +17,18 @@ import (
 	"keel/internal/wire"
 )
 
-// STUN is the one ICE server the app uses (joinpeer.js STUN). A peer dials the signal server named in the link and
+// STUN is the one ICE server a joiner uses. A peer dials the signal server named in the link and
 // this server, and nothing else; tests pass WithICEServers(nil).
 var STUN = []webrtc.ICEServer{{URLs: []string{sharelink.STUN}}}
 
-// The app's words (term.js joinRemote and joinpeer.js).
+// The words shown to the user.
 const (
 	msgDeclined    = "The host declined your request to join."
 	msgLost        = "Follow connection lost"
 	msgSignalEnded = "Signaling closed"
 	msgSignalFail  = "Signaling failed"
 	msgHostLeft    = "Host left"
-	msgDetached    = "\r\n\x1b[90mHost detached.\x1b[0m\r\n" // written into the terminal, as the app does
+	msgDetached    = "\r\n\x1b[90mHost detached.\x1b[0m\r\n" // written into the terminal
 )
 
 type options struct {
@@ -262,7 +262,7 @@ func (p *Peer) fail(msg string, toast bool) {
 
 // Read returns the host's terminal bytes and io.EOF once the peer is closed (Leave). A join that failed (declined, not
 // verified, lost) is not an end of the stream: Read waits, so the terminal stays blank instead of drawing its own
-// "[Disconnected]" over the app's error.
+// "[Disconnected]" over the error shown.
 func (p *Peer) Read(b []byte) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -345,14 +345,13 @@ func (p *Peer) Events() []keelclient.Event { return p.frames.Events() }
 // OnChange sets fn, called when the state changes or something is announced.
 func (p *Peer) OnChange(fn func()) { p.frames.OnChange(fn) }
 
-// TakeControl, RequestControl and GrantControl send the same control messages as the app's joined tab.
 func (p *Peer) TakeControl() error    { return p.control(wire.Control{Type: wire.TypeTakeControl}) }
 func (p *Peer) RequestControl() error { return p.control(wire.Control{Type: wire.TypeRequestControl}) }
 func (p *Peer) GrantControl(id uint64) error {
 	return p.control(wire.Control{Type: wire.TypeGrantControl, TargetID: id})
 }
 
-// ErrNoApprovedInject: a joined pane takes no snippet (Approve before type is for a local session; a later plan).
+// ErrNoApprovedInject: a joined pane takes no snippet (Approve before type is for a local session).
 //
 //lint:ignore ST1005 shown to the user in the app's words
 var ErrNoApprovedInject = errors.New("Session is not connected")

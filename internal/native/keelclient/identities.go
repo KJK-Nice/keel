@@ -83,7 +83,7 @@ func (c *Client) SaveIdentity(ctx context.Context, in IdentityInput) (out Identi
 }
 
 // DeleteIdentity is DELETE /api/identities/{id}. The server clears the identity from the hosts that use it, so the
-// Keychain page refuses to ask while a host uses it (the webview's rule, vaultview.js identityDetailHTML).
+// Keychain page refuses to ask while a host uses it.
 func (c *Client) DeleteIdentity(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/identities/"+url.PathEscape(id), nil, nil)
 }

@@ -17,9 +17,8 @@ import (
 // ErrVaultExists is a vault that already exists (409 from POST /api/vault/setup).
 var ErrVaultExists = errors.New("the vault already exists")
 
-// SetupVault is POST /api/vault/setup: it creates the vault with a passphrase. The keychain choice of the
-// webview is not a request: keel serve makes a keychain vault itself when it starts, and the webview shows the
-// choice already made (gate.js showVaultStep). A vault that exists is ErrVaultExists.
+// SetupVault is POST /api/vault/setup: it creates the vault with a passphrase. A keychain vault is not
+// a request: keel serve makes it itself when it starts. A vault that exists is ErrVaultExists.
 func (c *Client) SetupVault(ctx context.Context, passphrase string) error {
 	err := c.do(ctx, http.MethodPost, "/api/vault/setup", map[string]string{"passphrase": passphrase}, nil)
 	var se *StatusError

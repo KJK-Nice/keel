@@ -8,7 +8,6 @@ import (
 	"keel/internal/wire"
 )
 
-// The connection log follows term.js recordFailStatus and lib/workspace.js logPane.
 func TestTheConnectionLogKeepsStepsAndFailuresAndDropsNoise(t *testing.T) {
 	var s State
 	steps := []struct {
